@@ -1,9 +1,69 @@
 package trader
 
 import (
-	"testing"
+	"fmt"
 	"nofx/store"
+	tradertypes "nofx/trader/types"
+	"testing"
+	"time"
 )
+
+type fakeProtectionTrader struct {
+	cancelStopLossCalls int
+	setStopLossCalls    int
+	lastSymbol          string
+	lastPositionSide    string
+	lastQuantity        float64
+	lastStopPrice       float64
+	cancelErr           error
+	setStopLossErr      error
+}
+
+func (f *fakeProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
+func (f *fakeProtectionTrader) GetPositions() ([]map[string]interface{}, error) { return nil, nil }
+func (f *fakeProtectionTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeProtectionTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeProtectionTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeProtectionTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeProtectionTrader) SetLeverage(symbol string, leverage int) error { return nil }
+func (f *fakeProtectionTrader) SetMarginMode(symbol string, isCrossMargin bool) error { return nil }
+func (f *fakeProtectionTrader) GetMarketPrice(symbol string) (float64, error) { return 0, nil }
+func (f *fakeProtectionTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
+	f.setStopLossCalls++
+	f.lastSymbol = symbol
+	f.lastPositionSide = positionSide
+	f.lastQuantity = quantity
+	f.lastStopPrice = stopPrice
+	return f.setStopLossErr
+}
+func (f *fakeProtectionTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
+	return nil
+}
+func (f *fakeProtectionTrader) CancelStopLossOrders(symbol string) error {
+	f.cancelStopLossCalls++
+	return f.cancelErr
+}
+func (f *fakeProtectionTrader) CancelTakeProfitOrders(symbol string) error { return nil }
+func (f *fakeProtectionTrader) CancelAllOrders(symbol string) error { return nil }
+func (f *fakeProtectionTrader) CancelStopOrders(symbol string) error { return nil }
+func (f *fakeProtectionTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
+	return "", nil
+}
+func (f *fakeProtectionTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeProtectionTrader) GetClosedPnL(startTime time.Time, limit int) ([]tradertypes.ClosedPnLRecord, error) {
+	return nil, nil
+}
+func (f *fakeProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) { return nil, nil }
 
 func TestGetDrawdownMonitorInterval(t *testing.T) {
 	at := &AutoTrader{}
@@ -100,5 +160,84 @@ func TestCalculateBreakEvenStopPrice(t *testing.T) {
 	}
 	if got := calculateBreakEvenStopPrice("flat", 100, 0.1); got != 0 {
 		t.Fatalf("expected invalid side to return 0, got %.4f", got)
+	}
+}
+
+func TestApplyBreakEvenStopUsesCancelAndSetStopLoss(t *testing.T) {
+	fakeTrader := &fakeProtectionTrader{}
+	at := &AutoTrader{
+		exchange: "binance",
+		trader:   fakeTrader,
+	}
+
+	cfg := store.BreakEvenStopConfig{
+		Enabled:      true,
+		TriggerMode:  store.BreakEvenTriggerProfitPct,
+		TriggerValue: 3,
+		OffsetPct:    0.1,
+	}
+
+	if err := at.applyBreakEvenStop("BTCUSDT", "long", 2, 100, 4.5, cfg); err != nil {
+		t.Fatalf("expected break-even apply success, got %v", err)
+	}
+	if fakeTrader.cancelStopLossCalls != 1 {
+		t.Fatalf("expected 1 cancel stop-loss call, got %d", fakeTrader.cancelStopLossCalls)
+	}
+	if fakeTrader.setStopLossCalls != 1 {
+		t.Fatalf("expected 1 set stop-loss call, got %d", fakeTrader.setStopLossCalls)
+	}
+	if fakeTrader.lastSymbol != "BTCUSDT" || fakeTrader.lastPositionSide != "LONG" {
+		t.Fatalf("unexpected stop-loss target: symbol=%s side=%s", fakeTrader.lastSymbol, fakeTrader.lastPositionSide)
+	}
+	if fakeTrader.lastQuantity != 2 {
+		t.Fatalf("unexpected stop-loss quantity: %.4f", fakeTrader.lastQuantity)
+	}
+	if fakeTrader.lastStopPrice != 100.1 {
+		t.Fatalf("expected break-even stop price 100.1, got %.4f", fakeTrader.lastStopPrice)
+	}
+}
+
+func TestApplyBreakEvenStopSkipsBelowTrigger(t *testing.T) {
+	fakeTrader := &fakeProtectionTrader{}
+	at := &AutoTrader{
+		exchange: "binance",
+		trader:   fakeTrader,
+	}
+
+	cfg := store.BreakEvenStopConfig{
+		Enabled:      true,
+		TriggerMode:  store.BreakEvenTriggerProfitPct,
+		TriggerValue: 3,
+		OffsetPct:    0.1,
+	}
+
+	if err := at.applyBreakEvenStop("BTCUSDT", "long", 2, 100, 2.5, cfg); err != nil {
+		t.Fatalf("expected nil error below trigger, got %v", err)
+	}
+	if fakeTrader.cancelStopLossCalls != 0 || fakeTrader.setStopLossCalls != 0 {
+		t.Fatalf("expected no stop-loss operations below trigger, got cancel=%d set=%d", fakeTrader.cancelStopLossCalls, fakeTrader.setStopLossCalls)
+	}
+}
+
+func TestApplyBreakEvenStopReturnsCancelError(t *testing.T) {
+	fakeTrader := &fakeProtectionTrader{cancelErr: fmt.Errorf("cancel failed")}
+	at := &AutoTrader{
+		exchange: "binance",
+		trader:   fakeTrader,
+	}
+
+	cfg := store.BreakEvenStopConfig{
+		Enabled:      true,
+		TriggerMode:  store.BreakEvenTriggerProfitPct,
+		TriggerValue: 3,
+		OffsetPct:    0.1,
+	}
+
+	err := at.applyBreakEvenStop("BTCUSDT", "short", 1, 100, 5, cfg)
+	if err == nil {
+		t.Fatal("expected cancel error")
+	}
+	if fakeTrader.setStopLossCalls != 0 {
+		t.Fatalf("expected stop-loss not to be reset after cancel failure, got %d calls", fakeTrader.setStopLossCalls)
 	}
 }

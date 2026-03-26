@@ -29,6 +29,7 @@ import {
   Download,
   Upload,
   Globe,
+  X,
 } from 'lucide-react'
 import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { confirmToast, notify } from '../lib/notify'
@@ -794,6 +795,18 @@ export function StrategyStudioPage() {
                       {tr('activate')}
                     </button>
                   )}
+                  {!selectedStrategy.is_default && hasChanges && (
+                    <button
+                      onClick={() => {
+                        setEditingConfig(selectedStrategy.config)
+                        setHasChanges(false)
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-nofx-text-muted hover:text-nofx-text hover:bg-nofx-bg-lighter border border-nofx-border"
+                    >
+                      <X className="w-3 h-3" />
+                      {tr('discardChanges')}
+                    </button>
+                  )}
                   {!selectedStrategy.is_default && (
                     <button
                       onClick={handleSaveStrategy}
@@ -826,9 +839,12 @@ export function StrategyStudioPage() {
                     <button
                       onClick={() => {
                         if (!selectedStrategy?.is_default) {
-                          updateConfig('strategy_type', 'ai_trading')
-                          // Clear grid config when switching to AI trading
-                          updateConfig('grid_config', undefined)
+                          setEditingConfig(prev => prev ? {
+                            ...prev,
+                            strategy_type: 'ai_trading',
+                            grid_config: undefined,
+                          } : prev)
+                          setHasChanges(true)
                         }
                       }}
                       disabled={selectedStrategy?.is_default}
@@ -847,11 +863,12 @@ export function StrategyStudioPage() {
                     <button
                       onClick={() => {
                         if (!selectedStrategy?.is_default) {
-                          updateConfig('strategy_type', 'grid_trading')
-                          // Initialize grid config if not exists
-                          if (!editingConfig.grid_config) {
-                            updateConfig('grid_config', defaultGridConfig)
-                          }
+                          setEditingConfig(prev => prev ? {
+                            ...prev,
+                            strategy_type: 'grid_trading',
+                            grid_config: prev.grid_config || defaultGridConfig,
+                          } : prev)
+                          setHasChanges(true)
                         }
                       }}
                       disabled={selectedStrategy?.is_default}

@@ -61,6 +61,10 @@
 - `trader/replay/runner.go`
 - `trader/replay/runner_test.go`
 - 能力：读取 scenario → 驱动 paper trader → 输出结果 → 做 expected 校验
+- 本轮已继续接入：
+  - scenario-level protection 配置
+  - scenario-level regime filter 配置
+  - blocked case 验证
 
 建议数据结构：
 - market candles

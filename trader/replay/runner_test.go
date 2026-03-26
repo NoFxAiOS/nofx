@@ -1,6 +1,7 @@
 package replay
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -18,5 +19,43 @@ func TestRunScenarioSmoke(t *testing.T) {
 	}
 	if err := ValidateResult(scenario, result); err != nil {
 		t.Fatalf("expected scenario validation success, got %v", err)
+	}
+}
+
+func TestRunScenarioBlockedByFundingFilter(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "scenario.json")
+	content := `{
+  "name": "blocked-by-funding",
+  "symbol": "BTCUSDT",
+  "initial_price": 100,
+  "prices": [100, 101, 102],
+  "funding_rates": [0.02],
+  "actions": [{"type": "open_long", "quantity": 1, "leverage": 5}],
+  "regime_filter": {
+    "enabled": true,
+    "allowed_regimes": ["standard", "trending"],
+    "block_high_funding": true,
+    "max_funding_rate_abs": 0.01,
+    "require_trend_alignment": false
+  },
+  "expected": {
+    "protection_orders": 0,
+    "final_position_count": 0,
+    "blocked": true
+  }
+}`
+	if err := os.WriteFile(tmp, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write temp scenario: %v", err)
+	}
+	scenario, err := LoadScenario(tmp)
+	if err != nil {
+		t.Fatalf("expected scenario load success, got %v", err)
+	}
+	result, err := RunScenario(scenario)
+	if err != nil {
+		t.Fatalf("expected scenario run success, got %v", err)
+	}
+	if err := ValidateResult(scenario, result); err != nil {
+		t.Fatalf("expected blocked scenario validation success, got %v", err)
 	}
 }

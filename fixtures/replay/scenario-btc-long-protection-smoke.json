@@ -3,6 +3,7 @@
   "symbol": "BTCUSDT",
   "initial_price": 100,
   "prices": [100, 101, 103, 102, 105, 104],
+  "funding_rates": [0.001],
   "actions": [
     {
       "type": "open_long",
@@ -10,8 +11,21 @@
       "leverage": 5
     }
   ],
+  "protection": {
+    "mode": "full",
+    "take_profit_pct": 5,
+    "stop_loss_pct": 2
+  },
+  "regime_filter": {
+    "enabled": true,
+    "allowed_regimes": ["standard", "trending"],
+    "block_high_funding": true,
+    "max_funding_rate_abs": 0.01,
+    "require_trend_alignment": false
+  },
   "expected": {
     "protection_orders": 2,
-    "final_position_count": 1
+    "final_position_count": 1,
+    "blocked": false
   }
 }

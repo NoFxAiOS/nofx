@@ -1,6 +1,14 @@
 ## 2026-03-26
 
-### Replay runner / scenario executor 首轮落地
+### Replay runner 深化到 protection / regime filter
+- `trader/replay/runner.go` 已扩展支持：
+  - `scenario.protection`
+  - `scenario.regime_filter`
+  - `funding_rates`
+  - `blocked` 结果校验
+- `trader/replay/runner_test.go` 已新增 blocked-by-funding 场景测试
+- `fixtures/replay/scenario-btc-long-protection-smoke.json` 已升级为带 protection / regime filter 的 smoke 场景
+
 - 新增 `trader/replay/runner.go`
 - 新增 `trader/replay/runner_test.go`
 - 当前已支持：

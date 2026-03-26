@@ -76,6 +76,7 @@
 - [x] paper trader 最小实现与基础单测
 - [x] replay fixtures 目录规范与首个 smoke 场景样例
 - [x] replay runner / scenario executor 最小实现与 smoke test
+- [x] replay scenario 已接入 protection / regime filter 最小验证
 
 ## 仍需后续补强的测试项
 - [ ] AI protection mode 更完整专项测试

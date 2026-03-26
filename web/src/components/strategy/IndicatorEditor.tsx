@@ -1,6 +1,7 @@
 import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 import { indicator, ts } from '../../i18n/strategy-translations'
+import { NofxSelect } from '../ui/select'
 
 // Default NofxOS API Key
 const DEFAULT_NOFXOS_API_KEY = 'cm_568c67eae410d912c54c'
@@ -309,26 +310,22 @@ export function IndicatorEditor({
                 <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.oiRankingDesc, language)}</p>
                 {config.enable_oi_ranking && (
                   <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-                    <select
+                    <NofxSelect
                       value={config.oi_ranking_duration || '1h'}
-                      onChange={(e) => !disabled && onChange({ ...config, oi_ranking_duration: e.target.value })}
+                      onChange={(val) => !disabled && onChange({ ...config, oi_ranking_duration: val })}
                       disabled={disabled}
                       className="flex-1 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    >
-                      <option value="1h">1h</option>
-                      <option value="4h">4h</option>
-                      <option value="24h">24h</option>
-                    </select>
-                    <select
+                      options={[{ value: '1h', label: '1h' }, { value: '4h', label: '4h' }, { value: '24h', label: '24h' }]}
+                    />
+                    <NofxSelect
                       value={config.oi_ranking_limit || 10}
-                      onChange={(e) => !disabled && onChange({ ...config, oi_ranking_limit: parseInt(e.target.value) })}
+                      onChange={(val) => !disabled && onChange({ ...config, oi_ranking_limit: parseInt(val) })}
                       disabled={disabled}
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    >
-                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                      options={[5, 10, 15, 20].map(n => ({ value: n, label: String(n) }))}
+                    />
                   </div>
                 )}
               </div>
@@ -369,26 +366,22 @@ export function IndicatorEditor({
                 <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.netflowRankingDesc, language)}</p>
                 {config.enable_netflow_ranking && (
                   <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-                    <select
+                    <NofxSelect
                       value={config.netflow_ranking_duration || '1h'}
-                      onChange={(e) => !disabled && onChange({ ...config, netflow_ranking_duration: e.target.value })}
+                      onChange={(val) => !disabled && onChange({ ...config, netflow_ranking_duration: val })}
                       disabled={disabled}
                       className="flex-1 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    >
-                      <option value="1h">1h</option>
-                      <option value="4h">4h</option>
-                      <option value="24h">24h</option>
-                    </select>
-                    <select
+                      options={[{ value: '1h', label: '1h' }, { value: '4h', label: '4h' }, { value: '24h', label: '24h' }]}
+                    />
+                    <NofxSelect
                       value={config.netflow_ranking_limit || 10}
-                      onChange={(e) => !disabled && onChange({ ...config, netflow_ranking_limit: parseInt(e.target.value) })}
+                      onChange={(val) => !disabled && onChange({ ...config, netflow_ranking_limit: parseInt(val) })}
                       disabled={disabled}
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    >
-                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                      options={[5, 10, 15, 20].map(n => ({ value: n, label: String(n) }))}
+                    />
                   </div>
                 )}
               </div>
@@ -429,27 +422,27 @@ export function IndicatorEditor({
                 <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.priceRankingDesc, language)}</p>
                 {config.enable_price_ranking && (
                   <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-                    <select
+                    <NofxSelect
                       value={config.price_ranking_duration || '1h,4h,24h'}
-                      onChange={(e) => !disabled && onChange({ ...config, price_ranking_duration: e.target.value })}
+                      onChange={(val) => !disabled && onChange({ ...config, price_ranking_duration: val })}
                       disabled={disabled}
                       className="flex-1 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    >
-                      <option value="1h">1h</option>
-                      <option value="4h">4h</option>
-                      <option value="24h">24h</option>
-                      <option value="1h,4h,24h">{ts(indicator.priceRankingMulti, language)}</option>
-                    </select>
-                    <select
+                      options={[
+                        { value: '1h', label: '1h' },
+                        { value: '4h', label: '4h' },
+                        { value: '24h', label: '24h' },
+                        { value: '1h,4h,24h', label: ts(indicator.priceRankingMulti, language) },
+                      ]}
+                    />
+                    <NofxSelect
                       value={config.price_ranking_limit || 10}
-                      onChange={(e) => !disabled && onChange({ ...config, price_ranking_limit: parseInt(e.target.value) })}
+                      onChange={(val) => !disabled && onChange({ ...config, price_ranking_limit: parseInt(val) })}
                       disabled={disabled}
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    >
-                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                      options={[5, 10, 15, 20].map(n => ({ value: n, label: String(n) }))}
+                    />
                   </div>
                 )}
               </div>

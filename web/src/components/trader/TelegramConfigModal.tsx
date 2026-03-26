@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from '../../lib/api'
 import type { TelegramConfig, AIModel } from '../../types'
 import { t, type Language } from '../../i18n/translations'
+import { NofxSelect } from '../ui/select'
 
 // Step indicator (reused pattern from ExchangeConfigModal)
 function StepIndicator({ currentStep, labels }: { currentStep: number; labels: string[] }) {
@@ -133,23 +134,20 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
           {t('telegram.noEnabledModels', language)}
         </div>
       ) : (
-        <select
+        <NofxSelect
           value={selectedModelId}
-          onChange={(e) => setSelectedModelId(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl text-sm appearance-none"
+          onChange={(val) => setSelectedModelId(val)}
+          options={[
+            { value: '', label: t('telegram.autoSelect', language) },
+            ...models.map(m => ({ value: m.id, label: `${m.name} (${m.provider}${m.customModelName ? ` · ${m.customModelName}` : ''})` }))
+          ]}
+          className="w-full px-4 py-3 rounded-xl text-sm"
           style={{
             background: '#0B0E11',
             border: '1px solid #2B3139',
             color: selectedModelId ? '#EAECEF' : '#848E9C',
           }}
-        >
-          <option value="">{t('telegram.autoSelect', language)}</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name} ({m.provider}{m.customModelName ? ` · ${m.customModelName}` : ''})
-            </option>
-          ))}
-        </select>
+        />
       )}
       <div className="text-xs" style={{ color: '#848E9C' }}>
         {t('telegram.autoUseEnabled', language)}
@@ -489,23 +487,20 @@ function BoundModelSelector({
         {t('telegram.aiModelLabel', language)}
       </label>
       <div className="flex gap-2">
-        <select
+        <NofxSelect
           value={modelId}
-          onChange={(e) => setModelId(e.target.value)}
-          className="flex-1 px-3 py-2.5 rounded-xl text-sm appearance-none"
+          onChange={(val) => setModelId(val)}
+          options={[
+            { value: '', label: t('telegram.aiModelAutoSelect', language) },
+            ...models.map(m => ({ value: m.id, label: `${m.name}${m.customModelName ? ` · ${m.customModelName}` : ''}` }))
+          ]}
+          className="flex-1 px-3 py-2.5 rounded-xl text-sm"
           style={{
             background: '#0B0E11',
             border: '1px solid #2B3139',
             color: modelId ? '#EAECEF' : '#848E9C',
           }}
-        >
-          <option value="">{t('telegram.aiModelAutoSelect', language)}</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}{m.customModelName ? ` · ${m.customModelName}` : ''}
-            </option>
-          ))}
-        </select>
+        />
         <button
           onClick={handleSave}
           disabled={isSaving || modelId === currentModelId}

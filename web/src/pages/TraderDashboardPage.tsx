@@ -10,6 +10,7 @@ import { formatPrice, formatQuantity } from '../utils/format'
 import { t, type Language } from '../i18n/translations'
 import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
+import { NofxSelect } from '../components/ui/select'
 import { GridRiskPanel } from '../components/strategy/GridRiskPanel'
 import type {
     SystemStatus,
@@ -376,17 +377,12 @@ export function TraderDashboardPage({
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
                                 <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
-                                    <select
-                                        value={selectedTraderId}
-                                        onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1"
-                                    >
-                                        {traders.map((trader) => (
-                                            <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
-                                                {trader.trader_name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <NofxSelect
+                                        value={selectedTraderId || ''}
+                                        onChange={(val) => onTraderSelect(val)}
+                                        options={traders.map(t => ({ value: t.trader_id, label: t.trader_name }))}
+                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main px-2 py-1"
+                                    />
                                 </div>
                             )}
 
@@ -681,15 +677,12 @@ export function TraderDashboardPage({
                                             <div className="flex items-center gap-3">
                                                 <div className="flex items-center gap-2">
                                                     <span>{t('traderDashboard.perPage', language)}:</span>
-                                                    <select
+                                                    <NofxSelect
                                                         value={positionsPageSize}
-                                                        onChange={(e) => setPositionsPageSize(Number(e.target.value))}
-                                                        className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-nofx-text-main focus:outline-none focus:border-nofx-gold/50 transition-colors"
-                                                    >
-                                                        <option value={20}>20</option>
-                                                        <option value={50}>50</option>
-                                                        <option value={100}>100</option>
-                                                    </select>
+                                                        onChange={(val) => setPositionsPageSize(Number(val))}
+                                                        options={[{ value: 20, label: '20' }, { value: 50, label: '50' }, { value: 100, label: '100' }]}
+                                                        className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-nofx-text-main transition-colors"
+                                                    />
                                                 </div>
                                                 {totalPositionPages > 1 && (
                                                     <div className="flex items-center gap-1">
@@ -762,17 +755,12 @@ export function TraderDashboardPage({
                                 )}
                             </div>
                             {/* Limit Selector */}
-                            <select
+                            <NofxSelect
                                 value={decisionsLimit}
-                                onChange={(e) => onDecisionsLimitChange(Number(e.target.value))}
-                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent focus:outline-none"
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={20}>20</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                            </select>
+                                onChange={(val) => onDecisionsLimitChange(Number(val))}
+                                options={[{ value: 5, label: '5' }, { value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }, { value: 100, label: '100' }]}
+                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent"
+                            />
                         </div>
 
                         {/* Decisions List - Scrollable */}

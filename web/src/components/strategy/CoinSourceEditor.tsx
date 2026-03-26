@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 import { coinSource, ts } from '../../i18n/strategy-translations'
+import { NofxSelect } from '../ui/select'
 
 interface CoinSourceEditorProps {
   config: CoinSourceConfig
@@ -325,19 +326,16 @@ export function CoinSourceEditor({
                 <span className="text-sm text-nofx-text-muted">
                   {ts(coinSource.ai500Limit, language)}:
                 </span>
-                <select
+                <NofxSelect
                   value={config.ai500_limit || 10}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     !disabled &&
-                    onChange({ ...config, ai500_limit: parseInt(e.target.value) || 10 })
+                    onChange({ ...config, ai500_limit: parseInt(val) || 10 })
                   }
                   disabled={disabled}
+                  options={[1, 2, 3].map(n => ({ value: n, label: String(n) }))}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                >
-                  {[1, 2, 3].map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
+                />
               </div>
             )}
 
@@ -382,19 +380,16 @@ export function CoinSourceEditor({
                 <span className="text-sm text-nofx-text-muted">
                   {ts(coinSource.oiTopLimit, language)}:
                 </span>
-                <select
+                <NofxSelect
                   value={config.oi_top_limit || 10}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     !disabled &&
-                    onChange({ ...config, oi_top_limit: parseInt(e.target.value) || 10 })
+                    onChange({ ...config, oi_top_limit: parseInt(val) || 10 })
                   }
                   disabled={disabled}
+                  options={[1, 2, 3].map(n => ({ value: n, label: String(n) }))}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                >
-                  {[1, 2, 3].map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
+                />
               </div>
             )}
 
@@ -439,19 +434,16 @@ export function CoinSourceEditor({
                 <span className="text-sm text-nofx-text-muted">
                   {ts(coinSource.oiLowLimit, language)}:
                 </span>
-                <select
+                <NofxSelect
                   value={config.oi_low_limit || 10}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     !disabled &&
-                    onChange({ ...config, oi_low_limit: parseInt(e.target.value) || 10 })
+                    onChange({ ...config, oi_low_limit: parseInt(val) || 10 })
                   }
                   disabled={disabled}
+                  options={[1, 2, 3].map(n => ({ value: n, label: String(n) }))}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                >
-                  {[1, 2, 3].map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
+                />
               </div>
             )}
 
@@ -499,20 +491,13 @@ export function CoinSourceEditor({
               {config.use_ai500 && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
                   <span className="text-xs text-nofx-text-muted">Limit:</span>
-                  <select
+                  <NofxSelect
                     value={config.ai500_limit || 10}
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      !disabled && onChange({ ...config, ai500_limit: parseInt(e.target.value) || 10 })
-                    }}
+                    onChange={(val) => !disabled && onChange({ ...config, ai500_limit: parseInt(val) || 10 })}
                     disabled={disabled}
+                    options={[5, 10, 15, 20, 30, 50].map(n => ({ value: n, label: String(n) }))}
                     className="px-2 py-1 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {[5, 10, 15, 20, 30, 50].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
               )}
             </div>
@@ -546,20 +531,13 @@ export function CoinSourceEditor({
               {config.use_oi_top && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
                   <span className="text-xs text-nofx-text-muted">Limit:</span>
-                  <select
+                  <NofxSelect
                     value={config.oi_top_limit || 10}
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      !disabled && onChange({ ...config, oi_top_limit: parseInt(e.target.value) || 10 })
-                    }}
+                    onChange={(val) => !disabled && onChange({ ...config, oi_top_limit: parseInt(val) || 10 })}
                     disabled={disabled}
+                    options={[5, 10, 15, 20, 30, 50].map(n => ({ value: n, label: String(n) }))}
                     className="px-2 py-1 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {[5, 10, 15, 20, 30, 50].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
               )}
             </div>
@@ -593,20 +571,13 @@ export function CoinSourceEditor({
               {config.use_oi_low && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
                   <span className="text-xs text-nofx-text-muted">Limit:</span>
-                  <select
+                  <NofxSelect
                     value={config.oi_low_limit || 10}
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      !disabled && onChange({ ...config, oi_low_limit: parseInt(e.target.value) || 10 })
-                    }}
+                    onChange={(val) => !disabled && onChange({ ...config, oi_low_limit: parseInt(val) || 10 })}
                     disabled={disabled}
+                    options={[5, 10, 15, 20, 30, 50].map(n => ({ value: n, label: String(n) }))}
                     className="px-2 py-1 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {[5, 10, 15, 20, 30, 50].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
               )}
             </div>

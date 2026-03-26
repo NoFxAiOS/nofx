@@ -42,6 +42,7 @@ import { GridConfigEditor, defaultGridConfig } from '../components/strategy/Grid
 import { TokenEstimateBar } from '../components/strategy/TokenEstimateBar'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
+import { NofxSelect } from '../components/ui/select'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -653,7 +654,7 @@ export function StrategyStudioPage() {
               <Sparkles className="w-5 h-5 text-black" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-nofx-text">{tr('strategyStudio')}</h1>
+              <h1 className="text-lg font-bold text-nofx-text">{tr('title')}</h1>
               <p className="text-xs text-nofx-text-muted">{tr('subtitle')}</p>
             </div>
           </div>
@@ -971,15 +972,16 @@ export function StrategyStudioPage() {
               <div className="p-3 space-y-3">
                 {/* Controls */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select
+                  <NofxSelect
                     value={selectedVariant}
-                    onChange={(e) => setSelectedVariant(e.target.value)}
-                    className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text outline-none focus:border-nofx-gold"
-                  >
-                    <option value="balanced">{tr('balanced')}</option>
-                    <option value="aggressive">{tr('aggressive')}</option>
-                    <option value="conservative">{tr('conservative')}</option>
-                  </select>
+                    onChange={(val) => setSelectedVariant(val)}
+                    options={[
+                      { value: 'balanced', label: tr('balanced') },
+                      { value: 'aggressive', label: tr('aggressive') },
+                      { value: 'conservative', label: tr('conservative') },
+                    ]}
+                    className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                  />
                   <button
                     onClick={fetchPromptPreview}
                     disabled={isLoadingPrompt || !editingConfig}
@@ -1044,17 +1046,15 @@ export function StrategyStudioPage() {
                     <span className="text-xs font-medium text-nofx-text">{tr('selectModel')}</span>
                   </div>
                   {aiModels.length > 0 ? (
-                    <select
+                    <NofxSelect
                       value={selectedModelId}
-                      onChange={(e) => setSelectedModelId(e.target.value)}
+                      onChange={(val) => setSelectedModelId(val)}
+                      options={aiModels.map((model) => ({
+                        value: model.id,
+                        label: `${model.name} (${model.provider})`,
+                      }))}
                       className="w-full px-3 py-2 rounded-lg text-sm bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    >
-                      {aiModels.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name} ({model.provider})
-                        </option>
-                      ))}
-                    </select>
+                    />
                   ) : (
                     <div className="px-3 py-2 rounded-lg text-sm bg-nofx-danger/10 text-nofx-danger">
                       {tr('noModel')}
@@ -1062,15 +1062,16 @@ export function StrategyStudioPage() {
                   )}
 
                   <div className="flex items-center gap-2">
-                    <select
+                    <NofxSelect
                       value={selectedVariant}
-                      onChange={(e) => setSelectedVariant(e.target.value)}
+                      onChange={(val) => setSelectedVariant(val)}
+                      options={[
+                        { value: 'balanced', label: tr('balanced') },
+                        { value: 'aggressive', label: tr('aggressive') },
+                        { value: 'conservative', label: tr('conservative') },
+                      ]}
                       className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    >
-                      <option value="balanced">{tr('balanced')}</option>
-                      <option value="aggressive">{tr('aggressive')}</option>
-                      <option value="conservative">{tr('conservative')}</option>
-                    </select>
+                    />
                     <button
                       onClick={runAiTest}
                       disabled={isRunningAiTest || !editingConfig || !selectedModelId}

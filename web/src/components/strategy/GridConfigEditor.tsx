@@ -1,6 +1,7 @@
 import { Grid, DollarSign, TrendingUp, Shield, Compass } from 'lucide-react'
 import type { GridStrategyConfig } from '../../types'
 import { gridConfig, ts } from '../../i18n/strategy-translations'
+import { NofxSelect } from '../ui/select'
 
 interface GridConfigEditorProps {
   config: GridStrategyConfig
@@ -74,20 +75,21 @@ export function GridConfigEditor({
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
               {ts(gridConfig.symbolDesc, language)}
             </p>
-            <select
+            <NofxSelect
               value={config.symbol}
-              onChange={(e) => updateField('symbol', e.target.value)}
+              onChange={(val) => updateField('symbol', val)}
               disabled={disabled}
               className="w-full px-3 py-2 rounded"
               style={inputStyle}
-            >
-              <option value="BTCUSDT">BTC/USDT</option>
-              <option value="ETHUSDT">ETH/USDT</option>
-              <option value="SOLUSDT">SOL/USDT</option>
-              <option value="BNBUSDT">BNB/USDT</option>
-              <option value="XRPUSDT">XRP/USDT</option>
-              <option value="DOGEUSDT">DOGE/USDT</option>
-            </select>
+              options={[
+                { value: 'BTCUSDT', label: 'BTC/USDT' },
+                { value: 'ETHUSDT', label: 'ETH/USDT' },
+                { value: 'SOLUSDT', label: 'SOL/USDT' },
+                { value: 'BNBUSDT', label: 'BNB/USDT' },
+                { value: 'XRPUSDT', label: 'XRP/USDT' },
+                { value: 'DOGEUSDT', label: 'DOGE/USDT' },
+              ]}
+            />
           </div>
 
           {/* Investment */}
@@ -170,17 +172,18 @@ export function GridConfigEditor({
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
               {ts(gridConfig.distributionDesc, language)}
             </p>
-            <select
+            <NofxSelect
               value={config.distribution}
-              onChange={(e) => updateField('distribution', e.target.value as 'uniform' | 'gaussian' | 'pyramid')}
+              onChange={(val) => updateField('distribution', val as 'uniform' | 'gaussian' | 'pyramid')}
               disabled={disabled}
               className="w-full px-3 py-2 rounded"
               style={inputStyle}
-            >
-              <option value="uniform">{ts(gridConfig.uniform, language)}</option>
-              <option value="gaussian">{ts(gridConfig.gaussian, language)}</option>
-              <option value="pyramid">{ts(gridConfig.pyramid, language)}</option>
-            </select>
+              options={[
+                { value: 'uniform', label: ts(gridConfig.uniform, language) },
+                { value: 'gaussian', label: ts(gridConfig.gaussian, language) },
+                { value: 'pyramid', label: ts(gridConfig.pyramid, language) },
+              ]}
+            />
           </div>
         </div>
       </div>

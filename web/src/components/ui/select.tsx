@@ -77,7 +77,7 @@ export function NofxSelect({ value, onChange, options, disabled, className, styl
             <div
               key={opt.value}
               className={cn(
-                'px-3 py-1.5 cursor-pointer transition-colors whitespace-nowrap',
+                'px-3 py-1.5 text-sm cursor-pointer transition-colors whitespace-nowrap',
                 String(opt.value) === String(value)
                   ? 'bg-[#F0B90B]/10 text-[#F0B90B]'
                   : 'text-[#EAECEF] hover:bg-[#1E2329]',

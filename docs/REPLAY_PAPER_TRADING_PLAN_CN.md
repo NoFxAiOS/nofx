@@ -57,6 +57,11 @@
 ### Block C：Replay 数据与驱动模型
 目标：建立后续回放验证的最小规范。
 
+当前已落地：
+- `trader/replay/runner.go`
+- `trader/replay/runner_test.go`
+- 能力：读取 scenario → 驱动 paper trader → 输出结果 → 做 expected 校验
+
 建议数据结构：
 - market candles
 - funding snapshots
@@ -87,3 +92,4 @@
 - [x] protection lifecycle test 骨架
 - [x] paper trader 最小实现
 - [x] replay fixtures 规范
+- [x] replay runner / scenario executor 最小实现

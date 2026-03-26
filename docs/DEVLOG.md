@@ -1,6 +1,15 @@
 ## 2026-03-26
 
-### Paper trader 与 replay fixtures 首轮落地
+### Replay runner / scenario executor 首轮落地
+- 新增 `trader/replay/runner.go`
+- 新增 `trader/replay/runner_test.go`
+- 当前已支持：
+  - 读取 replay scenario
+  - 驱动 paper trader 执行 open_long / open_short smoke 场景
+  - 自动生成最小 protection orders
+  - 对 expected 结果做校验
+- 这意味着验证闭环已经从“有 paper trader + fixtures”继续推进到“可执行 replay smoke runner”
+
 - 新增最小 simulated trader：`trader/paper/trader.go`
 - 新增 paper trader 单测：`trader/paper/trader_test.go`
 - 新增 replay fixtures 规范：`fixtures/replay/README.md`

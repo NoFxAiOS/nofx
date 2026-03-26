@@ -75,11 +75,12 @@
 - [x] protection lifecycle test 骨架（验证闭环已启动）
 - [x] paper trader 最小实现与基础单测
 - [x] replay fixtures 目录规范与首个 smoke 场景样例
+- [x] replay runner / scenario executor 最小实现与 smoke test
 
 ## 仍需后续补强的测试项
 - [ ] AI protection mode 更完整专项测试
 - [ ] Regime Filter 更完整专项测试
 - [ ] 更完整的 protection 生命周期集成测试
-- [ ] replay runner / scenario executor
+- [ ] replay runner 与 protection / regime / AI protection 深度集成
 - [ ] replay / paper-trading / 仿真验证闭环
 - [ ] 收益指标 / 稳定性指标的正式回归口径

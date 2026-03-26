@@ -21,9 +21,10 @@ interface TokenEstimateResult {
 interface TokenEstimateBarProps {
   config: StrategyConfig | null
   language: Language
+  onOverflowChange?: (overflow: boolean) => void
 }
 
-export function TokenEstimateBar({ config, language }: TokenEstimateBarProps) {
+export function TokenEstimateBar({ config, language, onOverflowChange }: TokenEstimateBarProps) {
   const [estimate, setEstimate] = useState<TokenEstimateResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -66,6 +67,15 @@ export function TokenEstimateBar({ config, language }: TokenEstimateBarProps) {
     }
   }, [config])
 
+  useEffect(() => {
+    if (!estimate) {
+      onOverflowChange?.(false)
+      return
+    }
+    const maxPct = estimate.model_limits.reduce((max, ml) => Math.max(max, ml.usage_pct), 0)
+    onOverflowChange?.(maxPct >= 100)
+  }, [estimate, onOverflowChange])
+
   if (!config) return null
 
   if (isLoading && !estimate) {
@@ -87,8 +97,7 @@ export function TokenEstimateBar({ config, language }: TokenEstimateBarProps) {
   if (!strictest) return null
 
   const pct = strictest.usage_pct
-  const displayPct = Math.min(pct, 120) // cap visual bar at 120%
-  const barWidth = Math.min((displayPct / 120) * 100, 100)
+  const barWidth = Math.min(pct, 100)
 
   let barColor = '#0ECB81' // green
   let textColor = '#848E9C'

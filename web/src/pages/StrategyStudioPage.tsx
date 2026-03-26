@@ -407,7 +407,17 @@ export function StrategyStudioPage() {
       if (!response.ok) throw new Error('Failed to save strategy')
       setHasChanges(false)
       notify.success(tr('strategySaved'))
+      const savedId = selectedStrategy.id
       await fetchStrategies()
+      // Stay on the strategy we just saved instead of jumping to active
+      setStrategies(prev => {
+        const saved = prev.find(s => s.id === savedId)
+        if (saved) {
+          setSelectedStrategy(saved)
+          setEditingConfig(saved.config)
+        }
+        return prev
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {

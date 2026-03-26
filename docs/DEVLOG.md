@@ -1,4 +1,33 @@
-# NOFX 开发日志
+## 2026-03-26
+
+### 三项剩余任务集中收口
+- 新增长期模板文档：
+  - `docs/TASK_TEMPLATE.md`
+  - `docs/ACCEPTANCE_TEMPLATE.md`
+- 新增指标口径基线文档：
+  - `docs/METRICS_BASELINE_CN.md`
+- 将 `docs/TODO.md` 中“长期模板 / 收益指标 / 稳定性指标 / Phase 3”四项全部收口到完成态
+
+### Protection Phase 3 最小闭环落地
+- `store/strategy.go` 新增 `RegimeFilterConfig`
+- `kernel/engine.go` 为 AI 决策结构补入 `protection_plan`
+- 新增 `trader/protection_phase3.go`：
+  - 实现 AI protection plan → ProtectionPlan 的最小转换
+  - 实现 Regime Filter 的开仓前门禁
+  - 基于 funding / ATR14 / 趋势同向 / regime level 做最小过滤
+- `trader/protection_execution.go` 已接入 AI protection plan 优先落地路径
+- `trader/auto_trader_orders.go` 已在 open_long / open_short 前接入 regime gate
+- `api/strategy.go` 已补 `regime_filter` 配置校验
+- `web/src/components/strategy/ProtectionEditor.tsx` 已补 Phase 3 前端配置入口并修正旧阶段文案
+- `web/src/types/strategy.ts` 已同步新增 protection 类型
+
+### 当前结论
+- 原先剩余的三类事项（收口、定标、二阶段启动）已完成本轮收口
+- Protection Phase 3 已达到“最小可交付闭环”状态
+- 后续再做时，重点应转向：
+  - 更强的多规则编辑体验
+  - 更完整的专项测试
+  - replay / paper trading / 仿真验证闭环
 
 ## 2026-03-21
 

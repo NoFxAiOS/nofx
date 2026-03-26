@@ -62,6 +62,7 @@ type ProtectionConfig struct {
 	LadderTPSL         LadderTPSLConfig         `json:"ladder_tp_sl,omitempty"`
 	DrawdownTakeProfit DrawdownTakeProfitConfig `json:"drawdown_take_profit,omitempty"`
 	BreakEvenStop      BreakEvenStopConfig      `json:"break_even_stop,omitempty"`
+	RegimeFilter       RegimeFilterConfig       `json:"regime_filter,omitempty"`
 }
 
 type ProtectionMode string
@@ -122,6 +123,16 @@ type BreakEvenStopConfig struct {
 	TriggerMode  BreakEvenTriggerMode `json:"trigger_mode,omitempty"`
 	TriggerValue float64              `json:"trigger_value,omitempty"`
 	OffsetPct    float64              `json:"offset_pct,omitempty"`
+}
+
+type RegimeFilterConfig struct {
+	Enabled               bool     `json:"enabled"`
+	AllowedRegimes        []string `json:"allowed_regimes,omitempty"`
+	BlockHighFunding      bool     `json:"block_high_funding"`
+	MaxFundingRateAbs     float64  `json:"max_funding_rate_abs,omitempty"`
+	BlockHighVolatility   bool     `json:"block_high_volatility"`
+	MaxATR14Pct           float64  `json:"max_atr14_pct,omitempty"`
+	RequireTrendAlignment bool     `json:"require_trend_alignment"`
 }
 
 // GridStrategyConfig grid trading specific configuration
@@ -414,6 +425,15 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 				TriggerMode:  BreakEvenTriggerProfitPct,
 				TriggerValue: 3,
 				OffsetPct:    0.1,
+			},
+			RegimeFilter: RegimeFilterConfig{
+				Enabled:               false,
+				AllowedRegimes:        []string{"narrow", "standard", "wide"},
+				BlockHighFunding:      false,
+				MaxFundingRateAbs:     0.01,
+				BlockHighVolatility:   false,
+				MaxATR14Pct:           3.0,
+				RequireTrendAlignment: false,
 			},
 		},
 	}

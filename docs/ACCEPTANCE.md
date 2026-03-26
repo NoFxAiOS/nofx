@@ -70,12 +70,8 @@
 - [x] `cd web && npm run build` 通过
 
 ## 仍不在本轮验收闭包内的项
-- [ ] AI protection mode
-- [ ] Regime Filter
 - [ ] 更强的前端多规则编辑体验
 - [ ] replay / paper-trading / 仿真执行闭环
-- [ ] 收益指标口径正式化
-- [ ] 稳定性指标正式化
 
 ## 后续功能开发验收模板
 

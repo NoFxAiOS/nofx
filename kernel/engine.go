@@ -117,10 +117,11 @@ type Decision struct {
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
 	// Opening position parameters
-	Leverage        int     `json:"leverage,omitempty"`
-	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
-	StopLoss        float64 `json:"stop_loss,omitempty"`
-	TakeProfit      float64 `json:"take_profit,omitempty"`
+	Leverage        int               `json:"leverage,omitempty"`
+	PositionSizeUSD float64           `json:"position_size_usd,omitempty"`
+	StopLoss        float64           `json:"stop_loss,omitempty"`
+	TakeProfit      float64           `json:"take_profit,omitempty"`
+	ProtectionPlan  *AIProtectionPlan `json:"protection_plan,omitempty"`
 
 	// Grid trading parameters
 	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
@@ -132,6 +133,20 @@ type Decision struct {
 	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
 	RiskUSD    float64 `json:"risk_usd,omitempty"`   // Maximum USD risk
 	Reasoning  string  `json:"reasoning"`
+}
+
+type AIProtectionPlan struct {
+	Mode          string                   `json:"mode,omitempty"`
+	TakeProfitPct float64                  `json:"take_profit_pct,omitempty"`
+	StopLossPct   float64                  `json:"stop_loss_pct,omitempty"`
+	LadderRules   []AIProtectionLadderRule `json:"ladder_rules,omitempty"`
+}
+
+type AIProtectionLadderRule struct {
+	TakeProfitPct           float64 `json:"take_profit_pct,omitempty"`
+	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`
+	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
+	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
 }
 
 // FullDecision AI's complete decision (including chain of thought)

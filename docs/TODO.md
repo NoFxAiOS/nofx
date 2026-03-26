@@ -27,7 +27,7 @@
 - [x] 建立 `RISKS.md`
 - [x] 建立 `CHANGE_IMPACT.md`
 - [x] 建立伏羲执行工作流文档
-- [ ] 更新任务模板与验收模板为长期使用版
+- [x] 更新任务模板与验收模板为长期使用版
 
 ## P1 - 中文化收口
 - [x] 为关键入口补首轮中文注释：`main.go`
@@ -41,13 +41,13 @@
 - [x] 完成首轮低风险性能优化
 - [x] 推进首轮前端 API 收束
 - [x] 继续统一剩余散落 API 调用（已完成一轮 chart / strategy studio / wallet config 收束）
-- [ ] 确认收益相关核心指标与口径
-- [ ] 确认稳定性指标（错误率、恢复时间、状态一致性）
-- [ ] 确认是否存在测试网 / mock / replay 数据支持（已完成盘点，结论为“部分具备但不完整”）
-- [ ] 识别首个低风险高价值二次开发任务
+- [x] 确认收益相关核心指标与口径
+- [x] 确认稳定性指标（错误率、恢复时间、状态一致性）
+- [x] 确认是否存在测试网 / mock / replay 数据支持（已完成盘点，结论为“部分具备但不完整”）
+- [x] 识别首个低风险高价值二次开发任务
 - [x] Phase 1: 交易所能力矩阵抽象（首轮骨架）
 - [x] Phase 1: protection 配置结构落库（代码结构与默认值已落地）
 - [x] Phase 1: 手动 Full TP/SL UI + 执行闭环（前后端首轮已打通）
 - [x] Phase 1: 开仓后保护单闭环确认与失败平仓（首轮最小闭环已接入）
 - [x] Phase 2: Ladder TP/SL + Drawdown Take Profit + Break-even Stop（手动 ladder 执行链、drawdown 配置驱动执行、break-even 运行态执行均已落地并通过当前自动化基线）
-- [ ] Phase 3: AI protection mode + Regime Filter
+- [x] Phase 3: AI protection mode + Regime Filter

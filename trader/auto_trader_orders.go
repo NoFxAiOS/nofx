@@ -91,6 +91,9 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	if err != nil {
 		return err
 	}
+	if !at.allowDecisionByRegime(decision, marketData) {
+		return fmt.Errorf("regime filter blocked open_long for %s", decision.Symbol)
+	}
 
 	// Get balance (needed for multiple checks)
 	balance, err := at.trader.GetBalance()
@@ -219,6 +222,9 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	marketData, err := at.getExecutionMarketData(decision.Symbol)
 	if err != nil {
 		return err
+	}
+	if !at.allowDecisionByRegime(decision, marketData) {
+		return fmt.Errorf("regime filter blocked open_short for %s", decision.Symbol)
 	}
 
 	// Get balance (needed for multiple checks)

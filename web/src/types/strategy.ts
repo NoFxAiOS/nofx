@@ -103,11 +103,22 @@ export interface BreakEvenStopConfig {
   offset_pct: number;
 }
 
+export interface RegimeFilterConfig {
+  enabled: boolean;
+  allowed_regimes: string[];
+  block_high_funding: boolean;
+  max_funding_rate_abs: number;
+  block_high_volatility: boolean;
+  max_atr14_pct: number;
+  require_trend_alignment: boolean;
+}
+
 export interface ProtectionConfig {
   full_tp_sl: FullTPSLConfig;
   ladder_tp_sl: LadderTPSLConfig;
   drawdown_take_profit: DrawdownTakeProfitConfig;
   break_even_stop: BreakEvenStopConfig;
+  regime_filter: RegimeFilterConfig;
 }
 
 // Grid trading specific configuration

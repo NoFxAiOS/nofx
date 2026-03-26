@@ -68,9 +68,13 @@
 - [x] `cd web && npm test`
 - [x] `cd web && npm run build`
 
+## 本轮新增覆盖
+- [x] AI protection mode 最小执行闭环（策略配置 / AI decision protection plan / post-open apply）
+- [x] Regime Filter 开仓前门禁（allowed regimes / funding / volatility / trend alignment）
+
 ## 仍需后续补强的测试项
-- [ ] AI protection mode 专项测试
-- [ ] Regime Filter 专项测试
+- [ ] AI protection mode 更完整专项测试
+- [ ] Regime Filter 更完整专项测试
 - [ ] 更完整的 protection 生命周期集成测试
 - [ ] replay / paper-trading / 仿真验证闭环
 - [ ] 收益指标 / 稳定性指标的正式回归口径

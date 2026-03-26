@@ -31,6 +31,13 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		return err
 	}
 
+	if plan == nil && req.Decision.ProtectionPlan != nil {
+		plan, err = buildAIProtectionPlan(req.EntryPrice, req.Action, req.Decision.ProtectionPlan)
+		if err != nil {
+			return err
+		}
+	}
+
 	if plan != nil {
 		caps := at.GetProtectionCapabilities()
 		if plan.RequiresNativeOrders && (!caps.NativeStopLoss && plan.NeedsStopLoss || !caps.NativeTakeProfit && plan.NeedsTakeProfit) {
@@ -40,8 +47,8 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 			return fmt.Errorf("exchange %s cannot safely support ladder partial-close protection", at.exchange)
 		}
 
-		logger.Infof("  🛡 Applying manual protection plan: stop=%v tp=%v ladderSL=%d ladderTP=%d",
-			plan.NeedsStopLoss, plan.NeedsTakeProfit, len(plan.StopLossOrders), len(plan.TakeProfitOrders))
+		logger.Infof("  🛡 Applying %s protection plan: stop=%v tp=%v ladderSL=%d ladderTP=%d",
+			plan.Mode, plan.NeedsStopLoss, plan.NeedsTakeProfit, len(plan.StopLossOrders), len(plan.TakeProfitOrders))
 		if err := at.placeAndVerifyProtectionPlan(req.Symbol, req.PositionSide, req.Quantity, plan); err != nil {
 			return err
 		}

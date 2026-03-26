@@ -86,6 +86,16 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 		}
 	}
 
+	regime := config.Protection.RegimeFilter
+	if regime.Enabled {
+		if regime.BlockHighFunding && regime.MaxFundingRateAbs <= 0 {
+			warnings = append(warnings, "protection.regime_filter.max_funding_rate_abs must be > 0 when block_high_funding is enabled.")
+		}
+		if regime.BlockHighVolatility && regime.MaxATR14Pct <= 0 {
+			warnings = append(warnings, "protection.regime_filter.max_atr14_pct must be > 0 when block_high_volatility is enabled.")
+		}
+	}
+
 	return warnings
 }
 

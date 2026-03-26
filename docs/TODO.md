@@ -51,3 +51,4 @@
 - [x] Phase 1: 开仓后保护单闭环确认与失败平仓（首轮最小闭环已接入）
 - [x] Phase 2: Ladder TP/SL + Drawdown Take Profit + Break-even Stop（手动 ladder 执行链、drawdown 配置驱动执行、break-even 运行态执行均已落地并通过当前自动化基线）
 - [x] Phase 3: AI protection mode + Regime Filter
+- [x] 验证闭环启动：统一 fake trader harness + protection lifecycle test 骨架 + replay/paper-trading 推进方案

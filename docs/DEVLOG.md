@@ -1,6 +1,18 @@
 ## 2026-03-26
 
-### 三项剩余任务集中收口
+### 验证闭环块启动
+- 新增统一 fake trader harness：`trader/testutil/fake_trader.go`
+- 新增 protection lifecycle 测试骨架：`trader/protection_lifecycle_test.go`
+- 新增推进方案文档：`docs/REPLAY_PAPER_TRADING_PLAN_CN.md`
+- 当前目标不再停留在“盘点缺失”，而是开始把 replay / paper-trading / simulation 的测试底座落地
+
+### 当前状态
+- protection / regime / AI protection 现在已不再是孤立功能点
+- 已开始形成可复用的验证底座，便于后续继续补：
+  - protection 生命周期集成测试
+  - paper trader 最小实现
+  - replay fixtures 规范
+
 - 新增长期模板文档：
   - `docs/TASK_TEMPLATE.md`
   - `docs/ACCEPTANCE_TEMPLATE.md`

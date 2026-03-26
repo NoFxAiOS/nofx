@@ -1,6 +1,12 @@
 ## 2026-03-26
 
-### 验证闭环块启动
+### Paper trader 与 replay fixtures 首轮落地
+- 新增最小 simulated trader：`trader/paper/trader.go`
+- 新增 paper trader 单测：`trader/paper/trader_test.go`
+- 新增 replay fixtures 规范：`fixtures/replay/README.md`
+- 新增首个 smoke 场景样例：`fixtures/replay/scenario-btc-long-protection-smoke.json`
+- 当前验证闭环已从“测试骨架”推进到“可执行 paper-trading 最小实现 + fixtures 入口”
+
 - 新增统一 fake trader harness：`trader/testutil/fake_trader.go`
 - 新增 protection lifecycle 测试骨架：`trader/protection_lifecycle_test.go`
 - 新增推进方案文档：`docs/REPLAY_PAPER_TRADING_PLAN_CN.md`

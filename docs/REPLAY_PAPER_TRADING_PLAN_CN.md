@@ -11,10 +11,15 @@
 
 ## 2. 本轮已落地基础
 - 新增：`trader/testutil/fake_trader.go`
+- 新增：`trader/paper/trader.go`
+- 新增：`fixtures/replay/README.md`
+- 新增：`fixtures/replay/scenario-btc-long-protection-smoke.json`
 - 作用：
   - 统一复用假交易执行器
+  - 提供最小 paper trader 实现
   - 捕获 open orders / protection apply / close 行为
   - 为 drawdown / break-even / ladder / regime filter / AI protection 提供共享测试底座
+  - 为后续 replay fixture 和 runner 约定统一入口
 
 ## 3. 后续执行块
 
@@ -79,6 +84,6 @@
 
 当前状态：
 - [x] 统一 fake trader harness
-- [ ] protection 生命周期集成测试
-- [ ] paper trader 最小实现
-- [ ] replay fixtures 规范
+- [x] protection lifecycle test 骨架
+- [x] paper trader 最小实现
+- [x] replay fixtures 规范

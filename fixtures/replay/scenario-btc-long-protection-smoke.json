@@ -1,0 +1,17 @@
+{
+  "name": "btc-long-protection-smoke",
+  "symbol": "BTCUSDT",
+  "initial_price": 100,
+  "prices": [100, 101, 103, 102, 105, 104],
+  "actions": [
+    {
+      "type": "open_long",
+      "quantity": 1,
+      "leverage": 5
+    }
+  ],
+  "expected": {
+    "protection_orders": 2,
+    "final_position_count": 1
+  }
+}

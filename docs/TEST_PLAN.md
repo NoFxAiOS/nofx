@@ -73,11 +73,13 @@
 - [x] Regime Filter 开仓前门禁（allowed regimes / funding / volatility / trend alignment）
 - [x] 统一 fake trader harness（供 protection / replay / paper-trading 共用）
 - [x] protection lifecycle test 骨架（验证闭环已启动）
+- [x] paper trader 最小实现与基础单测
+- [x] replay fixtures 目录规范与首个 smoke 场景样例
 
 ## 仍需后续补强的测试项
 - [ ] AI protection mode 更完整专项测试
 - [ ] Regime Filter 更完整专项测试
 - [ ] 更完整的 protection 生命周期集成测试
-- [ ] paper trader 最小实现
+- [ ] replay runner / scenario executor
 - [ ] replay / paper-trading / 仿真验证闭环
 - [ ] 收益指标 / 稳定性指标的正式回归口径

@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -559,4 +560,261 @@ func (s *Strategy) SetConfig(config *StrategyConfig) error {
 	}
 	s.Config = string(data)
 	return nil
+}
+
+// ============================================================================
+// Token Estimation
+// ============================================================================
+
+// TokenEstimate holds the result of token estimation
+type TokenEstimate struct {
+	Total       int            `json:"total"`
+	Breakdown   TokenBreakdown `json:"breakdown"`
+	ModelLimits []ModelLimit   `json:"model_limits"`
+	Suggestions []string       `json:"suggestions"`
+}
+
+// TokenBreakdown shows estimated tokens per component
+type TokenBreakdown struct {
+	SystemPrompt  int `json:"system_prompt"`
+	MarketData    int `json:"market_data"`
+	RankingData   int `json:"ranking_data"`
+	QuantData     int `json:"quant_data"`
+	FixedOverhead int `json:"fixed_overhead"`
+}
+
+// ModelLimit shows token usage against a specific model's context limit
+type ModelLimit struct {
+	Name         string `json:"name"`
+	ContextLimit int    `json:"context_limit"`
+	UsagePct     int    `json:"usage_pct"`
+	Level        string `json:"level"` // "ok" | "warning" | "danger"
+}
+
+// ModelContextLimits maps provider names to their context window sizes (in tokens)
+var ModelContextLimits = map[string]int{
+	"deepseek": 131072,
+	"openai":   128000,
+	"claude":   200000,
+	"qwen":     131072,
+	"gemini":   1000000,
+	"grok":     131072,
+	"kimi":     131072,
+	"minimax":  1000000,
+}
+
+// GetContextLimit returns the context limit for a given provider
+func GetContextLimit(provider string) int {
+	if limit, ok := ModelContextLimits[provider]; ok {
+		return limit
+	}
+	return 131072 // safe default
+}
+
+// EstimateTokens estimates the total token count for a strategy configuration.
+// This is a pure computation based on config fields — no network calls.
+func (c *StrategyConfig) EstimateTokens() TokenEstimate {
+	breakdown := TokenBreakdown{}
+
+	// --- System Prompt ---
+	// Base system prompt: schema + role + rules + output format
+	baseChars := 4000 // English default
+	if c.Language == "zh" {
+		baseChars = 3000
+	}
+	// Add prompt sections
+	baseChars += len(c.PromptSections.RoleDefinition)
+	baseChars += len(c.PromptSections.TradingFrequency)
+	baseChars += len(c.PromptSections.EntryStandards)
+	baseChars += len(c.PromptSections.DecisionProcess)
+	baseChars += len(c.CustomPrompt)
+
+	if c.Language == "zh" {
+		breakdown.SystemPrompt = baseChars / 2 // CJK: ~2 chars per token
+	} else {
+		breakdown.SystemPrompt = baseChars / 4 // English: ~4 chars per token
+	}
+
+	// --- Fixed Overhead ---
+	// Time, BTC price, account info, section headers
+	breakdown.FixedOverhead = 800 / 4 // ~200 tokens
+
+	// --- Market Data ---
+	numCoins := c.getEffectiveCoinCount()
+	numTimeframes := c.getEffectiveTimeframeCount()
+	klineCount := c.Indicators.Klines.PrimaryCount
+	if klineCount <= 0 {
+		klineCount = 20
+	}
+
+	// Per coin per timeframe: kline OHLCV rows
+	charsPerCoinTF := klineCount * 80 // each OHLCV line ~80 chars
+
+	// Add enabled indicator overhead per timeframe
+	indicatorCharsPerLine := 0
+	if c.Indicators.EnableEMA {
+		indicatorCharsPerLine += 20 // EMA values appended
+	}
+	if c.Indicators.EnableMACD {
+		indicatorCharsPerLine += 30
+	}
+	if c.Indicators.EnableRSI {
+		indicatorCharsPerLine += 15
+	}
+	if c.Indicators.EnableATR {
+		indicatorCharsPerLine += 15
+	}
+	if c.Indicators.EnableBOLL {
+		indicatorCharsPerLine += 25
+	}
+	if c.Indicators.EnableVolume {
+		indicatorCharsPerLine += 10
+	}
+	charsPerCoinTF += klineCount * indicatorCharsPerLine
+
+	totalMarketChars := numCoins * numTimeframes * charsPerCoinTF
+
+	// OI + Funding per coin
+	if c.Indicators.EnableOI || c.Indicators.EnableFundingRate {
+		totalMarketChars += numCoins * 100
+	}
+
+	breakdown.MarketData = totalMarketChars / 4 // numeric data: ~4 chars per token
+
+	// --- Quant Data ---
+	if c.Indicators.EnableQuantData {
+		quantCharsPerCoin := 0
+		if c.Indicators.EnableQuantOI {
+			quantCharsPerCoin += 300
+		}
+		if c.Indicators.EnableQuantNetflow {
+			quantCharsPerCoin += 300
+		}
+		breakdown.QuantData = (numCoins * quantCharsPerCoin) / 4
+	}
+
+	// --- Ranking Data ---
+	rankingChars := 0
+	if c.Indicators.EnableOIRanking {
+		limit := c.Indicators.OIRankingLimit
+		if limit <= 0 {
+			limit = 10
+		}
+		rankingChars += limit * 60
+	}
+	if c.Indicators.EnableNetFlowRanking {
+		limit := c.Indicators.NetFlowRankingLimit
+		if limit <= 0 {
+			limit = 10
+		}
+		rankingChars += limit * 80
+	}
+	if c.Indicators.EnablePriceRanking {
+		limit := c.Indicators.PriceRankingLimit
+		if limit <= 0 {
+			limit = 10
+		}
+		// Count durations (comma-separated)
+		numDurations := 1
+		if c.Indicators.PriceRankingDuration != "" {
+			numDurations = len(strings.Split(c.Indicators.PriceRankingDuration, ","))
+		}
+		rankingChars += limit * numDurations * 40
+	}
+	breakdown.RankingData = rankingChars / 4
+
+	// --- Total with 15% safety margin ---
+	subtotal := breakdown.SystemPrompt + breakdown.MarketData + breakdown.RankingData + breakdown.QuantData + breakdown.FixedOverhead
+	total := subtotal * 115 / 100
+
+	// --- Model limits ---
+	modelLimits := make([]ModelLimit, 0, len(ModelContextLimits))
+	for name, limit := range ModelContextLimits {
+		pct := total * 100 / limit
+		level := "ok"
+		if pct >= 100 {
+			level = "danger"
+		} else if pct >= 80 {
+			level = "warning"
+		}
+		modelLimits = append(modelLimits, ModelLimit{
+			Name:         name,
+			ContextLimit: limit,
+			UsagePct:     pct,
+			Level:        level,
+		})
+	}
+
+	// --- Suggestions ---
+	var suggestions []string
+	// Find the strictest model (smallest context)
+	minLimit := 0
+	for _, limit := range ModelContextLimits {
+		if minLimit == 0 || limit < minLimit {
+			minLimit = limit
+		}
+	}
+	if minLimit > 0 && total > minLimit {
+		if numTimeframes > 1 {
+			savedPerTF := (numCoins * klineCount * (80 + indicatorCharsPerLine)) / 4 * 115 / 100
+			suggestions = append(suggestions, fmt.Sprintf("Reduce 1 timeframe to save ~%d tokens", savedPerTF))
+		}
+		if numCoins > 1 {
+			savedPerCoin := (numTimeframes * klineCount * (80 + indicatorCharsPerLine)) / 4 * 115 / 100
+			suggestions = append(suggestions, fmt.Sprintf("Reduce 1 coin to save ~%d tokens", savedPerCoin))
+		}
+		if klineCount > 15 {
+			suggestions = append(suggestions, "Reduce K-line count to 15 to save tokens")
+		}
+	}
+
+	return TokenEstimate{
+		Total:       total,
+		Breakdown:   breakdown,
+		ModelLimits: modelLimits,
+		Suggestions: suggestions,
+	}
+}
+
+// getEffectiveCoinCount returns the estimated number of coins that will be analyzed
+func (c *StrategyConfig) getEffectiveCoinCount() int {
+	count := 0
+	switch c.CoinSource.SourceType {
+	case "static":
+		count = len(c.CoinSource.StaticCoins)
+	case "ai500":
+		count = c.CoinSource.AI500Limit
+	case "oi_top":
+		count = c.CoinSource.OITopLimit
+	case "oi_low":
+		count = c.CoinSource.OILowLimit
+	case "mixed":
+		if c.CoinSource.UseAI500 {
+			count += c.CoinSource.AI500Limit
+		}
+		if c.CoinSource.UseOITop {
+			count += c.CoinSource.OITopLimit
+		}
+		if c.CoinSource.UseOILow {
+			count += c.CoinSource.OILowLimit
+		}
+	default:
+		count = c.CoinSource.AI500Limit
+	}
+	if count <= 0 {
+		count = 3
+	}
+	return count
+}
+
+// getEffectiveTimeframeCount returns the number of timeframes that will be used
+func (c *StrategyConfig) getEffectiveTimeframeCount() int {
+	if len(c.Indicators.Klines.SelectedTimeframes) > 0 {
+		return len(c.Indicators.Klines.SelectedTimeframes)
+	}
+	count := 1
+	if c.Indicators.Klines.LongerTimeframe != "" {
+		count++
+	}
+	return count
 }

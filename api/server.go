@@ -110,6 +110,7 @@ func (s *Server) setupRoutes() {
 
 		// Public strategy market (no authentication required)
 		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)
+		s.route(api, "POST", "/strategies/estimate-tokens", "Estimate token usage for a strategy config", s.handleEstimateTokens)
 
 		// Authentication related routes (no authentication required)
 		s.route(api, "POST", "/register", "Register new user", s.handleRegister)

@@ -31,6 +31,20 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 	return warnings
 }
 
+// handleEstimateTokens estimates token usage for a strategy config (no auth required, pure computation)
+func (s *Server) handleEstimateTokens(c *gin.Context) {
+	var req struct {
+		Config store.StrategyConfig `json:"config" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SafeBadRequest(c, "Invalid request parameters")
+		return
+	}
+
+	estimate := req.Config.EstimateTokens()
+	c.JSON(http.StatusOK, estimate)
+}
+
 // handlePublicStrategies Get public strategies for strategy market (no auth required)
 func (s *Server) handlePublicStrategies(c *gin.Context) {
 	strategies, err := s.store.Strategy().ListPublic()
@@ -292,10 +306,24 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	// Validate merged configuration and collect warnings
 	warnings := validateStrategyConfig(&mergedConfig)
 
+	// Token estimation warning
+	estimate := mergedConfig.EstimateTokens()
+	allExceed := true
+	for _, ml := range estimate.ModelLimits {
+		if ml.UsagePct <= 100 {
+			allExceed = false
+			break
+		}
+	}
+	if allExceed && len(estimate.ModelLimits) > 0 {
+		warnings = append(warnings, fmt.Sprintf("Estimated %d tokens exceeds all known model context limits. Consider reducing coins, timeframes, or K-line count.", estimate.Total))
+	}
+
 	response := gin.H{"message": "Strategy updated successfully"}
 	if len(warnings) > 0 {
 		response["warnings"] = warnings
 	}
+	response["token_estimate"] = estimate
 
 	c.JSON(http.StatusOK, response)
 }

@@ -38,6 +38,7 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
+import { TokenEstimateBar } from '../components/strategy/TokenEstimateBar'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 
@@ -806,6 +807,13 @@ export function StrategyStudioPage() {
                   )}
                 </div>
               </div>
+
+              {/* Token Estimate Bar */}
+              {currentStrategyType === 'ai_trading' && (
+                <div className="mb-4">
+                  <TokenEstimateBar config={editingConfig} language={language} />
+                </div>
+              )}
 
               {/* Strategy Type Selector */}
               {editingConfig && (

@@ -5,6 +5,7 @@ import { t } from '../../i18n/translations'
 import { toast } from 'sonner'
 import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../../lib/httpClient'
+import { NofxSelect } from '../ui/select'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -250,38 +251,34 @@ export function TraderConfigModal({
                   <label className="text-sm text-[#EAECEF] block mb-2">
                   {t('aiModelRequired', language)}
                   </label>
-                  <select
+                  <NofxSelect
                     value={formData.ai_model}
-                    onChange={(e) =>
-                      handleInputChange('ai_model', e.target.value)
+                    onChange={(val) =>
+                      handleInputChange('ai_model', val)
                     }
-                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                  >
-                    {availableModels.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {getShortName(model.name || model.id).toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF]"
+                    options={availableModels.map((model) => ({
+                      value: model.id,
+                      label: getShortName(model.name || model.id).toUpperCase(),
+                    }))}
+                  />
                 </div>
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">
                   {t('exchangeRequired', language)}
                   </label>
-                  <select
+                  <NofxSelect
                     value={formData.exchange_id}
-                    onChange={(e) =>
-                      handleInputChange('exchange_id', e.target.value)
+                    onChange={(val) =>
+                      handleInputChange('exchange_id', val)
                     }
-                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                  >
-                    {availableExchanges.map((exchange) => (
-                      <option key={exchange.id} value={exchange.id}>
-                        {getShortName(exchange.name || exchange.exchange_type || exchange.id).toUpperCase()}
-                        {exchange.account_name ? ` - ${exchange.account_name}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF]"
+                    options={availableExchanges.map((exchange) => ({
+                      value: exchange.id,
+                      label: getShortName(exchange.name || exchange.exchange_type || exchange.id).toUpperCase()
+                        + (exchange.account_name ? ` - ${exchange.account_name}` : ''),
+                    }))}
+                  />
                   {/* Exchange Registration Link */}
                   {formData.exchange_id && (() => {
                     // Find the selected exchange to get its type
@@ -323,22 +320,20 @@ export function TraderConfigModal({
                 <label className="text-sm text-[#EAECEF] block mb-2">
                   {t('useStrategy', language)}
                 </label>
-                <select
+                <NofxSelect
                   value={formData.strategy_id}
-                  onChange={(e) =>
-                    handleInputChange('strategy_id', e.target.value)
+                  onChange={(val) =>
+                    handleInputChange('strategy_id', val)
                   }
-                  className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                >
-                  <option value="">{t('noStrategyManual', language)}</option>
-                  {strategies.map((strategy) => (
-                    <option key={strategy.id} value={strategy.id}>
-                      {strategy.name}
-                      {strategy.is_active ? t('strategyActive', language) : ''}
-                      {strategy.is_default ? t('strategyDefault', language) : ''}
-                    </option>
-                  ))}
-                </select>
+                  className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF]"
+                  options={[
+                    { value: '', label: t('noStrategyManual', language) },
+                    ...strategies.map((strategy) => ({
+                      value: strategy.id,
+                      label: strategy.name + (strategy.is_active ? t('strategyActive', language) : '') + (strategy.is_default ? t('strategyDefault', language) : ''),
+                    })),
+                  ]}
+                />
                 {strategies.length === 0 && (
                     <p className="text-xs text-[#848E9C] mt-2">
                       {t('noStrategyHint', language)}

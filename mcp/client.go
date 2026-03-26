@@ -760,10 +760,21 @@ func ParseSSEStream(body io.Reader, onChunk func(string), onLine func()) (string
 				} `json:"delta"`
 				FinishReason *string `json:"finish_reason"`
 			} `json:"choices"`
+			Usage *struct {
+				PromptTokens     int `json:"prompt_tokens"`
+				CompletionTokens int `json:"completion_tokens"`
+				TotalTokens      int `json:"total_tokens"`
+			} `json:"usage,omitempty"`
 		}
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			continue // skip malformed chunks
 		}
+
+		if chunk.Usage != nil && chunk.Usage.TotalTokens > 0 {
+			fmt.Printf("📊 [TokenUsage] prompt=%d, completion=%d, total=%d\n",
+				chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens, chunk.Usage.TotalTokens)
+		}
+
 		if len(chunk.Choices) == 0 {
 			continue
 		}

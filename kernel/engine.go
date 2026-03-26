@@ -209,7 +209,7 @@ func NewStrategyEngine(config *store.StrategyConfig, claw402WalletKey ...string)
 		if claw402URL == "" {
 			claw402URL = "https://claw402.ai"
 		}
-		claw402Client, err := nofxos.NewClaw402DataClient(claw402URL, walletKey, nil)
+		claw402Client, err := nofxos.NewClaw402DataClient(claw402URL, walletKey, &logger.MCPLogger{})
 		if err == nil {
 			client.SetClaw402(claw402Client)
 			logger.Infof("🔗 NofxOS data routed through claw402 (%s)", claw402URL)

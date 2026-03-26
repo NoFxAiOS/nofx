@@ -46,7 +46,7 @@ export function RiskControlEditor({
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
               {ts(riskControl.maxPositionsDesc, language)}
             </p>
-            <div className="flex items-center gap-2">
+<div className="flex items-center gap-2">
               <input
                 type="number"
                 value={config.max_positions ?? 3}

@@ -31,6 +31,20 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 	return warnings
 }
 
+// handleEstimateTokens estimates token usage for a strategy config (no auth required, pure computation)
+func (s *Server) handleEstimateTokens(c *gin.Context) {
+	var req struct {
+		Config store.StrategyConfig `json:"config" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SafeBadRequest(c, "Invalid request parameters")
+		return
+	}
+
+	estimate := req.Config.EstimateTokens()
+	c.JSON(http.StatusOK, estimate)
+}
+
 // handlePublicStrategies Get public strategies for strategy market (no auth required)
 func (s *Server) handlePublicStrategies(c *gin.Context) {
 	strategies, err := s.store.Strategy().ListPublic()
@@ -287,6 +301,25 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	if err := s.store.Strategy().Update(strategy); err != nil {
 		SafeInternalError(c, "Failed to update strategy", err)
 		return
+	}
+
+	// Token overflow check — block save if all models exceed context limits
+	if mergedConfig.StrategyType == "" || mergedConfig.StrategyType == "ai_trading" {
+		estimate := mergedConfig.EstimateTokens()
+		allExceed := true
+		for _, ml := range estimate.ModelLimits {
+			if ml.UsagePct <= 100 {
+				allExceed = false
+				break
+			}
+		}
+		if allExceed && len(estimate.ModelLimits) > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":          fmt.Sprintf("Estimated %d tokens exceeds all known model context limits. Reduce coins, timeframes, or K-line count.", estimate.Total),
+				"token_estimate": estimate,
+			})
+			return
+		}
 	}
 
 	// Validate merged configuration and collect warnings

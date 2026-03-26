@@ -768,34 +768,24 @@ export function StrategyStudioPage() {
           {selectedStrategy && editingConfig ? (
             <div className="p-4">
               {/* Strategy Name & Actions */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex-1 min-w-0">
-                  <input
-                    type="text"
-                    value={selectedStrategy.name}
-                    onChange={(e) => {
-                      setSelectedStrategy({ ...selectedStrategy, name: e.target.value })
-                      setHasChanges(true)
-                    }}
-                    disabled={selectedStrategy.is_default}
-                    className="text-lg font-bold bg-transparent border-none outline-none w-full text-nofx-text placeholder-nofx-text-muted"
-                  />
-                  <input
-                    type="text"
-                    value={selectedStrategy.description || ''}
-                    onChange={(e) => {
-                      setSelectedStrategy({ ...selectedStrategy, description: e.target.value })
-                      setHasChanges(true)
-                    }}
-                    disabled={selectedStrategy.is_default}
-                    placeholder={tr('addDescription')}
-                    className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
-                  />
-                  {hasChanges && (
-                    <span className="text-xs text-nofx-gold">● {tr('unsaved')}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={selectedStrategy.name}
+                      onChange={(e) => {
+                        setSelectedStrategy({ ...selectedStrategy, name: e.target.value })
+                        setHasChanges(true)
+                      }}
+                      disabled={selectedStrategy.is_default}
+                      className="text-lg font-bold bg-transparent border-none outline-none flex-1 min-w-0 text-nofx-text placeholder-nofx-text-muted"
+                    />
+                    {hasChanges && (
+                      <span className="text-xs text-nofx-gold whitespace-nowrap">● {tr('unsaved')}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                   {!selectedStrategy.is_active && (
                     <button
                       onClick={() => handleActivateStrategy(selectedStrategy.id)}
@@ -829,6 +819,18 @@ export function StrategyStudioPage() {
                     </button>
                   )}
                 </div>
+                </div>
+                <input
+                  type="text"
+                  value={selectedStrategy.description || ''}
+                  onChange={(e) => {
+                    setSelectedStrategy({ ...selectedStrategy, description: e.target.value })
+                    setHasChanges(true)
+                  }}
+                  disabled={selectedStrategy.is_default}
+                  placeholder={tr('addDescription')}
+                  className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
+                />
               </div>
 
               {/* Token Estimate Bar */}

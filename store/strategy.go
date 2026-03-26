@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -744,6 +745,14 @@ func (c *StrategyConfig) EstimateTokens() TokenEstimate {
 			Level:        level,
 		})
 	}
+
+	// Sort by usage_pct desc, then name asc for deterministic order
+	sort.Slice(modelLimits, func(i, j int) bool {
+		if modelLimits[i].UsagePct != modelLimits[j].UsagePct {
+			return modelLimits[i].UsagePct > modelLimits[j].UsagePct
+		}
+		return modelLimits[i].Name < modelLimits[j].Name
+	})
 
 	// --- Suggestions ---
 	var suggestions []string

@@ -484,16 +484,22 @@ export function TraderDashboardPage({
                 </div>
 
                 {/* Debug Info */}
-                {account && (
-                    <div className="mb-4 px-3 py-1.5 rounded bg-black/40 border border-white/5 text-[10px] font-mono text-nofx-text-muted flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
-                        <span>SYSTEM_STATUS::ONLINE</span>
+                <div className="mb-4 px-3 py-1.5 rounded bg-black/40 border border-white/5 text-[10px] font-mono text-nofx-text-muted flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
+                    <span style={{ color: '#0ECB81' }}>SYSTEM_STATUS::ONLINE</span>
+                    {account ? (
                         <div className="flex gap-4">
                             <span>LAST_UPDATE::{lastUpdate}</span>
-                            <span>EQ::{account?.total_equity?.toFixed(2)}</span>
-                            <span>PNL::{account?.total_pnl?.toFixed(2)}</span>
+                            <span>EQ::{account.total_equity?.toFixed(2)}</span>
+                            <span>PNL::{account.total_pnl?.toFixed(2)}</span>
                         </div>
-                    </div>
-                )}
+                    ) : (
+                        <div className="flex gap-4">
+                            <span className="inline-block w-32 h-3 rounded bg-white/5 animate-pulse" />
+                            <span className="inline-block w-16 h-3 rounded bg-white/5 animate-pulse" />
+                            <span className="inline-block w-16 h-3 rounded bg-white/5 animate-pulse" />
+                        </div>
+                    )}
+                </div>
 
                 {/* Account Overview */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -504,6 +510,7 @@ export function TraderDashboardPage({
                         change={account?.total_pnl_pct || 0}
                         positive={(account?.total_pnl ?? 0) > 0}
                         icon="💰"
+                        loading={!account}
                     />
                     <StatCard
                         title={t('availableBalance', language)}
@@ -511,6 +518,7 @@ export function TraderDashboardPage({
                         unit="USDT"
                         subtitle={`${account?.available_balance && account?.total_equity ? ((account.available_balance / account.total_equity) * 100).toFixed(1) : '0.0'}% ${t('free', language)}`}
                         icon="💳"
+                        loading={!account}
                     />
                     <StatCard
                         title={t('totalPnL', language)}
@@ -519,6 +527,7 @@ export function TraderDashboardPage({
                         change={account?.total_pnl_pct || 0}
                         positive={(account?.total_pnl ?? 0) >= 0}
                         icon="📈"
+                        loading={!account}
                     />
                     <StatCard
                         title={t('positions', language)}
@@ -526,6 +535,7 @@ export function TraderDashboardPage({
                         unit="ACTIVE"
                         subtitle={`${t('margin', language)}: ${account?.margin_used_pct?.toFixed(1) || '0.0'}%`}
                         icon="📊"
+                        loading={!account}
                     />
                 </div>
 
@@ -818,6 +828,7 @@ function StatCard({
     positive,
     subtitle,
     icon,
+    loading,
 }: {
     title: string
     value: string
@@ -826,6 +837,7 @@ function StatCard({
     positive?: boolean
     subtitle?: string
     icon?: string
+    loading?: boolean
 }) {
     return (
         <div className="group nofx-glass p-5 rounded-lg transition-all duration-300 hover:bg-white/5 hover:translate-y-[-2px] border border-white/5 hover:border-nofx-gold/20 relative overflow-hidden">
@@ -835,27 +847,35 @@ function StatCard({
             <div className="text-xs mb-2 font-mono uppercase tracking-wider text-nofx-text-muted flex items-center gap-2">
                 {title}
             </div>
-            <div className="flex items-baseline gap-1 mb-1">
-                <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors">
-                    {value}
+            {loading ? (
+                <div className="space-y-2">
+                    <div className="h-7 w-24 rounded bg-white/5 animate-pulse" />
+                    <div className="h-3 w-16 rounded bg-white/5 animate-pulse" />
                 </div>
-                {unit && <span className="text-xs font-mono text-nofx-text-muted opacity-60">{unit}</span>}
-            </div>
-
-            {change !== undefined && (
-                <div className="flex items-center gap-1">
-                    <div
-                        className={`text-sm mono font-bold flex items-center gap-1 ${positive ? 'text-nofx-green' : 'text-nofx-red'}`}
-                    >
-                        <span>{positive ? '▲' : '▼'}</span>
-                        <span>{positive ? '+' : ''}{change.toFixed(2)}%</span>
+            ) : (
+                <>
+                    <div className="flex items-baseline gap-1 mb-1">
+                        <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors">
+                            {value}
+                        </div>
+                        {unit && <span className="text-xs font-mono text-nofx-text-muted opacity-60">{unit}</span>}
                     </div>
-                </div>
-            )}
-            {subtitle && (
-                <div className="text-xs mt-2 mono text-nofx-text-muted opacity-80">
-                    {subtitle}
-                </div>
+                    {change !== undefined && (
+                        <div className="flex items-center gap-1">
+                            <div
+                                className={`text-sm mono font-bold flex items-center gap-1 ${positive ? 'text-nofx-green' : 'text-nofx-red'}`}
+                            >
+                                <span>{positive ? '▲' : '▼'}</span>
+                                <span>{positive ? '+' : ''}{change.toFixed(2)}%</span>
+                            </div>
+                        </div>
+                    )}
+                    {subtitle && (
+                        <div className="text-xs mt-2 mono text-nofx-text-muted opacity-80">
+                            {subtitle}
+                        </div>
+                    )}
+                </>
             )}
         </div>
     )

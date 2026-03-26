@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext'
 import { t, type Language } from '../../i18n/translations'
 import { MetricTooltip } from '../common/MetricTooltip'
 import { formatPrice, formatQuantity } from '../../utils/format'
+import { NofxSelect } from '../ui/select'
 import type {
   HistoricalPosition,
   TraderStats,
@@ -664,23 +665,20 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             <span className="text-sm" style={{ color: '#848E9C' }}>
               {t('positionHistory.symbol', language)}:
             </span>
-            <select
+            <NofxSelect
               value={filterSymbol}
-              onChange={(e) => setFilterSymbol(e.target.value)}
+              onChange={(val) => setFilterSymbol(val)}
+              options={[
+                { value: 'all', label: t('positionHistory.allSymbols', language) },
+                ...uniqueSymbols.map(s => ({ value: s, label: (s || '').replace('USDT', '') }))
+              ]}
               className="rounded px-3 py-1.5 text-sm"
               style={{
                 background: '#0B0E11',
                 border: '1px solid #2B3139',
                 color: '#EAECEF',
               }}
-            >
-              <option value="all">{t('positionHistory.allSymbols', language)}</option>
-              {uniqueSymbols.map((symbol) => (
-                <option key={symbol} value={symbol}>
-                  {(symbol || '').replace('USDT', '')}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className="flex items-center gap-2">
@@ -708,28 +706,26 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             <span className="text-sm" style={{ color: '#848E9C' }}>
               {t('positionHistory.sort', language)}:
             </span>
-            <select
+            <NofxSelect
               value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [by, order] = e.target.value.split('-') as [
-                  'time' | 'pnl' | 'pnl_pct',
-                  'asc' | 'desc',
-                ]
+              onChange={(val) => {
+                const [by, order] = val.split('-') as ['time' | 'pnl' | 'pnl_pct', 'asc' | 'desc']
                 setSortBy(by)
                 setSortOrder(order)
               }}
+              options={[
+                { value: 'time-desc', label: t('positionHistory.latestFirst', language) },
+                { value: 'time-asc', label: t('positionHistory.oldestFirst', language) },
+                { value: 'pnl-desc', label: t('positionHistory.highestPnL', language) },
+                { value: 'pnl-asc', label: t('positionHistory.lowestPnL', language) },
+              ]}
               className="rounded px-3 py-1.5 text-sm"
               style={{
                 background: '#0B0E11',
                 border: '1px solid #2B3139',
                 color: '#EAECEF',
               }}
-            >
-              <option value="time-desc">{t('positionHistory.latestFirst', language)}</option>
-              <option value="time-asc">{t('positionHistory.oldestFirst', language)}</option>
-              <option value="pnl-desc">{t('positionHistory.highestPnL', language)}</option>
-              <option value="pnl-asc">{t('positionHistory.lowestPnL', language)}</option>
-            </select>
+            />
           </div>
         </div>
 
@@ -841,20 +837,21 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
               <span className="text-xs" style={{ color: '#848E9C' }}>
                 {language === 'zh' ? '每页' : 'Per page'}:
               </span>
-              <select
+              <NofxSelect
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(val) => setPageSize(Number(val))}
+                options={[
+                  { value: 20, label: '20' },
+                  { value: 50, label: '50' },
+                  { value: 100, label: '100' },
+                ]}
                 className="rounded px-2 py-1 text-sm"
                 style={{
                   background: '#0B0E11',
                   border: '1px solid #2B3139',
                   color: '#EAECEF',
                 }}
-              >
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
+              />
             </div>
 
             {/* Page navigation */}

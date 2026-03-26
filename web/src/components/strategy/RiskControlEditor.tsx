@@ -54,7 +54,7 @@ export function RiskControlEditor({
               }
               disabled={disabled}
               min={1}
-              max={10}
+              max={3}
               className="w-32 px-3 py-2 rounded"
               style={{
                 background: '#1E2329',

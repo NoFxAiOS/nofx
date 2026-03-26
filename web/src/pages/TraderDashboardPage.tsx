@@ -10,6 +10,7 @@ import { formatPrice, formatQuantity } from '../utils/format'
 import { t, type Language } from '../i18n/translations'
 import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
+import { NofxSelect } from '../components/ui/select'
 import { GridRiskPanel } from '../components/strategy/GridRiskPanel'
 import type {
     SystemStatus,
@@ -376,17 +377,12 @@ export function TraderDashboardPage({
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
                                 <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
-                                    <select
-                                        value={selectedTraderId}
-                                        onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1"
-                                    >
-                                        {traders.map((trader) => (
-                                            <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
-                                                {trader.trader_name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <NofxSelect
+                                        value={selectedTraderId || ''}
+                                        onChange={(val) => onTraderSelect(val)}
+                                        options={traders.map(t => ({ value: t.trader_id, label: t.trader_name }))}
+                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main px-2 py-1"
+                                    />
                                 </div>
                             )}
 
@@ -484,16 +480,22 @@ export function TraderDashboardPage({
                 </div>
 
                 {/* Debug Info */}
-                {account && (
-                    <div className="mb-4 px-3 py-1.5 rounded bg-black/40 border border-white/5 text-[10px] font-mono text-nofx-text-muted flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
-                        <span>SYSTEM_STATUS::ONLINE</span>
+                <div className="mb-4 px-3 py-1.5 rounded bg-black/40 border border-white/5 text-[10px] font-mono text-nofx-text-muted flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
+                    <span style={{ color: '#0ECB81' }}>SYSTEM_STATUS::ONLINE</span>
+                    {account ? (
                         <div className="flex gap-4">
                             <span>LAST_UPDATE::{lastUpdate}</span>
-                            <span>EQ::{account?.total_equity?.toFixed(2)}</span>
-                            <span>PNL::{account?.total_pnl?.toFixed(2)}</span>
+                            <span>EQ::{account.total_equity?.toFixed(2)}</span>
+                            <span>PNL::{account.total_pnl?.toFixed(2)}</span>
                         </div>
-                    </div>
-                )}
+                    ) : (
+                        <div className="flex gap-4">
+                            <span className="inline-block w-32 h-3 rounded bg-white/5 animate-pulse" />
+                            <span className="inline-block w-16 h-3 rounded bg-white/5 animate-pulse" />
+                            <span className="inline-block w-16 h-3 rounded bg-white/5 animate-pulse" />
+                        </div>
+                    )}
+                </div>
 
                 {/* Account Overview */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -504,6 +506,7 @@ export function TraderDashboardPage({
                         change={account?.total_pnl_pct || 0}
                         positive={(account?.total_pnl ?? 0) > 0}
                         icon="💰"
+                        loading={!account}
                     />
                     <StatCard
                         title={t('availableBalance', language)}
@@ -511,6 +514,7 @@ export function TraderDashboardPage({
                         unit="USDT"
                         subtitle={`${account?.available_balance && account?.total_equity ? ((account.available_balance / account.total_equity) * 100).toFixed(1) : '0.0'}% ${t('free', language)}`}
                         icon="💳"
+                        loading={!account}
                     />
                     <StatCard
                         title={t('totalPnL', language)}
@@ -519,6 +523,7 @@ export function TraderDashboardPage({
                         change={account?.total_pnl_pct || 0}
                         positive={(account?.total_pnl ?? 0) >= 0}
                         icon="📈"
+                        loading={!account}
                     />
                     <StatCard
                         title={t('positions', language)}
@@ -526,6 +531,7 @@ export function TraderDashboardPage({
                         unit="ACTIVE"
                         subtitle={`${t('margin', language)}: ${account?.margin_used_pct?.toFixed(1) || '0.0'}%`}
                         icon="📊"
+                        loading={!account}
                     />
                 </div>
 
@@ -671,15 +677,12 @@ export function TraderDashboardPage({
                                             <div className="flex items-center gap-3">
                                                 <div className="flex items-center gap-2">
                                                     <span>{t('traderDashboard.perPage', language)}:</span>
-                                                    <select
+                                                    <NofxSelect
                                                         value={positionsPageSize}
-                                                        onChange={(e) => setPositionsPageSize(Number(e.target.value))}
-                                                        className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-nofx-text-main focus:outline-none focus:border-nofx-gold/50 transition-colors"
-                                                    >
-                                                        <option value={20}>20</option>
-                                                        <option value={50}>50</option>
-                                                        <option value={100}>100</option>
-                                                    </select>
+                                                        onChange={(val) => setPositionsPageSize(Number(val))}
+                                                        options={[{ value: 20, label: '20' }, { value: 50, label: '50' }, { value: 100, label: '100' }]}
+                                                        className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-nofx-text-main transition-colors"
+                                                    />
                                                 </div>
                                                 {totalPositionPages > 1 && (
                                                     <div className="flex items-center gap-1">
@@ -752,17 +755,12 @@ export function TraderDashboardPage({
                                 )}
                             </div>
                             {/* Limit Selector */}
-                            <select
+                            <NofxSelect
                                 value={decisionsLimit}
-                                onChange={(e) => onDecisionsLimitChange(Number(e.target.value))}
-                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent focus:outline-none"
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={20}>20</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                            </select>
+                                onChange={(val) => onDecisionsLimitChange(Number(val))}
+                                options={[{ value: 5, label: '5' }, { value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }, { value: 100, label: '100' }]}
+                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent"
+                            />
                         </div>
 
                         {/* Decisions List - Scrollable */}
@@ -818,6 +816,7 @@ function StatCard({
     positive,
     subtitle,
     icon,
+    loading,
 }: {
     title: string
     value: string
@@ -826,6 +825,7 @@ function StatCard({
     positive?: boolean
     subtitle?: string
     icon?: string
+    loading?: boolean
 }) {
     return (
         <div className="group nofx-glass p-5 rounded-lg transition-all duration-300 hover:bg-white/5 hover:translate-y-[-2px] border border-white/5 hover:border-nofx-gold/20 relative overflow-hidden">
@@ -835,27 +835,35 @@ function StatCard({
             <div className="text-xs mb-2 font-mono uppercase tracking-wider text-nofx-text-muted flex items-center gap-2">
                 {title}
             </div>
-            <div className="flex items-baseline gap-1 mb-1">
-                <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors">
-                    {value}
+            {loading ? (
+                <div className="space-y-2">
+                    <div className="h-7 w-24 rounded bg-white/5 animate-pulse" />
+                    <div className="h-3 w-16 rounded bg-white/5 animate-pulse" />
                 </div>
-                {unit && <span className="text-xs font-mono text-nofx-text-muted opacity-60">{unit}</span>}
-            </div>
-
-            {change !== undefined && (
-                <div className="flex items-center gap-1">
-                    <div
-                        className={`text-sm mono font-bold flex items-center gap-1 ${positive ? 'text-nofx-green' : 'text-nofx-red'}`}
-                    >
-                        <span>{positive ? '▲' : '▼'}</span>
-                        <span>{positive ? '+' : ''}{change.toFixed(2)}%</span>
+            ) : (
+                <>
+                    <div className="flex items-baseline gap-1 mb-1">
+                        <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors">
+                            {value}
+                        </div>
+                        {unit && <span className="text-xs font-mono text-nofx-text-muted opacity-60">{unit}</span>}
                     </div>
-                </div>
-            )}
-            {subtitle && (
-                <div className="text-xs mt-2 mono text-nofx-text-muted opacity-80">
-                    {subtitle}
-                </div>
+                    {change !== undefined && (
+                        <div className="flex items-center gap-1">
+                            <div
+                                className={`text-sm mono font-bold flex items-center gap-1 ${positive ? 'text-nofx-green' : 'text-nofx-red'}`}
+                            >
+                                <span>{positive ? '▲' : '▼'}</span>
+                                <span>{positive ? '+' : ''}{change.toFixed(2)}%</span>
+                            </div>
+                        </div>
+                    )}
+                    {subtitle && (
+                        <div className="text-xs mt-2 mono text-nofx-text-muted opacity-80">
+                            {subtitle}
+                        </div>
+                    )}
+                </>
             )}
         </div>
     )

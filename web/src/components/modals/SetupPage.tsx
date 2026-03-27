@@ -3,14 +3,19 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { DeepVoidBackground } from '../common/DeepVoidBackground'
 import { invalidateSystemConfig } from '../../lib/config'
+import { OnboardingModeSelector } from '../auth/OnboardingModeSelector'
+import type { UserMode } from '../../lib/onboarding'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 export function SetupPage() {
+  const { language } = useLanguage()
   const { register } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState<UserMode>('beginner')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,11 +25,10 @@ export function SetupPage() {
       return
     }
     setLoading(true)
-    const result = await register(email, password)
+    const result = await register(email, password, undefined, mode)
     setLoading(false)
     if (result.success) {
       invalidateSystemConfig()
-      window.location.href = '/traders'
     } else {
       setError(result.message || 'Setup failed, please try again')
     }
@@ -86,6 +90,12 @@ export function SetupPage() {
                   </button>
                 </div>
               </div>
+
+              <OnboardingModeSelector
+                language={language}
+                mode={mode}
+                onChange={setMode}
+              />
 
               {/* Error */}
               {error && (

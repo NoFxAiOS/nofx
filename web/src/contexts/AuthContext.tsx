@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getSystemConfig } from '../lib/config'
 import { reset401Flag, httpClient } from '../lib/httpClient'
+import { useLanguage } from './LanguageContext'
 
 interface User {
   id: string
@@ -37,6 +38,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { language } = useLanguage()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -190,7 +192,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string
       password: string
       beta_code?: string
-    } = { email, password }
+      lang?: string
+    } = { email, password, lang: language }
     if (betaCode) {
       requestBody.beta_code = betaCode
     }

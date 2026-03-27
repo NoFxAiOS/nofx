@@ -1167,6 +1167,9 @@ export const translations = {
       close: 'Close',
       showingPositions: 'Showing {shown} of {total} positions',
       perPage: 'Per page',
+      accountFetchFailed: 'DATA_FETCH::FAILED — Account data unavailable, check connection',
+      positionsFetchFailed: 'Position data unavailable',
+      decisionsFetchFailed: 'Decision data unavailable',
     },
 
     // AITradersPage toast messages
@@ -2467,6 +2470,9 @@ export const translations = {
       close: '平仓',
       showingPositions: '显示 {shown} / {total} 个持仓',
       perPage: '每页',
+      accountFetchFailed: 'DATA_FETCH::FAILED — 账户数据请求失败，请检查连接',
+      positionsFetchFailed: '持仓数据请求失败',
+      decisionsFetchFailed: '决策记录请求失败',
     },
 
     aiTradersToast: {
@@ -3570,6 +3576,9 @@ export const translations = {
       close: 'Tutup',
       showingPositions: 'Menampilkan {shown} dari {total} posisi',
       perPage: 'Per halaman',
+      accountFetchFailed: 'DATA_FETCH::FAILED — Data akun tidak tersedia, periksa koneksi',
+      positionsFetchFailed: 'Data posisi tidak tersedia',
+      decisionsFetchFailed: 'Data keputusan tidak tersedia',
     },
 
     aiTradersToast: {

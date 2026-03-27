@@ -602,16 +602,28 @@ type ModelLimit struct {
 	Level        string `json:"level"` // "ok" | "warning" | "danger"
 }
 
+// Context window sizes (tokens) for each model family
+const (
+	contextLimitDeepSeek = 131_072   // 128K
+	contextLimitOpenAI   = 128_000   // 128K
+	contextLimitClaude   = 200_000   // 200K
+	contextLimitQwen     = 131_072   // 128K
+	contextLimitGemini   = 1_000_000 // 1M
+	contextLimitGrok     = 131_072   // 128K
+	contextLimitKimi     = 131_072   // 128K
+	contextLimitMinimax  = 1_000_000 // 1M
+)
+
 // ModelContextLimits maps provider names to their context window sizes (in tokens)
 var ModelContextLimits = map[string]int{
-	"deepseek": 131072,
-	"openai":   128000,
-	"claude":   200000,
-	"qwen":     131072,
-	"gemini":   1000000,
-	"grok":     131072,
-	"kimi":     131072,
-	"minimax":  1000000,
+	"deepseek": contextLimitDeepSeek,
+	"openai":   contextLimitOpenAI,
+	"claude":   contextLimitClaude,
+	"qwen":     contextLimitQwen,
+	"gemini":   contextLimitGemini,
+	"grok":     contextLimitGrok,
+	"kimi":     contextLimitKimi,
+	"minimax":  contextLimitMinimax,
 }
 
 // GetContextLimit returns the context limit for a given provider
@@ -619,7 +631,7 @@ func GetContextLimit(provider string) int {
 	if limit, ok := ModelContextLimits[provider]; ok {
 		return limit
 	}
-	return 131072 // safe default
+	return contextLimitDeepSeek // safe default
 }
 
 // GetContextLimitForClient returns context limit for a provider+model pair.
@@ -639,6 +651,10 @@ func GetContextLimitForClient(provider, model string) int {
 			return ModelContextLimits["kimi"]
 		case strings.HasPrefix(model, "qwen"):
 			return ModelContextLimits["qwen"]
+		case strings.HasPrefix(model, "minimax"):
+			return ModelContextLimits["minimax"]
+		case strings.HasPrefix(model, "deepseek"):
+			return ModelContextLimits["deepseek"]
 		default:
 			return ModelContextLimits["deepseek"]
 		}

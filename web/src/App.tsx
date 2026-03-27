@@ -323,8 +323,8 @@ function App() {
   const selectedTrader = traders?.find((t) => t.trader_id === selectedTraderId)
 
   const effectiveAccount = account
-  const effectivePositions = (positionsPollOff && !positions) ? [] as Position[] : positions
-  const effectiveDecisions = (decisionsPollOff && !decisions) ? [] as DecisionRecord[] : decisions
+  const effectivePositions = positions
+  const effectiveDecisions = decisions
 
   // Handle routing
   useEffect(() => {
@@ -544,7 +544,9 @@ function App() {
                 account={effectiveAccount}
                 accountFailed={accountPollOff}
                 positions={effectivePositions}
+                positionsFailed={positionsPollOff}
                 decisions={effectiveDecisions}
+                decisionsFailed={decisionsPollOff}
                 decisionsLimit={decisionsLimit}
                 onDecisionsLimitChange={setDecisionsLimit}
                 stats={stats}

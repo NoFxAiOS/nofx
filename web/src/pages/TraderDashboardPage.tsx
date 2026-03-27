@@ -491,11 +491,7 @@ export function TraderDashboardPage({
                             <span>PNL::{account.total_pnl?.toFixed(2)}</span>
                         </div>
                     ) : accountFailed ? (
-                        <div className="flex gap-4">
-                            <span>LAST_UPDATE::--</span>
-                            <span>EQ::--</span>
-                            <span>PNL::--</span>
-                        </div>
+                        <span style={{ color: '#F6465D' }}>DATA_FETCH::FAILED — 账户数据请求失败，请检查连接</span>
                     ) : (
                         <div className="flex gap-4">
                             <span className="inline-block w-32 h-3 rounded bg-white/5 animate-pulse" />

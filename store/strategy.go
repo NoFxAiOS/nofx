@@ -12,7 +12,7 @@ import (
 
 // Hard limits to prevent token explosion in AI requests
 const (
-	MaxCandidateCoins = 3
+	MaxCandidateCoins = 50
 	MaxPositions      = 3
 	MaxTimeframes     = 4
 	MinKlineCount     = 10
@@ -620,6 +620,30 @@ func GetContextLimit(provider string) int {
 		return limit
 	}
 	return 131072 // safe default
+}
+
+// GetContextLimitForClient returns context limit for a provider+model pair.
+// For claw402, the underlying model is inferred from the model name prefix.
+func GetContextLimitForClient(provider, model string) int {
+	if provider == "claw402" {
+		switch {
+		case strings.HasPrefix(model, "claude"):
+			return ModelContextLimits["claude"]
+		case strings.HasPrefix(model, "gpt"), strings.HasPrefix(model, "o1"), strings.HasPrefix(model, "o3"):
+			return ModelContextLimits["openai"]
+		case strings.HasPrefix(model, "gemini"):
+			return ModelContextLimits["gemini"]
+		case strings.HasPrefix(model, "grok"):
+			return ModelContextLimits["grok"]
+		case strings.HasPrefix(model, "kimi"):
+			return ModelContextLimits["kimi"]
+		case strings.HasPrefix(model, "qwen"):
+			return ModelContextLimits["qwen"]
+		default:
+			return ModelContextLimits["deepseek"]
+		}
+	}
+	return GetContextLimit(provider)
 }
 
 // EstimateTokens estimates the total token count for a strategy configuration.

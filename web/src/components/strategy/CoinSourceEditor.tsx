@@ -71,7 +71,7 @@ export function CoinSourceEditor({
     return xyzDexAssets.has(base)
   }
 
-  const MAX_STATIC_COINS = 3
+  const MAX_STATIC_COINS = 50
 
   const showToast = (msg: string) => {
     const toast = document.createElement('div')
@@ -333,7 +333,7 @@ export function CoinSourceEditor({
                     onChange({ ...config, ai500_limit: parseInt(val) || 10 })
                   }
                   disabled={disabled}
-                  options={[1, 2, 3].map(n => ({ value: n, label: String(n) }))}
+                  options={[3, 5, 10, 20, 30, 40, 50].map(n => ({ value: n, label: String(n) }))}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 />
               </div>
@@ -387,7 +387,7 @@ export function CoinSourceEditor({
                     onChange({ ...config, oi_top_limit: parseInt(val) || 10 })
                   }
                   disabled={disabled}
-                  options={[1, 2, 3].map(n => ({ value: n, label: String(n) }))}
+                  options={[3, 5, 10, 20, 30, 40, 50].map(n => ({ value: n, label: String(n) }))}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 />
               </div>
@@ -441,7 +441,7 @@ export function CoinSourceEditor({
                     onChange({ ...config, oi_low_limit: parseInt(val) || 10 })
                   }
                   disabled={disabled}
-                  options={[1, 2, 3].map(n => ({ value: n, label: String(n) }))}
+                  options={[3, 5, 10, 20, 30, 40, 50].map(n => ({ value: n, label: String(n) }))}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 />
               </div>
@@ -495,7 +495,7 @@ export function CoinSourceEditor({
                     value={config.ai500_limit || 10}
                     onChange={(val) => !disabled && onChange({ ...config, ai500_limit: parseInt(val) || 10 })}
                     disabled={disabled}
-                    options={[5, 10, 15, 20, 30, 50].map(n => ({ value: n, label: String(n) }))}
+                    options={[3, 5, 10, 20, 30, 40, 50].map(n => ({ value: n, label: String(n) }))}
                     className="px-2 py-1 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                   />
                 </div>
@@ -535,7 +535,7 @@ export function CoinSourceEditor({
                     value={config.oi_top_limit || 10}
                     onChange={(val) => !disabled && onChange({ ...config, oi_top_limit: parseInt(val) || 10 })}
                     disabled={disabled}
-                    options={[5, 10, 15, 20, 30, 50].map(n => ({ value: n, label: String(n) }))}
+                    options={[3, 5, 10, 20, 30, 40, 50].map(n => ({ value: n, label: String(n) }))}
                     className="px-2 py-1 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                   />
                 </div>
@@ -575,7 +575,7 @@ export function CoinSourceEditor({
                     value={config.oi_low_limit || 10}
                     onChange={(val) => !disabled && onChange({ ...config, oi_low_limit: parseInt(val) || 10 })}
                     disabled={disabled}
-                    options={[5, 10, 15, 20, 30, 50].map(n => ({ value: n, label: String(n) }))}
+                    options={[3, 5, 10, 20, 30, 40, 50].map(n => ({ value: n, label: String(n) }))}
                     className="px-2 py-1 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                   />
                 </div>

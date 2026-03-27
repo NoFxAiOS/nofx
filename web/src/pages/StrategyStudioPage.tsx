@@ -38,6 +38,7 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
+import { TokenEstimateBar } from '../components/strategy/TokenEstimateBar'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 
@@ -52,6 +53,7 @@ export function StrategyStudioPage() {
   const [editingConfig, setEditingConfig] = useState<StrategyConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [estimatedTokens, setEstimatedTokens] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
 
@@ -397,6 +399,10 @@ export function StrategyStudioPage() {
   // Save strategy
   const handleSaveStrategy = async () => {
     if (!token || !selectedStrategy || !editingConfig) return
+    if (estimatedTokens >= 128000 && currentStrategyType === 'ai_trading') {
+      notify.warning(tr('tokenExceedWarning'))
+      // continue with save
+    }
     setIsSaving(true)
     try {
       // Always sync the config language with the current interface language
@@ -825,6 +831,13 @@ export function StrategyStudioPage() {
                   )}
                 </div>
               </div>
+
+              {/* Token Estimate Bar */}
+              {currentStrategyType === 'ai_trading' && (
+                <div className="mb-4">
+                  <TokenEstimateBar config={editingConfig} language={language} onTokenCountChange={setEstimatedTokens} />
+                </div>
+              )}
 
               {/* Strategy Type Selector */}
               {editingConfig && (

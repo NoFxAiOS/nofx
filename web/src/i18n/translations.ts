@@ -1087,9 +1087,9 @@ export const translations = {
       generatePromptPreview: 'Click to generate prompt preview',
       runAiTestHint: 'Click to run AI test',
       tokenEstimate: 'Token Estimate',
-      tokenExceedWarning: 'Exceeds context limit. Reduce coins or timeframes.',
+      tokenExceedWarning: 'Token estimate exceeds 128K. AI requests may fail for some models.',
       tokenEstimating: 'Estimating...',
-      tokenTooltip: 'Based on strictest model',
+      tokenTooltip: 'Based on 200K context',
     },
 
     // Metric Tooltip
@@ -2388,9 +2388,9 @@ export const translations = {
       generatePromptPreview: '点击生成 Prompt 预览',
       runAiTestHint: '点击运行 AI 测试',
       tokenEstimate: 'Token 预估',
-      tokenExceedWarning: '超出上下文限制，建议减少币种或时间框架',
+      tokenExceedWarning: 'Token 估算超过 128K，部分模型请求可能失败',
       tokenEstimating: '预估中...',
-      tokenTooltip: '基于最严格模型计算',
+      tokenTooltip: '基于 200K 上下文计算',
     },
 
     // Metric Tooltip
@@ -3491,9 +3491,9 @@ export const translations = {
       generatePromptPreview: 'Klik untuk generate pratinjau prompt',
       runAiTestHint: 'Klik untuk menjalankan uji AI',
       tokenEstimate: 'Estimasi Token',
-      tokenExceedWarning: 'Melebihi batas konteks. Kurangi koin atau timeframe.',
+      tokenExceedWarning: 'Estimasi token melebihi 128K. Permintaan AI mungkin gagal untuk beberapa model.',
       tokenEstimating: 'Mengestimasi...',
-      tokenTooltip: 'Berdasarkan model paling ketat',
+      tokenTooltip: 'Berdasarkan konteks 200K',
     },
 
     // Metric Tooltip

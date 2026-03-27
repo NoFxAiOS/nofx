@@ -12,7 +12,7 @@ import (
 
 // Hard limits to prevent token explosion in AI requests
 const (
-	MaxCandidateCoins = 50
+	MaxCandidateCoins = 10
 	MaxPositions      = 3
 	MaxTimeframes     = 4
 	MinKlineCount     = 10

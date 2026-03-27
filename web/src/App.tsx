@@ -15,6 +15,7 @@ import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
 import { StrategyMarketPage } from './pages/StrategyMarketPage'
 import { DataPage } from './pages/DataPage'
+import { BeginnerOnboardingPage } from './pages/BeginnerOnboardingPage'
 import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
 import HeaderBar from './components/common/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -22,6 +23,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/common/ConfirmDialog'
 import { t } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
+import { getUserMode } from './lib/onboarding'
 
 import { OFFICIAL_LINKS } from './constants/branding'
 import type {
@@ -132,6 +134,8 @@ function App() {
   }
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
   const [decisionsLimit, setDecisionsLimit] = useState<number>(5)
+  const hasPersistedAuth =
+    !!localStorage.getItem('auth_token') && !!localStorage.getItem('auth_user')
 
   // 监听URL变化，同步页面状态
   useEffect(() => {
@@ -347,6 +351,17 @@ function App() {
     }
     return <SetupPage />
   }
+  if (route === '/welcome') {
+    if ((!user || !token) && !hasPersistedAuth) {
+      window.location.href = '/login'
+      return null
+    }
+    if (getUserMode() !== 'beginner') {
+      window.location.href = '/traders'
+      return null
+    }
+    return <BeginnerOnboardingPage />
+  }
   if (route === '/faq') {
     return (
       <div
@@ -376,7 +391,7 @@ function App() {
     return <ResetPasswordPage />
   }
   if (route === '/settings') {
-    if (!user || !token) {
+    if ((!user || !token) && !hasPersistedAuth) {
       window.location.href = '/login'
       return null
     }

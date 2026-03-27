@@ -29,7 +29,6 @@ import {
   Download,
   Upload,
   Globe,
-  X,
 } from 'lucide-react'
 import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { confirmToast, notify } from '../lib/notify'
@@ -39,10 +38,8 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
-import { TokenEstimateBar } from '../components/strategy/TokenEstimateBar'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
-import { NofxSelect } from '../components/ui/select'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -55,7 +52,6 @@ export function StrategyStudioPage() {
   const [editingConfig, setEditingConfig] = useState<StrategyConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [tokenOverflow, setTokenOverflow] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
 
@@ -382,10 +378,6 @@ export function StrategyStudioPage() {
   // Save strategy
   const handleSaveStrategy = async () => {
     if (!token || !selectedStrategy || !editingConfig) return
-    if (tokenOverflow && currentStrategyType === 'ai_trading') {
-      notify.error(tr('tokenExceedWarning'))
-      return
-    }
     setIsSaving(true)
     try {
       // Always sync the config language with the current interface language
@@ -413,17 +405,7 @@ export function StrategyStudioPage() {
       if (!response.ok) throw new Error('Failed to save strategy')
       setHasChanges(false)
       notify.success(tr('strategySaved'))
-      const savedId = selectedStrategy.id
       await fetchStrategies()
-      // Stay on the strategy we just saved instead of jumping to active
-      setStrategies(prev => {
-        const saved = prev.find(s => s.id === savedId)
-        if (saved) {
-          setSelectedStrategy(saved)
-          setEditingConfig(saved.config)
-        }
-        return prev
-      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -659,7 +641,7 @@ export function StrategyStudioPage() {
               <Sparkles className="w-5 h-5 text-black" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-nofx-text">{tr('title')}</h1>
+              <h1 className="text-lg font-bold text-nofx-text">{tr('strategyStudio')}</h1>
               <p className="text-xs text-nofx-text-muted">{tr('subtitle')}</p>
             </div>
           </div>
@@ -774,24 +756,34 @@ export function StrategyStudioPage() {
           {selectedStrategy && editingConfig ? (
             <div className="p-4">
               {/* Strategy Name & Actions */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={selectedStrategy.name}
-                      onChange={(e) => {
-                        setSelectedStrategy({ ...selectedStrategy, name: e.target.value })
-                        setHasChanges(true)
-                      }}
-                      disabled={selectedStrategy.is_default}
-                      className="text-lg font-bold bg-transparent border-none outline-none flex-1 min-w-0 text-nofx-text placeholder-nofx-text-muted"
-                    />
-                    {hasChanges && (
-                      <span className="text-xs text-nofx-gold whitespace-nowrap">● {tr('unsaved')}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={selectedStrategy.name}
+                    onChange={(e) => {
+                      setSelectedStrategy({ ...selectedStrategy, name: e.target.value })
+                      setHasChanges(true)
+                    }}
+                    disabled={selectedStrategy.is_default}
+                    className="text-lg font-bold bg-transparent border-none outline-none w-full text-nofx-text placeholder-nofx-text-muted"
+                  />
+                  <input
+                    type="text"
+                    value={selectedStrategy.description || ''}
+                    onChange={(e) => {
+                      setSelectedStrategy({ ...selectedStrategy, description: e.target.value })
+                      setHasChanges(true)
+                    }}
+                    disabled={selectedStrategy.is_default}
+                    placeholder={tr('addDescription')}
+                    className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
+                  />
+                  {hasChanges && (
+                    <span className="text-xs text-nofx-gold">● {tr('unsaved')}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {!selectedStrategy.is_active && (
                     <button
                       onClick={() => handleActivateStrategy(selectedStrategy.id)}
@@ -801,22 +793,10 @@ export function StrategyStudioPage() {
                       {tr('activate')}
                     </button>
                   )}
-                  {!selectedStrategy.is_default && hasChanges && (
-                    <button
-                      onClick={() => {
-                        setEditingConfig(selectedStrategy.config)
-                        setHasChanges(false)
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-nofx-text-muted hover:text-nofx-text hover:bg-nofx-bg-lighter border border-nofx-border"
-                    >
-                      <X className="w-3 h-3" />
-                      {tr('discardChanges')}
-                    </button>
-                  )}
                   {!selectedStrategy.is_default && (
                     <button
                       onClick={handleSaveStrategy}
-                      disabled={isSaving || !hasChanges || (tokenOverflow && currentStrategyType === 'ai_trading')}
+                      disabled={isSaving || !hasChanges}
                       className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50
                         ${hasChanges ? 'bg-nofx-gold text-black hover:bg-yellow-500' : 'bg-nofx-bg-lighter text-nofx-text-muted cursor-not-allowed'}`}
                     >
@@ -825,26 +805,7 @@ export function StrategyStudioPage() {
                     </button>
                   )}
                 </div>
-                </div>
-                <input
-                  type="text"
-                  value={selectedStrategy.description || ''}
-                  onChange={(e) => {
-                    setSelectedStrategy({ ...selectedStrategy, description: e.target.value })
-                    setHasChanges(true)
-                  }}
-                  disabled={selectedStrategy.is_default}
-                  placeholder={tr('addDescription')}
-                  className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
-                />
               </div>
-
-              {/* Token Estimate Bar */}
-              {currentStrategyType === 'ai_trading' && (
-                <div className="mb-4">
-                  <TokenEstimateBar config={editingConfig} language={language} onOverflowChange={setTokenOverflow} />
-                </div>
-              )}
 
               {/* Strategy Type Selector */}
               {editingConfig && (
@@ -857,12 +818,9 @@ export function StrategyStudioPage() {
                     <button
                       onClick={() => {
                         if (!selectedStrategy?.is_default) {
-                          setEditingConfig(prev => prev ? {
-                            ...prev,
-                            strategy_type: 'ai_trading',
-                            grid_config: undefined,
-                          } : prev)
-                          setHasChanges(true)
+                          updateConfig('strategy_type', 'ai_trading')
+                          // Clear grid config when switching to AI trading
+                          updateConfig('grid_config', undefined)
                         }
                       }}
                       disabled={selectedStrategy?.is_default}
@@ -881,12 +839,11 @@ export function StrategyStudioPage() {
                     <button
                       onClick={() => {
                         if (!selectedStrategy?.is_default) {
-                          setEditingConfig(prev => prev ? {
-                            ...prev,
-                            strategy_type: 'grid_trading',
-                            grid_config: prev.grid_config || defaultGridConfig,
-                          } : prev)
-                          setHasChanges(true)
+                          updateConfig('strategy_type', 'grid_trading')
+                          // Initialize grid config if not exists
+                          if (!editingConfig.grid_config) {
+                            updateConfig('grid_config', defaultGridConfig)
+                          }
                         }
                       }}
                       disabled={selectedStrategy?.is_default}
@@ -977,16 +934,15 @@ export function StrategyStudioPage() {
               <div className="p-3 space-y-3">
                 {/* Controls */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <NofxSelect
+                  <select
                     value={selectedVariant}
-                    onChange={(val) => setSelectedVariant(val)}
-                    options={[
-                      { value: 'balanced', label: tr('balanced') },
-                      { value: 'aggressive', label: tr('aggressive') },
-                      { value: 'conservative', label: tr('conservative') },
-                    ]}
-                    className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                  />
+                    onChange={(e) => setSelectedVariant(e.target.value)}
+                    className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text outline-none focus:border-nofx-gold"
+                  >
+                    <option value="balanced">{tr('balanced')}</option>
+                    <option value="aggressive">{tr('aggressive')}</option>
+                    <option value="conservative">{tr('conservative')}</option>
+                  </select>
                   <button
                     onClick={fetchPromptPreview}
                     disabled={isLoadingPrompt || !editingConfig}
@@ -1051,15 +1007,17 @@ export function StrategyStudioPage() {
                     <span className="text-xs font-medium text-nofx-text">{tr('selectModel')}</span>
                   </div>
                   {aiModels.length > 0 ? (
-                    <NofxSelect
+                    <select
                       value={selectedModelId}
-                      onChange={(val) => setSelectedModelId(val)}
-                      options={aiModels.map((model) => ({
-                        value: model.id,
-                        label: `${model.name} (${model.provider})`,
-                      }))}
+                      onChange={(e) => setSelectedModelId(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg text-sm bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    />
+                    >
+                      {aiModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} ({model.provider})
+                        </option>
+                      ))}
+                    </select>
                   ) : (
                     <div className="px-3 py-2 rounded-lg text-sm bg-nofx-danger/10 text-nofx-danger">
                       {tr('noModel')}
@@ -1067,16 +1025,15 @@ export function StrategyStudioPage() {
                   )}
 
                   <div className="flex items-center gap-2">
-                    <NofxSelect
+                    <select
                       value={selectedVariant}
-                      onChange={(val) => setSelectedVariant(val)}
-                      options={[
-                        { value: 'balanced', label: tr('balanced') },
-                        { value: 'aggressive', label: tr('aggressive') },
-                        { value: 'conservative', label: tr('conservative') },
-                      ]}
+                      onChange={(e) => setSelectedVariant(e.target.value)}
                       className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    />
+                    >
+                      <option value="balanced">{tr('balanced')}</option>
+                      <option value="aggressive">{tr('aggressive')}</option>
+                      <option value="conservative">{tr('conservative')}</option>
+                    </select>
                     <button
                       onClick={runAiTest}
                       disabled={isRunningAiTest || !editingConfig || !selectedModelId}

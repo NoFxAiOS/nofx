@@ -78,19 +78,15 @@ func getKlinesFromCoinAnk(symbol, interval, exchange string, limit int) ([]Kline
 	ts := time.Now().UnixMilli()
 	// Use "To" side to search backward from current time (get historical klines)
 	coinankKlines, err := coinank_api.Kline(ctx, symbol, coinankExchange, ts, coinank_enum.To, limit, coinankInterval)
-	if err != nil || len(coinankKlines) == 0 {
-		// If exchange-specific data fails or returns empty, fallback to Binance
+	if err != nil {
+		// If exchange-specific data fails, fallback to Binance
 		if coinankExchange != coinank_enum.Binance {
-			if err != nil {
-				logger.Warnf("⚠️ CoinAnk %s data failed, falling back to Binance: %v", exchange, err)
-			} else {
-				logger.Warnf("⚠️ CoinAnk %s %s data empty for %s, falling back to Binance", exchange, interval, symbol)
-			}
+			logger.Warnf("⚠️ CoinAnk %s data failed, falling back to Binance: %v", exchange, err)
 			coinankKlines, err = coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
 			if err != nil {
 				return nil, fmt.Errorf("CoinAnk API error (fallback): %w", err)
 			}
-		} else if err != nil {
+		} else {
 			return nil, fmt.Errorf("CoinAnk API error: %w", err)
 		}
 	}

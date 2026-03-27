@@ -27,6 +27,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.backup
+.cache/
 
 # 环境变量
 .env

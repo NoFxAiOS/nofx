@@ -1210,8 +1210,13 @@ export const translations = {
     // ModelConfigModal
     modelConfig: {
       selectModel: 'Select Model',
+      configure: 'Configure',
       configureApi: 'Configure API',
+      configureWallet: 'Configure Wallet',
       chooseProvider: 'Choose Your AI Provider',
+      claw402EntryDesc: 'Recommended default path. Use Base USDC pay-per-call instead of managing API keys.',
+      otherApiEntry: 'Other API Providers',
+      otherApiEntryDesc: 'Use your own API key for OpenAI, Claude, Gemini, DeepSeek, and more.',
       payPerCall: 'Pay-per-call USDC · All AI Models · No API Key',
       recommended: 'Best',
       allModelsClaw: 'Pay-per-call with USDC — supports all major AI models',
@@ -2503,8 +2508,13 @@ export const translations = {
 
     modelConfig: {
       selectModel: '选择模型',
+      configure: '配置',
       configureApi: '配置 API',
+      configureWallet: '配置钱包',
       chooseProvider: '选择 AI 模型提供商',
+      claw402EntryDesc: '默认推荐走这条路。直接用 Base USDC 按次付费，不需要自己管理 API Key。',
+      otherApiEntry: '其他 API 模型',
+      otherApiEntryDesc: '如果你已经有自己的 OpenAI、Claude、Gemini、DeepSeek 等 API Key，再从这里进入。',
       payPerCall: 'USDC 按次付费 · 支持全部 AI 模型 · 无需 API Key',
       recommended: '推荐',
       allModelsClaw: '用 USDC 按次付费，支持所有主流 AI 模型',
@@ -3601,8 +3611,13 @@ export const translations = {
 
     modelConfig: {
       selectModel: 'Pilih Model',
+      configure: 'Konfigurasi',
       configureApi: 'Konfigurasi API',
+      configureWallet: 'Konfigurasi Wallet',
       chooseProvider: 'Pilih Penyedia AI Anda',
+      claw402EntryDesc: 'Jalur default yang direkomendasikan. Gunakan Base USDC bayar per panggilan tanpa mengelola API key.',
+      otherApiEntry: 'Penyedia API Lain',
+      otherApiEntryDesc: 'Gunakan API key Anda sendiri untuk OpenAI, Claude, Gemini, DeepSeek, dan lainnya.',
       payPerCall: 'Bayar per panggilan USDC · Semua Model AI · Tanpa API Key',
       recommended: 'Terbaik',
       allModelsClaw: 'Bayar per panggilan dengan USDC — mendukung semua model AI utama',

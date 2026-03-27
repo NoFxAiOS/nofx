@@ -18,6 +18,7 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { ModelConfigModal } from './ModelConfigModal'
 import { ConfigStatusGrid } from './ConfigStatusGrid'
 import { TradersList } from './TradersList'
+import { BeginnerGuideCards } from './BeginnerGuideCards'
 import {
   Bot,
   Plus,
@@ -25,6 +26,12 @@ import {
 } from 'lucide-react'
 import { confirmToast } from '../../lib/notify'
 import { toast } from 'sonner'
+import {
+  getBeginnerWalletAddress,
+  getUserMode,
+  setBeginnerWalletAddress as persistBeginnerWalletAddress,
+} from '../../lib/onboarding'
+import type { Strategy } from '../../types'
 
 interface AITradersPageProps {
   onTraderSelect?: (traderId: string) => void
@@ -48,6 +55,14 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [visibleTraderAddresses, setVisibleTraderAddresses] = useState<Set<string>>(new Set())
   const [visibleExchangeAddresses, setVisibleExchangeAddresses] = useState<Set<string>>(new Set())
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [quickSetupLoading, setQuickSetupLoading] = useState(false)
+  const [beginnerWalletAddress, setBeginnerWalletAddress] = useState<string | null>(() => getBeginnerWalletAddress())
+  const isBeginnerMode = getUserMode() === 'beginner'
+
+  const navigateInApp = (path: string) => {
+    navigate(path)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
 
   // Toggle wallet address visibility for a trader
   const toggleTraderAddressVisibility = (traderId: string) => {
@@ -91,6 +106,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     api.getTraders,
     { refreshInterval: 5000 }
   )
+  const { data: strategies } = useSWR<Strategy[]>(
+    user && token ? 'strategies' : null,
+    api.getStrategies,
+    { refreshInterval: 30000 }
+  )
 
   useEffect(() => {
     const loadConfigs = async () => {
@@ -115,6 +135,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           api.getSupportedModels(),
         ])
         setAllModels(modelConfigs)
+        const clawWalletAddress =
+          modelConfigs.find((model) => model.provider === 'claw402')?.walletAddress || null
+        if (clawWalletAddress) {
+          setBeginnerWalletAddress(clawWalletAddress)
+          persistBeginnerWalletAddress(clawWalletAddress)
+        }
         setAllExchanges(exchangeConfigs)
         setSupportedModels(models)
       } catch (error) {
@@ -616,6 +642,36 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     setShowExchangeModal(true)
   }
 
+  const handleQuickSetupClaw402 = async () => {
+    if (quickSetupLoading) return
+
+    try {
+      setQuickSetupLoading(true)
+      const result = await api.prepareBeginnerOnboarding()
+      setBeginnerWalletAddress(result.address)
+      const refreshedModels = await api.getModelConfigs()
+      setAllModels(refreshedModels)
+      toast.success(
+        language === 'zh'
+          ? 'Claw402 已默认配置为 DeepSeek'
+          : 'Claw402 is configured with DeepSeek by default'
+      )
+    } catch (error) {
+      console.error('Failed to quick setup claw402:', error)
+      toast.error(
+        language === 'zh'
+          ? '一键配置 Claw402 失败'
+          : 'Failed to quick setup Claw402'
+      )
+    } finally {
+      setQuickSetupLoading(false)
+    }
+  }
+
+  const claw402Configured = configuredModels.some((model) => model.provider === 'claw402')
+  const hasStrategies = (strategies?.length || 0) > 0
+  const canCreateTrader = configuredModels.length > 0 && configuredExchanges.length > 0
+
   return (
     <DeepVoidBackground className="py-8" disableAnimation>
       <div className="w-full px-4 md:px-8 space-y-8 animate-fade-in">
@@ -687,6 +743,21 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         </div>
 
+        {isBeginnerMode ? (
+          <BeginnerGuideCards
+            language={language}
+            claw402Ready={claw402Configured}
+            exchangeReady={configuredExchanges.length > 0}
+            strategyReady={hasStrategies}
+            canCreateTrader={canCreateTrader}
+            walletAddress={beginnerWalletAddress}
+            onQuickSetupClaw402={handleQuickSetupClaw402}
+            onOpenExchange={handleAddExchange}
+            onOpenStrategy={() => navigateInApp('/strategy')}
+            onCreateTrader={() => setShowCreateModal(true)}
+          />
+        ) : null}
+
         {/* Configuration Status Grid */}
         <ConfigStatusGrid
           configuredModels={configuredModels}
@@ -715,7 +786,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           copiedId={copiedId}
           language={language}
           onTraderSelect={onTraderSelect}
-          onNavigate={(path) => navigate(path)}
+          onNavigate={navigateInApp}
           onEditTrader={handleEditTrader}
           onToggleTrader={handleToggleTrader}
           onToggleCompetition={handleToggleCompetition}

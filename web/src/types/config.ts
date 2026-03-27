@@ -6,6 +6,8 @@ export interface AIModel {
   apiKey?: string
   customApiUrl?: string
   customModelName?: string
+  walletAddress?: string
+  balanceUsdc?: string
 }
 
 export interface TelegramConfig {
@@ -109,4 +111,27 @@ export interface UpdateExchangeConfigRequest {
       lighter_api_key_index?: number
     }
   }
+}
+
+export interface BeginnerOnboardingResponse {
+  address: string
+  private_key: string
+  chain: string
+  asset: string
+  provider: string
+  default_model: string
+  configured_model_id: string
+  balance_usdc: string
+  env_saved: boolean
+  env_path?: string
+  reused_existing: boolean
+  env_warning?: string
+}
+
+export interface CurrentBeginnerWalletResponse {
+  found: boolean
+  address?: string
+  balance_usdc?: string
+  source?: string
+  claw402_status?: string
 }

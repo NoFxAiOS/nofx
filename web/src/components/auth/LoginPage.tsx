@@ -5,6 +5,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { DeepVoidBackground } from '../common/DeepVoidBackground'
+import { OnboardingModeSelector } from './OnboardingModeSelector'
+import type { UserMode } from '../../lib/onboarding'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -15,6 +17,7 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [expiredToastId, setExpiredToastId] = useState<string | number | null>(null)
+  const [mode, setMode] = useState<UserMode>('beginner')
 
   useEffect(() => {
     if (sessionStorage.getItem('from401') === 'true') {
@@ -28,7 +31,7 @@ export function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const result = await login(email, password)
+    const result = await login(email, password, mode)
     setLoading(false)
     if (result.success) {
       if (expiredToastId) toast.dismiss(expiredToastId)
@@ -108,6 +111,12 @@ export function LoginPage() {
                   </button>
                 </div>
               </div>
+
+              <OnboardingModeSelector
+                language={language}
+                mode={mode}
+                onChange={setMode}
+              />
 
               {/* Error */}
               {error && (

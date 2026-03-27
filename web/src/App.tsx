@@ -322,10 +322,7 @@ function App() {
 
   const selectedTrader = traders?.find((t) => t.trader_id === selectedTraderId)
 
-  // When polling has permanently failed, provide zero-value data instead of keeping skeleton
-  const effectiveAccount = (accountPollOff && !account)
-    ? { total_equity: 0, available_balance: 0, total_pnl: 0, total_pnl_pct: 0, position_count: 0, margin_used: 0, margin_used_pct: 0 } as AccountInfo
-    : account
+  const effectiveAccount = account
   const effectivePositions = (positionsPollOff && !positions) ? [] as Position[] : positions
   const effectiveDecisions = (decisionsPollOff && !decisions) ? [] as DecisionRecord[] : decisions
 
@@ -545,6 +542,7 @@ function App() {
                 selectedTrader={selectedTrader}
                 status={status}
                 account={effectiveAccount}
+                accountFailed={accountPollOff}
                 positions={effectivePositions}
                 decisions={effectiveDecisions}
                 decisionsLimit={decisionsLimit}

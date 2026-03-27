@@ -30,7 +30,13 @@ export function SetupPage() {
     if (result.success) {
       invalidateSystemConfig()
     } else {
-      setError(result.message || 'Setup failed, please try again')
+      const message = result.message || 'Setup failed, please try again'
+      if (message === 'System already initialized') {
+        invalidateSystemConfig()
+        window.location.href = '/login'
+        return
+      }
+      setError(message)
     }
   }
 

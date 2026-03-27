@@ -130,12 +130,18 @@ export class HttpClient {
       throw new Error('Session expired')
     }
 
-    // Handle 403 Forbidden - system error
+    const errorData = (error.response as AxiosResponse<{
+      error?: string
+      message?: string
+    }>).data
+    const serverMessage = errorData?.error || errorData?.message
+
+    // Handle 403 Forbidden - preserve the backend message instead of masking it
     if (status === 403) {
-      toast.error('Permission Denied', {
-        description: 'You do not have permission to access this resource',
+      toast.error(serverMessage || 'Permission Denied', {
+        description: serverMessage || 'You do not have permission to access this resource',
       })
-      throw new Error('Permission denied')
+      throw new Error(serverMessage || 'Permission denied')
     }
 
     // Handle 404 Not Found - system error

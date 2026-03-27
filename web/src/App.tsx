@@ -133,6 +133,18 @@ function App() {
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
   const [decisionsLimit, setDecisionsLimit] = useState<number>(5)
 
+  // Poll-off states: stop polling after 3 consecutive failures
+  const [accountPollOff, setAccountPollOff] = useState(false)
+  const [positionsPollOff, setPositionsPollOff] = useState(false)
+  const [decisionsPollOff, setDecisionsPollOff] = useState(false)
+
+  // Reset poll-off states when trader changes
+  useEffect(() => {
+    setAccountPollOff(false)
+    setPositionsPollOff(false)
+    setDecisionsPollOff(false)
+  }, [selectedTraderId])
+
   // 监听URL变化，同步页面状态
   useEffect(() => {
     const handleRouteChange = () => {
@@ -238,11 +250,16 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `account-${selectedTraderId}`
       : null,
-    () => api.getAccount(selectedTraderId),
+    () => api.getAccount(selectedTraderId, true),
     {
-      refreshInterval: 15000, // 15秒刷新（配合后端15秒缓存）
-      revalidateOnFocus: false, // 禁用聚焦时重新验证，减少请求
-      dedupingInterval: 10000, // 10秒去重，防止短时间内重复请求
+      refreshInterval: accountPollOff ? 0 : 15000,
+      revalidateOnFocus: false,
+      dedupingInterval: 10000,
+      onErrorRetry: (_err, _key, _config, revalidate, { retryCount }) => {
+        if (retryCount >= 2) { setAccountPollOff(true); return }
+        setTimeout(() => revalidate({ retryCount }), 500)
+      },
+      onSuccess: () => { if (accountPollOff) setAccountPollOff(false) },
     }
   )
 
@@ -250,11 +267,16 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `positions-${selectedTraderId}`
       : null,
-    () => api.getPositions(selectedTraderId),
+    () => api.getPositions(selectedTraderId, true),
     {
-      refreshInterval: 15000, // 15秒刷新（配合后端15秒缓存）
-      revalidateOnFocus: false, // 禁用聚焦时重新验证，减少请求
-      dedupingInterval: 10000, // 10秒去重，防止短时间内重复请求
+      refreshInterval: positionsPollOff ? 0 : 15000,
+      revalidateOnFocus: false,
+      dedupingInterval: 10000,
+      onErrorRetry: (_err, _key, _config, revalidate, { retryCount }) => {
+        if (retryCount >= 2) { setPositionsPollOff(true); return }
+        setTimeout(() => revalidate({ retryCount }), 500)
+      },
+      onSuccess: () => { if (positionsPollOff) setPositionsPollOff(false) },
     }
   )
 
@@ -262,11 +284,16 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `decisions/latest-${selectedTraderId}-${decisionsLimit}`
       : null,
-    () => api.getLatestDecisions(selectedTraderId, decisionsLimit),
+    () => api.getLatestDecisions(selectedTraderId, decisionsLimit, true),
     {
-      refreshInterval: 30000, // 30秒刷新（决策更新频率较低）
+      refreshInterval: decisionsPollOff ? 0 : 30000,
       revalidateOnFocus: false,
       dedupingInterval: 20000,
+      onErrorRetry: (_err, _key, _config, revalidate, { retryCount }) => {
+        if (retryCount >= 2) { setDecisionsPollOff(true); return }
+        setTimeout(() => revalidate({ retryCount }), 500)
+      },
+      onSuccess: () => { if (decisionsPollOff) setDecisionsPollOff(false) },
     }
   )
 
@@ -290,6 +317,13 @@ function App() {
   }, [account])
 
   const selectedTrader = traders?.find((t) => t.trader_id === selectedTraderId)
+
+  // When polling has permanently failed, provide zero-value data instead of keeping skeleton
+  const effectiveAccount = (accountPollOff && !account)
+    ? { total_equity: 0, available_balance: 0, total_pnl: 0, total_pnl_pct: 0, position_count: 0, margin_used: 0, margin_used_pct: 0 } as AccountInfo
+    : account
+  const effectivePositions = (positionsPollOff && !positions) ? [] as Position[] : positions
+  const effectiveDecisions = (decisionsPollOff && !decisions) ? [] as DecisionRecord[] : decisions
 
   // Handle routing
   useEffect(() => {
@@ -495,9 +529,9 @@ function App() {
               <TraderDashboardPage
                 selectedTrader={selectedTrader}
                 status={status}
-                account={account}
-                positions={positions}
-                decisions={decisions}
+                account={effectiveAccount}
+                positions={effectivePositions}
+                decisions={effectiveDecisions}
                 decisionsLimit={decisionsLimit}
                 onDecisionsLimitChange={setDecisionsLimit}
                 stats={stats}

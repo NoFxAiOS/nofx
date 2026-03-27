@@ -344,7 +344,7 @@ func (s *Server) handleDeleteStrategy(c *gin.Context) {
 	}
 
 	if err := s.store.Strategy().Delete(userID, strategyID); err != nil {
-		SafeInternalError(c, "Failed to delete strategy", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": SanitizeError(err, "Failed to delete strategy")})
 		return
 	}
 

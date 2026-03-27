@@ -440,8 +440,18 @@ func (s *StrategyStore) Update(strategy *Strategy) error {
 func (s *StrategyStore) Delete(userID, id string) error {
 	// do not allow deleting system default strategy
 	var st Strategy
-	if err := s.db.Where("id = ?", id).First(&st).Error; err == nil && st.IsDefault {
-		return fmt.Errorf("cannot delete system default strategy")
+	if err := s.db.Where("id = ?", id).First(&st).Error; err == nil {
+		if st.IsDefault {
+			return fmt.Errorf("cannot delete system default strategy")
+		}
+	}
+
+	// Check if any trader references this strategy
+	var count int64
+	if err := s.db.Model(&Trader{}).
+		Where("user_id = ? AND strategy_id = ?", userID, id).
+		Count(&count).Error; err == nil && count > 0 {
+		return fmt.Errorf("cannot delete strategy in use by %d trader(s) - reassign those traders first", count)
 	}
 
 	return s.db.Where("id = ? AND user_id = ?", id, userID).Delete(&Strategy{}).Error

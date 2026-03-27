@@ -251,6 +251,24 @@ export function StrategyStudioPage() {
   const handleDeleteStrategy = async (id: string) => {
     if (!token) return
 
+    // Check if strategy is in use by any trader before showing dialog
+    try {
+      const tradersResp = await fetch(`${API_BASE}/api/my-traders`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (tradersResp.ok) {
+        const traderList = await tradersResp.json()
+        const using = traderList.filter((t: any) => t.strategy_id === id)
+        if (using.length > 0) {
+          const names = using.map((t: any) => t.trader_name).join(', ')
+          notify.error(`Strategy is in use by: ${names}`)
+          return
+        }
+      }
+    } catch {
+      // fetch failed — proceed, backend will guard
+    }
+
     const confirmed = await confirmToast(
       tr('confirmDeleteStrategy'),
       {
@@ -266,9 +284,12 @@ export function StrategyStudioPage() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!response.ok) throw new Error('Failed to delete strategy')
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        notify.error(data.error || 'Failed to delete strategy')
+        return
+      }
       notify.success(tr('strategyDeleted'))
-      // Clear selection if deleted strategy was selected
       if (selectedStrategy?.id === id) {
         setSelectedStrategy(null)
         setEditingConfig(null)
@@ -276,9 +297,7 @@ export function StrategyStudioPage() {
       }
       await fetchStrategies()
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
-      setError(errorMsg)
-      notify.error(errorMsg)
+      notify.error(err instanceof Error ? err.message : 'Unknown error')
     }
   }
 

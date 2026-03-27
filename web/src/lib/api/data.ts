@@ -19,20 +19,20 @@ export const dataApi = {
     return result.data!
   },
 
-  async getAccount(traderId?: string): Promise<AccountInfo> {
+  async getAccount(traderId?: string, silent?: boolean): Promise<AccountInfo> {
     const url = traderId
       ? `${API_BASE}/account?trader_id=${traderId}`
       : `${API_BASE}/account`
-    const result = await httpClient.get<AccountInfo>(url)
+    const result = await httpClient.request<AccountInfo>(url, { silent })
     if (!result.success) throw new Error('Failed to fetch account info')
     return result.data!
   },
 
-  async getPositions(traderId?: string): Promise<Position[]> {
+  async getPositions(traderId?: string, silent?: boolean): Promise<Position[]> {
     const url = traderId
       ? `${API_BASE}/positions?trader_id=${traderId}`
       : `${API_BASE}/positions`
-    const result = await httpClient.get<Position[]>(url)
+    const result = await httpClient.request<Position[]>(url, { silent })
     if (!result.success) throw new Error('Failed to fetch positions')
     return result.data!
   },
@@ -48,7 +48,8 @@ export const dataApi = {
 
   async getLatestDecisions(
     traderId?: string,
-    limit: number = 5
+    limit: number = 5,
+    silent?: boolean
   ): Promise<DecisionRecord[]> {
     const params = new URLSearchParams()
     if (traderId) {
@@ -56,8 +57,9 @@ export const dataApi = {
     }
     params.append('limit', limit.toString())
 
-    const result = await httpClient.get<DecisionRecord[]>(
-      `${API_BASE}/decisions/latest?${params}`
+    const result = await httpClient.request<DecisionRecord[]>(
+      `${API_BASE}/decisions/latest?${params}`,
+      { silent }
     )
     if (!result.success) throw new Error('Failed to fetch latest decisions')
     return result.data!

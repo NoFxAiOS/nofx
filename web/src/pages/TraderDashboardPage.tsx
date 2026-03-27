@@ -105,7 +105,9 @@ interface TraderDashboardPageProps {
     account?: AccountInfo
     accountFailed?: boolean
     positions?: Position[]
+    positionsFailed?: boolean
     decisions?: DecisionRecord[]
+    decisionsFailed?: boolean
     decisionsLimit: number
     onDecisionsLimitChange: (limit: number) => void
     stats?: Statistics
@@ -120,7 +122,9 @@ export function TraderDashboardPage({
     account,
     accountFailed,
     positions,
+    positionsFailed,
     decisions,
+    decisionsFailed,
     decisionsLimit,
     onDecisionsLimitChange,
     lastUpdate,
@@ -491,7 +495,7 @@ export function TraderDashboardPage({
                             <span>PNL::{account.total_pnl?.toFixed(2)}</span>
                         </div>
                     ) : accountFailed ? (
-                        <span style={{ color: '#F6465D' }}>DATA_FETCH::FAILED — 账户数据请求失败，请检查连接</span>
+                        <span style={{ color: '#F6465D' }}>{t('traderDashboard.accountFetchFailed', language)}</span>
                     ) : (
                         <div className="flex gap-4">
                             <span className="inline-block w-32 h-3 rounded bg-white/5 animate-pulse" />
@@ -723,6 +727,11 @@ export function TraderDashboardPage({
                                         </div>
                                     )}
                                 </div>
+                            ) : positionsFailed ? (
+                                <div className="text-center py-16 text-nofx-text-muted opacity-60">
+                                    <div className="text-4xl mb-4">⚠️</div>
+                                    <div className="text-lg font-semibold mb-2">{t('traderDashboard.positionsFetchFailed', language)}</div>
+                                </div>
                             ) : (
                                 <div className="text-center py-16 text-nofx-text-muted opacity-60">
                                     <div className="text-6xl mb-4 opacity-50 grayscale">📊</div>
@@ -776,6 +785,11 @@ export function TraderDashboardPage({
                                 decisions.map((decision, i) => (
                                     <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />
                                 ))
+                            ) : decisionsFailed ? (
+                                <div className="py-16 text-center text-nofx-text-muted opacity-60">
+                                    <div className="text-4xl mb-4">⚠️</div>
+                                    <div className="text-lg font-semibold mb-2">{t('traderDashboard.decisionsFetchFailed', language)}</div>
+                                </div>
                             ) : (
                                 <div className="py-16 text-center text-nofx-text-muted opacity-60">
                                     <div className="text-6xl mb-4 opacity-30 grayscale">🧠</div>

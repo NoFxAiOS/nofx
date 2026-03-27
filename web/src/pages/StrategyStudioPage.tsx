@@ -55,7 +55,7 @@ export function StrategyStudioPage() {
   const [editingConfig, setEditingConfig] = useState<StrategyConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [tokenOverflow, setTokenOverflow] = useState(false)
+  const [estimatedTokens, setEstimatedTokens] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
 
@@ -401,9 +401,9 @@ export function StrategyStudioPage() {
   // Save strategy
   const handleSaveStrategy = async () => {
     if (!token || !selectedStrategy || !editingConfig) return
-    if (tokenOverflow && currentStrategyType === 'ai_trading') {
-      notify.error(tr('tokenExceedWarning'))
-      return
+    if (estimatedTokens >= 128000 && currentStrategyType === 'ai_trading') {
+      notify.warning(tr('tokenExceedWarning'))
+      // continue with save
     }
     setIsSaving(true)
     try {
@@ -835,7 +835,7 @@ export function StrategyStudioPage() {
                   {!selectedStrategy.is_default && (
                     <button
                       onClick={handleSaveStrategy}
-                      disabled={isSaving || !hasChanges || (tokenOverflow && currentStrategyType === 'ai_trading')}
+                      disabled={isSaving || !hasChanges}
                       className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50
                         ${hasChanges ? 'bg-nofx-gold text-black hover:bg-yellow-500' : 'bg-nofx-bg-lighter text-nofx-text-muted cursor-not-allowed'}`}
                     >
@@ -861,7 +861,7 @@ export function StrategyStudioPage() {
               {/* Token Estimate Bar */}
               {currentStrategyType === 'ai_trading' && (
                 <div className="mb-4">
-                  <TokenEstimateBar config={editingConfig} language={language} onOverflowChange={setTokenOverflow} />
+                  <TokenEstimateBar config={editingConfig} language={language} onTokenCountChange={setEstimatedTokens} />
                 </div>
               )}
 

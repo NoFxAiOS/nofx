@@ -392,6 +392,9 @@ func (client *Client) String() string {
 		client.Provider, client.Model)
 }
 
+// BaseClient returns the underlying *Client (satisfies ClientEmbedder interface).
+func (c *Client) BaseClient() *Client { return c }
+
 // IsRetryableError determines if error is retryable (network errors, timeouts, etc.)
 func (client *Client) IsRetryableError(err error) bool {
 	errStr := err.Error()

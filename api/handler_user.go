@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -214,10 +215,86 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful, please login with new password"})
 }
 
-// initUserDefaultConfigs Initialize default model and exchange configs for new user
+// initUserDefaultConfigs Initialize default configs for new user
 func (s *Server) initUserDefaultConfigs(userID string) error {
-	// Commented out auto-creation of default configs, let users add manually
-	// This way new users won't have config items automatically after registration
-	logger.Infof("User %s registration completed, waiting for manual AI model and exchange configuration", userID)
+	if err := s.createDefaultStrategies(userID); err != nil {
+		logger.Warnf("Failed to create default strategies for user %s: %v", userID, err)
+		// Non-fatal: user can create strategies manually
+	}
+	logger.Infof("✓ User %s registration completed with default strategies", userID)
+	return nil
+}
+
+func (s *Server) createDefaultStrategies(userID string) error {
+	type strategyDef struct {
+		name        string
+		description string
+		isActive    bool
+		applyConfig func(*store.StrategyConfig)
+	}
+
+	definitions := []strategyDef{
+		{
+			name:        "均衡策略",
+			description: "系统默认策略。均衡风险收益，适合大多数市场环境。5倍杠杆，最多3个仓位。",
+			isActive:    true,
+			applyConfig: func(c *store.StrategyConfig) {
+				// Uses default config as-is
+			},
+		},
+		{
+			name:        "稳健策略",
+			description: "系统默认策略。低杠杆保守操作，优先保护本金。3倍杠杆，专注主流资产。",
+			isActive:    false,
+			applyConfig: func(c *store.StrategyConfig) {
+				c.RiskControl.BTCETHMaxLeverage = 3
+				c.RiskControl.AltcoinMaxLeverage = 3
+				c.RiskControl.BTCETHMaxPositionValueRatio = 3.0
+				c.RiskControl.AltcoinMaxPositionValueRatio = 0.5
+				c.RiskControl.MinConfidence = 80
+				c.RiskControl.MinRiskRewardRatio = 4.0
+				c.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
+				c.Indicators.Klines.PrimaryTimeframe = "15m"
+			},
+		},
+		{
+			name:        "积极策略",
+			description: "系统默认策略。高杠杆主动交易，更广泛的币种选择，适合经验丰富的交易者。10倍杠杆，最多5个仓位。",
+			isActive:    false,
+			applyConfig: func(c *store.StrategyConfig) {
+				c.RiskControl.BTCETHMaxLeverage = 10
+				c.RiskControl.AltcoinMaxLeverage = 7
+				c.RiskControl.MaxPositions = 5
+				c.RiskControl.AltcoinMaxPositionValueRatio = 2.0
+				c.RiskControl.MinConfidence = 70
+				c.CoinSource.AI500Limit = 5
+				c.CoinSource.UseOITop = true
+				c.CoinSource.OITopLimit = 5
+				c.Indicators.Klines.SelectedTimeframes = []string{"3m", "15m", "1h"}
+				c.Indicators.Klines.PrimaryTimeframe = "3m"
+			},
+		},
+	}
+
+	for _, def := range definitions {
+		config := store.GetDefaultStrategyConfig("zh")
+		def.applyConfig(&config)
+
+		strategy := &store.Strategy{
+			ID:          uuid.New().String(),
+			UserID:      userID,
+			Name:        def.name,
+			Description: def.description,
+			IsActive:    def.isActive,
+			IsDefault:   false,
+		}
+		if err := strategy.SetConfig(&config); err != nil {
+			return fmt.Errorf("failed to set config for strategy %q: %w", def.name, err)
+		}
+		if err := s.store.Strategy().Create(strategy); err != nil {
+			return fmt.Errorf("failed to create strategy %q: %w", def.name, err)
+		}
+		logger.Infof("  ✓ Created default strategy: %s (active=%v)", def.name, def.isActive)
+	}
 	return nil
 }

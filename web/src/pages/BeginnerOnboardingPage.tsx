@@ -3,18 +3,20 @@ import { Copy, Eye, EyeOff, RefreshCw, Shield, Wallet, Sparkles } from 'lucide-r
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
+import { useLanguage } from '../contexts/LanguageContext'
 import { api } from '../lib/api'
 import type { BeginnerOnboardingResponse } from '../types'
 import { setBeginnerWalletAddress } from '../lib/onboarding'
 
 export function BeginnerOnboardingPage() {
+  const { language } = useLanguage()
   const [data, setData] = useState<BeginnerOnboardingResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showPrivateKey, setShowPrivateKey] = useState(false)
   const [refreshingBalance, setRefreshingBalance] = useState(false)
   const hasRequestedRef = useRef(false)
-  const isZh = navigator.language.toLowerCase().includes('zh')
+  const isZh = language === 'zh'
 
   const loadOnboarding = async (showLoading: boolean) => {
     if (showLoading) {
@@ -51,7 +53,7 @@ export function BeginnerOnboardingPage() {
     }
     hasRequestedRef.current = true
     void loadOnboarding(true)
-  }, [isZh])
+  }, [])
 
   const hints = useMemo(
     () =>

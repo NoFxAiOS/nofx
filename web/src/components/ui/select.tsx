@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '../../lib/cn'
@@ -30,7 +30,7 @@ export function NofxSelect({ value, onChange, options, disabled, className, styl
     setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return
     updatePos()
     const handleClose = (e: MouseEvent) => {
@@ -39,7 +39,10 @@ export function NofxSelect({ value, onChange, options, disabled, className, styl
       if (dropdownRef.current?.contains(target)) return
       setOpen(false)
     }
-    const handleScroll = () => setOpen(false)
+    const handleScroll = (e: Event) => {
+      if (dropdownRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', handleClose)
     window.addEventListener('scroll', handleScroll, true)
     return () => {

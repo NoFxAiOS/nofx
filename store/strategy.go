@@ -12,7 +12,7 @@ import (
 
 // Hard limits to prevent token explosion in AI requests
 const (
-	MaxCandidateCoins = 3
+	MaxCandidateCoins = 10
 	MaxPositions      = 3
 	MaxTimeframes     = 4
 	MinKlineCount     = 10
@@ -456,8 +456,18 @@ func (s *StrategyStore) Update(strategy *Strategy) error {
 func (s *StrategyStore) Delete(userID, id string) error {
 	// do not allow deleting system default strategy
 	var st Strategy
-	if err := s.db.Where("id = ?", id).First(&st).Error; err == nil && st.IsDefault {
-		return fmt.Errorf("cannot delete system default strategy")
+	if err := s.db.Where("id = ?", id).First(&st).Error; err == nil {
+		if st.IsDefault {
+			return fmt.Errorf("cannot delete system default strategy")
+		}
+	}
+
+	// Check if any trader references this strategy
+	var count int64
+	if err := s.db.Model(&Trader{}).
+		Where("user_id = ? AND strategy_id = ?", userID, id).
+		Count(&count).Error; err == nil && count > 0 {
+		return fmt.Errorf("cannot delete strategy in use by %d trader(s) - reassign those traders first", count)
 	}
 
 	return s.db.Where("id = ? AND user_id = ?", id, userID).Delete(&Strategy{}).Error
@@ -608,16 +618,28 @@ type ModelLimit struct {
 	Level        string `json:"level"` // "ok" | "warning" | "danger"
 }
 
+// Context window sizes (tokens) for each model family
+const (
+	contextLimitDeepSeek = 131_072   // 128K
+	contextLimitOpenAI   = 128_000   // 128K
+	contextLimitClaude   = 200_000   // 200K
+	contextLimitQwen     = 131_072   // 128K
+	contextLimitGemini   = 1_000_000 // 1M
+	contextLimitGrok     = 131_072   // 128K
+	contextLimitKimi     = 131_072   // 128K
+	contextLimitMinimax  = 1_000_000 // 1M
+)
+
 // ModelContextLimits maps provider names to their context window sizes (in tokens)
 var ModelContextLimits = map[string]int{
-	"deepseek": 131072,
-	"openai":   128000,
-	"claude":   200000,
-	"qwen":     131072,
-	"gemini":   1000000,
-	"grok":     131072,
-	"kimi":     131072,
-	"minimax":  1000000,
+	"deepseek": contextLimitDeepSeek,
+	"openai":   contextLimitOpenAI,
+	"claude":   contextLimitClaude,
+	"qwen":     contextLimitQwen,
+	"gemini":   contextLimitGemini,
+	"grok":     contextLimitGrok,
+	"kimi":     contextLimitKimi,
+	"minimax":  contextLimitMinimax,
 }
 
 // GetContextLimit returns the context limit for a given provider
@@ -625,7 +647,35 @@ func GetContextLimit(provider string) int {
 	if limit, ok := ModelContextLimits[provider]; ok {
 		return limit
 	}
-	return 131072 // safe default
+	return contextLimitDeepSeek // safe default
+}
+
+// GetContextLimitForClient returns context limit for a provider+model pair.
+// For claw402, the underlying model is inferred from the model name prefix.
+func GetContextLimitForClient(provider, model string) int {
+	if provider == "claw402" {
+		switch {
+		case strings.HasPrefix(model, "claude"):
+			return ModelContextLimits["claude"]
+		case strings.HasPrefix(model, "gpt"), strings.HasPrefix(model, "o1"), strings.HasPrefix(model, "o3"):
+			return ModelContextLimits["openai"]
+		case strings.HasPrefix(model, "gemini"):
+			return ModelContextLimits["gemini"]
+		case strings.HasPrefix(model, "grok"):
+			return ModelContextLimits["grok"]
+		case strings.HasPrefix(model, "kimi"):
+			return ModelContextLimits["kimi"]
+		case strings.HasPrefix(model, "qwen"):
+			return ModelContextLimits["qwen"]
+		case strings.HasPrefix(model, "minimax"):
+			return ModelContextLimits["minimax"]
+		case strings.HasPrefix(model, "deepseek"):
+			return ModelContextLimits["deepseek"]
+		default:
+			return ModelContextLimits["deepseek"]
+		}
+	}
+	return GetContextLimit(provider)
 }
 
 // EstimateTokens estimates the total token count for a strategy configuration.

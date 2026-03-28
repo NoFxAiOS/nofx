@@ -164,8 +164,8 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	var req struct {
 		Name        string                `json:"name" binding:"required"`
 		Description string                `json:"description"`
-		Lang        string                `json:"lang"`          // "zh" or "en", used when config is omitted
-		Config      *store.StrategyConfig `json:"config"`        // optional — uses default if omitted
+		Lang        string                `json:"lang"`   // "zh" or "en", used when config is omitted
+		Config      *store.StrategyConfig `json:"config"` // optional — uses default if omitted
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -344,7 +344,7 @@ func (s *Server) handleDeleteStrategy(c *gin.Context) {
 	}
 
 	if err := s.store.Strategy().Delete(userID, strategyID); err != nil {
-		SafeInternalError(c, "Failed to delete strategy", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": SanitizeError(err, "Failed to delete strategy")})
 		return
 	}
 
@@ -452,9 +452,9 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	}
 
 	var req struct {
-		Config          store.StrategyConfig `json:"config" binding:"required"`
-		AccountEquity   float64              `json:"account_equity"`
-		PromptVariant   string               `json:"prompt_variant"`
+		Config        store.StrategyConfig `json:"config" binding:"required"`
+		AccountEquity float64              `json:"account_equity"`
+		PromptVariant string               `json:"prompt_variant"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -697,4 +697,3 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 
 	return response, nil
 }
-

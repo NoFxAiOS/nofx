@@ -92,6 +92,20 @@ export function ConfigStatusGrid({
                     <div className="text-[10px] text-zinc-500 font-mono flex items-center gap-2">
                       {model.customModelName || AI_PROVIDER_CONFIG[model.provider]?.defaultModel || ''}
                     </div>
+                    {model.provider === 'claw402' && (model.balanceUsdc || model.walletAddress) ? (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] font-mono">
+                        {model.balanceUsdc ? (
+                          <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-400">
+                            {model.balanceUsdc} USDC
+                          </span>
+                        ) : null}
+                        {model.walletAddress ? (
+                          <span className="rounded border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-sky-400">
+                            {truncateAddress(model.walletAddress)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 

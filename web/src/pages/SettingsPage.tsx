@@ -4,6 +4,12 @@ import { User, Cpu, Building2, MessageCircle, Eye, EyeOff, ChevronRight, Plus, P
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { api } from '../lib/api'
+import {
+  getPostAuthPath,
+  getUserMode,
+  setUserMode,
+  type UserMode,
+} from '../lib/onboarding'
 import { ExchangeConfigModal } from '../components/trader/ExchangeConfigModal'
 import { TelegramConfigModal } from '../components/trader/TelegramConfigModal'
 import { ModelConfigModal } from '../components/trader/ModelConfigModal'
@@ -15,6 +21,7 @@ export function SettingsPage() {
   const { user } = useAuth()
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<Tab>('account')
+  const [userMode, setUserModeState] = useState<UserMode>(() => getUserMode() ?? 'advanced')
 
   // Account state
   const [newPassword, setNewPassword] = useState('')
@@ -79,6 +86,26 @@ export function SettingsPage() {
     } finally {
       setChangingPassword(false)
     }
+  }
+
+  const handleSwitchMode = (nextMode: UserMode) => {
+    if (nextMode === userMode) {
+      return
+    }
+
+    setUserMode(nextMode)
+    setUserModeState(nextMode)
+    toast.success(
+      language === 'zh'
+        ? `已切换到${nextMode === 'beginner' ? '新手模式' : '老手模式'}`
+        : nextMode === 'beginner'
+          ? 'Switched to beginner mode'
+          : 'Switched to advanced mode'
+    )
+
+    const nextPath = getPostAuthPath(nextMode)
+    window.history.pushState({}, '', nextPath)
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   const handleSaveModel = async (
@@ -291,6 +318,66 @@ export function SettingsPage() {
               <div>
                 <p className="text-xs text-zinc-500 mb-1">Email</p>
                 <p className="text-sm text-white font-medium">{user?.email}</p>
+              </div>
+
+              <div className="border-t border-zinc-800 pt-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      {language === 'zh' ? '使用模式' : 'Usage Mode'}
+                    </h3>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {language === 'zh'
+                        ? '新手模式会显示钱包引导和 4 步卡片；老手模式保持原来的专业界面。'
+                        : 'Beginner mode shows wallet onboarding and quickstart cards. Advanced mode keeps the original pro workflow.'}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-nofx-gold/20 bg-nofx-gold/10 px-3 py-1 text-xs font-semibold text-nofx-gold">
+                    {userMode === 'beginner'
+                      ? language === 'zh' ? '当前：新手模式' : 'Current: Beginner'
+                      : language === 'zh' ? '当前：老手模式' : 'Current: Advanced'}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMode('beginner')}
+                    className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                      userMode === 'beginner'
+                        ? 'border-nofx-gold bg-nofx-gold/10'
+                        : 'border-zinc-800 bg-zinc-950/70 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-white">
+                      {language === 'zh' ? '新手模式' : 'Beginner Mode'}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {language === 'zh'
+                        ? '更简单，优先显示钱包、充值和快速上手引导。'
+                        : 'Simpler flow with wallet, funding, and quickstart guidance first.'}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMode('advanced')}
+                    className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                      userMode === 'advanced'
+                        ? 'border-nofx-gold bg-nofx-gold/10'
+                        : 'border-zinc-800 bg-zinc-950/70 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-white">
+                      {language === 'zh' ? '老手模式' : 'Advanced Mode'}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {language === 'zh'
+                        ? '保持原来的配置与交易流程，不展示新手引导。'
+                        : 'Keeps the original configuration and trading workflow without beginner hints.'}
+                    </div>
+                  </button>
+                </div>
               </div>
 
               <div className="border-t border-zinc-800 pt-6">

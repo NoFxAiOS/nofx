@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // handleLogout Add current token to blacklist
@@ -59,11 +61,17 @@ func (s *Server) handleRegister(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=6"`
+		Lang     string `json:"lang"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		SafeBadRequest(c, "Invalid request parameters")
 		return
+	}
+
+	lang := req.Lang
+	if lang != "zh" && lang != "id" {
+		lang = "en"
 	}
 
 	// Check if email already exists
@@ -102,7 +110,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 	}
 
 	// Initialize default model and exchange configs for user
-	err = s.initUserDefaultConfigs(user.ID)
+	err = s.initUserDefaultConfigs(user.ID, lang)
 	if err != nil {
 		logger.Infof("Failed to initialize user default configs: %v", err)
 	}
@@ -214,10 +222,128 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful, please login with new password"})
 }
 
-// initUserDefaultConfigs Initialize default model and exchange configs for new user
-func (s *Server) initUserDefaultConfigs(userID string) error {
-	// Commented out auto-creation of default configs, let users add manually
-	// This way new users won't have config items automatically after registration
-	logger.Infof("User %s registration completed, waiting for manual AI model and exchange configuration", userID)
+// initUserDefaultConfigs Initialize default configs for new user
+func (s *Server) initUserDefaultConfigs(userID string, lang string) error {
+	if err := s.createDefaultStrategies(userID, lang); err != nil {
+		logger.Warnf("Failed to create default strategies for user %s: %v", userID, err)
+		// Non-fatal: user can create strategies manually
+	}
+	logger.Infof("✓ User %s registration completed with default strategies", userID)
 	return nil
+}
+
+func (s *Server) createDefaultStrategies(userID string, lang string) error {
+	type strategyI18n struct {
+		name, description string
+	}
+	type strategyLocale struct {
+		balanced, conservative, aggressive strategyI18n
+	}
+	locales := map[string]strategyLocale{
+		"zh": {
+			balanced:     strategyI18n{"均衡策略", "系统默认策略。均衡风险收益，适合大多数市场环境。5倍杠杆，最多3个仓位。"},
+			conservative: strategyI18n{"稳健策略", "系统默认策略。低杠杆保守操作，优先保护本金。3倍杠杆，专注主流资产。"},
+			aggressive:   strategyI18n{"积极策略", "系统默认策略。高杠杆主动交易，更广泛的币种选择，适合经验丰富的交易者。10倍杠杆，最多5个仓位。"},
+		},
+		"en": {
+			balanced:     strategyI18n{"Balanced Strategy", "System default strategy. Balanced risk-reward, suitable for most market conditions. 5x leverage, up to 3 positions."},
+			conservative: strategyI18n{"Conservative Strategy", "System default strategy. Low-leverage conservative trading, capital preservation first. 3x leverage, focused on major assets."},
+			aggressive:   strategyI18n{"Aggressive Strategy", "System default strategy. High-leverage active trading, wider asset selection, for experienced traders. 10x leverage, up to 5 positions."},
+		},
+		"id": {
+			balanced:     strategyI18n{"Strategi Seimbang", "Strategi default sistem. Risiko-reward seimbang, cocok untuk sebagian besar kondisi pasar. Leverage 5x, hingga 3 posisi."},
+			conservative: strategyI18n{"Strategi Konservatif", "Strategi default sistem. Trading konservatif leverage rendah, utamakan perlindungan modal. Leverage 3x, fokus aset utama."},
+			aggressive:   strategyI18n{"Strategi Agresif", "Strategi default sistem. Trading aktif leverage tinggi, pilihan aset lebih luas, untuk trader berpengalaman. Leverage 10x, hingga 5 posisi."},
+		},
+	}
+	locale, ok := locales[lang]
+	if !ok {
+		locale = locales["en"]
+	}
+
+	type strategyDef struct {
+		name        string
+		description string
+		isActive    bool
+		applyConfig func(*store.StrategyConfig)
+	}
+
+	definitions := []strategyDef{
+		{
+			name:        locale.balanced.name,
+			description: locale.balanced.description,
+			isActive:    true,
+			applyConfig: func(c *store.StrategyConfig) {
+				// Uses default config as-is
+			},
+		},
+		{
+			name:        locale.conservative.name,
+			description: locale.conservative.description,
+			isActive:    false,
+			applyConfig: func(c *store.StrategyConfig) {
+				c.RiskControl.BTCETHMaxLeverage = 3
+				c.RiskControl.AltcoinMaxLeverage = 3
+				c.RiskControl.BTCETHMaxPositionValueRatio = 3.0
+				c.RiskControl.AltcoinMaxPositionValueRatio = 0.5
+				c.RiskControl.MinConfidence = 80
+				c.RiskControl.MinRiskRewardRatio = 4.0
+				c.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
+				c.Indicators.Klines.PrimaryTimeframe = "15m"
+			},
+		},
+		{
+			name:        locale.aggressive.name,
+			description: locale.aggressive.description,
+			isActive:    false,
+			applyConfig: func(c *store.StrategyConfig) {
+				c.RiskControl.BTCETHMaxLeverage = 10
+				c.RiskControl.AltcoinMaxLeverage = 7
+				c.RiskControl.MaxPositions = 5
+				c.RiskControl.AltcoinMaxPositionValueRatio = 2.0
+				c.RiskControl.MinConfidence = 70
+				c.CoinSource.AI500Limit = 5
+				c.CoinSource.UseOITop = true
+				c.CoinSource.OITopLimit = 5
+				c.Indicators.Klines.SelectedTimeframes = []string{"3m", "15m", "1h"}
+				c.Indicators.Klines.PrimaryTimeframe = "3m"
+			},
+		},
+	}
+
+	// GetDefaultStrategyConfig only supports zh/en; map id -> en
+	configLang := lang
+	if lang == "id" {
+		configLang = "en"
+	}
+
+	// Pre-build all strategy objects before opening the transaction
+	var strategies []*store.Strategy
+	for _, def := range definitions {
+		config := store.GetDefaultStrategyConfig(configLang)
+		def.applyConfig(&config)
+
+		strategy := &store.Strategy{
+			ID:          uuid.New().String(),
+			UserID:      userID,
+			Name:        def.name,
+			Description: def.description,
+			IsActive:    def.isActive,
+			IsDefault:   false,
+		}
+		if err := strategy.SetConfig(&config); err != nil {
+			return fmt.Errorf("failed to set config for strategy %q: %w", def.name, err)
+		}
+		strategies = append(strategies, strategy)
+	}
+
+	return s.store.Transaction(func(tx *gorm.DB) error {
+		for _, strategy := range strategies {
+			if err := tx.Create(strategy).Error; err != nil {
+				return fmt.Errorf("failed to create strategy %q: %w", strategy.Name, err)
+			}
+			logger.Infof("  ✓ Created default strategy: %s (active=%v)", strategy.Name, strategy.IsActive)
+		}
+		return nil
+	})
 }

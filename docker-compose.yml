@@ -11,6 +11,7 @@ services:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
       - "6060:6060"  # pprof profiling
     volumes:
+      - ./.env:/app/.env
       - ./data:/app/data
       - /etc/localtime:/etc/localtime:ro
     env_file:

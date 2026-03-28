@@ -118,8 +118,12 @@ func main() {
 			if t.IsRunning {
 				status = "✅ Running"
 			}
-			logger.Infof("  • %s [%s] %s - AI Model: %s, Exchange: %s",
-				t.Name, t.ID[:8], status, t.AIModelID, t.ExchangeID)
+			idShort := t.ID
+		if len(idShort) > 8 {
+			idShort = idShort[:8]
+		}
+		logger.Infof("  • %s [%s] %s - AI Model: %s, Exchange: %s",
+				t.Name, idShort, status, t.AIModelID, t.ExchangeID)
 		}
 	}
 

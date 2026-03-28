@@ -21,10 +21,10 @@ interface TokenEstimateResult {
 interface TokenEstimateBarProps {
   config: StrategyConfig | null
   language: Language
-  onOverflowChange?: (overflow: boolean) => void
+  onTokenCountChange?: (total: number) => void
 }
 
-export function TokenEstimateBar({ config, language, onOverflowChange }: TokenEstimateBarProps) {
+export function TokenEstimateBar({ config, language, onTokenCountChange }: TokenEstimateBarProps) {
   const [estimate, setEstimate] = useState<TokenEstimateResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -52,6 +52,7 @@ export function TokenEstimateBar({ config, language, onOverflowChange }: TokenEs
         if (response.ok) {
           const data = await response.json()
           setEstimate(data)
+          onTokenCountChange?.(data.total)
         }
       } catch {
         // silently ignore — non-critical UI element
@@ -67,15 +68,6 @@ export function TokenEstimateBar({ config, language, onOverflowChange }: TokenEs
     }
   }, [config])
 
-  useEffect(() => {
-    if (!estimate) {
-      onOverflowChange?.(false)
-      return
-    }
-    const maxPct = estimate.model_limits.reduce((max, ml) => Math.max(max, ml.usage_pct), 0)
-    onOverflowChange?.(maxPct >= 100)
-  }, [estimate, onOverflowChange])
-
   if (!config) return null
 
   if (isLoading && !estimate) {
@@ -89,14 +81,8 @@ export function TokenEstimateBar({ config, language, onOverflowChange }: TokenEs
 
   if (!estimate) return null
 
-  // Find the strictest model (smallest context limit = highest usage_pct)
-  const strictest = estimate.model_limits.reduce(
-    (max, ml) => (ml.usage_pct > max.usage_pct ? ml : max),
-    estimate.model_limits[0]
-  )
-  if (!strictest) return null
-
-  const pct = strictest.usage_pct
+  // Display based on 200K reference
+  const pct = Math.round(estimate.total * 100 / 200000)
   const barWidth = Math.min(pct, 100)
 
   let barColor = '#0ECB81' // green
@@ -108,8 +94,6 @@ export function TokenEstimateBar({ config, language, onOverflowChange }: TokenEs
     barColor = '#F0B90B' // yellow
     textColor = '#F0B90B'
   }
-
-  const exceedWarning = pct >= 100 ? tr('tokenExceedWarning') : null
 
   return (
     <div className="space-y-1">
@@ -129,15 +113,10 @@ export function TokenEstimateBar({ config, language, onOverflowChange }: TokenEs
         <div className="relative group">
           <Info className="w-3 h-3 text-nofx-text-muted cursor-help" />
           <div className="absolute bottom-full right-0 mb-1.5 px-2.5 py-1.5 rounded-lg text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 bg-nofx-bg-lighter border border-nofx-border text-nofx-text-muted shadow-lg">
-            {tr('tokenTooltip')} ({strictest.name} {(strictest.context_limit / 1000).toFixed(0)}K)
+            {tr('tokenTooltip')} (~{estimate.total.toLocaleString()} / 200K)
           </div>
         </div>
       </div>
-      {exceedWarning && (
-        <p className="text-[10px]" style={{ color: '#F6465D' }}>
-          {exceedWarning}
-        </p>
-      )}
     </div>
   )
 }

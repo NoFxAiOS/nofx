@@ -343,22 +343,26 @@ export const api = {
   },
 
   // 获取账户信息（支持trader_id）
-  async getAccount(traderId?: string): Promise<AccountInfo> {
+  async getAccount(traderId?: string, silent?: boolean): Promise<AccountInfo> {
     const url = traderId
       ? `${API_BASE}/account?trader_id=${traderId}`
       : `${API_BASE}/account`
-    const result = await httpClient.get<AccountInfo>(url)
+    const result = silent 
+      ? await httpClient.request<AccountInfo>(url, { silent })
+      : await httpClient.get<AccountInfo>(url)
     if (!result.success) throw new Error('获取账户信息失败')
     console.log('Account data fetched:', result.data)
     return result.data!
   },
 
   // 获取持仓列表（支持trader_id）
-  async getPositions(traderId?: string): Promise<Position[]> {
+  async getPositions(traderId?: string, silent?: boolean): Promise<Position[]> {
     const url = traderId
       ? `${API_BASE}/positions?trader_id=${traderId}`
       : `${API_BASE}/positions`
-    const result = await httpClient.get<Position[]>(url)
+    const result = silent
+      ? await httpClient.request<Position[]>(url, { silent })
+      : await httpClient.get<Position[]>(url)
     if (!result.success) throw new Error('获取持仓列表失败')
     return result.data!
   },
@@ -376,7 +380,8 @@ export const api = {
   // 获取最新决策（支持trader_id和limit参数）
   async getLatestDecisions(
     traderId?: string,
-    limit: number = 5
+    limit: number = 5,
+    silent?: boolean
   ): Promise<DecisionRecord[]> {
     const params = new URLSearchParams()
     if (traderId) {
@@ -384,9 +389,9 @@ export const api = {
     }
     params.append('limit', limit.toString())
 
-    const result = await httpClient.get<DecisionRecord[]>(
-      `${API_BASE}/decisions/latest?${params}`
-    )
+    const result = silent
+      ? await httpClient.request<DecisionRecord[]>(`${API_BASE}/decisions/latest?${params}`, { silent })
+      : await httpClient.get<DecisionRecord[]>(`${API_BASE}/decisions/latest?${params}`)
     if (!result.success) throw new Error('获取最新决策失败')
     return result.data!
   },
@@ -807,5 +812,40 @@ export const api = {
   async updateTelegramModel(modelId: string): Promise<void> {
     const result = await httpClient.post(`${API_BASE}/telegram/model`, { model_id: modelId })
     if (!result.success) throw new Error('更新Telegram模型失败')
+  },
+
+  async prepareBeginnerOnboarding(): Promise<{
+    address: string
+    private_key: string
+    chain: string
+    asset: string
+    provider: string
+    default_model: string
+    configured_model_id: string
+    balance_usdc: string
+    env_saved: boolean
+    env_path?: string
+    reused_existing: boolean
+    env_warning?: string
+  }> {
+    const result = await httpClient.post(`${API_BASE}/onboarding/beginner`)
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to prepare beginner onboarding')
+    }
+    return result.data
+  },
+
+  async getCurrentBeginnerWallet(): Promise<{
+    found: boolean
+    address?: string
+    balance_usdc?: string
+    source?: string
+    claw402_status?: string
+  }> {
+    const result = await httpClient.get(`${API_BASE}/onboarding/beginner/current`)
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to fetch current beginner wallet')
+    }
+    return result.data
   },
 }

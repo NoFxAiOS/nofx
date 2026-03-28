@@ -116,6 +116,8 @@ export interface AIModel {
   apiKey?: string
   customApiUrl?: string
   customModelName?: string
+  walletAddress?: string
+  balanceUsdc?: string
 }
 
 export interface TelegramConfig {
@@ -123,6 +125,29 @@ export interface TelegramConfig {
   is_bound: boolean       // Whether a user has sent /start
   bound_chat_id?: number  // The bound chat ID (if any)
   model_id?: string       // AI model selected for Telegram replies
+}
+
+export interface BeginnerOnboardingResponse {
+  address: string
+  private_key: string
+  chain: string
+  asset: string
+  provider: string
+  default_model: string
+  configured_model_id: string
+  balance_usdc: string
+  env_saved: boolean
+  env_path?: string
+  reused_existing: boolean
+  env_warning?: string
+}
+
+export interface CurrentBeginnerWalletResponse {
+  found: boolean
+  address?: string
+  balance_usdc?: string
+  source?: string
+  claw402_status?: string
 }
 
 export interface Exchange {

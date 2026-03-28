@@ -36,7 +36,7 @@ func (h *CryptoHandler) HandleGetCryptoConfig(c *gin.Context) {
 // HandleGetPublicKey Get server public key
 func (h *CryptoHandler) HandleGetPublicKey(c *gin.Context) {
 	cfg := config.Get()
-	if !cfg.TransportEncryption {
+	if !cfg.TransportEncryption || h.cryptoService == nil {
 		c.JSON(http.StatusOK, gin.H{
 			"public_key":           "",
 			"algorithm":            "",
@@ -57,6 +57,11 @@ func (h *CryptoHandler) HandleGetPublicKey(c *gin.Context) {
 
 // HandleDecryptSensitiveData Decrypt encrypted data sent from client
 func (h *CryptoHandler) HandleDecryptSensitiveData(c *gin.Context) {
+	if h.cryptoService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Encryption service not configured"})
+		return
+	}
+
 	var payload crypto.EncryptedPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})

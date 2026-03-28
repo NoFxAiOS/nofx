@@ -41,10 +41,14 @@ func main() {
 	logger.Info("🔐 Initializing encryption service...")
 	cryptoService, err := crypto.NewCryptoService()
 	if err != nil {
-		logger.Fatalf("❌ Failed to initialize encryption service: %v", err)
+		logger.Warnf("⚠️ Encryption service not available: %v", err)
+		logger.Warn("⚠️ The system will start without transport encryption.")
+		logger.Warn("⚠️ To enable encryption, configure RSA_PRIVATE_KEY and DATA_ENCRYPTION_KEY in your .env file.")
+		logger.Warn("⚠️ See ENCRYPTION_README.md for setup instructions.")
+	} else {
+		crypto.SetGlobalCryptoService(cryptoService)
+		logger.Info("✅ Encryption service initialized successfully")
 	}
-	crypto.SetGlobalCryptoService(cryptoService)
-	logger.Info("✅ Encryption service initialized successfully")
 
 	// Initialize database from configuration
 	// For backward compatibility: command line arg overrides config (SQLite only)

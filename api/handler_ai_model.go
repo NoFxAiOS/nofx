@@ -10,6 +10,7 @@ import (
 	"nofx/crypto"
 	"nofx/logger"
 	"nofx/security"
+	"nofx/wallet"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,6 +32,8 @@ type SafeModelConfig struct {
 	Enabled         bool   `json:"enabled"`
 	CustomAPIURL    string `json:"customApiUrl"`    // Custom API URL (usually not sensitive)
 	CustomModelName string `json:"customModelName"` // Custom model name (not sensitive)
+	WalletAddress   string `json:"walletAddress,omitempty"`
+	BalanceUSDC     string `json:"balanceUsdc,omitempty"`
 }
 
 type UpdateModelConfigRequest struct {
@@ -75,7 +78,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	// Convert to safe response structure, remove sensitive information
 	safeModels := make([]SafeModelConfig, len(models))
 	for i, model := range models {
-		safeModels[i] = SafeModelConfig{
+		safeModel := SafeModelConfig{
 			ID:              model.ID,
 			Name:            model.Name,
 			Provider:        model.Provider,
@@ -83,6 +86,19 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			CustomAPIURL:    model.CustomAPIURL,
 			CustomModelName: model.CustomModelName,
 		}
+
+		if model.Provider == "claw402" {
+			if privateKey := strings.TrimSpace(model.APIKey.String()); privateKey != "" {
+				if walletAddress, addrErr := walletAddressFromPrivateKey(privateKey); addrErr == nil {
+					safeModel.WalletAddress = walletAddress
+					safeModel.BalanceUSDC = wallet.QueryUSDCBalanceStr(walletAddress)
+				} else {
+					logger.Warnf("⚠️ Failed to derive claw402 wallet address for model %s: %v", model.ID, addrErr)
+				}
+			}
+		}
+
+		safeModels[i] = safeModel
 	}
 
 	c.JSON(http.StatusOK, safeModels)

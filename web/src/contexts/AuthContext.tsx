@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { flushSync } from 'react-dom'
 import { getSystemConfig } from '../lib/config'
 import { reset401Flag, httpClient } from '../lib/httpClient'
+import { getPostAuthPath, setUserMode, type UserMode } from '../lib/onboarding'
+import { useLanguage } from './LanguageContext'
 
 interface User {
   id: string
@@ -12,7 +15,8 @@ interface AuthContextType {
   token: string | null
   login: (
     email: string,
-    password: string
+    password: string,
+    mode?: UserMode
   ) => Promise<{
     success: boolean
     message?: string
@@ -24,7 +28,8 @@ interface AuthContextType {
   register: (
     email: string,
     password: string,
-    betaCode?: string
+    betaCode?: string,
+    mode?: UserMode
   ) => Promise<{ success: boolean; message?: string }>
   resetPassword: (
     email: string,
@@ -37,6 +42,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { language } = useLanguage()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -89,7 +95,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const handlePostAuthSuccess = (
+    authToken: string,
+    userInfo: User,
+    mode?: UserMode
+  ) => {
+    reset401Flag()
+
+    if (mode) {
+      setUserMode(mode)
+    }
+
+    localStorage.setItem('auth_token', authToken)
+    localStorage.setItem('auth_user', JSON.stringify(userInfo))
+    localStorage.setItem('user_id', userInfo.id)
+    flushSync(() => {
+      setToken(authToken)
+      setUser(userInfo)
+    })
+
+    const returnUrl = sessionStorage.getItem('returnUrl')
+    const nextPath = returnUrl || getPostAuthPath(mode)
+    if (returnUrl) {
+      sessionStorage.removeItem('returnUrl')
+    }
+
+    window.history.pushState({}, '', nextPath)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  const login = async (email: string, password: string, mode?: UserMode) => {
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
@@ -103,26 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         if (data.token) {
-          // Reset 401 flag on successful login
-          reset401Flag()
-
           const userInfo = { id: data.user_id, email: data.email }
-          setToken(data.token)
-          setUser(userInfo)
-          localStorage.setItem('auth_token', data.token)
-          localStorage.setItem('auth_user', JSON.stringify(userInfo))
-
-          // Check and redirect to returnUrl if exists
-          const returnUrl = sessionStorage.getItem('returnUrl')
-          if (returnUrl) {
-            sessionStorage.removeItem('returnUrl')
-            window.history.pushState({}, '', returnUrl)
-            window.dispatchEvent(new PopStateEvent('popstate'))
-          } else {
-            // Redirect to config page
-            window.history.pushState({}, '', '/traders')
-            window.dispatchEvent(new PopStateEvent('popstate'))
-          }
+          handlePostAuthSuccess(data.token, userInfo, mode)
 
           return { success: true, message: data.message }
         }
@@ -156,10 +173,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: data.user_id || 'admin',
           email: data.email || 'admin@localhost',
         }
-        setToken(data.token)
-        setUser(userInfo)
         localStorage.setItem('auth_token', data.token)
         localStorage.setItem('auth_user', JSON.stringify(userInfo))
+        flushSync(() => {
+          setToken(data.token)
+          setUser(userInfo)
+        })
 
         // Check and redirect to returnUrl if exists
         const returnUrl = sessionStorage.getItem('returnUrl')
@@ -184,13 +203,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (
     email: string,
     password: string,
-    betaCode?: string
+    betaCode?: string,
+    mode?: UserMode
   ) => {
     const requestBody: {
       email: string
       password: string
       beta_code?: string
-    } = { email, password }
+      lang?: string
+    } = { email, password, lang: language }
     if (betaCode) {
       requestBody.beta_code = betaCode
     }
@@ -204,26 +225,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }>('/api/register', requestBody)
 
       if (result.success && result.data) {
-        // Reset 401 flag on successful login
-        reset401Flag()
-
         const userInfo = { id: result.data.user_id, email: result.data.email }
-        setToken(result.data.token)
-        setUser(userInfo)
-        localStorage.setItem('auth_token', result.data.token)
-        localStorage.setItem('auth_user', JSON.stringify(userInfo))
-
-        // Check and redirect to returnUrl if exists
-        const returnUrl = sessionStorage.getItem('returnUrl')
-        if (returnUrl) {
-          sessionStorage.removeItem('returnUrl')
-          window.history.pushState({}, '', returnUrl)
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        } else {
-          // Redirect to config page
-          window.history.pushState({}, '', '/traders')
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        }
+        handlePostAuthSuccess(result.data.token, userInfo, mode)
 
         return {
           success: true,

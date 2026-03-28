@@ -15,6 +15,7 @@ import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
 import { StrategyMarketPage } from './pages/StrategyMarketPage'
 import { DataPage } from './pages/DataPage'
+import { BeginnerOnboardingPage } from './pages/BeginnerOnboardingPage'
 import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
 import HeaderBar from './components/common/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -22,6 +23,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/common/ConfirmDialog'
 import { t } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
+import { getUserMode } from './lib/onboarding'
 
 import { OFFICIAL_LINKS } from './constants/branding'
 import type {
@@ -63,6 +65,7 @@ function App() {
     const path = window.location.pathname
     const hash = window.location.hash.slice(1) // 去掉 #
 
+    if (path === '/welcome') return 'traders'
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
@@ -132,6 +135,20 @@ function App() {
   }
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
   const [decisionsLimit, setDecisionsLimit] = useState<number>(5)
+  const hasPersistedAuth =
+    !!localStorage.getItem('auth_token') && !!localStorage.getItem('auth_user')
+
+  // Poll-off states: stop polling after 3 consecutive failures
+  const [accountPollOff, setAccountPollOff] = useState(false)
+  const [positionsPollOff, setPositionsPollOff] = useState(false)
+  const [decisionsPollOff, setDecisionsPollOff] = useState(false)
+
+  // Reset poll-off states when trader changes
+  useEffect(() => {
+    setAccountPollOff(false)
+    setPositionsPollOff(false)
+    setDecisionsPollOff(false)
+  }, [selectedTraderId])
 
   // 监听URL变化，同步页面状态
   useEffect(() => {
@@ -141,7 +158,9 @@ function App() {
       const params = new URLSearchParams(window.location.search)
       const traderParam = params.get('trader')
 
-      if (path === '/traders' || hash === 'traders') {
+      if (path === '/welcome') {
+        setCurrentPage('traders')
+      } else if (path === '/traders' || hash === 'traders') {
         setCurrentPage('traders')
       } else if (path === '/strategy' || hash === 'strategy') {
         setCurrentPage('strategy')
@@ -238,11 +257,16 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `account-${selectedTraderId}`
       : null,
-    () => api.getAccount(selectedTraderId),
+    () => api.getAccount(selectedTraderId, true),
     {
-      refreshInterval: 15000, // 15秒刷新（配合后端15秒缓存）
-      revalidateOnFocus: false, // 禁用聚焦时重新验证，减少请求
-      dedupingInterval: 10000, // 10秒去重，防止短时间内重复请求
+      refreshInterval: accountPollOff ? 0 : 15000,
+      revalidateOnFocus: false,
+      dedupingInterval: 10000,
+      onErrorRetry: (_err, _key, _config, revalidate, { retryCount }) => {
+        if (retryCount >= 2) { setAccountPollOff(true); return }
+        setTimeout(() => revalidate({ retryCount }), 500)
+      },
+      onSuccess: () => { if (accountPollOff) setAccountPollOff(false) },
     }
   )
 
@@ -250,11 +274,16 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `positions-${selectedTraderId}`
       : null,
-    () => api.getPositions(selectedTraderId),
+    () => api.getPositions(selectedTraderId, true),
     {
-      refreshInterval: 15000, // 15秒刷新（配合后端15秒缓存）
-      revalidateOnFocus: false, // 禁用聚焦时重新验证，减少请求
-      dedupingInterval: 10000, // 10秒去重，防止短时间内重复请求
+      refreshInterval: positionsPollOff ? 0 : 15000,
+      revalidateOnFocus: false,
+      dedupingInterval: 10000,
+      onErrorRetry: (_err, _key, _config, revalidate, { retryCount }) => {
+        if (retryCount >= 2) { setPositionsPollOff(true); return }
+        setTimeout(() => revalidate({ retryCount }), 500)
+      },
+      onSuccess: () => { if (positionsPollOff) setPositionsPollOff(false) },
     }
   )
 
@@ -262,11 +291,16 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `decisions/latest-${selectedTraderId}-${decisionsLimit}`
       : null,
-    () => api.getLatestDecisions(selectedTraderId, decisionsLimit),
+    () => api.getLatestDecisions(selectedTraderId, decisionsLimit, true),
     {
-      refreshInterval: 30000, // 30秒刷新（决策更新频率较低）
+      refreshInterval: decisionsPollOff ? 0 : 30000,
       revalidateOnFocus: false,
       dedupingInterval: 20000,
+      onErrorRetry: (_err, _key, _config, revalidate, { retryCount }) => {
+        if (retryCount >= 2) { setDecisionsPollOff(true); return }
+        setTimeout(() => revalidate({ retryCount }), 500)
+      },
+      onSuccess: () => { if (decisionsPollOff) setDecisionsPollOff(false) },
     }
   )
 
@@ -291,6 +325,10 @@ function App() {
 
   const selectedTrader = traders?.find((t) => t.trader_id === selectedTraderId)
 
+  const effectiveAccount = account
+  const effectivePositions = positions
+  const effectiveDecisions = decisions
+
   // Handle routing
   useEffect(() => {
     const handlePopState = () => {
@@ -302,7 +340,9 @@ function App() {
 
   // Set current page based on route for consistent navigation state
   useEffect(() => {
-    if (route === '/competition') {
+    if (route === '/welcome') {
+      setCurrentPage('traders')
+    } else if (route === '/competition') {
       setCurrentPage('competition')
     } else if (route === '/traders') {
       setCurrentPage('traders')
@@ -310,6 +350,9 @@ function App() {
       setCurrentPage('trader')
     }
   }, [route])
+
+  const showBeginnerOnboarding =
+    route === '/welcome' && (!!user || hasPersistedAuth) && getUserMode() === 'beginner'
 
   // Show loading spinner while checking auth or config
   if (isLoading || configLoading) {
@@ -347,6 +390,16 @@ function App() {
     }
     return <SetupPage />
   }
+  if (route === '/welcome') {
+    if ((!user || !token) && !hasPersistedAuth) {
+      window.location.href = '/login'
+      return null
+    }
+    if (getUserMode() !== 'beginner') {
+      window.location.href = '/traders'
+      return null
+    }
+  }
   if (route === '/faq') {
     return (
       <div
@@ -376,7 +429,7 @@ function App() {
     return <ResetPasswordPage />
   }
   if (route === '/settings') {
-    if (!user || !token) {
+    if ((!user || !token) && !hasPersistedAuth) {
       window.location.href = '/login'
       return null
     }
@@ -495,9 +548,12 @@ function App() {
               <TraderDashboardPage
                 selectedTrader={selectedTrader}
                 status={status}
-                account={account}
-                positions={positions}
-                decisions={decisions}
+                account={effectiveAccount}
+                accountFailed={accountPollOff}
+                positions={effectivePositions}
+                positionsFailed={positionsPollOff}
+                decisions={effectiveDecisions}
+                decisionsFailed={decisionsPollOff}
                 decisionsLimit={decisionsLimit}
                 onDecisionsLimitChange={setDecisionsLimit}
                 stats={stats}
@@ -646,6 +702,8 @@ function App() {
         onClose={() => setLoginOverlayOpen(false)}
         featureName={loginOverlayFeature}
       />
+
+      {showBeginnerOnboarding && <BeginnerOnboardingPage />}
     </div>
   )
 }

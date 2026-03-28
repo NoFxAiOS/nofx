@@ -1087,9 +1087,9 @@ export const translations = {
       generatePromptPreview: 'Click to generate prompt preview',
       runAiTestHint: 'Click to run AI test',
       tokenEstimate: 'Token Estimate',
-      tokenExceedWarning: 'Exceeds context limit. Reduce coins or timeframes.',
+      tokenExceedWarning: 'Token estimate exceeds 128K. AI requests may fail for some models.',
       tokenEstimating: 'Estimating...',
-      tokenTooltip: 'Based on strictest model',
+      tokenTooltip: 'Based on 200K context',
     },
 
     // Metric Tooltip
@@ -1167,6 +1167,9 @@ export const translations = {
       close: 'Close',
       showingPositions: 'Showing {shown} of {total} positions',
       perPage: 'Per page',
+      accountFetchFailed: 'DATA_FETCH::FAILED — Account data unavailable, check connection',
+      positionsFetchFailed: 'Position data unavailable',
+      decisionsFetchFailed: 'Decision data unavailable',
     },
 
     // AITradersPage toast messages
@@ -1210,8 +1213,13 @@ export const translations = {
     // ModelConfigModal
     modelConfig: {
       selectModel: 'Select Model',
+      configure: 'Configure',
       configureApi: 'Configure API',
+      configureWallet: 'Configure Wallet',
       chooseProvider: 'Choose Your AI Provider',
+      claw402EntryDesc: 'Recommended default path. Use Base USDC pay-per-call instead of managing API keys.',
+      otherApiEntry: 'Other API Providers',
+      otherApiEntryDesc: 'Use your own API key for OpenAI, Claude, Gemini, DeepSeek, and more.',
       payPerCall: 'Pay-per-call USDC · All AI Models · No API Key',
       recommended: 'Best',
       allModelsClaw: 'Pay-per-call with USDC — supports all major AI models',
@@ -2383,9 +2391,9 @@ export const translations = {
       generatePromptPreview: '点击生成 Prompt 预览',
       runAiTestHint: '点击运行 AI 测试',
       tokenEstimate: 'Token 预估',
-      tokenExceedWarning: '超出上下文限制，建议减少币种或时间框架',
+      tokenExceedWarning: 'Token 估算超过 128K，部分模型请求可能失败',
       tokenEstimating: '预估中...',
-      tokenTooltip: '基于最严格模型计算',
+      tokenTooltip: '基于 200K 上下文计算',
     },
 
     // Metric Tooltip
@@ -2462,6 +2470,9 @@ export const translations = {
       close: '平仓',
       showingPositions: '显示 {shown} / {total} 个持仓',
       perPage: '每页',
+      accountFetchFailed: 'DATA_FETCH::FAILED — 账户数据请求失败，请检查连接',
+      positionsFetchFailed: '持仓数据请求失败',
+      decisionsFetchFailed: '决策记录请求失败',
     },
 
     aiTradersToast: {
@@ -2503,8 +2514,13 @@ export const translations = {
 
     modelConfig: {
       selectModel: '选择模型',
+      configure: '配置',
       configureApi: '配置 API',
+      configureWallet: '配置钱包',
       chooseProvider: '选择 AI 模型提供商',
+      claw402EntryDesc: '默认推荐走这条路。直接用 Base USDC 按次付费，不需要自己管理 API Key。',
+      otherApiEntry: '其他 API 模型',
+      otherApiEntryDesc: '如果你已经有自己的 OpenAI、Claude、Gemini、DeepSeek 等 API Key，再从这里进入。',
       payPerCall: 'USDC 按次付费 · 支持全部 AI 模型 · 无需 API Key',
       recommended: '推荐',
       allModelsClaw: '用 USDC 按次付费，支持所有主流 AI 模型',
@@ -3481,9 +3497,9 @@ export const translations = {
       generatePromptPreview: 'Klik untuk generate pratinjau prompt',
       runAiTestHint: 'Klik untuk menjalankan uji AI',
       tokenEstimate: 'Estimasi Token',
-      tokenExceedWarning: 'Melebihi batas konteks. Kurangi koin atau timeframe.',
+      tokenExceedWarning: 'Estimasi token melebihi 128K. Permintaan AI mungkin gagal untuk beberapa model.',
       tokenEstimating: 'Mengestimasi...',
-      tokenTooltip: 'Berdasarkan model paling ketat',
+      tokenTooltip: 'Berdasarkan konteks 200K',
     },
 
     // Metric Tooltip
@@ -3560,6 +3576,9 @@ export const translations = {
       close: 'Tutup',
       showingPositions: 'Menampilkan {shown} dari {total} posisi',
       perPage: 'Per halaman',
+      accountFetchFailed: 'DATA_FETCH::FAILED — Data akun tidak tersedia, periksa koneksi',
+      positionsFetchFailed: 'Data posisi tidak tersedia',
+      decisionsFetchFailed: 'Data keputusan tidak tersedia',
     },
 
     aiTradersToast: {
@@ -3601,8 +3620,13 @@ export const translations = {
 
     modelConfig: {
       selectModel: 'Pilih Model',
+      configure: 'Konfigurasi',
       configureApi: 'Konfigurasi API',
+      configureWallet: 'Konfigurasi Wallet',
       chooseProvider: 'Pilih Penyedia AI Anda',
+      claw402EntryDesc: 'Jalur default yang direkomendasikan. Gunakan Base USDC bayar per panggilan tanpa mengelola API key.',
+      otherApiEntry: 'Penyedia API Lain',
+      otherApiEntryDesc: 'Gunakan API key Anda sendiri untuk OpenAI, Claude, Gemini, DeepSeek, dan lainnya.',
       payPerCall: 'Bayar per panggilan USDC · Semua Model AI · Tanpa API Key',
       recommended: 'Terbaik',
       allModelsClaw: 'Bayar per panggilan dengan USDC — mendukung semua model AI utama',

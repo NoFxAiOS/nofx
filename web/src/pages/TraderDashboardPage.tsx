@@ -103,8 +103,11 @@ interface TraderDashboardPageProps {
     onNavigateToTraders: () => void
     status?: SystemStatus
     account?: AccountInfo
+    accountFailed?: boolean
     positions?: Position[]
+    positionsFailed?: boolean
     decisions?: DecisionRecord[]
+    decisionsFailed?: boolean
     decisionsLimit: number
     onDecisionsLimitChange: (limit: number) => void
     stats?: Statistics
@@ -117,8 +120,11 @@ export function TraderDashboardPage({
     selectedTrader,
     status,
     account,
+    accountFailed,
     positions,
+    positionsFailed,
     decisions,
+    decisionsFailed,
     decisionsLimit,
     onDecisionsLimitChange,
     lastUpdate,
@@ -488,6 +494,8 @@ export function TraderDashboardPage({
                             <span>EQ::{account.total_equity?.toFixed(2)}</span>
                             <span>PNL::{account.total_pnl?.toFixed(2)}</span>
                         </div>
+                    ) : accountFailed ? (
+                        <span style={{ color: '#F6465D' }}>{t('traderDashboard.accountFetchFailed', language)}</span>
                     ) : (
                         <div className="flex gap-4">
                             <span className="inline-block w-32 h-3 rounded bg-white/5 animate-pulse" />
@@ -501,37 +509,37 @@ export function TraderDashboardPage({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     <StatCard
                         title={t('totalEquity', language)}
-                        value={`${account?.total_equity?.toFixed(2) || '0.00'}`}
+                        value={accountFailed && !account ? '--' : `${account?.total_equity?.toFixed(2) ?? '--'}`}
                         unit="USDT"
-                        change={account?.total_pnl_pct || 0}
+                        change={account ? (account.total_pnl_pct || 0) : undefined}
                         positive={(account?.total_pnl ?? 0) > 0}
                         icon="💰"
-                        loading={!account}
+                        loading={!account && !accountFailed}
                     />
                     <StatCard
                         title={t('availableBalance', language)}
-                        value={`${account?.available_balance?.toFixed(2) || '0.00'}`}
+                        value={accountFailed && !account ? '--' : `${account?.available_balance?.toFixed(2) ?? '--'}`}
                         unit="USDT"
-                        subtitle={`${account?.available_balance && account?.total_equity ? ((account.available_balance / account.total_equity) * 100).toFixed(1) : '0.0'}% ${t('free', language)}`}
+                        subtitle={accountFailed && !account ? '--' : `${account?.available_balance && account?.total_equity ? ((account.available_balance / account.total_equity) * 100).toFixed(1) : '--'}% ${t('free', language)}`}
                         icon="💳"
-                        loading={!account}
+                        loading={!account && !accountFailed}
                     />
                     <StatCard
                         title={t('totalPnL', language)}
-                        value={`${account?.total_pnl !== undefined && account.total_pnl >= 0 ? '+' : ''}${account?.total_pnl?.toFixed(2) || '0.00'}`}
+                        value={accountFailed && !account ? '--' : `${account?.total_pnl !== undefined && account.total_pnl >= 0 ? '+' : ''}${account?.total_pnl?.toFixed(2) ?? '--'}`}
                         unit="USDT"
-                        change={account?.total_pnl_pct || 0}
+                        change={account ? (account.total_pnl_pct || 0) : undefined}
                         positive={(account?.total_pnl ?? 0) >= 0}
                         icon="📈"
-                        loading={!account}
+                        loading={!account && !accountFailed}
                     />
                     <StatCard
                         title={t('positions', language)}
-                        value={`${account?.position_count || 0}`}
+                        value={accountFailed && !account ? '--' : `${account?.position_count ?? '--'}`}
                         unit="ACTIVE"
-                        subtitle={`${t('margin', language)}: ${account?.margin_used_pct?.toFixed(1) || '0.0'}%`}
+                        subtitle={accountFailed && !account ? `${t('margin', language)}: --` : `${t('margin', language)}: ${account?.margin_used_pct?.toFixed(1) ?? '--'}%`}
                         icon="📊"
-                        loading={!account}
+                        loading={!account && !accountFailed}
                     />
                 </div>
 
@@ -719,6 +727,11 @@ export function TraderDashboardPage({
                                         </div>
                                     )}
                                 </div>
+                            ) : positionsFailed ? (
+                                <div className="text-center py-16 text-nofx-text-muted opacity-60">
+                                    <div className="text-4xl mb-4">⚠️</div>
+                                    <div className="text-lg font-semibold mb-2">{t('traderDashboard.positionsFetchFailed', language)}</div>
+                                </div>
                             ) : (
                                 <div className="text-center py-16 text-nofx-text-muted opacity-60">
                                     <div className="text-6xl mb-4 opacity-50 grayscale">📊</div>
@@ -772,6 +785,11 @@ export function TraderDashboardPage({
                                 decisions.map((decision, i) => (
                                     <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />
                                 ))
+                            ) : decisionsFailed ? (
+                                <div className="py-16 text-center text-nofx-text-muted opacity-60">
+                                    <div className="text-4xl mb-4">⚠️</div>
+                                    <div className="text-lg font-semibold mb-2">{t('traderDashboard.decisionsFetchFailed', language)}</div>
+                                </div>
                             ) : (
                                 <div className="py-16 text-center text-nofx-text-muted opacity-60">
                                     <div className="text-6xl mb-4 opacity-30 grayscale">🧠</div>

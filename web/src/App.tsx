@@ -65,6 +65,7 @@ function App() {
     const path = window.location.pathname
     const hash = window.location.hash.slice(1) // 去掉 #
 
+    if (path === '/welcome') return 'traders'
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
@@ -157,7 +158,9 @@ function App() {
       const params = new URLSearchParams(window.location.search)
       const traderParam = params.get('trader')
 
-      if (path === '/traders' || hash === 'traders') {
+      if (path === '/welcome') {
+        setCurrentPage('traders')
+      } else if (path === '/traders' || hash === 'traders') {
         setCurrentPage('traders')
       } else if (path === '/strategy' || hash === 'strategy') {
         setCurrentPage('strategy')
@@ -337,7 +340,9 @@ function App() {
 
   // Set current page based on route for consistent navigation state
   useEffect(() => {
-    if (route === '/competition') {
+    if (route === '/welcome') {
+      setCurrentPage('traders')
+    } else if (route === '/competition') {
       setCurrentPage('competition')
     } else if (route === '/traders') {
       setCurrentPage('traders')
@@ -345,6 +350,9 @@ function App() {
       setCurrentPage('trader')
     }
   }, [route])
+
+  const showBeginnerOnboarding =
+    route === '/welcome' && (!!user || hasPersistedAuth) && getUserMode() === 'beginner'
 
   // Show loading spinner while checking auth or config
   if (isLoading || configLoading) {
@@ -391,7 +399,6 @@ function App() {
       window.location.href = '/traders'
       return null
     }
-    return <BeginnerOnboardingPage />
   }
   if (route === '/faq') {
     return (
@@ -695,6 +702,8 @@ function App() {
         onClose={() => setLoginOverlayOpen(false)}
         featureName={loginOverlayFeature}
       />
+
+      {showBeginnerOnboarding && <BeginnerOnboardingPage />}
     </div>
   )
 }

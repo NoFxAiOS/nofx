@@ -69,8 +69,26 @@
 - [x] `cd web && npm test` 通过
 - [x] `cd web && npm run build` 通过
 
+## 本轮补充收口验收（可靠性 / 前端闭环 / 网络健壮性）
+
+### F. Protection 执行可靠性
+- [x] protection setup 增加重试机制
+- [x] 手动 protection plan 与 AI fallback 两条路径均接入重试
+- [x] protection setup 失败后统一触发立即平仓，避免裸仓残留
+- [x] 已补重试恢复路径测试
+
+### G. 前端 Protection 多规则闭环
+- [x] Drawdown Take Profit 前端已支持多规则新增 / 编辑 / 删除
+- [x] 前端配置形态与后端 `rules` 多规则读取模型对齐
+- [x] 前端测试通过
+- [x] 前端构建通过
+
+### H. 网络层健壮性补强
+- [x] OKX trader 已补独立 transport 与瞬时网络错误重试
+- [x] NOFXOS client 已补 trusted host 校验与安全请求路径
+- [x] 后端测试通过
+
 ## 仍不在本轮验收闭包内的项
-- [ ] 更强的前端多规则编辑体验
 - [ ] replay / paper-trading / 仿真执行闭环
 
 ## 后续功能开发验收模板

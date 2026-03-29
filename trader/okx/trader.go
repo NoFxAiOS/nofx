@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"nofx/logger"
 	"strings"
@@ -110,11 +111,25 @@ func genOkxClOrdID() string {
 
 // NewOKXTrader creates OKX trader
 func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
-	// Use default transport which respects system proxy settings
-	// OKX requires proxy in China due to DNS pollution
+	// Use a dedicated transport instead of http.DefaultTransport so we can tolerate
+	// transient upstream EOF / reset issues without polluting global client behavior.
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   15 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   20,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
 	httpClient := &http.Client{
 		Timeout:   30 * time.Second,
-		Transport: http.DefaultTransport,
+		Transport: transport,
 	}
 
 	trader := &OKXTrader{
@@ -206,45 +221,75 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 		}
 	}
 
-	timestamp := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-	signature := t.sign(timestamp, method, path, string(bodyBytes))
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+		signature := t.sign(timestamp, method, path, string(bodyBytes))
 
-	req, err := http.NewRequest(method, okxBaseURL+path, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		req, err := http.NewRequest(method, okxBaseURL+path, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		req.Header.Set("OK-ACCESS-KEY", t.apiKey)
+		req.Header.Set("OK-ACCESS-SIGN", signature)
+		req.Header.Set("OK-ACCESS-TIMESTAMP", timestamp)
+		req.Header.Set("OK-ACCESS-PASSPHRASE", t.passphrase)
+		req.Header.Set("Content-Type", "application/json")
+		// Set request header
+		req.Header.Set("x-simulated-trading", "0")
+		req.Header.Set("Connection", "keep-alive")
+
+		resp, err := t.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			if shouldRetryOKXError(err) && attempt < 3 {
+				logger.Infof("⚠️ OKX request retry %d/3 for %s %s after error: %v", attempt, method, path, err)
+				time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+				continue
+			}
+			return nil, fmt.Errorf("request failed: %w", err)
+		}
+
+		respBody, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			if attempt < 3 {
+				logger.Infof("⚠️ OKX response read retry %d/3 for %s %s after error: %v", attempt, method, path, readErr)
+				time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+				continue
+			}
+			return nil, fmt.Errorf("failed to read response: %w", readErr)
+		}
+
+		var okxResp OKXResponse
+		if err := json.Unmarshal(respBody, &okxResp); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		// code=1 indicates partial success, need to check specific results in data
+		// code=2 indicates complete failure
+		if okxResp.Code != "0" && okxResp.Code != "1" {
+			return nil, fmt.Errorf("OKX API error: code=%s, msg=%s", okxResp.Code, okxResp.Msg)
+		}
+
+		return okxResp.Data, nil
 	}
 
-	req.Header.Set("OK-ACCESS-KEY", t.apiKey)
-	req.Header.Set("OK-ACCESS-SIGN", signature)
-	req.Header.Set("OK-ACCESS-TIMESTAMP", timestamp)
-	req.Header.Set("OK-ACCESS-PASSPHRASE", t.passphrase)
-	req.Header.Set("Content-Type", "application/json")
-	// Set request header
-	req.Header.Set("x-simulated-trading", "0")
+	return nil, fmt.Errorf("request failed after retries: %w", lastErr)
+}
 
-	resp, err := t.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+func shouldRetryOKXError(err error) bool {
+	if err == nil {
+		return false
 	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var okxResp OKXResponse
-	if err := json.Unmarshal(respBody, &okxResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// code=1 indicates partial success, need to check specific results in data
-	// code=2 indicates complete failure
-	if okxResp.Code != "0" && okxResp.Code != "1" {
-		return nil, fmt.Errorf("OKX API error: code=%s, msg=%s", okxResp.Code, okxResp.Msg)
-	}
-
-	return okxResp.Data, nil
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "eof") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "tls handshake timeout")
 }
 
 // convertSymbol converts generic symbol to OKX format

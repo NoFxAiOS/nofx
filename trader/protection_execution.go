@@ -10,7 +10,10 @@ import (
 	tradertypes "nofx/trader/types"
 )
 
-const protectionPriceTolerancePct = 0.002 // 0.2%
+const (
+	protectionPriceTolerancePct = 0.002 // 0.2%
+	protectionSetupMaxAttempts  = 2
+)
 
 type protectionExecutionRequest struct {
 	Symbol       string
@@ -49,7 +52,7 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 
 		logger.Infof("  🛡 Applying %s protection plan: stop=%v tp=%v ladderSL=%d ladderTP=%d",
 			plan.Mode, plan.NeedsStopLoss, plan.NeedsTakeProfit, len(plan.StopLossOrders), len(plan.TakeProfitOrders))
-		if err := at.placeAndVerifyProtectionPlan(req.Symbol, req.PositionSide, req.Quantity, plan); err != nil {
+		if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, plan); err != nil {
 			return err
 		}
 		return nil
@@ -63,7 +66,39 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 
 	logger.Infof("  🛡 Applying AI decision protection fallback: stop=%v@%.6f tp=%v@%.6f",
 		needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
-	return at.placeAndVerifyProtection(req.Symbol, req.PositionSide, req.Quantity, needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
+	return at.placeAndVerifyProtectionWithRetry(req.Symbol, req.PositionSide, req.Quantity, needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
+}
+
+func (at *AutoTrader) placeAndVerifyProtectionPlanWithRetry(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {
+	var lastErr error
+	for attempt := 1; attempt <= protectionSetupMaxAttempts; attempt++ {
+		if err := at.placeAndVerifyProtectionPlan(symbol, positionSide, quantity, plan); err != nil {
+			lastErr = err
+			logger.Warnf("  ⚠️ Protection plan attempt %d/%d failed for %s %s: %v", attempt, protectionSetupMaxAttempts, symbol, positionSide, err)
+			continue
+		}
+		if attempt > 1 {
+			logger.Infof("  ✅ Protection plan recovered on retry %d/%d for %s %s", attempt, protectionSetupMaxAttempts, symbol, positionSide)
+		}
+		return nil
+	}
+	return fmt.Errorf("protection plan setup failed after %d attempts: %w", protectionSetupMaxAttempts, lastErr)
+}
+
+func (at *AutoTrader) placeAndVerifyProtectionWithRetry(symbol, positionSide string, quantity float64, needsStopLoss bool, stopLossPrice float64, needsTakeProfit bool, takeProfitPrice float64) error {
+	var lastErr error
+	for attempt := 1; attempt <= protectionSetupMaxAttempts; attempt++ {
+		if err := at.placeAndVerifyProtection(symbol, positionSide, quantity, needsStopLoss, stopLossPrice, needsTakeProfit, takeProfitPrice); err != nil {
+			lastErr = err
+			logger.Warnf("  ⚠️ Protection setup attempt %d/%d failed for %s %s: %v", attempt, protectionSetupMaxAttempts, symbol, positionSide, err)
+			continue
+		}
+		if attempt > 1 {
+			logger.Infof("  ✅ Protection setup recovered on retry %d/%d for %s %s", attempt, protectionSetupMaxAttempts, symbol, positionSide)
+		}
+		return nil
+	}
+	return fmt.Errorf("protection setup failed after %d attempts: %w", protectionSetupMaxAttempts, lastErr)
 }
 
 func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {

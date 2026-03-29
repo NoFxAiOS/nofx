@@ -1,3 +1,38 @@
+## 2026-03-29
+
+### Protection / 网络可靠性收口
+- `trader/protection_execution.go` 为 protection setup 新增统一重试封装：
+  - 手动 protection plan 路径接入重试
+  - AI fallback protection 路径接入重试
+- `trader/auto_trader_orders.go` 将 protection setup 失败后的处理统一为立即平仓保护，避免任何非 verify 类错误留下裸仓
+- `trader/protection_execution_test.go` 新增“首轮失败、次轮恢复”的重试测试，覆盖最小恢复闭环
+
+### 前端 Drawdown 多规则编辑闭环
+- `web/src/components/strategy/ProtectionEditor.tsx` 已将 drawdown take profit 从单规则编辑升级为多规则编辑：
+  - 支持新增规则
+  - 支持逐条编辑
+  - 支持删除规则
+- 这使前端配置能力与后端 `strategy.protection.drawdown_take_profit.rules` 的多规则执行模型保持一致
+
+### OKX / NOFXOS 网络层健壮性补强
+- `trader/okx/trader.go`：
+  - 引入独立 transport，避免依赖全局默认 transport
+  - 为 EOF / timeout / reset 等瞬时网络错误补重试
+- `provider/nofxos/client.go`：
+  - 改为 trusted request 路径
+  - 补 `ValidateURL` 校验
+  - 限制 host 为 `nofxos.ai`
+
+### 本轮验证
+- `go test ./...`：通过
+- `cd web && npm test`：通过（108 tests）
+- `cd web && npm run build`：通过
+
+### 当前结论
+- 本轮不是新增大功能，而是把上一阶段 protection 主线继续做“可靠性收口”
+- 当前工作树这批改动已具备提交条件
+- 下一阶段应继续推进 replay / paper-trading / simulation 验证闭环，而不是重新扩散到新的高风险改造
+
 ## 2026-03-26
 
 ### Replay runner 深化到 protection / regime filter

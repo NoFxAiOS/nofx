@@ -4,8 +4,10 @@
 package nofxos
 
 import (
-	"io/ioutil"
+	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"nofx/security"
 	"strings"
 	"sync"
@@ -93,34 +95,70 @@ func (c *Client) doRequest(endpoint string) ([]byte, error) {
 	timeout := c.Timeout
 	c.mu.RUnlock()
 
-	url := baseURL + endpoint
-	if !strings.Contains(url, "auth=") {
-		if strings.Contains(url, "?") {
-			url += "&auth=" + authKey
+	requestURL := baseURL + endpoint
+	if !strings.Contains(requestURL, "auth=") {
+		if strings.Contains(requestURL, "?") {
+			requestURL += "&auth=" + authKey
 		} else {
-			url += "?auth=" + authKey
+			requestURL += "?auth=" + authKey
 		}
 	}
 
-	resp, err := security.SafeGet(url, timeout)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
+	body, statusCode, err := c.safeTrustedRequest(requestURL, timeout)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if statusCode != http.StatusOK {
 		return body, &APIError{
-			StatusCode: resp.StatusCode,
+			StatusCode: statusCode,
 			Message:    string(body),
 		}
 	}
 
 	return body, nil
+}
+
+func (c *Client) safeTrustedRequest(rawURL string, timeout time.Duration) ([]byte, int, error) {
+	if err := security.ValidateURL(rawURL); err != nil {
+		return nil, 0, err
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, 0, err
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host != "nofxos.ai" {
+		return nil, 0, &APIError{StatusCode: 0, Message: "untrusted nofxos host"}
+	}
+
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   timeout,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          20,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       30 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	client := &http.Client{Timeout: timeout, Transport: transport}
+
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, 0, err
+	}
+	return body, resp.StatusCode, nil
 }
 
 // APIError represents an API error response

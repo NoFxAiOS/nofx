@@ -6,7 +6,6 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
-	"strings"
 	"time"
 )
 
@@ -182,15 +181,12 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		Decision:     decision,
 	}); err != nil {
 		logger.Warnf("  ❌ Protection setup failed for %s LONG: %v", decision.Symbol, err)
-		if strings.Contains(strings.ToLower(err.Error()), "verify") || strings.Contains(strings.ToLower(err.Error()), "cannot safely support") {
-			logger.Warnf("  🚨 Protection verification failed, closing position immediately: %s", decision.Symbol)
-			if _, closeErr := at.trader.CloseLong(decision.Symbol, 0); closeErr != nil {
-				logger.Errorf("  ❌ Failed to emergency close unprotected long %s: %v", decision.Symbol, closeErr)
-				return fmt.Errorf("protection setup failed: %w; emergency close failed: %v", err, closeErr)
-			}
-			return fmt.Errorf("protection setup failed and position was closed: %w", err)
+		logger.Warnf("  🚨 Protection setup failed, closing position immediately: %s", decision.Symbol)
+		if _, closeErr := at.trader.CloseLong(decision.Symbol, 0); closeErr != nil {
+			logger.Errorf("  ❌ Failed to emergency close unprotected long %s: %v", decision.Symbol, closeErr)
+			return fmt.Errorf("protection setup failed: %w; emergency close failed: %v", err, closeErr)
 		}
-		return err
+		return fmt.Errorf("protection setup failed and position was closed: %w", err)
 	}
 
 	return nil
@@ -314,15 +310,12 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 		Decision:     decision,
 	}); err != nil {
 		logger.Warnf("  ❌ Protection setup failed for %s SHORT: %v", decision.Symbol, err)
-		if strings.Contains(strings.ToLower(err.Error()), "verify") || strings.Contains(strings.ToLower(err.Error()), "cannot safely support") {
-			logger.Warnf("  🚨 Protection verification failed, closing position immediately: %s", decision.Symbol)
-			if _, closeErr := at.trader.CloseShort(decision.Symbol, 0); closeErr != nil {
-				logger.Errorf("  ❌ Failed to emergency close unprotected short %s: %v", decision.Symbol, closeErr)
-				return fmt.Errorf("protection setup failed: %w; emergency close failed: %v", err, closeErr)
-			}
-			return fmt.Errorf("protection setup failed and position was closed: %w", err)
+		logger.Warnf("  🚨 Protection setup failed, closing position immediately: %s", decision.Symbol)
+		if _, closeErr := at.trader.CloseShort(decision.Symbol, 0); closeErr != nil {
+			logger.Errorf("  ❌ Failed to emergency close unprotected short %s: %v", decision.Symbol, closeErr)
+			return fmt.Errorf("protection setup failed: %w; emergency close failed: %v", err, closeErr)
 		}
-		return err
+		return fmt.Errorf("protection setup failed and position was closed: %w", err)
 	}
 
 	return nil

@@ -7,6 +7,7 @@ import type {
   BreakEvenStopConfig,
   RegimeFilterConfig,
   LadderTPSLRule,
+  DrawdownTakeProfitRule,
 } from '../../types'
 
 interface ProtectionEditorProps {
@@ -94,7 +95,7 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     updateSection('regime_filter', { ...config.regime_filter, [key]: value })
   }
 
-  const firstDrawdownRule = config.drawdown_take_profit.rules?.[0] || defaultProtectionConfig.drawdown_take_profit.rules[0]
+  const drawdownRules = config.drawdown_take_profit.rules || []
   const ladderRules = config.ladder_tp_sl.rules || []
 
   const addLadderRule = () => {
@@ -115,6 +116,26 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
 
   const removeLadderRule = (index: number) => {
     updateLadder('rules', ladderRules.filter((_, i) => i !== index))
+  }
+
+  const addDrawdownRule = () => {
+    const nextRule: DrawdownTakeProfitRule = {
+      min_profit_pct: 5,
+      max_drawdown_pct: 40,
+      close_ratio_pct: 100,
+      poll_interval_seconds: 60,
+    }
+    updateDrawdown('rules', [...drawdownRules, nextRule])
+  }
+
+  const updateDrawdownRule = (index: number, patch: Partial<DrawdownTakeProfitRule>) => {
+    const nextRules = [...drawdownRules]
+    nextRules[index] = { ...nextRules[index], ...patch }
+    updateDrawdown('rules', nextRules)
+  }
+
+  const removeDrawdownRule = (index: number) => {
+    updateDrawdown('rules', drawdownRules.filter((_, i) => i !== index))
   }
 
   const toggleAllowedRegime = (regime: string) => {
@@ -335,23 +356,50 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               isZh ? '示例：先盈利到 10%，后来回落到 6%，说明从峰值回撤了 40%，可触发止盈。' : 'Example: profit peaks at 10% then falls to 6%, which is a 40% drawdown from peak.',
               isZh ? '建议：最小利润 5%，最大回撤 30%~40%，平仓比例 50% 或 100%。' : 'Recommendation: min profit 5%, max drawdown 30%-40%, close ratio 50% or 100%.'
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最小利润 %' : 'Min Profit %'}</label>
-                <input type="number" value={firstDrawdownRule.min_profit_pct} min={0} step={0.1} onChange={(e) => updateDrawdown('rules', [{ ...firstDrawdownRule, min_profit_pct: parseFloat(e.target.value) || 0 }])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? '回撤止盈规则' : 'Drawdown Rules'}</div>
+                <button type="button" onClick={addDrawdownRule} disabled={disabled} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-[#1E2329] border border-[#2B3139] text-[#EAECEF] hover:border-[#F0B90B]">
+                  <Plus className="w-4 h-4" />
+                  {isZh ? '新增规则' : 'Add Rule'}
+                </button>
               </div>
-              <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最大回撤 %' : 'Max Drawdown %'}</label>
-                <input type="number" value={firstDrawdownRule.max_drawdown_pct} min={0} step={0.1} onChange={(e) => updateDrawdown('rules', [{ ...firstDrawdownRule, max_drawdown_pct: parseFloat(e.target.value) || 0 }])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-              </div>
-              <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '平仓比例 %' : 'Close Ratio %'}</label>
-                <input type="number" value={firstDrawdownRule.close_ratio_pct} min={0} max={100} step={1} onChange={(e) => updateDrawdown('rules', [{ ...firstDrawdownRule, close_ratio_pct: parseFloat(e.target.value) || 0 }])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-              </div>
-              <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '轮询秒数' : 'Poll Seconds'}</label>
-                <input type="number" value={firstDrawdownRule.poll_interval_seconds} min={5} step={5} onChange={(e) => updateDrawdown('rules', [{ ...firstDrawdownRule, poll_interval_seconds: parseInt(e.target.value) || 60 }])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-              </div>
+
+              {drawdownRules.length === 0 && (
+                <div className="p-3 rounded-lg text-xs" style={helpCardStyle}>
+                  {isZh ? '当前还没有配置任何回撤止盈规则。请至少新增 1 条规则。' : 'No drawdown rules configured yet. Add at least one rule.'}
+                </div>
+              )}
+
+              {drawdownRules.map((rule, index) => (
+                <div key={index} className="p-4 rounded-lg space-y-3" style={sectionStyle}>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? `规则 ${index + 1}` : `Rule ${index + 1}`}</div>
+                    <button type="button" onClick={() => removeDrawdownRule(index)} disabled={disabled || drawdownRules.length <= 1} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[#F6465D] border border-[#41272B] hover:bg-[#2B1619]">
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {isZh ? '删除' : 'Remove'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最小利润 %' : 'Min Profit %'}</label>
+                      <input type="number" value={rule.min_profit_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { min_profit_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最大回撤 %' : 'Max Drawdown %'}</label>
+                      <input type="number" value={rule.max_drawdown_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { max_drawdown_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '平仓比例 %' : 'Close Ratio %'}</label>
+                      <input type="number" value={rule.close_ratio_pct} min={0} max={100} step={1} onChange={(e) => updateDrawdownRule(index, { close_ratio_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '轮询秒数' : 'Poll Seconds'}</label>
+                      <input type="number" value={rule.poll_interval_seconds} min={5} step={5} onChange={(e) => updateDrawdownRule(index, { poll_interval_seconds: parseInt(e.target.value) || 60 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

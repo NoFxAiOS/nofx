@@ -81,3 +81,72 @@ func TestOptionsWithQwenClient(t *testing.T) {
 		t.Error("MaxTokens should be 6000")
 	}
 }
+
+func TestOptionsWithMiniMaxClient(t *testing.T) {
+	logger := mcp.NewNoopLogger()
+
+	client := NewMiniMaxClientWithOptions(
+		mcp.WithAPIKey("sk-minimax-key"),
+		mcp.WithLogger(logger),
+		mcp.WithMaxTokens(8000),
+	)
+
+	minimaxClient := client.(*MiniMaxClient)
+
+	// Verify MiniMax default values
+	if minimaxClient.Provider != mcp.ProviderMiniMax {
+		t.Error("Provider should be MiniMax")
+	}
+
+	if minimaxClient.BaseURL != DefaultMiniMaxBaseURL {
+		t.Errorf("BaseURL should be '%s', got '%s'", DefaultMiniMaxBaseURL, minimaxClient.BaseURL)
+	}
+
+	if minimaxClient.Model != DefaultMiniMaxModel {
+		t.Errorf("Model should be '%s', got '%s'", DefaultMiniMaxModel, minimaxClient.Model)
+	}
+
+	// Verify custom options
+	if minimaxClient.APIKey != "sk-minimax-key" {
+		t.Error("APIKey should be set from options")
+	}
+
+	if minimaxClient.Log != logger {
+		t.Error("Log should be set from options")
+	}
+
+	if minimaxClient.MaxTokens != 8000 {
+		t.Error("MaxTokens should be 8000")
+	}
+}
+
+func TestMiniMaxClientDefaultModel(t *testing.T) {
+	client := NewMiniMaxClientWithOptions()
+	minimaxClient := client.(*MiniMaxClient)
+
+	if minimaxClient.Model != "MiniMax-M2.7" {
+		t.Errorf("Default model should be 'MiniMax-M2.7', got '%s'", minimaxClient.Model)
+	}
+}
+
+func TestMiniMaxClientCustomModel(t *testing.T) {
+	client := NewMiniMaxClientWithOptions(
+		mcp.WithModel("MiniMax-M2.7-highspeed"),
+	)
+	minimaxClient := client.(*MiniMaxClient)
+
+	if minimaxClient.Model != "MiniMax-M2.7-highspeed" {
+		t.Errorf("Model should be 'MiniMax-M2.7-highspeed', got '%s'", minimaxClient.Model)
+	}
+}
+
+func TestMiniMaxClientCustomURL(t *testing.T) {
+	client := NewMiniMaxClientWithOptions(
+		mcp.WithBaseURL("https://custom.minimax.io/v1"),
+	)
+	minimaxClient := client.(*MiniMaxClient)
+
+	if minimaxClient.BaseURL != "https://custom.minimax.io/v1" {
+		t.Errorf("BaseURL should be custom, got '%s'", minimaxClient.BaseURL)
+	}
+}

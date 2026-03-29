@@ -137,6 +137,7 @@ Binance互換の分散型無期限先物取引所！
 | <img src="web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [APIキー取得](https://aistudio.google.com) |
 | <img src="web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [APIキー取得](https://console.x.ai) |
 | <img src="web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [APIキー取得](https://platform.moonshot.cn) |
+| <img src="web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [APIキー取得](https://platform.minimax.io) |
 
 ---
 

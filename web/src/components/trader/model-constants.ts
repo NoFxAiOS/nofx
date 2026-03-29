@@ -47,7 +47,7 @@ export const BLOCKRUN_MODELS: BlockrunModel[] = [
   { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', desc: 'Google · Flagship' },
   { id: 'grok-3', name: 'Grok 3', desc: 'xAI · Flagship' },
   { id: 'deepseek-chat', name: 'DeepSeek Chat', desc: 'DeepSeek · Flagship' },
-  { id: 'minimax-m2.5', name: 'MiniMax M2.5', desc: 'MiniMax · Flagship' },
+  { id: 'minimax-m2.7', name: 'MiniMax M2.7', desc: 'MiniMax · Flagship' },
 ]
 
 // Models available through Claw402 (x402 USDC payment protocol)
@@ -104,7 +104,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'Moonshot',
   },
   minimax: {
-    defaultModel: 'MiniMax-M2.5',
+    defaultModel: 'MiniMax-M2.7',
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
   },

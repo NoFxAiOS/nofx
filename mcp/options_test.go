@@ -161,6 +161,27 @@ func TestWithQwenConfig(t *testing.T) {
 	}
 }
 
+func TestWithMiniMaxConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	WithMiniMaxConfig("sk-minimax-key")(cfg)
+
+	if cfg.Provider != ProviderMiniMax {
+		t.Errorf("Provider should be '%s', got '%s'", ProviderMiniMax, cfg.Provider)
+	}
+
+	if cfg.APIKey != "sk-minimax-key" {
+		t.Errorf("APIKey should be 'sk-minimax-key', got '%s'", cfg.APIKey)
+	}
+
+	if cfg.BaseURL != DefaultMiniMaxBaseURL {
+		t.Errorf("BaseURL should be '%s', got '%s'", DefaultMiniMaxBaseURL, cfg.BaseURL)
+	}
+
+	if cfg.Model != DefaultMiniMaxModel {
+		t.Errorf("Model should be '%s', got '%s'", DefaultMiniMaxModel, cfg.Model)
+	}
+}
+
 // ============================================================
 // Test Options Combination
 // ============================================================

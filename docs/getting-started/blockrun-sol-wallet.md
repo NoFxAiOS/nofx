@@ -89,7 +89,7 @@ When NOFX sends an AI request:
 | `gemini-3.1-pro` | Google | Flagship |
 | `grok-3` | xAI | Flagship |
 | `deepseek-chat` | DeepSeek | Flagship |
-| `minimax-m2.5` | MiniMax | Flagship |
+| `minimax-m2.7` | MiniMax | Flagship |
 
 ## Security Best Practices
 

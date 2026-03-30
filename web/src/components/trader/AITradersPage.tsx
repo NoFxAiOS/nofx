@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
@@ -32,6 +32,7 @@ import {
   setBeginnerWalletAddress as persistBeginnerWalletAddress,
 } from '../../lib/onboarding'
 import type { Strategy } from '../../types'
+import { subscribeModelConfigsUpdated } from '../../lib/modelConfigEvents'
 
 interface AITradersPageProps {
   onTraderSelect?: (traderId: string) => void
@@ -55,9 +56,43 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [visibleTraderAddresses, setVisibleTraderAddresses] = useState<Set<string>>(new Set())
   const [visibleExchangeAddresses, setVisibleExchangeAddresses] = useState<Set<string>>(new Set())
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [quickSetupLoading, setQuickSetupLoading] = useState(false)
   const [beginnerWalletAddress, setBeginnerWalletAddress] = useState<string | null>(() => getBeginnerWalletAddress())
   const isBeginnerMode = getUserMode() === 'beginner'
+
+  const loadConfigs = useCallback(async () => {
+    if (!user || !token) {
+      try {
+        const models = await api.getSupportedModels()
+        setSupportedModels(models)
+      } catch (err) {
+        console.error('Failed to load supported configs:', err)
+      }
+      return
+    }
+
+    try {
+      const [
+        modelConfigs,
+        exchangeConfigs,
+        models,
+      ] = await Promise.all([
+        api.getModelConfigs(),
+        api.getExchangeConfigs(),
+        api.getSupportedModels(),
+      ])
+      setAllModels(modelConfigs)
+      const clawWalletAddress =
+        modelConfigs.find((model) => model.provider === 'claw402')?.walletAddress || null
+      if (clawWalletAddress) {
+        setBeginnerWalletAddress(clawWalletAddress)
+        persistBeginnerWalletAddress(clawWalletAddress)
+      }
+      setAllExchanges(exchangeConfigs)
+      setSupportedModels(models)
+    } catch (error) {
+      console.error('Failed to load configs:', error)
+    }
+  }, [user, token])
 
   const navigateInApp = (path: string) => {
     navigate(path)
@@ -113,42 +148,14 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   )
 
   useEffect(() => {
-    const loadConfigs = async () => {
-      if (!user || !token) {
-        try {
-          const models = await api.getSupportedModels()
-          setSupportedModels(models)
-        } catch (err) {
-          console.error('Failed to load supported configs:', err)
-        }
-        return
-      }
+    void loadConfigs()
+  }, [loadConfigs])
 
-      try {
-        const [
-          modelConfigs,
-          exchangeConfigs,
-          models,
-        ] = await Promise.all([
-          api.getModelConfigs(),
-          api.getExchangeConfigs(),
-          api.getSupportedModels(),
-        ])
-        setAllModels(modelConfigs)
-        const clawWalletAddress =
-          modelConfigs.find((model) => model.provider === 'claw402')?.walletAddress || null
-        if (clawWalletAddress) {
-          setBeginnerWalletAddress(clawWalletAddress)
-          persistBeginnerWalletAddress(clawWalletAddress)
-        }
-        setAllExchanges(exchangeConfigs)
-        setSupportedModels(models)
-      } catch (error) {
-        console.error('Failed to load configs:', error)
-      }
-    }
-    loadConfigs()
-  }, [user, token])
+  useEffect(() => {
+    return subscribeModelConfigsUpdated(() => {
+      void loadConfigs()
+    })
+  }, [loadConfigs])
 
   const configuredModels =
     allModels?.filter((m) => {
@@ -472,15 +479,29 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         return
       }
 
+      let nextApiKey = apiKey
+      let nextCustomModelName = customModelName || ''
+      const isClaw402Model =
+        modelToUpdate.provider === 'claw402' || modelToUpdate.id === 'claw402'
+      const hasExistingClaw402Wallet = Boolean(existingModel?.walletAddress)
+
+      if (isClaw402Model && !apiKey.trim() && !hasExistingClaw402Wallet) {
+        const onboarding = await api.prepareBeginnerOnboarding()
+        nextApiKey = onboarding.private_key
+        nextCustomModelName = customModelName || onboarding.default_model || 'deepseek'
+        persistBeginnerWalletAddress(onboarding.address)
+        setBeginnerWalletAddress(onboarding.address)
+      }
+
       if (existingModel) {
         updatedModels =
           allModels?.map((m) =>
             m.id === modelId
               ? {
                 ...m,
-                apiKey,
+                apiKey: nextApiKey,
                 customApiUrl: customApiUrl || '',
-                customModelName: customModelName || '',
+                customModelName: nextCustomModelName,
                 enabled: true,
               }
               : m
@@ -488,9 +509,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       } else {
         const newModel = {
           ...modelToUpdate,
-          apiKey,
+          apiKey: nextApiKey,
           customApiUrl: customApiUrl || '',
-          customModelName: customModelName || '',
+          customModelName: nextCustomModelName,
           enabled: true,
         }
         updatedModels = [...(allModels || []), newModel]
@@ -642,33 +663,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     setShowExchangeModal(true)
   }
 
-  const handleQuickSetupClaw402 = async () => {
-    if (quickSetupLoading) return
-
-    try {
-      setQuickSetupLoading(true)
-      const result = await api.prepareBeginnerOnboarding()
-      setBeginnerWalletAddress(result.address)
-      const refreshedModels = await api.getModelConfigs()
-      setAllModels(refreshedModels)
-      toast.success(
-        language === 'zh'
-          ? 'Claw402 已默认配置为 DeepSeek'
-          : 'Claw402 is configured with DeepSeek by default'
-      )
-    } catch (error) {
-      console.error('Failed to quick setup claw402:', error)
-      toast.error(
-        language === 'zh'
-          ? '一键配置 Claw402 失败'
-          : 'Failed to quick setup Claw402'
-      )
-    } finally {
-      setQuickSetupLoading(false)
-    }
-  }
-
-  const claw402Configured = configuredModels.some((model) => model.provider === 'claw402')
+  const claw402Configured =
+    Boolean(beginnerWalletAddress) ||
+    allModels.some(
+      (model) =>
+        model.provider === 'claw402' &&
+        (model.enabled ||
+          Boolean(model.walletAddress) ||
+          Boolean(model.balanceUsdc) ||
+          Boolean(model.customModelName))
+    )
   const hasStrategies = (strategies?.length || 0) > 0
   const canCreateTrader = configuredModels.length > 0 && configuredExchanges.length > 0
 
@@ -751,7 +755,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             strategyReady={hasStrategies}
             canCreateTrader={canCreateTrader}
             walletAddress={beginnerWalletAddress}
-            onQuickSetupClaw402={handleQuickSetupClaw402}
+            onOpenModel={handleAddModel}
             onOpenExchange={handleAddExchange}
             onOpenStrategy={() => navigateInApp('/strategy')}
             onCreateTrader={() => setShowCreateModal(true)}

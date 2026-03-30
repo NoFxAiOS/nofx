@@ -41,6 +41,7 @@ import { GridConfigEditor, defaultGridConfig } from '../components/strategy/Grid
 import { TokenEstimateBar } from '../components/strategy/TokenEstimateBar'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
+import { subscribeModelConfigsUpdated } from '../lib/modelConfigEvents'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -155,6 +156,12 @@ export function StrategyStudioPage() {
     fetchStrategies()
     fetchAiModels()
   }, [fetchStrategies, fetchAiModels])
+
+  useEffect(() => {
+    return subscribeModelConfigsUpdated(() => {
+      void fetchAiModels()
+    })
+  }, [fetchAiModels])
 
   // Track previous language to detect actual changes
   const prevLanguageRef = useRef(language)
@@ -328,7 +335,10 @@ export function StrategyStudioPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!response.ok) throw new Error('Failed to activate strategy')
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to activate strategy')
+      }
       await fetchStrategies()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')

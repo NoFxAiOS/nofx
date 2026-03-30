@@ -49,6 +49,12 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}
 
+		// Guard: skip if entry price is zero (prevents division by zero panic)
+		if entryPrice <= 0 {
+			logger.Warnf("⚠️ Drawdown monitoring: %s %s has zero entry price, skipping", symbol, side)
+			continue
+		}
+
 		// Calculate current P&L percentage
 		leverage := 10 // Default value
 		if lev, ok := pos["leverage"].(float64); ok {

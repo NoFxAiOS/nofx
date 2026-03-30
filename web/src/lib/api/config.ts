@@ -8,6 +8,7 @@ import type {
   CurrentBeginnerWalletResponse,
 } from '../../types'
 import { API_BASE, httpClient, CryptoService } from './helpers'
+import { notifyModelConfigsUpdated } from '../modelConfigEvents'
 
 export const configApi = {
   async getModelConfigs(): Promise<AIModel[]> {
@@ -42,6 +43,7 @@ export const configApi = {
       // Transport encryption disabled, send plaintext
       const result = await httpClient.put(`${API_BASE}/models`, request)
       if (!result.success) throw new Error('Failed to update model configs')
+      notifyModelConfigsUpdated()
       return
     }
 
@@ -65,6 +67,7 @@ export const configApi = {
     // Send encrypted data
     const result = await httpClient.put(`${API_BASE}/models`, encryptedPayload)
     if (!result.success) throw new Error('Failed to update model configs')
+    notifyModelConfigsUpdated()
   },
 
   async getExchangeConfigs(): Promise<Exchange[]> {
@@ -193,6 +196,7 @@ export const configApi = {
     if (!result.success || !result.data) {
       throw new Error(result.message || 'Failed to prepare beginner onboarding')
     }
+    notifyModelConfigsUpdated()
     return result.data
   },
 

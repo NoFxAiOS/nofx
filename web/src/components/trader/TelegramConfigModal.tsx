@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Check, ChevronLeft, ExternalLink, MessageCircle, Unlink, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../../lib/api'
 import type { TelegramConfig, AIModel } from '../../types'
 import { t, type Language } from '../../i18n/translations'
 import { NofxSelect } from '../ui/select'
+import { subscribeModelConfigsUpdated } from '../../lib/modelConfigEvents'
 
 // Step indicator (reused pattern from ExchangeConfigModal)
 function StepIndicator({ currentStep, labels }: { currentStep: number; labels: string[] }) {
@@ -56,15 +57,18 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
   const [isLoading, setIsLoading] = useState(true)
   const [isUnbinding, setIsUnbinding] = useState(false)
 
+  const refreshEnabledModels = useCallback(async () => {
+    const allModels = await api.getModelConfigs().catch(() => [] as AIModel[])
+    const enabledModels = allModels.filter((m) => m.enabled)
+    setModels(enabledModels)
+  }, [])
+
   // Load current config and available models
   useEffect(() => {
     Promise.all([
       api.getTelegramConfig().catch(() => null),
-      api.getModelConfigs().catch(() => [] as AIModel[]),
-    ]).then(([cfg, allModels]) => {
-      const enabledModels = allModels.filter((m) => m.enabled)
-      setModels(enabledModels)
-
+      refreshEnabledModels(),
+    ]).then(([cfg]) => {
       if (cfg) {
         setConfig(cfg)
         setSelectedModelId(cfg.model_id ?? '')
@@ -75,7 +79,13 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
         }
       }
     }).finally(() => setIsLoading(false))
-  }, [])
+  }, [refreshEnabledModels])
+
+  useEffect(() => {
+    return subscribeModelConfigsUpdated(() => {
+      void refreshEnabledModels()
+    })
+  }, [refreshEnabledModels])
 
   const handleSaveToken = async () => {
     if (!token.trim()) return

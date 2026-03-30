@@ -7,7 +7,7 @@ interface BeginnerGuideCardsProps {
   strategyReady: boolean
   canCreateTrader: boolean
   walletAddress?: string | null
-  onQuickSetupClaw402: () => void
+  onOpenModel: () => void
   onOpenExchange: () => void
   onOpenStrategy: () => void
   onCreateTrader: () => void
@@ -25,7 +25,7 @@ export function BeginnerGuideCards({
   strategyReady,
   canCreateTrader,
   walletAddress,
-  onQuickSetupClaw402,
+  onOpenModel,
   onOpenExchange,
   onOpenStrategy,
   onCreateTrader,
@@ -38,21 +38,21 @@ export function BeginnerGuideCards({
       icon: Brain,
       title: isZh ? '1. 极速模型' : '1. Fast AI',
       desc: isZh
-        ? '默认就是 Claw402 + DeepSeek。第一次不用挑模型，先跑起来。'
-        : 'Start with Claw402 + DeepSeek. No model picking needed for the first run.',
+        ? '打开模型弹窗后直接点保存。首次会自动生成 Claw402 钱包，并默认使用 DeepSeek。'
+        : 'Open the model modal and save directly. Your first save will auto-generate a Claw402 wallet with DeepSeek by default.',
       meta: walletAddress
         ? isZh
           ? `钱包 ${truncateAddress(walletAddress)}`
           : `Wallet ${truncateAddress(walletAddress)}`
         : isZh
-          ? 'Base 链 USDC 按次付费'
-          : 'Pay per call with Base USDC',
+          ? '保存时自动生成 Base 钱包'
+          : 'Saving will auto-generate a Base wallet',
       ready: claw402Ready,
       actionLabel: claw402Ready
-        ? isZh ? '已配置' : 'Configured'
-        : isZh ? '一键配置' : 'One-click setup',
-      onAction: onQuickSetupClaw402,
-      disabled: claw402Ready,
+        ? isZh ? '管理模型' : 'Manage model'
+        : isZh ? '打开模型配置' : 'Open model setup',
+      onAction: onOpenModel,
+      disabled: false,
     },
     {
       key: 'exchange',

@@ -77,8 +77,18 @@ export function ModelConfigModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedModelId || !apiKey.trim()) return
-    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined)
+    const trimmedApiKey = apiKey.trim()
+    const canSubmit =
+      Boolean(selectedModelId) &&
+      (isClaw402Selected || Boolean(trimmedApiKey))
+
+    if (!canSubmit || !selectedModelId) return
+    onSave(
+      selectedModelId,
+      trimmedApiKey,
+      baseUrl.trim() || undefined,
+      modelName.trim() || undefined
+    )
   }
 
   const availableModels = allModels || []
@@ -341,6 +351,7 @@ function Claw402ConfigForm({
   const [testing, setTesting] = useState(false)
   const [serverWalletAddress, setServerWalletAddress] = useState('')
   const [serverWalletBalance, setServerWalletBalance] = useState<string | null>(null)
+  const trimmedApiKey = apiKey.trim()
   const localWalletAddress = getBeginnerWalletAddress()?.trim() || ''
   const configuredWalletAddress =
     configuredModel?.walletAddress?.trim() || localWalletAddress || serverWalletAddress
@@ -358,7 +369,11 @@ function Claw402ConfigForm({
     return ''
   }
 
-  const isKeyValid = apiKey.length === 66 && apiKey.startsWith('0x') && /^0x[0-9a-fA-F]{64}$/.test(apiKey)
+  const isKeyValid =
+    trimmedApiKey.length === 66 &&
+    trimmedApiKey.startsWith('0x') &&
+    /^0x[0-9a-fA-F]{64}$/.test(trimmedApiKey)
+  const canSubmit = !trimmedApiKey || isKeyValid
 
   useEffect(() => {
     if (hasExistingWallet) {
@@ -398,10 +413,10 @@ function Claw402ConfigForm({
     setClaw402Status(null)
     setTestResult(null)
 
-    const clientErr = getClientError(apiKey)
+    const clientErr = getClientError(trimmedApiKey)
     setKeyError(clientErr)
 
-    if (clientErr || !apiKey) {
+    if (clientErr || !trimmedApiKey) {
       setValidating(false)
       return
     }
@@ -412,7 +427,7 @@ function Claw402ConfigForm({
         const res = await fetch('/api/wallet/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ private_key: apiKey }),
+          body: JSON.stringify({ private_key: trimmedApiKey }),
         })
         const data = await res.json()
         if (data.valid) {
@@ -431,13 +446,13 @@ function Claw402ConfigForm({
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [apiKey])
+  }, [trimmedApiKey])
 
   const handleTestConnection = async () => {
     setTesting(true)
     setTestResult(null)
     try {
-      if (!apiKey && hasExistingWallet) {
+      if (!trimmedApiKey && hasExistingWallet) {
         const result = await api.getCurrentBeginnerWallet()
         setClaw402Status(result.claw402_status || 'unknown')
         if (result.found && result.address) {
@@ -457,7 +472,7 @@ function Claw402ConfigForm({
       const res = await fetch('/api/wallet/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ private_key: apiKey }),
+        body: JSON.stringify({ private_key: trimmedApiKey }),
       })
       const data = await res.json()
       if (data.valid) {
@@ -642,11 +657,18 @@ function Claw402ConfigForm({
                 border: keyError ? '1px solid #EF4444' : walletAddress ? '1px solid #00E096' : '1px solid #2B3139',
                 color: '#EAECEF',
               }}
-              required={!hasExistingWallet}
             />
           </div>
 
-          {hasExistingWallet && !apiKey ? (
+          {!hasExistingWallet && !trimmedApiKey ? (
+            <div className="text-[11px] leading-5" style={{ color: '#60A5FA' }}>
+              {language === 'zh'
+                ? '首次使用时可以直接点保存，系统会自动为你生成 Claw402 钱包并完成默认配置。'
+                : 'For first-time setup, you can save directly and the app will auto-generate a Claw402 wallet with the default configuration.'}
+            </div>
+          ) : null}
+
+          {hasExistingWallet && !trimmedApiKey ? (
             <div className="text-[11px] leading-5" style={{ color: '#848E9C' }}>
               {language === 'zh'
                 ? '后续这里只使用你第一次创建并保存的钱包；如果你要换钱包，请手动填写新的私钥。'
@@ -663,7 +685,7 @@ function Claw402ConfigForm({
         </div>
 
         {/* Wallet Validation Results */}
-        {(apiKey || hasExistingWallet) && (
+        {(trimmedApiKey || hasExistingWallet) && (
           <div className="space-y-2 pl-1">
             {/* Validating spinner */}
             {validating && (
@@ -761,7 +783,7 @@ function Claw402ConfigForm({
                     </div>
                   </div>
                 )}
-                {!apiKey && hasExistingWallet && (
+                {!trimmedApiKey && hasExistingWallet && (
                   <div className="text-[11px]" style={{ color: '#848E9C' }}>
                     {language === 'zh'
                       ? '当前正在使用这个钱包充值。若要切换钱包，再输入新的私钥并保存即可。'
@@ -832,9 +854,9 @@ function Claw402ConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!isKeyValid}
+          disabled={!canSubmit}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: isKeyValid ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
+          style={{ background: canSubmit ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
         >
           {'🚀 ' + t('modelConfig.startTrading', language)}
         </button>

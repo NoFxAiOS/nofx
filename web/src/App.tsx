@@ -451,19 +451,7 @@ function App() {
   // Data page - publicly accessible with embedded dashboard
   if (route === '/data') {
     const dataPageNavigate = (page: Page) => {
-      const pathMap: Record<string, string> = {
-        'data': '/data',
-        'competition': '/competition',
-        'strategy-market': '/strategy-market',
-        'traders': '/traders',
-        'trader': '/dashboard',
-        'strategy': '/strategy',
-        'faq': '/faq',
-      }
-      const path = pathMap[page]
-      if (path) {
-        window.location.href = path
-      }
+      navigateToPage(page)
     }
     return (
       <div

@@ -7,7 +7,7 @@ interface BeginnerGuideCardsProps {
   strategyReady: boolean
   canCreateTrader: boolean
   walletAddress?: string | null
-  onQuickSetupClaw402: () => void
+  onOpenModel: () => void
   onOpenExchange: () => void
   onOpenStrategy: () => void
   onCreateTrader: () => void
@@ -25,7 +25,7 @@ export function BeginnerGuideCards({
   strategyReady,
   canCreateTrader,
   walletAddress,
-  onQuickSetupClaw402,
+  onOpenModel,
   onOpenExchange,
   onOpenStrategy,
   onCreateTrader,
@@ -38,25 +38,21 @@ export function BeginnerGuideCards({
       icon: Brain,
       title: isZh ? '1. 极速模型' : '1. Fast AI',
       desc: isZh
-        ? '默认就是 Claw402 + DeepSeek。第一次不用挑模型，先跑起来。'
-        : 'Start with Claw402 + DeepSeek. No model picking needed for the first run.',
+        ? '打开模型弹窗后直接点保存。首次会自动生成 Claw402 钱包，并默认使用 DeepSeek。'
+        : 'Open the model modal and save directly. Your first save will auto-generate a Claw402 wallet with DeepSeek by default.',
       meta: walletAddress
         ? isZh
           ? `钱包 ${truncateAddress(walletAddress)}`
           : `Wallet ${truncateAddress(walletAddress)}`
         : isZh
-          ? 'Base 链 USDC 按次付费'
-          : 'Pay per call with Base USDC',
+          ? '保存时自动生成 Base 钱包'
+          : 'Saving will auto-generate a Base wallet',
       ready: claw402Ready,
       actionLabel: claw402Ready
-        ? isZh
-          ? '已配置'
-          : 'Configured'
-        : isZh
-          ? '一键配置'
-          : 'One-click setup',
-      onAction: onQuickSetupClaw402,
-      disabled: claw402Ready,
+        ? isZh ? '管理模型' : 'Manage model'
+        : isZh ? '打开模型配置' : 'Open model setup',
+      onAction: onOpenModel,
+      disabled: false,
     },
     {
       key: 'exchange',
@@ -66,20 +62,12 @@ export function BeginnerGuideCards({
         ? '交易所接好以后，AI 才能真正下单。'
         : 'Connect an exchange so the AI can actually place trades.',
       meta: exchangeReady
-        ? isZh
-          ? '已准备好'
-          : 'Ready'
-        : isZh
-          ? 'Binance / OKX / Bybit / Hyperliquid'
-          : 'Binance / OKX / Bybit / Hyperliquid',
+        ? isZh ? '已准备好' : 'Ready'
+        : isZh ? 'Binance / OKX / Bybit / Hyperliquid' : 'Binance / OKX / Bybit / Hyperliquid',
       ready: exchangeReady,
       actionLabel: exchangeReady
-        ? isZh
-          ? '继续管理'
-          : 'Manage'
-        : isZh
-          ? '去配置'
-          : 'Configure',
+        ? isZh ? '继续管理' : 'Manage'
+        : isZh ? '去配置' : 'Configure',
       onAction: onOpenExchange,
       disabled: false,
     },
@@ -91,12 +79,8 @@ export function BeginnerGuideCards({
         ? '先用默认策略也可以，后面再慢慢细调。'
         : 'You can start with a default strategy and fine-tune later.',
       meta: strategyReady
-        ? isZh
-          ? '已有策略可用'
-          : 'Strategy ready'
-        : isZh
-          ? '可选，但建议提前看一眼'
-          : 'Optional, but worth a quick look',
+        ? isZh ? '已有策略可用' : 'Strategy ready'
+        : isZh ? '可选，但建议提前看一眼' : 'Optional, but worth a quick look',
       ready: strategyReady,
       actionLabel: isZh ? '打开策略页' : 'Open strategy',
       onAction: onOpenStrategy,
@@ -110,12 +94,8 @@ export function BeginnerGuideCards({
         ? '最后一步，把模型和交易所绑在一起，就能开始运行。'
         : 'Last step: bind your model and exchange, then start running.',
       meta: canCreateTrader
-        ? isZh
-          ? '已经可以创建'
-          : 'Ready to create'
-        : isZh
-          ? '先完成前两步'
-          : 'Finish the first two steps first',
+        ? isZh ? '已经可以创建' : 'Ready to create'
+        : isZh ? '先完成前两步' : 'Finish the first two steps first',
       ready: canCreateTrader,
       actionLabel: isZh ? '立即创建' : 'Create now',
       onAction: onCreateTrader,
@@ -131,14 +111,12 @@ export function BeginnerGuideCards({
             {isZh ? '新手引导' : 'Quickstart'}
           </div>
           <h2 className="mt-1 text-xl font-bold text-white">
-            {isZh
-              ? '先按这 4 步走，最快上手'
-              : 'Follow these 4 steps to get started fast'}
+            {isZh ? '先按这 4 步走，最快上手' : 'Follow these 4 steps to get started fast'}
           </h2>
         </div>
-        {/* <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-400">
+        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-400">
           {isZh ? '老手模式不会看到这块' : 'Hidden in advanced mode'}
-        </div> */}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -160,19 +138,11 @@ export function BeginnerGuideCards({
                       : 'bg-zinc-800 text-zinc-400'
                   }`}
                 >
-                  {card.ready
-                    ? isZh
-                      ? '已就绪'
-                      : 'Ready'
-                    : isZh
-                      ? '待完成'
-                      : 'Pending'}
+                  {card.ready ? (isZh ? '已就绪' : 'Ready') : (isZh ? '待完成' : 'Pending')}
                 </span>
               </div>
 
-              <h3 className="mt-4 text-base font-semibold text-white">
-                {card.title}
-              </h3>
+              <h3 className="mt-4 text-base font-semibold text-white">{card.title}</h3>
               <p className="mt-2 min-h-[72px] text-sm leading-6 text-zinc-400">
                 {card.desc}
               </p>

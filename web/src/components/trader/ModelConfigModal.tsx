@@ -13,7 +13,7 @@ import {
   AI_PROVIDER_CONFIG,
   getShortName,
 } from './model-constants'
-import { getBeginnerWalletAddress } from '../../lib/onboarding'
+import { getBeginnerWalletAddress, getUserMode } from '../../lib/onboarding'
 
 interface ModelConfigModalProps {
   allModels: AIModel[]
@@ -84,6 +84,7 @@ export function ModelConfigModal({
   const availableModels = allModels || []
   const configuredIds = new Set(configuredModels?.map(m => m.id) || [])
   const isClaw402Selected = selectedModel?.provider === 'claw402' || selectedModel?.id === 'claw402'
+  const isBeginnerDefaultModel = isClaw402Selected && getUserMode() === 'beginner'
   const stepLabels = [
     t('modelConfig.selectModel', language),
     t(
@@ -117,7 +118,7 @@ export function ModelConfigModal({
             </h3>
           </div>
           <div className="flex items-center gap-2">
-            {editingModelId && (
+            {editingModelId && !isBeginnerDefaultModel && (
               <button
                 type="button"
                 onClick={() => onDelete(editingModelId)}

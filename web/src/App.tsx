@@ -23,7 +23,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/common/ConfirmDialog'
 import { t } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
-import { getUserMode } from './lib/onboarding'
+import { getUserMode, hasCompletedBeginnerOnboarding } from './lib/onboarding'
 
 import { OFFICIAL_LINKS } from './constants/branding'
 import type {
@@ -352,7 +352,7 @@ function App() {
   }, [route])
 
   const showBeginnerOnboarding =
-    route === '/welcome' && (!!user || hasPersistedAuth) && getUserMode() === 'beginner'
+    route === '/welcome' && (!!user || hasPersistedAuth) && getUserMode() === 'beginner' && !hasCompletedBeginnerOnboarding()
 
   // Show loading spinner while checking auth or config
   if (isLoading || configLoading) {

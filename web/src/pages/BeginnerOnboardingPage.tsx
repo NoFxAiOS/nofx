@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { useLanguage } from '../contexts/LanguageContext'
 import { api } from '../lib/api'
 import type { BeginnerOnboardingResponse } from '../types'
-import { setBeginnerWalletAddress } from '../lib/onboarding'
+import { setBeginnerWalletAddress, markBeginnerOnboardingCompleted } from '../lib/onboarding'
 
 export function BeginnerOnboardingPage() {
   const { language } = useLanguage()
@@ -78,6 +78,7 @@ export function BeginnerOnboardingPage() {
   }
 
   const handleContinue = () => {
+    markBeginnerOnboardingCompleted()
     window.history.pushState({}, '', '/traders')
     window.dispatchEvent(new PopStateEvent('popstate'))
   }

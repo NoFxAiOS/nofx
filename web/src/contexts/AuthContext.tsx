@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
-import { getSystemConfig } from '../lib/config'
+import { getSystemConfig, invalidateSystemConfig } from '../lib/config'
 import { reset401Flag, httpClient } from '../lib/httpClient'
 import { getPostAuthPath, setUserMode, type UserMode } from '../lib/onboarding'
 import { useLanguage } from './LanguageContext'
@@ -225,6 +225,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }>('/api/register', requestBody)
 
       if (result.success && result.data) {
+        // Clear stale onboarding state so new users always see the welcome flow
+        localStorage.removeItem('nofx_beginner_onboarding_completed')
+        localStorage.removeItem('nofx_beginner_wallet_address')
+
         const userInfo = { id: result.data.user_id, email: result.data.email }
         handlePostAuthSuccess(result.data.token, userInfo, mode)
 
@@ -290,6 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null)
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
+    invalidateSystemConfig()
     window.history.pushState({}, '', '/')
     window.dispatchEvent(new PopStateEvent('popstate'))
   }

@@ -6,7 +6,6 @@ import { OnboardingModeSelector } from '../auth/OnboardingModeSelector'
 import type { UserMode } from '../../lib/onboarding'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { LanguageSwitcher } from '../common/LanguageSwitcher'
-import type { Language } from '../../i18n/translations'
 
 const labels = {
   zh: {

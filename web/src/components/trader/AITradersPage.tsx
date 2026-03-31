@@ -259,7 +259,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleSaveEditTrader = async (data: CreateTraderRequest) => {
-    console.log('🔥🔥🔥 handleSaveEditTrader CALLED with data:', data)
     if (!editingTrader) return
 
     try {
@@ -286,10 +285,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         is_cross_margin: data.is_cross_margin,
         show_in_competition: data.show_in_competition,
       }
-
-      console.log('🔥 handleSaveEditTrader - data:', data)
-      console.log('🔥 handleSaveEditTrader - data.strategy_id:', data.strategy_id)
-      console.log('🔥 handleSaveEditTrader - request:', request)
 
       await api.updateTrader(editingTrader.trader_id, request)
       toast.success(t('aiTradersToast.saved', language))

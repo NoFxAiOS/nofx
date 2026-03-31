@@ -55,11 +55,6 @@ function App() {
   const { config: systemConfig, loading: configLoading } = useSystemConfig()
   const [route, setRoute] = useState(window.location.pathname)
 
-  // Debug log
-  useEffect(() => {
-    console.log('[App] Mounted. Route:', window.location.pathname);
-  }, []);
-
   // 从URL路径读取初始页面状态（支持刷新保持页面）
   const getInitialPage = (): Page => {
     const path = window.location.pathname

@@ -262,7 +262,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleSaveEditTrader = async (data: CreateTraderRequest) => {
-    console.log('🔥🔥🔥 handleSaveEditTrader CALLED with data:', data)
     if (!editingTrader) return
 
     try {
@@ -290,7 +289,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         show_in_competition: data.show_in_competition,
       }
 
-      console.log('🔥 handleSaveEditTrader - data:', data)
+console.log('🔥 handleSaveEditTrader - data:', data)
       console.log('🔥 handleSaveEditTrader - data.strategy_id:', data.strategy_id)
       console.log('🔥 handleSaveEditTrader - request:', request)
 

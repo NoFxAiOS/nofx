@@ -69,7 +69,7 @@ No accounts. No API keys. No prepaid credits. One wallet, every model.
 
 | Feature | Description |
 |:--------|:------------|
-| **Multi-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — switch anytime |
+| **Multi-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — switch anytime |
 | **Multi-Exchange** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
 | **Strategy Studio** | Visual builder — coin sources, indicators, risk controls |
 | **AI Competition** | AIs compete in real-time, leaderboard ranks performance |
@@ -110,6 +110,7 @@ Crypto · US Stocks · Forex · Metals
 | <img src="web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [Get API Key](https://aistudio.google.com) |
 | <img src="web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [Get API Key](https://console.x.ai) |
 | <img src="web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [Get API Key](https://platform.moonshot.cn) |
+| <img src="web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [Get API Key](https://platform.minimaxi.com) |
 
 ### AI Models (x402 Mode — No API Key)
 
@@ -210,6 +211,10 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 ---
 
 ## Setup
+
+**Beginner mode**: First-time users get a guided onboarding flow — select beginner mode at registration and the system walks you through AI, exchange, and strategy setup step by step.
+
+**Advanced mode**:
 
 1. **AI** — Add API keys or configure x402 wallet
 2. **Exchange** — Connect exchange API credentials

@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
-import { Eye, EyeOff, Globe } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { invalidateSystemConfig } from '../../lib/config'
 import { OnboardingModeSelector } from '../auth/OnboardingModeSelector'
 import type { UserMode } from '../../lib/onboarding'
 import { useLanguage } from '../../contexts/LanguageContext'
+import { LanguageSwitcher } from '../common/LanguageSwitcher'
 import type { Language } from '../../i18n/translations'
 
 const labels = {
@@ -49,14 +50,8 @@ const labels = {
   },
 } as const
 
-const langOptions: { value: Language; label: string }[] = [
-  { value: 'en', label: 'English' },
-  { value: 'zh', label: '中文' },
-  { value: 'id', label: 'Bahasa' },
-]
-
 export function SetupPage() {
-  const { language, setLanguage } = useLanguage()
+  const { language } = useLanguage()
   const { register } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -64,6 +59,15 @@ export function SetupPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<UserMode>('beginner')
+
+  // Clean up any stale auth/onboarding state on setup page load
+  useEffect(() => {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
+    localStorage.removeItem('user_id')
+    localStorage.removeItem('nofx_beginner_onboarding_completed')
+    localStorage.removeItem('nofx_beginner_wallet_address')
+  }, [])
 
   const l = labels[language as keyof typeof labels] || labels.en
 
@@ -124,26 +128,7 @@ export function SetupPage() {
       {/* Blur overlay */}
       <div className="absolute inset-0 backdrop-blur-md bg-black/60" />
 
-      {/* Language switcher */}
-      <div className="fixed top-4 right-4 z-50">
-        <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-2 py-1.5">
-          <Globe className="h-3.5 w-3.5 text-zinc-500" />
-          {langOptions.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setLanguage(opt.value)}
-              className={`rounded-lg px-2 py-1 text-xs font-medium transition ${
-                language === opt.value
-                  ? 'bg-nofx-gold/15 text-nofx-gold'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <LanguageSwitcher />
 
       {/* Modal card */}
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-16">

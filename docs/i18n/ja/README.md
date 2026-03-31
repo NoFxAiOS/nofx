@@ -69,7 +69,7 @@ x402 フロー：
 
 | 機能 | 説明 |
 |:--------|:------------|
-| **マルチ AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — いつでも切替 |
+| **マルチ AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — いつでも切替 |
 | **マルチ取引所** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
 | **ストラテジースタジオ** | ビジュアルビルダー — コインソース、インジケーター、リスク管理 |
 | **AI ディベートアリーナ** | 複数 AI が取引を議論（ブル vs ベア vs アナリスト）、投票、実行 |
@@ -112,6 +112,7 @@ x402 フロー：
 | <img src="../../../web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [API キー取得](https://aistudio.google.com) |
 | <img src="../../../web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [API キー取得](https://console.x.ai) |
 | <img src="../../../web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [API キー取得](https://platform.moonshot.cn) |
+| <img src="../../../web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [API キー取得](https://platform.minimaxi.com) |
 
 ### AI モデル (x402 モード — API キー不要)
 

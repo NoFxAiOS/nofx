@@ -71,7 +71,7 @@ x402 流程：
 
 | 功能 | 描述 |
 |:--------|:------------|
-| **多 AI** | DeepSeek、Qwen、GPT、Claude、Gemini、Grok、Kimi — 随时切换 |
+| **多 AI** | DeepSeek、Qwen、GPT、Claude、Gemini、Grok、Kimi、MiniMax — 随时切换 |
 | **多交易所** | Binance、Bybit、OKX、Bitget、KuCoin、Gate、Hyperliquid、Aster、Lighter |
 | **策略工作室** | 可视化构建器 — 币种来源、指标、风控 |
 | **AI 竞赛** | AI 实时竞争，排行榜排名 |
@@ -113,6 +113,7 @@ x402 流程：
 | <img src="../../../web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [获取 API Key](https://aistudio.google.com) |
 | <img src="../../../web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [获取 API Key](https://console.x.ai) |
 | <img src="../../../web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [获取 API Key](https://platform.moonshot.cn) |
+| <img src="../../../web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [获取 API Key](https://platform.minimaxi.com) |
 
 ### AI 模型 (x402 模式 — 无需 API Key)
 
@@ -169,6 +170,10 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 ---
 
 ## 配置
+
+**新手模式**：首次使用的用户可以在注册时选择新手模式，系统会引导你逐步完成 AI、交易所和策略的配置。
+
+**进阶模式**：
 
 1. **AI** — 添加 API Key 或配置 x402 钱包
 2. **交易所** — 连接交易所 API 凭证

@@ -1,4 +1,3 @@
-import React from 'react'
 import { Globe } from 'lucide-react'
 import { useLanguage } from '../../contexts/LanguageContext'
 import type { Language } from '../../i18n/translations'

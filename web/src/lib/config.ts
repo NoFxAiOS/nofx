@@ -26,4 +26,5 @@ export function getSystemConfig(): Promise<SystemConfig> {
 export function invalidateSystemConfig() {
   cachedConfig = null
   configPromise = null
+  window.dispatchEvent(new Event('system-config-invalidated'))
 }

@@ -41,6 +41,30 @@ export interface Exchange {
   lighterApiKeyIndex?: number
 }
 
+export type ExchangeAccountStatus =
+  | 'ok'
+  | 'disabled'
+  | 'missing_credentials'
+  | 'invalid_credentials'
+  | 'permission_denied'
+  | 'unavailable'
+
+export interface ExchangeAccountState {
+  exchange_id: string
+  status: ExchangeAccountStatus
+  display_balance?: string
+  asset?: string
+  total_equity?: number
+  available_balance?: number
+  checked_at: string
+  error_code?: string
+  error_message?: string
+}
+
+export interface ExchangeAccountStateResponse {
+  states: Record<string, ExchangeAccountState>
+}
+
 export interface CreateExchangeRequest {
   exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
   account_name: string           // User-defined account name

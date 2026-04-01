@@ -8,16 +8,6 @@ import (
 
 	"nofx/logger"
 	"nofx/store"
-	"nofx/trader"
-	"nofx/trader/aster"
-	"nofx/trader/binance"
-	"nofx/trader/bitget"
-	"nofx/trader/bybit"
-	"nofx/trader/gate"
-	hyperliquidtrader "nofx/trader/hyperliquid"
-	"nofx/trader/kucoin"
-	"nofx/trader/lighter"
-	"nofx/trader/okx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -154,92 +144,20 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	} else if !exchangeCfg.Enabled {
 		logger.Infof("⚠️ Exchange %s not enabled, using user input for initial balance", req.ExchangeID)
 	} else {
-		// Create temporary trader based on exchange type to query balance
-		var tempTrader trader.Trader
-		var createErr error
-
-		// Use ExchangeType (e.g., "binance") instead of ID (UUID)
-		// Convert EncryptedString fields to string
-		switch exchangeCfg.ExchangeType {
-		case "binance":
-			tempTrader = binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
-		case "hyperliquid":
-			tempTrader, createErr = hyperliquidtrader.NewHyperliquidTrader(
-				string(exchangeCfg.APIKey), // private key
-				exchangeCfg.HyperliquidWalletAddr,
-				exchangeCfg.Testnet,
-				exchangeCfg.HyperliquidUnifiedAcct,
-			)
-		case "aster":
-			tempTrader, createErr = aster.NewAsterTrader(
-				exchangeCfg.AsterUser,
-				exchangeCfg.AsterSigner,
-				string(exchangeCfg.AsterPrivateKey),
-			)
-		case "bybit":
-			tempTrader = bybit.NewBybitTrader(
-				string(exchangeCfg.APIKey),
-				string(exchangeCfg.SecretKey),
-			)
-		case "okx":
-			tempTrader = okx.NewOKXTrader(
-				string(exchangeCfg.APIKey),
-				string(exchangeCfg.SecretKey),
-				string(exchangeCfg.Passphrase),
-			)
-		case "bitget":
-			tempTrader = bitget.NewBitgetTrader(
-				string(exchangeCfg.APIKey),
-				string(exchangeCfg.SecretKey),
-				string(exchangeCfg.Passphrase),
-			)
-		case "gate":
-			tempTrader = gate.NewGateTrader(
-				string(exchangeCfg.APIKey),
-				string(exchangeCfg.SecretKey),
-			)
-		case "kucoin":
-			tempTrader = kucoin.NewKuCoinTrader(
-				string(exchangeCfg.APIKey),
-				string(exchangeCfg.SecretKey),
-				string(exchangeCfg.Passphrase),
-			)
-		case "lighter":
-			if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
-				// Lighter only supports mainnet
-				tempTrader, createErr = lighter.NewLighterTraderV2(
-					exchangeCfg.LighterWalletAddr,
-					string(exchangeCfg.LighterAPIKeyPrivateKey),
-					exchangeCfg.LighterAPIKeyIndex,
-					false, // Always use mainnet for Lighter
-				)
-			} else {
-				createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
-			}
-		default:
-			logger.Infof("⚠️ Unsupported exchange type: %s, using user input for initial balance", exchangeCfg.ExchangeType)
-		}
-
+		tempTrader, createErr := buildExchangeProbeTrader(exchangeCfg, userID)
 		if createErr != nil {
 			logger.Infof("⚠️ Failed to create temporary trader, using user input for initial balance: %v", createErr)
-		} else if tempTrader != nil {
+		} else {
 			// Query actual balance
 			balanceInfo, balanceErr := tempTrader.GetBalance()
 			if balanceErr != nil {
 				logger.Infof("⚠️ Failed to query exchange balance, using user input for initial balance: %v", balanceErr)
 			} else {
-				// Extract total equity (account total value = wallet balance + unrealized PnL)
-				// Priority: total_equity > totalWalletBalance > wallet_balance > totalEq > balance
-				// Note: Must use total_equity (not availableBalance) for accurate P&L calculation
-				balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
-				for _, key := range balanceKeys {
-					if balance, ok := balanceInfo[key].(float64); ok && balance > 0 {
-						actualBalance = balance
-						logger.Infof("✓ Queried exchange total equity (%s): %.2f USDT (user input: %.2f USDT)", key, actualBalance, req.InitialBalance)
-						break
-					}
-				}
-				if actualBalance <= 0 {
+				if extractedBalance, found := extractExchangeTotalEquity(balanceInfo); found {
+					actualBalance = extractedBalance
+					logger.Infof("✓ Queried exchange total equity: %.2f %s (user input: %.2f)",
+						actualBalance, accountAssetForExchange(exchangeCfg.ExchangeType), req.InitialBalance)
+				} else {
 					logger.Infof("⚠️ Unable to extract total equity from balance info, balanceInfo=%v, using user input for initial balance", balanceInfo)
 				}
 			}

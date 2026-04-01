@@ -192,6 +192,8 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 		}
 	}
 
+	s.exchangeAccountStateCache.Invalidate(userID)
+
 	// Remove affected traders from memory BEFORE reloading to pick up new config
 	for traderID := range tradersToReload {
 		logger.Infof("🔄 Removing trader %s from memory to reload with new exchange config", traderID)
@@ -284,6 +286,8 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 		return
 	}
 
+	s.exchangeAccountStateCache.Invalidate(userID)
+
 	logger.Infof("✓ Created exchange account: type=%s, name=%s, id=%s", req.ExchangeType, req.AccountName, id)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Exchange account created",
@@ -326,6 +330,8 @@ func (s *Server) handleDeleteExchange(c *gin.Context) {
 		SafeInternalError(c, "Failed to delete exchange account", err)
 		return
 	}
+
+	s.exchangeAccountStateCache.Invalidate(userID)
 
 	logger.Infof("✓ Deleted exchange account: id=%s", exchangeID)
 	c.JSON(http.StatusOK, gin.H{"message": "Exchange account deleted"})

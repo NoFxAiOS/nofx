@@ -7,6 +7,7 @@ import type {
   CreateTraderRequest,
   AIModel,
   Exchange,
+  ExchangeAccountState,
 } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -105,6 +106,18 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     user && token ? 'traders' : null,
     api.getTraders,
     { refreshInterval: 5000 }
+  )
+  const {
+    data: exchangeAccountStateData,
+    mutate: mutateExchangeAccountStates,
+    isLoading: isExchangeAccountStatesLoading,
+  } = useSWR<{ states: Record<string, ExchangeAccountState> }>(
+    user && token ? 'exchange-account-state' : null,
+    api.getExchangeAccountState,
+    {
+      refreshInterval: 30000,
+      shouldRetryOnError: false,
+    }
   )
   const { data: strategies } = useSWR<Strategy[]>(
     user && token ? 'strategies' : null,
@@ -537,6 +550,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
+      await mutateExchangeAccountStates()
 
       setShowExchangeModal(false)
       setEditingExchange(null)
@@ -618,6 +632,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
+      await mutateExchangeAccountStates()
 
       setShowExchangeModal(false)
       setEditingExchange(null)
@@ -757,6 +772,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         <ConfigStatusGrid
           configuredModels={configuredModels}
           configuredExchanges={configuredExchanges}
+          exchangeAccountStates={exchangeAccountStateData?.states}
+          isExchangeAccountStatesLoading={isExchangeAccountStatesLoading}
           visibleExchangeAddresses={visibleExchangeAddresses}
           copiedId={copiedId}
           language={language}

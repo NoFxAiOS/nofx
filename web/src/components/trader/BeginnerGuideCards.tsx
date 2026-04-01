@@ -5,6 +5,7 @@ interface BeginnerGuideCardsProps {
   claw402Ready: boolean
   exchangeReady: boolean
   strategyReady: boolean
+  traderReady: boolean
   canCreateTrader: boolean
   walletAddress?: string | null
   onQuickSetupClaw402: () => void
@@ -23,6 +24,7 @@ export function BeginnerGuideCards({
   claw402Ready,
   exchangeReady,
   strategyReady,
+  traderReady,
   canCreateTrader,
   walletAddress,
   onQuickSetupClaw402,
@@ -109,15 +111,25 @@ export function BeginnerGuideCards({
       desc: isZh
         ? '最后一步，把模型和交易所绑在一起，就能开始运行。'
         : 'Last step: bind your model and exchange, then start running.',
-      meta: canCreateTrader
+      meta: traderReady
         ? isZh
-          ? '已经可以创建'
-          : 'Ready to create'
+          ? '已创建 Trader，可继续添加'
+          : 'Trader created, you can add more'
+        : canCreateTrader
+          ? isZh
+            ? '已经可以创建'
+            : 'Ready to create'
         : isZh
-          ? '先完成前两步'
-          : 'Finish the first two steps first',
-      ready: canCreateTrader,
-      actionLabel: isZh ? '立即创建' : 'Create now',
+          ? '先完成前三步'
+          : 'Finish the first three steps first',
+      ready: traderReady,
+      actionLabel: traderReady
+        ? isZh
+          ? '继续创建'
+          : 'Create another'
+        : isZh
+          ? '立即创建'
+          : 'Create now',
       onAction: onCreateTrader,
       disabled: !canCreateTrader,
     },

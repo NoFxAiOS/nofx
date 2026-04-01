@@ -680,6 +680,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const claw402Configured = configuredModels.some((model) => model.provider === 'claw402')
   const hasStrategies = (strategies?.length || 0) > 0
+  const hasCreatedTrader = (traders?.length || 0) > 0
   const canCreateTrader = configuredModels.length > 0 && configuredExchanges.length > 0
 
   return (
@@ -759,6 +760,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             claw402Ready={claw402Configured}
             exchangeReady={configuredExchanges.length > 0}
             strategyReady={hasStrategies}
+            traderReady={hasCreatedTrader}
             canCreateTrader={canCreateTrader}
             walletAddress={beginnerWalletAddress}
             onQuickSetupClaw402={handleQuickSetupClaw402}

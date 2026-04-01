@@ -31,6 +31,7 @@ import type {
   DebateVote,
   DebatePersonalityInfo,
   PositionHistoryResponse,
+  ExchangeAccountStateResponse,
 } from '../types'
 import { CryptoService } from './crypto'
 import { httpClient } from './httpClient'
@@ -845,6 +846,16 @@ export const api = {
     const result = await httpClient.get(`${API_BASE}/onboarding/beginner/current`)
     if (!result.success || !result.data) {
       throw new Error(result.message || 'Failed to fetch current beginner wallet')
+    }
+    return result.data
+  },
+
+  async getExchangeAccountState(): Promise<ExchangeAccountStateResponse> {
+    const result = await httpClient.get<ExchangeAccountStateResponse>(
+      `${API_BASE}/exchanges/account-state`
+    )
+    if (!result.success || !result.data) {
+      throw new Error('Failed to fetch exchange account states')
     }
     return result.data
   },

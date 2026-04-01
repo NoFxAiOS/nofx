@@ -869,3 +869,6 @@ export interface GridRiskInfo {
   breakout_level: string
   breakout_direction: string
 }
+
+// Re-export config types for backwards compatibility
+export type { ExchangeAccountState, ExchangeAccountStateResponse } from './types/config'

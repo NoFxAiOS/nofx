@@ -180,10 +180,10 @@ func validateExchangeForTraderCreation(exchange *store.Exchange) (string, string
 	}
 }
 
-func humanizeTraderSetupReason(reason string) string {
+func classifyTraderSetupReason(reason string) (string, string) {
 	trimmed := strings.TrimSpace(reason)
 	if trimmed == "" {
-		return ""
+		return "", ""
 	}
 
 	lower := strings.ToLower(trimmed)
@@ -191,31 +191,58 @@ func humanizeTraderSetupReason(reason string) string {
 	switch {
 	case strings.Contains(lower, "failed to parse strategy config"),
 		strings.Contains(lower, "failed to parse strategy configuration"):
-		return "当前策略配置内容已损坏，系统暂时无法解析"
+		return "trader.reason.strategy_config_invalid", "当前策略配置内容已损坏，系统暂时无法解析"
 	case strings.Contains(lower, "has no strategy configured"):
-		return "当前机器人缺少有效的交易策略配置"
+		return "trader.reason.strategy_missing", "当前机器人缺少有效的交易策略配置"
 	case strings.Contains(lower, "failed to parse private key"),
 		(strings.Contains(lower, "invalid hex character") && strings.Contains(lower, "private key")):
-		return "私钥格式不正确，系统无法识别"
+		return "trader.reason.private_key_invalid", "私钥格式不正确，系统无法识别"
 	case strings.Contains(lower, "failed to initialize hyperliquid trader"):
-		return "Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确"
+		return "trader.reason.hyperliquid_init_failed", "Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确"
 	case strings.Contains(lower, "failed to initialize aster trader"):
-		return "Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确"
+		return "trader.reason.aster_init_failed", "Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确"
 	case strings.Contains(lower, "failed to get meta information"):
-		return "系统暂时无法从交易所读取账户元信息"
+		return "trader.reason.exchange_meta_unavailable", "系统暂时无法从交易所读取账户元信息"
 	case strings.Contains(lower, "security check failed") && strings.Contains(lower, "agent wallet balance too high"):
-		return "Hyperliquid Agent Wallet 余额过高，不符合当前安全要求"
+		return "trader.reason.hyperliquid_agent_balance_too_high", "Hyperliquid Agent Wallet 余额过高，不符合当前安全要求"
 	case strings.Contains(lower, "failed to initialize account"):
-		return "交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配"
+		return "trader.reason.exchange_account_init_failed", "交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配"
 	case strings.Contains(lower, "unsupported trading platform"):
-		return "当前交易所类型暂不支持机器人初始化"
+		return "trader.reason.exchange_unsupported", "当前交易所类型暂不支持机器人初始化"
 	case strings.Contains(lower, "initial balance not set and unable to fetch balance from exchange"):
-		return "系统暂时无法从交易所读取账户余额"
+		return "trader.reason.exchange_balance_unavailable", "系统暂时无法从交易所读取账户余额"
 	case strings.Contains(lower, "timeout"), strings.Contains(lower, "no such host"), strings.Contains(lower, "connection refused"):
-		return "系统暂时无法连接交易所服务"
+		return "trader.reason.exchange_service_unreachable", "系统暂时无法连接交易所服务"
 	default:
-		return trimmed
+		return "trader.reason.unknown", trimmed
 	}
+}
+
+func humanizeTraderSetupReason(reason string) string {
+	_, message := classifyTraderSetupReason(reason)
+	return message
+}
+
+func traderSetupReasonParams(err error, fallback string, kv ...string) map[string]string {
+	params := mapStringPairs(kv...)
+	rawReason := SanitizeError(err, fallback)
+	reasonKey, reasonMessage := classifyTraderSetupReason(rawReason)
+	if reasonMessage == "" && fallback != "" {
+		reasonMessage = fallback
+	}
+	if reasonMessage != "" {
+		if params == nil {
+			params = map[string]string{}
+		}
+		params["reason"] = reasonMessage
+	}
+	if reasonKey != "" {
+		if params == nil {
+			params = map[string]string{}
+		}
+		params["reason_key"] = reasonKey
+	}
+	return params
 }
 
 func describeTraderLoadError(traderName string, err error) string {
@@ -421,9 +448,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			SafeBadRequestWithDetails(c, formatTraderCreationError(
 				fmt.Sprintf("交易所账户「%s」没有通过初始化校验，原因是：%s", exchangeDisplayName(exchangeCfg), humanizeTraderSetupReason(SanitizeError(createErr, "配置校验未通过"))),
 				"请前往「设置 > 交易所配置」检查这个账户的密钥、地址和账户信息是否填写正确",
-			), "trader.create.exchange_probe_failed", mapStringPairs(
+			), "trader.create.exchange_probe_failed", traderSetupReasonParams(createErr, "配置校验未通过",
 				"exchange_name", exchangeDisplayName(exchangeCfg),
-				"reason", humanizeTraderSetupReason(SanitizeError(createErr, "配置校验未通过")),
 			))
 			return
 		} else if tempTrader != nil {
@@ -742,10 +768,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	logger.Infof("🔄 Loading trader %s from database...", traderID)
 	if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
 		logger.Infof("❌ Failed to load user traders: %v", loadErr)
-		SafeErrorWithDetails(c, http.StatusInternalServerError, describeTraderStartError(traderName, loadErr), "trader.start.load_failed", mapStringPairs(
-			"trader_name", traderName,
-			"reason", humanizeTraderSetupReason(SanitizeError(loadErr, "")),
-		), loadErr)
+		SafeErrorWithDetails(c, http.StatusInternalServerError, describeTraderStartError(traderName, loadErr), "trader.start.load_failed", traderSetupReasonParams(loadErr, "", "trader_name", traderName), loadErr)
 		return
 	}
 
@@ -784,16 +807,10 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 		}
 		// Check if there's a specific load error
 		if loadErr := s.traderManager.GetLoadError(traderID); loadErr != nil {
-			SafeBadRequestWithDetails(c, describeTraderStartError(traderName, loadErr), "trader.start.load_failed", mapStringPairs(
-				"trader_name", traderName,
-				"reason", humanizeTraderSetupReason(SanitizeError(loadErr, "")),
-			))
+			SafeBadRequestWithDetails(c, describeTraderStartError(traderName, loadErr), "trader.start.load_failed", traderSetupReasonParams(loadErr, "", "trader_name", traderName))
 			return
 		}
-		SafeBadRequestWithDetails(c, describeTraderStartError(traderName, err), "trader.start.setup_invalid", mapStringPairs(
-			"trader_name", traderName,
-			"reason", humanizeTraderSetupReason(SanitizeError(err, "")),
-		))
+		SafeBadRequestWithDetails(c, describeTraderStartError(traderName, err), "trader.start.setup_invalid", traderSetupReasonParams(err, "", "trader_name", traderName))
 		return
 	}
 

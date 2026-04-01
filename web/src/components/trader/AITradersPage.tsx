@@ -75,7 +75,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     const traderName = params.trader_name || params.traderName || 'this trader'
     const modelName = params.model_name || params.modelName || 'selected model'
     const exchangeName = params.exchange_name || params.exchangeName || 'selected exchange account'
-    const reason = params.reason || fallback
+    const reason = localizeTraderReason(params.reason_key, params.reason || fallback)
     const symbol = params.symbol || ''
 
     const zh = language === 'zh'
@@ -124,6 +124,36 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         return zh ? `机器人「${traderName}」暂时还不能启动，原因是：${reason}` : `Trader "${traderName}" cannot be started yet because ${reason}`
       default:
         return fallback
+    }
+  }
+  const localizeTraderReason = (reasonKey?: string, fallback?: string) => {
+    const zh = language === 'zh'
+
+    switch (reasonKey) {
+      case 'trader.reason.strategy_config_invalid':
+        return zh ? '当前策略配置内容已损坏，系统暂时无法解析' : 'the current strategy configuration is corrupted and cannot be parsed'
+      case 'trader.reason.strategy_missing':
+        return zh ? '当前机器人缺少有效的交易策略配置' : 'the trader is missing a valid strategy configuration'
+      case 'trader.reason.private_key_invalid':
+        return zh ? '私钥格式不正确，系统无法识别' : 'the private key format is invalid and cannot be recognized'
+      case 'trader.reason.hyperliquid_init_failed':
+        return zh ? 'Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确' : 'Hyperliquid account initialization failed. Please verify the private key, main wallet address, and Agent Wallet configuration'
+      case 'trader.reason.aster_init_failed':
+        return zh ? 'Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确' : 'Aster account initialization failed. Please verify the Aster User, Signer, and private key'
+      case 'trader.reason.exchange_meta_unavailable':
+        return zh ? '系统暂时无法从交易所读取账户元信息' : 'the system could not read account metadata from the exchange'
+      case 'trader.reason.hyperliquid_agent_balance_too_high':
+        return zh ? 'Hyperliquid Agent Wallet 余额过高，不符合当前安全要求' : 'the Hyperliquid Agent Wallet balance is too high for the current safety requirements'
+      case 'trader.reason.exchange_account_init_failed':
+        return zh ? '交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配' : 'exchange account initialization failed. Please verify that the wallet address and API key match'
+      case 'trader.reason.exchange_unsupported':
+        return zh ? '当前交易所类型暂不支持机器人初始化' : 'the selected exchange type is not currently supported for trader initialization'
+      case 'trader.reason.exchange_balance_unavailable':
+        return zh ? '系统暂时无法从交易所读取账户余额' : 'the system could not read the account balance from the exchange'
+      case 'trader.reason.exchange_service_unreachable':
+        return zh ? '系统暂时无法连接交易所服务' : 'the system could not reach the exchange service right now'
+      default:
+        return fallback || (zh ? '系统返回了一个未知错误' : 'an unknown error was returned by the system')
     }
   }
   const normalizeActionableDescription = (error: unknown, message: string, title: string) => {

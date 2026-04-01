@@ -86,6 +86,8 @@ export class HttpClient {
    */
   private async handleError(error: AxiosError): Promise<any> {
     const isSilent = (error.config as any)?.silentError === true
+    const errorData = error.response?.data as { error?: string; message?: string } | undefined
+    const serverMessage = errorData?.error || errorData?.message
 
     // Network error (no response from server)
     if (!error.response) {
@@ -98,10 +100,7 @@ export class HttpClient {
       throw new Error('Network error')
     }
 
-    const { status } = error.response as AxiosResponse<{
-      error?: string
-      message?: string
-    }>
+    const status = error.response?.status ?? 0
 
     // Handle 401 Unauthorized
     if (status === 401) {
@@ -159,6 +158,9 @@ export class HttpClient {
 
     // Handle 500+ Server Error - system error
     if (status >= 500) {
+      if (serverMessage) {
+        return Promise.reject(error)
+      }
       if (!isSilent) {
         toast.error('Server Error', {
           id: 'server-error',

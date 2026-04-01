@@ -8,6 +8,7 @@ import (
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/logger"
+	"nofx/store"
 
 	"github.com/gin-gonic/gin"
 )
@@ -114,6 +115,58 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, safeExchanges)
+}
+
+// handleGetExchangeBalance gets the current equity balance for a specific exchange account.
+func (s *Server) handleGetExchangeBalance(c *gin.Context) {
+	userID := c.GetString("user_id")
+	exchangeID := c.Param("id")
+
+	exchanges, err := s.store.Exchange().List(userID)
+	if err != nil {
+		SafeInternalError(c, "Failed to get exchange configs", err)
+		return
+	}
+
+	var exchangeCfg *store.Exchange
+	for _, exchange := range exchanges {
+		if exchange.ID == exchangeID {
+			exchangeCfg = exchange
+			break
+		}
+	}
+
+	if exchangeCfg == nil {
+		SafeBadRequest(c, "未找到你选择的交易所账户")
+		return
+	}
+
+	if !exchangeCfg.Enabled {
+		SafeBadRequest(c, fmt.Sprintf("交易所账户「%s」目前还没有启用", exchangeDisplayName(exchangeCfg)))
+		return
+	}
+
+	balance, balanceErr := queryExchangeEquity(exchangeCfg, userID)
+	if balanceErr != nil {
+		SafeBadRequest(c, formatTraderStartError(
+			fmt.Sprintf("暂时无法读取交易所账户「%s」的余额", exchangeDisplayName(exchangeCfg)),
+			"请检查该交易所的 API、钱包地址和网络连通性后，再重试",
+		))
+		return
+	}
+
+	if balance <= 0 {
+		SafeBadRequest(c, formatTraderStartError(
+			fmt.Sprintf("交易所账户「%s」当前没有可用余额", exchangeDisplayName(exchangeCfg)),
+			"请先确认该账户有资金，或切换到其他有余额的交易所账户",
+		))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"balance": balance,
+	})
 }
 
 // handleUpdateExchangeConfigs Update exchange configurations (supports both encrypted and plain text based on config)

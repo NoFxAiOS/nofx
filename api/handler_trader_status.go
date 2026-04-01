@@ -58,96 +58,11 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		return
 	}
 
-	// Create temporary trader to query balance
-	var tempTrader trader.Trader
-	var createErr error
-
-	// Use ExchangeType (e.g., "binance") instead of ExchangeID (which is now UUID)
-	// Convert EncryptedString fields to string
-	switch exchangeCfg.ExchangeType {
-	case "binance":
-		tempTrader = binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
-	case "hyperliquid":
-		tempTrader, createErr = hyperliquidtrader.NewHyperliquidTrader(
-			string(exchangeCfg.APIKey),
-			exchangeCfg.HyperliquidWalletAddr,
-			exchangeCfg.Testnet,
-			exchangeCfg.HyperliquidUnifiedAcct,
-		)
-	case "aster":
-		tempTrader, createErr = aster.NewAsterTrader(
-			exchangeCfg.AsterUser,
-			exchangeCfg.AsterSigner,
-			string(exchangeCfg.AsterPrivateKey),
-		)
-	case "bybit":
-		tempTrader = bybit.NewBybitTrader(
-			string(exchangeCfg.APIKey),
-			string(exchangeCfg.SecretKey),
-		)
-	case "okx":
-		tempTrader = okx.NewOKXTrader(
-			string(exchangeCfg.APIKey),
-			string(exchangeCfg.SecretKey),
-			string(exchangeCfg.Passphrase),
-		)
-	case "bitget":
-		tempTrader = bitget.NewBitgetTrader(
-			string(exchangeCfg.APIKey),
-			string(exchangeCfg.SecretKey),
-			string(exchangeCfg.Passphrase),
-		)
-	case "gate":
-		tempTrader = gate.NewGateTrader(
-			string(exchangeCfg.APIKey),
-			string(exchangeCfg.SecretKey),
-		)
-	case "kucoin":
-		tempTrader = kucoin.NewKuCoinTrader(
-			string(exchangeCfg.APIKey),
-			string(exchangeCfg.SecretKey),
-			string(exchangeCfg.Passphrase),
-		)
-	case "lighter":
-		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
-			// Lighter only supports mainnet
-			tempTrader, createErr = lighter.NewLighterTraderV2(
-				exchangeCfg.LighterWalletAddr,
-				string(exchangeCfg.LighterAPIKeyPrivateKey),
-				exchangeCfg.LighterAPIKeyIndex,
-				false, // Always use mainnet for Lighter
-			)
-		} else {
-			createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
-		}
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange type"})
-		return
-	}
-
-	if createErr != nil {
-		logger.Infof("⚠️ Failed to create temporary trader: %v", createErr)
-		SafeInternalError(c, "Failed to connect to exchange", createErr)
-		return
-	}
-
-	// Query actual balance
-	balanceInfo, balanceErr := tempTrader.GetBalance()
+	actualBalance, balanceErr := queryExchangeEquity(exchangeCfg, userID)
 	if balanceErr != nil {
 		logger.Infof("⚠️ Failed to query exchange balance: %v", balanceErr)
 		SafeInternalError(c, "Failed to query balance", balanceErr)
 		return
-	}
-
-	// Extract total equity (for P&L calculation, we need total account value, not available balance)
-	var actualBalance float64
-	// Priority: total_equity > totalWalletBalance > wallet_balance > totalEq > balance
-	balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
-	for _, key := range balanceKeys {
-		if balance, ok := balanceInfo[key].(float64); ok && balance > 0 {
-			actualBalance = balance
-			break
-		}
 	}
 	if actualBalance <= 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to get total equity"})

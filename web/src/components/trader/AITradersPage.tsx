@@ -20,6 +20,7 @@ import { ConfigStatusGrid } from './ConfigStatusGrid'
 import { TradersList } from './TradersList'
 import { BeginnerGuideCards } from './BeginnerGuideCards'
 import {
+  AlertTriangle,
   Bot,
   Plus,
   MessageCircle,
@@ -58,6 +59,140 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [quickSetupLoading, setQuickSetupLoading] = useState(false)
   const [beginnerWalletAddress, setBeginnerWalletAddress] = useState<string | null>(() => getBeginnerWalletAddress())
   const isBeginnerMode = getUserMode() === 'beginner'
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message.trim() !== '') {
+      return error.message
+    }
+    return fallback
+  }
+  const localizeActionableDescription = (message: string) => {
+    let localized = message.trim()
+
+    if (language === 'zh') {
+      return localized
+    }
+
+    const replacements: Array<[RegExp, string]> = [
+      [/这次未能启动机器人：/g, 'Unable to start trader: '],
+      [/这次未能创建机器人：/g, 'Unable to create trader: '],
+      [/这次未能更新机器人：/g, 'Unable to update trader: '],
+      [/机器人「([^」]+)」暂时还不能启动，原因是：/g, 'Trader "$1" cannot be started yet because '],
+      [/机器人「([^」]+)」暂时还不能启动/g, 'Trader "$1" cannot be started yet'],
+      [/机器人「([^」]+)」已经保存，但当前暂时还不能启动，原因是：/g, 'Trader "$1" was saved, but it cannot be started yet because '],
+      [/机器人「([^」]+)」已经保存，但当前暂时还不能启动/g, 'Trader "$1" was saved, but it cannot be started yet'],
+      [/系统暂时无法从交易所读取账户余额/g, 'the system could not read the exchange account balance'],
+      [/系统暂时无法连接交易所服务/g, 'the system could not reach the exchange service'],
+      [/当前策略配置内容已损坏，系统暂时无法解析/g, 'the current strategy configuration is corrupted and cannot be parsed'],
+      [/当前机器人缺少有效的交易策略配置/g, 'this trader does not have a valid strategy configuration'],
+      [/私钥格式不正确，系统无法识别/g, 'the private key format is invalid'],
+      [/当前交易所类型暂不支持机器人初始化/g, 'this exchange type is not supported for trader initialization'],
+      [/当前交易所类型暂不支持机器人初始化/g, 'this exchange type is not supported for trader initialization'],
+      [/当前交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配/g, 'the exchange account failed initialization. Please verify the wallet address and API key match'],
+      [/这个机器人关联的 AI 模型不存在/g, `this trader's AI model no longer exists`],
+      [/这个机器人关联的交易所账户不存在/g, `this trader's exchange account no longer exists`],
+      [/请检查模型、策略和交易所配置后，再重新点击启动。?/g, 'Please check the model, strategy, and exchange configuration, then try starting again.'],
+      [/请检查模型、策略和交易所配置是否完整，然后再试一次。?/g, 'Please check the model, strategy, and exchange configuration, then try again.'],
+      [/请前往「设置 > 模型配置」检查后，再重新点击启动。?/g, 'Go to Settings > Model Config, verify it, then try starting again.'],
+      [/请前往「设置 > 交易所配置」检查后，再重新点击启动。?/g, 'Go to Settings > Exchange Config, verify it, then try starting again.'],
+      [/请先为这个钱包充值，再重新点击启动。?/g, 'Please top up this wallet before starting again.'],
+    ]
+
+    for (const [pattern, replacement] of replacements) {
+      localized = localized.replace(pattern, replacement)
+    }
+
+    localized = localized
+      .replace(/。/g, '.')
+      .replace(/，/g, ', ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    return localized
+  }
+  const normalizeActionableDescription = (message: string, title: string) => {
+    const prefixes = [
+      '这次未能创建机器人：',
+      '机器人创建失败：',
+      '这次未能更新机器人：',
+      '机器人更新失败：',
+      '这次未能启动机器人：',
+      'Failed to create trader:',
+      'Failed to update trader:',
+      'Unable to create trader:',
+      'Unable to update trader:',
+      'Unable to start trader:',
+    ]
+
+    let description = localizeActionableDescription(message)
+    if (description === title) return ''
+
+    for (const prefix of prefixes) {
+      if (description.startsWith(prefix)) {
+        description = description.slice(prefix.length).trim()
+        break
+      }
+    }
+
+    return description
+  }
+  const showActionableError = (title: string, error: unknown) => {
+    const message = getErrorMessage(error, title)
+    const description = normalizeActionableDescription(message, title)
+
+    if (description === '') {
+      toast.error(title)
+      return
+    }
+
+    toast.error(title, {
+      description,
+    })
+  }
+  const parseBalanceUsdc = (balance?: string) => {
+    if (!balance) return null
+    const parsed = Number.parseFloat(balance)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  const getClaw402BalanceMessage = (balance: number, blocking: boolean) => {
+    if (language === 'zh') {
+      return blocking
+        ? `当前 Claw402 钱包余额为 ${balance.toFixed(6)} USDC，AI 调用无法执行。请先为这个钱包充值，再重新点击启动。`
+        : `当前 Claw402 钱包余额仅剩 ${balance.toFixed(6)} USDC，虽然还能尝试启动，但很快可能因为 AI 调用费用不足而停止。建议先补一点 USDC。`
+    }
+
+    return blocking
+      ? `Your Claw402 wallet balance is ${balance.toFixed(6)} USDC. AI calls cannot run with zero balance. Please top up this wallet before starting again.`
+      : `Your Claw402 wallet balance is only ${balance.toFixed(6)} USDC. You can still try to start, but AI calls may stop soon due to insufficient funds.`
+  }
+  const getClaw402BalanceIssue = (traderId: string) => {
+    const trader = traders?.find((item) => item.trader_id === traderId)
+    if (!trader) return null
+
+    const model =
+      allModels.find((item) => item.id === trader.ai_model) ||
+      allModels.find((item) => item.provider === trader.ai_model)
+
+    if (!model || model.provider !== 'claw402') return null
+
+    const balance = parseBalanceUsdc(model.balanceUsdc)
+    if (balance === null) return null
+    if (balance <= 0) {
+      return {
+        blocking: true,
+        title: language === 'zh' ? '启动失败' : 'Start failed',
+        description: getClaw402BalanceMessage(balance, true),
+      }
+    }
+    if (balance < 1) {
+      return {
+        blocking: false,
+        title: language === 'zh' ? 'Claw402 余额偏低' : 'Low Claw402 balance',
+        description: getClaw402BalanceMessage(balance, false),
+      }
+    }
+
+    return null
+  }
 
   const navigateInApp = (path: string) => {
     navigate(path)
@@ -167,6 +302,23 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }) || []
 
   const enabledModels = allModels?.filter((m) => m.enabled) || []
+  const enabledClaw402Model = enabledModels.find((model) => model.provider === 'claw402') || null
+  const enabledClaw402Balance = parseBalanceUsdc(enabledClaw402Model?.balanceUsdc)
+  const claw402BalanceAlert =
+    enabledClaw402Model && enabledClaw402Balance !== null && enabledClaw402Balance < 1
+      ? {
+          blocking: enabledClaw402Balance <= 0,
+          title:
+            language === 'zh'
+              ? enabledClaw402Balance <= 0
+                ? 'Claw402 钱包余额为 0'
+                : 'Claw402 钱包余额偏低'
+              : enabledClaw402Balance <= 0
+                ? 'Claw402 wallet balance is zero'
+                : 'Claw402 wallet balance is low',
+          description: getClaw402BalanceMessage(enabledClaw402Balance, enabledClaw402Balance <= 0),
+        }
+      : null
   const enabledExchanges =
     allExchanges?.filter((e) => {
       if (!e.enabled) return false
@@ -224,26 +376,19 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleCreateTrader = async (data: CreateTraderRequest) => {
     try {
-      const model = allModels?.find((m) => m.id === data.ai_model_id)
-      const exchange = allExchanges?.find((e) => e.id === data.exchange_id)
-
-      if (!model?.enabled) {
-        toast.error(t('modelNotConfigured', language))
-        return
+      const createdTrader = await api.createTrader(data)
+      if (createdTrader.startup_warning) {
+        toast.success(t('aiTradersToast.created', language), {
+          description: createdTrader.startup_warning,
+        })
+      } else {
+        toast.success(t('aiTradersToast.created', language))
       }
-
-      if (!exchange?.enabled) {
-        toast.error(t('exchangeNotConfigured', language))
-        return
-      }
-
-      await api.createTrader(data)
-      toast.success(t('aiTradersToast.created', language))
       setShowCreateModal(false)
       await mutateTraders()
     } catch (error) {
       console.error('Failed to create trader:', error)
-      toast.error(t('createTraderFailed', language))
+      showActionableError(t('createTraderFailed', language), error)
     }
   }
 
@@ -293,7 +438,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       await mutateTraders()
     } catch (error) {
       console.error('Failed to update trader:', error)
-      toast.error(t('updateTraderFailed', language))
+      showActionableError(t('updateTraderFailed', language), error)
     }
   }
 
@@ -318,16 +463,31 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     try {
       if (running) {
         await api.stopTrader(traderId)
-      toast.success(t('aiTradersToast.stopped', language))
+        toast.success(t('aiTradersToast.stopped', language))
       } else {
+        const claw402Issue = getClaw402BalanceIssue(traderId)
+        if (claw402Issue?.blocking) {
+          toast.error(claw402Issue.title, {
+            description: claw402Issue.description,
+          })
+          return
+        }
+        if (claw402Issue && !claw402Issue.blocking) {
+          toast.warning(claw402Issue.title, {
+            description: claw402Issue.description,
+          })
+        }
         await api.startTrader(traderId)
-      toast.success(t('aiTradersToast.started', language))
+        toast.success(t('aiTradersToast.started', language))
       }
 
       await mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
-      toast.error(t('operationFailed', language))
+      showActionableError(
+        running ? t('aiTradersToast.stopFailed', language) : t('aiTradersToast.startFailed', language),
+        error
+      )
     }
   }
 
@@ -751,6 +911,52 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             onOpenStrategy={() => navigateInApp('/strategy')}
             onCreateTrader={() => setShowCreateModal(true)}
           />
+        ) : null}
+
+        {claw402BalanceAlert ? (
+          <div
+            className="mb-6 rounded-xl border px-4 py-4 md:px-5 md:py-4 flex flex-col md:flex-row md:items-start md:justify-between gap-3"
+            style={{
+              borderColor: claw402BalanceAlert.blocking ? 'rgba(239, 68, 68, 0.55)' : 'rgba(245, 158, 11, 0.45)',
+              background: claw402BalanceAlert.blocking ? 'rgba(127, 29, 29, 0.22)' : 'rgba(120, 53, 15, 0.18)',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="mt-0.5 rounded-full p-2"
+                style={{
+                  background: claw402BalanceAlert.blocking ? 'rgba(239, 68, 68, 0.16)' : 'rgba(245, 158, 11, 0.14)',
+                  color: claw402BalanceAlert.blocking ? '#F87171' : '#FBBF24',
+                }}
+              >
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div>
+                <div
+                  className="text-sm font-semibold"
+                  style={{ color: claw402BalanceAlert.blocking ? '#FCA5A5' : '#FDE68A' }}
+                >
+                  {claw402BalanceAlert.title}
+                </div>
+                <div className="text-sm mt-1 leading-6" style={{ color: '#D4D4D8' }}>
+                  {claw402BalanceAlert.description}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => enabledClaw402Model && handleModelClick(enabledClaw402Model.id)}
+              className="px-4 py-2 rounded text-xs font-mono uppercase tracking-wider border whitespace-nowrap self-start"
+              style={{
+                borderColor: claw402BalanceAlert.blocking ? 'rgba(248, 113, 113, 0.45)' : 'rgba(251, 191, 36, 0.35)',
+                color: claw402BalanceAlert.blocking ? '#FCA5A5' : '#FDE68A',
+                background: 'rgba(0, 0, 0, 0.18)',
+              }}
+            >
+              {language === 'zh' ? '查看 AI 钱包' : 'Open AI wallet'}
+            </button>
+          </div>
         ) : null}
 
         {/* Configuration Status Grid */}

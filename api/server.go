@@ -197,6 +197,9 @@ Defaults when custom fields empty: openai→api.openai.com/v1, deepseek→api.de
 				`Returns: [{"id":"<EXACT id — use this as exchange_id when creating/updating a trader>","exchange_type":"<e.g. okx, binance>","account_name":"<user label>","enabled":<bool>}]
 CRITICAL: Always use the "id" field for exchange_id. Do not use "exchange_type" as an id.`,
 				s.handleGetExchangeConfigs)
+			s.routeWithSchema(protected, "GET", "/exchanges/:id/balance", "Get current balance for a specific exchange account",
+				`:id = EXACT id from GET /api/exchanges. Returns the live balance for the selected exchange account.`,
+				s.handleGetExchangeBalance)
 			s.routeWithSchema(protected, "POST", "/exchanges", "Create a new exchange account",
 				`Body: {"exchange_type":"<string>","account_name":"<string, user label>","enabled":true,"api_key":"<string>","secret_key":"<string>","passphrase":"<string, required for okx/gate/kucoin>"}
 exchange_type values: "binance","bybit","okx","bitget","gate","kucoin","indodax" (CEX) | "hyperliquid","aster","lighter" (DEX)

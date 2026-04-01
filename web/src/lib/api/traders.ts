@@ -23,7 +23,9 @@ export const traderApi = {
       `${API_BASE}/traders`,
       request
     )
-    if (!result.success) throw new Error('Failed to create trader')
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to create trader')
+    }
     return result.data!
   },
 
@@ -36,7 +38,9 @@ export const traderApi = {
     const result = await httpClient.post(
       `${API_BASE}/traders/${traderId}/start`
     )
-    if (!result.success) throw new Error('Failed to start trader')
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to start trader')
+    }
   },
 
   async stopTrader(traderId: string): Promise<void> {
@@ -88,7 +92,9 @@ export const traderApi = {
       `${API_BASE}/traders/${traderId}`,
       request
     )
-    if (!result.success) throw new Error('Failed to update trader')
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to update trader')
+    }
     return result.data!
   },
 }

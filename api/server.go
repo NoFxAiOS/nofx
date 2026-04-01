@@ -18,13 +18,14 @@ import (
 
 // Server HTTP API server
 type Server struct {
-	router           *gin.Engine
-	traderManager    *manager.TraderManager
-	store            *store.Store
-	cryptoHandler    *CryptoHandler
-	httpServer       *http.Server
-	port             int
-	telegramReloadCh chan<- struct{} // signal Telegram bot to reload
+	router                    *gin.Engine
+	traderManager             *manager.TraderManager
+	store                     *store.Store
+	cryptoHandler             *CryptoHandler
+	exchangeAccountStateCache *ExchangeAccountStateCache
+	httpServer                *http.Server
+	port                      int
+	telegramReloadCh          chan<- struct{} // signal Telegram bot to reload
 }
 
 // NewServer Creates API server
@@ -41,11 +42,12 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
 	s := &Server{
-		router:        router,
-		traderManager: traderManager,
-		store:         st,
-		cryptoHandler: cryptoHandler,
-		port:          port,
+		router:                    router,
+		traderManager:             traderManager,
+		store:                     st,
+		cryptoHandler:             cryptoHandler,
+		exchangeAccountStateCache: NewExchangeAccountStateCache(),
+		port:                      port,
 	}
 
 	// Setup routes
@@ -197,6 +199,10 @@ Defaults when custom fields empty: openai→api.openai.com/v1, deepseek→api.de
 				`Returns: [{"id":"<EXACT id — use this as exchange_id when creating/updating a trader>","exchange_type":"<e.g. okx, binance>","account_name":"<user label>","enabled":<bool>}]
 CRITICAL: Always use the "id" field for exchange_id. Do not use "exchange_type" as an id.`,
 				s.handleGetExchangeConfigs)
+			s.routeWithSchema(protected, "GET", "/exchanges/account-state", "Get connection and balance state for each exchange account",
+				`Returns: {"states":{"<exchange_id>":{"status":"ok|disabled|missing_credentials|invalid_credentials|permission_denied|unavailable","display_balance":"<string>","total_equity":<number>,"available_balance":<number>,"asset":"USDT|USDC","checked_at":"<RFC3339>","error_code":"<string>","error_message":"<string>"}}}
+Use this endpoint to show balance and health in the exchange list without depending on traders.`,
+				s.handleGetExchangeAccountStates)
 			s.routeWithSchema(protected, "POST", "/exchanges", "Create a new exchange account",
 				`Body: {"exchange_type":"<string>","account_name":"<string, user label>","enabled":true,"api_key":"<string>","secret_key":"<string>","passphrase":"<string, required for okx/gate/kucoin>"}
 exchange_type values: "binance","bybit","okx","bitget","gate","kucoin","indodax" (CEX) | "hyperliquid","aster","lighter" (DEX)

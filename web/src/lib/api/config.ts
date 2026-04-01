@@ -1,6 +1,7 @@
 import type {
   AIModel,
   Exchange,
+  ExchangeAccountStateResponse,
   UpdateModelConfigRequest,
   UpdateExchangeConfigRequest,
   CreateExchangeRequest,
@@ -71,6 +72,16 @@ export const configApi = {
     const result = await httpClient.get<Exchange[]>(`${API_BASE}/exchanges`)
     if (!result.success) throw new Error('Failed to fetch exchange configs')
     return result.data!
+  },
+
+  async getExchangeAccountState(): Promise<ExchangeAccountStateResponse> {
+    const result = await httpClient.get<ExchangeAccountStateResponse>(
+      `${API_BASE}/exchanges/account-state`
+    )
+    if (!result.success || !result.data) {
+      throw new Error('Failed to fetch exchange account states')
+    }
+    return result.data
   },
 
   async getSupportedExchanges(): Promise<Exchange[]> {

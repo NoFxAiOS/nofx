@@ -7,6 +7,7 @@ import type {
   CreateTraderRequest,
   AIModel,
   Exchange,
+  ExchangeAccountState,
 } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -105,6 +106,18 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     user && token ? 'traders' : null,
     api.getTraders,
     { refreshInterval: 5000 }
+  )
+  const {
+    data: exchangeAccountStateData,
+    mutate: mutateExchangeAccountStates,
+    isLoading: isExchangeAccountStatesLoading,
+  } = useSWR<{ states: Record<string, ExchangeAccountState> }>(
+    user && token ? 'exchange-account-state' : null,
+    api.getExchangeAccountState,
+    {
+      refreshInterval: 30000,
+      shouldRetryOnError: false,
+    }
   )
   const { data: strategies } = useSWR<Strategy[]>(
     user && token ? 'strategies' : null,
@@ -568,6 +581,7 @@ console.log('🔥 handleSaveEditTrader - data:', data)
 
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
+      await mutateExchangeAccountStates()
 
       setShowExchangeModal(false)
       setEditingExchange(null)
@@ -655,6 +669,7 @@ console.log('🔥 handleSaveEditTrader - data:', data)
 
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
+      await mutateExchangeAccountStates()
 
       setShowExchangeModal(false)
       setEditingExchange(null)
@@ -702,6 +717,7 @@ console.log('🔥 handleSaveEditTrader - data:', data)
 
   const claw402Configured = configuredModels.some((model) => model.provider === 'claw402')
   const hasStrategies = (strategies?.length || 0) > 0
+  const hasCreatedTrader = (traders?.length || 0) > 0
   const canCreateTrader = configuredModels.length > 0 && configuredExchanges.length > 0
 
   return (
@@ -781,6 +797,7 @@ console.log('🔥 handleSaveEditTrader - data:', data)
             claw402Ready={claw402Configured}
             exchangeReady={configuredExchanges.length > 0}
             strategyReady={hasStrategies}
+            traderReady={hasCreatedTrader}
             canCreateTrader={canCreateTrader}
             walletAddress={beginnerWalletAddress}
             onQuickSetupClaw402={handleQuickSetupClaw402}
@@ -794,6 +811,8 @@ console.log('🔥 handleSaveEditTrader - data:', data)
         <ConfigStatusGrid
           configuredModels={configuredModels}
           configuredExchanges={configuredExchanges}
+          exchangeAccountStates={exchangeAccountStateData?.states}
+          isExchangeAccountStatesLoading={isExchangeAccountStatesLoading}
           visibleExchangeAddresses={visibleExchangeAddresses}
           copiedId={copiedId}
           language={language}

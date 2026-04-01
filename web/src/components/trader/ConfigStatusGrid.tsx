@@ -6,7 +6,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react'
-import type { AIModel, Exchange } from '../../types'
+import type { AIModel, Exchange, ExchangeAccountState } from '../../types'
 import type { Language } from '../../i18n/translations'
 import { t } from '../../i18n/translations'
 import { getModelIcon } from '../common/ModelIcons'
@@ -25,6 +25,8 @@ interface UsageInfo {
 interface ConfigStatusGridProps {
   configuredModels: AIModel[]
   configuredExchanges: Exchange[]
+  exchangeAccountStates?: Record<string, ExchangeAccountState>
+  isExchangeAccountStatesLoading?: boolean
   visibleExchangeAddresses: Set<string>
   copiedId: string | null
   language: Language
@@ -41,6 +43,8 @@ interface ConfigStatusGridProps {
 export function ConfigStatusGrid({
   configuredModels,
   configuredExchanges,
+  exchangeAccountStates,
+  isExchangeAccountStatesLoading,
   visibleExchangeAddresses,
   copiedId,
   language,
@@ -53,6 +57,48 @@ export function ConfigStatusGrid({
   onToggleExchangeAddress,
   onCopyAddress,
 }: ConfigStatusGridProps) {
+  const getExchangeStateMeta = (state: ExchangeAccountState | undefined) => {
+    if (!state) {
+      return {
+        label: language === 'zh' ? '未检查' : 'NOT CHECKED',
+        className: 'text-zinc-400 border-zinc-700/80 bg-zinc-900/40',
+      }
+    }
+
+    switch (state.status) {
+      case 'ok':
+        return {
+          label: state.display_balance || '0',
+          className: 'text-emerald-300 border-emerald-500/20 bg-emerald-500/10',
+        }
+      case 'disabled':
+        return {
+          label: language === 'zh' ? '已禁用' : 'DISABLED',
+          className: 'text-zinc-400 border-zinc-700/80 bg-zinc-900/40',
+        }
+      case 'missing_credentials':
+        return {
+          label: language === 'zh' ? '配置不完整' : 'INCOMPLETE',
+          className: 'text-amber-300 border-amber-500/20 bg-amber-500/10',
+        }
+      case 'invalid_credentials':
+        return {
+          label: language === 'zh' ? '密钥无效' : 'INVALID KEYS',
+          className: 'text-rose-300 border-rose-500/20 bg-rose-500/10',
+        }
+      case 'permission_denied':
+        return {
+          label: language === 'zh' ? '无余额权限' : 'NO PERMISSION',
+          className: 'text-orange-300 border-orange-500/20 bg-orange-500/10',
+        }
+      default:
+        return {
+          label: language === 'zh' ? '暂时无法获取' : 'UNAVAILABLE',
+          className: 'text-zinc-300 border-zinc-600/60 bg-zinc-800/50',
+        }
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* AI Models Card */}
@@ -149,6 +195,8 @@ export function ConfigStatusGrid({
           {configuredExchanges.map((exchange) => {
             const inUse = isExchangeInUse(exchange.id)
             const usageInfo = getExchangeUsageInfo(exchange.id)
+            const state = exchangeAccountStates?.[exchange.id]
+            const stateMeta = getExchangeStateMeta(state)
             return (
               <div
                 key={exchange.id}
@@ -173,6 +221,18 @@ export function ConfigStatusGrid({
                     </div>
                     <div className="text-[10px] text-zinc-500 font-mono flex items-center gap-2">
                       {exchange.type?.toUpperCase() || 'CEX'}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-mono">
+                      <span className={`rounded border px-1.5 py-0.5 ${stateMeta.className}`}>
+                        {isExchangeAccountStatesLoading && !state
+                          ? (language === 'zh' ? '检查中...' : 'CHECKING...')
+                          : stateMeta.label}
+                      </span>
+                      {state?.status !== 'ok' && state?.error_message ? (
+                        <span className="text-zinc-500 truncate max-w-[220px]">
+                          {state.error_message}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>

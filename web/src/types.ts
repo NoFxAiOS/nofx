@@ -106,6 +106,7 @@ export interface TraderInfo {
   use_ai500?: boolean
   use_oi_top?: boolean
   system_prompt_template?: string
+  startup_warning?: string
 }
 
 export interface AIModel {

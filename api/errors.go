@@ -8,6 +8,25 @@ import (
 	"nofx/logger"
 )
 
+type APIErrorResponse struct {
+	Error      string            `json:"error"`
+	ErrorKey   string            `json:"error_key,omitempty"`
+	ErrorParams map[string]string `json:"error_params,omitempty"`
+}
+
+func writeAPIError(c *gin.Context, statusCode int, publicMsg, errorKey string, errorParams map[string]string) {
+	resp := APIErrorResponse{
+		Error: publicMsg,
+	}
+	if errorKey != "" {
+		resp.ErrorKey = errorKey
+	}
+	if len(errorParams) > 0 {
+		resp.ErrorParams = errorParams
+	}
+	c.JSON(statusCode, resp)
+}
+
 // SafeError returns a safe error message without exposing internal details
 // It logs the actual error for debugging but returns a generic message to the client
 func SafeError(c *gin.Context, statusCode int, publicMsg string, internalErr error) {
@@ -16,34 +35,46 @@ func SafeError(c *gin.Context, statusCode int, publicMsg string, internalErr err
 		logger.Errorf("[API Error] %s: %v", publicMsg, internalErr)
 	}
 
-	c.JSON(statusCode, gin.H{"error": publicMsg})
+	writeAPIError(c, statusCode, publicMsg, "", nil)
+}
+
+func SafeErrorWithDetails(c *gin.Context, statusCode int, publicMsg, errorKey string, errorParams map[string]string, internalErr error) {
+	if internalErr != nil {
+		logger.Errorf("[API Error] %s: %v", publicMsg, internalErr)
+	}
+
+	writeAPIError(c, statusCode, publicMsg, errorKey, errorParams)
 }
 
 // SafeInternalError logs internal error and returns a generic message
 func SafeInternalError(c *gin.Context, operation string, err error) {
 	logger.Errorf("[Internal Error] %s: %v", operation, err)
-	c.JSON(http.StatusInternalServerError, gin.H{"error": operation + " failed"})
+	writeAPIError(c, http.StatusInternalServerError, operation+" failed", "", nil)
 }
 
 // SafeBadRequest returns a safe bad request error
 // For validation errors, we can be more specific since they're about user input
 func SafeBadRequest(c *gin.Context, msg string) {
-	c.JSON(http.StatusBadRequest, gin.H{"error": msg})
+	writeAPIError(c, http.StatusBadRequest, msg, "", nil)
+}
+
+func SafeBadRequestWithDetails(c *gin.Context, msg, errorKey string, errorParams map[string]string) {
+	writeAPIError(c, http.StatusBadRequest, msg, errorKey, errorParams)
 }
 
 // SafeNotFound returns a generic not found error
 func SafeNotFound(c *gin.Context, resource string) {
-	c.JSON(http.StatusNotFound, gin.H{"error": resource + " not found"})
+	writeAPIError(c, http.StatusNotFound, resource+" not found", "", nil)
 }
 
 // SafeUnauthorized returns unauthorized error
 func SafeUnauthorized(c *gin.Context) {
-	c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	writeAPIError(c, http.StatusUnauthorized, "Unauthorized", "", nil)
 }
 
 // SafeForbidden returns forbidden error
 func SafeForbidden(c *gin.Context, msg string) {
-	c.JSON(http.StatusForbidden, gin.H{"error": msg})
+	writeAPIError(c, http.StatusForbidden, msg, "", nil)
 }
 
 // IsSensitiveError checks if an error message contains sensitive information

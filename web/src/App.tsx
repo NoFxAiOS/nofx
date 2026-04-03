@@ -170,9 +170,7 @@ function App() {
       ) {
         setCurrentPage('trader')
         // 如果 URL 中有 trader 参数（slug 格式），更新选中的 trader
-        if (traderParam) {
-          setSelectedTraderSlug(traderParam)
-        }
+        setSelectedTraderSlug(traderParam || undefined)
       } else if (
         path === '/competition' ||
         hash === 'competition' ||
@@ -219,19 +217,22 @@ function App() {
 
   // 当获取到traders后，根据 URL 中的 trader slug 设置选中的 trader，或默认选中第一个
   useEffect(() => {
-    if (traders && traders.length > 0 && !selectedTraderId) {
-      if (selectedTraderSlug) {
-        // 通过 slug 找到对应的 trader
-        const trader = findTraderBySlug(selectedTraderSlug, traders)
-        if (trader) {
-          setSelectedTraderId(trader.trader_id)
-        } else {
-          // 如果找不到，选中第一个
-          setSelectedTraderId(traders[0].trader_id)
-        }
-      } else {
-        setSelectedTraderId(traders[0].trader_id)
+    if (!traders || traders.length === 0) {
+      return
+    }
+
+    if (selectedTraderSlug) {
+      // 通过 slug 找到对应的 trader
+      const trader = findTraderBySlug(selectedTraderSlug, traders)
+      const nextTraderId = trader?.trader_id || traders[0].trader_id
+      if (nextTraderId !== selectedTraderId) {
+        setSelectedTraderId(nextTraderId)
       }
+      return
+    }
+
+    if (!selectedTraderId) {
+      setSelectedTraderId(traders[0].trader_id)
     }
   }, [traders, selectedTraderId, selectedTraderSlug])
 
@@ -520,7 +521,18 @@ function App() {
               <AITradersPage
                 onTraderSelect={(traderId) => {
                   setSelectedTraderId(traderId)
-                  window.history.pushState({}, '', '/dashboard')
+                  const trader = traders?.find((item) => item.trader_id === traderId)
+                  const url = new URL(window.location.href)
+                  url.pathname = '/dashboard'
+                  if (trader) {
+                    const slug = getTraderSlug(trader)
+                    url.searchParams.set('trader', slug)
+                    setSelectedTraderSlug(slug)
+                  } else {
+                    url.searchParams.delete('trader')
+                    setSelectedTraderSlug(undefined)
+                  }
+                  window.history.pushState({}, '', url.toString())
                   setRoute('/dashboard')
                   setCurrentPage('trader')
                 }}
@@ -550,8 +562,10 @@ function App() {
                   // 更新 URL 参数（使用 slug: name-id前4位）
                   const trader = traders?.find(t => t.trader_id === traderId)
                   if (trader) {
+                    const slug = getTraderSlug(trader)
+                    setSelectedTraderSlug(slug)
                     const url = new URL(window.location.href)
-                    url.searchParams.set('trader', getTraderSlug(trader))
+                    url.searchParams.set('trader', slug)
                     window.history.replaceState({}, '', url.toString())
                   }
                 }}

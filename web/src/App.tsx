@@ -198,7 +198,7 @@ function App() {
   // 获取trader列表（仅在用户登录时）
   const { data: traders, error: tradersError } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
-    api.getTraders,
+    () => api.getTraders(currentPage === 'trader'),
     {
       refreshInterval: 10000,
       shouldRetryOnError: false, // 避免在后端未运行时无限重试
@@ -241,7 +241,7 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `status-${selectedTraderId}`
       : null,
-    () => api.getStatus(selectedTraderId),
+    () => api.getStatus(selectedTraderId, true),
     {
       refreshInterval: 15000, // 15秒刷新（配合后端15秒缓存）
       revalidateOnFocus: false, // 禁用聚焦时重新验证，减少请求
@@ -304,7 +304,7 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `statistics-${selectedTraderId}`
       : null,
-    () => api.getStatistics(selectedTraderId),
+    () => api.getStatistics(selectedTraderId, true),
     {
       refreshInterval: 30000, // 30秒刷新（统计数据更新频率较低）
       revalidateOnFocus: false,

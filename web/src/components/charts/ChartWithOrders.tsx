@@ -114,7 +114,7 @@ export function ChartWithOrders({
       const limit = 2000 // Fetch recent 2000 candles (more historical data)
       const klineUrl = `/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}&exchange=${exchange}`
 
-      const result = await httpClient.get(klineUrl)
+      const result = await httpClient.request(klineUrl, { silent: true })
 
       if (!result.success || !result.data) {
         throw new Error('Failed to fetch kline data from our service')
@@ -142,7 +142,10 @@ export function ChartWithOrders({
   const fetchOrders = async (traderID: string, symbol: string): Promise<OrderMarker[]> => {
     try {
       // Fetch filled orders for this trader from backend API
-      const result = await httpClient.get(`/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=50`)
+      const result = await httpClient.request(
+        `/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=50`,
+        { silent: true }
+      )
 
       if (!result.success || !result.data) {
         console.warn('Failed to fetch orders:', result.message)

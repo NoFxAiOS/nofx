@@ -359,7 +359,11 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
         setLoading(true)
         setError(null)
         // Fetch more data than needed to support filtering, but respect pageSize for initial load
-        const data = await api.getPositionHistory(traderId, Math.max(200, pageSize * 5))
+        const data = await api.getPositionHistory(
+          traderId,
+          Math.max(200, pageSize * 5),
+          true
+        )
         setPositions(data.positions || [])
         setStats(data.stats)
         setSymbolStats(data.symbol_stats || [])

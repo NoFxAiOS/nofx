@@ -170,9 +170,7 @@ function App() {
       ) {
         setCurrentPage('trader')
         // 如果 URL 中有 trader 参数（slug 格式），更新选中的 trader
-        if (traderParam) {
-          setSelectedTraderSlug(traderParam)
-        }
+        setSelectedTraderSlug(traderParam || undefined)
       } else if (
         path === '/competition' ||
         hash === 'competition' ||
@@ -200,7 +198,7 @@ function App() {
   // 获取trader列表（仅在用户登录时）
   const { data: traders, error: tradersError } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
-    api.getTraders,
+    () => api.getTraders(currentPage === 'trader'),
     {
       refreshInterval: 10000,
       shouldRetryOnError: false, // 避免在后端未运行时无限重试
@@ -219,19 +217,22 @@ function App() {
 
   // 当获取到traders后，根据 URL 中的 trader slug 设置选中的 trader，或默认选中第一个
   useEffect(() => {
-    if (traders && traders.length > 0 && !selectedTraderId) {
-      if (selectedTraderSlug) {
-        // 通过 slug 找到对应的 trader
-        const trader = findTraderBySlug(selectedTraderSlug, traders)
-        if (trader) {
-          setSelectedTraderId(trader.trader_id)
-        } else {
-          // 如果找不到，选中第一个
-          setSelectedTraderId(traders[0].trader_id)
-        }
-      } else {
-        setSelectedTraderId(traders[0].trader_id)
+    if (!traders || traders.length === 0) {
+      return
+    }
+
+    if (selectedTraderSlug) {
+      // 通过 slug 找到对应的 trader
+      const trader = findTraderBySlug(selectedTraderSlug, traders)
+      const nextTraderId = trader?.trader_id || traders[0].trader_id
+      if (nextTraderId !== selectedTraderId) {
+        setSelectedTraderId(nextTraderId)
       }
+      return
+    }
+
+    if (!selectedTraderId) {
+      setSelectedTraderId(traders[0].trader_id)
     }
   }, [traders, selectedTraderId, selectedTraderSlug])
 
@@ -240,7 +241,7 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `status-${selectedTraderId}`
       : null,
-    () => api.getStatus(selectedTraderId),
+    () => api.getStatus(selectedTraderId, true),
     {
       refreshInterval: 15000, // 15秒刷新（配合后端15秒缓存）
       revalidateOnFocus: false, // 禁用聚焦时重新验证，减少请求
@@ -303,7 +304,7 @@ function App() {
     currentPage === 'trader' && selectedTraderId
       ? `statistics-${selectedTraderId}`
       : null,
-    () => api.getStatistics(selectedTraderId),
+    () => api.getStatistics(selectedTraderId, true),
     {
       refreshInterval: 30000, // 30秒刷新（统计数据更新频率较低）
       revalidateOnFocus: false,
@@ -520,7 +521,18 @@ function App() {
               <AITradersPage
                 onTraderSelect={(traderId) => {
                   setSelectedTraderId(traderId)
-                  window.history.pushState({}, '', '/dashboard')
+                  const trader = traders?.find((item) => item.trader_id === traderId)
+                  const url = new URL(window.location.href)
+                  url.pathname = '/dashboard'
+                  if (trader) {
+                    const slug = getTraderSlug(trader)
+                    url.searchParams.set('trader', slug)
+                    setSelectedTraderSlug(slug)
+                  } else {
+                    url.searchParams.delete('trader')
+                    setSelectedTraderSlug(undefined)
+                  }
+                  window.history.pushState({}, '', url.toString())
                   setRoute('/dashboard')
                   setCurrentPage('trader')
                 }}
@@ -550,8 +562,10 @@ function App() {
                   // 更新 URL 参数（使用 slug: name-id前4位）
                   const trader = traders?.find(t => t.trader_id === traderId)
                   if (trader) {
+                    const slug = getTraderSlug(trader)
+                    setSelectedTraderSlug(slug)
                     const url = new URL(window.location.href)
-                    url.searchParams.set('trader', getTraderSlug(trader))
+                    url.searchParams.set('trader', slug)
                     window.history.replaceState({}, '', url.toString())
                   }
                 }}

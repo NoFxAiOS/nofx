@@ -16,8 +16,11 @@ function throwApiError(
 }
 
 export const traderApi = {
-  async getTraders(): Promise<TraderInfo[]> {
-    const result = await httpClient.get<TraderInfo[]>(`${API_BASE}/my-traders`)
+  async getTraders(silent?: boolean): Promise<TraderInfo[]> {
+    const result = await httpClient.request<TraderInfo[]>(
+      `${API_BASE}/my-traders`,
+      { silent }
+    )
     if (!result.success) throw new Error('Failed to fetch trader list')
     return Array.isArray(result.data) ? result.data : []
   },

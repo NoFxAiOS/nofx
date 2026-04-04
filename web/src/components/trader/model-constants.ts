@@ -96,7 +96,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'MiniMax',
   },
   claw402: {
-    defaultModel: 'deepseek',
+    defaultModel: 'glm-5',
     apiUrl: 'https://claw402.ai',
     apiName: 'Claw402',
   },

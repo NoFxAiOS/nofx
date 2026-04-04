@@ -54,7 +54,7 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 	}
 
 	if !reusedExisting {
-		if err := s.store.AIModel().Update(userID, "claw402", true, privateKey, "", "deepseek"); err != nil {
+		if err := s.store.AIModel().Update(userID, "claw402", true, privateKey, "", "glm-5"); err != nil {
 			logger.Errorf("Failed to save beginner claw402 config for user %s: %v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save beginner model configuration"})
 			return
@@ -68,7 +68,7 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 
 	os.Setenv("CLAW402_WALLET_KEY", privateKey)
 	os.Setenv("CLAW402_WALLET_ADDRESS", address)
-	os.Setenv("CLAW402_DEFAULT_MODEL", "deepseek")
+	os.Setenv("CLAW402_DEFAULT_MODEL", "glm-5")
 
 	envSaved, envPath, envErr := persistBeginnerWalletEnv(privateKey, address)
 	resp := beginnerOnboardingResponse{
@@ -77,7 +77,7 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 		Chain:             "base",
 		Asset:             "USDC",
 		Provider:          "claw402",
-		DefaultModel:      "deepseek",
+		DefaultModel:      "glm-5",
 		ConfiguredModelID: configuredModelID,
 		BalanceUSDC:       wallet.QueryUSDCBalanceStr(address),
 		EnvSaved:          envSaved,
@@ -233,7 +233,7 @@ func persistBeginnerWalletEnv(privateKey string, address string) (bool, string, 
 		if err := upsertEnvFile(path, map[string]string{
 			"CLAW402_WALLET_KEY":     privateKey,
 			"CLAW402_WALLET_ADDRESS": address,
-			"CLAW402_DEFAULT_MODEL":  "deepseek",
+			"CLAW402_DEFAULT_MODEL":  "glm-5",
 		}); err != nil {
 			lastErr = err
 			continue

@@ -74,8 +74,8 @@ async function handleJSONResponse<T>(res: Response): Promise<T> {
 
 export const api = {
   // AI交易员管理接口
-  async getTraders(): Promise<TraderInfo[]> {
-    const result = await httpClient.get<TraderInfo[]>(`${API_BASE}/my-traders`)
+  async getTraders(silent?: boolean): Promise<TraderInfo[]> {
+    const result = await httpClient.request<TraderInfo[]>(`${API_BASE}/my-traders`, { silent })
     if (!result.success) throw new Error('获取trader列表失败')
     return Array.isArray(result.data) ? result.data : []
   },
@@ -334,11 +334,13 @@ export const api = {
   },
 
   // 获取系统状态（支持trader_id）
-  async getStatus(traderId?: string): Promise<SystemStatus> {
+  async getStatus(traderId?: string, silent?: boolean): Promise<SystemStatus> {
     const url = traderId
       ? `${API_BASE}/status?trader_id=${traderId}`
       : `${API_BASE}/status`
-    const result = await httpClient.get<SystemStatus>(url)
+    const result = silent
+      ? await httpClient.request<SystemStatus>(url, { silent })
+      : await httpClient.get<SystemStatus>(url)
     if (!result.success) throw new Error('获取系统状态失败')
     return result.data!
   },
@@ -398,21 +400,25 @@ export const api = {
   },
 
   // 获取统计信息（支持trader_id）
-  async getStatistics(traderId?: string): Promise<Statistics> {
+  async getStatistics(traderId?: string, silent?: boolean): Promise<Statistics> {
     const url = traderId
       ? `${API_BASE}/statistics?trader_id=${traderId}`
       : `${API_BASE}/statistics`
-    const result = await httpClient.get<Statistics>(url)
+    const result = silent
+      ? await httpClient.request<Statistics>(url, { silent })
+      : await httpClient.get<Statistics>(url)
     if (!result.success) throw new Error('获取统计信息失败')
     return result.data!
   },
 
   // 获取收益率历史数据（支持trader_id）
-  async getEquityHistory(traderId?: string): Promise<any[]> {
+  async getEquityHistory(traderId?: string, silent?: boolean): Promise<any[]> {
     const url = traderId
       ? `${API_BASE}/equity-history?trader_id=${traderId}`
       : `${API_BASE}/equity-history`
-    const result = await httpClient.get<any[]>(url)
+    const result = silent
+      ? await httpClient.request<any[]>(url, { silent })
+      : await httpClient.get<any[]>(url)
     if (!result.success) throw new Error('获取历史数据失败')
     return result.data!
   },
@@ -785,10 +791,15 @@ export const api = {
   },
 
   // Position History API
-  async getPositionHistory(traderId: string, limit: number = 100): Promise<PositionHistoryResponse> {
-    const result = await httpClient.get<PositionHistoryResponse>(
-      `${API_BASE}/positions/history?trader_id=${traderId}&limit=${limit}`
-    )
+  async getPositionHistory(traderId: string, limit: number = 100, silent?: boolean): Promise<PositionHistoryResponse> {
+    const result = silent
+      ? await httpClient.request<PositionHistoryResponse>(
+          `${API_BASE}/positions/history?trader_id=${traderId}&limit=${limit}`,
+          { silent }
+        )
+      : await httpClient.get<PositionHistoryResponse>(
+          `${API_BASE}/positions/history?trader_id=${traderId}&limit=${limit}`
+        )
     if (!result.success) throw new Error('获取历史仓位失败')
     return result.data!
   },

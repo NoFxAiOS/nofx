@@ -51,6 +51,8 @@ export interface StrategyConfig {
   prompt_sections?: PromptSectionsConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
   grid_config?: GridStrategyConfig;
+  // Quant model integration (for custom models alongside or instead of AI)
+  quant_model_integration?: QuantModelIntegration;
 }
 
 // Grid trading specific configuration
@@ -182,4 +184,115 @@ export interface RiskControlConfig {
   min_position_size: number;       // Min position size in USDT (CODE ENFORCED)
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
+}
+
+// ==================== Quant Model Types ====================
+
+export interface QuantModel {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  model_type: 'indicator_based' | 'rule_based' | 'ml_classifier' | 'ensemble';
+  version: string;
+  is_public: boolean;
+  is_active: boolean;
+  config: QuantModelConfig;
+  // Backtest statistics
+  backtest_count: number;
+  win_rate: number;
+  avg_profit_pct: number;
+  max_drawdown_pct: number;
+  sharpe_ratio: number;
+  // Usage tracking
+  usage_count: number;
+  last_used_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuantModelConfig {
+  type: 'indicator_based' | 'rule_based' | 'ml_classifier' | 'ensemble';
+  indicators?: ModelIndicator[];
+  rules?: ModelRule[];
+  ml_config?: MLModelConfig;
+  ensemble?: EnsembleConfig;
+  parameters: ModelParameters;
+  signal_config: SignalGenerationConfig;
+}
+
+export interface ModelIndicator {
+  name: string;      // e.g., "RSI", "MACD", "EMA", "ATR", "BOLL"
+  period: number;    // e.g., 14 for RSI
+  timeframe: string; // e.g., "1h", "4h", "1d"
+  params?: Record<string, number | string | boolean>; // Additional parameters
+  weight: number;    // Weight in multi-indicator models
+}
+
+export interface ModelRule {
+  name: string;
+  condition: string;   // e.g., "RSI_14 < 30 AND Close > EMA_20"
+  action: 'buy' | 'sell' | 'hold';
+  confidence: number;  // 0-100
+  priority: number;    // Higher = evaluated first
+  stop_loss_pct?: number;
+  take_profit_pct?: number;
+}
+
+export interface MLModelConfig {
+  algorithm: string;      // e.g., "random_forest", "xgboost", "neural_net"
+  features: string[];     // Feature names
+  class_labels: string[]; // e.g., ["buy", "sell", "hold"]
+  model_weights?: Record<string, number>;
+  thresholds?: Record<string, number>;   // Decision thresholds
+  trained_at?: string;
+  training_data?: TrainingDataInfo;
+}
+
+export interface TrainingDataInfo {
+  start_date: string;
+  end_date: string;
+  symbols: string[];
+  timeframes: string[];
+}
+
+export interface EnsembleConfig {
+  method: 'weighted_vote' | 'stacking' | 'average';
+  model_ids: string[];    // IDs of sub-models
+  weights: Record<string, number>; // Weights for each sub-model
+  voting_threshold: number; // Min consensus for action
+}
+
+export interface ModelParameters {
+  lookback_periods: number;       // Bars to look back
+  entry_threshold: number;        // Signal threshold for entry
+  exit_threshold: number;         // Signal threshold for exit
+  max_position_hold_time: number;  // Max bars to hold
+  min_position_hold_time: number;  // Min bars before exit
+  max_daily_trades: number;       // Daily trade limit
+}
+
+export interface SignalGenerationConfig {
+  signal_type: 'discrete' | 'continuous' | 'probabilistic';
+  min_confidence: number;    // Minimum confidence threshold
+  require_confirmation: boolean; // Wait for confirmation candle
+  confirmation_delay: number;    // Candles to wait for confirmation
+}
+
+// Strategy integration with quant models
+export interface StrategyQuantModelLink {
+  model_id: string;
+  model_name: string;
+  mode: 'primary' | 'secondary' | 'ensemble';
+  weight: number; // For ensemble mode
+  override_params?: Record<string, number | string | boolean>;
+}
+
+export interface QuantModelIntegration {
+  enabled: boolean;
+  primary_model_id?: string;
+  secondary_models?: StrategyQuantModelLink[];
+  fallback_to_ai: boolean;      // Use AI if model fails
+  model_confidence_threshold: number; // Min confidence from model
+  backtest_before_live: boolean;
 }

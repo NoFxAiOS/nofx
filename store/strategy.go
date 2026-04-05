@@ -103,6 +103,9 @@ type StrategyConfig struct {
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+	
+	// Quant model integration (for using custom models instead of or alongside AI)
+	QuantModelIntegration *QuantModelIntegration `json:"quant_model_integration,omitempty"`
 }
 
 // GridStrategyConfig grid trading specific configuration

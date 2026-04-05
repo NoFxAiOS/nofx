@@ -30,6 +30,7 @@ type Store struct {
 	grid           *GridStore
 	aiCharge       *AIChargeStore
 	telegramConfig TelegramConfigStore
+	quantModel     *QuantModelStore
 
 	mu sync.RWMutex
 }
@@ -163,6 +164,9 @@ func (s *Store) initTables() error {
 	}
 	if err := s.AICharge().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize AI charge tables: %w", err)
+	}
+	if err := s.QuantModel().InitTables(); err != nil {
+		return fmt.Errorf("failed to initialize quant model tables: %w", err)
 	}
 	return nil
 }
@@ -305,6 +309,16 @@ func (s *Store) TelegramConfig() TelegramConfigStore {
 		s.telegramConfig = NewTelegramConfigStore(s.gdb)
 	}
 	return s.telegramConfig
+}
+
+// QuantModel gets quant model storage
+func (s *Store) QuantModel() *QuantModelStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.quantModel == nil {
+		s.quantModel = NewQuantModelStore(s.gdb)
+	}
+	return s.quantModel
 }
 
 // Close closes database connection

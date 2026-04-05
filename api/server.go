@@ -221,20 +221,53 @@ Use this to enable/disable an exchange or update API credentials. The "id" field
 				`:id = EXACT id from GET /api/exchanges. Permanently removes the exchange account and disconnects any traders using it.`,
 				s.handleDeleteExchange)
 
-			// Telegram bot configuration
-			s.routeWithSchema(protected, "GET", "/telegram", "Get Telegram bot configuration",
-				`Returns: {"bot_token":"<string>","model_id":"<EXACT id of configured AI model>","chat_id":"<bound Telegram chat id, empty if not bound>"}`,
-				s.handleGetTelegramConfig)
-			s.routeWithSchema(protected, "POST", "/telegram", "Set Telegram bot token and AI model",
-				`Body: {"bot_token":"<string — Telegram BotFather token>","model_id":"<EXACT id from GET /api/models>"}
+		// Telegram bot configuration
+		s.routeWithSchema(protected, "GET", "/telegram", "Get Telegram bot configuration",
+			`Returns: {"bot_token":"<string>","model_id":"<EXACT id of configured AI model>","chat_id":"<bound Telegram chat id, empty if not bound>"}`,
+			s.handleGetTelegramConfig)
+		s.routeWithSchema(protected, "POST", "/telegram", "Set Telegram bot token and AI model",
+			`Body: {"bot_token":"<string — Telegram BotFather token>","model_id":"<EXACT id from GET /api/models>"}
 Both fields are required. After saving, the user must send /start in Telegram to bind their account.`,
-				s.handleUpdateTelegramConfig)
-			s.routeWithSchema(protected, "POST", "/telegram/model", "Update Telegram bot AI model only",
-				`Body: {"model_id":"<EXACT id from GET /api/models>"}`,
-				s.handleUpdateTelegramModel)
-			s.routeWithSchema(protected, "DELETE", "/telegram/binding", "Unbind Telegram account",
-				`No body needed. Clears the Telegram chat_id binding so the user can re-bind with /start.`,
-				s.handleUnbindTelegram)
+			s.handleUpdateTelegramConfig)
+		s.routeWithSchema(protected, "POST", "/telegram/model", "Update Telegram bot AI model only",
+			`Body: {"model_id":"<EXACT id from GET /api/models>"}`,
+			s.handleUpdateTelegramModel)
+		s.routeWithSchema(protected, "DELETE", "/telegram/binding", "Unbind Telegram account",
+			`No body needed. Clears the Telegram chat_id binding so the user can re-bind with /start.`,
+			s.handleUnbindTelegram)
+
+		// Quant Model management (custom quantitative models)
+		s.routeWithSchema(protected, "GET", "/quant-models", "List user's quant models",
+			`Returns: [{"id":"<EXACT id — use as quant_model_id>","name":"<string>","model_type":"<indicator_based|rule_based|ml_classifier|ensemble>","is_public":<bool>,"win_rate":<float>,"backtest_count":<int>}]`,
+			s.handleListQuantModels)
+		s.routeWithSchema(protected, "GET", "/quant-models/templates", "Get predefined model templates",
+			`Returns: [{"id":"<template_id>","name":"<string>","model_type":"<string>","config":<QuantModelConfig>}]`,
+			s.handleGetQuantModelTemplates)
+		s.routeWithSchema(protected, "POST", "/quant-models", "Create a new quant model",
+			`Body: {"name":"<string, required>","description":"<string>","model_type":"<indicator_based|rule_based|ml_classifier|ensemble>","is_public":<bool>,"config":<QuantModelConfig>}`,
+			s.handleCreateQuantModel)
+		s.routeWithSchema(protected, "GET", "/quant-models/:id", "Get a quant model by ID",
+			`Returns the full model details including config. :id = model_id from GET /api/quant-models`,
+			s.handleGetQuantModel)
+		s.routeWithSchema(protected, "PUT", "/quant-models/:id", "Update a quant model",
+			`Body: {"name":"<string>","description":"<string>","is_public":<bool>,"is_active":<bool>,"config":<QuantModelConfig>}`,
+			s.handleUpdateQuantModel)
+		s.routeWithSchema(protected, "DELETE", "/quant-models/:id", "Delete a quant model",
+			`:id = model_id. Cannot delete models used by strategies.`,
+			s.handleDeleteQuantModel)
+		s.routeWithSchema(protected, "POST", "/quant-models/:id/export", "Export quant model to JSON",
+			`Returns exportable JSON format of the model. :id = model_id.`,
+			s.handleExportQuantModel)
+		s.routeWithSchema(protected, "POST", "/quant-models/import", "Import quant model from JSON",
+			`Body: <exported JSON from POST /api/quant-models/:id/export>`,
+			s.handleImportQuantModel)
+		s.routeWithSchema(protected, "POST", "/quant-models/:id/clone", "Clone an existing quant model",
+			`Body: {"name":"<optional new name>"}. Clones from public or user's own models.`,
+			s.handleCloneQuantModel)
+		s.routeWithSchema(protected, "POST", "/quant-models/:id/backtest-stats", "Update backtest statistics",
+			`Body: {"win_rate":<float>,"avg_profit_pct":<float>,"max_drawdown_pct":<float>,"sharpe_ratio":<float>}`,
+			s.handleUpdateBacktestStats)
+		s.route(protected, "GET", "/quant-models/public", "List public quant models from the community", s.handleListPublicQuantModels)
 
 			// Strategy management
 			s.routeWithSchema(protected, "GET", "/strategies", "List user's strategies",

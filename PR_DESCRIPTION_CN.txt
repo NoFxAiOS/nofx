@@ -1,0 +1,80 @@
+功能：自定义量化模型系统（Issue #1306）
+
+概述
+本次改动实现 issue #1306：为 NoFx 增加自定义量化模型能力，支持模型创建、编辑、导入、导出、克隆、公开模型列表以及回测统计写入。目标是让策略除了依赖提示词之外，还能使用可复用、可分享、可配置的量化模型。
+
+关闭问题
+Closes #1306
+
+背景
+当前策略体系主要基于 AI 提示词。对于希望沉淀固定交易逻辑的用户，缺少独立的模型实体、模型分享迁移能力、以及模型级别的回测结果沉淀与排序能力。
+
+主要改动
+
+1）新增量化模型存储层
+涉及文件：store/quant_model.go、store/store.go
+关键点：新增 quant_models 表对应实体 QuantModel；新增 QuantModelConfig 配置结构；支持模型 CRUD、公开模型查询、使用计数、回测统计更新；支持导入导出格式转换；在 Store 初始化流程中加入 QuantModel 表自动迁移。
+
+2）策略配置新增量化模型集成字段
+涉及文件：store/strategy.go、web/src/types/strategy.ts
+关键点：StrategyConfig 新增 quant_model_integration 字段；后端与前端新增 QuantModelIntegration 和 StrategyQuantModelLink 结构；为模型主辅路、权重、AI 回退等能力提供配置入口。
+
+3）新增量化模型后端 API
+涉及文件：api/quant_model.go、api/server.go
+新增接口：
+- GET /api/quant-models（用户模型列表）
+- GET /api/quant-models/templates（模型模板）
+- POST /api/quant-models（创建模型）
+- GET /api/quant-models/:id（模型详情）
+- PUT /api/quant-models/:id（更新模型）
+- DELETE /api/quant-models/:id（删除模型，含策略引用保护）
+- POST /api/quant-models/:id/export（导出模型）
+- POST /api/quant-models/import（导入模型）
+- POST /api/quant-models/:id/clone（克隆模型）
+- POST /api/quant-models/:id/backtest-stats（写入回测统计）
+- GET /api/quant-models/public（公开模型列表）
+
+4）新增量化模型执行引擎
+涉及文件：kernel/quant_model_engine.go
+关键点：新增 QuantModelEngine，支持 indicator_based、rule_based、ensemble 三类入口；支持 ExecuteBatch 批量执行与 GetSignal 信号输出；支持规则表达式基础解析（AND、OR 与比较运算）。说明：配置层定义了 ml_classifier 类型，但执行引擎当前尚未实现该类型运行逻辑，遇到该类型会返回 unsupported model type。
+
+5）新增技术指标计算模块
+涉及文件：market/indicator_calculator.go
+新增指标：RSI、EMA、SMA、MACD、ATR、Bollinger Bands。
+
+6）新增前端类型与界面
+涉及文件：web/src/types/strategy.ts、web/src/components/strategy/QuantModelEditor.tsx、web/src/pages/QuantModelsPage.tsx
+关键点：补齐 QuantModel 相关 TypeScript 类型；新增量化模型编辑器组件；新增量化模型独立页面，支持列表、详情、导入导出、克隆、公开模型展示等能力。
+
+变更文件清单
+api/quant_model.go
+api/quant_model_test.go
+api/server.go
+kernel/quant_model_engine.go
+market/indicator_calculator.go
+store/quant_model.go
+store/store.go
+store/strategy.go
+web/src/components/strategy/QuantModelEditor.tsx
+web/src/pages/QuantModelsPage.tsx
+web/src/types/strategy.ts
+
+兼容性与影响
+向后兼容：是。原有 AI 策略路径不受影响。
+启用方式：按需启用，仅在策略配置启用 quant_model_integration 时生效。
+数据迁移：新增 quant_models 表，通过现有 AutoMigrate 路径初始化。
+
+验证情况
+已执行命令一：go test ./api/... ./store/... ./kernel/... ./market/...
+结果：go: updates to go.mod needed; to update it: go mod tidy
+结论：该组测试在当前依赖状态下未完成，需要先整理模块依赖。
+
+已执行命令二：go build ./...
+结果：编译失败，主要错误集中在 kernel/quant_model_engine.go（例如 data.Klines 字段不存在、StopLossPct 与 TakeProfitPct 指针类型不匹配等）。
+结论：当前分支仍存在编译问题，需要先修复后再进行完整测试。
+
+建议补充验证
+1）执行 go mod tidy 后，重跑 go test ./api/... ./store/... ./kernel/... ./market/...。
+2）修复 quant_model_engine 编译错误后，执行 go build ./... 与 go test ./...。
+3）前端手动验证：创建模型、导入导出、克隆、模板加载、公开模型列表。
+4）验证 quant_model_integration 在策略保存与读取流程中的一致性。

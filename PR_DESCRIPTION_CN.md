@@ -233,8 +233,73 @@ Body: {
 
 ## 参考
 
-- Issue #1306: 能不能在策略那里加自己的小型量化模型，可以导入导出，这样的话，算力回测才会有用武之地不用单纯的依赖提示词
+|- Issue #1306: 能不能在策略那里加自己的小型量化模型，可以导入导出，这样的话，算力回测才会有用武之地不用单纯的依赖提示词
 
-## 共同作者
+## Summary
 
-Oz <oz-agent@warp.dev>
+|- **Problem**: NoFx relied solely on AI prompts for trading decisions, causing high token costs, non-deterministic LLM output, inability to backtest, and inability to build/share systematic trading logic.
+|- **What changed**: Added QuantModel system with backend API (11 endpoints), database layer (`quant_models` table), execution engine (indicator/rule-based), frontend UI (editor + page), and technical indicators (RSI, EMA, MACD, ATR, Bollinger).
+|- **What did NOT change**: Existing AI-only strategies work unchanged; ml_classifier and ensemble model types defined but not fully implemented yet (returns `unsupported`); strategy engine integration pending separate PR.
+
+## Change Type
+
+|- [x] Feature
+|- [ ] Bug fix
+|- [ ] Refactoring
+|- [ ] Docs
+|- [ ] Security fix
+|- [ ] Chore / infra
+
+## Scope
+
+|- [x] Trading engine / strategies
+|- [x] API / server
+|- [x] Web UI / frontend
+|- [ ] Config / deployment
+|- [ ] CI/CD / infra
+
+## Linked Issues
+
+|- Closes #1306
+
+## Testing
+
+|- [x] `go build ./...` passes (after `go mod tidy`)
+|- [x] Unit tests added for API handlers (`api/quant_model_test.go`)
+|- [ ] `go test ./...` requires `go mod tidy` first (dependency updates pending)
+|- [ ] Manual frontend testing recommended: create model, import/export, clone, templates, public models
+
+## Security Impact
+
+|- Secrets/keys handling changed? **No**
+|- New/changed API endpoints? **Yes** - 11 new endpoints at `/api/quant-models/*`
+|- User input validation affected? **Yes** - JSON config validation in API handlers, file upload validation for import
+
+## Compatibility
+
+|- Backward compatible? **Yes** - existing AI-only strategies unaffected
+|- Config/env changes? **No new env vars required**
+|- Migration needed? **Auto** - `quant_models` table auto-created by GORM
+|- If yes, upgrade steps: Run application, GORM AutoMigrate handles table creation
+
+## 变更文件
+
+|| 文件 | 变更说明 |
+||------|----------|
+|| `api/quant_model.go` | 新增 11 个 REST API 端点 |
+|| `api/quant_model_test.go` | API 单元测试 |
+|| `api/server.go` | 注册量化模型路由 |
+|| `kernel/quant_model_engine.go` | 模型执行引擎 |
+|| `market/indicator_calculator.go` | 技术指标计算（RSI/EMA/MACD/ATR/布林带） |
+|| `store/quant_model.go` | 量化模型数据结构与存储 |
+|| `store/store.go` | 注册 QuantModelStore |
+|| `store/strategy.go` | 策略配置新增量化模型集成字段 |
+|| `web/src/components/strategy/QuantModelEditor.tsx` | 模型编辑器 UI |
+|| `web/src/pages/QuantModelsPage.tsx` | 量化模型管理页面 |
+|| `web/src/types/strategy.ts` | TypeScript 类型定义 |
+
+## 建议补充验证
+
+|1. 执行 `go mod tidy` 后重跑测试
+|2. 前端手动验证：创建模型、导入/导出、克隆、模板加载、公开模型列表
+|3. 验证策略配置中 `quant_model_integration` 的保存与读取一致性

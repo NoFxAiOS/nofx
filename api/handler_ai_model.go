@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/logger"
+	"nofx/mcp"
 	"nofx/security"
 	"nofx/wallet"
 
@@ -68,6 +70,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false},
 			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false},
 			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false},
+			{ID: "ollama", Name: "Ollama AI", Provider: "ollama", Enabled: false},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -218,8 +221,115 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
 		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
 		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.7"},
+		{"id": "ollama", "name": "Ollama (Local)", "provider": "ollama", "defaultModel": "llama3.1"},
 		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "glm-5"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)
+}
+
+// TestModelRequest request body for testing an AI model connection
+type TestModelRequest struct {
+	Provider        string `json:"provider"`
+	APIKey          string `json:"api_key"`
+	CustomAPIURL    string `json:"custom_api_url"`
+	CustomModelName string `json:"custom_model_name"`
+}
+
+// TestModelResponse response for test model endpoint
+type TestModelResponse struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	LatencyMs int64  `json:"latency_ms"`
+}
+
+// handleTestModel Test AI model connection with provided credentials
+func (s *Server) handleTestModel(c *gin.Context) {
+	cfg := config.Get()
+
+	bodyBytes, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
+		return
+	}
+
+	var req TestModelRequest
+
+	if !cfg.TransportEncryption {
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+			return
+		}
+	} else {
+		var encryptedPayload crypto.EncryptedPayload
+		if err := json.Unmarshal(bodyBytes, &encryptedPayload); err != nil || encryptedPayload.WrappedKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Encrypted transmission required"})
+			return
+		}
+		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to decrypt data"})
+			return
+		}
+		if err := json.Unmarshal([]byte(decrypted), &req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse decrypted data"})
+			return
+		}
+	}
+
+	if req.Provider == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Provider is required"})
+		return
+	}
+	if req.APIKey == "" && req.Provider != mcp.ProviderOllama {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "API key is required"})
+		return
+	}
+
+	if req.CustomAPIURL != "" {
+		cleanURL := strings.TrimSuffix(req.CustomAPIURL, "#")
+		if err := security.ValidateURL(cleanURL); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid custom API URL: %s", err.Error())})
+			return
+		}
+	}
+
+	client := mcp.NewAIClientByProvider(
+		req.Provider,
+		mcp.WithTimeout(15*time.Second),
+		mcp.WithMaxRetries(1),
+		mcp.WithMaxTokens(10),
+	)
+	if client == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Unsupported provider: %s", req.Provider)})
+		return
+	}
+
+	client.SetAPIKey(req.APIKey, req.CustomAPIURL, req.CustomModelName)
+
+	start := time.Now()
+	_, err = client.CallWithMessages("", "Say hi")
+	latencyMs := time.Since(start).Milliseconds()
+
+	if err != nil {
+		errMsg := err.Error()
+		userMsg := "Connection failed"
+		switch {
+		case strings.Contains(errMsg, "401") || strings.Contains(errMsg, "403") || strings.Contains(errMsg, "Unauthorized") || strings.Contains(errMsg, "authentication"):
+			userMsg = "Invalid API key"
+		case strings.Contains(errMsg, "404"):
+			userMsg = "Model not found"
+		case strings.Contains(errMsg, "429"):
+			userMsg = "Rate limited"
+		case strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "Timeout"):
+			userMsg = "Request timed out"
+		case strings.Contains(errMsg, "connection refused") || strings.Contains(errMsg, "no such host"):
+			userMsg = "Cannot reach API endpoint"
+		}
+		logger.Infof("❌ Model test failed for %s: %v", req.Provider, err)
+		c.JSON(http.StatusOK, TestModelResponse{Success: false, Message: userMsg, LatencyMs: latencyMs})
+		return
+	}
+
+	c.JSON(http.StatusOK, TestModelResponse{Success: true, Message: "Connection successful", LatencyMs: latencyMs})
 }

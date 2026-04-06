@@ -95,6 +95,11 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
   },
+  ollama: {
+    defaultModel: 'llama3.1',
+    apiUrl: '',
+    apiName: 'Ollama',
+  },
   claw402: {
     defaultModel: 'glm-5',
     apiUrl: 'https://claw402.ai',

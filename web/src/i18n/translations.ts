@@ -1253,6 +1253,12 @@ export const translations = {
       invalidKeyChars: 'Contains invalid characters',
       testConnection: 'Test Connection',
       testingConnection: 'Testing...',
+      testModel: 'Test Model',
+      testingModel: 'Testing...',
+      testModelSuccess: 'Connection successful',
+      testModelFailed: 'Connection failed',
+      ollamaNoKeyHint: 'Optional — Ollama usually needs no API key',
+      ollamaBaseURLHint: 'Enter your Ollama server address (e.g., http://192.168.1.100:11434)',
     },
 
     // ExchangeConfigModal
@@ -2554,6 +2560,12 @@ export const translations = {
       invalidKeyChars: '包含非法字符',
       testConnection: '测试连接',
       testingConnection: '测试中...',
+      testModel: '测试模型',
+      testingModel: '测试中...',
+      testModelSuccess: '连接成功',
+      testModelFailed: '连接失败',
+      ollamaNoKeyHint: '可选 — Ollama 通常不需要 API Key',
+      ollamaBaseURLHint: '输入 Ollama 服务器地址（例如 http://192.168.1.100:11434）',
     },
 
     exchangeConfig: {
@@ -3660,6 +3672,12 @@ export const translations = {
       invalidKeyChars: 'Mengandung karakter tidak valid',
       testConnection: 'Tes Koneksi',
       testingConnection: 'Menguji...',
+      testModel: 'Tes Model',
+      testingModel: 'Menguji...',
+      testModelSuccess: 'Koneksi berhasil',
+      testModelFailed: 'Koneksi gagal',
+      ollamaNoKeyHint: 'Opsional — Ollama biasanya tidak memerlukan API key',
+      ollamaBaseURLHint: 'Masukkan alamat server Ollama (misal: http://192.168.1.100:11434)',
     },
 
     exchangeConfig: {

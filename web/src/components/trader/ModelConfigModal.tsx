@@ -77,7 +77,13 @@ export function ModelConfigModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedModelId || !apiKey.trim()) return
+    const isOllama = selectedModel?.provider === 'ollama'
+    if (!selectedModelId) return
+    if (isOllama) {
+      if (!baseUrl.trim()) return
+    } else {
+      if (!apiKey.trim()) return
+    }
     onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined)
   }
 
@@ -869,6 +875,35 @@ function StandardProviderConfigForm({
   onSubmit: (e: React.FormEvent) => void
   language: Language
 }) {
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; latencyMs: number } | null>(null)
+
+  // Reset test result when inputs change
+  useEffect(() => {
+    setTestResult(null)
+  }, [apiKey, baseUrl, modelName])
+
+  const isOllama = selectedModel.provider === 'ollama'
+
+  const handleTestModel = async () => {
+    if (isOllama ? !baseUrl.trim() : !apiKey.trim()) return
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const result = await api.testModel({
+        provider: selectedModel.provider || selectedModel.id,
+        api_key: apiKey.trim(),
+        custom_api_url: baseUrl.trim() || undefined,
+        custom_model_name: modelName.trim() || undefined,
+      })
+      setTestResult({ success: result.success, message: result.message, latencyMs: result.latency_ms })
+    } catch {
+      setTestResult({ success: false, message: t('modelConfig.testModelFailed', language), latencyMs: 0 })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       {/* Selected Model Header */}
@@ -886,7 +921,7 @@ function StandardProviderConfigForm({
             {selectedModel.provider} • {AI_PROVIDER_CONFIG[selectedModel.provider]?.defaultModel || selectedModel.id}
           </div>
         </div>
-        {AI_PROVIDER_CONFIG[selectedModel.provider] && (
+        {AI_PROVIDER_CONFIG[selectedModel.provider]?.apiUrl && (
           <a
             href={AI_PROVIDER_CONFIG[selectedModel.provider].apiUrl}
             target="_blank"
@@ -920,16 +955,16 @@ function StandardProviderConfigForm({
           <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
           </svg>
-          {'API Key *'}
+          {isOllama ? 'API Key' : 'API Key *'}
         </label>
         <input
           type="password"
           value={apiKey}
           onChange={(e) => onApiKeyChange(e.target.value)}
-          placeholder={t('enterAPIKey', language)}
+          placeholder={isOllama ? t('modelConfig.ollamaNoKeyHint', language) : t('enterAPIKey', language)}
           className="w-full px-4 py-3 rounded-xl"
           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-          required
+          required={!isOllama}
         />
       </div>
 
@@ -939,18 +974,19 @@ function StandardProviderConfigForm({
           <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
           </svg>
-          {t('customBaseURL', language)}
+          {isOllama ? `${t('customBaseURL', language)} *` : t('customBaseURL', language)}
         </label>
         <input
           type="url"
           value={baseUrl}
           onChange={(e) => onBaseUrlChange(e.target.value)}
-          placeholder={t('customBaseURLPlaceholder', language)}
+          placeholder={isOllama ? 'http://192.168.1.100:11434' : t('customBaseURLPlaceholder', language)}
           className="w-full px-4 py-3 rounded-xl"
           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+          required={isOllama}
         />
         <div className="text-xs" style={{ color: '#848E9C' }}>
-          {t('leaveBlankForDefault', language)}
+          {isOllama ? t('modelConfig.ollamaBaseURLHint', language) : t('leaveBlankForDefault', language)}
         </div>
       </div>
 
@@ -976,6 +1012,40 @@ function StandardProviderConfigForm({
       </div>
 
 
+      {/* Test Model */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleTestModel}
+          disabled={(isOllama ? !baseUrl.trim() : !apiKey.trim()) || testing}
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ background: '#2B3139', color: '#EAECEF', border: '1px solid #3B4149' }}
+        >
+          {testing ? t('modelConfig.testingModel', language) : t('modelConfig.testModel', language)}
+        </button>
+        {testResult && (
+          <div className="flex items-center gap-2 text-sm">
+            {testResult.success ? (
+              <>
+                <svg className="w-4 h-4" style={{ color: '#00E096' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span style={{ color: '#00E096' }}>
+                  {t('modelConfig.testModelSuccess', language)} ({testResult.latencyMs}ms)
+                </span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" style={{ color: '#F6465D' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span style={{ color: '#F6465D' }}>{testResult.message}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Info Box */}
       <div className="p-4 rounded-xl" style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
         <div className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: '#A78BFA' }}>
@@ -996,7 +1066,7 @@ function StandardProviderConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!selectedModel || !apiKey.trim()}
+          disabled={!selectedModel || (isOllama ? !baseUrl.trim() : !apiKey.trim())}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: '#8B5CF6', color: '#fff' }}
         >

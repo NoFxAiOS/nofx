@@ -159,3 +159,16 @@ export interface CurrentBeginnerWalletResponse {
   source?: string
   claw402_status?: string
 }
+
+export interface TestModelRequest {
+  provider: string
+  api_key: string
+  custom_api_url?: string
+  custom_model_name?: string
+}
+
+export interface TestModelResponse {
+  success: boolean
+  message: string
+  latency_ms: number
+}

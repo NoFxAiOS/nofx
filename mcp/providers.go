@@ -13,6 +13,7 @@ const (
 	ProviderKimi     = "kimi"
 	ProviderMiniMax  = "minimax"
 
+	ProviderOllama  = "ollama"
 	ProviderClaw402 = "claw402"
 
 	// Default DeepSeek configuration (used as fallback in NewClient)
@@ -26,4 +27,7 @@ const (
 	// Default MiniMax configuration (used by WithMiniMaxConfig convenience option)
 	DefaultMiniMaxBaseURL = "https://api.minimax.io/v1"
 	DefaultMiniMaxModel   = "MiniMax-M2.7"
+
+	// Default Ollama configuration (no default base URL — user must provide)
+	DefaultOllamaModel = "llama3.1"
 )

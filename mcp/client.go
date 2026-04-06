@@ -165,7 +165,7 @@ func (client *Client) SetTimeout(timeout time.Duration) {
 
 // CallWithMessages template method - fixed retry flow (cannot be overridden)
 func (client *Client) CallWithMessages(systemPrompt, userPrompt string) (string, error) {
-	if client.APIKey == "" {
+	if client.APIKey == "" && client.Provider != ProviderOllama {
 		return "", fmt.Errorf("AI API key not set, please call SetAPIKey first")
 	}
 
@@ -413,7 +413,7 @@ func (client *Client) IsRetryableError(err error) bool {
 
 // CallWithRequest calls AI API using Request object (supports advanced features)
 func (client *Client) CallWithRequest(req *Request) (string, error) {
-	if client.APIKey == "" {
+	if client.APIKey == "" && client.Provider != ProviderOllama {
 		return "", fmt.Errorf("AI API key not set, please call SetAPIKey first")
 	}
 
@@ -459,7 +459,7 @@ func (client *Client) CallWithRequest(req *Request) (string, error) {
 
 // CallWithRequestFull calls the AI API and returns both text content and tool calls.
 func (client *Client) CallWithRequestFull(req *Request) (*LLMResponse, error) {
-	if client.APIKey == "" {
+	if client.APIKey == "" && client.Provider != ProviderOllama {
 		return nil, fmt.Errorf("AI API key not set, please call SetAPIKey first")
 	}
 	if req.Model == "" {
@@ -664,7 +664,7 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 // Idle timeout: if no chunk arrives for 30 seconds the stream is cancelled automatically.
 // This prevents the scanner from blocking indefinitely on a hung or stalled connection.
 func (client *Client) CallWithRequestStream(req *Request, onChunk func(string)) (string, error) {
-	if client.APIKey == "" {
+	if client.APIKey == "" && client.Provider != ProviderOllama {
 		return "", fmt.Errorf("AI API key not set")
 	}
 	if req.Model == "" {

@@ -7,6 +7,8 @@ import type {
   CreateExchangeRequest,
   BeginnerOnboardingResponse,
   CurrentBeginnerWalletResponse,
+  TestModelRequest,
+  TestModelResponse,
 } from '../../types'
 import { API_BASE, httpClient, CryptoService } from './helpers'
 
@@ -214,6 +216,36 @@ export const configApi = {
     if (!result.success || !result.data) {
       throw new Error(result.message || 'Failed to fetch current beginner wallet')
     }
+    return result.data
+  },
+
+  async testModel(request: TestModelRequest): Promise<TestModelResponse> {
+    const config = await CryptoService.fetchCryptoConfig()
+
+    if (!config.transport_encryption) {
+      const result = await httpClient.post<TestModelResponse>(
+        `${API_BASE}/models/test`,
+        request
+      )
+      if (!result.success || !result.data)
+        throw new Error('Failed to test model')
+      return result.data
+    }
+
+    const publicKey = await CryptoService.fetchPublicKey()
+    await CryptoService.initialize(publicKey)
+    const userId = localStorage.getItem('user_id') || ''
+    const sessionId = sessionStorage.getItem('session_id') || ''
+    const encryptedPayload = await CryptoService.encryptSensitiveData(
+      JSON.stringify(request),
+      userId,
+      sessionId
+    )
+    const result = await httpClient.post<TestModelResponse>(
+      `${API_BASE}/models/test`,
+      encryptedPayload
+    )
+    if (!result.success || !result.data) throw new Error('Failed to test model')
     return result.data
   },
 }

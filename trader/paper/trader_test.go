@@ -43,6 +43,12 @@ func TestPaperTraderClosePosition(t *testing.T) {
 	if _, err := pt.OpenShort("ETHUSDT", 2, 3); err != nil {
 		t.Fatalf("expected open short success, got %v", err)
 	}
+	if err := pt.SetStopLoss("ETHUSDT", "SHORT", 2, 205); err != nil {
+		t.Fatalf("expected stop-loss success, got %v", err)
+	}
+	if err := pt.SetTakeProfit("ETHUSDT", "SHORT", 2, 190); err != nil {
+		t.Fatalf("expected take-profit success, got %v", err)
+	}
 	pt.SetPrice("ETHUSDT", 190)
 	if _, err := pt.CloseShort("ETHUSDT", 0); err != nil {
 		t.Fatalf("expected close short success, got %v", err)
@@ -51,6 +57,13 @@ func TestPaperTraderClosePosition(t *testing.T) {
 	positions, _ := pt.GetPositions()
 	if len(positions) != 0 {
 		t.Fatalf("expected no positions after close, got %d", len(positions))
+	}
+	orders, err := pt.GetOpenOrders("ETHUSDT")
+	if err != nil {
+		t.Fatalf("expected open orders query success, got %v", err)
+	}
+	if len(orders) != 0 {
+		t.Fatalf("expected no open protection orders after close, got %d", len(orders))
 	}
 	closed, err := pt.GetClosedPnL(time.Time{}, 10)
 	if err != nil {

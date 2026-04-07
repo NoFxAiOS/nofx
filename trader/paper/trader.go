@@ -109,6 +109,7 @@ func (t *Trader) closePosition(symbol, side string, quantity float64) (map[strin
 	}
 	t.orderSeq++
 	delete(t.positions, key)
+	_ = t.CancelAllOrders(symbol)
 	t.closedPnL = append(t.closedPnL, tradertypes.ClosedPnLRecord{
 		Symbol:      symbol,
 		Side:        side,

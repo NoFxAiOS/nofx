@@ -21,7 +21,7 @@
     "stop_loss_pct": 2
   },
   "expected": {
-    "protection_orders": 2,
+    "protection_orders": 0,
     "final_position_count": 0,
     "closed_pnl_count": 1,
     "blocked": false

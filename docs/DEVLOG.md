@@ -7,9 +7,12 @@
   - `ScenarioExpected` 新增 `closed_pnl_count`
   - `Result` 新增 `ClosedPnLCount`
   - 运行结果新增 `GetClosedPnL` 校验
+- `trader/paper/trader.go` 已增强：
+  - 平仓后自动清理同 symbol 遗留保护单，避免出现“已平仓但保护单仍挂单”的不一致状态
 - 新增场景：
   - `fixtures/replay/scenario-btc-long-open-close-smoke.json`
   - 覆盖 `open_long -> close_long` 最小闭环
+  - 当前期望已更新为：平仓后 `protection_orders = 0`
 - `trader/replay/runner_test.go` 新增：
   - `TestRunScenarioOpenCloseLifecycle`
   - 校验 replay 场景从开仓到平仓后的结果一致性

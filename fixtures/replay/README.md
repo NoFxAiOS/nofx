@@ -19,11 +19,17 @@
       "type": "open_long",
       "quantity": 1,
       "leverage": 5
+    },
+    {
+      "type": "close_long",
+      "quantity": 0,
+      "price": 104
     }
   ],
   "expected": {
     "protection_orders": 2,
-    "final_position_count": 1
+    "final_position_count": 0,
+    "closed_pnl_count": 1
   }
 }
 ```

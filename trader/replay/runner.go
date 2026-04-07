@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"nofx/market"
 	"nofx/trader/paper"
@@ -26,6 +27,7 @@ type ScenarioAction struct {
 	Type     string  `json:"type"`
 	Quantity float64 `json:"quantity"`
 	Leverage int     `json:"leverage"`
+	Price    float64 `json:"price,omitempty"`
 }
 
 type ScenarioProtection struct {
@@ -45,6 +47,7 @@ type ScenarioRegimeFilter struct {
 type ScenarioExpected struct {
 	ProtectionOrders   int  `json:"protection_orders"`
 	FinalPositionCount int  `json:"final_position_count"`
+	ClosedPnLCount     int  `json:"closed_pnl_count,omitempty"`
 	Blocked            bool `json:"blocked,omitempty"`
 }
 
@@ -52,6 +55,7 @@ type Result struct {
 	ScenarioName       string
 	ProtectionOrders   int
 	FinalPositionCount int
+	ClosedPnLCount     int
 	Blocked            bool
 }
 
@@ -104,6 +108,9 @@ func RunScenario(s *Scenario) (*Result, error) {
 	}
 
 	for _, action := range s.Actions {
+		if action.Price > 0 {
+			pt.SetPrice(s.Symbol, action.Price)
+		}
 		if s.RegimeFilter != nil && s.RegimeFilter.Enabled {
 			if blockedByScenarioRegimeFilter(action.Type, marketData, s.RegimeFilter) {
 				blocked = true
@@ -127,6 +134,14 @@ func RunScenario(s *Scenario) (*Result, error) {
 			if err := applyScenarioProtection(pt, s.Symbol, "SHORT", action.Quantity, entryPrice, s.Protection, false); err != nil {
 				return nil, err
 			}
+		case "close_long":
+			if _, err := pt.CloseLong(s.Symbol, action.Quantity); err != nil {
+				return nil, err
+			}
+		case "close_short":
+			if _, err := pt.CloseShort(s.Symbol, action.Quantity); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("unsupported scenario action: %s", action.Type)
 		}
@@ -141,10 +156,16 @@ func RunScenario(s *Scenario) (*Result, error) {
 		return nil, err
 	}
 
+	closedPnL, err := pt.GetClosedPnL(time.Time{}, 1000)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Result{
 		ScenarioName:       s.Name,
 		ProtectionOrders:   len(orders),
 		FinalPositionCount: len(positions),
+		ClosedPnLCount:     len(closedPnL),
 		Blocked:            blocked,
 	}, nil
 }
@@ -158,6 +179,9 @@ func ValidateResult(s *Scenario, result *Result) error {
 	}
 	if s.Expected.ProtectionOrders >= 0 && result.ProtectionOrders != s.Expected.ProtectionOrders {
 		return fmt.Errorf("expected protection orders %d, got %d", s.Expected.ProtectionOrders, result.ProtectionOrders)
+	}
+	if s.Expected.ClosedPnLCount >= 0 && result.ClosedPnLCount != s.Expected.ClosedPnLCount {
+		return fmt.Errorf("expected closed pnl count %d, got %d", s.Expected.ClosedPnLCount, result.ClosedPnLCount)
 	}
 	if result.FinalPositionCount != s.Expected.FinalPositionCount {
 		return fmt.Errorf("expected final position count %d, got %d", s.Expected.FinalPositionCount, result.FinalPositionCount)

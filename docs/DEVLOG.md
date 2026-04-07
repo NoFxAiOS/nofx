@@ -1,3 +1,30 @@
+## 2026-04-07
+
+### Replay / Paper-Trading 验证闭环继续推进（open-close 收口）
+- `trader/replay/runner.go` 已扩展：
+  - `ScenarioAction` 新增 `price` 字段（支持按动作覆盖当前价格）
+  - 支持 `close_long` / `close_short` 动作
+  - `ScenarioExpected` 新增 `closed_pnl_count`
+  - `Result` 新增 `ClosedPnLCount`
+  - 运行结果新增 `GetClosedPnL` 校验
+- 新增场景：
+  - `fixtures/replay/scenario-btc-long-open-close-smoke.json`
+  - 覆盖 `open_long -> close_long` 最小闭环
+- `trader/replay/runner_test.go` 新增：
+  - `TestRunScenarioOpenCloseLifecycle`
+  - 校验 replay 场景从开仓到平仓后的结果一致性
+- `fixtures/replay/README.md` 已同步更新最小字段示例，纳入 close 动作与 `closed_pnl_count`。
+
+### 基线复验
+- `go test ./trader/replay ./trader/paper`：通过
+- `go test ./...`：通过
+- `cd web && npm test`：通过（108 tests）
+- `cd web && npm run build`：通过
+
+### 当前结论
+- 验证闭环已从“开仓+挂保护”继续推进到“开仓→平仓→closed pnl 校验”最小闭环。
+- 下一步应继续补多场景（多动作/多阶段价格推进/异常路径）并推进 simulation 维度验证。
+
 ## 2026-03-29
 
 ### Protection / 网络可靠性收口

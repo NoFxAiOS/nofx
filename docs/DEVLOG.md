@@ -1,5 +1,27 @@
 ## 2026-04-07
 
+### Replay / Paper-Trading 验证继续向“试运行语义”推进
+- `trader/paper/trader.go` 已补最小 realized PnL 计算：
+  - long: `(exit - entry) * qty`
+  - short: `(entry - exit) * qty`
+- `trader/replay/runner.go` 已增强：
+  - `ScenarioExpected` / `Result` 新增 `realized_pnl`
+  - replay 结果开始校验 closed pnl 汇总值
+  - regime filter 只在 `open_long` / `open_short` 上生效，不再误拦 `close_long` / `close_short`
+  - action 级价格覆盖会同步刷新 marketData，避免场景价格推进与过滤逻辑脱节
+- `trader/replay/runner_test.go` 新增场景验证：
+  - `TestRunScenarioCloseNotBlockedByRegimeFilter`
+  - 确认趋势失配场景下平仓动作仍可执行，并正确落负收益
+- `fixtures/replay/scenario-btc-long-open-close-smoke.json` 已补显式开仓价格与 `realized_pnl = 4` 期望。
+- `trader/paper/trader_test.go` 已补 realized PnL 断言，short 平仓样例当前校验为 `20`。
+
+### 本轮验证
+- `go test ./trader/replay ./trader/paper`：通过
+- `go test ./...`：通过
+- 当前 replay / paper-trading 验证闭环已从“状态存在”继续推进到“收益结果可校验 + 平仓不被风控门禁误伤”。
+
+## 2026-04-07
+
 ### Replay / Paper-Trading 验证闭环继续推进（open-close 收口）
 - `trader/replay/runner.go` 已扩展：
   - `ScenarioAction` 新增 `price` 字段（支持按动作覆盖当前价格）

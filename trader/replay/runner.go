@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"nofx/market"
+	tradertypes "nofx/trader/types"
 	"nofx/trader/paper"
 )
 
@@ -45,10 +46,11 @@ type ScenarioRegimeFilter struct {
 }
 
 type ScenarioExpected struct {
-	ProtectionOrders   int  `json:"protection_orders"`
-	FinalPositionCount int  `json:"final_position_count"`
-	ClosedPnLCount     int  `json:"closed_pnl_count,omitempty"`
-	Blocked            bool `json:"blocked,omitempty"`
+	ProtectionOrders   int     `json:"protection_orders"`
+	FinalPositionCount int     `json:"final_position_count"`
+	ClosedPnLCount     int     `json:"closed_pnl_count,omitempty"`
+	RealizedPnL        float64 `json:"realized_pnl,omitempty"`
+	Blocked            bool    `json:"blocked,omitempty"`
 }
 
 type Result struct {
@@ -56,6 +58,7 @@ type Result struct {
 	ProtectionOrders   int
 	FinalPositionCount int
 	ClosedPnLCount     int
+	RealizedPnL        float64
 	Blocked            bool
 }
 
@@ -94,24 +97,35 @@ func RunScenario(s *Scenario) (*Result, error) {
 	}
 
 	blocked := false
-	latestPrice, _ := pt.GetMarketPrice(s.Symbol)
 	latestFunding := 0.0
 	if len(s.FundingRates) > 0 {
 		latestFunding = s.FundingRates[len(s.FundingRates)-1]
 	}
+	baselinePrice := s.InitialPrice
+	if baselinePrice <= 0 && len(priceSeries) > 0 {
+		baselinePrice = priceSeries[0]
+	}
+	currentPrice := baselinePrice
+	if currentPrice <= 0 {
+		currentPrice, _ = pt.GetMarketPrice(s.Symbol)
+	}
 	marketData := &market.Data{
-		CurrentPrice:   latestPrice,
-		CurrentEMA20:   latestPrice,
-		PriceChange4h:  computePriceChange4h(priceSeries),
+		CurrentPrice:   currentPrice,
+		CurrentEMA20:   currentPrice,
+		PriceChange4h:  computeChangeFromBaseline(baselinePrice, currentPrice),
 		FundingRate:    latestFunding,
-		IntradaySeries: &market.IntradayData{ATR14: latestPrice * 0.01},
+		IntradaySeries: &market.IntradayData{ATR14: currentPrice * 0.01},
 	}
 
 	for _, action := range s.Actions {
 		if action.Price > 0 {
 			pt.SetPrice(s.Symbol, action.Price)
+			marketData.CurrentPrice = action.Price
+			marketData.CurrentEMA20 = action.Price
+			marketData.PriceChange4h = computeChangeFromBaseline(baselinePrice, action.Price)
+			marketData.IntradaySeries = &market.IntradayData{ATR14: action.Price * 0.01}
 		}
-		if s.RegimeFilter != nil && s.RegimeFilter.Enabled {
+		if shouldCheckRegimeFilter(action.Type) && s.RegimeFilter != nil && s.RegimeFilter.Enabled {
 			if blockedByScenarioRegimeFilter(action.Type, marketData, s.RegimeFilter) {
 				blocked = true
 				continue
@@ -166,6 +180,7 @@ func RunScenario(s *Scenario) (*Result, error) {
 		ProtectionOrders:   len(orders),
 		FinalPositionCount: len(positions),
 		ClosedPnLCount:     len(closedPnL),
+		RealizedPnL:        sumRealizedPnL(closedPnL),
 		Blocked:            blocked,
 	}, nil
 }
@@ -182,6 +197,9 @@ func ValidateResult(s *Scenario, result *Result) error {
 	}
 	if s.Expected.ClosedPnLCount >= 0 && result.ClosedPnLCount != s.Expected.ClosedPnLCount {
 		return fmt.Errorf("expected closed pnl count %d, got %d", s.Expected.ClosedPnLCount, result.ClosedPnLCount)
+	}
+	if s.Expected.RealizedPnL != 0 && abs(result.RealizedPnL-s.Expected.RealizedPnL) > 1e-9 {
+		return fmt.Errorf("expected realized pnl %.8f, got %.8f", s.Expected.RealizedPnL, result.RealizedPnL)
 	}
 	if result.FinalPositionCount != s.Expected.FinalPositionCount {
 		return fmt.Errorf("expected final position count %d, got %d", s.Expected.FinalPositionCount, result.FinalPositionCount)
@@ -255,6 +273,15 @@ func blockedByScenarioRegimeFilter(action string, data *market.Data, cfg *Scenar
 	return false
 }
 
+func shouldCheckRegimeFilter(action string) bool {
+	switch strings.ToLower(action) {
+	case "open_long", "open_short":
+		return true
+	default:
+		return false
+	}
+}
+
 func computePriceChange4h(prices []float64) float64 {
 	if len(prices) < 2 || prices[0] <= 0 {
 		return 0
@@ -267,4 +294,19 @@ func abs(v float64) float64 {
 		return -v
 	}
 	return v
+}
+
+func computeChangeFromBaseline(baseline, current float64) float64 {
+	if baseline <= 0 || current <= 0 {
+		return 0
+	}
+	return (current - baseline) / baseline * 100
+}
+
+func sumRealizedPnL(records []tradertypes.ClosedPnLRecord) float64 {
+	total := 0.0
+	for _, record := range records {
+		total += record.RealizedPnL
+	}
+	return total
 }

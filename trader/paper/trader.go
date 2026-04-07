@@ -119,7 +119,7 @@ func (t *Trader) closePosition(symbol, side string, quantity float64) (map[strin
 		Leverage:    int(pos["leverage"].(float64)),
 		ExitTime:    time.Now(),
 		CloseType:   "paper",
-		RealizedPnL: 0,
+		RealizedPnL: calculateRealizedPnL(side, entryPrice, price, actualQty),
 	})
 	return map[string]interface{}{"orderId": t.orderSeq, "avgPrice": price}, nil
 }
@@ -186,4 +186,15 @@ func (t *Trader) filterOrders(symbol, kind string) error {
 	}
 	t.openOrders = filtered
 	return nil
+}
+
+func calculateRealizedPnL(side string, entryPrice, exitPrice, quantity float64) float64 {
+	switch side {
+	case "long":
+		return (exitPrice - entryPrice) * quantity
+	case "short":
+		return (entryPrice - exitPrice) * quantity
+	default:
+		return 0
+	}
 }

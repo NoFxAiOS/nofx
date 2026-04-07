@@ -7,7 +7,8 @@
     {
       "type": "open_long",
       "quantity": 1,
-      "leverage": 5
+      "leverage": 5,
+      "price": 100
     },
     {
       "type": "close_long",
@@ -24,6 +25,7 @@
     "protection_orders": 0,
     "final_position_count": 0,
     "closed_pnl_count": 1,
+    "realized_pnl": 4,
     "blocked": false
   }
 }

@@ -72,4 +72,7 @@ func TestPaperTraderClosePosition(t *testing.T) {
 	if len(closed) != 1 {
 		t.Fatalf("expected 1 closed pnl record, got %d", len(closed))
 	}
+	if closed[0].RealizedPnL != 20 {
+		t.Fatalf("expected realized pnl 20, got %v", closed[0].RealizedPnL)
+	}
 }

@@ -1,0 +1,25 @@
+{
+  "name": "short-with-protection-hold",
+  "symbol": "XRPUSDT",
+  "initial_price": 2.5,
+  "prices": [2.5, 2.4, 2.3],
+  "actions": [
+    {
+      "type": "open_short",
+      "quantity": 100,
+      "leverage": 3,
+      "price": 2.5
+    }
+  ],
+  "protection": {
+    "mode": "full",
+    "take_profit_pct": 10,
+    "stop_loss_pct": 5
+  },
+  "expected": {
+    "protection_orders": 2,
+    "final_position_count": 1,
+    "closed_pnl_count": 0,
+    "blocked": false
+  }
+}

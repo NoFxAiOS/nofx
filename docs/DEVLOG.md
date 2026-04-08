@@ -1,3 +1,44 @@
+## 2026-04-09
+
+### Replay / Paper-Trading 验证闭环深化（多场景 + 错误路径 + protection 集成测试）
+
+#### 新增 replay 场景
+- `scenario-eth-short-open-close.json`：ETH 做空开平仓，验证 short 侧 realized PnL 正确性
+- `scenario-multi-step-progression.json`：多步价格推进，先做多后做空，验证双向连续交易 PnL 累计
+- `scenario-negative-pnl-long.json`：做多亏损场景，验证负收益正确计算
+- `scenario-open-with-protection.json`：开仓后持仓不平，验证保护单挂设正确
+- `scenario-short-with-protection.json`：做空持仓不平，验证 short 侧保护单挂设
+- `scenario-regime-trend-block.json`：趋势不对齐时 regime filter 阻断开仓
+
+#### 新增 replay runner 测试
+- 6 个新场景文件驱动测试
+- 错误路径覆盖：nil scenario、empty symbol、invalid action、missing price、close without open
+- 加载错误覆盖：invalid path、invalid JSON
+- 校验错误覆盖：nil result、protection order mismatch、PnL mismatch
+
+#### Protection 生命周期集成测试深化
+- regime filter 测试补强：aligned long/short 通过、close 动作不被趋势检查阻断
+- protection 执行测试补强：verify 失败、SL 设置失败、TP 设置失败、重试恢复
+- ladder protection 测试：多阶 SL/TP 生命周期、partial close 数量校验
+- 边界测试：nil plan、无 SL 无 TP plan
+- protection plan builder 测试：long/short 方向价格计算、disabled 配置、零入场价
+
+#### 前端 API 收束
+- `AuthContext.tsx` login 从 raw `fetch` 迁移到 `httpClient.post`
+- `AuthContext.tsx` logout 从 raw `fetch` 迁移到 `httpClient.post`
+- `TerminalHero.tsx` klines 保留 raw `fetch`（设计决策：背景轮询不应触发全局 toast）
+
+#### 基线验证
+- `go test ./...`：通过
+- `cd web && npm test`：通过（108 tests）
+- `cd web && npm run build`：通过
+
+#### 当前结论
+- replay / paper-trading 验证闭环已从最小闭环深化到多场景、多侧、多步骤、错误路径全覆盖
+- protection 生命周期集成测试已覆盖 full/ladder/regime/retry/failure 主要路径
+- 前端 API 散落调用已基本收束完毕
+- TODO 和 ACCEPTANCE 中的最后一个未完成项已标记完成
+
 ## 2026-04-07
 
 ### Replay / Paper-Trading 验证继续向“试运行语义”推进

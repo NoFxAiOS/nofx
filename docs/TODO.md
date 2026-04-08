@@ -55,4 +55,4 @@
 - [x] Phase 3 收口补强：Drawdown Take Profit 前端多规则编辑闭环
 - [x] Phase 3 收口补强：OKX / NOFXOS 网络健壮性补强
 - [x] 验证闭环启动：统一 fake trader harness + protection lifecycle test 骨架 + replay/paper-trading 推进方案
-- [ ] 下一阶段：继续深化 replay / paper-trading / simulation 验证闭环（已完成 open-close + closed_pnl_count 最小闭环，继续推进多场景与 simulation）
+- [x] 下一阶段：继续深化 replay / paper-trading / simulation 验证闭环（已完成多场景覆盖、short 侧、多步价格推进、负收益、regime filter 阻断、错误路径、protection 生命周期集成测试深化）

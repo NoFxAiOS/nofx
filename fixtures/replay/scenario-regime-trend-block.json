@@ -1,0 +1,25 @@
+{
+  "name": "regime-trend-alignment-block",
+  "symbol": "SOLUSDT",
+  "initial_price": 150,
+  "prices": [150, 148, 145],
+  "actions": [
+    {
+      "type": "open_long",
+      "quantity": 10,
+      "leverage": 5,
+      "price": 145
+    }
+  ],
+  "regime_filter": {
+    "enabled": true,
+    "allowed_regimes": ["standard", "trending"],
+    "block_high_funding": false,
+    "require_trend_alignment": true
+  },
+  "expected": {
+    "protection_orders": 0,
+    "final_position_count": 0,
+    "blocked": true
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "multi-step-price-progression",
+  "symbol": "BTCUSDT",
+  "initial_price": 50000,
+  "prices": [50000, 51000, 52000, 51500, 53000],
+  "actions": [
+    {
+      "type": "open_long",
+      "quantity": 0.5,
+      "leverage": 10,
+      "price": 50000
+    },
+    {
+      "type": "close_long",
+      "quantity": 0,
+      "price": 53000
+    },
+    {
+      "type": "open_short",
+      "quantity": 0.5,
+      "leverage": 10,
+      "price": 53000
+    },
+    {
+      "type": "close_short",
+      "quantity": 0,
+      "price": 51000
+    }
+  ],
+  "protection": {
+    "mode": "full",
+    "take_profit_pct": 8,
+    "stop_loss_pct": 3
+  },
+  "expected": {
+    "protection_orders": 0,
+    "final_position_count": 0,
+    "closed_pnl_count": 2,
+    "realized_pnl": 2500,
+    "blocked": false
+  }
+}

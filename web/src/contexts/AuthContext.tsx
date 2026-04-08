@@ -85,25 +85,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
+      const result = await httpClient.post<{
+        token: string
+        user_id: string
+        email: string
+        message: string
+      }>('/api/login', { email, password })
 
-      const data = await response.json()
-
-      if (response.ok) {
-        if (data.token) {
+      if (result.success && result.data) {
+        if (result.data.token) {
           // Reset 401 flag on successful login
           reset401Flag()
 
-          const userInfo = { id: data.user_id, email: data.email }
-          setToken(data.token)
+          const userInfo = { id: result.data.user_id, email: result.data.email }
+          setToken(result.data.token)
           setUser(userInfo)
-          localStorage.setItem('auth_token', data.token)
+          localStorage.setItem('auth_token', result.data.token)
           localStorage.setItem('auth_user', JSON.stringify(userInfo))
 
           // Check and redirect to returnUrl if exists
@@ -118,19 +115,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             window.dispatchEvent(new PopStateEvent('popstate'))
           }
 
-          return { success: true, message: data.message }
+          return { success: true, message: result.message || result.data.message }
         }
 
         // Unexpected success response
         return {
           success: false,
-          message: data.message || 'Unexpected login response',
+          message: result.data.message || 'Unexpected login response',
         }
-      } else {
-        return {
-          success: false,
-          message: data.error,
-        }
+      }
+
+      return {
+        success: false,
+        message: result.message || 'Login failed',
       }
     } catch (error) {
       return { success: false, message: 'Login failed, please try again' }
@@ -223,10 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     const savedToken = localStorage.getItem('auth_token')
     if (savedToken) {
-      fetch('/api/logout', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${savedToken}` },
-      }).catch(() => {
+      httpClient.post('/api/logout').catch(() => {
         /* ignore network errors on logout */
       })
     }

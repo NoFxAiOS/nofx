@@ -1,0 +1,25 @@
+{
+  "name": "open-with-protection-no-close",
+  "symbol": "BNBUSDT",
+  "initial_price": 600,
+  "prices": [600, 610, 620],
+  "actions": [
+    {
+      "type": "open_long",
+      "quantity": 5,
+      "leverage": 5,
+      "price": 600
+    }
+  ],
+  "protection": {
+    "mode": "full",
+    "take_profit_pct": 5,
+    "stop_loss_pct": 3
+  },
+  "expected": {
+    "protection_orders": 2,
+    "final_position_count": 1,
+    "closed_pnl_count": 0,
+    "blocked": false
+  }
+}

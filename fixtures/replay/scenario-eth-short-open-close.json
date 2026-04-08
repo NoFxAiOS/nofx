@@ -1,0 +1,31 @@
+{
+  "name": "eth-short-open-close",
+  "symbol": "ETHUSDT",
+  "initial_price": 2000,
+  "prices": [2000, 1980, 1950],
+  "actions": [
+    {
+      "type": "open_short",
+      "quantity": 2,
+      "leverage": 3,
+      "price": 2000
+    },
+    {
+      "type": "close_short",
+      "quantity": 0,
+      "price": 1900
+    }
+  ],
+  "protection": {
+    "mode": "full",
+    "take_profit_pct": 10,
+    "stop_loss_pct": 5
+  },
+  "expected": {
+    "protection_orders": 0,
+    "final_position_count": 0,
+    "closed_pnl_count": 1,
+    "realized_pnl": 200,
+    "blocked": false
+  }
+}

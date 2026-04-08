@@ -1,0 +1,26 @@
+{
+  "name": "negative-pnl-long",
+  "symbol": "BTCUSDT",
+  "initial_price": 40000,
+  "prices": [40000, 39000, 38000],
+  "actions": [
+    {
+      "type": "open_long",
+      "quantity": 1,
+      "leverage": 5,
+      "price": 40000
+    },
+    {
+      "type": "close_long",
+      "quantity": 0,
+      "price": 38000
+    }
+  ],
+  "expected": {
+    "protection_orders": 0,
+    "final_position_count": 0,
+    "closed_pnl_count": 1,
+    "realized_pnl": -2000,
+    "blocked": false
+  }
+}

@@ -89,7 +89,7 @@
 - [x] 后端测试通过
 
 ## 仍不在本轮验收闭包内的项
-- [ ] replay / paper-trading / 仿真执行闭环
+- [x] replay / paper-trading / 仿真执行闭环（已深化到多场景、多侧、错误路径、protection 生命周期集成测试）
 
 ## 后续功能开发验收模板
 

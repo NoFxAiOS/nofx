@@ -37,7 +37,10 @@
 - 部分用 `VITE_API_BASE`
 - 影响：接口迁移、鉴权、错误处理、追踪都更难
 - 建议动作：逐步收束到统一 API 层
-- 当前状态：**仍待推进**
+- 当前状态：**基本完成**
+- 2026-04-09 更新：
+  - `AuthContext.tsx` login/logout 已迁移到 `httpClient`
+  - 仅 `TerminalHero.tsx` klines 保留 raw `fetch`（设计决策：背景轮询不应触发全局 toast）
 
 ### 5. 历史 admin mode 注释残留
 - `api/server.go` 中有“Admin login (used in admin mode, public)”注释，但未见实际路由

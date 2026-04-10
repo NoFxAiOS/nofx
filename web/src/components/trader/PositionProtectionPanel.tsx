@@ -24,6 +24,33 @@ function normalizeSide(side?: string): string {
   return String(side || '').toUpperCase()
 }
 
+function formatProtectionState(state: string | undefined, language: Language): string {
+  if (!state) return language === 'zh' ? '未知' : 'unknown'
+  const value = state.trim().toLowerCase()
+  switch (value) {
+    case 'exchange_protection_verified':
+      return language === 'zh' ? '交易所保护已校验' : 'exchange protection verified'
+    case 'break_even_armed':
+      return language === 'zh' ? '保本保护已挂单' : 'break-even armed'
+    case 'native_trailing_armed':
+      return language === 'zh' ? '交易所原生移动保护已激活' : 'native trailing armed'
+    case 'drawdown_triggered':
+      return language === 'zh' ? '回撤保护已触发' : 'drawdown triggered'
+    default:
+      return state
+  }
+}
+
+function formatBreakEvenState(state: string | undefined, language: Language): string {
+  if (!state || state.trim() === '') return language === 'zh' ? '未触发' : 'idle'
+  switch (state.trim().toLowerCase()) {
+    case 'armed':
+      return language === 'zh' ? '已挂单 / 已武装' : 'armed'
+    default:
+      return state
+  }
+}
+
 export function PositionProtectionPanel({ traderId, positions, language }: PositionProtectionPanelProps) {
   const [ordersBySymbol, setOrdersBySymbol] = useState<Record<string, OpenOrder[]>>({})
   const [loading, setLoading] = useState(false)
@@ -217,11 +244,11 @@ export function PositionProtectionPanel({ traderId, positions, language }: Posit
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
                     <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保护巡检状态' : 'Protection Reconcile State'}</div>
-                    <div className="font-mono text-nofx-text-main">{position.protection_state || (language === 'zh' ? '未知' : 'unknown')}</div>
+                    <div className="font-mono text-nofx-text-main">{formatProtectionState(position.protection_state, language)}</div>
                   </div>
                   <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
                     <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损状态' : 'Break-even State'}</div>
-                    <div className="font-mono text-nofx-text-main">{position.break_even_state || (language === 'zh' ? '未触发' : 'idle')}</div>
+                    <div className="font-mono text-nofx-text-main">{formatBreakEvenState(position.break_even_state, language)}</div>
                   </div>
                 </div>
                 <ul className="list-disc pl-5 space-y-1">

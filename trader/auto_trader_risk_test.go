@@ -17,6 +17,11 @@ type fakeProtectionTrader struct {
 	lastStopPrice       float64
 	cancelErr           error
 	setStopLossErr      error
+	trailingCalls       int
+	trailingSymbol      string
+	trailingSide        string
+	trailingActivation  float64
+	trailingCallback    float64
 }
 
 func (f *fakeProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
@@ -64,30 +69,54 @@ func (f *fakeProtectionTrader) GetClosedPnL(startTime time.Time, limit int) ([]t
 	return nil, nil
 }
 func (f *fakeProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) { return nil, nil }
+func (f *fakeProtectionTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error {
+	f.trailingCalls++
+	f.trailingSymbol = symbol
+	f.trailingSide = positionSide
+	f.trailingActivation = activationPrice
+	f.trailingCallback = callbackRate
+	return nil
+}
+func (f *fakeProtectionTrader) CancelTrailingStopOrders(symbol string) error { return nil }
 
-func TestGetDrawdownMonitorInterval(t *testing.T) {
-	at := &AutoTrader{}
-	if got := at.getDrawdownMonitorInterval(); got.Seconds() != 60 {
-		t.Fatalf("expected default 60s interval, got %s", got)
-	}
-
-	at.config.StrategyConfig = &store.StrategyConfig{}
-	at.config.StrategyConfig.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{
-		Enabled: true,
-		Rules: []store.DrawdownTakeProfitRule{
-			{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, PollIntervalSeconds: 45},
-			{MinProfitPct: 8, MaxDrawdownPct: 20, CloseRatioPct: 50, PollIntervalSeconds: 15},
+func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
+	fake := &fakeProtectionTrader{}
+	at := &AutoTrader{
+		exchange: "binance",
+		trader:   fake,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
 		},
+		protectionState: make(map[string]string),
 	}
 
-	if got := at.getDrawdownMonitorInterval(); got.Seconds() != 15 {
-		t.Fatalf("expected 15s interval, got %s", got)
+	rule := store.DrawdownTakeProfitRule{
+		MinProfitPct:   5,
+		MaxDrawdownPct: 2,
+		CloseRatioPct:  100,
+	}
+
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
+	if !ok {
+		t.Fatal("expected native trailing drawdown to be applied")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected 1 trailing call, got %d", fake.trailingCalls)
+	}
+	if fake.trailingActivation <= 100 {
+		t.Fatalf("expected activation above entry for long, got %.4f", fake.trailingActivation)
+	}
+	if fake.trailingCallback != 2 {
+		t.Fatalf("expected callback rate 2, got %.4f", fake.trailingCallback)
+	}
+	if at.getProtectionState("BTCUSDT", "long") != "native_trailing_armed" {
+		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))
 	}
 }
 
 func TestMatchDrawdownRule(t *testing.T) {
 	at := &AutoTrader{}
-	rules := []store.DrawdownTakeProfitRule{
+	 rules := []store.DrawdownTakeProfitRule{
 		{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100},
 		{MinProfitPct: 10, MaxDrawdownPct: 20, CloseRatioPct: 50},
 	}

@@ -10,6 +10,54 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 )
 
+func (t *FuturesTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error {
+	var side futures.SideType
+	var posSide futures.PositionSideType
+
+	if positionSide == "LONG" {
+		side = futures.SideTypeSell
+		posSide = futures.PositionSideTypeLong
+	} else {
+		side = futures.SideTypeBuy
+		posSide = futures.PositionSideTypeShort
+	}
+
+	service := t.client.NewCreateAlgoOrderService().
+		Symbol(symbol).
+		Side(side).
+		PositionSide(posSide).
+		Type(futures.AlgoOrderTypeTrailingStopMarket).
+		WorkingType(futures.WorkingTypeContractPrice).
+		ClosePosition(true).
+		ClientAlgoId(getBrOrderID())
+
+	if activationPrice > 0 {
+		service = service.ActivationPrice(fmt.Sprintf("%.8f", activationPrice))
+	}
+	if callbackRate > 0 {
+		service = service.CallbackRate(fmt.Sprintf("%.4f", callbackRate))
+	}
+
+	if _, err := service.Do(context.Background()); err != nil {
+		return fmt.Errorf("failed to set trailing stop-loss: %w", err)
+	}
+
+	logger.Infof("  Trailing stop-loss set (Algo Order): activation=%.4f callback=%.4f%%", activationPrice, callbackRate)
+	return nil
+}
+
+func (t *FuturesTrader) CancelTrailingStopOrders(symbol string) error {
+	err := t.client.NewCancelAllAlgoOpenOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+	if err != nil {
+		if !contains(err.Error(), "no algo") && !contains(err.Error(), "No algo") {
+			return fmt.Errorf("failed to cancel trailing/algo orders: %w", err)
+		}
+	}
+	return nil
+}
+
 // OpenLong opens a long position
 func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// First cancel all pending orders for this symbol (clean up old stop-loss and take-profit orders)

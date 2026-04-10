@@ -137,6 +137,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			continue
 		}
 
+		if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, *matchedRule) {
+			continue
+		}
+
 		closeQty := quantity * matchedRule.CloseRatioPct / 100.0
 		if closeQty <= 0 || matchedRule.CloseRatioPct >= 99.999 {
 			closeQty = 0 // exchange adapters use 0 to mean close all
@@ -182,6 +186,62 @@ func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
 		rules = append(rules, rule)
 	}
 	return rules
+}
+
+func (at *AutoTrader) supportsNativeTrailingStop() bool {
+	caps := at.GetProtectionCapabilities()
+	return strings.EqualFold(at.exchange, "binance") && caps.SupportsAlgoOrders && caps.CanAmendProtection
+}
+
+func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPrice float64, rule store.DrawdownTakeProfitRule) bool {
+	if !at.supportsNativeTrailingStop() {
+		return false
+	}
+	if rule.CloseRatioPct < 99.999 {
+		return false
+	}
+	if entryPrice <= 0 || rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 {
+		return false
+	}
+
+	activationPrice := entryPrice
+	callbackRate := rule.MaxDrawdownPct
+	move := rule.MinProfitPct / 100.0
+	if strings.EqualFold(side, "long") {
+		activationPrice = entryPrice * (1 + move)
+	} else if strings.EqualFold(side, "short") {
+		activationPrice = entryPrice * (1 - move)
+	} else {
+		return false
+	}
+
+	if callbackRate < 0.1 {
+		callbackRate = 0.1
+	}
+	if callbackRate > 10 {
+		callbackRate = 10
+	}
+
+	binanceTrader, ok := at.trader.(interface {
+		SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error
+		CancelTrailingStopOrders(symbol string) error
+	})
+	if !ok {
+		return false
+	}
+
+	positionSide := strings.ToUpper(side)
+	if err := binanceTrader.CancelTrailingStopOrders(symbol); err != nil {
+		logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
+	}
+	if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate); err != nil {
+		logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
+		return false
+	}
+
+	at.setProtectionState(symbol, side, "native_trailing_armed")
+	logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%%", symbol, side, activationPrice, callbackRate)
+	return true
 }
 
 func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule) *store.DrawdownTakeProfitRule {

@@ -197,6 +197,9 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	if !at.supportsNativeTrailingStop() {
 		return false
 	}
+	if at.getProtectionState(symbol, side) == "native_trailing_armed" {
+		return true
+	}
 	if rule.CloseRatioPct < 99.999 {
 		return false
 	}

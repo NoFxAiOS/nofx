@@ -46,6 +46,7 @@ func (at *AutoTrader) reconcilePositionProtections() {
 		return
 	}
 
+	active := make(map[string]struct{})
 	for _, pos := range positions {
 		symbol, _ := pos["symbol"].(string)
 		side, _ := pos["side"].(string)
@@ -57,6 +58,7 @@ func (at *AutoTrader) reconcilePositionProtections() {
 		if symbol == "" || side == "" || entryPrice <= 0 || quantity <= 0 {
 			continue
 		}
+		active[positionKey(symbol, side)] = struct{}{}
 
 		if err := at.reconcileProtectionForPosition(symbol, side, quantity, entryPrice); err != nil {
 			logger.Infof("❌ Protection reconciler: %s %s reconcile failed: %v", symbol, side, err)
@@ -64,9 +66,14 @@ func (at *AutoTrader) reconcilePositionProtections() {
 			continue
 		}
 
-		at.setProtectionState(symbol, side, "exchange_protection_verified")
+		currentState := at.getProtectionState(symbol, side)
+		if currentState == "" {
+			at.setProtectionState(symbol, side, "exchange_protection_verified")
+		}
 		logger.Infof("✅ Protection reconciler: %s %s exchange protection verified", symbol, side)
 	}
+
+	at.cleanupInactiveProtectionState(active)
 }
 
 func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quantity, entryPrice float64) error {
@@ -157,6 +164,10 @@ func hasAnyProtectionOrder(openOrders []OpenOrder, positionSide string, wantTake
 	return false
 }
 
+func positionKey(symbol, side string) string {
+	return symbol + "_" + strings.ToLower(side)
+}
+
 func actionFromPositionSide(side string) string {
 	switch strings.ToLower(side) {
 	case "long":
@@ -195,5 +206,31 @@ func (at *AutoTrader) getBreakEvenState(symbol, side string) string {
 func (at *AutoTrader) clearBreakEvenState(symbol, side string) {
 	at.breakEvenStateMutex.Lock()
 	defer at.breakEvenStateMutex.Unlock()
-	delete(at.breakEvenState, symbol+"_"+strings.ToLower(side))
+	delete(at.breakEvenState, positionKey(symbol, side))
+}
+
+func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{}) {
+	at.protectionStateMutex.Lock()
+	for key := range at.protectionState {
+		if _, ok := active[key]; !ok {
+			delete(at.protectionState, key)
+		}
+	}
+	at.protectionStateMutex.Unlock()
+
+	at.breakEvenStateMutex.Lock()
+	for key := range at.breakEvenState {
+		if _, ok := active[key]; !ok {
+			delete(at.breakEvenState, key)
+		}
+	}
+	at.breakEvenStateMutex.Unlock()
+
+	at.peakPnLCacheMutex.Lock()
+	for key := range at.peakPnLCache {
+		if _, ok := active[key]; !ok {
+			delete(at.peakPnLCache, key)
+		}
+	}
+	at.peakPnLCacheMutex.Unlock()
 }

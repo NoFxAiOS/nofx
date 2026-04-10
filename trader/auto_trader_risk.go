@@ -118,8 +118,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		matchedBreakEven := at.getActiveBreakEvenConfig()
 		if matchedBreakEven != nil {
-			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
-				logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
+			if at.getBreakEvenState(symbol, side) != "armed" {
+				if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
+					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
+				} else if currentPnLPct >= matchedBreakEven.TriggerValue {
+					at.setBreakEvenState(symbol, side, "armed")
+					at.setProtectionState(symbol, side, "break_even_armed")
+				}
 			}
 		}
 
@@ -146,8 +151,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		logger.Infof("✅ Drawdown take-profit succeeded: %s %s", symbol, side)
+		at.setProtectionState(symbol, side, "drawdown_triggered")
 		if closeQty == 0 {
 			at.ClearPeakPnLCache(symbol, side)
+			at.clearBreakEvenState(symbol, side)
 		} else {
 			at.UpdatePeakPnL(symbol, side, currentPnLPct)
 		}

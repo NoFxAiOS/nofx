@@ -232,6 +232,8 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			"unrealized_pnl_pct": pnlPct,
 			"liquidation_price":  liquidationPrice,
 			"margin_used":        marginUsed,
+			"protection_state":   at.getProtectionState(symbol, side),
+			"break_even_state":   at.getBreakEvenState(symbol, side),
 		})
 	}
 

@@ -146,6 +146,8 @@ type AutoTrader struct {
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
 	protectionStateMutex  sync.RWMutex       // Protects last protection reconcile state
 	protectionState       map[string]string  // symbol_side -> last known protection status
+	breakEvenStateMutex   sync.RWMutex       // Protects break-even armed state per position
+	breakEvenState        map[string]string  // symbol_side -> idle/armed
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
@@ -363,6 +365,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		peakPnLCacheMutex:     sync.RWMutex{},
 		protectionStateMutex:  sync.RWMutex{},
 		protectionState:       make(map[string]string),
+		breakEvenStateMutex:   sync.RWMutex{},
+		breakEvenState:        make(map[string]string),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil

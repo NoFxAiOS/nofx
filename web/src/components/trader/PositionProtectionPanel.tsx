@@ -214,6 +214,16 @@ export function PositionProtectionPanel({ traderId, positions, language }: Posit
 
               <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6 space-y-2">
                 <div className="font-semibold text-nofx-text-main mb-1">{language === 'zh' ? '本地运行态保护' : 'Local Runtime Protection'}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
+                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保护巡检状态' : 'Protection Reconcile State'}</div>
+                    <div className="font-mono text-nofx-text-main">{position.protection_state || (language === 'zh' ? '未知' : 'unknown')}</div>
+                  </div>
+                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
+                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损状态' : 'Break-even State'}</div>
+                    <div className="font-mono text-nofx-text-main">{position.break_even_state || (language === 'zh' ? '未触发' : 'idle')}</div>
+                  </div>
+                </div>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>{language === 'zh' ? 'Drawdown Take Profit 与 Break-even Stop 仅在交易所无法直接表达规则时，才应由本地持续监控执行。' : 'Drawdown TP and Break-even Stop should only remain local when the exchange cannot express the rule natively.'}</li>
                   <li>{language === 'zh' ? '每个持仓都应独立维护保护，不应因别的持仓已完成挂单而停止监控。' : 'Each position should keep its own protection state; one protected position must not stop monitoring another.'}</li>

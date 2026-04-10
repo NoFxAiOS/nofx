@@ -173,3 +173,27 @@ func (at *AutoTrader) setProtectionState(symbol, side, state string) {
 	defer at.protectionStateMutex.Unlock()
 	at.protectionState[symbol+"_"+strings.ToLower(side)] = state
 }
+
+func (at *AutoTrader) getProtectionState(symbol, side string) string {
+	at.protectionStateMutex.RLock()
+	defer at.protectionStateMutex.RUnlock()
+	return at.protectionState[symbol+"_"+strings.ToLower(side)]
+}
+
+func (at *AutoTrader) setBreakEvenState(symbol, side, state string) {
+	at.breakEvenStateMutex.Lock()
+	defer at.breakEvenStateMutex.Unlock()
+	at.breakEvenState[symbol+"_"+strings.ToLower(side)] = state
+}
+
+func (at *AutoTrader) getBreakEvenState(symbol, side string) string {
+	at.breakEvenStateMutex.RLock()
+	defer at.breakEvenStateMutex.RUnlock()
+	return at.breakEvenState[symbol+"_"+strings.ToLower(side)]
+}
+
+func (at *AutoTrader) clearBreakEvenState(symbol, side string) {
+	at.breakEvenStateMutex.Lock()
+	defer at.breakEvenStateMutex.Unlock()
+	delete(at.breakEvenState, symbol+"_"+strings.ToLower(side))
+}

@@ -40,6 +40,8 @@ export interface Position {
   unrealized_pnl_pct: number
   liquidation_price: number
   margin_used: number
+  protection_state?: string
+  break_even_state?: string
 }
 
 export interface ProtectionSnapshotFullTPSL {

@@ -735,6 +735,7 @@ export function TraderDashboardPage({
                             traderId={selectedTraderId}
                             positions={positions}
                             language={language}
+                            exchange={getExchangeTypeFromList(selectedTrader?.exchange_id, exchanges)}
                         />
                     </div>
 

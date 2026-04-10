@@ -8,6 +8,7 @@ interface PositionProtectionPanelProps {
   traderId?: string
   positions?: Position[]
   language: Language
+  exchange?: string
 }
 
 function isStopLoss(order: OpenOrder): boolean {
@@ -24,16 +25,17 @@ function normalizeSide(side?: string): string {
   return String(side || '').toUpperCase()
 }
 
-function formatProtectionState(state: string | undefined, language: Language): string {
+function formatProtectionState(state: string | undefined, language: Language, exchange?: string): string {
   if (!state) return language === 'zh' ? '未知' : 'unknown'
   const value = state.trim().toLowerCase()
+  const exchangeLabel = exchange ? exchange.toUpperCase() : (language === 'zh' ? '交易所' : 'exchange')
   switch (value) {
     case 'exchange_protection_verified':
       return language === 'zh' ? '交易所保护已校验' : 'exchange protection verified'
     case 'break_even_armed':
       return language === 'zh' ? '保本保护已挂单' : 'break-even armed'
     case 'native_trailing_armed':
-      return language === 'zh' ? '交易所原生移动保护已激活' : 'native trailing armed'
+      return language === 'zh' ? `${exchangeLabel} 原生移动保护已激活` : `${exchangeLabel} native trailing armed`
     case 'drawdown_triggered':
       return language === 'zh' ? '回撤保护已触发' : 'drawdown triggered'
     default:
@@ -51,7 +53,7 @@ function formatBreakEvenState(state: string | undefined, language: Language): st
   }
 }
 
-export function PositionProtectionPanel({ traderId, positions, language }: PositionProtectionPanelProps) {
+export function PositionProtectionPanel({ traderId, positions, language, exchange }: PositionProtectionPanelProps) {
   const [ordersBySymbol, setOrdersBySymbol] = useState<Record<string, OpenOrder[]>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -244,7 +246,7 @@ export function PositionProtectionPanel({ traderId, positions, language }: Posit
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
                     <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保护巡检状态' : 'Protection Reconcile State'}</div>
-                    <div className="font-mono text-nofx-text-main">{formatProtectionState(position.protection_state, language)}</div>
+                    <div className="font-mono text-nofx-text-main">{formatProtectionState(position.protection_state, language, exchange)}</div>
                   </div>
                   <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
                     <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损状态' : 'Break-even State'}</div>
@@ -262,9 +264,15 @@ export function PositionProtectionPanel({ traderId, positions, language }: Posit
 
         <div className="rounded-lg border border-indigo-400/20 bg-indigo-500/5 p-4 text-xs text-nofx-text-muted leading-6">
           <div className="font-semibold text-indigo-300 mb-2">{language === 'zh' ? '当前交易所原生保护能力摘要（基于系统能力矩阵）' : 'Current Exchange-native Protection Capability Summary'}</div>
+          {exchange ? (
+            <div className="mb-3 rounded border border-indigo-400/20 bg-black/20 px-3 py-2 font-mono text-nofx-text-main">
+              {language === 'zh' ? `当前账户交易所：${exchange.toUpperCase()}` : `Current exchange: ${exchange.toUpperCase()}`}
+            </div>
+          ) : null}
           <ul className="list-disc pl-5 space-y-1">
             <li>{language === 'zh' ? 'Binance / OKX：原生 stop / tp / partial close 能力较完整。' : 'Binance / OKX currently expose the strongest native stop / tp / partial-close support in the system.'}</li>
-            <li>{language === 'zh' ? 'Gate / KuCoin / Bybit / Bitget / Aster：支持原生 stop / tp / partial close，但改单能力相对弱。' : 'Gate / KuCoin / Bybit / Bitget / Aster support native stop / tp / partial close, but amend flows are weaker.'}</li>
+            <li>{language === 'zh' ? 'Bitget：现已接入原生 trailing drawdown 路径。' : 'Bitget now has a native trailing drawdown path integrated.'}</li>
+            <li>{language === 'zh' ? 'Gate / KuCoin / Bybit / Aster：支持原生 stop / tp / partial close，但改单能力相对弱。' : 'Gate / KuCoin / Bybit / Aster support native stop / tp / partial close, but amend flows are weaker.'}</li>
             <li>{language === 'zh' ? 'Hyperliquid：支持原生 stop / tp，但 stop/tp 区分与取消存在特殊性。' : 'Hyperliquid supports native stop / tp, but stop/tp distinction and cancellation semantics are special.'}</li>
             <li>{language === 'zh' ? 'Lighter：支持 stop / tp，但 partial close 能力矩阵当前偏保守。' : 'Lighter supports stop / tp, but the current safety matrix is conservative about partial close.'}</li>
           </ul>

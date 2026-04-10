@@ -132,7 +132,7 @@ export function PositionProtectionPanel({ traderId, position, language }: Positi
             <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="font-semibold text-red-300">
-                  {language === 'zh' ? '交易所止损保护' : 'Exchange Stop Loss Protection'}
+                  {language === 'zh' ? '交易所委托保护：止损' : 'Exchange-native Protection: Stop Loss'}
                 </div>
                 <span className={`text-[10px] px-2 py-1 rounded-full ${stopOrders.length > 0 ? 'bg-red-500/15 text-red-300' : 'bg-white/5 text-nofx-text-muted'}`}>
                   {stopOrders.length > 0
@@ -163,10 +163,17 @@ export function PositionProtectionPanel({ traderId, position, language }: Positi
                   })}
                 </div>
               ) : (
-                <div className="text-xs text-nofx-text-muted">
-                  {language === 'zh'
-                    ? '当前没有识别到与该仓位匹配的止损委托。'
-                    : 'No stop-loss order currently matched for this position.'}
+                <div className="text-xs text-nofx-text-muted space-y-1">
+                  <div>
+                    {language === 'zh'
+                      ? '当前没有识别到与该仓位匹配的止损委托。'
+                      : 'No stop-loss order currently matched for this position.'}
+                  </div>
+                  <div>
+                    {language === 'zh'
+                      ? '原则：只要交易所支持，止损应优先下到交易所，不应只依赖本地。'
+                      : 'Policy: if the exchange supports it, stop loss should live on-exchange rather than only locally.'}
+                  </div>
                 </div>
               )}
             </div>
@@ -174,7 +181,7 @@ export function PositionProtectionPanel({ traderId, position, language }: Positi
             <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="font-semibold text-green-300">
-                  {language === 'zh' ? '交易所止盈保护' : 'Exchange Take Profit Protection'}
+                  {language === 'zh' ? '交易所委托保护：止盈' : 'Exchange-native Protection: Take Profit'}
                 </div>
                 <span className={`text-[10px] px-2 py-1 rounded-full ${takeProfitOrders.length > 0 ? 'bg-green-500/15 text-green-300' : 'bg-white/5 text-nofx-text-muted'}`}>
                   {takeProfitOrders.length > 0
@@ -205,30 +212,42 @@ export function PositionProtectionPanel({ traderId, position, language }: Positi
                   })}
                 </div>
               ) : (
-                <div className="text-xs text-nofx-text-muted">
-                  {language === 'zh'
-                    ? '当前没有识别到与该仓位匹配的止盈委托。'
-                    : 'No take-profit order currently matched for this position.'}
+                <div className="text-xs text-nofx-text-muted space-y-1">
+                  <div>
+                    {language === 'zh'
+                      ? '当前没有识别到与该仓位匹配的止盈委托。'
+                      : 'No take-profit order currently matched for this position.'}
+                  </div>
+                  <div>
+                    {language === 'zh'
+                      ? '原则：只要交易所支持，止盈应优先下到交易所，不应只依赖本地。'
+                      : 'Policy: if the exchange supports it, take profit should live on-exchange rather than only locally.'}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
           {hasRuntimeConfigHint && (
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6 space-y-2">
               <div className="font-semibold text-nofx-text-main mb-1">
-                {language === 'zh' ? '运行态保护说明' : 'Runtime Protection Notes'}
+                {language === 'zh' ? '本地运行态保护' : 'Local Runtime Protection'}
               </div>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
                   {language === 'zh'
-                    ? 'Drawdown Take Profit 与 Break-even Stop 属于本地监控型保护，不一定会在交易所形成独立常驻委托。'
-                    : 'Drawdown Take Profit and Break-even Stop are runtime protections and may not always appear as persistent exchange orders.'}
+                    ? 'Drawdown Take Profit 与 Break-even Stop 属于本地监控型保护：只有在交易所无法直接表达该规则时，才应由本地持续监控执行。'
+                    : 'Drawdown Take Profit and Break-even Stop are local runtime protections and should only be used where the exchange cannot express the rule natively.'}
                 </li>
                 <li>
                   {language === 'zh'
-                    ? '本面板优先反映交易所当前可见的止盈/止损委托；运行态保护的配置与执行上下文请结合 Recent Decisions 中的 protection snapshot 一起复核。'
-                    : 'This panel reflects currently visible exchange TP/SL orders. Review runtime protection config/execution together with the protection snapshot in Recent Decisions.'}
+                    ? '交易所能直接承载的止盈/止损/分批保护，应优先在交易所委托落地；本地只做兜底或无法原生表达的规则。'
+                    : 'Anything the exchange can hold natively (TP/SL/ladder protection) should be placed on-exchange first; local logic is only for fallback or non-native rules.'}
+                </li>
+                <li>
+                  {language === 'zh'
+                    ? '本面板上方显示的是交易所当前可见委托；本地保护规则明细请到 Recent Decisions 中查看详细 Protection Snapshot。'
+                    : 'The panels above show currently visible exchange orders; inspect detailed local protection rules in the Protection Snapshot under Recent Decisions.'}
                 </li>
               </ul>
             </div>

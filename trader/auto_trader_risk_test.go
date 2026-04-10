@@ -114,6 +114,41 @@ func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
 	}
 }
 
+func TestApplyNativeTrailingDrawdownForBitget(t *testing.T) {
+	fake := &fakeProtectionTrader{}
+	at := &AutoTrader{
+		exchange: "bitget",
+		trader:   fake,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
+		},
+		protectionState: make(map[string]string),
+	}
+
+	rule := store.DrawdownTakeProfitRule{
+		MinProfitPct:   4,
+		MaxDrawdownPct: 1.5,
+		CloseRatioPct:  100,
+	}
+
+	ok := at.applyNativeTrailingDrawdown("ETHUSDT", "short", 100, rule)
+	if !ok {
+		t.Fatal("expected native trailing drawdown to be applied for bitget")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected 1 trailing call, got %d", fake.trailingCalls)
+	}
+	if fake.trailingActivation >= 100 {
+		t.Fatalf("expected activation below entry for short, got %.4f", fake.trailingActivation)
+	}
+	if fake.trailingCallback != 1.5 {
+		t.Fatalf("expected callback rate 1.5, got %.4f", fake.trailingCallback)
+	}
+	if at.getProtectionState("ETHUSDT", "short") != "native_trailing_armed" {
+		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("ETHUSDT", "short"))
+	}
+}
+
 func TestMatchDrawdownRule(t *testing.T) {
 	at := &AutoTrader{}
 	 rules := []store.DrawdownTakeProfitRule{

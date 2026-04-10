@@ -9,6 +9,91 @@ import (
 	"strings"
 )
 
+func (t *BitgetTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error {
+	symbol = t.convertSymbol(symbol)
+
+	side := "open_long"
+	if strings.ToUpper(positionSide) == "SHORT" {
+		side = "open_short"
+	}
+
+	positions, err := t.GetPositions()
+	if err != nil {
+		return fmt.Errorf("failed to get positions for trailing stop: %w", err)
+	}
+
+	quantity := 0.0
+	for _, pos := range positions {
+		if pos["symbol"] == symbol && strings.EqualFold(fmt.Sprint(pos["side"]), strings.ToLower(positionSide)) {
+			if q, ok := pos["positionAmt"].(float64); ok {
+				quantity = q
+				if quantity < 0 {
+					quantity = -quantity
+				}
+				break
+			}
+		}
+	}
+	if quantity <= 0 {
+		return fmt.Errorf("no active position found for trailing stop: %s %s", symbol, positionSide)
+	}
+
+	qtyStr, _ := t.FormatQuantity(symbol, quantity)
+	body := map[string]interface{}{
+		"symbol":       symbol,
+		"marginCoin":   "USDT",
+		"size":         qtyStr,
+		"triggerPrice": fmt.Sprintf("%.8f", activationPrice),
+		"side":         side,
+		"rangeRate":    fmt.Sprintf("%.2f", callbackRate),
+		"clientOid":    genBitgetClientOid(),
+	}
+
+	_, err = t.doRequest("POST", "/api/mix/v1/plan/placeTrailStop", body)
+	if err != nil {
+		return fmt.Errorf("failed to set trailing stop loss: %w", err)
+	}
+
+	logger.Infof("  ✓ [Bitget] Trailing stop set: %s activation=%.4f callback=%.2f", symbol, activationPrice, callbackRate)
+	return nil
+}
+
+func (t *BitgetTrader) CancelTrailingStopOrders(symbol string) error {
+	symbol = t.convertSymbol(symbol)
+	params := map[string]interface{}{
+		"symbol": symbol,
+		"isPlan": "plan",
+	}
+	data, err := t.doRequest("GET", "/api/mix/v1/plan/currentPlan", params)
+	if err != nil {
+		return fmt.Errorf("failed to get trailing stop plans: %w", err)
+	}
+
+	var orders []struct {
+		OrderId  string `json:"orderId"`
+		PlanType string `json:"planType"`
+	}
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return fmt.Errorf("failed to parse trailing stop plans: %w", err)
+	}
+
+	for _, order := range orders {
+		if order.PlanType != "track_plan" {
+			continue
+		}
+		body := map[string]interface{}{
+			"symbol":   symbol,
+			"marginCoin": "USDT",
+			"orderId":  order.OrderId,
+			"planType": "track_plan",
+		}
+		if _, err := t.doRequest("POST", "/api/mix/v1/plan/cancelPlan", body); err != nil {
+			logger.Infof("  ⚠️ [Bitget] Failed to cancel trailing stop %s: %v", order.OrderId, err)
+		}
+	}
+	return nil
+}
+
 // OpenLong opens long position
 func (t *BitgetTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	symbol = t.convertSymbol(symbol)

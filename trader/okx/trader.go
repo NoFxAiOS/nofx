@@ -32,6 +32,8 @@ const (
 	okxAlgoOrderPath     = "/api/v5/trade/order-algo"
 	okxCancelAlgoPath    = "/api/v5/trade/cancel-algos"
 	okxAlgoPendingPath   = "/api/v5/trade/orders-algo-pending"
+	okxAdvanceAlgoPath   = "/api/v5/trade/order-algo"
+	okxCancelAdvanceAlgoPath = "/api/v5/trade/cancel-advance-algos"
 	okxPositionModePath  = "/api/v5/account/set-position-mode"
 	okxAccountConfigPath = "/api/v5/account/config"
 )

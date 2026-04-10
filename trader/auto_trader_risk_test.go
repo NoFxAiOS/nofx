@@ -149,6 +149,41 @@ func TestApplyNativeTrailingDrawdownForBitget(t *testing.T) {
 	}
 }
 
+func TestApplyNativeTrailingDrawdownForOKX(t *testing.T) {
+	fake := &fakeProtectionTrader{}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   fake,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
+		},
+		protectionState: make(map[string]string),
+	}
+
+	rule := store.DrawdownTakeProfitRule{
+		MinProfitPct:   6,
+		MaxDrawdownPct: 2.5,
+		CloseRatioPct:  100,
+	}
+
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
+	if !ok {
+		t.Fatal("expected native trailing drawdown to be applied for okx")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected 1 trailing call, got %d", fake.trailingCalls)
+	}
+	if fake.trailingActivation <= 100 {
+		t.Fatalf("expected activation above entry for long, got %.4f", fake.trailingActivation)
+	}
+	if fake.trailingCallback != 2.5 {
+		t.Fatalf("expected callback rate 2.5, got %.4f", fake.trailingCallback)
+	}
+	if at.getProtectionState("BTCUSDT", "long") != "native_trailing_armed" {
+		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))
+	}
+}
+
 func TestMatchDrawdownRule(t *testing.T) {
 	at := &AutoTrader{}
 	 rules := []store.DrawdownTakeProfitRule{

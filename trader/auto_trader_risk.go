@@ -196,6 +196,8 @@ func (at *AutoTrader) supportsNativeTrailingStop() bool {
 		return caps.SupportsAlgoOrders && caps.CanAmendProtection
 	case "bitget":
 		return caps.NativeStopLoss && caps.NativeTakeProfit && caps.NativePartialClose
+	case "okx":
+		return caps.SupportsAlgoOrders && caps.CanAmendProtection
 	default:
 		return false
 	}
@@ -264,6 +266,21 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
 		if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate); err != nil {
+			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
+			return false
+		}
+	case "okx":
+		okxTrader, ok := at.trader.(interface {
+			SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error
+			CancelTrailingStopOrders(symbol string) error
+		})
+		if !ok {
+			return false
+		}
+		if err := okxTrader.CancelTrailingStopOrders(symbol); err != nil {
+			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
+		}
+		if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}

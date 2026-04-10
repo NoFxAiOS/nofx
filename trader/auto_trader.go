@@ -144,6 +144,8 @@ type AutoTrader struct {
 	monitorWg             sync.WaitGroup     // Used to wait for monitoring goroutine to finish
 	peakPnLCache          map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
+	protectionStateMutex  sync.RWMutex       // Protects last protection reconcile state
+	protectionState       map[string]string  // symbol_side -> last known protection status
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
@@ -359,6 +361,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		monitorWg:             sync.WaitGroup{},
 		peakPnLCache:          make(map[string]float64),
 		peakPnLCacheMutex:     sync.RWMutex{},
+		protectionStateMutex:  sync.RWMutex{},
+		protectionState:       make(map[string]string),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil
@@ -385,6 +389,7 @@ func (at *AutoTrader) Run() error {
 
 	// Start drawdown monitoring
 	at.startDrawdownMonitor()
+	at.startProtectionReconciler()
 
 	// Start Lighter order sync if using Lighter exchange
 	if at.exchange == "lighter" {

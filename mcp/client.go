@@ -271,13 +271,13 @@ func (client *Client) ParseMCPResponse(body []byte) (string, error) {
 
 // ParseMCPResponseFull parses the OpenAI-format response body and returns both
 // the text content and any tool calls.
+// Handles API proxies that may return content in alternative fields
+// (e.g. reasoning_content, refusal) or return content as null.
 func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
-	var result struct {
+	// First pass: use raw JSON to handle content:null and alternative fields
+	var raw struct {
 		Choices []struct {
-			Message struct {
-				Content   string     `json:"content"`
-				ToolCalls []ToolCall `json:"tool_calls"`
-			} `json:"message"`
+			Message json.RawMessage `json:"message"`
 		} `json:"choices"`
 		Usage struct {
 			PromptTokens     int `json:"prompt_tokens"`
@@ -286,29 +286,92 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 		} `json:"usage"`
 	}
 
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Choices) == 0 {
+	if len(raw.Choices) == 0 {
 		return nil, fmt.Errorf("API returned empty response")
 	}
 
 	// Report token usage if callback is set
-	if TokenUsageCallback != nil && result.Usage.TotalTokens > 0 {
+	if TokenUsageCallback != nil && raw.Usage.TotalTokens > 0 {
 		TokenUsageCallback(TokenUsage{
 			Provider:         client.Provider,
 			Model:            client.Model,
-			PromptTokens:     result.Usage.PromptTokens,
-			CompletionTokens: result.Usage.CompletionTokens,
-			TotalTokens:      result.Usage.TotalTokens,
+			PromptTokens:     raw.Usage.PromptTokens,
+			CompletionTokens: raw.Usage.CompletionTokens,
+			TotalTokens:      raw.Usage.TotalTokens,
 		})
 	}
 
-	msg := result.Choices[0].Message
+	// Parse message as a flexible map to capture all fields
+	var msgMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw.Choices[0].Message, &msgMap); err != nil {
+		return nil, fmt.Errorf("failed to parse message: %w", err)
+	}
+
+	// Extract content — try multiple fields that API proxies may use
+	var content string
+	contentFound := false
+
+	// Primary: "content" field
+	if rawContent, ok := msgMap["content"]; ok {
+		var s string
+		if err := json.Unmarshal(rawContent, &s); err == nil && s != "" {
+			content = s
+			contentFound = true
+		}
+	}
+
+	// Fallback 1: "reasoning_content" (some OpenAI-compatible proxies put thinking here)
+	if !contentFound {
+		if rawRC, ok := msgMap["reasoning_content"]; ok {
+			var s string
+			if err := json.Unmarshal(rawRC, &s); err == nil && s != "" {
+				client.Log.Warnf("⚠️  [%s] content was empty, using reasoning_content field (%d chars)", client.String(), len(s))
+				content = s
+				contentFound = true
+			}
+		}
+	}
+
+	// Fallback 2: "reasoning" field
+	if !contentFound {
+		if rawR, ok := msgMap["reasoning"]; ok {
+			var s string
+			if err := json.Unmarshal(rawR, &s); err == nil && s != "" {
+				client.Log.Warnf("⚠️  [%s] content was empty, using reasoning field (%d chars)", client.String(), len(s))
+				content = s
+				contentFound = true
+			}
+		}
+	}
+
+	// Debug: log when content is empty despite receiving a response
+	if !contentFound {
+		// Log available message fields for debugging
+		fields := make([]string, 0, len(msgMap))
+		for k := range msgMap {
+			fields = append(fields, k)
+		}
+		preview := string(raw.Choices[0].Message)
+		if len(preview) > 500 {
+			preview = preview[:500] + "..."
+		}
+		client.Log.Warnf("⚠️  [%s] AI response content is empty. Message fields: %v. Preview: %s",
+			client.String(), fields, preview)
+	}
+
+	// Extract tool calls
+	var toolCalls []ToolCall
+	if rawTC, ok := msgMap["tool_calls"]; ok {
+		json.Unmarshal(rawTC, &toolCalls)
+	}
+
 	return &LLMResponse{
-		Content:   msg.Content,
-		ToolCalls: msg.ToolCalls,
+		Content:   content,
+		ToolCalls: toolCalls,
 	}, nil
 }
 

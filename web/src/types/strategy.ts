@@ -50,7 +50,7 @@ export interface StrategyConfig {
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
-  grid_config?: GridStrategyConfig;
+  grid_config?: GridStrategyConfig | null;
 }
 
 // Grid trading specific configuration

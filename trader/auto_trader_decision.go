@@ -222,18 +222,20 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
 		result = append(result, map[string]interface{}{
-			"symbol":             symbol,
-			"side":               side,
-			"entry_price":        entryPrice,
-			"mark_price":         markPrice,
-			"quantity":           quantity,
-			"leverage":           leverage,
-			"unrealized_pnl":     unrealizedPnl,
-			"unrealized_pnl_pct": pnlPct,
-			"liquidation_price":  liquidationPrice,
-			"margin_used":        marginUsed,
-			"protection_state":   at.getProtectionState(symbol, side),
-			"break_even_state":   at.getBreakEvenState(symbol, side),
+			"symbol":                symbol,
+			"side":                  side,
+			"entry_price":           entryPrice,
+			"mark_price":            markPrice,
+			"quantity":              quantity,
+			"leverage":              leverage,
+			"unrealized_pnl":        unrealizedPnl,
+			"unrealized_pnl_pct":    pnlPct,
+			"liquidation_price":     liquidationPrice,
+			"margin_used":           marginUsed,
+			"protection_state":      at.getProtectionState(symbol, side),
+			"break_even_state":      at.getBreakEvenState(symbol, side),
+			"drawdown_execution_mode": at.getDrawdownExecutionMode(symbol, side),
+			"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
 		})
 	}
 

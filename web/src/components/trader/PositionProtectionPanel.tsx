@@ -53,6 +53,20 @@ function formatBreakEvenState(state: string | undefined, language: Language): st
   }
 }
 
+function formatExecutionMode(mode: string | undefined, language: Language): string {
+  if (!mode) return language === 'zh' ? '未确定' : 'undetermined'
+  switch (mode.trim().toLowerCase()) {
+    case 'native_trailing':
+      return language === 'zh' ? '交易所原生 trailing' : 'exchange-native trailing'
+    case 'native_stop':
+      return language === 'zh' ? '交易所原生 stop' : 'exchange-native stop'
+    case 'local_fallback':
+      return language === 'zh' ? '本地 fallback' : 'local fallback'
+    default:
+      return mode
+  }
+}
+
 export function PositionProtectionPanel({ traderId, positions, language, exchange }: PositionProtectionPanelProps) {
   const [ordersBySymbol, setOrdersBySymbol] = useState<Record<string, OpenOrder[]>>({})
   const [loading, setLoading] = useState(false)
@@ -251,6 +265,14 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
                     <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损状态' : 'Break-even State'}</div>
                     <div className="font-mono text-nofx-text-main">{formatBreakEvenState(position.break_even_state, language)}</div>
+                  </div>
+                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
+                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '回撤止盈执行模式' : 'Drawdown Execution Mode'}</div>
+                    <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.drawdown_execution_mode, language)}</div>
+                  </div>
+                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
+                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损执行模式' : 'Break-even Execution Mode'}</div>
+                    <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.break_even_execution_mode, language)}</div>
                   </div>
                 </div>
                 <ul className="list-disc pl-5 space-y-1">

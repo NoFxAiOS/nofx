@@ -209,6 +209,22 @@ func (at *AutoTrader) clearBreakEvenState(symbol, side string) {
 	delete(at.breakEvenState, positionKey(symbol, side))
 }
 
+func (at *AutoTrader) getDrawdownExecutionMode(symbol, side string) string {
+	state := at.getProtectionState(symbol, side)
+	if state == "native_trailing_armed" {
+		return "native_trailing"
+	}
+	return "local_fallback"
+}
+
+func (at *AutoTrader) getBreakEvenExecutionMode(symbol, side string) string {
+	state := at.getBreakEvenState(symbol, side)
+	if state == "armed" {
+		return "native_stop"
+	}
+	return "local_fallback"
+}
+
 func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{}) {
 	at.protectionStateMutex.Lock()
 	for key := range at.protectionState {

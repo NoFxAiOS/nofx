@@ -112,6 +112,11 @@ func (s *UserStore) UpdatePassword(userID, passwordHash string) error {
 	}).Error
 }
 
+// DeleteAll deletes all users (reset system to uninitialized state)
+func (s *UserStore) DeleteAll() error {
+	return s.db.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&User{}).Error
+}
+
 // EnsureAdmin ensures admin user exists
 func (s *UserStore) EnsureAdmin() error {
 	var count int64

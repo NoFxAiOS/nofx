@@ -117,6 +117,7 @@ func (s *Server) setupRoutes() {
 		s.route(api, "POST", "/register", "Register new user", s.handleRegister)
 		s.route(api, "POST", "/login", "User login, returns JWT token", s.handleLogin)
 		s.route(api, "POST", "/reset-password", "Reset password", s.handleResetPassword)
+		s.route(api, "POST", "/reset-account", "Clear all users and reset system to allow re-registration", s.handleResetAccount)
 
 		// Routes requiring authentication
 		protected := api.Group("/", s.authMiddleware())

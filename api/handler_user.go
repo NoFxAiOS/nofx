@@ -102,6 +102,10 @@ func (s *Server) handleRegister(c *gin.Context) {
 		return
 	}
 
+	// Adopt orphan records from previous account (e.g. after account reset)
+	// This preserves wallet keys and exchange configs so funds are not lost.
+	s.adoptOrphanRecords(userID)
+
 	// Generate JWT token
 	token, err := auth.GenerateJWT(user.ID, user.Email)
 	if err != nil {
@@ -220,6 +224,50 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 
 	logger.Infof("✓ User %s password has been reset", user.Email)
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful, please login with new password"})
+}
+
+// handleResetAccount clears user authentication data so the system returns to
+// uninitialized state for re-registration. Wallet keys (ai_models) are preserved
+// so funds are not lost — they will be adopted by the new account during onboarding.
+func (s *Server) handleResetAccount(c *gin.Context) {
+	err := s.store.Transaction(func(tx *gorm.DB) error {
+		// Delete traders and strategies (config, not funds)
+		tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.Trader{})
+		tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.Strategy{})
+		// Delete users — ai_models and exchanges are intentionally kept
+		// so wallet private keys and exchange configs survive re-registration
+		if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.User{}).Error; err != nil {
+			return fmt.Errorf("failed to delete users: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		SafeInternalError(c, "Failed to reset account", err)
+		return
+	}
+
+	logger.Infof("✓ User accounts cleared (wallets preserved) — system reset to uninitialized")
+	c.JSON(http.StatusOK, gin.H{"message": "Account reset successful, you can now register a new account"})
+}
+
+// adoptOrphanRecords re-assigns ai_models and exchanges whose user_id no longer
+// exists in the users table. This happens after account reset so the new user
+// inherits the previous wallet keys and exchange configurations.
+func (s *Server) adoptOrphanRecords(newUserID string) {
+	db := s.store.GormDB()
+	result := db.Model(&store.AIModel{}).
+		Where("user_id NOT IN (SELECT id FROM users)").
+		Update("user_id", newUserID)
+	if result.RowsAffected > 0 {
+		logger.Infof("✓ Adopted %d orphan ai_model(s) for new user %s", result.RowsAffected, newUserID)
+	}
+
+	result = db.Model(&store.Exchange{}).
+		Where("user_id NOT IN (SELECT id FROM users)").
+		Update("user_id", newUserID)
+	if result.RowsAffected > 0 {
+		logger.Infof("✓ Adopted %d orphan exchange(s) for new user %s", result.RowsAffected, newUserID)
+	}
 }
 
 // initUserDefaultConfigs Initialize default configs for new user

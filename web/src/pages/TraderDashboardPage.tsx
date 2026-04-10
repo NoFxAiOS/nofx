@@ -146,7 +146,6 @@ export function TraderDashboardPage({
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
-    const [selectedProtectionSymbol, setSelectedProtectionSymbol] = useState<string | null>(null)
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -159,22 +158,11 @@ export function TraderDashboardPage({
         (positionsCurrentPage - 1) * positionsPageSize,
         positionsCurrentPage * positionsPageSize
     ) || []
-    const selectedProtectionPosition = positions?.find((pos) => pos.symbol === selectedProtectionSymbol) || paginatedPositions[0]
 
     // Reset page when positions change
     useEffect(() => {
         setPositionsCurrentPage(1)
     }, [selectedTraderId, positionsPageSize])
-
-    useEffect(() => {
-        if (!positions || positions.length === 0) {
-            setSelectedProtectionSymbol(null)
-            return
-        }
-        if (!selectedProtectionSymbol || !positions.some((pos) => pos.symbol === selectedProtectionSymbol)) {
-            setSelectedProtectionSymbol(positions[0].symbol)
-        }
-    }, [positions, selectedProtectionSymbol])
 
     // Auto-set chart symbol for grid trading
     useEffect(() => {
@@ -630,7 +618,6 @@ export function TraderDashboardPage({
                                                         className="border-b border-white/5 last:border-0 transition-all hover:bg-white/5 cursor-pointer group/row"
                                                         onClick={() => {
                                                             setSelectedChartSymbol(pos.symbol)
-                                                            setSelectedProtectionSymbol(pos.symbol)
                                                             setChartUpdateKey(Date.now())
                                                             if (chartSectionRef.current) {
                                                                 chartSectionRef.current.scrollIntoView({
@@ -746,7 +733,7 @@ export function TraderDashboardPage({
 
                         <PositionProtectionPanel
                             traderId={selectedTraderId}
-                            position={selectedProtectionPosition}
+                            positions={positions}
                             language={language}
                         />
                     </div>

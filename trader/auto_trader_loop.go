@@ -41,6 +41,68 @@ func (at *AutoTrader) runCycle() error {
 		Success:      true,
 	}
 
+	// Populate protection snapshot from strategy config
+	if at.config.StrategyConfig != nil {
+		protCfg := at.config.StrategyConfig.Protection
+		ps := &store.ProtectionSnapshot{}
+		hasProtection := false
+
+		if protCfg.FullTPSL.Enabled {
+			hasProtection = true
+			ps.FullTPSL = &store.ProtectionSnapshotFullTPSL{
+				Enabled:       true,
+				Mode:          string(protCfg.FullTPSL.Mode),
+				TakeProfitPct: protCfg.FullTPSL.TakeProfit.PriceMovePct,
+				StopLossPct:   protCfg.FullTPSL.StopLoss.PriceMovePct,
+			}
+		}
+
+		if protCfg.LadderTPSL.Enabled {
+			hasProtection = true
+			ladder := &store.ProtectionSnapshotLadder{
+				Enabled:           true,
+				Mode:              string(protCfg.LadderTPSL.Mode),
+				TakeProfitEnabled: protCfg.LadderTPSL.TakeProfitEnabled,
+				StopLossEnabled:   protCfg.LadderTPSL.StopLossEnabled,
+			}
+			for _, r := range protCfg.LadderTPSL.Rules {
+				ladder.Rules = append(ladder.Rules, store.ProtectionSnapshotLadderRule{
+					TakeProfitPct:           r.TakeProfitPct,
+					TakeProfitCloseRatioPct: r.TakeProfitCloseRatioPct,
+					StopLossPct:             r.StopLossPct,
+					StopLossCloseRatioPct:   r.StopLossCloseRatioPct,
+				})
+			}
+			ps.LadderTPSL = ladder
+		}
+
+		if protCfg.DrawdownTakeProfit.Enabled && len(protCfg.DrawdownTakeProfit.Rules) > 0 {
+			hasProtection = true
+			for _, r := range protCfg.DrawdownTakeProfit.Rules {
+				ps.Drawdown = append(ps.Drawdown, store.ProtectionSnapshotDrawdown{
+					MinProfitPct:   r.MinProfitPct,
+					MaxDrawdownPct: r.MaxDrawdownPct,
+					CloseRatioPct:  r.CloseRatioPct,
+					PollIntervalS:  r.PollIntervalSeconds,
+				})
+			}
+		}
+
+		if protCfg.BreakEvenStop.Enabled {
+			hasProtection = true
+			ps.BreakEven = &store.ProtectionSnapshotBreakEven{
+				Enabled:      true,
+				TriggerMode:  string(protCfg.BreakEvenStop.TriggerMode),
+				TriggerValue: protCfg.BreakEvenStop.TriggerValue,
+				OffsetPct:    protCfg.BreakEvenStop.OffsetPct,
+			}
+		}
+
+		if hasProtection {
+			record.ProtectionSnapshot = ps
+		}
+	}
+
 	// 1. Check if trading needs to be stopped
 	if time.Now().Before(at.stopUntil) {
 		remaining := at.stopUntil.Sub(time.Now())

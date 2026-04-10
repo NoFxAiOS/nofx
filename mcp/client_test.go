@@ -368,6 +368,111 @@ func TestClient_IsRetryableError(t *testing.T) {
 }
 
 // ============================================================
+// Test ParseMCPResponseFull regression cases
+// ============================================================
+
+func TestClient_ParseMCPResponseFull_ContentNullUsesReasoningContent(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	body := []byte(`{
+		"choices": [
+			{
+				"message": {
+					"content": null,
+					"reasoning_content": "fallback reasoning text"
+				}
+			}
+		],
+		"usage": {
+			"prompt_tokens": 10,
+			"completion_tokens": 20,
+			"total_tokens": 30
+		}
+	}`)
+
+	resp, err := c.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("should not error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("response should not be nil")
+	}
+	if resp.Content != "fallback reasoning text" {
+		t.Fatalf("expected reasoning_content fallback, got %q", resp.Content)
+	}
+	if len(resp.ToolCalls) != 0 {
+		t.Fatalf("expected no tool calls, got %d", len(resp.ToolCalls))
+	}
+}
+
+func TestClient_ParseMCPResponseFull_UsesReasoningFallback(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	body := []byte(`{
+		"choices": [
+			{
+				"message": {
+					"content": "",
+					"reasoning": "reasoning fallback text"
+				}
+			}
+		]
+	}`)
+
+	resp, err := c.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("should not error: %v", err)
+	}
+	if resp.Content != "reasoning fallback text" {
+		t.Fatalf("expected reasoning fallback, got %q", resp.Content)
+	}
+}
+
+func TestClient_ParseMCPResponseFull_ParsesToolCalls(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	body := []byte(`{
+		"choices": [
+			{
+				"message": {
+					"content": null,
+					"tool_calls": [
+						{
+							"id": "call_123",
+							"type": "function",
+							"function": {
+								"name": "place_order",
+								"arguments": "{\"symbol\":\"BTCUSDT\"}"
+							}
+						}
+					]
+				}
+			}
+		]
+	}`)
+
+	resp, err := c.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("should not error: %v", err)
+	}
+	if len(resp.ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(resp.ToolCalls))
+	}
+	if resp.ToolCalls[0].ID != "call_123" {
+		t.Fatalf("unexpected tool call id: %q", resp.ToolCalls[0].ID)
+	}
+	if resp.ToolCalls[0].Function.Name != "place_order" {
+		t.Fatalf("unexpected tool call name: %q", resp.ToolCalls[0].Function.Name)
+	}
+	if resp.ToolCalls[0].Function.Arguments != `{"symbol":"BTCUSDT"}` {
+		t.Fatalf("unexpected tool call args: %q", resp.ToolCalls[0].Function.Arguments)
+	}
+}
+
+// ============================================================
 // Test SetTimeout
 // ============================================================
 

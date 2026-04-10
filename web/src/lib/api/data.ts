@@ -6,6 +6,7 @@ import type {
   Statistics,
   CompetitionData,
   PositionHistoryResponse,
+  OpenOrder,
 } from '../../types'
 import { API_BASE, httpClient } from './helpers'
 
@@ -117,6 +118,13 @@ export const dataApi = {
       `${API_BASE}/positions/history?trader_id=${traderId}&limit=${limit}`
     )
     if (!result.success) throw new Error('Failed to fetch position history')
+    return result.data!
+  },
+
+  async getOpenOrders(traderId: string, symbol: string): Promise<OpenOrder[]> {
+    const params = new URLSearchParams({ trader_id: traderId, symbol })
+    const result = await httpClient.get<OpenOrder[]>(`${API_BASE}/open-orders?${params}`)
+    if (!result.success) throw new Error('Failed to fetch open orders')
     return result.data!
   },
 }

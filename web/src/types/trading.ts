@@ -42,6 +42,61 @@ export interface Position {
   margin_used: number
 }
 
+export interface ProtectionSnapshotFullTPSL {
+  enabled: boolean
+  mode: string
+  take_profit_pct?: number
+  stop_loss_pct?: number
+}
+
+export interface ProtectionSnapshotLadderRule {
+  take_profit_pct?: number
+  take_profit_close_ratio_pct?: number
+  stop_loss_pct?: number
+  stop_loss_close_ratio_pct?: number
+}
+
+export interface ProtectionSnapshotLadder {
+  enabled: boolean
+  mode: string
+  take_profit_enabled: boolean
+  stop_loss_enabled: boolean
+  rules: ProtectionSnapshotLadderRule[]
+}
+
+export interface ProtectionSnapshotDrawdown {
+  min_profit_pct: number
+  max_drawdown_pct: number
+  close_ratio_pct: number
+  poll_interval_s: number
+}
+
+export interface ProtectionSnapshotBreakEven {
+  enabled: boolean
+  trigger_mode: string
+  trigger_value: number
+  offset_pct: number
+}
+
+export interface ProtectionSnapshot {
+  full_tp_sl?: ProtectionSnapshotFullTPSL
+  ladder_tp_sl?: ProtectionSnapshotLadder
+  drawdown?: ProtectionSnapshotDrawdown[]
+  break_even?: ProtectionSnapshotBreakEven
+}
+
+export interface OpenOrder {
+  order_id: string
+  symbol: string
+  side: string
+  position_side: string
+  type: string
+  price: number
+  stop_price: number
+  quantity: number
+  status: string
+}
+
 export interface DecisionAction {
   action: string
   symbol: string
@@ -78,6 +133,7 @@ export interface DecisionRecord {
   candidate_coins: string[]
   decisions: DecisionAction[]
   execution_log: string[]
+  protection_snapshot?: ProtectionSnapshot
   success: boolean
   error_message?: string
 }

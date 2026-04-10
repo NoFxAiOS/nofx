@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { DecisionRecord, DecisionAction } from '../../types'
+import type { DecisionRecord, DecisionAction, ProtectionSnapshot } from '../../types'
 import { t, type Language } from '../../i18n/translations'
 
 interface DecisionCardProps {
@@ -213,6 +213,61 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           ❌ {action.error}
         </div>
       )}
+    </div>
+  )
+}
+
+function renderProtectionSummary(snapshot: ProtectionSnapshot | undefined, language: Language) {
+  if (!snapshot) return null
+
+  const rows: Array<{ label: string; value: string }> = []
+
+  if (snapshot.full_tp_sl?.enabled) {
+    rows.push({
+      label: language === 'zh' ? 'Full TP/SL' : 'Full TP/SL',
+      value: `${snapshot.full_tp_sl.mode || 'manual'} | TP ${snapshot.full_tp_sl.take_profit_pct ?? '-'}% | SL ${snapshot.full_tp_sl.stop_loss_pct ?? '-'}%`,
+    })
+  }
+
+  if (snapshot.ladder_tp_sl?.enabled) {
+    rows.push({
+      label: language === 'zh' ? 'Ladder TP/SL' : 'Ladder TP/SL',
+      value: `${snapshot.ladder_tp_sl.mode || 'manual'} | ${snapshot.ladder_tp_sl.rules?.length ?? 0} ${language === 'zh' ? '档' : 'rules'}`,
+    })
+  }
+
+  if (snapshot.drawdown && snapshot.drawdown.length > 0) {
+    rows.push({
+      label: language === 'zh' ? '回撤止盈' : 'Drawdown TP',
+      value: snapshot.drawdown
+        .map((rule) => `${rule.min_profit_pct}%/${rule.max_drawdown_pct}%→${rule.close_ratio_pct}%`)
+        .join(' · '),
+    })
+  }
+
+  if (snapshot.break_even?.enabled) {
+    rows.push({
+      label: language === 'zh' ? '保本止损' : 'Break-even',
+      value: `${snapshot.break_even.trigger_mode} | trigger ${snapshot.break_even.trigger_value} | offset ${snapshot.break_even.offset_pct}%`,
+    })
+  }
+
+  if (rows.length === 0) return null
+
+  return (
+    <div
+      className="rounded-lg p-3 mt-4 text-xs space-y-2"
+      style={{ background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)' }}
+    >
+      <div className="font-semibold" style={{ color: '#A5B4FC' }}>
+        {language === 'zh' ? 'Protection Snapshot / 本轮保护快照' : 'Protection Snapshot'}
+      </div>
+      {rows.map((row) => (
+        <div key={row.label} className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+          <div style={{ color: '#A5B4FC' }}>{row.label}</div>
+          <div className="font-mono md:text-right" style={{ color: '#EAECEF' }}>{row.value}</div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -448,6 +503,9 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           </div>
         )}
       </div>
+
+      {/* Protection Snapshot */}
+      {renderProtectionSummary(decision.protection_snapshot, language)}
 
       {/* Execution Log */}
       {decision.execution_log && decision.execution_log.length > 0 && (

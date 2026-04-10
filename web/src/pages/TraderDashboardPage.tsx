@@ -5,6 +5,7 @@ const ChartTabs = lazy(() =>
   import('../components/charts/ChartTabs').then((m) => ({ default: m.ChartTabs }))
 )
 import { DecisionCard } from '../components/trader/DecisionCard'
+import { PositionProtectionPanel } from '../components/trader/PositionProtectionPanel'
 const PositionHistory = lazy(() =>
   import('../components/trader/PositionHistory').then((m) => ({ default: m.PositionHistory }))
 )
@@ -145,6 +146,7 @@ export function TraderDashboardPage({
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+    const [selectedProtectionSymbol, setSelectedProtectionSymbol] = useState<string | null>(null)
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -157,11 +159,22 @@ export function TraderDashboardPage({
         (positionsCurrentPage - 1) * positionsPageSize,
         positionsCurrentPage * positionsPageSize
     ) || []
+    const selectedProtectionPosition = positions?.find((pos) => pos.symbol === selectedProtectionSymbol) || paginatedPositions[0]
 
     // Reset page when positions change
     useEffect(() => {
         setPositionsCurrentPage(1)
     }, [selectedTraderId, positionsPageSize])
+
+    useEffect(() => {
+        if (!positions || positions.length === 0) {
+            setSelectedProtectionSymbol(null)
+            return
+        }
+        if (!selectedProtectionSymbol || !positions.some((pos) => pos.symbol === selectedProtectionSymbol)) {
+            setSelectedProtectionSymbol(positions[0].symbol)
+        }
+    }, [positions, selectedProtectionSymbol])
 
     // Auto-set chart symbol for grid trading
     useEffect(() => {
@@ -617,6 +630,7 @@ export function TraderDashboardPage({
                                                         className="border-b border-white/5 last:border-0 transition-all hover:bg-white/5 cursor-pointer group/row"
                                                         onClick={() => {
                                                             setSelectedChartSymbol(pos.symbol)
+                                                            setSelectedProtectionSymbol(pos.symbol)
                                                             setChartUpdateKey(Date.now())
                                                             if (chartSectionRef.current) {
                                                                 chartSectionRef.current.scrollIntoView({
@@ -703,21 +717,17 @@ export function TraderDashboardPage({
                                                             const isNext = idx === 3;
                                                             const isLast = idx === 4;
                                                             if (isText) return <span key={idx} className="px-3 text-nofx-text-main">{label}</span>;
-
-                                                            let onClick = () => { };
-                                                            let disabled = false;
-
-                                                            if (isFirst) { onClick = () => setPositionsCurrentPage(1); disabled = positionsCurrentPage === 1; }
-                                                            if (isPrev) { onClick = () => setPositionsCurrentPage(p => Math.max(1, p - 1)); disabled = positionsCurrentPage === 1; }
-                                                            if (isNext) { onClick = () => setPositionsCurrentPage(p => Math.min(totalPositionPages, p + 1)); disabled = positionsCurrentPage === totalPositionPages; }
-                                                            if (isLast) { onClick = () => setPositionsCurrentPage(totalPositionPages); disabled = positionsCurrentPage === totalPositionPages; }
-
                                                             return (
                                                                 <button
                                                                     key={idx}
-                                                                    onClick={onClick}
-                                                                    disabled={disabled}
-                                                                    className={`px-2 py-1 rounded transition-colors ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 text-nofx-text-main bg-white/5'}`}
+                                                                    onClick={() => {
+                                                                        if (isFirst) setPositionsCurrentPage(1)
+                                                                        if (isPrev) setPositionsCurrentPage(Math.max(1, positionsCurrentPage - 1))
+                                                                        if (isNext) setPositionsCurrentPage(Math.min(totalPositionPages, positionsCurrentPage + 1))
+                                                                        if (isLast) setPositionsCurrentPage(totalPositionPages)
+                                                                    }}
+                                                                    disabled={(isFirst || isPrev) ? positionsCurrentPage === 1 : positionsCurrentPage === totalPositionPages}
+                                                                    className="px-2 py-1 rounded border border-white/10 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
                                                                 >
                                                                     {label}
                                                                 </button>
@@ -730,13 +740,15 @@ export function TraderDashboardPage({
                                     )}
                                 </div>
                             ) : (
-                                <div className="text-center py-16 text-nofx-text-muted opacity-60">
-                                    <div className="text-6xl mb-4 opacity-50 grayscale">📊</div>
-                                    <div className="text-lg font-semibold mb-2">{t('noPositions', language)}</div>
-                                    <div className="text-sm">{t('noActivePositions', language)}</div>
-                                </div>
+                                <div className="text-sm text-nofx-text-muted">{t('noData', language)}</div>
                             )}
                         </div>
+
+                        <PositionProtectionPanel
+                            traderId={selectedTraderId}
+                            position={selectedProtectionPosition}
+                            language={language}
+                        />
                     </div>
 
                     {/* Right Column: Recent Decisions */}

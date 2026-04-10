@@ -59,6 +59,7 @@ func (at *AutoTrader) reconcilePositionProtections() {
 			continue
 		}
 		active[positionKey(symbol, side)] = struct{}{}
+		at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 
 		if err := at.reconcileProtectionForPosition(symbol, side, quantity, entryPrice); err != nil {
 			logger.Infof("❌ Protection reconciler: %s %s reconcile failed: %v", symbol, side, err)
@@ -194,7 +195,20 @@ func (at *AutoTrader) getProtectionState(symbol, side string) string {
 func (at *AutoTrader) setBreakEvenState(symbol, side, state string) {
 	at.breakEvenStateMutex.Lock()
 	defer at.breakEvenStateMutex.Unlock()
-	at.breakEvenState[symbol+"_"+strings.ToLower(side)] = state
+	at.breakEvenState[positionKey(symbol, side)] = state
+}
+
+func (at *AutoTrader) refreshBreakEvenFingerprint(symbol, side string, entryPrice, quantity float64) {
+	key := positionKey(symbol, side)
+	fingerprint := fmt.Sprintf("%.8f|%.8f", entryPrice, quantity)
+
+	at.breakEvenStateMutex.Lock()
+	defer at.breakEvenStateMutex.Unlock()
+
+	if prev, ok := at.breakEvenFingerprints[key]; ok && prev != fingerprint {
+		delete(at.breakEvenState, key)
+	}
+	at.breakEvenFingerprints[key] = fingerprint
 }
 
 func (at *AutoTrader) getBreakEvenState(symbol, side string) string {
@@ -206,15 +220,21 @@ func (at *AutoTrader) getBreakEvenState(symbol, side string) string {
 func (at *AutoTrader) clearBreakEvenState(symbol, side string) {
 	at.breakEvenStateMutex.Lock()
 	defer at.breakEvenStateMutex.Unlock()
-	delete(at.breakEvenState, positionKey(symbol, side))
+	key := positionKey(symbol, side)
+	delete(at.breakEvenState, key)
+	delete(at.breakEvenFingerprints, key)
 }
 
 func (at *AutoTrader) getDrawdownExecutionMode(symbol, side string) string {
 	state := at.getProtectionState(symbol, side)
-	if state == "native_trailing_armed" {
+	switch state {
+	case "native_trailing_armed":
 		return "native_trailing"
+	case "native_partial_trailing_armed":
+		return "native_partial_trailing"
+	default:
+		return "local_fallback"
 	}
-	return "local_fallback"
 }
 
 func (at *AutoTrader) getBreakEvenExecutionMode(symbol, side string) string {
@@ -238,6 +258,7 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 	for key := range at.breakEvenState {
 		if _, ok := active[key]; !ok {
 			delete(at.breakEvenState, key)
+			delete(at.breakEvenFingerprints, key)
 		}
 	}
 	at.breakEvenStateMutex.Unlock()

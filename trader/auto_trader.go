@@ -148,6 +148,7 @@ type AutoTrader struct {
 	protectionState       map[string]string  // symbol_side -> last known protection status
 	breakEvenStateMutex   sync.RWMutex       // Protects break-even armed state per position
 	breakEvenState        map[string]string  // symbol_side -> idle/armed
+	breakEvenFingerprints map[string]string  // symbol_side -> entry/qty fingerprint for lifecycle reset
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
@@ -367,6 +368,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		protectionState:       make(map[string]string),
 		breakEvenStateMutex:   sync.RWMutex{},
 		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil

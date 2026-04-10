@@ -57,11 +57,11 @@ function formatExecutionMode(mode: string | undefined, language: Language): stri
   if (!mode) return language === 'zh' ? '未确定' : 'undetermined'
   switch (mode.trim().toLowerCase()) {
     case 'native_trailing':
-      return language === 'zh' ? '交易所原生 trailing' : 'exchange-native trailing'
+      return language === 'zh' ? '交易所原生 trailing（仅整仓）' : 'exchange-native trailing (full-close only)'
     case 'native_stop':
       return language === 'zh' ? '交易所原生 stop' : 'exchange-native stop'
     case 'local_fallback':
-      return language === 'zh' ? '本地 fallback' : 'local fallback'
+      return language === 'zh' ? '本地 fallback（含分批回撤）' : 'local fallback (incl. partial drawdown)'
     default:
       return mode
   }
@@ -278,6 +278,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                 <ul className="list-disc pl-5 space-y-1">
                   <li>{language === 'zh' ? 'Drawdown Take Profit 与 Break-even Stop 仅在交易所无法直接表达规则时，才应由本地持续监控执行。' : 'Drawdown TP and Break-even Stop should only remain local when the exchange cannot express the rule natively.'}</li>
                   <li>{language === 'zh' ? '每个持仓都应独立维护保护，不应因别的持仓已完成挂单而停止监控。' : 'Each position should keep its own protection state; one protected position must not stop monitoring another.'}</li>
+                  <li>{language === 'zh' ? '当前原生 drawdown trailing 仅覆盖整仓退出规则（close_ratio=100%）；分批回撤止盈仍由本地监控执行。' : 'Native drawdown trailing currently covers full-close rules only (close_ratio=100%); partial drawdown rules still use local monitoring.'}</li>
+                  <li>{language === 'zh' ? '保本止损状态会在仓位数量或开仓价变化时自动重置，避免旧仓位状态污染新仓位。' : 'Break-even state auto-resets when position quantity or entry price changes, preventing stale armed states from polluting new positions.'}</li>
                 </ul>
               </div>
             </div>

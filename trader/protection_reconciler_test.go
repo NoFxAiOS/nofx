@@ -80,7 +80,9 @@ func TestProtectionReconciler_ReappliesMissingManualOrders(t *testing.T) {
 				},
 			},
 		},
-		protectionState: make(map[string]string),
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
 	}
 
 	at.reconcilePositionProtections()

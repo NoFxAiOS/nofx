@@ -84,16 +84,16 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		return fmt.Errorf("get open orders: %w", err)
 	}
 
-	manualPlan, err := at.BuildManualProtectionPlan(entryPrice, symbol, actionFromPositionSide(side))
+	plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
 	if err != nil {
-		return fmt.Errorf("build manual plan: %w", err)
+		return fmt.Errorf("build configured plan: %w", err)
 	}
 
-	if manualPlan != nil {
-		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, manualPlan)
+	if plan != nil {
+		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
 		if missingSL || missingTP {
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
-			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, manualPlan); err != nil {
+			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				return fmt.Errorf("re-apply manual protection plan: %w", err)
 			}
 			return nil

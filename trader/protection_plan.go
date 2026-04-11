@@ -25,6 +25,41 @@ type ProtectionPlan struct {
 	RequiresPartialClose bool
 }
 
+// BuildConfiguredProtectionPlan creates a normalized protection plan from strategy configuration.
+// Unlike BuildManualProtectionPlan, it can also materialize AI-mode strategy protection config
+// when the runtime decision does not provide a concrete decision.ProtectionPlan payload yet.
+func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action string) (*ProtectionPlan, error) {
+	if at.config.StrategyConfig == nil {
+		return nil, nil
+	}
+
+	protection := at.config.StrategyConfig.Protection
+
+	if protection.LadderTPSL.Enabled {
+		switch protection.LadderTPSL.Mode {
+		case store.ProtectionModeManual:
+			if plan, err := buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL); err != nil || plan != nil {
+				return plan, err
+			}
+		case store.ProtectionModeAI:
+			if plan, err := buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL); err != nil || plan != nil {
+				return plan, err
+			}
+		}
+	}
+
+	if protection.FullTPSL.Enabled {
+		switch protection.FullTPSL.Mode {
+		case store.ProtectionModeManual:
+			return buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+		case store.ProtectionModeAI:
+			return buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+		}
+	}
+
+	return nil, nil
+}
+
 // BuildManualProtectionPlan creates a normalized manual protection plan.
 // Phase 2 prefers ladder TP/SL when enabled; otherwise it falls back to full-position TP/SL.
 func (at *AutoTrader) BuildManualProtectionPlan(entryPrice float64, decisionSymbol string, action string) (*ProtectionPlan, error) {

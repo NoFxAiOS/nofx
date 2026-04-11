@@ -6,6 +6,43 @@ import (
 	"nofx/store"
 )
 
+func TestBuildConfiguredProtectionPlanSupportsAIMode(t *testing.T) {
+	at := &AutoTrader{
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{
+				Protection: store.ProtectionConfig{
+					LadderTPSL: store.LadderTPSLConfig{
+						Enabled:           true,
+						Mode:              store.ProtectionModeAI,
+						TakeProfitEnabled: true,
+						StopLossEnabled:   true,
+						Rules: []store.LadderTPSLRule{{
+							TakeProfitPct:           1.2,
+							TakeProfitCloseRatioPct: 40,
+							StopLossPct:             0.8,
+							StopLossCloseRatioPct:   40,
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	plan, err := at.BuildConfiguredProtectionPlan(100, "open_long")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if plan == nil {
+		t.Fatal("expected plan from AI-mode strategy config")
+	}
+	if plan.Mode != string(store.ProtectionModeAI) {
+		t.Fatalf("expected ai mode, got %q", plan.Mode)
+	}
+	if len(plan.TakeProfitOrders) != 1 || len(plan.StopLossOrders) != 1 {
+		t.Fatalf("expected 1 tp and 1 sl ladder order, got tp=%d sl=%d", len(plan.TakeProfitOrders), len(plan.StopLossOrders))
+	}
+}
+
 func TestBuildManualProtectionPlanFallsBackToFullTPSL(t *testing.T) {
 	at := &AutoTrader{
 		config: AutoTraderConfig{

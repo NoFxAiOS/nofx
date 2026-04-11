@@ -29,12 +29,12 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		return nil
 	}
 
-	plan, err := at.BuildManualProtectionPlan(req.EntryPrice, req.Symbol, req.Action)
+	plan, err := at.BuildConfiguredProtectionPlan(req.EntryPrice, req.Action)
 	if err != nil {
 		return err
 	}
 
-	if plan == nil && req.Decision.ProtectionPlan != nil {
+	if req.Decision.ProtectionPlan != nil {
 		plan, err = buildAIProtectionPlan(req.EntryPrice, req.Action, req.Decision.ProtectionPlan)
 		if err != nil {
 			return err

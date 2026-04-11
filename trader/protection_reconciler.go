@@ -100,22 +100,76 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
+	markPrice, _ := at.getPositionMarkPrice(symbol, side)
+	currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
+
 	be := at.getActiveBreakEvenConfig()
 	if be != nil && at.GetProtectionCapabilities().NativeStopLoss {
-		// If break-even is enabled, ensure at least one SL exists on exchange.
-		if !hasAnyProtectionOrder(openOrders, positionSide, false) {
-			stopPrice := calculateBreakEvenStopPrice(side, entryPrice, be.OffsetPct)
-			if stopPrice > 0 {
-				logger.Infof("🛠 Protection reconciler: %s %s break-even protection missing on exchange, setting native stop", symbol, positionSide)
-				if err := at.placeAndVerifyProtectionWithRetry(symbol, positionSide, quantity, true, stopPrice, false, 0); err != nil {
-					return fmt.Errorf("apply break-even native stop: %w", err)
-				}
+		if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
+			logger.Infof("🛠 Protection reconciler: %s %s break-even trigger met (%.2f%% >= %.2f%%), applying native stop", symbol, positionSide, currentPnLPct, be.TriggerValue)
+			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
+				return fmt.Errorf("apply break-even native stop: %w", err)
+			}
+			at.setBreakEvenState(symbol, side, "armed")
+			at.setProtectionState(symbol, side, "break_even_armed")
+		}
+	}
+
+	rules := at.getActiveDrawdownRules()
+	if len(rules) > 0 {
+		peakPnLPct := currentPnLPct
+		at.peakPnLCacheMutex.RLock()
+		if peak, ok := at.peakPnLCache[positionKey(symbol, side)]; ok && peak > peakPnLPct {
+			peakPnLPct = peak
+		}
+		at.peakPnLCacheMutex.RUnlock()
+
+		drawdownPct := 0.0
+		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		}
+		if matched := at.matchDrawdownRule(currentPnLPct, drawdownPct, rules); matched != nil {
+			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, *matched) {
+				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (close=%.1f%%)", symbol, positionSide, matched.CloseRatioPct)
 			}
 		}
 	}
 
 	return nil
 }
+
+func (at *AutoTrader) getPositionMarkPrice(symbol, side string) (float64, bool) {
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return 0, false
+	}
+	for _, pos := range positions {
+		ps, _ := pos["symbol"].(string)
+		pd, _ := pos["side"].(string)
+		if ps != symbol || !strings.EqualFold(pd, side) {
+			continue
+		}
+		markPrice, _ := pos["markPrice"].(float64)
+		if markPrice > 0 {
+			return markPrice, true
+		}
+	}
+	return 0, false
+}
+
+func calculatePositionPnLPct(side string, entryPrice, markPrice float64) float64 {
+	if entryPrice <= 0 || markPrice <= 0 {
+		return 0
+	}
+	if strings.EqualFold(side, "long") {
+		return ((markPrice - entryPrice) / entryPrice) * 100
+	}
+	if strings.EqualFold(side, "short") {
+		return ((entryPrice - markPrice) / entryPrice) * 100
+	}
+	return 0
+}
+
 
 func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) (missingSL bool, missingTP bool) {
 	if plan == nil {

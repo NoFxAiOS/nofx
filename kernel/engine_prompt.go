@@ -344,7 +344,19 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		positionSymbols[normalizedSymbol] = true
 	}
 
-	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.MarketDataMap)))
+	displayableCount := 0
+	for _, coin := range ctx.CandidateCoins {
+		normalizedCoinSymbol := market.Normalize(coin.Symbol)
+		if positionSymbols[normalizedCoinSymbol] {
+			continue
+		}
+		if _, hasData := ctx.MarketDataMap[coin.Symbol]; !hasData {
+			continue
+		}
+		displayableCount++
+	}
+
+	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", displayableCount))
 	displayedCount := 0
 	for _, coin := range ctx.CandidateCoins {
 		// Skip if this coin is already a position (data already shown in positions section)

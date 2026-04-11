@@ -17,6 +17,9 @@ func TestBuildPartialDrawdownNativePlanCandidate_Long(t *testing.T) {
 	if plan == nil {
 		t.Fatal("expected candidate plan")
 	}
+	if plan.Mode != "drawdown_partial_native" {
+		t.Fatalf("expected native mode, got %q", plan.Mode)
+	}
 	if !plan.RequiresPartialClose {
 		t.Fatal("expected partial-close requirement")
 	}
@@ -41,6 +44,9 @@ func TestBuildPartialDrawdownNativePlanCandidate_Short(t *testing.T) {
 	plan := buildPartialDrawdownNativePlanCandidate(100, "open_short", rule)
 	if plan == nil {
 		t.Fatal("expected candidate plan")
+	}
+	if plan.Mode != "drawdown_partial_native" {
+		t.Fatalf("expected native mode, got %q", plan.Mode)
 	}
 	if plan.TakeProfitOrders[0].Price <= 0 {
 		t.Fatalf("expected positive derived price, got %.4f", plan.TakeProfitOrders[0].Price)

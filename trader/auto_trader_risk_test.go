@@ -22,6 +22,7 @@ type fakeProtectionTrader struct {
 	trailingSide        string
 	trailingActivation  float64
 	trailingCallback    float64
+	openOrders          []tradertypes.OpenOrder
 }
 
 func (f *fakeProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
@@ -47,13 +48,24 @@ func (f *fakeProtectionTrader) SetStopLoss(symbol string, positionSide string, q
 	f.lastPositionSide = positionSide
 	f.lastQuantity = quantity
 	f.lastStopPrice = stopPrice
-	return f.setStopLossErr
+	if f.setStopLossErr != nil {
+		return f.setStopLossErr
+	}
+	f.openOrders = append(f.openOrders, tradertypes.OpenOrder{
+		Symbol:       symbol,
+		PositionSide: positionSide,
+		Type:         "STOP_MARKET",
+		StopPrice:    stopPrice,
+		Quantity:     quantity,
+	})
+	return nil
 }
 func (f *fakeProtectionTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	return nil
 }
 func (f *fakeProtectionTrader) CancelStopLossOrders(symbol string) error {
 	f.cancelStopLossCalls++
+	f.openOrders = nil
 	return f.cancelErr
 }
 func (f *fakeProtectionTrader) CancelTakeProfitOrders(symbol string) error { return nil }
@@ -68,7 +80,9 @@ func (f *fakeProtectionTrader) GetOrderStatus(symbol string, orderID string) (ma
 func (f *fakeProtectionTrader) GetClosedPnL(startTime time.Time, limit int) ([]tradertypes.ClosedPnLRecord, error) {
 	return nil, nil
 }
-func (f *fakeProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) { return nil, nil }
+func (f *fakeProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) {
+	return f.openOrders, nil
+}
 func (f *fakeProtectionTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error {
 	f.trailingCalls++
 	f.trailingSymbol = symbol

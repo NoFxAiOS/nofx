@@ -2,9 +2,9 @@ package trader
 
 import "nofx/store"
 
-// buildPartialDrawdownNativePlanCandidate converts a partial drawdown rule into a candidate
-// native protection representation. It is intentionally not wired into runtime execution yet;
-// this helper exists to stabilize translation semantics first, before enabling native partial execution.
+// buildPartialDrawdownNativePlanCandidate converts a partial drawdown rule into a native
+// protection plan representation for immediate execution. The runtime now places this plan
+// directly when the exchange supports native partial close.
 func buildPartialDrawdownNativePlanCandidate(entryPrice float64, action string, rule store.DrawdownTakeProfitRule) *ProtectionPlan {
 	if entryPrice <= 0 || rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 {
 		return nil
@@ -34,7 +34,7 @@ func buildPartialDrawdownNativePlanCandidate(entryPrice float64, action string, 
 	}
 
 	return &ProtectionPlan{
-		Mode:                 "drawdown_partial_candidate",
+		Mode:                 "drawdown_partial_native",
 		NeedsTakeProfit:      true,
 		TakeProfitPrice:      price,
 		TakeProfitOrders:     []ProtectionOrder{{Price: price, CloseRatioPct: rule.CloseRatioPct}},

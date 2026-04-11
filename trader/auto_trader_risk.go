@@ -242,7 +242,46 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	}
 
 	positionSide := strings.ToUpper(side)
+	positionAction := "open_" + strings.ToLower(side)
 	exchange := strings.ToLower(at.exchange)
+
+	if isPartial {
+		positions, err := at.trader.GetPositions()
+		if err != nil {
+			logger.Infof("❌ Native partial trailing drawdown failed to fetch positions (%s %s): %v", symbol, side, err)
+			return false
+		}
+		var quantity float64
+		for _, pos := range positions {
+			ps, _ := pos["symbol"].(string)
+			pd, _ := pos["side"].(string)
+			if ps != symbol || !strings.EqualFold(pd, side) {
+				continue
+			}
+			quantity, _ = pos["positionAmt"].(float64)
+			if quantity < 0 {
+				quantity = -quantity
+			}
+			break
+		}
+		if quantity <= 0 {
+			logger.Infof("❌ Native partial trailing drawdown missing quantity (%s %s)", symbol, side)
+			return false
+		}
+
+		candidate := buildPartialDrawdownNativePlanCandidate(entryPrice, positionAction, rule)
+		if candidate == nil || !at.canApplyNativePartialDrawdownPlan(candidate) {
+			return false
+		}
+		logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%",
+			symbol, side, activationPrice, callbackRate, rule.CloseRatioPct)
+		if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, candidate); err != nil {
+			logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s): %v", symbol, side, err)
+			return false
+		}
+		at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+		return true
+	}
 
 	switch exchange {
 	case "binance":
@@ -364,6 +403,27 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 	positionSide := strings.ToUpper(side)
 	if err := at.trader.SetStopLoss(symbol, positionSide, quantity, breakEvenPrice); err != nil {
 		return fmt.Errorf("failed to set break-even stop loss: %w", err)
+	}
+
+	var verified bool
+	for attempt := 1; attempt <= protectionVerifyMaxAttempts; attempt++ {
+		at.sleepForVerification(protectionVerifyDelay)
+		openOrders, err := at.trader.GetOpenOrders(symbol)
+		if err != nil {
+			return fmt.Errorf("failed to verify break-even stop loss: %w", err)
+		}
+		if hasMatchingProtectionOrder(openOrders, positionSide, false, breakEvenPrice) {
+			verified = true
+			logger.Infof("✅ Break-even stop verified: %s %s | stop=%.6f (attempt %d/%d)",
+				symbol, side, breakEvenPrice, attempt, protectionVerifyMaxAttempts)
+			break
+		}
+		if attempt < protectionVerifyMaxAttempts {
+			logger.Infof("⏳ Break-even verification pending (attempt %d/%d), retrying...", attempt, protectionVerifyMaxAttempts)
+		}
+	}
+	if !verified {
+		return fmt.Errorf("break-even stop verification failed for %s %s at %.6f after %d attempts", symbol, side, breakEvenPrice, protectionVerifyMaxAttempts)
 	}
 
 	logger.Infof("🟠 Break-even stop applied: %s %s | trigger=%.2f%% current=%.2f%% stop=%.6f",

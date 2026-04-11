@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"nofx/kernel"
 	"nofx/logger"
@@ -11,9 +12,12 @@ import (
 )
 
 const (
-	protectionPriceTolerancePct = 0.002 // 0.2%
+	protectionPriceTolerancePct = 0.005 // 0.5% — widened to handle exchange price precision truncation
 	protectionSetupMaxAttempts  = 2
+	protectionVerifyMaxAttempts = 3 // retry GetOpenOrders verification up to 3 times
 )
+
+var protectionVerifyDelay = 500 * time.Millisecond // delay between verification attempts
 
 type protectionExecutionRequest struct {
 	Symbol       string
@@ -29,18 +33,21 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		return nil
 	}
 
-	plan, err := at.BuildConfiguredProtectionPlan(req.EntryPrice, req.Action)
+	configuredPlan, err := at.BuildConfiguredProtectionPlan(req.EntryPrice, req.Action)
 	if err != nil {
 		return err
 	}
+	plan := configuredPlan
 
 	if req.Decision.ProtectionPlan != nil {
-		plan, err = buildAIProtectionPlan(req.EntryPrice, req.Action, req.Decision.ProtectionPlan)
+		decisionPlan, err := buildAIProtectionPlan(req.EntryPrice, req.Action, req.Decision.ProtectionPlan)
 		if err != nil {
 			return err
 		}
+		plan = mergeProtectionPlans(configuredPlan, decisionPlan)
 	}
 
+	var planErr error
 	if plan != nil {
 		caps := at.GetProtectionCapabilities()
 		if plan.RequiresNativeOrders && (!caps.NativeStopLoss && plan.NeedsStopLoss || !caps.NativeTakeProfit && plan.NeedsTakeProfit) {
@@ -53,27 +60,40 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		logger.Infof("  🛡 Applying %s protection plan: stop=%v tp=%v ladderSL=%d ladderTP=%d",
 			plan.Mode, plan.NeedsStopLoss, plan.NeedsTakeProfit, len(plan.StopLossOrders), len(plan.TakeProfitOrders))
 		if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, plan); err != nil {
-			return err
+			planErr = err
+			logger.Warnf("  ⚠️ Primary protection plan failed for %s %s: %v", req.Symbol, req.PositionSide, err)
 		}
 	}
 
 	if err := at.applyNativeProtectionTargetsAfterOpen(req); err != nil {
+		if planErr != nil {
+			return fmt.Errorf("primary protection failed: %v; native targets failed: %w", planErr, err)
+		}
 		return err
 	}
 
-	if plan != nil {
+	if plan != nil && planErr == nil {
 		return nil
 	}
 
 	needsStopLoss := req.Decision.StopLoss > 0
 	needsTakeProfit := req.Decision.TakeProfit > 0
 	if !needsStopLoss && !needsTakeProfit {
+		if planErr != nil {
+			return planErr
+		}
 		return nil
 	}
 
 	logger.Infof("  🛡 Applying AI decision protection fallback: stop=%v@%.6f tp=%v@%.6f",
 		needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
-	return at.placeAndVerifyProtectionWithRetry(req.Symbol, req.PositionSide, req.Quantity, needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
+	if err := at.placeAndVerifyProtectionWithRetry(req.Symbol, req.PositionSide, req.Quantity, needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit); err != nil {
+		if planErr != nil {
+			return fmt.Errorf("primary protection failed: %v; fallback failed: %w", planErr, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecutionRequest) error {
@@ -218,20 +238,33 @@ func (at *AutoTrader) placeAndVerifyLadderProtection(symbol, positionSide string
 		}
 	}
 
-	openOrders, err := at.trader.GetOpenOrders(symbol)
-	if err != nil {
-		return fmt.Errorf("failed to verify ladder protection orders: %w", err)
+	// Retry verification with delay to handle exchange propagation latency.
+	for attempt := 1; attempt <= protectionVerifyMaxAttempts; attempt++ {
+		at.sleepForVerification(protectionVerifyDelay)
+
+		openOrders, err := at.trader.GetOpenOrders(symbol)
+		if err != nil {
+			return fmt.Errorf("failed to verify ladder protection orders: %w", err)
+		}
+
+		slErr := verifyProtectionOrders(openOrders, positionSide, plan.StopLossOrders, false)
+		tpErr := verifyProtectionOrders(openOrders, positionSide, plan.TakeProfitOrders, true)
+		if slErr == nil && tpErr == nil {
+			logger.Infof("  ✅ Ladder protection orders verified: symbol=%s side=%s ladderSL=%d ladderTP=%d (attempt %d/%d)",
+				symbol, positionSide, len(plan.StopLossOrders), len(plan.TakeProfitOrders), attempt, protectionVerifyMaxAttempts)
+			return nil
+		}
+
+		if attempt < protectionVerifyMaxAttempts {
+			logger.Infof("  ⏳ Ladder verification pending (attempt %d/%d), retrying...", attempt, protectionVerifyMaxAttempts)
+		} else {
+			if slErr != nil {
+				return slErr
+			}
+			return tpErr
+		}
 	}
 
-	if err := verifyProtectionOrders(openOrders, positionSide, plan.StopLossOrders, false); err != nil {
-		return err
-	}
-	if err := verifyProtectionOrders(openOrders, positionSide, plan.TakeProfitOrders, true); err != nil {
-		return err
-	}
-
-	logger.Infof("  ✅ Ladder protection orders verified: symbol=%s side=%s ladderSL=%d ladderTP=%d",
-		symbol, positionSide, len(plan.StopLossOrders), len(plan.TakeProfitOrders))
 	return nil
 }
 
@@ -273,20 +306,38 @@ func (at *AutoTrader) placeAndVerifyProtection(symbol, positionSide string, quan
 		return nil
 	}
 
-	openOrders, err := at.trader.GetOpenOrders(symbol)
-	if err != nil {
-		return fmt.Errorf("failed to verify protection orders: %w", err)
+	// Retry verification with delay to handle exchange propagation latency.
+	for attempt := 1; attempt <= protectionVerifyMaxAttempts; attempt++ {
+		at.sleepForVerification(protectionVerifyDelay)
+
+		openOrders, err := at.trader.GetOpenOrders(symbol)
+		if err != nil {
+			return fmt.Errorf("failed to verify protection orders: %w", err)
+		}
+
+		slOK := !needsStopLoss || hasMatchingProtectionOrder(openOrders, positionSide, false, stopLossPrice)
+		tpOK := !needsTakeProfit || hasMatchingProtectionOrder(openOrders, positionSide, true, takeProfitPrice)
+		if slOK && tpOK {
+			logger.Infof("  ✅ Protection orders verified: symbol=%s side=%s stop=%v tp=%v (attempt %d/%d)",
+				symbol, positionSide, needsStopLoss, needsTakeProfit, attempt, protectionVerifyMaxAttempts)
+			return nil
+		}
+
+		if attempt < protectionVerifyMaxAttempts {
+			logger.Infof("  ⏳ Protection verification pending (attempt %d/%d), retrying...", attempt, protectionVerifyMaxAttempts)
+		}
 	}
 
-	if needsStopLoss && !hasMatchingProtectionOrder(openOrders, positionSide, false, stopLossPrice) {
-		return fmt.Errorf("stop loss verification failed for %s %s at %.6f", symbol, positionSide, stopLossPrice)
+	// Final check failed — return specific error.
+	if needsStopLoss {
+		return fmt.Errorf("stop loss verification failed for %s %s at %.6f after %d attempts", symbol, positionSide, stopLossPrice, protectionVerifyMaxAttempts)
 	}
-	if needsTakeProfit && !hasMatchingProtectionOrder(openOrders, positionSide, true, takeProfitPrice) {
-		return fmt.Errorf("take profit verification failed for %s %s at %.6f", symbol, positionSide, takeProfitPrice)
-	}
+	return fmt.Errorf("take profit verification failed for %s %s at %.6f after %d attempts", symbol, positionSide, takeProfitPrice, protectionVerifyMaxAttempts)
+}
 
-	logger.Infof("  ✅ Protection orders verified: symbol=%s side=%s stop=%v tp=%v", symbol, positionSide, needsStopLoss, needsTakeProfit)
-	return nil
+// sleepForVerification waits before re-checking exchange orders. Extracted for test override.
+func (at *AutoTrader) sleepForVerification(d time.Duration) {
+	time.Sleep(d)
 }
 
 func hasMatchingProtectionOrder(orders []tradertypes.OpenOrder, positionSide string, wantTakeProfit bool, targetPrice float64) bool {

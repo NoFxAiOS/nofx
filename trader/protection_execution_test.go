@@ -9,47 +9,81 @@ import (
 )
 
 type fakeOrderProtectionTrader struct {
-	stopLossOrders       []struct{ symbol, positionSide string; quantity, price float64 }
-	takeProfitOrders     []struct{ symbol, positionSide string; quantity, price float64 }
-	openOrders           []tradertypes.OpenOrder
-	setStopLossErr       error
-	setTakeProfitErr     error
-	getOpenOrdersErr     error
+	stopLossOrders []struct {
+		symbol, positionSide string
+		quantity, price      float64
+	}
+	takeProfitOrders []struct {
+		symbol, positionSide string
+		quantity, price      float64
+	}
+	openOrders         []tradertypes.OpenOrder
+	setStopLossErr     error
+	setTakeProfitErr   error
+	getOpenOrdersErr   error
+	getOpenOrdersCalls int
+	visibleFromCall    int
 }
 
-func (f *fakeOrderProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
+func (f *fakeOrderProtectionTrader) GetBalance() (map[string]interface{}, error)     { return nil, nil }
 func (f *fakeOrderProtectionTrader) GetPositions() ([]map[string]interface{}, error) { return nil, nil }
-func (f *fakeOrderProtectionTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) { return nil, nil }
-func (f *fakeOrderProtectionTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) { return nil, nil }
-func (f *fakeOrderProtectionTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) { return nil, nil }
-func (f *fakeOrderProtectionTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) { return nil, nil }
+func (f *fakeOrderProtectionTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeOrderProtectionTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeOrderProtectionTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeOrderProtectionTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+	return nil, nil
+}
 func (f *fakeOrderProtectionTrader) SetLeverage(symbol string, leverage int) error { return nil }
-func (f *fakeOrderProtectionTrader) SetMarginMode(symbol string, isCrossMargin bool) error { return nil }
+func (f *fakeOrderProtectionTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
+	return nil
+}
 func (f *fakeOrderProtectionTrader) GetMarketPrice(symbol string) (float64, error) { return 0, nil }
 func (f *fakeOrderProtectionTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	if f.setStopLossErr != nil {
 		return f.setStopLossErr
 	}
-	f.stopLossOrders = append(f.stopLossOrders, struct{ symbol, positionSide string; quantity, price float64 }{symbol, positionSide, quantity, stopPrice})
+	f.stopLossOrders = append(f.stopLossOrders, struct {
+		symbol, positionSide string
+		quantity, price      float64
+	}{symbol, positionSide, quantity, stopPrice})
 	return nil
 }
 func (f *fakeOrderProtectionTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	if f.setTakeProfitErr != nil {
 		return f.setTakeProfitErr
 	}
-	f.takeProfitOrders = append(f.takeProfitOrders, struct{ symbol, positionSide string; quantity, price float64 }{symbol, positionSide, quantity, takeProfitPrice})
+	f.takeProfitOrders = append(f.takeProfitOrders, struct {
+		symbol, positionSide string
+		quantity, price      float64
+	}{symbol, positionSide, quantity, takeProfitPrice})
 	return nil
 }
-func (f *fakeOrderProtectionTrader) CancelStopLossOrders(symbol string) error { return nil }
+func (f *fakeOrderProtectionTrader) CancelStopLossOrders(symbol string) error   { return nil }
 func (f *fakeOrderProtectionTrader) CancelTakeProfitOrders(symbol string) error { return nil }
-func (f *fakeOrderProtectionTrader) CancelAllOrders(symbol string) error { return nil }
-func (f *fakeOrderProtectionTrader) CancelStopOrders(symbol string) error { return nil }
-func (f *fakeOrderProtectionTrader) FormatQuantity(symbol string, quantity float64) (string, error) { return "", nil }
-func (f *fakeOrderProtectionTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) { return nil, nil }
-func (f *fakeOrderProtectionTrader) GetClosedPnL(startTime time.Time, limit int) ([]tradertypes.ClosedPnLRecord, error) { return nil, nil }
+func (f *fakeOrderProtectionTrader) CancelAllOrders(symbol string) error        { return nil }
+func (f *fakeOrderProtectionTrader) CancelStopOrders(symbol string) error       { return nil }
+func (f *fakeOrderProtectionTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
+	return "", nil
+}
+func (f *fakeOrderProtectionTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	return nil, nil
+}
+func (f *fakeOrderProtectionTrader) GetClosedPnL(startTime time.Time, limit int) ([]tradertypes.ClosedPnLRecord, error) {
+	return nil, nil
+}
 func (f *fakeOrderProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) {
+	f.getOpenOrdersCalls++
 	if f.getOpenOrdersErr != nil {
 		return nil, f.getOpenOrdersErr
+	}
+	if f.visibleFromCall > 0 && f.getOpenOrdersCalls < f.visibleFromCall {
+		return []tradertypes.OpenOrder{}, nil
 	}
 	return f.openOrders, nil
 }
@@ -65,7 +99,7 @@ func TestPlaceAndVerifyLadderProtection(t *testing.T) {
 	}
 	at := &AutoTrader{trader: fakeTrader}
 	plan := &ProtectionPlan{
-		StopLossOrders: []ProtectionOrder{{Price: 98, CloseRatioPct: 50}, {Price: 96, CloseRatioPct: 50}},
+		StopLossOrders:   []ProtectionOrder{{Price: 98, CloseRatioPct: 50}, {Price: 96, CloseRatioPct: 50}},
 		TakeProfitOrders: []ProtectionOrder{{Price: 105, CloseRatioPct: 30}, {Price: 110, CloseRatioPct: 70}},
 	}
 
@@ -107,6 +141,51 @@ func TestPlaceAndVerifyLadderProtectionReturnsSetError(t *testing.T) {
 	}
 }
 
+func TestPlaceAndVerifyProtectionRetriesForPropagationDelay(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{
+		openOrders:      []tradertypes.OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98}},
+		visibleFromCall: 2,
+	}
+	at := &AutoTrader{trader: fakeTrader}
+
+	start := time.Now()
+	if err := at.placeAndVerifyProtection("BTCUSDT", "LONG", 1, true, 98, false, 0); err != nil {
+		t.Fatalf("expected delayed verification success, got %v", err)
+	}
+	if fakeTrader.getOpenOrdersCalls < 2 {
+		t.Fatalf("expected repeated verification calls, got %d", fakeTrader.getOpenOrdersCalls)
+	}
+	if time.Since(start) < protectionVerifyDelay {
+		t.Fatalf("expected verification delay to be applied, got %s", time.Since(start))
+	}
+}
+
+func TestPlaceAndVerifyLadderProtectionRetriesForPropagationDelay(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{
+		openOrders: []tradertypes.OpenOrder{
+			{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+			{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 105},
+		},
+		visibleFromCall: 2,
+	}
+	at := &AutoTrader{trader: fakeTrader}
+	plan := &ProtectionPlan{
+		StopLossOrders:   []ProtectionOrder{{Price: 98, CloseRatioPct: 50}},
+		TakeProfitOrders: []ProtectionOrder{{Price: 105, CloseRatioPct: 50}},
+	}
+
+	start := time.Now()
+	if err := at.placeAndVerifyLadderProtection("BTCUSDT", "LONG", 2, plan); err != nil {
+		t.Fatalf("expected delayed ladder verification success, got %v", err)
+	}
+	if fakeTrader.getOpenOrdersCalls < 2 {
+		t.Fatalf("expected repeated ladder verification calls, got %d", fakeTrader.getOpenOrdersCalls)
+	}
+	if time.Since(start) < protectionVerifyDelay {
+		t.Fatalf("expected ladder verification delay to be applied, got %s", time.Since(start))
+	}
+}
+
 func TestPlaceAndVerifyProtectionWithRetryRecoversOnSecondAttempt(t *testing.T) {
 	fakeTrader := &fakeOrderProtectionTrader{
 		openOrders: []tradertypes.OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98}},
@@ -129,8 +208,12 @@ type retryOnceProtectionTrader struct {
 	stopLossCalls     int
 }
 
-func (r *retryOnceProtectionTrader) GetBalance() (map[string]interface{}, error) { return r.inner.GetBalance() }
-func (r *retryOnceProtectionTrader) GetPositions() ([]map[string]interface{}, error) { return r.inner.GetPositions() }
+func (r *retryOnceProtectionTrader) GetBalance() (map[string]interface{}, error) {
+	return r.inner.GetBalance()
+}
+func (r *retryOnceProtectionTrader) GetPositions() ([]map[string]interface{}, error) {
+	return r.inner.GetPositions()
+}
 func (r *retryOnceProtectionTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	return r.inner.OpenLong(symbol, quantity, leverage)
 }
@@ -143,11 +226,15 @@ func (r *retryOnceProtectionTrader) CloseLong(symbol string, quantity float64) (
 func (r *retryOnceProtectionTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	return r.inner.CloseShort(symbol, quantity)
 }
-func (r *retryOnceProtectionTrader) SetLeverage(symbol string, leverage int) error { return r.inner.SetLeverage(symbol, leverage) }
+func (r *retryOnceProtectionTrader) SetLeverage(symbol string, leverage int) error {
+	return r.inner.SetLeverage(symbol, leverage)
+}
 func (r *retryOnceProtectionTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	return r.inner.SetMarginMode(symbol, isCrossMargin)
 }
-func (r *retryOnceProtectionTrader) GetMarketPrice(symbol string) (float64, error) { return r.inner.GetMarketPrice(symbol) }
+func (r *retryOnceProtectionTrader) GetMarketPrice(symbol string) (float64, error) {
+	return r.inner.GetMarketPrice(symbol)
+}
 func (r *retryOnceProtectionTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	r.stopLossCalls++
 	if r.failFirstStopLoss && r.stopLossCalls == 1 {
@@ -158,10 +245,18 @@ func (r *retryOnceProtectionTrader) SetStopLoss(symbol string, positionSide stri
 func (r *retryOnceProtectionTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	return r.inner.SetTakeProfit(symbol, positionSide, quantity, takeProfitPrice)
 }
-func (r *retryOnceProtectionTrader) CancelStopLossOrders(symbol string) error { return r.inner.CancelStopLossOrders(symbol) }
-func (r *retryOnceProtectionTrader) CancelTakeProfitOrders(symbol string) error { return r.inner.CancelTakeProfitOrders(symbol) }
-func (r *retryOnceProtectionTrader) CancelAllOrders(symbol string) error { return r.inner.CancelAllOrders(symbol) }
-func (r *retryOnceProtectionTrader) CancelStopOrders(symbol string) error { return r.inner.CancelStopOrders(symbol) }
+func (r *retryOnceProtectionTrader) CancelStopLossOrders(symbol string) error {
+	return r.inner.CancelStopLossOrders(symbol)
+}
+func (r *retryOnceProtectionTrader) CancelTakeProfitOrders(symbol string) error {
+	return r.inner.CancelTakeProfitOrders(symbol)
+}
+func (r *retryOnceProtectionTrader) CancelAllOrders(symbol string) error {
+	return r.inner.CancelAllOrders(symbol)
+}
+func (r *retryOnceProtectionTrader) CancelStopOrders(symbol string) error {
+	return r.inner.CancelStopOrders(symbol)
+}
 func (r *retryOnceProtectionTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
 	return r.inner.FormatQuantity(symbol, quantity)
 }

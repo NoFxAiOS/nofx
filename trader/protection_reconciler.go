@@ -3,9 +3,19 @@ package trader
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"nofx/logger"
+)
+
+const (
+	reconcileCooldownDuration = 60 * time.Second // cooldown after successful re-apply
+)
+
+var (
+	reconcileCooldowns     = make(map[string]time.Time)
+	reconcileCooldownMutex sync.RWMutex
 )
 
 func (at *AutoTrader) startProtectionReconciler() {
@@ -58,8 +68,15 @@ func (at *AutoTrader) reconcilePositionProtections() {
 		if symbol == "" || side == "" || entryPrice <= 0 || quantity <= 0 {
 			continue
 		}
-		active[positionKey(symbol, side)] = struct{}{}
+		key := positionKey(symbol, side)
+		active[key] = struct{}{}
 		at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
+
+		// Skip reconciliation for positions still in cooldown after a recent re-apply.
+		if at.isReconcileCooldownActive(key) {
+			logger.Infof("⏳ Protection reconciler: %s %s in cooldown, skipping", symbol, side)
+			continue
+		}
 
 		if err := at.reconcileProtectionForPosition(symbol, side, quantity, entryPrice); err != nil {
 			logger.Infof("❌ Protection reconciler: %s %s reconcile failed: %v", symbol, side, err)
@@ -96,6 +113,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				return fmt.Errorf("re-apply manual protection plan: %w", err)
 			}
+			at.setReconcileCooldown(positionKey(symbol, side))
 			return nil
 		}
 	}
@@ -169,7 +187,6 @@ func calculatePositionPnLPct(side string, entryPrice, markPrice float64) float64
 	}
 	return 0
 }
-
 
 func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) (missingSL bool, missingTP bool) {
 	if plan == nil {
@@ -324,4 +341,30 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 		}
 	}
 	at.peakPnLCacheMutex.Unlock()
+
+	// Cleanup cooldowns for inactive positions.
+	reconcileCooldownMutex.Lock()
+	for key := range reconcileCooldowns {
+		if _, ok := active[key]; !ok {
+			delete(reconcileCooldowns, key)
+		}
+	}
+	reconcileCooldownMutex.Unlock()
+}
+
+// setReconcileCooldown marks a position as recently reconciled, preventing re-checks for reconcileCooldownDuration.
+func (at *AutoTrader) setReconcileCooldown(key string) {
+	reconcileCooldownMutex.Lock()
+	defer reconcileCooldownMutex.Unlock()
+	reconcileCooldowns[key] = time.Now()
+}
+
+// isReconcileCooldownActive returns true if the position was reconciled within the cooldown window.
+func (at *AutoTrader) isReconcileCooldownActive(key string) bool {
+	reconcileCooldownMutex.RLock()
+	defer reconcileCooldownMutex.RUnlock()
+	if lastTime, ok := reconcileCooldowns[key]; ok {
+		return time.Since(lastTime) < reconcileCooldownDuration
+	}
+	return false
 }

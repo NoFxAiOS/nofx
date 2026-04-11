@@ -11,6 +11,13 @@ interface PositionProtectionPanelProps {
   exchange?: string
 }
 
+interface ScheduledAction {
+  title: string
+  source: string
+  trigger: string
+  action: string
+}
+
 function isStopLoss(order: OpenOrder): boolean {
   const kind = String(order.type || '').toUpperCase()
   return kind.includes('STOP') && !kind.includes('TAKE_PROFIT') && !kind.includes('TP')
@@ -36,6 +43,8 @@ function formatProtectionState(state: string | undefined, language: Language, ex
       return language === 'zh' ? '保本保护已挂单' : 'break-even armed'
     case 'native_trailing_armed':
       return language === 'zh' ? `${exchangeLabel} 原生移动保护已激活` : `${exchangeLabel} native trailing armed`
+    case 'native_partial_trailing_armed':
+      return language === 'zh' ? `${exchangeLabel} 原生分批移动保护已激活` : `${exchangeLabel} native partial trailing armed`
     case 'drawdown_triggered':
       return language === 'zh' ? '回撤保护已触发' : 'drawdown triggered'
     default:
@@ -59,7 +68,7 @@ function formatExecutionMode(mode: string | undefined, language: Language): stri
     case 'native_trailing_full':
       return language === 'zh' ? '交易所原生 trailing（整仓）' : 'exchange-native trailing (full close)'
     case 'native_trailing_pending':
-      return language === 'zh' ? '支持原生 trailing（待触发/待武装）' : 'native trailing supported (pending arm)'
+      return language === 'zh' ? '支持原生 trailing（待武装）' : 'native trailing supported (pending arm)'
     case 'native_full_local_partial':
       return language === 'zh' ? '整仓原生 / 分批本地' : 'native for full close / local for partial'
     case 'native_stop':
@@ -71,6 +80,68 @@ function formatExecutionMode(mode: string | undefined, language: Language): stri
     default:
       return mode
   }
+}
+
+function buildScheduledActions(position: Position, stopOrders: OpenOrder[], takeProfitOrders: OpenOrder[], language: Language, exchange?: string): ScheduledAction[] {
+  const actions: ScheduledAction[] = []
+
+  for (const order of stopOrders) {
+    const trigger = order.stop_price || order.price
+    actions.push({
+      title: language === 'zh' ? '交易所止损动作' : 'Exchange stop-loss action',
+      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生委托' : 'native order'}` : (language === 'zh' ? '交易所原生委托' : 'exchange-native order'),
+      trigger: `${language === 'zh' ? '价格到达' : 'Price reaches'} ${formatPrice(trigger)}`,
+      action: `${language === 'zh' ? '执行止损平仓' : 'Execute stop-loss close'} (${formatQuantity(order.quantity)})`,
+    })
+  }
+
+  for (const order of takeProfitOrders) {
+    const trigger = order.stop_price || order.price
+    actions.push({
+      title: language === 'zh' ? '交易所止盈动作' : 'Exchange take-profit action',
+      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生委托' : 'native order'}` : (language === 'zh' ? '交易所原生委托' : 'exchange-native order'),
+      trigger: `${language === 'zh' ? '价格到达' : 'Price reaches'} ${formatPrice(trigger)}`,
+      action: `${language === 'zh' ? '执行止盈平仓' : 'Execute take-profit close'} (${formatQuantity(order.quantity)})`,
+    })
+  }
+
+  if (position.protection_state?.toLowerCase() === 'native_trailing_armed') {
+    actions.push({
+      title: language === 'zh' ? '原生回撤止盈' : 'Native drawdown trailing',
+      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生 trailing' : 'native trailing'}` : (language === 'zh' ? '交易所原生 trailing' : 'exchange-native trailing'),
+      trigger: language === 'zh' ? '达到 trailing 激活条件后，随价格动态跟踪' : 'After activation, trailing stop follows price natively',
+      action: language === 'zh' ? '发生回撤时整仓退出' : 'Exit full position on qualified drawdown',
+    })
+  }
+
+  if (position.protection_state?.toLowerCase() === 'native_partial_trailing_armed') {
+    actions.push({
+      title: language === 'zh' ? '原生分批回撤止盈' : 'Native partial drawdown trailing',
+      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生 trailing' : 'native trailing'}` : (language === 'zh' ? '交易所原生 trailing' : 'exchange-native trailing'),
+      trigger: language === 'zh' ? '达到 partial trailing 激活条件后，随价格动态跟踪' : 'After partial-trailing activation, exchange tracks price natively',
+      action: language === 'zh' ? '发生回撤时执行分批平仓' : 'Execute partial close on qualified drawdown',
+    })
+  }
+
+  if ((position.break_even_state || '').toLowerCase() === 'armed') {
+    actions.push({
+      title: language === 'zh' ? '保本止损动作' : 'Break-even stop action',
+      source: language === 'zh' ? '交易所原生 stop / 本地触发后挂单' : 'exchange-native stop / armed after local trigger',
+      trigger: language === 'zh' ? '已达到保本触发条件' : 'Break-even trigger already satisfied',
+      action: language === 'zh' ? '价格回到保本位附近时执行保护平仓' : 'Protective close around break-even stop level',
+    })
+  }
+
+  if (actions.length === 0) {
+    actions.push({
+      title: language === 'zh' ? '暂无已编排动作' : 'No scheduled actions yet',
+      source: language === 'zh' ? '当前未检测到交易所委托或已武装运行态保护' : 'No exchange orders or armed runtime protections detected yet',
+      trigger: language === 'zh' ? '等待保护委托建立或运行态规则触发' : 'Waiting for protection orders or runtime triggers',
+      action: language === 'zh' ? '当前不会给出虚假执行计划' : 'No fabricated execution plan is shown',
+    })
+  }
+
+  return actions
 }
 
 export function PositionProtectionPanel({ traderId, positions, language, exchange }: PositionProtectionPanelProps) {
@@ -134,7 +205,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
         <div className="relative z-10">
           <h3 className="text-lg font-bold text-nofx-text-main uppercase tracking-wide flex items-center gap-2 mb-3">
             <span className="text-purple-400">🛡</span>
-            {language === 'zh' ? '多持仓保护状态' : 'Multi-position Protection Status'}
+            {language === 'zh' ? '持仓保护执行面板' : 'Position Protection Runtime'}
           </h3>
           <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-5 text-sm text-nofx-text-muted">
             {language === 'zh' ? '当前没有持仓。' : 'No open positions at the moment.'}
@@ -154,12 +225,12 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
         <div>
           <h3 className="text-lg font-bold text-nofx-text-main uppercase tracking-wide flex items-center gap-2">
             <span className="text-purple-400">🛡</span>
-            {language === 'zh' ? '多持仓保护状态' : 'Multi-position Protection Status'}
+            {language === 'zh' ? '持仓保护执行面板' : 'Position Protection Runtime'}
           </h3>
           <p className="text-xs text-nofx-text-muted mt-1">
             {language === 'zh'
-              ? '每个持仓独立展示其交易所委托保护与本地运行态保护说明'
-              : 'Each position shows its own exchange-native protection and local runtime notes'}
+              ? '按持仓展示当前生效保护、未来触发动作，以及执行来源'
+              : 'Per-position view of active protections, upcoming triggers, and execution source'}
           </p>
         </div>
       </div>
@@ -175,6 +246,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           })
           const stopOrders = filteredOrders.filter(isStopLoss)
           const takeProfitOrders = filteredOrders.filter(isTakeProfit)
+          const scheduledActions = buildScheduledActions(position, stopOrders, takeProfitOrders, language, exchange)
 
           return (
             <div key={`${symbol}-${side}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
@@ -182,7 +254,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                 <div>
                   <div className="font-semibold text-nofx-text-main">{symbol} / {side}</div>
                   <div className="text-xs text-nofx-text-muted mt-1">
-                    {language === 'zh' ? '逐仓保护状态' : 'Per-position protection status'}
+                    {language === 'zh' ? '开仓后保护执行视图' : 'Post-open protection execution view'}
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs min-w-[260px]">
@@ -203,112 +275,81 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '当前保护状态' : 'Protection State'}</div>
+                  <div className="font-mono text-nofx-text-main">{formatProtectionState(position.protection_state, language, exchange)}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本状态' : 'Break-even State'}</div>
+                  <div className="font-mono text-nofx-text-main">{formatBreakEvenState(position.break_even_state, language)}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '回撤止盈执行模式' : 'Drawdown Execution Mode'}</div>
+                  <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.drawdown_execution_mode, language)}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损执行模式' : 'Break-even Execution Mode'}</div>
+                  <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.break_even_execution_mode, language)}</div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="font-semibold text-red-300">{language === 'zh' ? '交易所委托保护：止损' : 'Exchange-native Protection: Stop Loss'}</div>
-                    <span className={`text-[10px] px-2 py-1 rounded-full ${stopOrders.length > 0 ? 'bg-red-500/15 text-red-300' : 'bg-white/5 text-nofx-text-muted'}`}>
-                      {stopOrders.length > 0 ? `${stopOrders.length} ${language === 'zh' ? '条委托' : 'orders'}` : language === 'zh' ? '未检测到' : 'not detected'}
-                    </span>
+                  <div className="font-semibold text-red-300 mb-3">{language === 'zh' ? '当前生效中的保护' : 'Active Protections'}</div>
+                  <div className="space-y-2 text-xs">
+                    {stopOrders.map((order) => (
+                      <div key={`sl-${order.order_id}`} className="rounded-lg border border-red-500/10 bg-black/20 p-3">
+                        <div className="font-semibold text-red-200">{language === 'zh' ? '交易所止损' : 'Exchange stop-loss'}</div>
+                        <div className="mt-1 text-nofx-text-muted">{language === 'zh' ? '触发价' : 'Trigger'}: <span className="font-mono text-nofx-text-main">{formatPrice(order.stop_price || order.price)}</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '数量' : 'Qty'}: <span className="font-mono text-nofx-text-main">{formatQuantity(order.quantity)}</span></div>
+                        <div className="text-nofx-text-muted">Type: <span className="font-mono text-nofx-text-main">{order.type}</span></div>
+                      </div>
+                    ))}
+                    {takeProfitOrders.map((order) => (
+                      <div key={`tp-${order.order_id}`} className="rounded-lg border border-green-500/10 bg-black/20 p-3">
+                        <div className="font-semibold text-green-200">{language === 'zh' ? '交易所止盈' : 'Exchange take-profit'}</div>
+                        <div className="mt-1 text-nofx-text-muted">{language === 'zh' ? '触发价' : 'Trigger'}: <span className="font-mono text-nofx-text-main">{formatPrice(order.stop_price || order.price)}</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '数量' : 'Qty'}: <span className="font-mono text-nofx-text-main">{formatQuantity(order.quantity)}</span></div>
+                        <div className="text-nofx-text-muted">Type: <span className="font-mono text-nofx-text-main">{order.type}</span></div>
+                      </div>
+                    ))}
+                    {stopOrders.length === 0 && takeProfitOrders.length === 0 && (
+                      <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-nofx-text-muted">
+                        {language === 'zh' ? '当前未检测到已生效中的交易所保护委托。' : 'No active exchange protection orders detected yet.'}
+                      </div>
+                    )}
                   </div>
-                  {stopOrders.length > 0 ? (
-                    <div className="space-y-2">
-                      {stopOrders.map((order) => {
-                        const trigger = order.stop_price || order.price
-                        return (
-                          <div key={`sl-${order.order_id}`} className="rounded-lg border border-red-500/10 bg-black/20 p-3 text-xs">
-                            <div className="flex justify-between gap-3"><span className="text-nofx-text-muted">{language === 'zh' ? '触发价' : 'Trigger'}</span><span className="font-mono text-red-200">{formatPrice(trigger)}</span></div>
-                            <div className="flex justify-between gap-3 mt-1"><span className="text-nofx-text-muted">{language === 'zh' ? '数量' : 'Qty'}</span><span className="font-mono text-nofx-text-main">{formatQuantity(order.quantity)}</span></div>
-                            <div className="flex justify-between gap-3 mt-1"><span className="text-nofx-text-muted">Type</span><span className="font-mono text-nofx-text-main">{order.type}</span></div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-nofx-text-muted space-y-1">
-                      <div>{language === 'zh' ? '当前没有识别到与该仓位匹配的止损委托。' : 'No stop-loss order currently matched for this position.'}</div>
-                      <div>{language === 'zh' ? '原则：只要交易所支持，止损应优先下到交易所。' : 'Policy: if supported, stop loss should be maintained on-exchange.'}</div>
-                    </div>
-                  )}
                 </div>
 
-                <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="font-semibold text-green-300">{language === 'zh' ? '交易所委托保护：止盈' : 'Exchange-native Protection: Take Profit'}</div>
-                    <span className={`text-[10px] px-2 py-1 rounded-full ${takeProfitOrders.length > 0 ? 'bg-green-500/15 text-green-300' : 'bg-white/5 text-nofx-text-muted'}`}>
-                      {takeProfitOrders.length > 0 ? `${takeProfitOrders.length} ${language === 'zh' ? '条委托' : 'orders'}` : language === 'zh' ? '未检测到' : 'not detected'}
-                    </span>
+                <div className="rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-4">
+                  <div className="font-semibold text-indigo-300 mb-3">{language === 'zh' ? '未来触发动作' : 'Scheduled Protection Actions'}</div>
+                  <div className="space-y-2 text-xs">
+                    {scheduledActions.map((item, i) => (
+                      <div key={`${symbol}-${i}`} className="rounded-lg border border-indigo-400/10 bg-black/20 p-3">
+                        <div className="font-semibold text-indigo-200">{item.title}</div>
+                        <div className="mt-1 text-nofx-text-muted">{language === 'zh' ? '执行来源' : 'Source'}: <span className="text-nofx-text-main">{item.source}</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '触发条件' : 'Trigger'}: <span className="text-nofx-text-main">{item.trigger}</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '执行动作' : 'Action'}: <span className="text-nofx-text-main">{item.action}</span></div>
+                      </div>
+                    ))}
                   </div>
-                  {takeProfitOrders.length > 0 ? (
-                    <div className="space-y-2">
-                      {takeProfitOrders.map((order) => {
-                        const trigger = order.stop_price || order.price
-                        return (
-                          <div key={`tp-${order.order_id}`} className="rounded-lg border border-green-500/10 bg-black/20 p-3 text-xs">
-                            <div className="flex justify-between gap-3"><span className="text-nofx-text-muted">{language === 'zh' ? '触发价' : 'Trigger'}</span><span className="font-mono text-green-200">{formatPrice(trigger)}</span></div>
-                            <div className="flex justify-between gap-3 mt-1"><span className="text-nofx-text-muted">{language === 'zh' ? '数量' : 'Qty'}</span><span className="font-mono text-nofx-text-main">{formatQuantity(order.quantity)}</span></div>
-                            <div className="flex justify-between gap-3 mt-1"><span className="text-nofx-text-muted">Type</span><span className="font-mono text-nofx-text-main">{order.type}</span></div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-nofx-text-muted space-y-1">
-                      <div>{language === 'zh' ? '当前没有识别到与该仓位匹配的止盈委托。' : 'No take-profit order currently matched for this position.'}</div>
-                      <div>{language === 'zh' ? '原则：只要交易所支持，止盈应优先下到交易所。' : 'Policy: if supported, take profit should be maintained on-exchange.'}</div>
-                    </div>
-                  )}
                 </div>
               </div>
 
               <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6 space-y-2">
-                <div className="font-semibold text-nofx-text-main mb-1">{language === 'zh' ? '本地运行态保护' : 'Local Runtime Protection'}</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
-                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保护巡检状态' : 'Protection Reconcile State'}</div>
-                    <div className="font-mono text-nofx-text-main">{formatProtectionState(position.protection_state, language, exchange)}</div>
-                  </div>
-                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
-                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损状态' : 'Break-even State'}</div>
-                    <div className="font-mono text-nofx-text-main">{formatBreakEvenState(position.break_even_state, language)}</div>
-                  </div>
-                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
-                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '回撤止盈执行模式' : 'Drawdown Execution Mode'}</div>
-                    <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.drawdown_execution_mode, language)}</div>
-                  </div>
-                  <div className="rounded border border-white/10 px-3 py-2 bg-black/20">
-                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损执行模式' : 'Break-even Execution Mode'}</div>
-                    <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.break_even_execution_mode, language)}</div>
-                  </div>
-                </div>
+                <div className="font-semibold text-nofx-text-main mb-1">{language === 'zh' ? '执行边界说明' : 'Execution Boundary Notes'}</div>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>{language === 'zh' ? 'Drawdown Take Profit 与 Break-even Stop 仅在交易所无法直接表达规则时，才应由本地持续监控执行。' : 'Drawdown TP and Break-even Stop should only remain local when the exchange cannot express the rule natively.'}</li>
-                  <li>{language === 'zh' ? '每个持仓都应独立维护保护，不应因别的持仓已完成挂单而停止监控。' : 'Each position should keep its own protection state; one protected position must not stop monitoring another.'}</li>
-                  <li>{language === 'zh' ? '当前原生 drawdown trailing 仅覆盖整仓退出规则（close_ratio=100%）；分批回撤止盈仍由本地监控执行。' : 'Native drawdown trailing currently covers full-close rules only (close_ratio=100%); partial drawdown rules still use local monitoring.'}</li>
-                  <li>{language === 'zh' ? '保本止损状态会在仓位数量或开仓价变化时自动重置，避免旧仓位状态污染新仓位。' : 'Break-even state auto-resets when position quantity or entry price changes, preventing stale armed states from polluting new positions.'}</li>
+                  <li>{language === 'zh' ? '当前主面板展示的是开仓后“现在生效什么、未来会做什么”，不再把配置快照当主信息。' : 'This panel focuses on what is active now and what will execute next, instead of raw config snapshots.'}</li>
+                  <li>{language === 'zh' ? '原生 drawdown trailing 当前优先覆盖整仓退出；分批回撤仍可能落到本地 fallback。' : 'Native drawdown trailing currently prioritizes full-close exits; partial drawdown may still remain on local fallback.'}</li>
+                  <li>{language === 'zh' ? '保本止损 armed 状态会随仓位数量/开仓价变化自动重置。' : 'Break-even armed state auto-resets when position size or entry price changes.'}</li>
                 </ul>
               </div>
             </div>
           )
         })}
 
-        <div className="rounded-lg border border-indigo-400/20 bg-indigo-500/5 p-4 text-xs text-nofx-text-muted leading-6">
-          <div className="font-semibold text-indigo-300 mb-2">{language === 'zh' ? '当前交易所原生保护能力摘要（基于系统能力矩阵）' : 'Current Exchange-native Protection Capability Summary'}</div>
-          {exchange ? (
-            <div className="mb-3 rounded border border-indigo-400/20 bg-black/20 px-3 py-2 font-mono text-nofx-text-main">
-              {language === 'zh' ? `当前账户交易所：${exchange.toUpperCase()}` : `Current exchange: ${exchange.toUpperCase()}`}
-            </div>
-          ) : null}
-          <ul className="list-disc pl-5 space-y-1">
-            <li>{language === 'zh' ? 'Binance / OKX：原生 stop / tp / partial close 能力较完整。' : 'Binance / OKX currently expose the strongest native stop / tp / partial-close support in the system.'}</li>
-            <li>{language === 'zh' ? 'Bitget：现已接入原生 trailing drawdown 路径。' : 'Bitget now has a native trailing drawdown path integrated.'}</li>
-            <li>{language === 'zh' ? 'Gate / KuCoin / Bybit / Aster：支持原生 stop / tp / partial close，但改单能力相对弱。' : 'Gate / KuCoin / Bybit / Aster support native stop / tp / partial close, but amend flows are weaker.'}</li>
-            <li>{language === 'zh' ? 'Hyperliquid：支持原生 stop / tp，但 stop/tp 区分与取消存在特殊性。' : 'Hyperliquid supports native stop / tp, but stop/tp distinction and cancellation semantics are special.'}</li>
-            <li>{language === 'zh' ? 'Lighter：支持 stop / tp，但 partial close 能力矩阵当前偏保守。' : 'Lighter supports stop / tp, but the current safety matrix is conservative about partial close.'}</li>
-          </ul>
-        </div>
-
-        {loading && <div className="text-xs text-nofx-text-muted">{language === 'zh' ? '正在刷新保护状态…' : 'Refreshing protection status…'}</div>}
+        {loading && <div className="text-xs text-nofx-text-muted">{language === 'zh' ? '正在刷新保护状态…' : 'Refreshing protection state…'}</div>}
         {error && <div className="text-xs text-nofx-red">{error}</div>}
       </div>
     </div>

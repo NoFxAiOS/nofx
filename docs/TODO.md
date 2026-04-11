@@ -56,3 +56,13 @@
 - [x] Phase 3 收口补强：OKX / NOFXOS 网络健壮性补强
 - [x] 验证闭环启动：统一 fake trader harness + protection lifecycle test 骨架 + replay/paper-trading 推进方案
 - [x] 下一阶段：继续深化 replay / paper-trading / simulation 验证闭环（已完成多场景覆盖、short 侧、多步价格推进、负收益、regime filter 阻断、错误路径、protection 生命周期集成测试深化）
+
+## P0 - 保护机制实战闭环（2026-04-11~12 推进中）
+- [x] 修复委托单检测反复下单（验证延迟重试 + 价格容差 + reconciler 冷却期）
+- [x] 修复 Full + Ladder TP/SL 不能共存（Ladder 优先 → Full 只补缺方向）
+- [x] 移动止盈止损代码路径从 stub 接入实际执行
+- [x] Break-even 生命周期完善（fingerprint re-arm + 委托验证）
+- [x] 修复保护单无限累积 bug（reconciler 自动清理重复单 + 孤儿单取消）
+- [ ] **P0: Drawdown 利润保护 OKX 价格精度对齐**（下单价格被 OKX 截断导致验证失败）
+- [ ] Break-even 实战验证（需仓位盈利触发）
+- [ ] Full TP/SL 独立实战验证（需关闭 Ladder 测试）

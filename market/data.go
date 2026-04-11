@@ -112,8 +112,9 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	// Get OI data
 	oiData, err := getOpenInterestData(symbol)
 	if err != nil {
-		// OI failure doesn't affect overall result, use default values
-		oiData = &OIData{Latest: 0, Average: 0}
+		// OI failure doesn't affect overall result; keep it nil so downstream can distinguish
+		// "missing OI" from a real numeric 0 and avoid accidental hard filtering.
+		oiData = nil
 	}
 
 	// Get Funding Rate
@@ -235,7 +236,8 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	// Get OI data
 	oiData, err := getOpenInterestData(symbol)
 	if err != nil {
-		oiData = &OIData{Latest: 0, Average: 0}
+		// Preserve nil to signal OI is unavailable, instead of coercing to zero.
+		oiData = nil
 	}
 
 	// Get Funding Rate

@@ -179,13 +179,17 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		// Liquidity filter (skip for xyz dex assets - they don't have OI data from Binance)
 		isExistingPosition := positionSymbols[coin.Symbol]
 		isXyzAsset := market.IsXyzDexAsset(coin.Symbol)
-		if !isExistingPosition && !isXyzAsset && data.OpenInterest != nil && data.CurrentPrice > 0 {
-			oiValue := data.OpenInterest.Latest * data.CurrentPrice
-			oiValueInMillions := oiValue / 1_000_000
-			if oiValueInMillions < minOIThresholdMillions {
-				logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
-					coin.Symbol, oiValueInMillions, minOIThresholdMillions)
-				continue
+		if !isExistingPosition && !isXyzAsset {
+			if data.OpenInterest == nil || data.CurrentPrice <= 0 || data.OpenInterest.Latest <= 0 {
+				logger.Infof("⚠️  %s OI data unavailable or invalid, skipping OI hard filter and keeping candidate coin", coin.Symbol)
+			} else {
+				oiValue := data.OpenInterest.Latest * data.CurrentPrice
+				oiValueInMillions := oiValue / 1_000_000
+				if oiValueInMillions < minOIThresholdMillions {
+					logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
+						coin.Symbol, oiValueInMillions, minOIThresholdMillions)
+					continue
+				}
 			}
 		}
 

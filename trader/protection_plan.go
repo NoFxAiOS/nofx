@@ -39,16 +39,24 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		}
 		merged.NeedsStopLoss = merged.NeedsStopLoss || plan.NeedsStopLoss
 		merged.NeedsTakeProfit = merged.NeedsTakeProfit || plan.NeedsTakeProfit
+		merged.StopLossOrders = append(merged.StopLossOrders, plan.StopLossOrders...)
+		merged.TakeProfitOrders = append(merged.TakeProfitOrders, plan.TakeProfitOrders...)
+		merged.RequiresNativeOrders = merged.RequiresNativeOrders || plan.RequiresNativeOrders
+		merged.RequiresPartialClose = merged.RequiresPartialClose || plan.RequiresPartialClose
 		if merged.StopLossPrice == 0 && plan.StopLossPrice > 0 {
 			merged.StopLossPrice = plan.StopLossPrice
 		}
 		if merged.TakeProfitPrice == 0 && plan.TakeProfitPrice > 0 {
 			merged.TakeProfitPrice = plan.TakeProfitPrice
 		}
-		merged.StopLossOrders = append(merged.StopLossOrders, plan.StopLossOrders...)
-		merged.TakeProfitOrders = append(merged.TakeProfitOrders, plan.TakeProfitOrders...)
-		merged.RequiresNativeOrders = merged.RequiresNativeOrders || plan.RequiresNativeOrders
-		merged.RequiresPartialClose = merged.RequiresPartialClose || plan.RequiresPartialClose
+	}
+
+	// Ladder orders win for their direction; keep full-position prices only when no ladder orders exist for that side.
+	if len(merged.StopLossOrders) > 0 {
+		merged.StopLossPrice = 0
+	}
+	if len(merged.TakeProfitOrders) > 0 {
+		merged.TakeProfitPrice = 0
 	}
 
 	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 {
@@ -67,46 +75,55 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 
 	protection := at.config.StrategyConfig.Protection
 
-	var plans []*ProtectionPlan
-
+	// Build ladder plan first so we know which directions it covers.
+	var ladderPlan *ProtectionPlan
 	if protection.LadderTPSL.Enabled {
+		var err error
 		switch protection.LadderTPSL.Mode {
 		case store.ProtectionModeManual:
-			plan, err := buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-			if err != nil {
-				return nil, err
-			}
-			if plan != nil {
-				plans = append(plans, plan)
-			}
+			ladderPlan, err = buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
 		case store.ProtectionModeAI:
-			plan, err := buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-			if err != nil {
-				return nil, err
-			}
-			if plan != nil {
-				plans = append(plans, plan)
-			}
+			ladderPlan, err = buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
+	ladderCoversSL := ladderPlan != nil && len(ladderPlan.StopLossOrders) > 0
+	ladderCoversTP := ladderPlan != nil && len(ladderPlan.TakeProfitOrders) > 0
+
+	var plans []*ProtectionPlan
+	if ladderPlan != nil {
+		plans = append(plans, ladderPlan)
+	}
+
+	// Build full plan, but suppress directions already covered by ladder.
 	if protection.FullTPSL.Enabled {
+		var fullPlan *ProtectionPlan
+		var err error
 		switch protection.FullTPSL.Mode {
 		case store.ProtectionModeManual:
-			plan, err := buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-			if err != nil {
-				return nil, err
-			}
-			if plan != nil {
-				plans = append(plans, plan)
-			}
+			fullPlan, err = buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
 		case store.ProtectionModeAI:
-			plan, err := buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-			if err != nil {
-				return nil, err
+			fullPlan, err = buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if fullPlan != nil {
+			// Suppress full-position directions that ladder already covers.
+			if ladderCoversSL {
+				fullPlan.NeedsStopLoss = false
+				fullPlan.StopLossPrice = 0
 			}
-			if plan != nil {
-				plans = append(plans, plan)
+			if ladderCoversTP {
+				fullPlan.NeedsTakeProfit = false
+				fullPlan.TakeProfitPrice = 0
+			}
+			// Only merge if full plan still has something to contribute.
+			if fullPlan.NeedsStopLoss || fullPlan.NeedsTakeProfit {
+				plans = append(plans, fullPlan)
 			}
 		}
 	}

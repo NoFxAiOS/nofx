@@ -9,7 +9,8 @@ import (
 
 type fakeReconcileTrader struct {
 	fakeOrderProtectionTrader
-	positions []map[string]interface{}
+	positions      []map[string]interface{}
+	cooldownBypass bool
 }
 
 func (f *fakeReconcileTrader) GetPositions() ([]map[string]interface{}, error) {
@@ -92,5 +93,11 @@ func TestProtectionReconciler_ReappliesMissingManualOrders(t *testing.T) {
 	}
 	if len(ft.takeProfitOrders) != 1 {
 		t.Fatalf("expected reconciler to re-apply 1 take profit, got %d", len(ft.takeProfitOrders))
+	}
+
+	before := ft.getOpenOrdersCalls
+	at.reconcilePositionProtections()
+	if ft.getOpenOrdersCalls != before {
+		t.Fatalf("expected cooldown to skip re-checks, open order calls %d -> %d", before, ft.getOpenOrdersCalls)
 	}
 }

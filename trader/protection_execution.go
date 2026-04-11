@@ -184,16 +184,19 @@ func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, 
 		return nil
 	}
 
+	hasLadderSL := len(plan.StopLossOrders) > 0
+	hasLadderTP := len(plan.TakeProfitOrders) > 0
+
 	// Apply ladder legs first when present.
-	if len(plan.StopLossOrders) > 1 || len(plan.TakeProfitOrders) > 1 {
+	if hasLadderSL || hasLadderTP {
 		if err := at.placeAndVerifyLadderProtection(symbol, positionSide, quantity, plan); err != nil {
 			return err
 		}
 	}
 
-	// Full-position TP/SL should still be applied when configured, even if ladder legs are also present.
-	fullStop := plan.NeedsStopLoss && plan.StopLossPrice > 0
-	fullTP := plan.NeedsTakeProfit && plan.TakeProfitPrice > 0
+	// Full-position TP/SL should still be applied for directions NOT already covered by ladder orders.
+	fullStop := plan.NeedsStopLoss && plan.StopLossPrice > 0 && !hasLadderSL
+	fullTP := plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 && !hasLadderTP
 	if fullStop || fullTP {
 		if err := at.placeAndVerifyProtection(symbol, positionSide, quantity, fullStop, plan.StopLossPrice, fullTP, plan.TakeProfitPrice); err != nil {
 			return err

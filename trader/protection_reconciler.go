@@ -108,8 +108,30 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	if plan != nil {
 		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
 		if missingSL || missingTP {
+			// Safety cap: if there are already many orders for this symbol, do NOT keep adding.
+			// This prevents runaway order accumulation when verification keeps failing.
+			expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)
+			if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
+				expectedOrderCount++
+			}
+			if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
+				expectedOrderCount++
+			}
+			symbolOrderCount := countOrdersForPositionSide(openOrders, positionSide)
+			maxAllowed := expectedOrderCount * 3 // allow up to 3x expected as safety margin
+			if maxAllowed < 6 {
+				maxAllowed = 6
+			}
+			if symbolOrderCount >= maxAllowed {
+				logger.Warnf("🛑 Protection reconciler: %s %s already has %d orders (max %d), skipping re-apply to prevent accumulation",
+					symbol, positionSide, symbolOrderCount, maxAllowed)
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return nil
+			}
+
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
+				at.setReconcileCooldown(positionKey(symbol, side)) // cooldown even on failure to prevent rapid retry
 				return fmt.Errorf("re-apply manual protection plan: %w", err)
 			}
 			at.setReconcileCooldown(positionKey(symbol, side))
@@ -378,4 +400,19 @@ func (at *AutoTrader) isReconcileCooldownActive(key string) bool {
 		return time.Since(lastTime) < reconcileCooldownDuration
 	}
 	return false
+}
+
+// countOrdersForPositionSide counts how many open orders belong to a given position side.
+func countOrdersForPositionSide(openOrders []OpenOrder, positionSide string) int {
+	count := 0
+	for _, order := range openOrders {
+		if positionSide == "" {
+			count++
+			continue
+		}
+		if order.PositionSide == "" || strings.EqualFold(order.PositionSide, positionSide) {
+			count++
+		}
+	}
+	return count
 }

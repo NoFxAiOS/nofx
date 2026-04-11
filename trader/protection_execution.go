@@ -278,6 +278,25 @@ func verifyProtectionOrders(orders []tradertypes.OpenOrder, positionSide string,
 			if wantTakeProfit {
 				kind = "take profit"
 			}
+			// Debug: log what orders we actually see so we can diagnose verification mismatches
+			var candidates []string
+			for _, o := range orders {
+				if positionSide != "" && !strings.EqualFold(o.PositionSide, positionSide) && o.PositionSide != "" {
+					continue
+				}
+				price := o.StopPrice
+				if price <= 0 {
+					price = o.Price
+				}
+				matches := ""
+				if wantTakeProfit && looksLikeTakeProfit(o) {
+					matches = "match-type"
+				} else if !wantTakeProfit && looksLikeStopLoss(o) {
+					matches = "match-type"
+				}
+				candidates = append(candidates, fmt.Sprintf("%s|side=%s|price=%.6f|qty=%.4f|%s", o.Type, o.PositionSide, price, o.Quantity, matches))
+			}
+			logger.Infof("  🔍 %s verify failed: target=%.6f side=%s | candidates=%v", kind, target.Price, positionSide, candidates)
 			return fmt.Errorf("%s ladder verification failed for %s at %.6f", kind, positionSide, target.Price)
 		}
 	}

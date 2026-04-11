@@ -164,11 +164,23 @@ func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, 
 		return nil
 	}
 
+	// Apply ladder legs first when present.
 	if len(plan.StopLossOrders) > 1 || len(plan.TakeProfitOrders) > 1 {
-		return at.placeAndVerifyLadderProtection(symbol, positionSide, quantity, plan)
+		if err := at.placeAndVerifyLadderProtection(symbol, positionSide, quantity, plan); err != nil {
+			return err
+		}
 	}
 
-	return at.placeAndVerifyProtection(symbol, positionSide, quantity, plan.NeedsStopLoss, plan.StopLossPrice, plan.NeedsTakeProfit, plan.TakeProfitPrice)
+	// Full-position TP/SL should still be applied when configured, even if ladder legs are also present.
+	fullStop := plan.NeedsStopLoss && plan.StopLossPrice > 0
+	fullTP := plan.NeedsTakeProfit && plan.TakeProfitPrice > 0
+	if fullStop || fullTP {
+		if err := at.placeAndVerifyProtection(symbol, positionSide, quantity, fullStop, plan.StopLossPrice, fullTP, plan.TakeProfitPrice); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (at *AutoTrader) placeAndVerifyLadderProtection(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {
@@ -176,9 +188,17 @@ func (at *AutoTrader) placeAndVerifyLadderProtection(symbol, positionSide string
 		return nil
 	}
 
+	existingOrders, err := at.trader.GetOpenOrders(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to inspect existing ladder protection orders: %w", err)
+	}
+
 	for _, order := range plan.StopLossOrders {
 		orderQty := quantity * order.CloseRatioPct / 100.0
 		if orderQty <= 0 {
+			continue
+		}
+		if hasExistingEquivalentProtection(existingOrders, positionSide, false, order.Price, orderQty) {
 			continue
 		}
 		if err := at.trader.SetStopLoss(symbol, positionSide, orderQty, order.Price); err != nil {
@@ -188,6 +208,9 @@ func (at *AutoTrader) placeAndVerifyLadderProtection(symbol, positionSide string
 	for _, order := range plan.TakeProfitOrders {
 		orderQty := quantity * order.CloseRatioPct / 100.0
 		if orderQty <= 0 {
+			continue
+		}
+		if hasExistingEquivalentProtection(existingOrders, positionSide, true, order.Price, orderQty) {
 			continue
 		}
 		if err := at.trader.SetTakeProfit(symbol, positionSide, orderQty, order.Price); err != nil {
@@ -223,6 +246,15 @@ func verifyProtectionOrders(orders []tradertypes.OpenOrder, positionSide string,
 		}
 	}
 	return nil
+}
+
+func hasExistingEquivalentProtection(orders []tradertypes.OpenOrder, positionSide string, wantTakeProfit bool, targetPrice, targetQty float64) bool {
+	for _, order := range orders {
+		if hasEquivalentProtectionOrder(order, positionSide, wantTakeProfit, targetPrice, targetQty) {
+			return true
+		}
+	}
+	return false
 }
 
 func (at *AutoTrader) placeAndVerifyProtection(symbol, positionSide string, quantity float64, needsStopLoss bool, stopLossPrice float64, needsTakeProfit bool, takeProfitPrice float64) error {
@@ -308,6 +340,32 @@ func countMatchingProtectionOrders(orders []tradertypes.OpenOrder, positionSide 
 		}
 	}
 	return count
+}
+
+func hasEquivalentProtectionOrder(order tradertypes.OpenOrder, positionSide string, wantTakeProfit bool, targetPrice, targetQty float64) bool {
+	if positionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) && order.PositionSide != "" {
+		return false
+	}
+	if wantTakeProfit {
+		if !looksLikeTakeProfit(order) {
+			return false
+		}
+	} else {
+		if !looksLikeStopLoss(order) {
+			return false
+		}
+	}
+	price := order.StopPrice
+	if price <= 0 {
+		price = order.Price
+	}
+	if !approximatelyEqualPrice(price, targetPrice) {
+		return false
+	}
+	if targetQty > 0 && order.Quantity > 0 && math.Abs(order.Quantity-targetQty)/math.Max(order.Quantity, targetQty) > 0.05 {
+		return false
+	}
+	return true
 }
 
 func looksLikeStopLoss(order tradertypes.OpenOrder) bool {

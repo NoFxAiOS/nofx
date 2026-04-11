@@ -72,11 +72,8 @@ func TestPlaceAndVerifyLadderProtection(t *testing.T) {
 	if err := at.placeAndVerifyLadderProtection("BTCUSDT", "LONG", 2, plan); err != nil {
 		t.Fatalf("expected ladder protection success, got %v", err)
 	}
-	if len(fakeTrader.stopLossOrders) != 2 || len(fakeTrader.takeProfitOrders) != 2 {
-		t.Fatalf("expected 2 stop-loss and 2 take-profit orders, got sl=%d tp=%d", len(fakeTrader.stopLossOrders), len(fakeTrader.takeProfitOrders))
-	}
-	if fakeTrader.stopLossOrders[0].quantity != 1 || fakeTrader.takeProfitOrders[0].quantity != 0.6 {
-		t.Fatalf("unexpected ladder quantities, sl=%v tp=%v", fakeTrader.stopLossOrders[0].quantity, fakeTrader.takeProfitOrders[0].quantity)
+	if len(fakeTrader.stopLossOrders) != 0 || len(fakeTrader.takeProfitOrders) != 0 {
+		t.Fatalf("expected no duplicate ladder orders when equivalent open orders already exist, got sl=%d tp=%d", len(fakeTrader.stopLossOrders), len(fakeTrader.takeProfitOrders))
 	}
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { DecisionRecord, DecisionAction, ProtectionSnapshot } from '../../types'
+import type { DecisionRecord, DecisionAction } from '../../types'
 import { t, type Language } from '../../i18n/translations'
 
 interface DecisionCardProps {
@@ -211,87 +211,6 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           }}
         >
           ❌ {action.error}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function renderProtectionSummary(snapshot: ProtectionSnapshot | undefined, language: Language) {
-  if (!snapshot) return null
-
-  const isZh = language === 'zh'
-  const blockTitleStyle = { color: '#A5B4FC' }
-  const valueStyle = { color: '#EAECEF' }
-  const labelStyle = { color: '#818CF8' }
-
-  const Row = ({ label, value }: { label: string; value: string }) => (
-    <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
-      <div style={labelStyle}>{label}</div>
-      <div className="font-mono md:text-right" style={valueStyle}>{value}</div>
-    </div>
-  )
-
-  return (
-    <div
-      className="rounded-lg p-3 mt-4 text-xs space-y-4"
-      style={{ background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)' }}
-    >
-      <div className="font-semibold" style={blockTitleStyle}>
-        {isZh ? 'Protection Snapshot / 本轮保护快照（明细）' : 'Protection Snapshot (Detailed)'}
-      </div>
-
-      {snapshot.full_tp_sl && (
-        <div className="rounded-lg border border-indigo-400/20 bg-black/20 p-3 space-y-2">
-          <div className="font-semibold" style={blockTitleStyle}>Full TP/SL</div>
-          <Row label={isZh ? '启用' : 'Enabled'} value={String(snapshot.full_tp_sl.enabled)} />
-          <Row label={isZh ? '模式' : 'Mode'} value={snapshot.full_tp_sl.mode || '-'} />
-          <Row label={isZh ? '止盈幅度' : 'Take Profit %'} value={`${snapshot.full_tp_sl.take_profit_pct ?? '-'}%`} />
-          <Row label={isZh ? '止损幅度' : 'Stop Loss %'} value={`${snapshot.full_tp_sl.stop_loss_pct ?? '-'}%`} />
-        </div>
-      )}
-
-      {snapshot.ladder_tp_sl && (
-        <div className="rounded-lg border border-indigo-400/20 bg-black/20 p-3 space-y-2">
-          <div className="font-semibold" style={blockTitleStyle}>Ladder TP/SL</div>
-          <Row label={isZh ? '启用' : 'Enabled'} value={String(snapshot.ladder_tp_sl.enabled)} />
-          <Row label={isZh ? '模式' : 'Mode'} value={snapshot.ladder_tp_sl.mode || '-'} />
-          <Row label={isZh ? '启用分批止盈' : 'Take Profit Enabled'} value={String(snapshot.ladder_tp_sl.take_profit_enabled)} />
-          <Row label={isZh ? '启用分批止损' : 'Stop Loss Enabled'} value={String(snapshot.ladder_tp_sl.stop_loss_enabled)} />
-          {(snapshot.ladder_tp_sl.rules || []).map((rule, index) => (
-            <div key={`ladder-${index}`} className="rounded border border-white/10 px-3 py-2 space-y-1">
-              <div className="font-semibold" style={labelStyle}>{isZh ? `第 ${index + 1} 档` : `Rule ${index + 1}`}</div>
-              <Row label={isZh ? '止盈幅度' : 'TP %'} value={`${rule.take_profit_pct ?? '-'}%`} />
-              <Row label={isZh ? '止盈平仓比例' : 'TP Close %'} value={`${rule.take_profit_close_ratio_pct ?? '-'}%`} />
-              <Row label={isZh ? '止损幅度' : 'SL %'} value={`${rule.stop_loss_pct ?? '-'}%`} />
-              <Row label={isZh ? '止损平仓比例' : 'SL Close %'} value={`${rule.stop_loss_close_ratio_pct ?? '-'}%`} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {snapshot.drawdown && snapshot.drawdown.length > 0 && (
-        <div className="rounded-lg border border-indigo-400/20 bg-black/20 p-3 space-y-2">
-          <div className="font-semibold" style={blockTitleStyle}>{isZh ? 'Drawdown Take Profit / 回撤止盈' : 'Drawdown Take Profit'}</div>
-          {snapshot.drawdown.map((rule, index) => (
-            <div key={`drawdown-${index}`} className="rounded border border-white/10 px-3 py-2 space-y-1">
-              <div className="font-semibold" style={labelStyle}>{isZh ? `规则 ${index + 1}` : `Rule ${index + 1}`}</div>
-              <Row label={isZh ? '最小利润阈值' : 'Min Profit %'} value={`${rule.min_profit_pct}%`} />
-              <Row label={isZh ? '最大回撤阈值' : 'Max Drawdown %'} value={`${rule.max_drawdown_pct}%`} />
-              <Row label={isZh ? '平仓比例' : 'Close Ratio %'} value={`${rule.close_ratio_pct}%`} />
-              <Row label={isZh ? '轮询间隔' : 'Poll Interval'} value={`${rule.poll_interval_s}s`} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {snapshot.break_even && (
-        <div className="rounded-lg border border-indigo-400/20 bg-black/20 p-3 space-y-2">
-          <div className="font-semibold" style={blockTitleStyle}>{isZh ? 'Break-even Stop / 保本止损' : 'Break-even Stop'}</div>
-          <Row label={isZh ? '启用' : 'Enabled'} value={String(snapshot.break_even.enabled)} />
-          <Row label={isZh ? '触发模式' : 'Trigger Mode'} value={snapshot.break_even.trigger_mode || '-'} />
-          <Row label={isZh ? '触发值' : 'Trigger Value'} value={String(snapshot.break_even.trigger_value ?? '-')} />
-          <Row label={isZh ? '偏移比例' : 'Offset %'} value={`${snapshot.break_even.offset_pct ?? '-'}%`} />
         </div>
       )}
     </div>
@@ -529,9 +448,6 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           </div>
         )}
       </div>
-
-      {/* Protection Snapshot */}
-      {renderProtectionSummary(decision.protection_snapshot, language)}
 
       {/* Execution Log */}
       {decision.execution_log && decision.execution_log.length > 0 && (

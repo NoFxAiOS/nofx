@@ -107,31 +107,45 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 	if plan != nil {
 		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
+		expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)
+		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
+			expectedOrderCount++
+		}
+		if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
+			expectedOrderCount++
+		}
+		symbolOrderCount := countOrdersForPositionSide(openOrders, positionSide)
+
+		// Detect duplicate/stale orders: if we have more protection orders than expected,
+		// cancel all and re-apply cleanly to avoid accumulation.
+		if symbolOrderCount > expectedOrderCount+2 {
+			logger.Warnf("🧹 Protection reconciler: %s %s has %d orders (expected ~%d), cleaning duplicates",
+				symbol, positionSide, symbolOrderCount, expectedOrderCount)
+			at.cancelProtectionOrdersForCleanup(symbol)
+			// Re-apply clean protection plan.
+			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return fmt.Errorf("cleanup re-apply protection plan: %w", err)
+			}
+			at.setReconcileCooldown(positionKey(symbol, side))
+			return nil
+		}
+
 		if missingSL || missingTP {
 			// Safety cap: if there are already many orders for this symbol, do NOT keep adding.
-			// This prevents runaway order accumulation when verification keeps failing.
-			expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)
-			if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
-				expectedOrderCount++
-			}
-			if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
-				expectedOrderCount++
-			}
-			symbolOrderCount := countOrdersForPositionSide(openOrders, positionSide)
-			maxAllowed := expectedOrderCount * 3 // allow up to 3x expected as safety margin
+			maxAllowed := expectedOrderCount * 3
 			if maxAllowed < 6 {
 				maxAllowed = 6
 			}
 			if symbolOrderCount >= maxAllowed {
-				logger.Warnf("🛑 Protection reconciler: %s %s already has %d orders (max %d), skipping re-apply to prevent accumulation",
+				logger.Warnf("🛑 Protection reconciler: %s %s already has %d orders (max %d), cancelling and re-applying",
 					symbol, positionSide, symbolOrderCount, maxAllowed)
-				at.setReconcileCooldown(positionKey(symbol, side))
-				return nil
+				at.cancelProtectionOrdersForCleanup(symbol)
 			}
 
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
-				at.setReconcileCooldown(positionKey(symbol, side)) // cooldown even on failure to prevent rapid retry
+				at.setReconcileCooldown(positionKey(symbol, side))
 				return fmt.Errorf("re-apply manual protection plan: %w", err)
 			}
 			at.setReconcileCooldown(positionKey(symbol, side))
@@ -415,4 +429,25 @@ func countOrdersForPositionSide(openOrders []OpenOrder, positionSide string) int
 		}
 	}
 	return count
+}
+
+// cancelProtectionOrdersForCleanup cancels all SL and TP algo orders for a symbol
+// to prepare for a clean re-application of the correct protection plan.
+func (at *AutoTrader) cancelProtectionOrdersForCleanup(symbol string) {
+	if canceller, ok := at.trader.(interface {
+		CancelStopLossOrders(symbol string) error
+	}); ok {
+		if err := canceller.CancelStopLossOrders(symbol); err != nil {
+			logger.Warnf("  ⚠️ Cleanup: failed to cancel SL orders for %s: %v", symbol, err)
+		}
+	}
+	if canceller, ok := at.trader.(interface {
+		CancelTakeProfitOrders(symbol string) error
+	}); ok {
+		if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
+			logger.Warnf("  ⚠️ Cleanup: failed to cancel TP orders for %s: %v", symbol, err)
+		}
+	}
+	// Small delay to let exchange process cancellations.
+	time.Sleep(500 * time.Millisecond)
 }

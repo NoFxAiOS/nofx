@@ -118,10 +118,12 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 			continue
 		}
 		if at.canApplyNativePartialDrawdownPlan(candidate) {
-			logger.Infof("  🛡 Applying native partial drawdown candidate: symbol=%s side=%s close=%.1f%%",
+			logger.Infof("  🛡 Applying native partial drawdown: symbol=%s side=%s close=%.1f%%",
 				req.Symbol, req.PositionSide, rule.CloseRatioPct)
 			if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, candidate); err != nil {
-				logger.Warnf("  ⚠️ Native partial drawdown candidate failed for %s %s: %v", req.Symbol, req.PositionSide, err)
+				// Verification failed but OKX may have accepted the orders. Cancel them to avoid orphans.
+				logger.Warnf("  ⚠️ Native partial drawdown failed for %s %s: %v — cancelling orphaned orders", req.Symbol, req.PositionSide, err)
+				at.cancelOrphanedDrawdownOrders(req.Symbol, candidate)
 			} else {
 				at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "native_partial_trailing_armed")
 			}
@@ -460,4 +462,25 @@ func approximatelyEqualPrice(a, b float64) bool {
 		return false
 	}
 	return math.Abs(a-b)/base <= protectionPriceTolerancePct
+}
+
+// cancelOrphanedDrawdownOrders cancels TP orders that were placed as part of a drawdown
+// plan that failed verification. This prevents orphaned orders accumulating on the exchange.
+func (at *AutoTrader) cancelOrphanedDrawdownOrders(symbol string, plan *ProtectionPlan) {
+	if plan == nil {
+		return
+	}
+	// Only drawdown plans use TP orders for partial close.
+	if len(plan.TakeProfitOrders) == 0 {
+		return
+	}
+	if canceller, ok := at.trader.(interface {
+		CancelTakeProfitOrders(symbol string) error
+	}); ok {
+		if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
+			logger.Warnf("  ⚠️ Failed to cancel orphaned drawdown TP orders for %s: %v", symbol, err)
+		} else {
+			logger.Infof("  🧹 Cancelled orphaned drawdown TP orders for %s", symbol)
+		}
+	}
 }

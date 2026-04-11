@@ -1,3 +1,40 @@
+## 2026-04-11
+
+### 保护单委托系统四大关键修复（交易所原生委托闭环）
+
+#### 交付 1：修复委托单检测导致反复下单 (ee0191a4)
+- `placeAndVerifyProtection()` 和 `placeAndVerifyLadderProtection()` 加入 500ms×3 轮延迟重试验证
+- 交易所有传播延迟，刚下的委托单还没出现在 GetOpenOrders 返回结果里 → 验证失败 → 重复下单
+- 价格容差从 0.2% 放宽到 0.5%（应对交易所精度截断）
+- `protection_reconciler` 补单成功后加入 60 秒冷却期，防止和开仓链路叠加导致重复
+- protection plan merge 改为 configured + AI 正确合并（additive merge）
+- 新增 2 个传播延迟验证测试
+
+#### 交付 2：修复全仓 + 分段 TP/SL 不能同时下单 (604b94fe)
+- `BuildConfiguredProtectionPlan()` 改为先构建 ladder，再按覆盖方向抑制 Full
+- `placeAndVerifyProtectionPlan()` ladder 分支条件从 `len > 1` 改为 `len > 0`（单步 ladder 不再被跳过）
+- Full position SL/TP 只在 ladder 未覆盖的方向上生效，消除两模块互相踩踏
+- 新增 ladder wins / Full+Ladder 混合方向共存测试
+
+#### 交付 3：移动止盈止损实战走交易所原生委托 (0e7ffb8f)
+- `partial_drawdown_native.go` Mode 从 `"drawdown_partial_candidate"` 改为 `"drawdown_partial_native"`
+- `applyNativeTrailingDrawdown()` partial 路径：构建 plan → `placeAndVerifyProtectionPlanWithRetry()` → 标记 `native_partial_trailing_armed`
+- 之前 partial drawdown 全走 local fallback（本地轮询平仓），现在走交易所原生委托
+- 新增 mode 断言测试
+
+#### 交付 4：利润保护 Break-even 生命周期完善 (b18a8569)
+- `refreshBreakEvenFingerprint` 改为返回 `bool`，指示 fingerprint 是否变化
+- reconciler 检测到 fingerprint 变化 + 之前已 armed → 主动 re-arm 新数量的 break-even 委托
+- `applyBreakEvenStop` 加入 GetOpenOrders 验证循环（与交付 1 同模式），确认委托真正下到交易所
+- 新增仓位数量变化触发 re-arm 测试
+
+#### 全量回归
+- `go test ./...`：全部通过
+- 工作树干净
+- 分支：`fox/project-takeover-baseline`
+
+---
+
 ## 2026-04-09
 
 ### Replay / Paper-Trading 验证闭环深化（多场景 + 错误路径 + protection 集成测试）

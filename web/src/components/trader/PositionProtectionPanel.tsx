@@ -56,10 +56,16 @@ function formatBreakEvenState(state: string | undefined, language: Language): st
 function formatExecutionMode(mode: string | undefined, language: Language): string {
   if (!mode) return language === 'zh' ? '未确定' : 'undetermined'
   switch (mode.trim().toLowerCase()) {
-    case 'native_trailing':
-      return language === 'zh' ? '交易所原生 trailing（仅整仓）' : 'exchange-native trailing (full-close only)'
+    case 'native_trailing_full':
+      return language === 'zh' ? '交易所原生 trailing（整仓）' : 'exchange-native trailing (full close)'
+    case 'native_trailing_pending':
+      return language === 'zh' ? '支持原生 trailing（待触发/待武装）' : 'native trailing supported (pending arm)'
+    case 'native_full_local_partial':
+      return language === 'zh' ? '整仓原生 / 分批本地' : 'native for full close / local for partial'
     case 'native_stop':
       return language === 'zh' ? '交易所原生 stop' : 'exchange-native stop'
+    case 'local_only':
+      return language === 'zh' ? '仅本地执行' : 'local only'
     case 'local_fallback':
       return language === 'zh' ? '本地 fallback（含分批回撤）' : 'local fallback (incl. partial drawdown)'
     default:

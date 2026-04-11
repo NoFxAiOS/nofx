@@ -70,7 +70,6 @@ func (at *AutoTrader) reconcilePositionProtections() {
 		}
 		key := positionKey(symbol, side)
 		active[key] = struct{}{}
-		at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 
 		// Skip reconciliation for positions still in cooldown after a recent re-apply.
 		if at.isReconcileCooldownActive(key) {
@@ -122,8 +121,17 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
 
 	be := at.getActiveBreakEvenConfig()
+	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
+	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
 	if be != nil && at.GetProtectionCapabilities().NativeStopLoss {
-		if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
+		if prevBreakEvenArmed && fingerprintChanged {
+			logger.Infof("🛠 Protection reconciler: %s %s break-even fingerprint changed, re-arming native stop", symbol, positionSide)
+			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
+				return fmt.Errorf("re-arm break-even native stop: %w", err)
+			}
+			at.setBreakEvenState(symbol, side, "armed")
+			at.setProtectionState(symbol, side, "break_even_armed")
+		} else if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even trigger met (%.2f%% >= %.2f%%), applying native stop", symbol, positionSide, currentPnLPct, be.TriggerValue)
 			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
 				return fmt.Errorf("apply break-even native stop: %w", err)
@@ -269,17 +277,20 @@ func (at *AutoTrader) setBreakEvenState(symbol, side, state string) {
 	at.breakEvenState[positionKey(symbol, side)] = state
 }
 
-func (at *AutoTrader) refreshBreakEvenFingerprint(symbol, side string, entryPrice, quantity float64) {
+func (at *AutoTrader) refreshBreakEvenFingerprint(symbol, side string, entryPrice, quantity float64) bool {
 	key := positionKey(symbol, side)
 	fingerprint := fmt.Sprintf("%.8f|%.8f", entryPrice, quantity)
 
 	at.breakEvenStateMutex.Lock()
 	defer at.breakEvenStateMutex.Unlock()
 
+	changed := false
 	if prev, ok := at.breakEvenFingerprints[key]; ok && prev != fingerprint {
 		delete(at.breakEvenState, key)
+		changed = true
 	}
 	at.breakEvenFingerprints[key] = fingerprint
+	return changed
 }
 
 func (at *AutoTrader) getBreakEvenState(symbol, side string) string {

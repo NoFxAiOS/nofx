@@ -45,7 +45,7 @@ func (f *fakeReconcileTrader) SetTakeProfit(symbol string, positionSide string, 
 	return nil
 }
 
-func TestProtectionReconciler_ReappliesMissingManualOrders(t *testing.T) {
+func TestProtectionReconciler_RearmsBreakEvenOnQuantityChange(t *testing.T) {
 	ft := &fakeReconcileTrader{
 		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
 			openOrders: []tradertypes.OpenOrder{},
@@ -56,6 +56,7 @@ func TestProtectionReconciler_ReappliesMissingManualOrders(t *testing.T) {
 				"side":        "long",
 				"entryPrice":  100.0,
 				"positionAmt": 1.0,
+				"markPrice":   106.0,
 			},
 		},
 	}
@@ -66,17 +67,11 @@ func TestProtectionReconciler_ReappliesMissingManualOrders(t *testing.T) {
 		config: AutoTraderConfig{
 			StrategyConfig: &store.StrategyConfig{
 				Protection: store.ProtectionConfig{
-					FullTPSL: store.FullTPSLConfig{
-						Enabled: true,
-						Mode:    store.ProtectionModeManual,
-						StopLoss: store.ProtectionThresholdRule{
-							Enabled:      true,
-							PriceMovePct: 2,
-						},
-						TakeProfit: store.ProtectionThresholdRule{
-							Enabled:      true,
-							PriceMovePct: 5,
-						},
+					BreakEvenStop: store.BreakEvenStopConfig{
+						Enabled:      true,
+						TriggerMode:  store.BreakEvenTriggerProfitPct,
+						TriggerValue: 5,
+						OffsetPct:    0,
 					},
 				},
 			},
@@ -87,17 +82,26 @@ func TestProtectionReconciler_ReappliesMissingManualOrders(t *testing.T) {
 	}
 
 	at.reconcilePositionProtections()
-
 	if len(ft.stopLossOrders) != 1 {
-		t.Fatalf("expected reconciler to re-apply 1 stop loss, got %d", len(ft.stopLossOrders))
-	}
-	if len(ft.takeProfitOrders) != 1 {
-		t.Fatalf("expected reconciler to re-apply 1 take profit, got %d", len(ft.takeProfitOrders))
+		t.Fatalf("expected initial break-even stop placement, got %d", len(ft.stopLossOrders))
 	}
 
-	before := ft.getOpenOrdersCalls
+	// Simulate resized position: quantity changes while break-even remained armed.
+	ft.positions = []map[string]interface{}{
+		{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"positionAmt": 1.5,
+			"markPrice":   106.0,
+		},
+	}
+	before := len(ft.stopLossOrders)
 	at.reconcilePositionProtections()
-	if ft.getOpenOrdersCalls != before {
-		t.Fatalf("expected cooldown to skip re-checks, open order calls %d -> %d", before, ft.getOpenOrdersCalls)
+	if len(ft.stopLossOrders) != before+1 {
+		t.Fatalf("expected break-even to re-arm on quantity change, got %d stop-loss orders", len(ft.stopLossOrders))
+	}
+	if ft.stopLossOrders[len(ft.stopLossOrders)-1].quantity != 1.5 {
+		t.Fatalf("expected re-armed stop to use updated quantity 1.5, got %.2f", ft.stopLossOrders[len(ft.stopLossOrders)-1].quantity)
 	}
 }

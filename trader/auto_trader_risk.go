@@ -207,11 +207,17 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	if !at.supportsNativeTrailingStop() {
 		return false
 	}
-	if at.getProtectionState(symbol, side) == "native_trailing_armed" {
+	currentState := at.getProtectionState(symbol, side)
+	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
 		return true
 	}
-	if rule.CloseRatioPct < 99.999 {
-		return false
+	// For partial close rules, check if exchange supports native partial close
+	isPartial := rule.CloseRatioPct < 99.999
+	if isPartial {
+		caps := at.GetProtectionCapabilities()
+		if !caps.NativePartialClose {
+			return false
+		}
 	}
 	if entryPrice <= 0 || rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 {
 		return false
@@ -288,8 +294,13 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 
-	at.setProtectionState(symbol, side, "native_trailing_armed")
-	logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%%", symbol, side, activationPrice, callbackRate)
+	if isPartial {
+		at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+		logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct)
+	} else {
+		at.setProtectionState(symbol, side, "native_trailing_armed")
+		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%%", symbol, side, activationPrice, callbackRate)
+	}
 	return true
 }
 

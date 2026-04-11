@@ -2,8 +2,22 @@ package trader
 
 import (
 	"fmt"
+	"math"
 	"nofx/store"
 )
+
+// roundProtectionPrice normalizes protection prices to a stable decimal scale
+// before they are compared, logged, or passed into exchange-specific formatting.
+// Exchange adapters with tick-size awareness should still apply their own final
+// formatting on submission.
+func roundProtectionPrice(price float64) float64 {
+	if price <= 0 {
+		return 0
+	}
+	return math.Round(price*1e8) / 1e8
+}
+
+// ProtectionOrder represents one protection leg in a full or ladder protection plan.
 
 // ProtectionOrder represents one protection leg in a full or ladder protection plan.
 type ProtectionOrder struct {
@@ -170,6 +184,7 @@ func buildManualFullProtectionPlan(entryPrice float64, action string, full store
 		} else {
 			plan.StopLossPrice = entryPrice * (1 + move)
 		}
+		plan.StopLossPrice = roundProtectionPrice(plan.StopLossPrice)
 		plan.NeedsStopLoss = true
 	}
 
@@ -180,6 +195,7 @@ func buildManualFullProtectionPlan(entryPrice float64, action string, full store
 		} else {
 			plan.TakeProfitPrice = entryPrice * (1 - move)
 		}
+		plan.TakeProfitPrice = roundProtectionPrice(plan.TakeProfitPrice)
 		plan.NeedsTakeProfit = true
 	}
 
@@ -222,6 +238,7 @@ func buildManualLadderProtectionPlan(entryPrice float64, action string, ladder s
 			} else {
 				price = entryPrice * (1 - move)
 			}
+			price = roundProtectionPrice(price)
 			plan.TakeProfitOrders = append(plan.TakeProfitOrders, ProtectionOrder{
 				Price:         price,
 				CloseRatioPct: closeRatio,
@@ -238,6 +255,7 @@ func buildManualLadderProtectionPlan(entryPrice float64, action string, ladder s
 			} else {
 				price = entryPrice * (1 + move)
 			}
+			price = roundProtectionPrice(price)
 			plan.StopLossOrders = append(plan.StopLossOrders, ProtectionOrder{
 				Price:         price,
 				CloseRatioPct: closeRatio,

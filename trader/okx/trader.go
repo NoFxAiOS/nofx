@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"nofx/logger"
@@ -322,6 +323,36 @@ func (t *OKXTrader) FormatQuantity(symbol string, quantity float64) (string, err
 	// OKX uses contract count: quantity (in base asset) / ctVal (asset per contract)
 	sz := quantity / inst.CtVal
 	return t.formatSize(sz, inst), nil
+}
+
+// formatPrice rounds a price to the instrument's tick size so that the value
+// sent to the OKX API matches what OKX will actually store. Without this
+// rounding OKX silently truncates the price, which can cause verification
+// mismatches when the plan target differs from the exchange order.
+func (t *OKXTrader) formatPrice(price float64, inst *OKXInstrument) string {
+	if inst.TickSz > 0 {
+		// Round to the nearest multiple of tick size
+		steps := math.Round(price / inst.TickSz)
+		price = steps * inst.TickSz
+	}
+	// Determine decimal places from tick size string representation
+	precision := tickSzPrecision(inst.TickSz)
+	format := fmt.Sprintf("%%.%df", precision)
+	return fmt.Sprintf(format, price)
+}
+
+// tickSzPrecision returns the number of decimal places implied by a tick size.
+func tickSzPrecision(tickSz float64) int {
+	if tickSz <= 0 || tickSz >= 1 {
+		return 0
+	}
+	s := fmt.Sprintf("%f", tickSz)
+	s = strings.TrimRight(s, "0")
+	dot := strings.Index(s, ".")
+	if dot == -1 {
+		return 0
+	}
+	return len(s) - dot - 1
 }
 
 // formatSize formats contract size

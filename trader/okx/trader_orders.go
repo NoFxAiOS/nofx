@@ -506,7 +506,7 @@ func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, st
 		"posSide":     posSide,
 		"ordType":     "conditional",
 		"sz":          szStr,
-		"slTriggerPx": fmt.Sprintf("%.8f", stopPrice),
+		"slTriggerPx": t.formatPrice(stopPrice, inst),
 		"slOrdPx":     "-1", // Market price
 		"tag":         okxTag,
 	}
@@ -549,7 +549,7 @@ func (t *OKXTrader) SetTakeProfit(symbol string, positionSide string, quantity, 
 		"posSide":     posSide,
 		"ordType":     "conditional",
 		"sz":          szStr,
-		"tpTriggerPx": fmt.Sprintf("%.8f", takeProfitPrice),
+		"tpTriggerPx": t.formatPrice(takeProfitPrice, inst),
 		"tpOrdPx":     "-1", // Market price
 		"tag":         okxTag,
 	}

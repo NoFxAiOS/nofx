@@ -55,6 +55,13 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, plan); err != nil {
 			return err
 		}
+	}
+
+	if err := at.applyNativeProtectionTargetsAfterOpen(req); err != nil {
+		return err
+	}
+
+	if plan != nil {
 		return nil
 	}
 
@@ -67,6 +74,57 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 	logger.Infof("  🛡 Applying AI decision protection fallback: stop=%v@%.6f tp=%v@%.6f",
 		needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
 	return at.placeAndVerifyProtectionWithRetry(req.Symbol, req.PositionSide, req.Quantity, needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
+}
+
+func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecutionRequest) error {
+	if req == nil || req.Decision == nil || at.config.StrategyConfig == nil {
+		return nil
+	}
+
+	prot := at.config.StrategyConfig.Protection
+
+	// 1. Native drawdown/trailing should be armed as early as safely possible.
+	for _, rule := range prot.DrawdownTakeProfit.Rules {
+		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
+			continue
+		}
+		if rule.CloseRatioPct >= 99.999 {
+			_ = at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule)
+			continue
+		}
+
+		candidate := buildPartialDrawdownNativePlanCandidate(req.EntryPrice, req.Action, rule)
+		if candidate == nil {
+			continue
+		}
+		if at.canApplyNativePartialDrawdownPlan(candidate) {
+			logger.Infof("  🛡 Applying native partial drawdown candidate: symbol=%s side=%s close=%.1f%%",
+				req.Symbol, req.PositionSide, rule.CloseRatioPct)
+			if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, candidate); err != nil {
+				logger.Warnf("  ⚠️ Native partial drawdown candidate failed for %s %s: %v", req.Symbol, req.PositionSide, err)
+			} else {
+				at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "native_partial_trailing_armed")
+			}
+		}
+	}
+
+	// 2. Break-even should prefer exchange-native stop as soon as trigger condition is met.
+	if be := at.getActiveBreakEvenConfig(); be != nil && be.TriggerValue <= 0 {
+		if err := at.applyBreakEvenStop(req.Symbol, strings.ToLower(req.PositionSide), req.Quantity, req.EntryPrice, be.TriggerValue, *be); err == nil {
+			at.setBreakEvenState(req.Symbol, strings.ToLower(req.PositionSide), "armed")
+			at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "break_even_armed")
+		}
+	}
+
+	return nil
+}
+
+func (at *AutoTrader) canApplyNativePartialDrawdownPlan(plan *ProtectionPlan) bool {
+	if plan == nil || !plan.RequiresPartialClose {
+		return false
+	}
+	caps := at.GetProtectionCapabilities()
+	return caps.NativePartialClose && caps.NativeTakeProfit
 }
 
 func (at *AutoTrader) placeAndVerifyProtectionPlanWithRetry(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {

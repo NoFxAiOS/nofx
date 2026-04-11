@@ -178,7 +178,7 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 
 	if len(plan.StopLossOrders) > 1 {
 		for _, target := range plan.StopLossOrders {
-			if !hasMatchingProtectionOrder(openOrders, positionSide, false, target.Price) {
+			if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
 				missingSL = true
 				break
 			}
@@ -189,7 +189,7 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 
 	if len(plan.TakeProfitOrders) > 1 {
 		for _, target := range plan.TakeProfitOrders {
-			if !hasMatchingProtectionOrder(openOrders, positionSide, true, target.Price) {
+			if countMatchingProtectionOrders(openOrders, positionSide, true, target.Price) == 0 {
 				missingTP = true
 				break
 			}

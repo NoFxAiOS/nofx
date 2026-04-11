@@ -6,6 +6,57 @@ import (
 	"nofx/store"
 )
 
+func TestBuildConfiguredProtectionPlanMergesFullAndLadder(t *testing.T) {
+	at := &AutoTrader{
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{
+				Protection: store.ProtectionConfig{
+					FullTPSL: store.FullTPSLConfig{
+						Enabled: true,
+						Mode:    store.ProtectionModeAI,
+						TakeProfit: store.ProtectionThresholdRule{Enabled: true, PriceMovePct: 8},
+						StopLoss:   store.ProtectionThresholdRule{Enabled: true, PriceMovePct: 1.5},
+					},
+					LadderTPSL: store.LadderTPSLConfig{
+						Enabled:           true,
+						Mode:              store.ProtectionModeAI,
+						TakeProfitEnabled: true,
+						StopLossEnabled:   true,
+						Rules: []store.LadderTPSLRule{{
+							TakeProfitPct:           0.5,
+							TakeProfitCloseRatioPct: 30,
+							StopLossPct:             0.6,
+							StopLossCloseRatioPct:   30,
+						}, {
+							TakeProfitPct:           1.3,
+							TakeProfitCloseRatioPct: 40,
+							StopLossPct:             1.0,
+							StopLossCloseRatioPct:   40,
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	plan, err := at.BuildConfiguredProtectionPlan(100, "open_short")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if plan == nil {
+		t.Fatal("expected merged plan")
+	}
+	if !plan.NeedsStopLoss || !plan.NeedsTakeProfit {
+		t.Fatalf("expected both stop loss and take profit enabled, got %+v", plan)
+	}
+	if len(plan.StopLossOrders) != 2 || len(plan.TakeProfitOrders) != 2 {
+		t.Fatalf("expected ladder orders to remain, got sl=%d tp=%d", len(plan.StopLossOrders), len(plan.TakeProfitOrders))
+	}
+	if plan.StopLossPrice == 0 || plan.TakeProfitPrice == 0 {
+		t.Fatalf("expected full tp/sl prices preserved, got sl=%.4f tp=%.4f", plan.StopLossPrice, plan.TakeProfitPrice)
+	}
+}
+
 func TestBuildConfiguredProtectionPlanSupportsAIMode(t *testing.T) {
 	at := &AutoTrader{
 		config: AutoTraderConfig{

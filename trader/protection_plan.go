@@ -25,6 +25,38 @@ type ProtectionPlan struct {
 	RequiresPartialClose bool
 }
 
+// mergeProtectionPlans combines multiple protection plans into a single target exchange protection set.
+func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
+	merged := &ProtectionPlan{}
+	for _, plan := range plans {
+		if plan == nil {
+			continue
+		}
+		if merged.Mode == "" {
+			merged.Mode = plan.Mode
+		} else if plan.Mode != "" && merged.Mode != plan.Mode {
+			merged.Mode = merged.Mode + "+" + plan.Mode
+		}
+		merged.NeedsStopLoss = merged.NeedsStopLoss || plan.NeedsStopLoss
+		merged.NeedsTakeProfit = merged.NeedsTakeProfit || plan.NeedsTakeProfit
+		if merged.StopLossPrice == 0 && plan.StopLossPrice > 0 {
+			merged.StopLossPrice = plan.StopLossPrice
+		}
+		if merged.TakeProfitPrice == 0 && plan.TakeProfitPrice > 0 {
+			merged.TakeProfitPrice = plan.TakeProfitPrice
+		}
+		merged.StopLossOrders = append(merged.StopLossOrders, plan.StopLossOrders...)
+		merged.TakeProfitOrders = append(merged.TakeProfitOrders, plan.TakeProfitOrders...)
+		merged.RequiresNativeOrders = merged.RequiresNativeOrders || plan.RequiresNativeOrders
+		merged.RequiresPartialClose = merged.RequiresPartialClose || plan.RequiresPartialClose
+	}
+
+	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 {
+		return nil
+	}
+	return merged
+}
+
 // BuildConfiguredProtectionPlan creates a normalized protection plan from strategy configuration.
 // Unlike BuildManualProtectionPlan, it can also materialize AI-mode strategy protection config
 // when the runtime decision does not provide a concrete decision.ProtectionPlan payload yet.
@@ -35,15 +67,25 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 
 	protection := at.config.StrategyConfig.Protection
 
+	var plans []*ProtectionPlan
+
 	if protection.LadderTPSL.Enabled {
 		switch protection.LadderTPSL.Mode {
 		case store.ProtectionModeManual:
-			if plan, err := buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL); err != nil || plan != nil {
-				return plan, err
+			plan, err := buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
+			if err != nil {
+				return nil, err
+			}
+			if plan != nil {
+				plans = append(plans, plan)
 			}
 		case store.ProtectionModeAI:
-			if plan, err := buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL); err != nil || plan != nil {
-				return plan, err
+			plan, err := buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
+			if err != nil {
+				return nil, err
+			}
+			if plan != nil {
+				plans = append(plans, plan)
 			}
 		}
 	}
@@ -51,13 +93,25 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 	if protection.FullTPSL.Enabled {
 		switch protection.FullTPSL.Mode {
 		case store.ProtectionModeManual:
-			return buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+			plan, err := buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+			if err != nil {
+				return nil, err
+			}
+			if plan != nil {
+				plans = append(plans, plan)
+			}
 		case store.ProtectionModeAI:
-			return buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+			plan, err := buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+			if err != nil {
+				return nil, err
+			}
+			if plan != nil {
+				plans = append(plans, plan)
+			}
 		}
 	}
 
-	return nil, nil
+	return mergeProtectionPlans(plans...), nil
 }
 
 // BuildManualProtectionPlan creates a normalized manual protection plan.

@@ -307,6 +307,8 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.4f close=%.1f%% qty=%.4f", symbol, side, activationPrice, binanceCallbackPercent, rule.CloseRatioPct, partialQty)
 						return true
+					} else {
+						logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s, binance): %v", symbol, side, err)
 					}
 				}
 			case "bitget":
@@ -326,6 +328,8 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.4f close=%.1f%% qty=%.4f", symbol, side, activationPrice, bitgetCallbackPercent, rule.CloseRatioPct, partialQty)
 						return true
+					} else {
+						logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s, bitget): %v", symbol, side, err)
 					}
 				}
 			case "okx":
@@ -345,9 +349,13 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
 						return true
+					} else {
+						logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s, okx): %v", symbol, side, err)
 					}
 				}
 			}
+			// Native-partial-capable exchanges should not silently fall back to managed TP here.
+			return false
 		}
 
 		candidate := buildManagedPartialDrawdownPlanCandidate(entryPrice, positionAction, rule)

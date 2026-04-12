@@ -42,9 +42,11 @@ function formatProtectionState(state: string | undefined, language: Language, ex
     case 'break_even_armed':
       return language === 'zh' ? '保本保护已挂单' : 'break-even armed'
     case 'native_trailing_armed':
-      return language === 'zh' ? `${exchangeLabel} 原生移动保护已激活` : `${exchangeLabel} native trailing armed`
+      return language === 'zh' ? `${exchangeLabel} 原生移动保护已激活（整仓）` : `${exchangeLabel} native trailing armed (full)`
     case 'native_partial_trailing_armed':
       return language === 'zh' ? `${exchangeLabel} 原生分批移动保护已激活` : `${exchangeLabel} native partial trailing armed`
+    case 'managed_partial_drawdown_armed':
+      return language === 'zh' ? '托管式分批回撤保护已激活' : 'managed partial drawdown armed'
     case 'drawdown_triggered':
       return language === 'zh' ? '回撤保护已触发' : 'drawdown triggered'
     default:
@@ -67,6 +69,10 @@ function formatExecutionMode(mode: string | undefined, language: Language): stri
   switch (mode.trim().toLowerCase()) {
     case 'native_trailing_full':
       return language === 'zh' ? '交易所原生 trailing（整仓）' : 'exchange-native trailing (full close)'
+    case 'native_partial_trailing':
+      return language === 'zh' ? '交易所原生 trailing（分批）' : 'exchange-native trailing (partial close)'
+    case 'managed_partial_drawdown':
+      return language === 'zh' ? '托管式分批回撤保护' : 'managed partial drawdown'
     case 'native_trailing_pending':
       return language === 'zh' ? '支持原生 trailing（待武装）' : 'native trailing supported (pending arm)'
     case 'native_full_local_partial':
@@ -120,6 +126,15 @@ function buildScheduledActions(position: Position, stopOrders: OpenOrder[], take
       source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生 trailing' : 'native trailing'}` : (language === 'zh' ? '交易所原生 trailing' : 'exchange-native trailing'),
       trigger: language === 'zh' ? '达到 partial trailing 激活条件后，随价格动态跟踪' : 'After partial-trailing activation, exchange tracks price natively',
       action: language === 'zh' ? '发生回撤时执行分批平仓' : 'Execute partial close on qualified drawdown',
+    })
+  }
+
+  if (position.protection_state?.toLowerCase() === 'managed_partial_drawdown_armed') {
+    actions.push({
+      title: language === 'zh' ? '托管式分批回撤保护' : 'Managed partial drawdown',
+      source: language === 'zh' ? '系统托管保护 / 标准 TP 条件单' : 'system-managed protection / standard TP order',
+      trigger: language === 'zh' ? '达到利润门槛并满足回撤比例后，按规则触发' : 'Triggered when profit threshold and drawdown ratio are both satisfied',
+      action: language === 'zh' ? '执行分批平仓（非交易所原生 trailing）' : 'Execute partial close (not exchange-native trailing)',
     })
   }
 
@@ -340,8 +355,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
               <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6 space-y-2">
                 <div className="font-semibold text-nofx-text-main mb-1">{language === 'zh' ? '执行边界说明' : 'Execution Boundary Notes'}</div>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>{language === 'zh' ? '当前主面板展示的是开仓后“现在生效什么、未来会做什么”，不再把配置快照当主信息。' : 'This panel focuses on what is active now and what will execute next, instead of raw config snapshots.'}</li>
-                  <li>{language === 'zh' ? '原生 drawdown trailing 当前优先覆盖整仓退出；分批回撤仍可能落到本地 fallback。' : 'Native drawdown trailing currently prioritizes full-close exits; partial drawdown may still remain on local fallback.'}</li>
+                  <li>{language === 'zh' ? '当前面板已区分：交易所原生 trailing（整仓 / 分批）与托管式分批回撤保护。' : 'This panel now distinguishes exchange-native trailing (full / partial) from managed partial drawdown.'}</li>
+                  <li>{language === 'zh' ? '原生 trailing 一旦 armed，本地不应再伪造第二套执行计划；若看到 managed，则说明当前仍未走上原生 partial。' : 'Once native trailing is armed, local fallback should not present a second execution path; managed indicates partial native is not in effect.'}</li>
                   <li>{language === 'zh' ? '保本止损 armed 状态会随仓位数量/开仓价变化自动重置。' : 'Break-even armed state auto-resets when position size or entry price changes.'}</li>
                 </ul>
               </div>

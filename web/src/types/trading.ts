@@ -42,6 +42,7 @@ export interface Position {
   margin_used: number
   protection_state?: string
   break_even_state?: string
+  // native_trailing_full | native_partial_trailing | managed_partial_drawdown | local_fallback ...
   drawdown_execution_mode?: string
   break_even_execution_mode?: string
 }

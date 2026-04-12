@@ -402,7 +402,7 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 		inactiveSymbols[symbol] = struct{}{}
 	}
 	for symbol := range inactiveSymbols {
-		if err := at.trader.CancelStopOrders(symbol); err != nil {
+		if err := at.cancelOrphanedProtectionOrdersForInactiveSymbol(symbol); err != nil {
 			logger.Warnf("⚠️ Protection cleanup: failed to cancel orphaned protection orders for %s: %v", symbol, err)
 		} else {
 			logger.Infof("🧹 Protection cleanup: canceled orphaned protection orders for inactive symbol %s", symbol)
@@ -442,6 +442,23 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 		}
 	}
 	reconcileCooldownMutex.Unlock()
+}
+
+func (at *AutoTrader) cancelOrphanedProtectionOrdersForInactiveSymbol(symbol string) error {
+	// For inactive symbols, cancel plain stop/take-profit protection orders.
+	// Native trailing orders live in separate exchange endpoints and should only be
+	// cancelled by their dedicated trailing-order APIs, not by generic TP/SL cleanup.
+	if err := at.trader.CancelStopOrders(symbol); err != nil {
+		return err
+	}
+	if trailingCanceller, ok := at.trader.(interface {
+		CancelTrailingStopOrders(symbol string) error
+	}); ok {
+		if err := trailingCanceller.CancelTrailingStopOrders(symbol); err != nil {
+			logger.Warnf("⚠️ Protection cleanup: trailing stop cleanup for inactive symbol %s returned: %v", symbol, err)
+		}
+	}
+	return nil
 }
 
 func splitPositionKey(key string) (symbol, side string) {

@@ -77,8 +77,11 @@ export function ModelConfigModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedModelId || !apiKey.trim()) return
-    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined)
+    if (!selectedModelId) return
+    const key = apiKey.trim()
+    // Allow empty key when editing an existing model (backend preserves existing key)
+    if (!key && !editingModelId) return
+    onSave(selectedModelId, key, baseUrl.trim() || undefined, modelName.trim() || undefined)
   }
 
   const availableModels = allModels || []
@@ -536,7 +539,7 @@ function Claw402ConfigForm({
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {CLAW402_MODELS.map((m) => {
-            const isSelected = (modelName || 'deepseek') === m.id
+            const isSelected = (modelName || 'glm-5') === m.id
             return (
               <button
                 key={m.id}
@@ -833,9 +836,9 @@ function Claw402ConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!isKeyValid}
+          disabled={!isKeyValid && !hasExistingWallet}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: isKeyValid ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
+          style={{ background: (isKeyValid || hasExistingWallet) ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
         >
           {'🚀 ' + t('modelConfig.startTrading', language)}
         </button>

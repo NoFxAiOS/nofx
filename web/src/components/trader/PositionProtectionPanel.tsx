@@ -261,6 +261,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           })
           const stopOrders = filteredOrders.filter(isStopLoss)
           const takeProfitOrders = filteredOrders.filter(isTakeProfit)
+          const runtime = position.protection_runtime
+          const runtimeTiers = runtime?.scheduled_tiers || []
           const scheduledActions = buildScheduledActions(position, stopOrders, takeProfitOrders, language, exchange)
 
           return (
@@ -351,6 +353,27 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   </div>
                 </div>
               </div>
+
+              {runtimeTiers.length > 0 && (
+                <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+                  <div className="font-semibold text-cyan-300 mb-3">{language === 'zh' ? '多档保护执行计划' : 'Tiered Protection Plan'}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 text-xs">
+                    {runtimeTiers.map((tier) => (
+                      <div key={`${symbol}-tier-${tier.index}`} className="rounded-lg border border-cyan-400/10 bg-black/20 p-3 space-y-1">
+                        <div className="font-semibold text-cyan-200">{language === 'zh' ? `第 ${tier.index} 档` : `Tier ${tier.index}`}</div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '来源' : 'Source'}: <span className="text-nofx-text-main">{tier.source}</span></div>
+                        <div className="text-nofx-text-muted">Mode: <span className="text-nofx-text-main">{tier.execution_mode}</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '最小利润' : 'Min Profit'}: <span className="text-nofx-text-main">{tier.min_profit_pct}%</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '最大回撤' : 'Max Drawdown'}: <span className="text-nofx-text-main">{tier.max_drawdown_pct}%</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '平仓比例' : 'Close Ratio'}: <span className="text-nofx-text-main">{tier.close_ratio_pct}%</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '激活价' : 'Activation'}: <span className="font-mono text-nofx-text-main">{formatPrice(tier.activation_price)}</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '回撤比例' : 'Callback'}: <span className="text-nofx-text-main">{tier.callback_rate}%</span></div>
+                        <div className="text-nofx-text-muted">{language === 'zh' ? '计划数量' : 'Planned Qty'}: <span className="font-mono text-nofx-text-main">{formatQuantity(tier.planned_quantity)}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6 space-y-2">
                 <div className="font-semibold text-nofx-text-main mb-1">{language === 'zh' ? '执行边界说明' : 'Execution Boundary Notes'}</div>

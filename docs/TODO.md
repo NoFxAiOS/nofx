@@ -71,5 +71,10 @@
   - [x] 运行态优先尝试 native partial trailing，多档可按 `close_ratio_pct` 计算 quantity 下单
   - [ ] 核定 OKX/Binance/Bitget 对 partial trailing close 的真实交易所语义边界（实盘/API 文档验证）
   - [ ] native armed 后彻底禁用本地 fallback 接管执行
-- [ ] Break-even 实战验证（需仓位盈利触发）
-- [ ] Full TP/SL 独立实战验证（需关闭 Ladder 测试）
+- [ ] **P1: 持仓保护执行面板前后端交付**
+  - [x] 发现并接管现有 `PositionProtectionPanel` 骨架
+  - [x] 前端状态语义升级：补齐 `managed_partial_drawdown_armed` / `native_partial_trailing`
+  - [x] 执行模式文案升级：明确区分 native full / native partial / managed partial
+  - [x] 面板说明文案纠偏：不再把 managed partial 误述为 native trailing
+  - [ ] 后端进一步补充 trailing 订单细粒度元信息（如档位、激活价、callback、native/managed source）供面板展示
+  - [ ] 执行面板支持“多档原生跟踪委托”逐档展示

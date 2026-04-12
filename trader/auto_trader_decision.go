@@ -8,6 +8,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"strings"
 	"time"
 )
 
@@ -221,21 +222,27 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		// Calculate P&L percentage (based on margin)
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
+		openOrders, _ := at.trader.GetOpenOrders(symbol)
+		positionSideUpper := strings.ToUpper(side)
+		protectionRuntime := at.buildPositionProtectionRuntime(symbol, side, quantity, entryPrice, openOrders)
+
 		result = append(result, map[string]interface{}{
-			"symbol":                symbol,
-			"side":                  side,
-			"entry_price":           entryPrice,
-			"mark_price":            markPrice,
-			"quantity":              quantity,
-			"leverage":              leverage,
-			"unrealized_pnl":        unrealizedPnl,
-			"unrealized_pnl_pct":    pnlPct,
-			"liquidation_price":     liquidationPrice,
-			"margin_used":           marginUsed,
-			"protection_state":      at.getProtectionState(symbol, side),
-			"break_even_state":      at.getBreakEvenState(symbol, side),
+			"symbol":                  symbol,
+			"side":                    side,
+			"entry_price":             entryPrice,
+			"mark_price":              markPrice,
+			"quantity":                quantity,
+			"leverage":                leverage,
+			"unrealized_pnl":          unrealizedPnl,
+			"unrealized_pnl_pct":      pnlPct,
+			"liquidation_price":       liquidationPrice,
+			"margin_used":             marginUsed,
+			"protection_state":        at.getProtectionState(symbol, side),
+			"break_even_state":        at.getBreakEvenState(symbol, side),
 			"drawdown_execution_mode": at.getDrawdownExecutionMode(symbol, side),
 			"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
+			"protection_runtime":      protectionRuntime,
+			"position_side":           positionSideUpper,
 		})
 	}
 
@@ -528,4 +535,72 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 // GetOpenOrders returns open orders (pending SL/TP) from exchange
 func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	return at.trader.GetOpenOrders(symbol)
+}
+
+func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quantity, entryPrice float64, openOrders []OpenOrder) map[string]interface{} {
+	positionSide := strings.ToUpper(side)
+	activeOrders := make([]map[string]interface{}, 0)
+	for _, order := range openOrders {
+		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
+			continue
+		}
+		triggerPrice := order.StopPrice
+		if triggerPrice <= 0 {
+			triggerPrice = order.Price
+		}
+		activeOrders = append(activeOrders, map[string]interface{}{
+			"order_id": order.OrderID,
+			"type": order.Type,
+			"side": order.Side,
+			"position_side": order.PositionSide,
+			"trigger_price": triggerPrice,
+			"quantity": order.Quantity,
+			"status": order.Status,
+		})
+	}
+
+	tiers := make([]map[string]interface{}, 0)
+	if at.config.StrategyConfig != nil {
+		for idx, rule := range at.config.StrategyConfig.Protection.DrawdownTakeProfit.Rules {
+			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
+				continue
+			}
+			executionMode := at.getDrawdownExecutionMode(symbol, side)
+			source := executionMode
+			if executionMode == "native_partial_trailing" || executionMode == "native_trailing_full" {
+				source = "native"
+			} else if executionMode == "managed_partial_drawdown" {
+				source = "managed"
+			}
+			activationPrice := 0.0
+			if entryPrice > 0 {
+				move := rule.MinProfitPct / 100.0
+				if strings.EqualFold(side, "long") {
+					activationPrice = entryPrice * (1 + move)
+				} else if strings.EqualFold(side, "short") {
+					activationPrice = entryPrice * (1 - move)
+				}
+			}
+			tiers = append(tiers, map[string]interface{}{
+				"index": idx + 1,
+				"min_profit_pct": rule.MinProfitPct,
+				"max_drawdown_pct": rule.MaxDrawdownPct,
+				"close_ratio_pct": rule.CloseRatioPct,
+				"activation_price": activationPrice,
+				"callback_rate": rule.MaxDrawdownPct,
+				"planned_quantity": quantity * rule.CloseRatioPct / 100.0,
+				"source": source,
+				"execution_mode": executionMode,
+			})
+		}
+	}
+
+	return map[string]interface{}{
+		"protection_state": at.getProtectionState(symbol, side),
+		"break_even_state": at.getBreakEvenState(symbol, side),
+		"drawdown_execution_mode": at.getDrawdownExecutionMode(symbol, side),
+		"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
+		"active_orders": activeOrders,
+		"scheduled_tiers": tiers,
+	}
 }

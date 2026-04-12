@@ -29,6 +29,37 @@ export interface AccountInfo {
   margin_used_pct: number
 }
 
+export interface ProtectionRuntimeOrder {
+  order_id: string
+  type: string
+  side: string
+  position_side: string
+  trigger_price: number
+  quantity: number
+  status: string
+}
+
+export interface ProtectionRuntimeTier {
+  index: number
+  min_profit_pct: number
+  max_drawdown_pct: number
+  close_ratio_pct: number
+  activation_price: number
+  callback_rate: number
+  planned_quantity: number
+  source: string
+  execution_mode: string
+}
+
+export interface ProtectionRuntime {
+  protection_state?: string
+  break_even_state?: string
+  drawdown_execution_mode?: string
+  break_even_execution_mode?: string
+  active_orders?: ProtectionRuntimeOrder[]
+  scheduled_tiers?: ProtectionRuntimeTier[]
+}
+
 export interface Position {
   symbol: string
   side: string
@@ -45,6 +76,7 @@ export interface Position {
   // native_trailing_full | native_partial_trailing | managed_partial_drawdown | local_fallback ...
   drawdown_execution_mode?: string
   break_even_execution_mode?: string
+  protection_runtime?: ProtectionRuntime
 }
 
 export interface ProtectionSnapshotFullTPSL {

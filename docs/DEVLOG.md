@@ -31,6 +31,22 @@
   - 这条链主要影响**这版上线后的新平仓事件**
   - 旧历史不会自动批量重算，只会继续依赖已有字段或 API 侧有限 enrich
 
+### 凌晨：交易复盘与数据积累基础设施（一期）最小实施启动
+- 在不大幅改运行系统的前提下，已补一版最小结构化 `review_context` 到 `decision_records`：
+  - `safe_mode`
+  - `safe_mode_reason`
+  - `allow_ai_close`
+  - `ai_decision_mode`
+  - `candidate_count`
+  - `position_count`
+  - `total_equity`
+  - `available_balance`
+  - `margin_used_pct`
+- 这意味着后续复盘已经不必只从 prompt 文本里猜当前模式与账户状态，至少已有一版结构化 review 输入材料。
+- 当前仍未实现的下一步连接键：
+  - decision ↔ position
+  - close-event ↔ decision
+
 ## 2026-04-13
 
 ### 凌晨：交易复盘与数据积累方案 V1 交付

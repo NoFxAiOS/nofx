@@ -28,6 +28,7 @@ type DecisionRecordDB struct {
 	ExecutionLog        string    `gorm:"column:execution_log;default:''"`
 	Decisions           string    `gorm:"column:decisions;default:'[]'"`
 	ProtectionSnapshot  string    `gorm:"column:protection_snapshot;default:''"`
+	ReviewContext       string    `gorm:"column:review_context;default:''"`
 	AllowAIClose        bool      `gorm:"column:allow_ai_close;default:true"`
 	AIDecisionMode      string    `gorm:"column:ai_decision_mode;default:'balanced'"`
 	Success             bool      `gorm:"default:false"`
@@ -40,26 +41,27 @@ func (DecisionRecordDB) TableName() string { return "decision_records" }
 
 // DecisionRecord decision record (external API struct)
 type DecisionRecord struct {
-	ID                  int64               `json:"id"`
-	TraderID            string              `json:"trader_id"`
-	CycleNumber         int                 `json:"cycle_number"`
-	Timestamp           time.Time           `json:"timestamp"`
-	SystemPrompt        string              `json:"system_prompt"`
-	InputPrompt         string              `json:"input_prompt"`
-	CoTTrace            string              `json:"cot_trace"`
-	DecisionJSON        string              `json:"decision_json"`
-	RawResponse         string              `json:"raw_response"` // Raw AI response for debugging
-	CandidateCoins      []string            `json:"candidate_coins"`
-	ExecutionLog        []string            `json:"execution_log"`
-	Success             bool                `json:"success"`
-	ErrorMessage        string              `json:"error_message"`
-	AIRequestDurationMs int64               `json:"ai_request_duration_ms"`
-	AccountState        AccountSnapshot     `json:"account_state"`
-	Positions           []PositionSnapshot  `json:"positions"`
-	Decisions           []DecisionAction    `json:"decisions"`
-	ProtectionSnapshot  *ProtectionSnapshot `json:"protection_snapshot,omitempty"`
-	AllowAIClose        bool                `json:"allow_ai_close"`
-	AIDecisionMode      string              `json:"ai_decision_mode"`
+	ID                  int64                  `json:"id"`
+	TraderID            string                 `json:"trader_id"`
+	CycleNumber         int                    `json:"cycle_number"`
+	Timestamp           time.Time              `json:"timestamp"`
+	SystemPrompt        string                 `json:"system_prompt"`
+	InputPrompt         string                 `json:"input_prompt"`
+	CoTTrace            string                 `json:"cot_trace"`
+	DecisionJSON        string                 `json:"decision_json"`
+	RawResponse         string                 `json:"raw_response"` // Raw AI response for debugging
+	CandidateCoins      []string               `json:"candidate_coins"`
+	ExecutionLog        []string               `json:"execution_log"`
+	Success             bool                   `json:"success"`
+	ErrorMessage        string                 `json:"error_message"`
+	AIRequestDurationMs int64                  `json:"ai_request_duration_ms"`
+	AccountState        AccountSnapshot        `json:"account_state"`
+	Positions           []PositionSnapshot     `json:"positions"`
+	Decisions           []DecisionAction       `json:"decisions"`
+	ProtectionSnapshot  *ProtectionSnapshot    `json:"protection_snapshot,omitempty"`
+	ReviewContext       map[string]interface{} `json:"review_context,omitempty"`
+	AllowAIClose        bool                   `json:"allow_ai_close"`
+	AIDecisionMode      string                 `json:"ai_decision_mode"`
 }
 
 // AccountSnapshot account state snapshot
@@ -173,6 +175,7 @@ func (s *DecisionStore) initTables() error {
 		if tableExists > 0 {
 			// Add protection_snapshot column if missing (safe: ADD COLUMN IF NOT EXISTS)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS protection_snapshot TEXT DEFAULT ''`)
+			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS review_context TEXT DEFAULT ''`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS allow_ai_close BOOLEAN DEFAULT true`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS ai_decision_mode TEXT DEFAULT 'balanced'`)
 			return nil
@@ -208,6 +211,12 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 			record.ProtectionSnapshot = &ps
 		}
 	}
+	if db.ReviewContext != "" {
+		var rc map[string]interface{}
+		if err := json.Unmarshal([]byte(db.ReviewContext), &rc); err == nil {
+			record.ReviewContext = rc
+		}
+	}
 	return record
 }
 
@@ -229,6 +238,12 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 			protectionSnapshotJSON = string(ps)
 		}
 	}
+	reviewContextJSON := ""
+	if record.ReviewContext != nil {
+		if rc, err := json.Marshal(record.ReviewContext); err == nil {
+			reviewContextJSON = string(rc)
+		}
+	}
 
 	dbRecord := &DecisionRecordDB{
 		TraderID:            record.TraderID,
@@ -243,6 +258,7 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		ExecutionLog:        string(executionLogJSON),
 		Decisions:           string(decisionsJSON),
 		ProtectionSnapshot:  protectionSnapshotJSON,
+		ReviewContext:       reviewContextJSON,
 		AllowAIClose:        record.AllowAIClose,
 		AIDecisionMode:      record.AIDecisionMode,
 		Success:             record.Success,

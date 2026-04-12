@@ -41,6 +41,12 @@ func (at *AutoTrader) runCycle() error {
 		Success:        true,
 		AllowAIClose:   at.GetAllowAIClose(),
 		AIDecisionMode: at.GetAIDecisionMode(),
+		ReviewContext: map[string]interface{}{
+			"safe_mode":        at.safeMode,
+			"safe_mode_reason": at.safeModeReason,
+			"allow_ai_close":   at.GetAllowAIClose(),
+			"ai_decision_mode": at.GetAIDecisionMode(),
+		},
 	}
 
 	// Populate protection snapshot from strategy config
@@ -134,6 +140,14 @@ func (at *AutoTrader) runCycle() error {
 	// Save equity snapshot independently (decoupled from AI decision, used for drawing profit curve)
 	// NOTE: Must be called BEFORE candidate coins check to ensure equity is always recorded
 	at.saveEquitySnapshot(ctx)
+	if record.ReviewContext == nil {
+		record.ReviewContext = map[string]interface{}{}
+	}
+	record.ReviewContext["candidate_count"] = len(ctx.CandidateCoins)
+	record.ReviewContext["position_count"] = ctx.Account.PositionCount
+	record.ReviewContext["total_equity"] = ctx.Account.TotalEquity
+	record.ReviewContext["available_balance"] = ctx.Account.AvailableBalance
+	record.ReviewContext["margin_used_pct"] = ctx.Account.MarginUsedPct
 
 	// If no candidate coins available, log but do not error
 	if len(ctx.CandidateCoins) == 0 {

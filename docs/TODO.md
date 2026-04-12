@@ -41,7 +41,7 @@
   - [x] 输出《交易复盘与数据积累方案 V1》
   - [x] 数据模型文档补充 `position_close_events` 与真相源分层
   - [ ] 最小连接键补强：decision ↔ position / close-event ↔ decision
-  - [ ] 最小结构化环境快照：regime / gate / funding / volatility
+  - [x] 最小结构化环境快照：第一版 `review_context`（safe mode / ai close gate / ai mode / candidate count / equity / margin）
   - [ ] 设计 review 输出模型（先定义，不急着全实现）
 
 ## P2 - 持续优化与二次开发前准备

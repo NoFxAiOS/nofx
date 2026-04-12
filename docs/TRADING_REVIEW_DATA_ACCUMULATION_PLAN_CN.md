@@ -386,9 +386,9 @@ DecisionRecord
 
 ### Phase B（最小代码补强）
 **连接键与最小结构化快照**
-- decision ↔ position
-- close event ↔ decision
-- regime/gating minimal snapshot
+- [ ] decision ↔ position
+- [ ] close event ↔ decision
+- [x] review context 最小结构化快照（safe mode / ai close gate / ai mode / candidate count / equity / margin）
 
 ### Phase C（复盘基础设施）
 **逐笔反思模板与 review 数据容器**

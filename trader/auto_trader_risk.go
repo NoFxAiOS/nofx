@@ -81,18 +81,9 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}
 
-		// Calculate current P&L percentage
-		leverage := 10 // Default value
-		if lev, ok := pos["leverage"].(float64); ok {
-			leverage = int(lev)
-		}
-
-		var currentPnLPct float64
-		if side == "long" {
-			currentPnLPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
-		} else {
-			currentPnLPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
-		}
+		// Calculate current P&L percentage using pure price move, not leveraged return on margin.
+		// Protection logic must stay invariant when leverage changes.
+		currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
 
 		// Construct unique position identifier (distinguish long/short)
 		posKey := symbol + "_" + side

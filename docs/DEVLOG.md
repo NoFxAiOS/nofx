@@ -77,6 +77,25 @@
   - `docs/DATA_MODEL_RELATIONS_CN.md`
   - `docs/TODO.md`
 
+## 2026-04-13
+
+### 凌晨：修复 OKX drawdown trailing `activePx` 精度问题（P0）
+- 当前 P0 不是再扩功能，而是收口 OKX 原生 trailing 在实盘中因价格精度被拒/截断的问题。
+- 定位结论：
+  - `trader/okx/trader_orders.go` 中 trailing 下单仍直接发送 `fmt.Sprintf("%.8f", activationPrice)`
+  - 但同一个 OKX trader 里，普通 `conditional` TP/SL 已经统一走 `formatPrice()`，会按 instrument `tickSz` 对齐
+  - 这导致 trailing 的 `activePx` 可能携带交易所不接受的精度，实盘会出现价格被拒、或被交易所截断后与本地预期不一致
+- 本次最小修复：
+  1. 将 OKX trailing `activePx` 改为 `t.formatPrice(activationPrice, inst)`
+  2. 新增 `trader/okx/trader_format_test.go`
+  3. 补 `formatPrice()` 回归测试，覆盖小数 tick 与整数 tick 两种格式
+- 验证：
+  - `go test ./trader/okx ./trader -run 'TestFormatPrice|TestApplyNativeTrailingDrawdownForOKX'`：通过
+  - `go test ./...`：通过
+- 当前剩余边界：
+  - 这次修掉的是 **OKX `activePx` 精度对齐** 问题
+  - 但 OKX / Binance / Bitget 对“partial trailing close”是否真按预期支持、在不同持仓模式下是否有额外限制，仍需继续做实盘/API 文档核定
+
 ## 2026-04-12
 
 ### 晚间：Native Trailing 激活价 / 参数来源 / 执行语义再收口

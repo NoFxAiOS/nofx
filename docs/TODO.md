@@ -79,6 +79,7 @@
   - [x] 运行态优先尝试 native partial trailing，多档可按 `close_ratio_pct` 计算 quantity 下单
   - [x] trailing runtime 已补 activation/callback/source 展示链
   - [x] 统一执行原则：native trailing 一旦挂上，不因市价波动改 activePx；只有掉单/查不到时才 re-arm
+  - [x] 修复 OKX trailing `activePx` 精度问题：改为按 `tickSz` 对齐后再下单，避免价格被交易所拒绝/截断
   - [ ] 核定 OKX/Binance/Bitget 对 partial trailing close 的真实交易所语义边界（实盘/API 文档验证）
   - [x] native armed 后彻底禁用本地 fallback 接管执行
 - [ ] **P1: 持仓保护执行面板前后端交付**

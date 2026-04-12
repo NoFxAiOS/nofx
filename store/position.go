@@ -130,6 +130,64 @@ type PositionStore struct {
 	db *gorm.DB
 }
 
+func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID string, requestedReason string, closeQty float64, executionPrice float64) (string, string, string) {
+	reason := requestedReason
+	source := requestedReason
+	executionType := "MARKET"
+	if exchangeOrderID == "" || s.db == nil {
+		if reason == "" {
+			reason = "unknown"
+			source = "unknown"
+		}
+		return reason, source, executionType
+	}
+
+	var ord TraderOrder
+	if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, exchangeOrderID).First(&ord).Error; err == nil {
+		kind := strings.ToUpper(ord.Type)
+		executionType = kind
+		isPartial := closeQty > 0 && closeQty < pos.Quantity-0.0001
+		switch {
+		case strings.Contains(kind, "TRAILING"):
+			reason = "native_trailing"
+			source = "native_trailing"
+		case strings.Contains(kind, "TAKE_PROFIT") || strings.Contains(kind, "TP"):
+			if isPartial {
+				reason = "ladder_tp"
+				source = "ladder_tp"
+			} else {
+				reason = "full_tp"
+				source = "full_tp"
+			}
+		case strings.Contains(kind, "STOP") || strings.Contains(kind, "SL"):
+			breakEvenThreshold := 0.003
+			nearEntry := pos.EntryPrice > 0 && math.Abs(executionPrice-pos.EntryPrice)/pos.EntryPrice <= breakEvenThreshold
+			if nearEntry {
+				reason = "break_even_stop"
+				source = "break_even_stop"
+			} else if isPartial {
+				reason = "ladder_sl"
+				source = "ladder_sl"
+			} else {
+				reason = "full_sl"
+				source = "full_sl"
+			}
+		case strings.HasPrefix(strings.ToLower(ord.OrderAction), "close_"):
+			if reason == "" || reason == "close_long" || reason == "close_short" {
+				reason = ord.OrderAction
+				source = ord.OrderAction
+			}
+		}
+	}
+	if reason == "" {
+		reason = "unknown"
+	}
+	if source == "" {
+		source = reason
+	}
+	return reason, source, executionType
+}
+
 func (s *PositionStore) logCloseEvent(pos *TraderPosition, closeReason, executionSource, executionType, exchangeOrderID string, closeQty, executionPrice, feeDelta, realizedPnLDelta float64, eventTimeMs int64) error {
 	if s.db == nil || pos == nil || closeQty <= 0 {
 		return nil
@@ -307,6 +365,7 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 	if eventTimeMs == 0 {
 		eventTimeMs = nowMs
 	}
+	reason, source, execType := s.deriveCloseReason(&pos, exchangeOrderID, closeReason, reduceQty, exitPrice)
 
 	// Check if position should be fully closed (quantity reduced to ~0)
 	const QUANTITY_TOLERANCE = 0.0001
@@ -318,12 +377,12 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 			"realized_pnl": newPnL,
 			"status":       "CLOSED",
 			"exit_time":    nowMs,
-			"close_reason": closeReason,
+			"close_reason": reason,
 			"updated_at":   nowMs,
 		}).Error; err != nil {
 			return err
 		}
-		return s.logCloseEvent(&pos, closeReason, executionSource, executionType, exchangeOrderID, reduceQty, exitPrice, addFee, addPnL, eventTimeMs)
+		return s.logCloseEvent(&pos, reason, source, execType, exchangeOrderID, reduceQty, exitPrice, addFee, addPnL, eventTimeMs)
 	}
 
 	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
@@ -335,7 +394,7 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 	}).Error; err != nil {
 		return err
 	}
-	return s.logCloseEvent(&pos, closeReason, executionSource, executionType, exchangeOrderID, reduceQty, exitPrice, addFee, addPnL, eventTimeMs)
+	return s.logCloseEvent(&pos, reason, source, execType, exchangeOrderID, reduceQty, exitPrice, addFee, addPnL, eventTimeMs)
 }
 
 // UpdatePositionExchangeInfo updates exchange_id and exchange_type
@@ -360,6 +419,7 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 	if pos.EntryQuantity > 0 {
 		quantity = pos.EntryQuantity
 	}
+	reason, source, execType := s.deriveCloseReason(&pos, exitOrderID, closeReason, pos.Quantity, exitPrice)
 
 	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"quantity":      quantity,
@@ -369,14 +429,14 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 		"realized_pnl":  totalRealizedPnL,
 		"fee":           totalFee,
 		"status":        "CLOSED",
-		"close_reason":  closeReason,
+		"close_reason":  reason,
 		"updated_at":    time.Now().UTC().UnixMilli(),
 	}).Error; err != nil {
 		return err
 	}
 	feeDelta := totalFee - pos.Fee
 	realizedPnLDelta := totalRealizedPnL - pos.RealizedPnL
-	return s.logCloseEvent(&pos, closeReason, executionSource, executionType, exitOrderID, pos.Quantity, exitPrice, feeDelta, realizedPnLDelta, exitTimeMs)
+	return s.logCloseEvent(&pos, reason, source, execType, exitOrderID, pos.Quantity, exitPrice, feeDelta, realizedPnLDelta, exitTimeMs)
 }
 
 func (s *PositionStore) UpdateCloseReasonByExitOrderID(traderID, exitOrderID, closeReason string) error {

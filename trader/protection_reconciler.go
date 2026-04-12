@@ -95,17 +95,22 @@ func (at *AutoTrader) reconcilePositionProtections() {
 
 func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quantity, entryPrice float64) error {
 	positionSide := strings.ToUpper(side)
+	currentProtectionState := at.getProtectionState(symbol, side)
 	openOrders, err := at.trader.GetOpenOrders(symbol)
 	if err != nil {
 		return fmt.Errorf("get open orders: %w", err)
 	}
+
+	// If native trailing drawdown is already armed, do not re-apply generic ladder/full TP/SL plans
+	// on top of it. Native trailing should take priority once successfully armed.
+	skipGenericPlanReconcile := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
 
 	plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
 	if err != nil {
 		return fmt.Errorf("build configured plan: %w", err)
 	}
 
-	if plan != nil {
+	if plan != nil && !skipGenericPlanReconcile {
 		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
 		expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)
 		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {

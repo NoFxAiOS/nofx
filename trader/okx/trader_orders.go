@@ -457,10 +457,54 @@ func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, acti
 			return fmt.Errorf("OKX trailing stop rejected: code=%s msg=%s", orders[0].SCode, orders[0].SMsg)
 		}
 		logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s algoId=%s", symbol, activationPrice, callbackRate, quantity, szStr, orders[0].AlgoId)
+		// Safety: after the new trailing order is confirmed by OKX, remove older trailing orders
+		// for the same symbol to avoid duplicate native trailing protection.
+		if orders[0].AlgoId != "" {
+			if err := t.cancelOtherTrailingStopOrders(symbol, orders[0].AlgoId); err != nil {
+				logger.Infof("  ⚠️ Failed to prune older OKX trailing stop orders for %s: %v", symbol, err)
+			}
+		}
 		return nil
 	}
 
 	logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s resp=%s", symbol, activationPrice, callbackRate, quantity, szStr, string(resp))
+	return nil
+}
+
+func (t *OKXTrader) cancelOtherTrailingStopOrders(symbol string, keepAlgoID string) error {
+	instId := t.convertSymbol(symbol)
+	path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=move_order_stop", okxAlgoPendingPath, instId)
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get trailing stop algo orders: %w", err)
+	}
+
+	var orders []struct {
+		AlgoId string `json:"algoId"`
+		InstId string `json:"instId"`
+	}
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return fmt.Errorf("failed to parse trailing stop algo orders: %w", err)
+	}
+
+	canceled := 0
+	for _, order := range orders {
+		if order.AlgoId == "" || order.AlgoId == keepAlgoID {
+			continue
+		}
+		body := []map[string]interface{}{{
+			"algoId": order.AlgoId,
+			"instId": order.InstId,
+		}}
+		if _, err := t.doRequest("POST", okxCancelAdvanceAlgoPath, body); err != nil {
+			logger.Infof("  ⚠️ Failed to cancel stale OKX trailing stop algo %s: %v", order.AlgoId, err)
+			continue
+		}
+		canceled++
+	}
+	if canceled > 0 {
+		logger.Infof("  ✓ Canceled %d stale OKX trailing stop orders for %s", canceled, symbol)
+	}
 	return nil
 }
 

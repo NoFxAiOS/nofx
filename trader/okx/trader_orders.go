@@ -447,7 +447,20 @@ func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, acti
 		return fmt.Errorf("failed to set trailing stop loss: %w", err)
 	}
 
-	logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.2f qty=%.4f sz=%s resp=%s", symbol, activationPrice, callbackRate, quantity, szStr, string(resp))
+	var orders []struct {
+		AlgoId string `json:"algoId"`
+		SCode  string `json:"sCode"`
+		SMsg   string `json:"sMsg"`
+	}
+	if err := json.Unmarshal(resp, &orders); err == nil && len(orders) > 0 {
+		if orders[0].SCode != "0" {
+			return fmt.Errorf("OKX trailing stop rejected: code=%s msg=%s", orders[0].SCode, orders[0].SMsg)
+		}
+		logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s algoId=%s", symbol, activationPrice, callbackRate, quantity, szStr, orders[0].AlgoId)
+		return nil
+	}
+
+	logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s resp=%s", symbol, activationPrice, callbackRate, quantity, szStr, string(resp))
 	return nil
 }
 

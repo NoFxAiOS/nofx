@@ -354,23 +354,57 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
     {expanded && (
       <tr style={{ borderBottom: '1px solid #2B3139', background: 'rgba(255,255,255,0.02)' }}>
         <td colSpan={9} className="px-4 pb-4 pt-0">
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4 mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
-            <div>
-              <div style={{ color: '#848E9C' }}>{'委托来源 / Source'}</div>
-              <div className="font-mono" style={{ color: '#EAECEF' }}>{executionSource}</div>
+          <div className="rounded-lg border border-white/10 bg-black/20 p-4 mt-2 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
+              <div>
+                <div style={{ color: '#848E9C' }}>{'委托来源 / Source'}</div>
+                <div className="font-mono" style={{ color: '#EAECEF' }}>{executionSource}</div>
+              </div>
+              <div>
+                <div style={{ color: '#848E9C' }}>{'委托类型 / Order Type'}</div>
+                <div className="font-mono" style={{ color: '#EAECEF' }}>{executionOrderType}</div>
+              </div>
+              <div>
+                <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
+                <div className="font-mono" style={{ color: '#EAECEF' }}>{closeRatioPct > 0 ? `${closeRatioPct.toFixed(2)}%` : '—'}</div>
+              </div>
+              <div>
+                <div style={{ color: '#848E9C' }}>{'成交价值 / Value USDT'}</div>
+                <div className="font-mono" style={{ color: '#EAECEF' }}>{formatNumber(closeValueUsdt)}</div>
+              </div>
             </div>
-            <div>
-              <div style={{ color: '#848E9C' }}>{'委托类型 / Order Type'}</div>
-              <div className="font-mono" style={{ color: '#EAECEF' }}>{executionOrderType}</div>
-            </div>
-            <div>
-              <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
-              <div className="font-mono" style={{ color: '#EAECEF' }}>{closeRatioPct > 0 ? `${closeRatioPct.toFixed(2)}%` : '—'}</div>
-            </div>
-            <div>
-              <div style={{ color: '#848E9C' }}>{'成交价值 / Value USDT'}</div>
-              <div className="font-mono" style={{ color: '#EAECEF' }}>{formatNumber(closeValueUsdt)}</div>
-            </div>
+
+            {position.close_events && position.close_events.length > 0 && (
+              <div>
+                <div className="text-xs mb-2" style={{ color: '#848E9C' }}>{'分段平仓事件 / Close Event Flow'}</div>
+                <div className="space-y-2">
+                  {position.close_events.map((event) => (
+                    <div key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'原因 / Reason'}</div>
+                        <div className="font-mono" style={{ color: '#EAECEF' }}>{formatExecutionSourceLabel(event.execution_source || event.close_reason)}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'类型 / Type'}</div>
+                        <div className="font-mono" style={{ color: '#EAECEF' }}>{event.execution_type || 'unknown'}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'数量 / Ratio'}</div>
+                        <div className="font-mono" style={{ color: '#EAECEF' }}>{`${formatQuantity(event.close_quantity)} / ${event.close_ratio_pct.toFixed(2)}%`}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'价格 / Value'}</div>
+                        <div className="font-mono" style={{ color: '#EAECEF' }}>{`${formatPrice(event.execution_price)} / ${formatNumber(event.close_value_usdt)}`}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'PnL / Time'}</div>
+                        <div className="font-mono" style={{ color: '#EAECEF' }}>{`${event.realized_pnl_delta >= 0 ? '+' : ''}${formatNumber(event.realized_pnl_delta)} / ${formatDate(event.event_time)}`}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </td>
       </tr>

@@ -283,6 +283,33 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			executionOrderType = "AI_CLOSE"
 		}
 
+		closeEvents := make([]map[string]interface{}, 0)
+		if eventStore := store.PositionClose(); eventStore != nil {
+			if events, err := eventStore.ListByPositionID(pos.ID); err == nil {
+				for _, ev := range events {
+					closeEvents = append(closeEvents, map[string]interface{}{
+						"id":                 ev.ID,
+						"position_id":        ev.PositionID,
+						"trader_id":          ev.TraderID,
+						"exchange_id":        ev.ExchangeID,
+						"symbol":             ev.Symbol,
+						"side":               ev.Side,
+						"close_reason":       ev.CloseReason,
+						"execution_source":   ev.ExecutionSource,
+						"execution_type":     ev.ExecutionType,
+						"exchange_order_id":  ev.ExchangeOrderID,
+						"close_quantity":     ev.CloseQuantity,
+						"close_ratio_pct":    ev.CloseRatioPct,
+						"execution_price":    ev.ExecutionPrice,
+						"close_value_usdt":   ev.CloseValueUSDT,
+						"realized_pnl_delta": ev.RealizedPnLDelta,
+						"fee_delta":          ev.FeeDelta,
+						"event_time":         time.UnixMilli(ev.EventTime).UTC().Format(time.RFC3339),
+					})
+				}
+			}
+		}
+
 		enrichedPositions = append(enrichedPositions, map[string]interface{}{
 			"id":                   pos.ID,
 			"trader_id":            pos.TraderID,
@@ -307,6 +334,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			"execution_order_type": executionOrderType,
 			"close_ratio_pct":      closeRatioPct,
 			"close_value_usdt":     pos.ExitPrice * closedQty,
+			"close_events":         closeEvents,
 			"created_at":           time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
 			"updated_at":           time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
 		})

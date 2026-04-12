@@ -24,6 +24,7 @@ type Store struct {
 	trader         *TraderStore
 	decision       *DecisionStore
 	position       *PositionStore
+	positionClose  *PositionCloseEventStore
 	strategy       *StrategyStore
 	equity         *EquityStore
 	order          *OrderStore
@@ -146,6 +147,9 @@ func (s *Store) initTables() error {
 	if err := s.Position().InitTables(); err != nil {
 		return fmt.Errorf("failed to initialize position tables: %w", err)
 	}
+	if err := s.PositionClose().InitTables(); err != nil {
+		return fmt.Errorf("failed to initialize position close event tables: %w", err)
+	}
 	if err := s.Strategy().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize strategy tables: %w", err)
 	}
@@ -245,6 +249,16 @@ func (s *Store) Position() *PositionStore {
 		s.position = NewPositionStore(s.gdb)
 	}
 	return s.position
+}
+
+// PositionClose gets position close event storage
+func (s *Store) PositionClose() *PositionCloseEventStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.positionClose == nil {
+		s.positionClose = NewPositionCloseEventStore(s.gdb)
+	}
+	return s.positionClose
 }
 
 // Strategy gets strategy storage

@@ -254,6 +254,26 @@ export interface TraderConfigData {
 }
 
 // Position History Types
+export interface PositionCloseEvent {
+  id: number
+  position_id: number
+  trader_id: string
+  exchange_id: string
+  symbol: string
+  side: string
+  close_reason: string
+  execution_source: string
+  execution_type: string
+  exchange_order_id: string
+  close_quantity: number
+  close_ratio_pct: number
+  execution_price: number
+  close_value_usdt: number
+  realized_pnl_delta: number
+  fee_delta: number
+  event_time: string
+}
+
 export interface HistoricalPosition {
   id: number
   trader_id: string
@@ -278,6 +298,7 @@ export interface HistoricalPosition {
   execution_order_type?: string
   close_ratio_pct?: number
   close_value_usdt?: number
+  close_events?: PositionCloseEvent[]
   created_at: string
   updated_at: string
 }

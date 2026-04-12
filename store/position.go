@@ -116,8 +116,8 @@ type TraderPosition struct {
 	Status             string  `gorm:"column:status;default:OPEN;index:idx_positions_status" json:"status"`
 	CloseReason        string  `gorm:"column:close_reason;default:''" json:"close_reason"`
 	Source             string  `gorm:"column:source;default:system" json:"source"`
-	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"`   // Unix milliseconds UTC
-	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"`   // Unix milliseconds UTC
+	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
+	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
 }
 
 // TableName returns the table name
@@ -128,6 +128,49 @@ func (TraderPosition) TableName() string {
 // PositionStore position storage
 type PositionStore struct {
 	db *gorm.DB
+}
+
+func (s *PositionStore) logCloseEvent(pos *TraderPosition, closeReason, executionSource, executionType, exchangeOrderID string, closeQty, executionPrice, feeDelta, realizedPnLDelta float64, eventTimeMs int64) error {
+	if s.db == nil || pos == nil || closeQty <= 0 {
+		return nil
+	}
+	closeRatioPct := 0.0
+	baseQty := pos.EntryQuantity
+	if baseQty <= 0 {
+		baseQty = pos.Quantity
+	}
+	if baseQty > 0 {
+		closeRatioPct = closeQty / baseQty * 100
+	}
+	event := &PositionCloseEvent{
+		PositionID:       pos.ID,
+		TraderID:         pos.TraderID,
+		ExchangeID:       pos.ExchangeID,
+		Symbol:           pos.Symbol,
+		Side:             pos.Side,
+		CloseReason:      closeReason,
+		ExecutionSource:  executionSource,
+		ExecutionType:    executionType,
+		ExchangeOrderID:  exchangeOrderID,
+		CloseQuantity:    closeQty,
+		CloseRatioPct:    closeRatioPct,
+		ExecutionPrice:   executionPrice,
+		CloseValueUSDT:   executionPrice * closeQty,
+		RealizedPnLDelta: realizedPnLDelta,
+		FeeDelta:         feeDelta,
+		EventTime:        eventTimeMs,
+		CreatedAt:        time.Now().UTC().UnixMilli(),
+	}
+	store := NewPositionCloseEventStore(s.db)
+	if err := store.Create(event); err != nil {
+		if strings.Contains(err.Error(), "no such table") || strings.Contains(err.Error(), "does not exist") {
+			if initErr := store.InitTables(); initErr == nil {
+				return store.Create(event)
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 // NewPositionStore creates position storage instance
@@ -198,14 +241,14 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID string, realizedPnL float64, fee float64, closeReason string) error {
 	nowMs := time.Now().UTC().UnixMilli()
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"exit_price":   exitPrice,
+		"exit_price":    exitPrice,
 		"exit_order_id": exitOrderID,
-		"exit_time":    nowMs,
-		"realized_pnl": realizedPnL,
-		"fee":          fee,
-		"status":       "CLOSED",
-		"close_reason": closeReason,
-		"updated_at":   nowMs,
+		"exit_time":     nowMs,
+		"realized_pnl":  realizedPnL,
+		"fee":           fee,
+		"status":        "CLOSED",
+		"close_reason":  closeReason,
+		"updated_at":    nowMs,
 	}).Error
 }
 
@@ -240,7 +283,7 @@ func (s *PositionStore) UpdatePositionQuantityAndPrice(id int64, addQty float64,
 
 // ReducePositionQuantity reduces position quantity for partial close
 // If quantity reaches 0 (or near 0), automatically closes the position
-func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exitPrice float64, addFee float64, addPnL float64) error {
+func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exitPrice float64, addFee float64, addPnL float64, closeReason string, executionSource string, executionType string, exchangeOrderID string, eventTimeMs int64) error {
 	var pos TraderPosition
 	if err := s.db.First(&pos, id).Error; err != nil {
 		return fmt.Errorf("failed to get current position: %w", err)
@@ -261,30 +304,38 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 	}
 
 	nowMs := time.Now().UTC().UnixMilli()
+	if eventTimeMs == 0 {
+		eventTimeMs = nowMs
+	}
 
 	// Check if position should be fully closed (quantity reduced to ~0)
 	const QUANTITY_TOLERANCE = 0.0001
 	if newQty <= QUANTITY_TOLERANCE {
-		// Auto-close: set status to CLOSED
-		return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
+		if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"quantity":     0,
 			"fee":          newFee,
 			"exit_price":   newExitPrice,
 			"realized_pnl": newPnL,
 			"status":       "CLOSED",
 			"exit_time":    nowMs,
-			"close_reason": "sync",
+			"close_reason": closeReason,
 			"updated_at":   nowMs,
-		}).Error
+		}).Error; err != nil {
+			return err
+		}
+		return s.logCloseEvent(&pos, closeReason, executionSource, executionType, exchangeOrderID, reduceQty, exitPrice, addFee, addPnL, eventTimeMs)
 	}
 
-	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
+	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"quantity":     newQty,
 		"fee":          newFee,
 		"exit_price":   newExitPrice,
 		"realized_pnl": newPnL,
 		"updated_at":   nowMs,
-	}).Error
+	}).Error; err != nil {
+		return err
+	}
+	return s.logCloseEvent(&pos, closeReason, executionSource, executionType, exchangeOrderID, reduceQty, exitPrice, addFee, addPnL, eventTimeMs)
 }
 
 // UpdatePositionExchangeInfo updates exchange_id and exchange_type
@@ -299,7 +350,7 @@ func (s *PositionStore) UpdatePositionExchangeInfo(id int64, exchangeID, exchang
 
 // ClosePositionFully marks position as fully closed
 // exitTimeMs is Unix milliseconds UTC
-func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrderID string, exitTimeMs int64, totalRealizedPnL float64, totalFee float64, closeReason string) error {
+func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrderID string, exitTimeMs int64, totalRealizedPnL float64, totalFee float64, closeReason string, executionSource string, executionType string) error {
 	var pos TraderPosition
 	if err := s.db.First(&pos, id).Error; err != nil {
 		return fmt.Errorf("failed to get position: %w", err)
@@ -310,17 +361,22 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 		quantity = pos.EntryQuantity
 	}
 
-	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"quantity":       quantity,
-		"exit_price":     exitPrice,
-		"exit_order_id":  exitOrderID,
-		"exit_time":      exitTimeMs,
-		"realized_pnl":   totalRealizedPnL,
-		"fee":            totalFee,
-		"status":         "CLOSED",
-		"close_reason":   closeReason,
-		"updated_at":     time.Now().UTC().UnixMilli(),
-	}).Error
+	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"quantity":      quantity,
+		"exit_price":    exitPrice,
+		"exit_order_id": exitOrderID,
+		"exit_time":     exitTimeMs,
+		"realized_pnl":  totalRealizedPnL,
+		"fee":           totalFee,
+		"status":        "CLOSED",
+		"close_reason":  closeReason,
+		"updated_at":    time.Now().UTC().UnixMilli(),
+	}).Error; err != nil {
+		return err
+	}
+	feeDelta := totalFee - pos.Fee
+	realizedPnLDelta := totalRealizedPnL - pos.RealizedPnL
+	return s.logCloseEvent(&pos, closeReason, executionSource, executionType, exitOrderID, pos.Quantity, exitPrice, feeDelta, realizedPnLDelta, exitTimeMs)
 }
 
 // DeleteAllOpenPositions deletes all OPEN positions for a trader

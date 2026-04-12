@@ -159,14 +159,17 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     ? (isZh ? '按 R 倍数触发' : 'Trigger by R Multiple')
     : (isZh ? '按盈利百分比触发' : 'Trigger by Profit %')
 
-  const infoBlock = (title: string, description: string, example: string, recommend: string) => (
+  const infoBlock = (title: string, description: string, recommend: string) => (
     <div className="p-3 rounded-lg space-y-1" style={helpCardStyle}>
       <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{title}</div>
       <div className="text-xs" style={{ color: '#AAB2BD' }}>{description}</div>
-      <div className="text-xs" style={{ color: '#848E9C' }}>{example}</div>
       <div className="text-xs" style={{ color: '#F0B90B' }}>{recommend}</div>
     </div>
   )
+
+  const drawdownOwnsTp = config.drawdown_take_profit.enabled && (config.drawdown_take_profit.rules || []).length > 0
+  const ladderTpEnabled = config.ladder_tp_sl.enabled && config.ladder_tp_sl.take_profit_enabled
+  const fullTpEnabled = config.full_tp_sl.enabled && config.full_tp_sl.take_profit.enabled
 
   return (
     <div className="space-y-6">
@@ -195,6 +198,12 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
         </div>
 
         <div className="space-y-4">
+          {drawdownOwnsTp && fullTpEnabled && (
+            <div className="p-3 rounded-lg text-xs" style={{ background: '#2B1619', border: '1px solid #41272B', color: '#F0B90B' }}>
+              {isZh ? 'Drawdown Take Profit 已接管止盈侧，Full TP 会被抑制；Full SL 仍保留为长期止损。' : 'Drawdown Take Profit owns the take-profit side, so Full TP is suppressed while Full SL remains active as long-lived stop-loss.'}
+            </div>
+          )}
+
           <div className="p-4 rounded-lg" style={sectionStyle}>
             <div className="flex items-center justify-between">
               <div>
@@ -228,7 +237,7 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               </div>
               <input type="number" min={0} step={0.1} value={config.full_tp_sl.take_profit.price_move_pct} onChange={(e) => updateFull('take_profit', { ...config.full_tp_sl.take_profit, price_move_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
               <p className="text-xs mt-2" style={{ color: '#848E9C' }}>
-                {isZh ? '数值表示相对开仓价的目标涨跌幅百分比。示例：填 5 表示盈利达到 5% 触发止盈。新手建议 3%~8%。' : 'Percentage move from entry price. Example: 5 means trigger TP at +5% favorable move.'}
+                {isZh ? '相对开仓价的止盈价格偏移。若 Drawdown 已启用，这里的 TP 侧会被抑制。' : 'Take-profit price offset from entry. When Drawdown is enabled, this TP side is suppressed.'}
               </p>
             </div>
 
@@ -239,7 +248,7 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               </div>
               <input type="number" min={0} step={0.1} value={config.full_tp_sl.stop_loss.price_move_pct} onChange={(e) => updateFull('stop_loss', { ...config.full_tp_sl.stop_loss, price_move_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
               <p className="text-xs mt-2" style={{ color: '#848E9C' }}>
-                {isZh ? '数值表示相对开仓价的容忍回撤百分比。示例：填 2 表示亏损达到 2% 触发止损。新手建议 1%~3%。' : 'Allowed adverse move from entry. Example: 2 means stop at -2% adverse move.'}
+                {isZh ? '相对开仓价可容忍的逆向价格偏移。该止损侧不会被 Drawdown 接管。' : 'Allowed adverse price move from entry. This stop-loss side is not taken over by Drawdown.'}
               </p>
             </div>
           </div>
@@ -255,6 +264,12 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
         </div>
 
         <div className="space-y-4">
+          {ladderTpEnabled && drawdownOwnsTp && (
+            <div className="p-3 rounded-lg text-xs" style={{ background: '#2B1619', border: '1px solid #41272B', color: '#F0B90B' }}>
+              {isZh ? 'Drawdown Take Profit 已接管止盈侧，Ladder TP 会被抑制；Ladder SL 继续保留。' : 'Drawdown Take Profit owns the take-profit side, so Ladder TP is suppressed while Ladder SL remains active.'}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 rounded-lg" style={sectionStyle}>
               <div className="flex items-center justify-between mb-2">
@@ -271,22 +286,21 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
                 <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '启用分批止盈' : 'Enable Ladder TP'}</label>
                 <input type="checkbox" checked={config.ladder_tp_sl.take_profit_enabled} onChange={(e) => updateLadder('take_profit_enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-green-500" />
               </div>
-              <p className="text-xs" style={{ color: '#848E9C' }}>{isZh ? '示例：第 1 档盈利 3% 平 30%，第 2 档盈利 5% 再平 30%。' : 'Example: close 30% at +3%, another 30% at +5%.'}</p>
+              <p className="text-xs" style={{ color: '#848E9C' }}>{isZh ? '启用后按多档规则分批止盈；若 Drawdown 已启用，该 TP 侧会被抑制。' : 'Enables multi-level take-profit orders; this TP side is suppressed when Drawdown is enabled.'}</p>
             </div>
             <div className="p-4 rounded-lg" style={sectionStyle}>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '启用分批止损' : 'Enable Ladder SL'}</label>
                 <input type="checkbox" checked={config.ladder_tp_sl.stop_loss_enabled} onChange={(e) => updateLadder('stop_loss_enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-red-500" />
               </div>
-              <p className="text-xs" style={{ color: '#848E9C' }}>{isZh ? '示例：价格逆向 2% 平 50%，逆向 4% 再平剩余。' : 'Example: close 50% at -2% adverse move, rest at -4%.'}</p>
+              <p className="text-xs" style={{ color: '#848E9C' }}>{isZh ? '启用后按多档规则分批止损；作为长期止损侧，可与 Drawdown 共存。' : 'Enables multi-level stop-loss orders; this long-lived stop-loss side can coexist with Drawdown.'}</p>
             </div>
           </div>
 
           {infoBlock(
             isZh ? 'Ladder 参数说明' : 'Ladder Parameter Guide',
-            isZh ? '每一档都是一组“触发幅度 + 平仓比例”。只有配置了规则，Ladder 才会真正生成多档委托。' : 'Each ladder level is a trigger percentage plus close ratio. Ladder only works when rules are configured.',
-            isZh ? '示例：止盈 3% 平 30%，止盈 5% 平 30%，止盈 8% 平 40%。' : 'Example: TP 3% close 30%, TP 5% close 30%, TP 8% close 40%.',
-            isZh ? '建议：先从 2~3 档开始，总平仓比例不要超过 100%。' : 'Recommendation: start with 2-3 levels and keep total ratio within 100%.'
+            isZh ? '每一档都是一组“触发幅度 + 平仓比例”。只有配置了规则，Ladder 才会生成多档委托；当 Drawdown 接管止盈侧时，仅 Ladder SL 保留。' : 'Each ladder level is a trigger plus close ratio. Ladder generates multi-level orders only when rules exist; if Drawdown owns the TP side, only Ladder SL remains active.',
+            isZh ? '建议：先控制总平仓比例，再决定每档分配。' : 'Recommendation: control the total close ratio first, then distribute it across levels.'
           )}
 
           <div className="space-y-3">
@@ -351,10 +365,9 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               <input type="checkbox" checked={config.drawdown_take_profit.enabled} onChange={(e) => updateDrawdown('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-purple-500" />
             </div>
             {infoBlock(
-              isZh ? '这不是固定挂单，而是系统运行态监控' : 'This is runtime-monitored, not a fixed exchange order',
-              isZh ? '系统会持续跟踪持仓浮盈峰值。当利润先达到门槛、随后回撤到设定比例时，再触发平仓。' : 'The system tracks peak unrealized profit, then closes when drawdown from peak reaches threshold.',
-              isZh ? '示例：先盈利到 10%，后来回落到 6%，说明从峰值回撤了 40%，可触发止盈。' : 'Example: profit peaks at 10% then falls to 6%, which is a 40% drawdown from peak.',
-              isZh ? '建议：最小利润 5%，最大回撤 30%~40%，平仓比例 50% 或 100%。' : 'Recommendation: min profit 5%, max drawdown 30%-40%, close ratio 50% or 100%.'
+              isZh ? '盈利控制主链' : 'Primary profit-control path',
+              isZh ? 'Drawdown / Native Trailing 接管止盈侧。达到最小利润门槛后，系统按回撤阈值动态保护利润；不再同时依赖 Full / Ladder TP。' : 'Drawdown / Native Trailing owns the take-profit side. After the minimum profit gate is reached, the system protects gains using drawdown thresholds instead of relying on Full / Ladder TP at the same time.',
+              isZh ? '建议：把它当成主止盈链路，只保留 Full / Ladder 的止损侧。' : 'Recommendation: treat this as the main take-profit path and keep only the stop-loss side from Full / Ladder.'
             )}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -417,10 +430,9 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               <input type="checkbox" checked={config.break_even_stop.enabled} onChange={(e) => updateBreakEven('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-orange-500" />
             </div>
             {infoBlock(
-              isZh ? '保本止损会在盈利后上移止损' : 'Moves stop-loss upward after profit appears',
-              isZh ? '达到触发门槛后，系统会把止损上移到开仓价附近，避免盈利单最后变亏损。' : 'After the trigger threshold is met, the system raises stop-loss near breakeven.',
-              isZh ? '示例：盈利达到 3% 后，把止损抬到开仓价上方 0.2%。' : 'Example: once profit reaches 3%, move stop to entry +0.2%.',
-              isZh ? '建议：触发值 2%~3%，偏移 0.1%~0.3%。' : 'Recommendation: trigger 2%-3%, offset 0.1%-0.3%.'
+              isZh ? 'Break-even 独立管理' : 'Break-even is independent',
+              isZh ? 'Break-even 只负责把止损抬到保本附近，不接管 Drawdown 的盈利控制，也不替代 Full / Ladder 的长期止损结构。' : 'Break-even only raises stop-loss toward breakeven. It does not take over Drawdown profit control or replace the long-lived stop-loss structure from Full / Ladder.',
+              isZh ? '建议：把它当成盈利后附加的一层止损保护。' : 'Recommendation: use it as an extra stop-loss layer after profit appears.'
             )}
             <div>
               <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '触发模式' : 'Trigger Mode'}</label>
@@ -458,8 +470,7 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
           {infoBlock(
             isZh ? 'Regime Filter 不会挂交易所委托' : 'Regime Filter does not create exchange orders',
             isZh ? '它决定“这笔交易能不能开”。只有市场状态、资金费率、波动、趋势方向满足条件时，系统才允许开仓。' : 'It decides whether a new trade is allowed before entry based on market regime and risk conditions.',
-            isZh ? '示例：只允许标准波动 / 宽波动；资金费率过高时不准进场。' : 'Example: allow only standard/wide regime and block entries when funding is too high.',
-            isZh ? '建议：新手开启高资金费率屏蔽、高波动屏蔽、趋势同向。' : 'Recommendation: enable high-funding block, high-volatility block, and trend alignment for safer setups.'
+            isZh ? '建议：把它当成开仓门禁，而不是持仓保护。' : 'Recommendation: treat it as a pre-entry gate instead of a position protection tool.'
           )}
 
           <div>

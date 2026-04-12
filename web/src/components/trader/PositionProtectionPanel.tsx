@@ -17,7 +17,6 @@ function formatUsdtValue(value: number | undefined | null): string {
 }
 
 function buildProtectionRows(position: Position, orders: OpenOrder[]) {
-  const entryPrice = position.entry_price || 0
   const positionQty = position.quantity || 0
 
   return orders.map((order) => {
@@ -30,7 +29,6 @@ function buildProtectionRows(position: Position, orders: OpenOrder[]) {
       triggerPrice,
       closeRatioPct,
       valueUsdt,
-      entryPrice,
     }
   })
 }
@@ -39,52 +37,54 @@ function normalizeSide(side?: string): string {
   return String(side || '').toUpperCase()
 }
 
-function formatProtectionState(state: string | undefined, language: Language, exchange?: string): string {
-  if (!state) return language === 'zh' ? '未知' : 'unknown'
-  const value = state.trim().toLowerCase()
-  const exchangeLabel = exchange ? exchange.toUpperCase() : (language === 'zh' ? '交易所' : 'exchange')
-  switch (value) {
-    case 'exchange_protection_verified':
-      return language === 'zh' ? '交易所保护已校验' : 'exchange protection verified'
-    case 'break_even_armed':
-      return language === 'zh' ? '保本保护已挂单' : 'break-even armed'
-    case 'native_trailing_armed':
-      return language === 'zh' ? `${exchangeLabel} 原生移动保护已激活（整仓）` : `${exchangeLabel} native trailing armed (full)`
-    case 'native_partial_trailing_armed':
-      return language === 'zh' ? `${exchangeLabel} 原生分批移动保护已激活` : `${exchangeLabel} native partial trailing armed`
-    case 'managed_partial_drawdown_armed':
-      return language === 'zh' ? '托管式分批回撤保护已激活' : 'managed partial drawdown armed'
-    case 'drawdown_triggered':
-      return language === 'zh' ? '回撤保护已触发' : 'drawdown triggered'
-    default:
-      return state
-  }
+function compactProtectionLabel(state: string | undefined, language: Language, exchange?: string): string {
+  if (!state) return language === 'zh' ? '未识别' : 'unknown'
+  const v = state.toLowerCase()
+  const ex = exchange ? exchange.toUpperCase() : 'EX'
+  if (v === 'native_trailing_armed') return language === 'zh' ? `${ex} 原生 trailing` : `${ex} native trailing`
+  if (v === 'native_partial_trailing_armed') return language === 'zh' ? `${ex} 原生分批 trailing` : `${ex} native partial trailing`
+  if (v === 'managed_partial_drawdown_armed') return language === 'zh' ? '托管式分批回撤' : 'managed partial drawdown'
+  if (v === 'exchange_protection_verified') return language === 'zh' ? '交易所保护已校验' : 'exchange protection verified'
+  if (v === 'drawdown_triggered') return language === 'zh' ? '回撤保护已触发' : 'drawdown triggered'
+  return state
 }
 
-function formatExecutionMode(mode: string | undefined, language: Language): string {
+function compactExecutionMode(mode: string | undefined, language: Language): string {
   if (!mode) return language === 'zh' ? '未确定' : 'undetermined'
-  switch (mode.trim().toLowerCase()) {
-    case 'native_trailing_full':
-      return language === 'zh' ? '交易所原生 trailing（整仓）' : 'exchange-native trailing (full close)'
-    case 'native_partial_trailing':
-      return language === 'zh' ? '交易所原生 trailing（分批）' : 'exchange-native trailing (partial close)'
-    case 'managed_partial_drawdown':
-      return language === 'zh' ? '托管式分批回撤保护' : 'managed partial drawdown'
-    case 'native_trailing_pending':
-      return language === 'zh' ? '支持原生 trailing（待满足激活条件）' : 'native trailing supported (awaiting activation)'
-    case 'disabled':
-      return language === 'zh' ? '未启用回撤保护' : 'drawdown disabled'
-    case 'native_full_local_partial':
-      return language === 'zh' ? '整仓原生 / 分批本地' : 'native for full close / local for partial'
-    case 'native_stop':
-      return language === 'zh' ? '交易所原生 stop' : 'exchange-native stop'
-    case 'local_only':
-      return language === 'zh' ? '仅本地执行' : 'local only'
-    case 'local_fallback':
-      return language === 'zh' ? '本地 fallback（含分批回撤）' : 'local fallback (incl. partial drawdown)'
-    default:
-      return mode
-  }
+  const v = mode.toLowerCase()
+  if (v === 'native_trailing_full') return language === 'zh' ? '原生 trailing（整仓）' : 'native trailing (full)'
+  if (v === 'native_partial_trailing') return language === 'zh' ? '原生 trailing（分批）' : 'native trailing (partial)'
+  if (v === 'managed_partial_drawdown') return language === 'zh' ? '托管式回撤' : 'managed drawdown'
+  if (v === 'native_trailing_pending') return language === 'zh' ? '原生 trailing 待激活' : 'native trailing pending'
+  if (v === 'disabled') return language === 'zh' ? '未启用' : 'disabled'
+  return mode
+}
+
+function ProtectionCard({
+  title,
+  subtitle,
+  rows,
+}: {
+  title: string
+  subtitle?: string
+  rows: { label: string; value: string }[]
+}) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+      <div>
+        <div className="text-sm font-medium text-nofx-text-main">{title}</div>
+        {subtitle ? <div className="text-[11px] text-nofx-text-muted mt-0.5">{subtitle}</div> : null}
+      </div>
+      <div className="space-y-1.5 text-xs">
+        {rows.map((row, idx) => (
+          <div key={idx} className="flex items-start justify-between gap-3">
+            <div className="text-nofx-text-muted">{row.label}</div>
+            <div className="font-mono text-nofx-text-main text-right">{row.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function PositionProtectionPanel({ traderId, positions, language, exchange }: PositionProtectionPanelProps) {
@@ -164,16 +164,16 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
         <div className="w-24 h-24 rounded-full bg-purple-500 blur-3xl" />
       </div>
 
-      <div className="relative z-10 flex items-center justify-between mb-4">
+      <div className="relative z-10 flex items-center justify-between mb-3">
         <div>
           <h3 className="text-lg font-bold text-nofx-text-main uppercase tracking-wide flex items-center gap-2">
             <span className="text-purple-400">🛡</span>
             {language === 'zh' ? '持仓保护执行面板' : 'Position Protection Runtime'}
           </h3>
-          <p className="text-xs text-nofx-text-muted mt-1">
+          <p className="text-[11px] text-nofx-text-muted mt-1">
             {language === 'zh'
-              ? '按持仓展示当前生效保护、未来触发动作，以及执行来源'
-              : 'Per-position view of active protections, upcoming triggers, and execution source'}
+              ? '按四类保护展示当前委托、原生 / 本地执行方式与关键参数'
+              : 'Grouped by the four protection types with active orders, native/local execution, and key parameters'}
           </p>
         </div>
       </div>
@@ -220,71 +220,42 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '当前保护状态' : 'Protection State'}</div>
-                  <div className="font-mono text-nofx-text-main">{formatProtectionState(position.protection_state, language, exchange)}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '回撤止盈执行模式' : 'Drawdown Execution Mode'}</div>
-                  <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.drawdown_execution_mode, language)}</div>
-                </div>
-                {nextTier && (
-                  <div className="rounded-lg border border-white/10 bg-black/20 p-3 md:col-span-2">
-                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '原生 trailing 激活条件' : 'Native trailing activation gate'}</div>
-                    <div className="font-mono text-nofx-text-main">
-                      {language === 'zh'
-                        ? `当前利润 ${currentPnlPct.toFixed(2)}% / 最低要求 ${Number(nextTier.min_profit_pct || 0).toFixed(2)}%`
-                        : `Current PnL ${currentPnlPct.toFixed(2)}% / Required ${Number(nextTier.min_profit_pct || 0).toFixed(2)}%`}
-                    </div>
-                    {currentPnlPct < Number(nextTier.min_profit_pct || 0) && (
-                      <div className="text-nofx-text-muted mt-1">
-                        {language === 'zh'
-                          ? '尚未达到最小利润门槛，所以不会挂出 drawdown trailing 委托。'
-                          : 'Drawdown trailing will not be armed until min-profit threshold is reached.'}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4">
-                <div className="font-semibold text-cyan-300 mb-3">{language === 'zh' ? '当前保护委托' : 'Current Protection Orders'}</div>
-                <div className="space-y-2 text-xs">
-                  {protectionRows.map((row) => (
-                    <div key={row.orderId} className="rounded-lg border border-cyan-400/10 bg-black/20 p-3 grid grid-cols-1 md:grid-cols-4 gap-2">
-                      <div>
-                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '类型' : 'Type'}</div>
-                        <div className="font-mono text-nofx-text-main">{row.type}</div>
-                      </div>
-                      <div>
-                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '触发价格' : 'Trigger Price'}</div>
-                        <div className="font-mono text-nofx-text-main">{formatPrice(row.triggerPrice)}</div>
-                      </div>
-                      <div>
-                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '成交比例' : 'Close Ratio'}</div>
-                        <div className="font-mono text-nofx-text-main">{row.closeRatioPct > 0 ? `${row.closeRatioPct.toFixed(1)}%` : '—'}</div>
-                      </div>
-                      <div>
-                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '仓位价值 USDT' : 'Value USDT'}</div>
-                        <div className="font-mono text-nofx-text-main">{row.valueUsdt > 0 ? formatUsdtValue(row.valueUsdt) : '—'}</div>
-                      </div>
-                    </div>
-                  ))}
-                  {protectionRows.length === 0 && (
-                    <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-nofx-text-muted">
-                      {language === 'zh' ? '当前未检测到已生效中的保护委托。' : 'No active protection orders detected.'}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6 space-y-2">
-                <div className="font-semibold text-nofx-text-main mb-1">{language === 'zh' ? '执行边界说明' : 'Execution Boundary Notes'}</div>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>{language === 'zh' ? '当前面板已区分：交易所原生 trailing（整仓 / 分批）与托管式分批回撤保护。' : 'This panel now distinguishes exchange-native trailing (full / partial) from managed partial drawdown.'}</li>
-                  <li>{language === 'zh' ? '原生 trailing 一旦 armed，本地不应再伪造第二套执行计划；若看到 managed，则说明当前仍未走上原生 partial。' : 'Once native trailing is armed, local fallback should not present a second execution path; managed indicates partial native is not in effect.'}</li>
-                  <li>{language === 'zh' ? '保本止损 armed 状态会随仓位数量/开仓价变化自动重置。' : 'Break-even armed state auto-resets when position size or entry price changes.'}</li>
-                </ul>
+                <ProtectionCard
+                  title={language === 'zh' ? '委托型止损（Full / Ladder SL）' : 'Order-based Stop Loss (Full / Ladder SL)'}
+                  subtitle={language === 'zh' ? '长期保留，除非仓位扩张时更新' : 'Long-lived protection; update only when position expands'}
+                  rows={[
+                    { label: language === 'zh' ? '当前状态' : 'State', value: compactProtectionLabel(position.protection_state, language, exchange) },
+                    { label: language === 'zh' ? '执行模式' : 'Mode', value: compactExecutionMode(position.drawdown_execution_mode, language) },
+                    { label: language === 'zh' ? '委托数量' : 'Orders', value: String(protectionRows.filter((r) => r.type.includes('STOP') && !r.type.includes('TRAILING')).length) },
+                  ]}
+                />
+                <ProtectionCard
+                  title={language === 'zh' ? '盈利控制（Drawdown / Native Trailing）' : 'Profit Control (Drawdown / Native Trailing)'}
+                  subtitle={language === 'zh' ? '与 generic TP 互斥，接管止盈侧' : 'Owns the TP side and is mutually exclusive with generic TP'}
+                  rows={[
+                    { label: language === 'zh' ? '执行模式' : 'Mode', value: compactExecutionMode(position.drawdown_execution_mode, language) },
+                    { label: language === 'zh' ? '最低利润门槛' : 'Min Profit Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? '当前利润' : 'Current PnL', value: `${currentPnlPct.toFixed(2)}%` },
+                    { label: language === 'zh' ? '本地监测' : 'Local Monitor', value: language === 'zh' ? '运行中' : 'active' },
+                  ]}
+                />
+                <ProtectionCard
+                  title={language === 'zh' ? '保本止损（Break-even）' : 'Break-even Stop'}
+                  subtitle={language === 'zh' ? '独立管理，不覆盖 Drawdown / Ladder / Full' : 'Managed independently; does not replace Drawdown / Ladder / Full'}
+                  rows={[
+                    { label: language === 'zh' ? '当前状态' : 'State', value: position.break_even_state || 'idle' },
+                    { label: language === 'zh' ? '触发值' : 'Trigger', value: position.protection_runtime?.scheduled_tiers?.length ? 'runtime' : 'runtime' },
+                    { label: language === 'zh' ? '本地监测' : 'Local Monitor', value: 'on' },
+                  ]}
+                />
+                <ProtectionCard
+                  title={language === 'zh' ? '当前保护委托' : 'Current Protection Orders'}
+                  subtitle={language === 'zh' ? '仅展示与交易/保护强相关的信息' : 'Only high-signal trading / protection details'}
+                  rows={protectionRows.length > 0 ? protectionRows.map((row) => ({
+                    label: `${row.type} @ ${formatPrice(row.triggerPrice)}`,
+                    value: `${row.closeRatioPct > 0 ? `${row.closeRatioPct.toFixed(1)}%` : '—'} / ${row.valueUsdt > 0 ? formatUsdtValue(row.valueUsdt) : '—'}U`,
+                  })) : [{ label: language === 'zh' ? '委托' : 'Orders', value: language === 'zh' ? '暂无' : 'none' }]}
+                />
               </div>
             </div>
           )

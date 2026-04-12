@@ -11,21 +11,28 @@ interface PositionProtectionPanelProps {
   exchange?: string
 }
 
-interface ScheduledAction {
-  title: string
-  source: string
-  trigger: string
-  action: string
+function formatUsdtValue(value: number | undefined | null): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return '—'
+  return value.toLocaleString(undefined, { maximumFractionDigits: value >= 100 ? 2 : 4 })
 }
 
-function isStopLoss(order: OpenOrder): boolean {
-  const kind = String(order.type || '').toUpperCase()
-  return kind.includes('STOP') && !kind.includes('TAKE_PROFIT') && !kind.includes('TP')
-}
+function buildProtectionRows(position: Position, orders: OpenOrder[]) {
+  const entryPrice = position.entry_price || 0
+  const positionQty = position.quantity || 0
 
-function isTakeProfit(order: OpenOrder): boolean {
-  const kind = String(order.type || '').toUpperCase()
-  return kind.includes('TAKE_PROFIT') || kind.includes('TP')
+  return orders.map((order) => {
+    const triggerPrice = order.stop_price || order.price || 0
+    const closeRatioPct = positionQty > 0 && order.quantity > 0 ? (order.quantity / positionQty) * 100 : 0
+    const valueUsdt = triggerPrice > 0 && order.quantity > 0 ? triggerPrice * order.quantity : 0
+    return {
+      orderId: order.order_id,
+      type: String(order.type || '').toUpperCase(),
+      triggerPrice,
+      closeRatioPct,
+      valueUsdt,
+      entryPrice,
+    }
+  })
 }
 
 function normalizeSide(side?: string): string {
@@ -49,16 +56,6 @@ function formatProtectionState(state: string | undefined, language: Language, ex
       return language === 'zh' ? '托管式分批回撤保护已激活' : 'managed partial drawdown armed'
     case 'drawdown_triggered':
       return language === 'zh' ? '回撤保护已触发' : 'drawdown triggered'
-    default:
-      return state
-  }
-}
-
-function formatBreakEvenState(state: string | undefined, language: Language): string {
-  if (!state || state.trim() === '') return language === 'zh' ? '未触发' : 'idle'
-  switch (state.trim().toLowerCase()) {
-    case 'armed':
-      return language === 'zh' ? '已挂单 / 已武装' : 'armed'
     default:
       return state
   }
@@ -88,84 +85,6 @@ function formatExecutionMode(mode: string | undefined, language: Language): stri
     default:
       return mode
   }
-}
-
-function buildScheduledActions(position: Position, stopOrders: OpenOrder[], takeProfitOrders: OpenOrder[], language: Language, exchange?: string): ScheduledAction[] {
-  const actions: ScheduledAction[] = []
-
-  for (const order of stopOrders) {
-    const trigger = order.stop_price || order.price
-    const isTrailing = String(order.type || '').toUpperCase().includes('TRAILING')
-    actions.push({
-      title: isTrailing
-        ? (language === 'zh' ? '交易所跟踪保护动作' : 'Exchange trailing protection action')
-        : (language === 'zh' ? '交易所止损动作' : 'Exchange stop-loss action'),
-      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生委托' : 'native order'}` : (language === 'zh' ? '交易所原生委托' : 'exchange-native order'),
-      trigger: isTrailing
-        ? `${language === 'zh' ? '激活价' : 'Activation'} ${formatPrice(trigger)}`
-        : `${language === 'zh' ? '价格到达' : 'Price reaches'} ${formatPrice(trigger)}`,
-      action: isTrailing
-        ? `${language === 'zh' ? '按跟踪委托执行保护平仓' : 'Protective close via trailing order'} (${formatQuantity(order.quantity)})`
-        : `${language === 'zh' ? '执行止损平仓' : 'Execute stop-loss close'} (${formatQuantity(order.quantity)})`,
-    })
-  }
-
-  for (const order of takeProfitOrders) {
-    const trigger = order.stop_price || order.price
-    actions.push({
-      title: language === 'zh' ? '交易所止盈动作' : 'Exchange take-profit action',
-      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生委托' : 'native order'}` : (language === 'zh' ? '交易所原生委托' : 'exchange-native order'),
-      trigger: `${language === 'zh' ? '价格到达' : 'Price reaches'} ${formatPrice(trigger)}`,
-      action: `${language === 'zh' ? '执行止盈平仓' : 'Execute take-profit close'} (${formatQuantity(order.quantity)})`,
-    })
-  }
-
-  if (position.protection_state?.toLowerCase() === 'native_trailing_armed') {
-    actions.push({
-      title: language === 'zh' ? '原生回撤止盈' : 'Native drawdown trailing',
-      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生 trailing' : 'native trailing'}` : (language === 'zh' ? '交易所原生 trailing' : 'exchange-native trailing'),
-      trigger: language === 'zh' ? '达到 trailing 激活条件后，随价格动态跟踪' : 'After activation, trailing stop follows price natively',
-      action: language === 'zh' ? '发生回撤时整仓退出' : 'Exit full position on qualified drawdown',
-    })
-  }
-
-  if (position.protection_state?.toLowerCase() === 'native_partial_trailing_armed') {
-    actions.push({
-      title: language === 'zh' ? '原生分批回撤止盈' : 'Native partial drawdown trailing',
-      source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生 trailing' : 'native trailing'}` : (language === 'zh' ? '交易所原生 trailing' : 'exchange-native trailing'),
-      trigger: language === 'zh' ? '达到 partial trailing 激活条件后，随价格动态跟踪' : 'After partial-trailing activation, exchange tracks price natively',
-      action: language === 'zh' ? '发生回撤时执行分批平仓' : 'Execute partial close on qualified drawdown',
-    })
-  }
-
-  if (position.protection_state?.toLowerCase() === 'managed_partial_drawdown_armed') {
-    actions.push({
-      title: language === 'zh' ? '托管式分批回撤保护' : 'Managed partial drawdown',
-      source: language === 'zh' ? '系统托管保护 / 标准 TP 条件单' : 'system-managed protection / standard TP order',
-      trigger: language === 'zh' ? '达到利润门槛并满足回撤比例后，按规则触发' : 'Triggered when profit threshold and drawdown ratio are both satisfied',
-      action: language === 'zh' ? '执行分批平仓（非交易所原生 trailing）' : 'Execute partial close (not exchange-native trailing)',
-    })
-  }
-
-  if ((position.break_even_state || '').toLowerCase() === 'armed') {
-    actions.push({
-      title: language === 'zh' ? '保本止损动作' : 'Break-even stop action',
-      source: language === 'zh' ? '交易所原生 stop / 本地触发后挂单' : 'exchange-native stop / armed after local trigger',
-      trigger: language === 'zh' ? '已达到保本触发条件' : 'Break-even trigger already satisfied',
-      action: language === 'zh' ? '价格回到保本位附近时执行保护平仓' : 'Protective close around break-even stop level',
-    })
-  }
-
-  if (actions.length === 0) {
-    actions.push({
-      title: language === 'zh' ? '暂无已编排动作' : 'No scheduled actions yet',
-      source: language === 'zh' ? '当前未检测到交易所委托或已武装运行态保护' : 'No exchange orders or armed runtime protections detected yet',
-      trigger: language === 'zh' ? '等待保护委托建立或运行态规则触发' : 'Waiting for protection orders or runtime triggers',
-      action: language === 'zh' ? '当前不会给出虚假执行计划' : 'No fabricated execution plan is shown',
-    })
-  }
-
-  return actions
 }
 
 export function PositionProtectionPanel({ traderId, positions, language, exchange }: PositionProtectionPanelProps) {
@@ -268,11 +187,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
             const orderPosSide = normalizeSide(order.position_side)
             return !orderPosSide || orderPosSide === side
           })
-          const stopOrders = filteredOrders.filter(isStopLoss)
-          const takeProfitOrders = filteredOrders.filter(isTakeProfit)
-          const runtime = position.protection_runtime
-          const runtimeTiers = runtime?.scheduled_tiers || []
-          const scheduledActions = buildScheduledActions(position, stopOrders, takeProfitOrders, language, exchange)
+          const protectionRows = buildProtectionRows(position, filteredOrders)
 
           return (
             <div key={`${symbol}-${side}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
@@ -307,82 +222,41 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   <div className="font-mono text-nofx-text-main">{formatProtectionState(position.protection_state, language, exchange)}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本状态' : 'Break-even State'}</div>
-                  <div className="font-mono text-nofx-text-main">{formatBreakEvenState(position.break_even_state, language)}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
                   <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '回撤止盈执行模式' : 'Drawdown Execution Mode'}</div>
                   <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.drawdown_execution_mode, language)}</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                  <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '保本止损执行模式' : 'Break-even Execution Mode'}</div>
-                  <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.break_even_execution_mode, language)}</div>
-                </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-                  <div className="font-semibold text-red-300 mb-3">{language === 'zh' ? '当前生效中的保护' : 'Active Protections'}</div>
-                  <div className="space-y-2 text-xs">
-                    {stopOrders.map((order) => (
-                      <div key={`sl-${order.order_id}`} className="rounded-lg border border-red-500/10 bg-black/20 p-3">
-                        <div className="font-semibold text-red-200">{language === 'zh' ? '交易所止损' : 'Exchange stop-loss'}</div>
-                        <div className="mt-1 text-nofx-text-muted">{language === 'zh' ? '触发价' : 'Trigger'}: <span className="font-mono text-nofx-text-main">{formatPrice(order.stop_price || order.price)}</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '数量' : 'Qty'}: <span className="font-mono text-nofx-text-main">{formatQuantity(order.quantity)}</span></div>
-                        <div className="text-nofx-text-muted">Type: <span className="font-mono text-nofx-text-main">{order.type}</span></div>
+              <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+                <div className="font-semibold text-cyan-300 mb-3">{language === 'zh' ? '当前保护委托' : 'Current Protection Orders'}</div>
+                <div className="space-y-2 text-xs">
+                  {protectionRows.map((row) => (
+                    <div key={row.orderId} className="rounded-lg border border-cyan-400/10 bg-black/20 p-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+                      <div>
+                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '类型' : 'Type'}</div>
+                        <div className="font-mono text-nofx-text-main">{row.type}</div>
                       </div>
-                    ))}
-                    {takeProfitOrders.map((order) => (
-                      <div key={`tp-${order.order_id}`} className="rounded-lg border border-green-500/10 bg-black/20 p-3">
-                        <div className="font-semibold text-green-200">{language === 'zh' ? '交易所止盈' : 'Exchange take-profit'}</div>
-                        <div className="mt-1 text-nofx-text-muted">{language === 'zh' ? '触发价' : 'Trigger'}: <span className="font-mono text-nofx-text-main">{formatPrice(order.stop_price || order.price)}</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '数量' : 'Qty'}: <span className="font-mono text-nofx-text-main">{formatQuantity(order.quantity)}</span></div>
-                        <div className="text-nofx-text-muted">Type: <span className="font-mono text-nofx-text-main">{order.type}</span></div>
+                      <div>
+                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '触发价格' : 'Trigger Price'}</div>
+                        <div className="font-mono text-nofx-text-main">{formatPrice(row.triggerPrice)}</div>
                       </div>
-                    ))}
-                    {stopOrders.length === 0 && takeProfitOrders.length === 0 && (
-                      <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-nofx-text-muted">
-                        {language === 'zh' ? '当前未检测到已生效中的交易所保护委托。' : 'No active exchange protection orders detected yet.'}
+                      <div>
+                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '成交比例' : 'Close Ratio'}</div>
+                        <div className="font-mono text-nofx-text-main">{row.closeRatioPct > 0 ? `${row.closeRatioPct.toFixed(1)}%` : '—'}</div>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-4">
-                  <div className="font-semibold text-indigo-300 mb-3">{language === 'zh' ? '未来触发动作' : 'Scheduled Protection Actions'}</div>
-                  <div className="space-y-2 text-xs">
-                    {scheduledActions.map((item, i) => (
-                      <div key={`${symbol}-${i}`} className="rounded-lg border border-indigo-400/10 bg-black/20 p-3">
-                        <div className="font-semibold text-indigo-200">{item.title}</div>
-                        <div className="mt-1 text-nofx-text-muted">{language === 'zh' ? '执行来源' : 'Source'}: <span className="text-nofx-text-main">{item.source}</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '触发条件' : 'Trigger'}: <span className="text-nofx-text-main">{item.trigger}</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '执行动作' : 'Action'}: <span className="text-nofx-text-main">{item.action}</span></div>
+                      <div>
+                        <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '仓位价值 USDT' : 'Value USDT'}</div>
+                        <div className="font-mono text-nofx-text-main">{row.valueUsdt > 0 ? formatUsdtValue(row.valueUsdt) : '—'}</div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
+                  {protectionRows.length === 0 && (
+                    <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-nofx-text-muted">
+                      {language === 'zh' ? '当前未检测到已生效中的保护委托。' : 'No active protection orders detected.'}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {runtimeTiers.length > 0 && (
-                <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4">
-                  <div className="font-semibold text-cyan-300 mb-3">{language === 'zh' ? '多档保护执行计划' : 'Tiered Protection Plan'}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 text-xs">
-                    {runtimeTiers.map((tier) => (
-                      <div key={`${symbol}-tier-${tier.index}`} className="rounded-lg border border-cyan-400/10 bg-black/20 p-3 space-y-1">
-                        <div className="font-semibold text-cyan-200">{language === 'zh' ? `第 ${tier.index} 档` : `Tier ${tier.index}`}</div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '来源' : 'Source'}: <span className="text-nofx-text-main">{tier.source}</span></div>
-                        <div className="text-nofx-text-muted">Mode: <span className="text-nofx-text-main">{tier.execution_mode}</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '最小利润' : 'Min Profit'}: <span className="text-nofx-text-main">{tier.min_profit_pct}%</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '最大回撤' : 'Max Drawdown'}: <span className="text-nofx-text-main">{tier.max_drawdown_pct}%</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '平仓比例' : 'Close Ratio'}: <span className="text-nofx-text-main">{tier.close_ratio_pct}%</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '激活价' : 'Activation'}: <span className="font-mono text-nofx-text-main">{formatPrice(tier.activation_price)}</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '回撤比例' : 'Callback'}: <span className="text-nofx-text-main">{tier.callback_rate}%</span></div>
-                        <div className="text-nofx-text-muted">{language === 'zh' ? '计划数量' : 'Planned Qty'}: <span className="font-mono text-nofx-text-main">{formatQuantity(tier.planned_quantity)}</span></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-nofx-text-muted leading-6 space-y-2">
                 <div className="font-semibold text-nofx-text-main mb-1">{language === 'zh' ? '执行边界说明' : 'Execution Boundary Notes'}</div>

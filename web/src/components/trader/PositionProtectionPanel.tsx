@@ -191,6 +191,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const runtimeTiers = position.protection_runtime?.scheduled_tiers || []
           const nextTier = runtimeTiers.length > 0 ? runtimeTiers[0] : null
           const currentPnlPct = position.unrealized_pnl_pct || 0
+          const trailingOrders = protectionRows.filter((row) => row.type.includes('TRAILING'))
+          const liveTrailingPrice = trailingOrders.length > 0 ? trailingOrders[0].triggerPrice : 0
 
           return (
             <div key={`${symbol}-${side}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
@@ -236,6 +238,9 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '执行模式' : 'Mode', value: compactExecutionMode(position.drawdown_execution_mode, language) },
                     { label: language === 'zh' ? '最低利润门槛' : 'Min Profit Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '当前利润' : 'Current PnL', value: `${currentPnlPct.toFixed(2)}%` },
+                    { label: language === 'zh' ? '激活价（已挂）' : 'Armed Activation', value: liveTrailingPrice > 0 ? formatPrice(liveTrailingPrice) : '—' },
+                    { label: language === 'zh' ? '激活价（理论）' : 'Planned Activation', value: nextTier && Number(nextTier.planned_activation_price || 0) > 0 ? formatPrice(Number(nextTier.planned_activation_price || 0)) : '—' },
+                    { label: language === 'zh' ? '回撤 / 回调' : 'Giveback / Callback', value: nextTier ? `${Number(nextTier.max_drawdown_pct || 0).toFixed(2)}% / ${Number(nextTier.callback_rate || 0).toFixed(4)}` : '—' },
                     { label: language === 'zh' ? '本地监测' : 'Local Monitor', value: language === 'zh' ? '运行中' : 'active' },
                   ]}
                 />

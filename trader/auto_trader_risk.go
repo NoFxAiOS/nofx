@@ -236,11 +236,19 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 
-	activationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+	plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+	activationPrice := plannedActivationPrice
+	if marketPrice, err := at.trader.GetMarketPrice(symbol); err == nil && marketPrice > 0 {
+		activationPrice = marketPrice
+	} else if err != nil {
+		logger.Infof("⚠️ Failed to get latest market price for trailing activation (%s %s): %v", symbol, side, err)
+	}
 	priceBasedCallbackRatio := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
 	if activationPrice <= 0 || priceBasedCallbackRatio <= 0 {
 		return false
 	}
+
+	logger.Infof("🎯 Trailing activation resolved from live market: %s %s | latest=%.6f planned=%.6f callbackRatio=%.6f", symbol, side, activationPrice, plannedActivationPrice, priceBasedCallbackRatio)
 
 	positionSide := strings.ToUpper(side)
 	positionAction := "open_" + strings.ToLower(side)

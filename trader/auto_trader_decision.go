@@ -3,11 +3,11 @@ package trader
 import (
 	"fmt"
 	"math"
-	"nofx/telemetry"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/telemetry"
 	"strings"
 	"time"
 )
@@ -227,22 +227,22 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		protectionRuntime := at.buildPositionProtectionRuntime(symbol, side, quantity, entryPrice, openOrders)
 
 		result = append(result, map[string]interface{}{
-			"symbol":                  symbol,
-			"side":                    side,
-			"entry_price":             entryPrice,
-			"mark_price":              markPrice,
-			"quantity":                quantity,
-			"leverage":                leverage,
-			"unrealized_pnl":          unrealizedPnl,
-			"unrealized_pnl_pct":      pnlPct,
-			"liquidation_price":       liquidationPrice,
-			"margin_used":             marginUsed,
-			"protection_state":        at.getProtectionState(symbol, side),
-			"break_even_state":        at.getBreakEvenState(symbol, side),
-			"drawdown_execution_mode": at.getDrawdownExecutionMode(symbol, side),
+			"symbol":                    symbol,
+			"side":                      side,
+			"entry_price":               entryPrice,
+			"mark_price":                markPrice,
+			"quantity":                  quantity,
+			"leverage":                  leverage,
+			"unrealized_pnl":            unrealizedPnl,
+			"unrealized_pnl_pct":        pnlPct,
+			"liquidation_price":         liquidationPrice,
+			"margin_used":               marginUsed,
+			"protection_state":          at.getProtectionState(symbol, side),
+			"break_even_state":          at.getBreakEvenState(symbol, side),
+			"drawdown_execution_mode":   at.getDrawdownExecutionMode(symbol, side),
 			"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
-			"protection_runtime":      protectionRuntime,
-			"position_side":           positionSideUpper,
+			"protection_runtime":        protectionRuntime,
+			"position_side":             positionSideUpper,
 		})
 	}
 
@@ -540,6 +540,7 @@ func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quantity, entryPrice float64, openOrders []OpenOrder) map[string]interface{} {
 	positionSide := strings.ToUpper(side)
 	activeOrders := make([]map[string]interface{}, 0)
+	liveTrailingTriggerPrice := 0.0
 	for _, order := range openOrders {
 		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
 			continue
@@ -548,14 +549,17 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		if triggerPrice <= 0 {
 			triggerPrice = order.Price
 		}
+		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") && triggerPrice > 0 {
+			liveTrailingTriggerPrice = triggerPrice
+		}
 		activeOrders = append(activeOrders, map[string]interface{}{
-			"order_id": order.OrderID,
-			"type": order.Type,
-			"side": order.Side,
+			"order_id":      order.OrderID,
+			"type":          order.Type,
+			"side":          order.Side,
 			"position_side": order.PositionSide,
 			"trigger_price": triggerPrice,
-			"quantity": order.Quantity,
-			"status": order.Status,
+			"quantity":      order.Quantity,
+			"status":        order.Status,
 		})
 	}
 
@@ -572,35 +576,47 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			} else if executionMode == "managed_partial_drawdown" {
 				source = "managed"
 			}
-			activationPrice := 0.0
+			plannedActivationPrice := 0.0
 			if entryPrice > 0 {
 				move := rule.MinProfitPct / 100.0
 				if strings.EqualFold(side, "long") {
-					activationPrice = entryPrice * (1 + move)
+					plannedActivationPrice = entryPrice * (1 + move)
 				} else if strings.EqualFold(side, "short") {
-					activationPrice = entryPrice * (1 - move)
+					plannedActivationPrice = entryPrice * (1 - move)
+				}
+			}
+			activationPrice := plannedActivationPrice
+			if liveTrailingTriggerPrice > 0 && (executionMode == "native_partial_trailing" || executionMode == "native_trailing_full") {
+				activationPrice = liveTrailingTriggerPrice
+			}
+			callbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+			if executionMode == "native_partial_trailing" || executionMode == "native_trailing_full" {
+				switch strings.ToLower(at.exchange) {
+				case "binance", "bitget":
+					callbackRate = callbackRate * 100.0
 				}
 			}
 			tiers = append(tiers, map[string]interface{}{
-				"index": idx + 1,
-				"min_profit_pct": rule.MinProfitPct,
-				"max_drawdown_pct": rule.MaxDrawdownPct,
-				"close_ratio_pct": rule.CloseRatioPct,
-				"activation_price": activationPrice,
-				"callback_rate": rule.MaxDrawdownPct,
-				"planned_quantity": quantity * rule.CloseRatioPct / 100.0,
-				"source": source,
-				"execution_mode": executionMode,
+				"index":                    idx + 1,
+				"min_profit_pct":           rule.MinProfitPct,
+				"max_drawdown_pct":         rule.MaxDrawdownPct,
+				"close_ratio_pct":          rule.CloseRatioPct,
+				"activation_price":         activationPrice,
+				"planned_activation_price": plannedActivationPrice,
+				"callback_rate":            callbackRate,
+				"planned_quantity":         quantity * rule.CloseRatioPct / 100.0,
+				"source":                   source,
+				"execution_mode":           executionMode,
 			})
 		}
 	}
 
 	return map[string]interface{}{
-		"protection_state": at.getProtectionState(symbol, side),
-		"break_even_state": at.getBreakEvenState(symbol, side),
-		"drawdown_execution_mode": at.getDrawdownExecutionMode(symbol, side),
+		"protection_state":          at.getProtectionState(symbol, side),
+		"break_even_state":          at.getBreakEvenState(symbol, side),
+		"drawdown_execution_mode":   at.getDrawdownExecutionMode(symbol, side),
 		"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
-		"active_orders": activeOrders,
-		"scheduled_tiers": tiers,
+		"active_orders":             activeOrders,
+		"scheduled_tiers":           tiers,
 	}
 }

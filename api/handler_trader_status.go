@@ -341,6 +341,12 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 
 	// Record order to database (for chart markers and history)
 	s.recordClosePositionOrder(traderID, exchangeCfg.ID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result)
+	if closeReason, exitOrderID, recordErr := s.recordManualClosePosition(traderID, exchangeCfg.ID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result); recordErr != nil {
+		logger.Infof("⚠️ Failed to immediately record manual close position: %v", recordErr)
+	} else if closeReason != "" && exitOrderID != "" {
+		_ = s.store.Position().UpdateCloseReasonByExitOrderID(traderID, exitOrderID, closeReason)
+		_ = s.store.PositionClose().UpdateReasonByOrderID(traderID, exitOrderID, closeReason, closeReason)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Position closed successfully",
@@ -348,6 +354,82 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		"side":    req.Side,
 		"result":  result,
 	})
+}
+
+func (s *Server) recordManualClosePosition(traderID, exchangeID, exchangeType, symbol, side string, quantity, entryPrice float64, result map[string]interface{}) (string, string, error) {
+	if s.store == nil || quantity <= 0 {
+		return "", "", nil
+	}
+
+	var orderID string
+	switch v := result["orderId"].(type) {
+	case int64:
+		orderID = fmt.Sprintf("%d", v)
+	case float64:
+		orderID = fmt.Sprintf("%.0f", v)
+	case string:
+		orderID = v
+	default:
+		orderID = fmt.Sprintf("%v", v)
+	}
+	if orderID == "" || orderID == "0" || orderID == "<nil>" {
+		return "", "", nil
+	}
+
+	closeAction := "close_long"
+	closeReason := "manual_close_long"
+	positionSide := "LONG"
+	if strings.EqualFold(side, "SHORT") {
+		closeAction = "close_short"
+		closeReason = "manual_close_short"
+		positionSide = "SHORT"
+	}
+
+	price := entryPrice
+	if avg, ok := result["avgPrice"].(float64); ok && avg > 0 {
+		price = avg
+	}
+	if price <= 0 {
+		price = entryPrice
+	}
+
+	orderRecord := &store.TraderOrder{
+		TraderID:        traderID,
+		ExchangeID:      exchangeID,
+		ExchangeType:    exchangeType,
+		ExchangeOrderID: orderID,
+		Symbol:          symbol,
+		Side:            getSideFromAction(closeAction),
+		PositionSide:    positionSide,
+		Type:            "MARKET",
+		OrderAction:     closeAction,
+		Quantity:        quantity,
+		Price:           price,
+		Status:          "FILLED",
+		FilledQuantity:  quantity,
+		AvgFillPrice:    price,
+		Commission:      0,
+		ReduceOnly:      true,
+		ClosePosition:   true,
+		FilledAt:        time.Now().UTC().UnixMilli(),
+		CreatedAt:       time.Now().UTC().UnixMilli(),
+		UpdatedAt:       time.Now().UTC().UnixMilli(),
+	}
+	if err := s.store.Order().CreateOrder(orderRecord); err != nil {
+		return "", orderID, err
+	}
+
+	posBuilder := store.NewPositionBuilder(s.store.Position())
+	if err := posBuilder.ProcessTrade(
+		traderID, exchangeID, exchangeType,
+		symbol, positionSide, closeAction,
+		quantity, price, 0, 0,
+		time.Now().UTC().UnixMilli(), orderID,
+	); err != nil {
+		return "", orderID, err
+	}
+
+	return closeReason, orderID, nil
 }
 
 // recordClosePositionOrder Record close position order to database (Lighter version - direct FILLED status)

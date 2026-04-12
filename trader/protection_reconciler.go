@@ -364,6 +364,51 @@ func (at *AutoTrader) getBreakEvenExecutionMode(symbol, side string) string {
 }
 
 func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{}) {
+	// Before deleting local state, cancel orphaned protection orders for symbols that no longer
+	// have any live positions on the exchange. This handles the case where a position is fully
+	// closed but TP/SL algo orders remain on the exchange as empty orphan orders.
+	inactiveSymbols := make(map[string]struct{})
+	activeSymbols := make(map[string]struct{})
+	for key := range active {
+		symbol, _ := splitPositionKey(key)
+		if symbol != "" {
+			activeSymbols[symbol] = struct{}{}
+		}
+	}
+	for key := range at.protectionState {
+		if _, ok := active[key]; ok {
+			continue
+		}
+		symbol, _ := splitPositionKey(key)
+		if symbol == "" {
+			continue
+		}
+		if _, stillActive := activeSymbols[symbol]; stillActive {
+			continue // symbol still has another live side/position, do not touch orders
+		}
+		inactiveSymbols[symbol] = struct{}{}
+	}
+	for key := range at.breakEvenState {
+		if _, ok := active[key]; ok {
+			continue
+		}
+		symbol, _ := splitPositionKey(key)
+		if symbol == "" {
+			continue
+		}
+		if _, stillActive := activeSymbols[symbol]; stillActive {
+			continue
+		}
+		inactiveSymbols[symbol] = struct{}{}
+	}
+	for symbol := range inactiveSymbols {
+		if err := at.trader.CancelStopOrders(symbol); err != nil {
+			logger.Warnf("⚠️ Protection cleanup: failed to cancel orphaned protection orders for %s: %v", symbol, err)
+		} else {
+			logger.Infof("🧹 Protection cleanup: canceled orphaned protection orders for inactive symbol %s", symbol)
+		}
+	}
+
 	at.protectionStateMutex.Lock()
 	for key := range at.protectionState {
 		if _, ok := active[key]; !ok {
@@ -397,6 +442,14 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 		}
 	}
 	reconcileCooldownMutex.Unlock()
+}
+
+func splitPositionKey(key string) (symbol, side string) {
+	idx := strings.LastIndex(key, "_")
+	if idx <= 0 || idx >= len(key)-1 {
+		return "", ""
+	}
+	return key[:idx], key[idx+1:]
 }
 
 // setReconcileCooldown marks a position as recently reconciled, preventing re-checks for reconcileCooldownDuration.

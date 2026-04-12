@@ -128,6 +128,17 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			}
 		}
 
+		// For exchange-native trailing protections, arm as soon as the position reaches
+		// the minimum profit threshold. Do NOT wait for drawdown to happen first — the
+		// exchange trailing order itself is responsible for tracking the drawdown.
+		if at.supportsNativeTrailingStop() {
+			if armRule := at.matchDrawdownArmRule(currentPnLPct, rules); armRule != nil {
+				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, *armRule) {
+					continue
+				}
+			}
+		}
+
 		matchedRule := at.matchDrawdownRule(currentPnLPct, drawdownPct, rules)
 		if matchedRule == nil {
 			if currentPnLPct > 0 {
@@ -388,6 +399,20 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%%", symbol, side, activationPrice, callbackRate)
 	}
 	return true
+}
+
+func (at *AutoTrader) matchDrawdownArmRule(currentPnLPct float64, rules []store.DrawdownTakeProfitRule) *store.DrawdownTakeProfitRule {
+	var matched *store.DrawdownTakeProfitRule
+	for i := range rules {
+		rule := rules[i]
+		if currentPnLPct < rule.MinProfitPct {
+			continue
+		}
+		if matched == nil || rule.MinProfitPct > matched.MinProfitPct {
+			matched = &rule
+		}
+	}
+	return matched
 }
 
 func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule) *store.DrawdownTakeProfitRule {

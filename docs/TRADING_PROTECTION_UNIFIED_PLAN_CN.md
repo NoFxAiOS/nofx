@@ -859,3 +859,20 @@ AI 输出百分比，系统校验后换算价格并执行。
 **配置 → AI/手动模式 → Planner → 交易所执行 → 保护单校验 → 失败补救 → 测试验证**
 
 这条链必须全通。
+
+---
+
+## 21. 2026-04-12 运行态补充决议（native trailing）
+
+在实盘验证中，关于 drawdown/native trailing 的 activation price 形成以下最终执行原则：
+
+1. **native trailing 一旦已经成功挂到交易所，不再因为市场价格继续变化而重写 activePx / activationPrice**
+2. **只有交易所上对应 trailing 委托缺失时，系统才允许 re-arm**
+3. 运行态与前端展示必须明确区分三类值来源：
+   - `exchange`：交易所回读到的实际值
+   - `request`：本地下单请求/确认值
+   - `planned`：按策略规则推导的理论值
+4. 不允许把“当前市价”直接当成“已挂 trailing 的 activePx 应该持续刷新到的值”，否则会改变原本已经挂好的 trailing 触发结构并可能错过止盈目标
+
+该补充决议优先级高于此前短暂出现的“stale activePx 自动刷新”思路，后者已被明确否决。
+

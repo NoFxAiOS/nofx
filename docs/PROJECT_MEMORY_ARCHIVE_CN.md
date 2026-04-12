@@ -126,3 +126,28 @@
 3. 更多 replay 场景与 simulation 维度扩展
 4. 新功能开发（按优先级排序）
 5. 持续维护 DEVLOG / TODO / MEMORY 文档
+
+---
+
+## 9. 2026-04-12 保护系统实战补充归档
+
+### Native trailing / drawdown 当前定版语义
+- drawdown/native trailing 的当前收口原则已经明确：
+  1. **交易所原生 trailing 一旦挂上，不再因为市价继续波动而刷新 activePx**
+  2. **只有交易所上掉单 / 查不到对应 trailing 时，才允许 re-arm**
+  3. runtime / 前端必须区分：
+     - `exchange`：交易所回读的实际参数
+     - `request`：本地下单请求 / 已确认请求值
+     - `planned`：按规则推导的理论值
+- 该原则来自 ADAUSDT 实盘争议后的最终决议：避免“为了追最新价而重写 activePx”，从而错过原本应捕获的 trailing 止盈目标。
+
+### 三家交易所当前回读能力状态
+- **OKX**：可回读 `activePx` + `callbackRatio`
+- **Bitget**：可回读 `triggerPrice` + `rangeRate`
+- **Binance**：当前 SDK / algo 查询链路可稳定拿到 activation，但 callback 未在读取模型中完整暴露，因此当前只能标记为 `request`，不能伪装成 `exchange`
+
+### 当前剩余未收口项
+1. OKX / Binance / Bitget 对 partial native trailing close 的真实语义边界，仍需继续实盘/API 级核定
+2. 持仓保护执行面板还可继续增强为多档 trailing 逐档展开视图
+3. close attribution 仍需继续从 API enrich 走向更强的持久化来源归因
+

@@ -47,7 +47,9 @@ export interface ProtectionRuntimeTier {
   close_ratio_pct: number
   activation_price: number
   planned_activation_price?: number
+  activation_source?: string
   callback_rate: number
+  callback_source?: string
   planned_quantity: number
   source: string
   execution_mode: string

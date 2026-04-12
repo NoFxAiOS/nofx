@@ -239,9 +239,9 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '执行模式' : 'Mode', value: compactExecutionMode(position.drawdown_execution_mode, language) },
                     { label: language === 'zh' ? '最低利润门槛' : 'Min Profit Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '当前利润' : 'Current PnL', value: `${currentPnlPct.toFixed(2)}%` },
-                    { label: language === 'zh' ? '激活价（已挂）' : 'Armed Activation', value: liveTrailingPrice > 0 ? formatPrice(liveTrailingPrice) : '—' },
+                    { label: language === 'zh' ? '激活价（已挂）' : 'Armed Activation', value: liveTrailingPrice > 0 ? `${formatPrice(liveTrailingPrice)}${nextTier?.activation_source ? ` / ${nextTier.activation_source}` : ''}` : '—' },
                     { label: language === 'zh' ? '激活价（理论）' : 'Planned Activation', value: nextTier && Number(nextTier.planned_activation_price || 0) > 0 ? formatPrice(Number(nextTier.planned_activation_price || 0)) : '—' },
-                    { label: language === 'zh' ? '回撤 / 回调' : 'Giveback / Callback', value: nextTier ? `${Number(nextTier.max_drawdown_pct || 0).toFixed(2)}% / ${Number(nextTier.callback_rate || 0).toFixed(4)}` : '—' },
+                    { label: language === 'zh' ? '回撤 / 回调' : 'Giveback / Callback', value: nextTier ? `${Number(nextTier.max_drawdown_pct || 0).toFixed(2)}% / ${Number(nextTier.callback_rate || 0).toFixed(4)}${nextTier.callback_source ? ` / ${nextTier.callback_source}` : ''}` : '—' },
                     { label: language === 'zh' ? '本地监测' : 'Local Monitor', value: language === 'zh' ? '运行中' : 'active' },
                   ]}
                 />

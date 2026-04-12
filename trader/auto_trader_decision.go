@@ -595,13 +595,21 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				activationPrice = liveTrailingTriggerPrice
 			}
 			callbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+			activationSource := "planned"
+			callbackSource := "planned"
 			if executionMode == "native_partial_trailing" || executionMode == "native_trailing_full" {
+				activationSource = "request"
+				callbackSource = "request"
 				switch strings.ToLower(at.exchange) {
 				case "binance", "bitget":
 					callbackRate = callbackRate * 100.0
 				}
+				if liveTrailingTriggerPrice > 0 {
+					activationSource = "exchange"
+				}
 				if liveTrailingCallbackRate > 0 {
 					callbackRate = liveTrailingCallbackRate
+					callbackSource = "exchange"
 				}
 			}
 			tiers = append(tiers, map[string]interface{}{
@@ -611,7 +619,9 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				"close_ratio_pct":          rule.CloseRatioPct,
 				"activation_price":         activationPrice,
 				"planned_activation_price": plannedActivationPrice,
+				"activation_source":        activationSource,
 				"callback_rate":            callbackRate,
+				"callback_source":          callbackSource,
 				"planned_quantity":         quantity * rule.CloseRatioPct / 100.0,
 				"source":                   source,
 				"execution_mode":           executionMode,

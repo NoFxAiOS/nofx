@@ -442,12 +442,12 @@ func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, acti
 		"tag":            okxTag,
 	}
 
-	_, err = t.doRequest("POST", okxAdvanceAlgoPath, body)
+	resp, err := t.doRequest("POST", okxAdvanceAlgoPath, body)
 	if err != nil {
 		return fmt.Errorf("failed to set trailing stop loss: %w", err)
 	}
 
-	logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.2f", symbol, activationPrice, callbackRate)
+	logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.2f qty=%.4f sz=%s resp=%s", symbol, activationPrice, callbackRate, quantity, szStr, string(resp))
 	return nil
 }
 
@@ -466,6 +466,7 @@ func (t *OKXTrader) CancelTrailingStopOrders(symbol string) error {
 	if err := json.Unmarshal(data, &orders); err != nil {
 		return fmt.Errorf("failed to parse trailing stop algo orders: %w", err)
 	}
+	logger.Infof("  🔍 [OKX] CancelTrailingStopOrders query for %s returned %d move_order_stop orders", symbol, len(orders))
 
 	for _, order := range orders {
 		body := []map[string]interface{}{{

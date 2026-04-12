@@ -2,6 +2,7 @@ package trader
 
 import (
 	"fmt"
+	"math"
 	"nofx/logger"
 	"nofx/store"
 	"strings"
@@ -247,22 +248,10 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 
-	activationPrice := entryPrice
-	callbackRate := rule.MaxDrawdownPct
-	move := rule.MinProfitPct / 100.0
-	if strings.EqualFold(side, "long") {
-		activationPrice = entryPrice * (1 + move)
-	} else if strings.EqualFold(side, "short") {
-		activationPrice = entryPrice * (1 - move)
-	} else {
+	activationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+	priceBasedCallbackRatio := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+	if activationPrice <= 0 || priceBasedCallbackRatio <= 0 {
 		return false
-	}
-
-	if callbackRate < 0.1 {
-		callbackRate = 0.1
-	}
-	if callbackRate > 10 {
-		callbackRate = 10
 	}
 
 	positionSide := strings.ToUpper(side)
@@ -307,9 +296,16 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					CancelTrailingStopOrders(symbol string) error
 				})
 				if ok {
-					if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, partialQty); err == nil {
+					binanceCallbackPercent := priceBasedCallbackRatio * 100.0
+					if binanceCallbackPercent < 0.1 {
+						binanceCallbackPercent = 0.1
+					}
+					if binanceCallbackPercent > 10 {
+						binanceCallbackPercent = 10
+					}
+					if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, binanceCallbackPercent, partialQty); err == nil {
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
-						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%% qty=%.4f", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct, partialQty)
+						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.4f close=%.1f%% qty=%.4f", symbol, side, activationPrice, binanceCallbackPercent, rule.CloseRatioPct, partialQty)
 						return true
 					}
 				}
@@ -319,9 +315,16 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					CancelTrailingStopOrders(symbol string) error
 				})
 				if ok {
-					if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, partialQty); err == nil {
+					bitgetCallbackPercent := priceBasedCallbackRatio * 100.0
+					if bitgetCallbackPercent < 0.1 {
+						bitgetCallbackPercent = 0.1
+					}
+					if bitgetCallbackPercent > 10 {
+						bitgetCallbackPercent = 10
+					}
+					if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, bitgetCallbackPercent, partialQty); err == nil {
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
-						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%% qty=%.4f", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct, partialQty)
+						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.4f close=%.1f%% qty=%.4f", symbol, side, activationPrice, bitgetCallbackPercent, rule.CloseRatioPct, partialQty)
 						return true
 					}
 				}
@@ -331,9 +334,16 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					CancelTrailingStopOrders(symbol string) error
 				})
 				if ok {
-					if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, partialQty); err == nil {
+					okxCallbackRatio := priceBasedCallbackRatio
+					if okxCallbackRatio < 0.001 {
+						okxCallbackRatio = 0.001
+					}
+					if okxCallbackRatio > 1 {
+						okxCallbackRatio = 1
+					}
+					if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, partialQty); err == nil {
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
-						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%% qty=%.4f", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct, partialQty)
+						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
 						return true
 					}
 				}
@@ -344,8 +354,8 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if candidate == nil || !at.canApplyManagedPartialDrawdownPlan(candidate) {
 			return false
 		}
-		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%",
-			symbol, side, activationPrice, callbackRate, rule.CloseRatioPct)
+		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f close=%.1f%%",
+			symbol, side, activationPrice, priceBasedCallbackRatio, rule.CloseRatioPct)
 		if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, candidate); err != nil {
 			logger.Infof("❌ Managed partial drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
@@ -366,7 +376,14 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if err := binanceTrader.CancelTrailingStopOrders(symbol); err != nil {
 			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
-		if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, 0); err != nil {
+		binanceCallbackPercent := priceBasedCallbackRatio * 100.0
+		if binanceCallbackPercent < 0.1 {
+			binanceCallbackPercent = 0.1
+		}
+		if binanceCallbackPercent > 10 {
+			binanceCallbackPercent = 10
+		}
+		if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, binanceCallbackPercent, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}
@@ -381,7 +398,14 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if err := bitgetTrader.CancelTrailingStopOrders(symbol); err != nil {
 			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
-		if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, 0); err != nil {
+		bitgetCallbackPercent := priceBasedCallbackRatio * 100.0
+		if bitgetCallbackPercent < 0.1 {
+			bitgetCallbackPercent = 0.1
+		}
+		if bitgetCallbackPercent > 10 {
+			bitgetCallbackPercent = 10
+		}
+		if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, bitgetCallbackPercent, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}
@@ -396,7 +420,14 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if err := okxTrader.CancelTrailingStopOrders(symbol); err != nil {
 			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
-		if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, 0); err != nil {
+		okxCallbackRatio := priceBasedCallbackRatio
+		if okxCallbackRatio < 0.001 {
+			okxCallbackRatio = 0.001
+		}
+		if okxCallbackRatio > 1 {
+			okxCallbackRatio = 1
+		}
+		if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}
@@ -406,10 +437,10 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 
 	if isPartial {
 		at.setProtectionState(symbol, side, "managed_partial_drawdown_armed")
-		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct)
+		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f close=%.1f%%", symbol, side, activationPrice, priceBasedCallbackRatio, rule.CloseRatioPct)
 	} else {
 		at.setProtectionState(symbol, side, "native_trailing_armed")
-		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%%", symbol, side, activationPrice, callbackRate)
+		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f", symbol, side, activationPrice, priceBasedCallbackRatio)
 	}
 	return true
 }
@@ -689,4 +720,43 @@ func getSideFromAction(action string) string {
 	default:
 		return "BUY"
 	}
+}
+
+func calculateProfitBasedTrailingTriggerPrice(entryPrice float64, side string, minProfitPct float64) float64 {
+	if entryPrice <= 0 || minProfitPct <= 0 {
+		return 0
+	}
+	move := minProfitPct / 100.0
+	switch strings.ToLower(side) {
+	case "long":
+		return entryPrice * (1 + move)
+	case "short":
+		return entryPrice * (1 - move)
+	default:
+		return 0
+	}
+}
+
+// calculateProfitBasedTrailingCallbackRatio converts a drawdown-on-profit rule into the exchange-native
+// trailing callback ratio relative to price, not relative to total entry value.
+//
+// Example LONG:
+// - entry = 10.0
+// - minProfitPct = 3.0 => activation at 10.3
+// - maxDrawdownPct = 40 => allow 40% giveback of profit (0.3 * 40% = 0.12)
+// - stop target = 10.18
+// - callback ratio at activation = 0.12 / 10.3 = 0.011650...
+//
+// Returns ratio in decimal form for OKX (0.001..1), and can be converted to percent for other exchanges.
+func calculateProfitBasedTrailingCallbackRatio(entryPrice float64, side string, minProfitPct float64, maxDrawdownPct float64) float64 {
+	activationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, minProfitPct)
+	if entryPrice <= 0 || activationPrice <= 0 || maxDrawdownPct <= 0 {
+		return 0
+	}
+	profitMoveAbs := math.Abs(activationPrice - entryPrice)
+	allowedGivebackAbs := profitMoveAbs * (maxDrawdownPct / 100.0)
+	if allowedGivebackAbs <= 0 {
+		return 0
+	}
+	return allowedGivebackAbs / activationPrice
 }

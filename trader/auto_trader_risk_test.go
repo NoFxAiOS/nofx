@@ -120,8 +120,8 @@ func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
 	if fake.trailingActivation <= 100 {
 		t.Fatalf("expected activation above entry for long, got %.4f", fake.trailingActivation)
 	}
-	if fake.trailingCallback != 2 {
-		t.Fatalf("expected callback rate 2, got %.4f", fake.trailingCallback)
+	if fake.trailingCallback != 0.1 {
+		t.Fatalf("expected callback rate 0.1, got %.4f", fake.trailingCallback)
 	}
 	if at.getProtectionState("BTCUSDT", "long") != "native_trailing_armed" {
 		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))
@@ -155,8 +155,8 @@ func TestApplyNativeTrailingDrawdownForBitget(t *testing.T) {
 	if fake.trailingActivation >= 100 {
 		t.Fatalf("expected activation below entry for short, got %.4f", fake.trailingActivation)
 	}
-	if fake.trailingCallback != 1.5 {
-		t.Fatalf("expected callback rate 1.5, got %.4f", fake.trailingCallback)
+	if fake.trailingCallback != 0.1 {
+		t.Fatalf("expected callback rate 0.1, got %.4f", fake.trailingCallback)
 	}
 	if at.getProtectionState("ETHUSDT", "short") != "native_trailing_armed" {
 		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("ETHUSDT", "short"))
@@ -190,8 +190,8 @@ func TestApplyNativeTrailingDrawdownForOKX(t *testing.T) {
 	if fake.trailingActivation <= 100 {
 		t.Fatalf("expected activation above entry for long, got %.4f", fake.trailingActivation)
 	}
-	if fake.trailingCallback != 0.025 {
-		t.Fatalf("expected callback rate 0.025, got %.4f", fake.trailingCallback)
+	if fake.trailingCallback != 0.0014150943396226417 {
+		t.Fatalf("expected callback rate 0.001415, got %.4f", fake.trailingCallback)
 	}
 	if at.getProtectionState("BTCUSDT", "long") != "native_trailing_armed" {
 		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))

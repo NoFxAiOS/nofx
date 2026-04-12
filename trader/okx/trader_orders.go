@@ -809,6 +809,15 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	instId := t.convertSymbol(symbol)
 	var result []types.OpenOrder
 
+	inst, instErr := t.getInstrument(symbol)
+	if instErr != nil {
+		logger.Warnf("[OKX] Failed to get instrument for open-order quantity conversion (%s): %v", symbol, instErr)
+	}
+	ctVal := 1.0
+	if instErr == nil && inst.CtVal > 0 {
+		ctVal = inst.CtVal
+	}
+
 	// 1. Get pending limit orders
 	path := fmt.Sprintf("%s?instId=%s&instType=SWAP", okxPendingOrdersPath, instId)
 	data, err := t.doRequest("GET", path, nil)
@@ -829,7 +838,8 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 		if err := json.Unmarshal(data, &orders); err == nil {
 			for _, order := range orders {
 				price, _ := strconv.ParseFloat(order.Px, 64)
-				quantity, _ := strconv.ParseFloat(order.Sz, 64)
+				quantityContracts, _ := strconv.ParseFloat(order.Sz, 64)
+				quantity := quantityContracts * ctVal
 
 				// Convert OKX side to standard format
 				side := strings.ToUpper(order.Side)
@@ -875,7 +885,8 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 		}
 		if err := json.Unmarshal(algoData, &algoOrders); err == nil {
 			for _, order := range algoOrders {
-				quantity, _ := strconv.ParseFloat(order.Sz, 64)
+				quantityContracts, _ := strconv.ParseFloat(order.Sz, 64)
+				quantity := quantityContracts * ctVal
 
 				side := strings.ToUpper(order.Side)
 				positionSide := strings.ToUpper(order.PosSide)
@@ -958,7 +969,8 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 		}
 		if err := json.Unmarshal(trailingData, &trailingOrders); err == nil {
 			for _, order := range trailingOrders {
-				quantity, _ := strconv.ParseFloat(order.Sz, 64)
+				quantityContracts, _ := strconv.ParseFloat(order.Sz, 64)
+				quantity := quantityContracts * ctVal
 				activePx, _ := strconv.ParseFloat(order.ActivePx, 64)
 				side := strings.ToUpper(order.Side)
 				positionSide := strings.ToUpper(order.PosSide)

@@ -110,6 +110,31 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		return fmt.Errorf("build configured plan: %w", err)
 	}
 
+	// Drawdown/native trailing owns the profit-taking side. If drawdown profit-control is enabled,
+	// proactively remove old generic TP orders for the active position while keeping SL orders intact.
+	drawdownEnabled := at.config.StrategyConfig != nil && at.config.StrategyConfig.Protection.DrawdownTakeProfit.Enabled && len(at.config.StrategyConfig.Protection.DrawdownTakeProfit.Rules) > 0
+	if drawdownEnabled {
+		hasGenericTP := false
+		for _, order := range openOrders {
+			if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
+				continue
+			}
+			if looksLikeTakeProfit(order) && !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+				hasGenericTP = true
+				break
+			}
+		}
+		if hasGenericTP {
+			if canceller, ok := at.trader.(interface{ CancelTakeProfitOrders(symbol string) error }); ok {
+				logger.Infof("🧹 Drawdown owner: removing legacy generic take-profit orders for %s %s while preserving stop-loss legs", symbol, positionSide)
+				if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
+					logger.Warnf("⚠️ Failed to cancel legacy generic take-profit orders for %s: %v", symbol, err)
+				}
+				openOrders, _ = at.trader.GetOpenOrders(symbol)
+			}
+		}
+	}
+
 	if plan != nil && !skipGenericPlanReconcile {
 		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
 		expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)

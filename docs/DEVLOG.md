@@ -31,6 +31,36 @@
   - 这条链主要影响**这版上线后的新平仓事件**
   - 旧历史不会自动批量重算，只会继续依赖已有字段或 API 侧有限 enrich
 
+## 2026-04-13
+
+### 凌晨：交易复盘与数据积累方案 V1 交付
+- 本轮不是继续扩交易逻辑，而是按“少动系统、先盘渠道、先做功课”的原则，正式交付一版《交易复盘与数据积累方案 V1》。
+- 已盘清当前核心数据渠道：
+  - `decision_records`
+  - `trader_orders`
+  - `trader_fills`
+  - `trader_positions`
+  - `position_close_events`
+  - `trader_equity_snapshots`
+  - strategy / trader runtime config
+- 已形成当前建议的真相源分层：
+  1. 决策真相源：`decision_records`
+  2. 执行真相源：`trader_orders` + `trader_fills`
+  3. 仓位主记录真相源：`trader_positions`
+  4. 逐段退出真相源：`position_close_events`
+  5. 权益时间序列真相源：`trader_equity_snapshots`
+- 方案主结论：
+  - 当前缺的不是“更多字段”，而是跨层连接能力
+  - 下阶段最小增量应优先补：
+    - decision ↔ position 连接键
+    - close-event ↔ decision 连接键
+    - 结构化环境快照（regime / gate / funding / volatility）
+    - review 输出模型定义
+- 已新增文档：`docs/TRADING_REVIEW_DATA_ACCUMULATION_PLAN_CN.md`
+- 已同步更新：
+  - `docs/DATA_MODEL_RELATIONS_CN.md`
+  - `docs/TODO.md`
+
 ## 2026-04-12
 
 ### 晚间：Native Trailing 激活价 / 参数来源 / 执行语义再收口

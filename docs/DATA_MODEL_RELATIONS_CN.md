@@ -339,7 +339,51 @@ SystemConfig
 
 ---
 
-## 6. 当前结论
+## 6. 2026-04-13 新增：主记录 + 子事件流数据层
+
+为支撑后续逐笔反思与保护归因，当前数据模型已新增并开始使用：
+
+### `position_close_events`
+对应：`store/position_close_event.go`
+
+职责：
+- 保存每一段 partial / final close 的子事件流
+- 作为 `trader_positions` 主记录的展开事件层
+- 用于区分 AI / 手动 / 保护接管导致的各段退出
+
+关键字段：
+- `position_id`
+- `trader_id`
+- `exchange_id`
+- `symbol`
+- `side`
+- `close_reason`
+- `execution_source`
+- `execution_type`
+- `exchange_order_id`
+- `close_quantity`
+- `close_ratio_pct`
+- `execution_price`
+- `close_value_usdt`
+- `realized_pnl_delta`
+- `fee_delta`
+- `event_time`
+
+当前价值：
+- `trader_positions` 继续作为仓位生命周期主记录
+- `position_close_events` 承担多段平仓事件流
+- 后续逐笔复盘、保护接管分析、AI/手动/系统行为对账，优先围绕该层展开
+
+当前建议的真相源分层：
+1. 决策真相源：`decision_records`
+2. 执行真相源：`trader_orders` + `trader_fills`
+3. 仓位主记录真相源：`trader_positions`
+4. 逐段退出真相源：`position_close_events`
+5. 权益时间序列真相源：`trader_equity_snapshots`
+
+---
+
+## 7. 当前结论
 
 NOFX 的数据模型已经具备平台化系统的基本形态：
 

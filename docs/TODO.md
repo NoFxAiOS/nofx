@@ -36,6 +36,14 @@
 - [x] 为关键入口补首轮中文注释：`trader/*` 主入口（已补主循环/风控主链首轮）
 - [x] 为关键入口补首轮中文注释：`kernel/*` 主入口（已补 engine / position validate / prompt builder 首轮）
 
+- [ ] **P1: 交易复盘与数据积累基础设施（一期）**
+  - [x] 盘清当前现有数据渠道（decision / order / fill / position / close-event / equity / config）
+  - [x] 输出《交易复盘与数据积累方案 V1》
+  - [x] 数据模型文档补充 `position_close_events` 与真相源分层
+  - [ ] 最小连接键补强：decision ↔ position / close-event ↔ decision
+  - [ ] 最小结构化环境快照：regime / gate / funding / volatility
+  - [ ] 设计 review 输出模型（先定义，不急着全实现）
+
 ## P2 - 持续优化与二次开发前准备
 - [x] 清理首轮外部问题
 - [x] 完成首轮低风险性能优化

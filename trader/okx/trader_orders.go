@@ -438,7 +438,7 @@ func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, acti
 		"ordType":        "move_order_stop",
 		"sz":             szStr,
 		"activePx":       fmt.Sprintf("%.8f", activationPrice),
-		"callbackRatio":  fmt.Sprintf("%.2f", callbackRate),
+		"callbackRatio":  strconv.FormatFloat(callbackRate, 'f', -1, 64),
 		"tag":            okxTag,
 	}
 

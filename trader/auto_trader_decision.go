@@ -378,19 +378,20 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		// Open position: create new position record
 		nowMs := time.Now().UTC().UnixMilli()
 		pos := &store.TraderPosition{
-			TraderID:     at.id,
-			ExchangeID:   at.exchangeID, // Exchange account UUID
-			ExchangeType: at.exchange,   // Exchange type: binance/bybit/okx/etc
-			Symbol:       symbol,
-			Side:         side, // LONG or SHORT
-			Quantity:     quantity,
-			EntryPrice:   price,
-			EntryOrderID: orderID,
-			EntryTime:    nowMs,
-			Leverage:     leverage,
-			Status:       "OPEN",
-			CreatedAt:    nowMs,
-			UpdatedAt:    nowMs,
+			TraderID:           at.id,
+			ExchangeID:         at.exchangeID, // Exchange account UUID
+			ExchangeType:       at.exchange,   // Exchange type: binance/bybit/okx/etc
+			Symbol:             symbol,
+			Side:               side, // LONG or SHORT
+			Quantity:           quantity,
+			EntryPrice:         price,
+			EntryOrderID:       orderID,
+			EntryDecisionCycle: at.cycleNumber,
+			EntryTime:          nowMs,
+			Leverage:           leverage,
+			Status:             "OPEN",
+			CreatedAt:          nowMs,
+			UpdatedAt:          nowMs,
 		}
 		if err := at.store.Position().Create(pos); err != nil {
 			logger.Infof("  ⚠️ Failed to record position: %v", err)

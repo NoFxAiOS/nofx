@@ -79,6 +79,39 @@
 
 ## 2026-04-13
 
+### 清晨：交易复盘与数据积累 V1 最小交付落地（连接键 + 历史面板）
+- 本轮按“最小干涉运行系统、直接产出可用产品面”的原则，没有新开高耦合大页面，而是直接把现有 `PositionHistory` 提升为第一版交易复盘面板。
+- 交付目标不是一次做完整 review 平台，而是先把 **decision ↔ position ↔ close-event** 的最小连接键打通，并在现有前端历史面板里可见。
+- 本次落地内容：
+  1. `trader_positions` 补齐并迁移：
+     - `entry_decision_cycle`
+     - `exit_decision_cycle`
+  2. `position_close_events` 补齐并迁移：
+     - `decision_cycle`
+  3. 持仓写入链路补强：
+     - AI 开仓记录 `entry_decision_cycle = at.cycleNumber`
+     - snapshot 建仓也会回填当前最新 cycle，避免完全失链
+     - 平仓 / partial close / full close 时自动写入 `exit_decision_cycle`
+     - close event 落库时同步带上 `decision_cycle`
+  4. `/api/positions/history` enrich 输出补强：
+     - position 级输出 `entry_decision_cycle` / `exit_decision_cycle`
+     - close event 级输出 `decision_cycle`
+  5. 前端 `PositionHistory` 升级为 V1 复盘面板：
+     - 展示每笔仓位的“入场 / 出场决策周期”
+     - 展示每个 close event 的“决策周期”
+     - 保持原有 close event flow / execution source / order type 展示链不破坏
+- 这轮的产品意义：
+  - 不再只是“能看到平仓结果”，而是开始能把平仓结果与决策周期对应起来
+  - 为后续继续补 `review_context` 摘要、decision 详情联查、review 输出模型，提供稳定骨架
+- 验证：
+  - `go test ./...`：通过
+  - `cd web && npm test`：通过
+  - `cd web && npm run build`：通过
+- 当前仍保留的后续项：
+  - 连接键目前先用 `decision_cycle`，还未扩到 `decision_record_id` 级强连接
+  - 还未把 `review_context` 摘要直接投射到前端历史面板
+  - 还未形成独立的标准化 trade review 输出容器
+
 ### 凌晨：修复 OKX drawdown trailing `activePx` 精度问题（P0）
 - 当前 P0 不是再扩功能，而是收口 OKX 原生 trailing 在实盘中因价格精度被拒/截断的问题。
 - 定位结论：

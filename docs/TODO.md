@@ -40,9 +40,11 @@
   - [x] 盘清当前现有数据渠道（decision / order / fill / position / close-event / equity / config）
   - [x] 输出《交易复盘与数据积累方案 V1》
   - [x] 数据模型文档补充 `position_close_events` 与真相源分层
-  - [ ] 最小连接键补强：decision ↔ position / close-event ↔ decision
+  - [x] 最小连接键补强（V1）：`entry_decision_cycle` / `exit_decision_cycle` / close-event `decision_cycle`
   - [x] 最小结构化环境快照：第一版 `review_context`（safe mode / ai close gate / ai mode / candidate count / equity / margin）
+  - [x] 前端最小产品面：`PositionHistory` 升级为第一版交易复盘面板（展示 position / close-event 决策周期）
   - [ ] 设计 review 输出模型（先定义，不急着全实现）
+  - [ ] 下一步连接增强：从 `decision_cycle` 升级到 `decision_record_id` 级强连接
 
 ## P2 - 持续优化与二次开发前准备
 - [x] 清理首轮外部问题

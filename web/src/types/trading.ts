@@ -264,6 +264,7 @@ export interface PositionCloseEvent {
   close_reason: string
   execution_source: string
   execution_type: string
+  decision_cycle?: number
   exchange_order_id: string
   close_quantity: number
   close_ratio_pct: number
@@ -285,9 +286,11 @@ export interface HistoricalPosition {
   entry_quantity: number
   entry_price: number
   entry_order_id: string
+  entry_decision_cycle?: number
   entry_time: string
   exit_price: number
   exit_order_id: string
+  exit_decision_cycle?: number
   exit_time: string
   realized_pnl: number
   fee: number

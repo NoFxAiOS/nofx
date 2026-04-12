@@ -19,6 +19,7 @@ type PositionCloseEvent struct {
 	CloseReason      string  `gorm:"column:close_reason;default:''" json:"close_reason"`
 	ExecutionSource  string  `gorm:"column:execution_source;default:''" json:"execution_source"`
 	ExecutionType    string  `gorm:"column:execution_type;default:''" json:"execution_type"`
+	DecisionCycle    int     `gorm:"column:decision_cycle;default:0" json:"decision_cycle"`
 	ExchangeOrderID  string  `gorm:"column:exchange_order_id;default:''" json:"exchange_order_id"`
 	CloseQuantity    float64 `gorm:"column:close_quantity;default:0" json:"close_quantity"`
 	CloseRatioPct    float64 `gorm:"column:close_ratio_pct;default:0" json:"close_ratio_pct"`
@@ -45,6 +46,7 @@ func (s *PositionCloseEventStore) InitTables() error {
 		var tableExists int64
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'position_close_events'`).Scan(&tableExists)
 		if tableExists > 0 {
+			s.db.Exec(`ALTER TABLE position_close_events ADD COLUMN IF NOT EXISTS decision_cycle INTEGER DEFAULT 0`)
 			return nil
 		}
 	}

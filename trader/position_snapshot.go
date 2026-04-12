@@ -80,6 +80,7 @@ func CreatePositionSnapshot(traderID, exchangeID, exchangeType string, trader Tr
 			Quantity:           positionAmt,
 			EntryPrice:         entryPrice,
 			EntryOrderID:       "snapshot", // Mark as snapshot
+			EntryDecisionCycle: positionStore.GetLatestDecisionCycle(traderID),
 			EntryTime:          nowMs,
 			Leverage:           int(leverage),
 			Status:             "OPEN",

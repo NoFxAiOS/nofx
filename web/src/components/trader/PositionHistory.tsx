@@ -396,6 +396,12 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                 <div className="font-mono" style={{ color: '#EAECEF' }}>{executionOrderType}</div>
               </div>
               <div>
+                <div style={{ color: '#848E9C' }}>{'入场 / 出场决策周期'}</div>
+                <div className="font-mono" style={{ color: '#EAECEF' }}>
+                  {`${position.entry_decision_cycle || '—'} / ${position.exit_decision_cycle || '—'}`}
+                </div>
+              </div>
+              <div>
                 <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
                 <div className="font-mono" style={{ color: '#EAECEF' }}>{closeRatioPct > 0 ? `${closeRatioPct.toFixed(2)}%` : '—'}</div>
               </div>
@@ -410,7 +416,7 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                 <div className="text-xs mb-2" style={{ color: '#848E9C' }}>{'分段平仓事件 / Close Event Flow'}</div>
                 <div className="space-y-2">
                   {position.close_events.map((event) => (
-                    <div key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+                    <div key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs">
                       <div>
                         <div style={{ color: '#848E9C' }}>{'原因 / Reason'}</div>
                         <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(event.execution_source || event.close_reason)}>{formatExecutionSourceLabel(event.execution_source || event.close_reason)}</div>
@@ -426,6 +432,10 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                       <div>
                         <div style={{ color: '#848E9C' }}>{'价格 / Value'}</div>
                         <div className="font-mono" style={{ color: '#EAECEF' }}>{`${formatPrice(event.execution_price)} / ${formatNumber(event.close_value_usdt)}`}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'决策周期 / Cycle'}</div>
+                        <div className="font-mono" style={{ color: '#EAECEF' }}>{event.decision_cycle || '—'}</div>
                       </div>
                       <div>
                         <div style={{ color: '#848E9C' }}>{'PnL / Time'}</div>

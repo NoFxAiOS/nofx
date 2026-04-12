@@ -293,8 +293,8 @@ func TestApplyBreakEvenStopUsesCancelAndSetStopLoss(t *testing.T) {
 	if err := at.applyBreakEvenStop("BTCUSDT", "long", 2, 100, 4.5, cfg); err != nil {
 		t.Fatalf("expected break-even apply success, got %v", err)
 	}
-	if fakeTrader.cancelStopLossCalls != 1 {
-		t.Fatalf("expected 1 cancel stop-loss call, got %d", fakeTrader.cancelStopLossCalls)
+	if fakeTrader.cancelStopLossCalls != 0 {
+		t.Fatalf("expected 0 cancel stop-loss call, got %d", fakeTrader.cancelStopLossCalls)
 	}
 	if fakeTrader.setStopLossCalls != 1 {
 		t.Fatalf("expected 1 set stop-loss call, got %d", fakeTrader.setStopLossCalls)
@@ -347,10 +347,10 @@ func TestApplyBreakEvenStopReturnsCancelError(t *testing.T) {
 	}
 
 	err := at.applyBreakEvenStop("BTCUSDT", "short", 1, 100, 5, cfg)
-	if err == nil {
-		t.Fatal("expected cancel error")
+	if err != nil {
+		t.Fatalf("expected no cancel step / no cancel error, got %v", err)
 	}
-	if fakeTrader.setStopLossCalls != 0 {
-		t.Fatalf("expected stop-loss not to be reset after cancel failure, got %d calls", fakeTrader.setStopLossCalls)
+	if fakeTrader.setStopLossCalls != 1 {
+		t.Fatalf("expected break-even stop to be placed directly, got %d calls", fakeTrader.setStopLossCalls)
 	}
 }

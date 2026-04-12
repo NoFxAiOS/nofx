@@ -518,12 +518,10 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 		return fmt.Errorf("invalid break-even stop price calculated for %s %s", symbol, side)
 	}
 
-	if caps.CanAmendProtection {
-		if err := at.trader.CancelStopLossOrders(symbol); err != nil {
-			return fmt.Errorf("failed to cancel previous stop loss before break-even: %w", err)
-		}
-	}
-
+	// Break-even stop is managed independently. Do not cancel existing ladder/full stop-loss
+	// orders here, otherwise we destroy the long-term stop-loss protection stack.
+	// If exchanges later support per-order tags / amend-by-id, we can target only prior
+	// break-even stops. For now, preserve existing SL orders and add break-even separately.
 	positionSide := strings.ToUpper(side)
 	if err := at.trader.SetStopLoss(symbol, positionSide, quantity, breakEvenPrice); err != nil {
 		return fmt.Errorf("failed to set break-even stop loss: %w", err)

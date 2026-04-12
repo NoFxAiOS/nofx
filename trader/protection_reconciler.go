@@ -348,8 +348,8 @@ func (at *AutoTrader) getDrawdownExecutionMode(symbol, side string) string {
 	switch state {
 	case "native_trailing_armed":
 		return "native_trailing"
-	case "native_partial_trailing_armed":
-		return "native_partial_trailing"
+	case "managed_partial_drawdown_armed":
+		return "managed_partial_drawdown"
 	default:
 		return "local_fallback"
 	}

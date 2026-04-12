@@ -2,10 +2,10 @@ package trader
 
 import "nofx/store"
 
-// buildPartialDrawdownNativePlanCandidate converts a partial drawdown rule into a native
-// protection plan representation for immediate execution. The runtime now places this plan
-// directly when the exchange supports native partial close.
-func buildPartialDrawdownNativePlanCandidate(entryPrice float64, action string, rule store.DrawdownTakeProfitRule) *ProtectionPlan {
+// buildManagedPartialDrawdownPlanCandidate converts a partial drawdown rule into a managed
+// protection plan representation. This is NOT a native trailing order: it precomputes a fixed
+// trigger/take-profit price from the drawdown rule and places a standard TP-style protection order.
+func buildManagedPartialDrawdownPlanCandidate(entryPrice float64, action string, rule store.DrawdownTakeProfitRule) *ProtectionPlan {
 	if entryPrice <= 0 || rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 {
 		return nil
 	}
@@ -34,7 +34,7 @@ func buildPartialDrawdownNativePlanCandidate(entryPrice float64, action string, 
 	}
 
 	return &ProtectionPlan{
-		Mode:                 "drawdown_partial_native",
+		Mode:                 "drawdown_partial_managed",
 		NeedsTakeProfit:      true,
 		TakeProfitPrice:      price,
 		TakeProfitOrders:     []ProtectionOrder{{Price: price, CloseRatioPct: rule.CloseRatioPct}},

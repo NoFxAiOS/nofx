@@ -63,6 +63,10 @@
 - [x] 移动止盈止损代码路径从 stub 接入实际执行
 - [x] Break-even 生命周期完善（fingerprint re-arm + 委托验证）
 - [x] 修复保护单无限累积 bug（reconciler 自动清理重复单 + 孤儿单取消）
-- [ ] **P0: Drawdown 利润保护 OKX 价格精度对齐**（下单价格被 OKX 截断导致验证失败）
+- [ ] **P0: Drawdown 原生能力收口**
+  - [x] 纠正 partial drawdown 语义：从伪 native 正名为 managed
+  - [x] generic cleanup 不误清 native trailing
+  - [ ] 核定 OKX/Binance/Bitget 对 partial trailing close 的真实原生能力边界
+  - [ ] 让三大交易所在支持时优先 native trailing，native armed 后禁用本地 fallback
 - [ ] Break-even 实战验证（需仓位盈利触发）
 - [ ] Full TP/SL 独立实战验证（需关闭 Ladder 测试）

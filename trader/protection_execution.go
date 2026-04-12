@@ -113,19 +113,19 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 			continue
 		}
 
-		candidate := buildPartialDrawdownNativePlanCandidate(req.EntryPrice, req.Action, rule)
+		candidate := buildManagedPartialDrawdownPlanCandidate(req.EntryPrice, req.Action, rule)
 		if candidate == nil {
 			continue
 		}
-		if at.canApplyNativePartialDrawdownPlan(candidate) {
-			logger.Infof("  🛡 Applying native partial drawdown: symbol=%s side=%s close=%.1f%%",
+		if at.canApplyManagedPartialDrawdownPlan(candidate) {
+			logger.Infof("  🛡 Applying managed partial drawdown: symbol=%s side=%s close=%.1f%%",
 				req.Symbol, req.PositionSide, rule.CloseRatioPct)
 			if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, candidate); err != nil {
 				// Verification failed but OKX may have accepted the orders. Cancel them to avoid orphans.
-				logger.Warnf("  ⚠️ Native partial drawdown failed for %s %s: %v — cancelling orphaned orders", req.Symbol, req.PositionSide, err)
+				logger.Warnf("  ⚠️ Managed partial drawdown failed for %s %s: %v — cancelling orphaned orders", req.Symbol, req.PositionSide, err)
 				at.cancelOrphanedDrawdownOrders(req.Symbol, candidate)
 			} else {
-				at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "native_partial_trailing_armed")
+				at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "managed_partial_drawdown_armed")
 			}
 		}
 	}
@@ -141,7 +141,7 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 	return nil
 }
 
-func (at *AutoTrader) canApplyNativePartialDrawdownPlan(plan *ProtectionPlan) bool {
+func (at *AutoTrader) canApplyManagedPartialDrawdownPlan(plan *ProtectionPlan) bool {
 	if plan == nil || !plan.RequiresPartialClose {
 		return false
 	}

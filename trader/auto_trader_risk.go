@@ -208,7 +208,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 	currentState := at.getProtectionState(symbol, side)
-	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
+	if currentState == "native_trailing_armed" || currentState == "managed_partial_drawdown_armed" {
 		return true
 	}
 	// For partial close rules, check if exchange supports native partial close
@@ -269,17 +269,17 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 			return false
 		}
 
-		candidate := buildPartialDrawdownNativePlanCandidate(entryPrice, positionAction, rule)
-		if candidate == nil || !at.canApplyNativePartialDrawdownPlan(candidate) {
+		candidate := buildManagedPartialDrawdownPlanCandidate(entryPrice, positionAction, rule)
+		if candidate == nil || !at.canApplyManagedPartialDrawdownPlan(candidate) {
 			return false
 		}
-		logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%",
+		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%",
 			symbol, side, activationPrice, callbackRate, rule.CloseRatioPct)
 		if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, candidate); err != nil {
-			logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s): %v", symbol, side, err)
+			logger.Infof("❌ Managed partial drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}
-		at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+		at.setProtectionState(symbol, side, "managed_partial_drawdown_armed")
 		return true
 	}
 
@@ -334,8 +334,8 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	}
 
 	if isPartial {
-		at.setProtectionState(symbol, side, "native_partial_trailing_armed")
-		logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct)
+		at.setProtectionState(symbol, side, "managed_partial_drawdown_armed")
+		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%%", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct)
 	} else {
 		at.setProtectionState(symbol, side, "native_trailing_armed")
 		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%%", symbol, side, activationPrice, callbackRate)

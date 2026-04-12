@@ -381,9 +381,6 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if !ok {
 			return false
 		}
-		if err := binanceTrader.CancelTrailingStopOrders(symbol); err != nil {
-			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
-		}
 		binanceCallbackPercent := priceBasedCallbackRatio * 100.0
 		if binanceCallbackPercent < 0.1 {
 			binanceCallbackPercent = 0.1
@@ -403,9 +400,6 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if !ok {
 			return false
 		}
-		if err := bitgetTrader.CancelTrailingStopOrders(symbol); err != nil {
-			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
-		}
 		bitgetCallbackPercent := priceBasedCallbackRatio * 100.0
 		if bitgetCallbackPercent < 0.1 {
 			bitgetCallbackPercent = 0.1
@@ -424,9 +418,6 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		})
 		if !ok {
 			return false
-		}
-		if err := okxTrader.CancelTrailingStopOrders(symbol); err != nil {
-			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
 		okxCallbackRatio := priceBasedCallbackRatio
 		if okxCallbackRatio < 0.001 {

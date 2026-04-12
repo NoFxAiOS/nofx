@@ -352,7 +352,17 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					if okxCallbackRatio > 1 {
 						okxCallbackRatio = 1
 					}
-					if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, partialQty); err == nil {
+					if tagged, ok := at.trader.(interface {
+						SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error
+					}); ok {
+						if err := tagged.SetTrailingStopLossTagged(symbol, positionSide, activationPrice, okxCallbackRatio, partialQty, "native_trailing"); err == nil {
+							at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+							logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
+							return true
+						} else {
+							logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s, okx): %v", symbol, side, err)
+						}
+					} else if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, partialQty); err == nil {
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
 						return true
@@ -433,7 +443,14 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if okxCallbackRatio > 1 {
 			okxCallbackRatio = 1
 		}
-		if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, 0); err != nil {
+		if tagged, ok := at.trader.(interface {
+			SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error
+		}); ok {
+			if err := tagged.SetTrailingStopLossTagged(symbol, positionSide, activationPrice, okxCallbackRatio, 0, "native_trailing"); err != nil {
+				logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
+				return false
+			}
+		} else if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}
@@ -521,7 +538,14 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 	// If exchanges later support per-order tags / amend-by-id, we can target only prior
 	// break-even stops. For now, preserve existing SL orders and add break-even separately.
 	positionSide := strings.ToUpper(side)
-	if err := at.trader.SetStopLoss(symbol, positionSide, quantity, breakEvenPrice); err != nil {
+	if okxTrader, ok := at.trader.(interface {
+		SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
+		SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error
+	}); ok {
+		if err := okxTrader.SetStopLossTagged(symbol, positionSide, quantity, breakEvenPrice, "break_even_stop"); err != nil {
+			return fmt.Errorf("failed to set break-even stop loss: %w", err)
+		}
+	} else if err := at.trader.SetStopLoss(symbol, positionSide, quantity, breakEvenPrice); err != nil {
 		return fmt.Errorf("failed to set break-even stop loss: %w", err)
 	}
 

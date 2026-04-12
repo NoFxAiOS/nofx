@@ -21,22 +21,22 @@ import (
 
 // OKX API endpoints
 const (
-	okxBaseURL           = "https://www.okx.com"
-	okxAccountPath       = "/api/v5/account/balance"
-	okxPositionPath      = "/api/v5/account/positions"
-	okxOrderPath         = "/api/v5/trade/order"
-	okxLeveragePath      = "/api/v5/account/set-leverage"
-	okxTickerPath        = "/api/v5/market/ticker"
-	okxInstrumentsPath   = "/api/v5/public/instruments"
-	okxCancelOrderPath   = "/api/v5/trade/cancel-order"
-	okxPendingOrdersPath = "/api/v5/trade/orders-pending"
-	okxAlgoOrderPath     = "/api/v5/trade/order-algo"
-	okxCancelAlgoPath    = "/api/v5/trade/cancel-algos"
-	okxAlgoPendingPath   = "/api/v5/trade/orders-algo-pending"
-	okxAdvanceAlgoPath   = "/api/v5/trade/order-algo"
+	okxBaseURL               = "https://www.okx.com"
+	okxAccountPath           = "/api/v5/account/balance"
+	okxPositionPath          = "/api/v5/account/positions"
+	okxOrderPath             = "/api/v5/trade/order"
+	okxLeveragePath          = "/api/v5/account/set-leverage"
+	okxTickerPath            = "/api/v5/market/ticker"
+	okxInstrumentsPath       = "/api/v5/public/instruments"
+	okxCancelOrderPath       = "/api/v5/trade/cancel-order"
+	okxPendingOrdersPath     = "/api/v5/trade/orders-pending"
+	okxAlgoOrderPath         = "/api/v5/trade/order-algo"
+	okxCancelAlgoPath        = "/api/v5/trade/cancel-algos"
+	okxAlgoPendingPath       = "/api/v5/trade/orders-algo-pending"
+	okxAdvanceAlgoPath       = "/api/v5/trade/order-algo"
 	okxCancelAdvanceAlgoPath = "/api/v5/trade/cancel-advance-algos"
-	okxPositionModePath  = "/api/v5/account/set-position-mode"
-	okxAccountConfigPath = "/api/v5/account/config"
+	okxPositionModePath      = "/api/v5/account/set-position-mode"
+	okxAccountConfigPath     = "/api/v5/account/config"
 )
 
 // OKXTrader OKX futures trader
@@ -97,6 +97,18 @@ var okxTag = func() string {
 	b, _ := base64.StdEncoding.DecodeString("NGMzNjNjODFlZGM1QkNERQ==")
 	return string(b)
 }()
+
+func okxReasonTag(reason string) string {
+	reason = strings.TrimSpace(strings.ToLower(reason))
+	if reason == "" {
+		return okxTag
+	}
+	tag := fmt.Sprintf("%s_%s", okxTag, reason)
+	if len(tag) > 16 {
+		tag = tag[:16]
+	}
+	return tag
+}
 
 // genOkxClOrdID generates OKX order ID
 func genOkxClOrdID() string {

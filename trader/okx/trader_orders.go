@@ -391,6 +391,14 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 
 // SetTrailingStopLoss sets a native trailing stop on OKX advance algo orders
 func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
+	return t.setTrailingStopLossWithTag(symbol, positionSide, activationPrice, callbackRate, quantity, "")
+}
+
+func (t *OKXTrader) SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error {
+	return t.setTrailingStopLossWithTag(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
+}
+
+func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error {
 	instId := t.convertSymbol(symbol)
 
 	inst, err := t.getInstrument(symbol)
@@ -439,7 +447,7 @@ func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, acti
 		"sz":            szStr,
 		"activePx":      fmt.Sprintf("%.8f", activationPrice),
 		"callbackRatio": strconv.FormatFloat(callbackRate, 'f', -1, 64),
-		"tag":           okxTag,
+		"tag":           okxReasonTag(reasonTag),
 	}
 
 	resp, err := t.doRequest("POST", okxAdvanceAlgoPath, body)
@@ -539,6 +547,14 @@ func (t *OKXTrader) CancelTrailingStopOrders(symbol string) error {
 
 // SetStopLoss sets stop loss order
 func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
+	return t.setStopLossWithTag(symbol, positionSide, quantity, stopPrice, "")
+}
+
+func (t *OKXTrader) SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error {
+	return t.setStopLossWithTag(symbol, positionSide, quantity, stopPrice, reasonTag)
+}
+
+func (t *OKXTrader) setStopLossWithTag(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error {
 	instId := t.convertSymbol(symbol)
 
 	// Get instrument info
@@ -568,7 +584,7 @@ func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, st
 		"sz":          szStr,
 		"slTriggerPx": t.formatPrice(stopPrice, inst),
 		"slOrdPx":     "-1", // Market price
-		"tag":         okxTag,
+		"tag":         okxReasonTag(reasonTag),
 	}
 
 	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
@@ -582,6 +598,14 @@ func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, st
 
 // SetTakeProfit sets take profit order
 func (t *OKXTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
+	return t.setTakeProfitWithTag(symbol, positionSide, quantity, takeProfitPrice, "")
+}
+
+func (t *OKXTrader) SetTakeProfitTagged(symbol string, positionSide string, quantity, takeProfitPrice float64, reasonTag string) error {
+	return t.setTakeProfitWithTag(symbol, positionSide, quantity, takeProfitPrice, reasonTag)
+}
+
+func (t *OKXTrader) setTakeProfitWithTag(symbol string, positionSide string, quantity, takeProfitPrice float64, reasonTag string) error {
 	instId := t.convertSymbol(symbol)
 
 	// Get instrument info
@@ -611,7 +635,7 @@ func (t *OKXTrader) SetTakeProfit(symbol string, positionSide string, quantity, 
 		"sz":          szStr,
 		"tpTriggerPx": t.formatPrice(takeProfitPrice, inst),
 		"tpOrdPx":     "-1", // Market price
-		"tag":         okxTag,
+		"tag":         okxReasonTag(reasonTag),
 	}
 
 	_, err = t.doRequest("POST", okxAlgoOrderPath, body)

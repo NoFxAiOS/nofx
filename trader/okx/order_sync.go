@@ -29,6 +29,7 @@ type OKXTrade struct {
 	IsMaker     bool
 	OrderType   string
 	OrderAction string // open_long, open_short, close_long, close_short
+	Tag         string
 }
 
 // GetTrades retrieves trade/fill records from OKX
@@ -137,6 +138,7 @@ func (t *OKXTrader) GetTrades(startTime time.Time, limit int) ([]OKXTrade, error
 			IsMaker:     fill.ExecType == "M",
 			OrderType:   "MARKET",
 			OrderAction: orderAction,
+			Tag:         fill.Tag,
 		}
 
 		trades = append(trades, trade)
@@ -204,6 +206,7 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
 			ExchangeOrderID: trade.TradeID,
+			ClientOrderID:   trade.Tag,
 			Symbol:          symbol,
 			Side:            side,
 			PositionSide:    positionSide,

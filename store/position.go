@@ -144,6 +144,27 @@ func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID s
 
 	var ord TraderOrder
 	if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, exchangeOrderID).First(&ord).Error; err == nil {
+		tagLower := strings.ToLower(ord.ClientOrderID)
+		switch {
+		case strings.Contains(tagLower, "break_even"):
+			reason = "break_even_stop"
+			source = "break_even_stop"
+		case strings.Contains(tagLower, "native_trailing"):
+			reason = "native_trailing"
+			source = "native_trailing"
+		case strings.Contains(tagLower, "ladder_tp"):
+			reason = "ladder_tp"
+			source = "ladder_tp"
+		case strings.Contains(tagLower, "ladder_sl"):
+			reason = "ladder_sl"
+			source = "ladder_sl"
+		case strings.Contains(tagLower, "full_tp"):
+			reason = "full_tp"
+			source = "full_tp"
+		case strings.Contains(tagLower, "full_sl"):
+			reason = "full_sl"
+			source = "full_sl"
+		}
 		kind := strings.ToUpper(ord.Type)
 		executionType = kind
 		isPartial := closeQty > 0 && closeQty < pos.Quantity-0.0001

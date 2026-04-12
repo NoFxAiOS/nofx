@@ -231,7 +231,14 @@ func (at *AutoTrader) placeAndVerifyLadderProtection(symbol, positionSide string
 		if hasExistingEquivalentProtection(existingOrders, positionSide, false, order.Price, orderQty) {
 			continue
 		}
-		if err := at.trader.SetStopLoss(symbol, positionSide, orderQty, order.Price); err != nil {
+		if setter, ok := at.trader.(interface {
+			SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
+			SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error
+		}); ok {
+			if err := setter.SetStopLossTagged(symbol, positionSide, orderQty, order.Price, "ladder_sl"); err != nil {
+				return fmt.Errorf("failed to set ladder stop loss %.6f (ratio %.2f%%): %w", order.Price, order.CloseRatioPct, err)
+			}
+		} else if err := at.trader.SetStopLoss(symbol, positionSide, orderQty, order.Price); err != nil {
 			return fmt.Errorf("failed to set ladder stop loss %.6f (ratio %.2f%%): %w", order.Price, order.CloseRatioPct, err)
 		}
 	}
@@ -243,7 +250,14 @@ func (at *AutoTrader) placeAndVerifyLadderProtection(symbol, positionSide string
 		if hasExistingEquivalentProtection(existingOrders, positionSide, true, order.Price, orderQty) {
 			continue
 		}
-		if err := at.trader.SetTakeProfit(symbol, positionSide, orderQty, order.Price); err != nil {
+		if setter, ok := at.trader.(interface {
+			SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error
+			SetTakeProfitTagged(symbol string, positionSide string, quantity, takeProfitPrice float64, reasonTag string) error
+		}); ok {
+			if err := setter.SetTakeProfitTagged(symbol, positionSide, orderQty, order.Price, "ladder_tp"); err != nil {
+				return fmt.Errorf("failed to set ladder take profit %.6f (ratio %.2f%%): %w", order.Price, order.CloseRatioPct, err)
+			}
+		} else if err := at.trader.SetTakeProfit(symbol, positionSide, orderQty, order.Price); err != nil {
 			return fmt.Errorf("failed to set ladder take profit %.6f (ratio %.2f%%): %w", order.Price, order.CloseRatioPct, err)
 		}
 	}
@@ -321,12 +335,26 @@ func hasExistingEquivalentProtection(orders []tradertypes.OpenOrder, positionSid
 
 func (at *AutoTrader) placeAndVerifyProtection(symbol, positionSide string, quantity float64, needsStopLoss bool, stopLossPrice float64, needsTakeProfit bool, takeProfitPrice float64) error {
 	if needsStopLoss {
-		if err := at.trader.SetStopLoss(symbol, positionSide, quantity, stopLossPrice); err != nil {
+		if setter, ok := at.trader.(interface {
+			SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
+			SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error
+		}); ok {
+			if err := setter.SetStopLossTagged(symbol, positionSide, quantity, stopLossPrice, "full_sl"); err != nil {
+				return fmt.Errorf("failed to set stop loss: %w", err)
+			}
+		} else if err := at.trader.SetStopLoss(symbol, positionSide, quantity, stopLossPrice); err != nil {
 			return fmt.Errorf("failed to set stop loss: %w", err)
 		}
 	}
 	if needsTakeProfit {
-		if err := at.trader.SetTakeProfit(symbol, positionSide, quantity, takeProfitPrice); err != nil {
+		if setter, ok := at.trader.(interface {
+			SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error
+			SetTakeProfitTagged(symbol string, positionSide string, quantity, takeProfitPrice float64, reasonTag string) error
+		}); ok {
+			if err := setter.SetTakeProfitTagged(symbol, positionSide, quantity, takeProfitPrice, "full_tp"); err != nil {
+				return fmt.Errorf("failed to set take profit: %w", err)
+			}
+		} else if err := at.trader.SetTakeProfit(symbol, positionSide, quantity, takeProfitPrice); err != nil {
 			return fmt.Errorf("failed to set take profit: %w", err)
 		}
 	}

@@ -22,13 +22,16 @@ BACKEND_PID=$!
 echo "   Backend PID: $BACKEND_PID"
 
 # Wait for backend health
-for i in {1..15}; do
+BACKEND_WAIT_SECONDS=90
+for i in $(seq 1 $BACKEND_WAIT_SECONDS); do
     if curl -s http://localhost:8080/api/health > /dev/null 2>&1; then
         echo "   ✅ Backend healthy"
         break
     fi
-    if [ $i -eq 15 ]; then
-        echo "   ❌ Backend failed to start"
+    if [ $i -eq $BACKEND_WAIT_SECONDS ]; then
+        echo "   ❌ Backend failed to start within ${BACKEND_WAIT_SECONDS}s"
+        echo "   Last backend log lines:"
+        tail -n 40 data/nofx_stdout.log || true
         exit 1
     fi
     sleep 1

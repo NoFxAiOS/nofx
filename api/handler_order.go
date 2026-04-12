@@ -234,23 +234,53 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		if entryQty > 0 && closedQty > 0 {
 			closeRatioPct = closedQty / entryQty * 100
 		}
+
 		executionSource := pos.CloseReason
 		if executionSource == "" {
 			executionSource = "unknown"
 		}
 		executionOrderType := "unknown"
 		sourceLower := strings.ToLower(executionSource)
+
+		if orderStore := store.Order(); orderStore != nil && pos.ExitOrderID != "" {
+			if ord, err := orderStore.GetOrderByExchangeID(pos.ExchangeID, pos.ExitOrderID); err == nil && ord != nil {
+				orderActionLower := strings.ToLower(ord.OrderAction)
+				orderTypeUpper := strings.ToUpper(ord.Type)
+				if sourceLower == "sync" || sourceLower == "unknown" || sourceLower == "" {
+					switch {
+					case strings.Contains(orderActionLower, "close_long") || strings.Contains(orderActionLower, "close_short"):
+						executionSource = orderActionLower
+					case strings.Contains(orderTypeUpper, "TRAILING"):
+						executionSource = "native_trailing"
+					case strings.Contains(orderTypeUpper, "TAKE_PROFIT"):
+						executionSource = "take_profit"
+					case strings.Contains(orderTypeUpper, "STOP"):
+						if ord.ReduceOnly || ord.ClosePosition {
+							executionSource = "stop_loss"
+						}
+					}
+					sourceLower = strings.ToLower(executionSource)
+				}
+				if executionOrderType == "unknown" {
+					executionOrderType = orderTypeUpper
+				}
+			}
+		}
+
+		sourceLower = strings.ToLower(executionSource)
 		switch {
 		case strings.Contains(sourceLower, "trailing"):
 			executionOrderType = "TRAILING_STOP_MARKET"
 		case strings.Contains(sourceLower, "take_profit") || strings.Contains(sourceLower, "tp"):
 			executionOrderType = "TAKE_PROFIT_MARKET"
-		case strings.Contains(sourceLower, "stop") || strings.Contains(sourceLower, "sl"):
-			executionOrderType = "STOP_MARKET"
 		case strings.Contains(sourceLower, "break_even"):
 			executionOrderType = "BREAK_EVEN_STOP"
+		case strings.Contains(sourceLower, "stop") || strings.Contains(sourceLower, "sl"):
+			executionOrderType = "STOP_MARKET"
 		case strings.Contains(sourceLower, "manual"):
 			executionOrderType = "MANUAL"
+		case strings.Contains(sourceLower, "close_long") || strings.Contains(sourceLower, "close_short"):
+			executionOrderType = "AI_CLOSE"
 		}
 
 		enrichedPositions = append(enrichedPositions, map[string]interface{}{

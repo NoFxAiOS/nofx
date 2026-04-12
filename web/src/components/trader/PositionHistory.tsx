@@ -238,6 +238,19 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
   const sideColor = isLong ? '#0ECB81' : '#F6465D'
   const pnlColor = isProfitable ? '#0ECB81' : '#F6465D'
 
+  const formatExecutionSourceLabel = (value: string): string => {
+    const v = String(value || '').toLowerCase()
+    if (v === 'close_long' || v === 'close_short') return `AI ${v}`
+    if (v.includes('native_trailing') || v.includes('trailing')) return 'Native Trailing'
+    if (v.includes('break_even')) return 'Break-even Stop'
+    if (v.includes('take_profit') || v === 'tp') return 'Take Profit'
+    if (v.includes('stop_loss') || v === 'sl') return 'Stop Loss'
+    if (v.includes('manual')) return 'Manual'
+    if (v === 'sync') return 'Exchange Sync'
+    if (v === 'unknown' || v === '') return 'Unknown'
+    return value
+  }
+
   // Calculate holding time
   const entryTime = position.entry_time ? new Date(position.entry_time).getTime() : 0
   const exitTime = position.exit_time ? new Date(position.exit_time).getTime() : 0
@@ -260,7 +273,7 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
 
   const closeRatioPct = position.close_ratio_pct || 0
   const closeValueUsdt = position.close_value_usdt || (exitPrice * displayQty)
-  const executionSource = position.execution_source || position.close_reason || 'unknown'
+  const executionSource = formatExecutionSourceLabel(position.execution_source || position.close_reason || 'unknown')
   const executionOrderType = position.execution_order_type || 'unknown'
 
   return (

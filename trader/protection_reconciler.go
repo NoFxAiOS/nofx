@@ -101,9 +101,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		return fmt.Errorf("get open orders: %w", err)
 	}
 
-	// If native trailing drawdown is already armed, do not re-apply generic ladder/full TP/SL plans
-	// on top of it. Native trailing should take priority once successfully armed.
-	skipGenericPlanReconcile := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
+	// If native trailing drawdown is already armed, generic take-profit plans should not be
+	// re-applied on top of it. But stop-loss protection must still be preserved and repaired.
+	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
 
 	plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
 	if err != nil {
@@ -113,6 +113,11 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	// Drawdown/native trailing owns the profit-taking side. If drawdown profit-control is enabled,
 	// proactively remove old generic TP orders for the active position while keeping SL orders intact.
 	drawdownEnabled := at.config.StrategyConfig != nil && at.config.StrategyConfig.Protection.DrawdownTakeProfit.Enabled && len(at.config.StrategyConfig.Protection.DrawdownTakeProfit.Rules) > 0
+	if nativeTrailingArmed && plan != nil {
+		plan.NeedsTakeProfit = false
+		plan.TakeProfitPrice = 0
+		plan.TakeProfitOrders = nil
+	}
 	if drawdownEnabled {
 		hasGenericTP := false
 		for _, order := range openOrders {
@@ -135,7 +140,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
-	if plan != nil && !skipGenericPlanReconcile {
+	if plan != nil {
 		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
 		expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)
 		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
@@ -189,7 +194,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	be := at.getActiveBreakEvenConfig()
 	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
-	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
+	nativeTrailingArmed = currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
 	if be != nil && at.GetProtectionCapabilities().NativeStopLoss && !nativeTrailingArmed {
 		if prevBreakEvenArmed && fingerprintChanged {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even fingerprint changed, re-arming native stop", symbol, positionSide)

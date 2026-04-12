@@ -149,5 +149,17 @@
 ### 当前剩余未收口项
 1. OKX / Binance / Bitget 对 partial native trailing close 的真实语义边界，仍需继续实盘/API 级核定
 2. 持仓保护执行面板还可继续增强为多档 trailing 逐档展开视图
-3. close attribution 仍需继续从 API enrich 走向更强的持久化来源归因
+3. close attribution 已从 API enrich 推进到持久化 `position_close_events`，后续仍需把更多保护触发点（如果有未覆盖路径）继续直连到落库原因
+
+### 2026-04-13 子事件流补充
+- 历史平仓已不再只依赖聚合后的 `trader_positions` 结果。
+- 新增 `position_close_events` 作为子事件流，跟随 trader 数据一起存储。
+- 设计目标是让历史页能展开看到每一段：
+  - AI 主动平仓
+  - managed drawdown
+  - native trailing
+  - break-even
+  - full TP/SL
+  - ladder TP/SL
+- 当前策略：优先在**写入时固化原因**，不再只在 API 层事后猜。
 

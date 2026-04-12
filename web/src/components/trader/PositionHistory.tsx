@@ -243,6 +243,10 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
     if (v === 'ai_close_long' || v === 'ai_close_short') return v
     if (v === 'managed_drawdown') return 'Managed Drawdown'
     if (v === 'emergency_protection_close') return 'Emergency Protection Close'
+    if (v === 'ladder_tp') return 'Ladder TP'
+    if (v === 'ladder_sl') return 'Ladder SL'
+    if (v === 'full_tp') return 'Full TP'
+    if (v === 'full_sl') return 'Full SL'
     if (v === 'close_long' || v === 'close_short') return `AI ${v}`
     if (v.includes('native_trailing') || v.includes('trailing')) return 'Native Trailing'
     if (v.includes('break_even')) return 'Break-even Stop'
@@ -253,6 +257,17 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
     if (v === 'unknown' || v === '') return 'Unknown'
     return value
   }
+
+  const getExecutionSourceBadgeStyle = (value: string) => {
+    const v = String(value || '').toLowerCase()
+    if (v.includes('ai_close')) return { background: 'rgba(96,165,250,0.14)', color: '#60A5FA', border: '1px solid rgba(96,165,250,0.3)' }
+    if (v.includes('native_trailing')) return { background: 'rgba(168,85,247,0.14)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.3)' }
+    if (v.includes('break_even')) return { background: 'rgba(251,191,36,0.14)', color: '#F0B90B', border: '1px solid rgba(251,191,36,0.3)' }
+    if (v === 'ladder_tp' || v === 'full_tp' || v.includes('take_profit')) return { background: 'rgba(14,203,129,0.14)', color: '#0ECB81', border: '1px solid rgba(14,203,129,0.3)' }
+    if (v === 'ladder_sl' || v === 'full_sl' || v.includes('stop_loss') || v === 'managed_drawdown' || v === 'emergency_protection_close') return { background: 'rgba(246,70,93,0.14)', color: '#F6465D', border: '1px solid rgba(246,70,93,0.3)' }
+    return { background: 'rgba(132,142,156,0.14)', color: '#AAB2BD', border: '1px solid rgba(132,142,156,0.25)' }
+  }
+
 
   // Calculate holding time
   const entryTime = position.entry_time ? new Date(position.entry_time).getTime() : 0
@@ -361,7 +376,9 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托来源 / Source'}</div>
-                <div className="font-mono" style={{ color: '#EAECEF' }}>{executionSource}</div>
+                <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(position.execution_source || position.close_reason || 'unknown')}>
+                {executionSource}
+              </div>
               </div>
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托类型 / Order Type'}</div>
@@ -385,7 +402,7 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
                     <div key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
                       <div>
                         <div style={{ color: '#848E9C' }}>{'原因 / Reason'}</div>
-                        <div className="font-mono" style={{ color: '#EAECEF' }}>{formatExecutionSourceLabel(event.execution_source || event.close_reason)}</div>
+                        <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(event.execution_source || event.close_reason)}>{formatExecutionSourceLabel(event.execution_source || event.close_reason)}</div>
                       </div>
                       <div>
                         <div style={{ color: '#848E9C' }}>{'类型 / Type'}</div>

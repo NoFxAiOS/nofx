@@ -1,3 +1,36 @@
+### 晚间：Position History 主记录 + 子事件流落地
+- 历史持仓记录已从“只看最终聚合结果”推进到“主记录 + 子事件流”结构：
+  - 主记录：`trader_positions`
+  - 子事件流：`position_close_events`
+- 新事件流字段覆盖：
+  - `position_id / trader_id / exchange_id / symbol / side`
+  - `close_reason / execution_source / execution_type`
+  - `exchange_order_id`
+  - `close_quantity / close_ratio_pct / execution_price / close_value_usdt`
+  - `realized_pnl_delta / fee_delta / event_time`
+- 当前已落库/可归因的业务原因：
+  - `ai_close_long`
+  - `ai_close_short`
+  - `managed_drawdown`
+  - `emergency_protection_close`
+  - `native_trailing`
+  - `break_even_stop`
+  - `full_tp`
+  - `full_sl`
+  - `ladder_tp`
+  - `ladder_sl`
+- 当前归因规则：
+  - `TRAILING*` → `native_trailing`
+  - `TAKE_PROFIT*` + partial/full → `ladder_tp` / `full_tp`
+  - `STOP*` + near-entry → `break_even_stop`
+  - `STOP*` + partial/full → `ladder_sl` / `full_sl`
+- 前端 `PositionHistory` 已同步支持：
+  - 展开后显示 `Close Event Flow`
+  - 原因标签统一颜色体系（AI / trailing / break-even / TP / SL / unknown）
+- 重要边界：
+  - 这条链主要影响**这版上线后的新平仓事件**
+  - 旧历史不会自动批量重算，只会继续依赖已有字段或 API 侧有限 enrich
+
 ## 2026-04-12
 
 ### 晚间：Native Trailing 激活价 / 参数来源 / 执行语义再收口

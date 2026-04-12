@@ -140,7 +140,6 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 	if be := at.getActiveBreakEvenConfig(); be != nil && be.TriggerValue <= 0 {
 		if err := at.applyBreakEvenStop(req.Symbol, strings.ToLower(req.PositionSide), req.Quantity, req.EntryPrice, be.TriggerValue, *be); err == nil {
 			at.setBreakEvenState(req.Symbol, strings.ToLower(req.PositionSide), "armed")
-			at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "break_even_armed")
 		}
 	}
 

@@ -209,14 +209,12 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				return fmt.Errorf("re-arm break-even native stop: %w", err)
 			}
 			at.setBreakEvenState(symbol, side, "armed")
-			at.setProtectionState(symbol, side, "break_even_armed")
 		} else if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even trigger met (%.2f%% >= %.2f%%), applying native stop", symbol, positionSide, currentPnLPct, be.TriggerValue)
 			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
 				return fmt.Errorf("apply break-even native stop: %w", err)
 			}
 			at.setBreakEvenState(symbol, side, "armed")
-			at.setProtectionState(symbol, side, "break_even_armed")
 		}
 	}
 

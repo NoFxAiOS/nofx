@@ -124,7 +124,6 @@ func (at *AutoTrader) checkPositionDrawdown() {
 					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
 				} else if currentPnLPct >= matchedBreakEven.TriggerValue {
 					at.setBreakEvenState(symbol, side, "armed")
-					at.setProtectionState(symbol, side, "break_even_armed")
 				}
 			}
 		}

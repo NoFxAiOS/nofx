@@ -1,3 +1,31 @@
+## 2026-04-12
+
+### 晚间：Native Trailing 激活价 / 参数来源 / 执行语义再收口
+- 前端与运行态已继续补齐 drawdown/native trailing 元信息：
+  - `activation_price`
+  - `planned_activation_price`
+  - `callback_rate`
+  - `activation_source`
+  - `callback_source`
+- 当前展示语义已明确区分：
+  - `exchange`：交易所回读到的实际值
+  - `request`：本地下单请求值 / 已确认请求值
+  - `planned`：按规则推导的理论值
+- 三家交易所当前收口状态：
+  - **OKX**：可回读 `activePx` + `callbackRatio`
+  - **Bitget**：可回读 `triggerPrice` + `rangeRate`
+  - **Binance**：当前 SDK / open algo / single algo 查询链路能稳定拿到 activation，但 callback 未在读取模型中暴露，当前只能标记为 `request`，不能伪装成 `exchange`
+- 当晚实盘争议点：ADAUSDT 的 trailing `activation=0.2413` 被用户指出与当时行情不符。
+- 排查结论：
+  1. 旧进程曾未及时切到最新后端二进制，已重新 `go build` 并重启 backend/frontend。
+  2. 当前进一步明确执行原则：**native trailing 一旦成功挂上，不允许因为市场继续波动而重写 activePx；只有交易所上掉单 / 查不到 trailing 时才允许 re-arm。**
+  3. 因此后续不再采用“activePx 与当前价偏离就刷新”的策略，避免因为重新挂单改变激活价而错过原本应捕获的 trailing 止盈目标。
+- 相关提交：
+  - `f94390e4` fix: use live market activation for native drawdown
+  - `3b543824` feat: surface actual trailing parameters in runtime
+  - `b76bcc28` feat: label trailing runtime parameter sources
+  - `856abe26` fix: refresh stale native trailing activation prices （随后被执行语义否决，不再作为最终策略保留）
+
 ## 2026-04-11
 
 ### 保护单委托系统四大关键修复（交易所原生委托闭环）

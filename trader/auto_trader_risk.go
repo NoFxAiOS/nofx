@@ -212,37 +212,18 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	currentState := at.getProtectionState(symbol, side)
 	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
 		// Do not trust in-memory state alone. Verify the exchange still has a live trailing order.
+		// Once native trailing is armed on exchange, DO NOT refresh just because market price moved.
+		// Re-arm only when the exchange trailing order is actually missing.
 		if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
-			marketPrice, marketErr := at.trader.GetMarketPrice(symbol)
-			foundTrailing := false
-			staleTrailing := false
 			for _, order := range openOrders {
 				if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
 					continue
 				}
-				if !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
-					continue
+				if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+					return true
 				}
-				foundTrailing = true
-				triggerPrice := order.StopPrice
-				if triggerPrice <= 0 {
-					triggerPrice = order.Price
-				}
-				if marketErr == nil && marketPrice > 0 && triggerPrice > 0 {
-					priceGapRatio := math.Abs(triggerPrice-marketPrice) / marketPrice
-					if priceGapRatio > 0.0005 {
-						logger.Infof("⚠️ Native trailing activePx is stale (%s %s): current=%.6f active=%.6f gap=%.4f%%, refreshing", symbol, side, marketPrice, triggerPrice, priceGapRatio*100)
-						staleTrailing = true
-						break
-					}
-				}
-				return true
 			}
-			if staleTrailing {
-				logger.Infof("🔄 Native trailing will be re-armed with latest market price (%s %s)", symbol, side)
-			} else if !foundTrailing {
-				logger.Infof("⚠️ Native trailing state exists but no trailing order found on exchange (%s %s), re-arming", symbol, side)
-			}
+			logger.Infof("⚠️ Native trailing state exists but no trailing order found on exchange (%s %s), re-arming", symbol, side)
 		}
 	}
 	// For partial close rules, check if exchange supports native partial close

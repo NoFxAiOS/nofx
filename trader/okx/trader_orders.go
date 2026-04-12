@@ -431,15 +431,15 @@ func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, acti
 	}
 
 	body := map[string]interface{}{
-		"instId":         instId,
-		"tdMode":         "cross",
-		"side":           side,
-		"posSide":        posSide,
-		"ordType":        "move_order_stop",
-		"sz":             szStr,
-		"activePx":       fmt.Sprintf("%.8f", activationPrice),
-		"callbackRatio":  strconv.FormatFloat(callbackRate, 'f', -1, 64),
-		"tag":            okxTag,
+		"instId":        instId,
+		"tdMode":        "cross",
+		"side":          side,
+		"posSide":       posSide,
+		"ordType":       "move_order_stop",
+		"sz":            szStr,
+		"activePx":      fmt.Sprintf("%.8f", activationPrice),
+		"callbackRatio": strconv.FormatFloat(callbackRate, 'f', -1, 64),
+		"tag":           okxTag,
 	}
 
 	resp, err := t.doRequest("POST", okxAdvanceAlgoPath, body)
@@ -1003,19 +1003,20 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	}
 	if err == nil && trailingData != nil {
 		var trailingOrders []struct {
-			AlgoId         string `json:"algoId"`
-			InstId         string `json:"instId"`
-			Side           string `json:"side"`
-			PosSide        string `json:"posSide"`
-			ActivePx       string `json:"activePx"`
-			CallbackRatio  string `json:"callbackRatio"`
-			Sz             string `json:"sz"`
+			AlgoId        string `json:"algoId"`
+			InstId        string `json:"instId"`
+			Side          string `json:"side"`
+			PosSide       string `json:"posSide"`
+			ActivePx      string `json:"activePx"`
+			CallbackRatio string `json:"callbackRatio"`
+			Sz            string `json:"sz"`
 		}
 		if err := json.Unmarshal(trailingData, &trailingOrders); err == nil {
 			for _, order := range trailingOrders {
 				quantityContracts, _ := strconv.ParseFloat(order.Sz, 64)
 				quantity := quantityContracts * ctVal
 				activePx, _ := strconv.ParseFloat(order.ActivePx, 64)
+				callbackRatio, _ := strconv.ParseFloat(order.CallbackRatio, 64)
 				side := strings.ToUpper(order.Side)
 				positionSide := strings.ToUpper(order.PosSide)
 				if positionSide == "NET" {
@@ -1029,6 +1030,7 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 					Type:         "TRAILING_STOP_MARKET",
 					Price:        0,
 					StopPrice:    activePx,
+					CallbackRate: callbackRatio,
 					Quantity:     quantity,
 					Status:       "NEW",
 				})

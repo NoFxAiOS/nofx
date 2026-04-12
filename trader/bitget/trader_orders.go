@@ -83,10 +83,10 @@ func (t *BitgetTrader) CancelTrailingStopOrders(symbol string) error {
 			continue
 		}
 		body := map[string]interface{}{
-			"symbol":   symbol,
+			"symbol":     symbol,
 			"marginCoin": "USDT",
-			"orderId":  order.OrderId,
-			"planType": "track_plan",
+			"orderId":    order.OrderId,
+			"planType":   "track_plan",
 		}
 		if _, err := t.doRequest("POST", "/api/mix/v1/plan/cancelPlan", body); err != nil {
 			logger.Infof("  ⚠️ [Bitget] Failed to cancel trailing stop %s: %v", order.OrderId, err)
@@ -528,15 +528,15 @@ func (t *BitgetTrader) GetOrderStatus(symbol string, orderID string) (map[string
 	}
 
 	var order struct {
-		OrderId      string `json:"orderId"`
-		State        string `json:"state"`        // filled, canceled, partially_filled, new
-		PriceAvg     string `json:"priceAvg"`     // Average fill price
-		BaseVolume   string `json:"baseVolume"`   // Filled quantity
-		Fee          string `json:"fee"`          // Fee
-		Side         string `json:"side"`
-		OrderType    string `json:"orderType"`
-		CTime        string `json:"cTime"`
-		UTime        string `json:"uTime"`
+		OrderId    string `json:"orderId"`
+		State      string `json:"state"`      // filled, canceled, partially_filled, new
+		PriceAvg   string `json:"priceAvg"`   // Average fill price
+		BaseVolume string `json:"baseVolume"` // Filled quantity
+		Fee        string `json:"fee"`        // Fee
+		Side       string `json:"side"`
+		OrderType  string `json:"orderType"`
+		CTime      string `json:"cTime"`
+		UTime      string `json:"uTime"`
 	}
 
 	if err := json.Unmarshal(data, &order); err != nil {
@@ -594,15 +594,15 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	if err == nil && data != nil {
 		var orders struct {
 			EntrustedList []struct {
-				OrderId      string `json:"orderId"`
-				Symbol       string `json:"symbol"`
-				Side         string `json:"side"`         // buy/sell
-				TradeSide    string `json:"tradeSide"`    // open/close
-				PosSide      string `json:"posSide"`      // long/short
-				OrderType    string `json:"orderType"`    // limit/market
-				Price        string `json:"price"`
-				Size         string `json:"size"`
-				State        string `json:"state"`
+				OrderId   string `json:"orderId"`
+				Symbol    string `json:"symbol"`
+				Side      string `json:"side"`      // buy/sell
+				TradeSide string `json:"tradeSide"` // open/close
+				PosSide   string `json:"posSide"`   // long/short
+				OrderType string `json:"orderType"` // limit/market
+				Price     string `json:"price"`
+				Size      string `json:"size"`
+				State     string `json:"state"`
 			} `json:"entrustedList"`
 		}
 		if err := json.Unmarshal(data, &orders); err == nil {
@@ -717,6 +717,7 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 			Symbol       string `json:"symbol"`
 			Side         string `json:"side"`
 			TriggerPrice string `json:"triggerPrice"`
+			RangeRate    string `json:"rangeRate"`
 			Size         string `json:"size"`
 			PlanType     string `json:"planType"`
 		}
@@ -726,6 +727,7 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 					continue
 				}
 				triggerPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
+				callbackRate, _ := strconv.ParseFloat(order.RangeRate, 64)
 				quantity, _ := strconv.ParseFloat(order.Size, 64)
 				result = append(result, types.OpenOrder{
 					OrderID:      order.OrderId,
@@ -735,6 +737,7 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 					Type:         "TRAILING_STOP_MARKET",
 					Price:        0,
 					StopPrice:    triggerPrice,
+					CallbackRate: callbackRate,
 					Quantity:     quantity,
 					Status:       "NEW",
 				})

@@ -35,6 +35,7 @@ export interface ProtectionRuntimeOrder {
   side: string
   position_side: string
   trigger_price: number
+  callback_rate?: number
   quantity: number
   status: string
 }
@@ -131,6 +132,7 @@ export interface OpenOrder {
   type: string
   price: number
   stop_price: number
+  callback_rate?: number
   quantity: number
   status: string
 }

@@ -541,6 +541,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	positionSide := strings.ToUpper(side)
 	activeOrders := make([]map[string]interface{}, 0)
 	liveTrailingTriggerPrice := 0.0
+	liveTrailingCallbackRate := 0.0
 	for _, order := range openOrders {
 		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
 			continue
@@ -551,6 +552,9 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		}
 		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") && triggerPrice > 0 {
 			liveTrailingTriggerPrice = triggerPrice
+			if order.CallbackRate > 0 {
+				liveTrailingCallbackRate = order.CallbackRate
+			}
 		}
 		activeOrders = append(activeOrders, map[string]interface{}{
 			"order_id":      order.OrderID,
@@ -558,6 +562,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			"side":          order.Side,
 			"position_side": order.PositionSide,
 			"trigger_price": triggerPrice,
+			"callback_rate": order.CallbackRate,
 			"quantity":      order.Quantity,
 			"status":        order.Status,
 		})
@@ -594,6 +599,9 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				switch strings.ToLower(at.exchange) {
 				case "binance", "bitget":
 					callbackRate = callbackRate * 100.0
+				}
+				if liveTrailingCallbackRate > 0 {
+					callbackRate = liveTrailingCallbackRate
 				}
 			}
 			tiers = append(tiers, map[string]interface{}{

@@ -27,6 +27,7 @@ function buildProtectionRows(position: Position, orders: OpenOrder[]) {
       orderId: order.order_id,
       type: String(order.type || '').toUpperCase(),
       triggerPrice,
+      callbackRate: Number(order.callback_rate || 0),
       closeRatioPct,
       valueUsdt,
     }
@@ -257,7 +258,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   title={language === 'zh' ? '当前保护委托' : 'Current Protection Orders'}
                   subtitle={language === 'zh' ? '仅展示与交易/保护强相关的信息' : 'Only high-signal trading / protection details'}
                   rows={protectionRows.length > 0 ? protectionRows.map((row) => ({
-                    label: `${row.type} @ ${formatPrice(row.triggerPrice)}`,
+                    label: `${row.type} @ ${formatPrice(row.triggerPrice)}${row.callbackRate > 0 ? ` / cb ${row.callbackRate.toFixed(4)}` : ''}`,
                     value: `${row.closeRatioPct > 0 ? `${row.closeRatioPct.toFixed(1)}%` : '—'} / ${row.valueUsdt > 0 ? formatUsdtValue(row.valueUsdt) : '—'}U`,
                   })) : [{ label: language === 'zh' ? '委托' : 'Orders', value: language === 'zh' ? '暂无' : 'none' }]}
                 />

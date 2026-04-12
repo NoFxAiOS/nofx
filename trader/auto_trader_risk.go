@@ -220,7 +220,18 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	}
 	currentState := at.getProtectionState(symbol, side)
 	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
-		return true
+		// Do not trust in-memory state alone. Verify the exchange still has a live trailing order.
+		if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
+			for _, order := range openOrders {
+				if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+					continue
+				}
+				if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+					return true
+				}
+			}
+			logger.Infof("⚠️ Native trailing state exists but no trailing order found on exchange (%s %s), re-arming", symbol, side)
+		}
 	}
 	// For partial close rules, check if exchange supports native partial close
 	isPartial := rule.CloseRatioPct < 99.999

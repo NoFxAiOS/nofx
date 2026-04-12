@@ -208,7 +208,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 	currentState := at.getProtectionState(symbol, side)
-	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" || currentState == "managed_partial_drawdown_armed" {
+	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
 		return true
 	}
 	// For partial close rules, check if exchange supports native partial close

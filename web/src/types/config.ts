@@ -66,6 +66,8 @@ export interface CreateTraderRequest {
   scan_interval_minutes?: number
   is_cross_margin?: boolean
   show_in_competition?: boolean // 是否在竞技场显示
+  allow_ai_close?: boolean
+  ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   // 以下字段为向后兼容保留，新版使用策略配置
   btc_eth_leverage?: number
   altcoin_leverage?: number

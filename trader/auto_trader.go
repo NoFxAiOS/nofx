@@ -2,14 +2,13 @@ package trader
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/mcp"
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
-	"nofx/wallet"
-	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/trader/aster"
 	"nofx/trader/binance"
 	"nofx/trader/bitget"
@@ -20,6 +19,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/wallet"
 	"sync"
 	"time"
 )
@@ -109,7 +109,9 @@ type AutoTraderConfig struct {
 	IsCrossMargin bool // true=cross margin mode, false=isolated margin mode
 
 	// Competition visibility
-	ShowInCompetition bool // Whether to show in competition page
+	ShowInCompetition bool   // Whether to show in competition page
+	AllowAIClose      bool   // Whether AI is allowed to issue close_long / close_short
+	AIDecisionMode    string // conservative | balanced | aggressive
 
 	// Strategy configuration (use complete strategy config)
 	StrategyConfig *store.StrategyConfig // Strategy configuration (includes coin sources, indicators, risk control, prompts, etc.)
@@ -123,6 +125,8 @@ type AutoTrader struct {
 	exchange              string // Trading platform type (binance/bybit/etc)
 	exchangeID            string // Exchange account UUID
 	showInCompetition     bool   // Whether to show in competition page
+	allowAIClose          bool   // Whether AI can actively close positions
+	aiDecisionMode        string // conservative | balanced | aggressive
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
@@ -153,9 +157,9 @@ type AutoTrader struct {
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
 	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
-	consecutiveAIFailures int               // Consecutive AI call failures
-	safeMode              bool              // Safe mode: no new positions, protect existing ones
-	safeModeReason        string            // Why safe mode was activated
+	consecutiveAIFailures int                // Consecutive AI call failures
+	safeMode              bool               // Safe mode: no new positions, protect existing ones
+	safeModeReason        string             // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader
@@ -174,6 +178,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		} else {
 			config.AIModel = "deepseek"
 		}
+	}
+	if config.AIDecisionMode == "" {
+		config.AIDecisionMode = "balanced"
 	}
 
 	// Initialize AI client based on provider
@@ -348,6 +355,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		exchange:              config.Exchange,
 		exchangeID:            config.ExchangeID,
 		showInCompetition:     config.ShowInCompetition,
+		allowAIClose:          config.AllowAIClose,
+		aiDecisionMode:        config.AIDecisionMode,
 		config:                config,
 		trader:                trader,
 		mcpClient:             mcpClient,
@@ -566,6 +575,32 @@ func (at *AutoTrader) GetExchange() string {
 // GetShowInCompetition returns whether trader should be shown in competition
 func (at *AutoTrader) GetShowInCompetition() bool {
 	return at.showInCompetition
+}
+
+// GetAllowAIClose returns whether AI can actively close positions
+func (at *AutoTrader) GetAllowAIClose() bool {
+	return at.allowAIClose
+}
+
+// SetAllowAIClose updates whether AI can actively close positions
+func (at *AutoTrader) SetAllowAIClose(allow bool) {
+	at.allowAIClose = allow
+}
+
+// GetAIDecisionMode returns the configured AI decision mode
+func (at *AutoTrader) GetAIDecisionMode() string {
+	if at.aiDecisionMode == "" {
+		return "balanced"
+	}
+	return at.aiDecisionMode
+}
+
+// SetAIDecisionMode updates the AI decision mode
+func (at *AutoTrader) SetAIDecisionMode(mode string) {
+	if mode == "" {
+		mode = "balanced"
+	}
+	at.aiDecisionMode = mode
 }
 
 // SetShowInCompetition sets whether trader should be shown in competition

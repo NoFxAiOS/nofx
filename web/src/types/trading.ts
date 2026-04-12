@@ -196,6 +196,8 @@ export interface TraderInfo {
   exchange_id?: string
   is_running?: boolean
   show_in_competition?: boolean
+  allow_ai_close?: boolean
+  ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   strategy_id?: string
   strategy_name?: string
   custom_prompt?: string
@@ -233,6 +235,8 @@ export interface TraderConfigData {
   strategy_name?: string  // 策略名称
   is_cross_margin: boolean
   show_in_competition: boolean  // 是否在竞技场显示
+  allow_ai_close?: boolean
+  ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   scan_interval_minutes: number
   initial_balance: number
   is_running: boolean

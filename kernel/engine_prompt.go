@@ -18,6 +18,12 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	var sb strings.Builder
 	riskControl := e.config.RiskControl
 	promptSections := e.config.PromptSections
+	decisionMode := strings.ToLower(strings.TrimSpace(variant))
+	allowAIClose := true
+	if strings.Contains(decisionMode, "|no_close") {
+		allowAIClose = false
+		decisionMode = strings.ReplaceAll(decisionMode, "|no_close", "")
+	}
 
 	// 0. Data Dictionary & Schema (ensure AI understands all fields)
 	lang := e.GetLanguage()
@@ -36,11 +42,13 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	}
 
 	// 2. Trading mode variant
-	switch strings.ToLower(strings.TrimSpace(variant)) {
+	switch decisionMode {
 	case "aggressive":
 		sb.WriteString("## Mode: Aggressive\n- Prioritize capturing trend breakouts, can build positions in batches when confidence ≥ 70\n- Allow higher positions, but must strictly set stop-loss and explain risk-reward ratio\n\n")
 	case "conservative":
 		sb.WriteString("## Mode: Conservative\n- Only open positions when multiple signals resonate\n- Prioritize cash preservation, must pause for multiple periods after consecutive losses\n\n")
+	case "balanced", "":
+		sb.WriteString("## Mode: Balanced\n- Balance opportunity capture and risk control\n- Prefer clear setups with sufficient confirmation, but do not become overly passive\n\n")
 	case "scalping":
 		sb.WriteString("## Mode: Scalping\n- Focus on short-term momentum, smaller profit targets but require quick action\n- If price doesn't move as expected within two bars, immediately reduce position or stop-loss\n\n")
 	}
@@ -115,6 +123,14 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("1. Check positions → Should we take profit/stop-loss\n")
 		sb.WriteString("2. Scan candidate coins + multi-timeframe → Are there strong signals\n")
 		sb.WriteString("3. Write chain of thought first, then output structured JSON\n\n")
+	}
+
+	// 7. Output format
+	if !allowAIClose {
+		sb.WriteString("# AI Close Gate\n\n")
+		sb.WriteString("- You are NOT allowed to output `close_long` or `close_short`.\n")
+		sb.WriteString("- Existing positions may only be closed by code protection and exchange protection orders.\n")
+		sb.WriteString("- You must continue analyzing open positions, but if you want a close, output `hold` and explain the risk instead.\n\n")
 	}
 
 	// 7. Output format

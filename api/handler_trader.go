@@ -32,6 +32,8 @@ type CreateTraderRequest struct {
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
 	IsCrossMargin       *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
 	ShowInCompetition   *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
+	AllowAIClose        *bool   `json:"allow_ai_close"`
+	AIDecisionMode      string  `json:"ai_decision_mode"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`
@@ -53,6 +55,8 @@ type UpdateTraderRequest struct {
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
 	IsCrossMargin       *bool   `json:"is_cross_margin"`
 	ShowInCompetition   *bool   `json:"show_in_competition"`
+	AllowAIClose        *bool   `json:"allow_ai_close"`
+	AIDecisionMode      string  `json:"ai_decision_mode"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`
@@ -109,6 +113,16 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	showInCompetition := true // Default to show in competition
 	if req.ShowInCompetition != nil {
 		showInCompetition = *req.ShowInCompetition
+	}
+
+	allowAIClose := true
+	if req.AllowAIClose != nil {
+		allowAIClose = *req.AllowAIClose
+	}
+
+	aiDecisionMode := req.AIDecisionMode
+	if aiDecisionMode == "" {
+		aiDecisionMode = "balanced"
 	}
 
 	// Set leverage default values
@@ -266,6 +280,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		AllowAIClose:         allowAIClose,
+		AIDecisionMode:       aiDecisionMode,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            false,
 	}
@@ -341,6 +357,19 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		showInCompetition = *req.ShowInCompetition
 	}
 
+	allowAIClose := existingTrader.AllowAIClose
+	if req.AllowAIClose != nil {
+		allowAIClose = *req.AllowAIClose
+	}
+
+	aiDecisionMode := req.AIDecisionMode
+	if aiDecisionMode == "" {
+		aiDecisionMode = existingTrader.AIDecisionMode
+	}
+	if aiDecisionMode == "" {
+		aiDecisionMode = "balanced"
+	}
+
 	// Set leverage default values
 	btcEthLeverage := req.BTCETHLeverage
 	altcoinLeverage := req.AltcoinLeverage
@@ -390,6 +419,8 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		AllowAIClose:         allowAIClose,
+		AIDecisionMode:       aiDecisionMode,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            existingTrader.IsRunning, // Keep original value
 	}

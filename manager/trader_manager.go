@@ -646,6 +646,8 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		InitialBalance:        traderCfg.InitialBalance,
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		ShowInCompetition:     traderCfg.ShowInCompetition,
+		AllowAIClose:          traderCfg.AllowAIClose,
+		AIDecisionMode:        traderCfg.AIDecisionMode,
 		StrategyConfig:        strategyConfig,
 	}
 

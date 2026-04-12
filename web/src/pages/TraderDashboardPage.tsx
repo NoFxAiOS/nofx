@@ -26,6 +26,7 @@ import type {
     Statistics,
     TraderInfo,
     Exchange,
+    CreateTraderRequest,
 } from '../types'
 
 // --- Helper Functions ---
@@ -146,6 +147,9 @@ export function TraderDashboardPage({
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+    const [allowAIClose, setAllowAIClose] = useState<boolean>(true)
+    const [aiDecisionMode, setAIDecisionMode] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced')
+    const [savingAIControls, setSavingAIControls] = useState<boolean>(false)
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -170,6 +174,56 @@ export function TraderDashboardPage({
             setSelectedChartSymbol(status.grid_symbol)
         }
     }, [status?.strategy_type, status?.grid_symbol])
+
+    useEffect(() => {
+        let cancelled = false
+        async function loadAIControls() {
+            if (!selectedTraderId) return
+            try {
+                const cfg = await api.getTraderConfig(selectedTraderId)
+                if (cancelled) return
+                setAllowAIClose(cfg.allow_ai_close !== false)
+                setAIDecisionMode(cfg.ai_decision_mode || 'balanced')
+            } catch (err) {
+                console.error('Failed to load trader AI controls', err)
+            }
+        }
+        loadAIControls()
+        return () => {
+            cancelled = true
+        }
+    }, [selectedTraderId])
+
+    const saveAIControls = async (patch: Partial<CreateTraderRequest>) => {
+        if (!selectedTraderId || !selectedTrader) return
+        setSavingAIControls(true)
+        try {
+            const current = await api.getTraderConfig(selectedTraderId)
+            await api.updateTrader(selectedTraderId, {
+                name: current.trader_name,
+                ai_model_id: current.ai_model,
+                exchange_id: current.exchange_id,
+                strategy_id: current.strategy_id,
+                initial_balance: current.initial_balance,
+                scan_interval_minutes: current.scan_interval_minutes,
+                is_cross_margin: current.is_cross_margin,
+                show_in_competition: current.show_in_competition,
+                allow_ai_close: patch.allow_ai_close ?? current.allow_ai_close ?? true,
+                ai_decision_mode: patch.ai_decision_mode ?? current.ai_decision_mode ?? 'balanced',
+            })
+            await Promise.all([
+                mutate(`trader-config-${selectedTraderId}`),
+                mutate(`${selectedTraderId}-status`),
+                mutate('public-traders'),
+            ])
+        } catch (err) {
+            notify.error(err instanceof Error ? err.message : 'Failed to update AI controls')
+            throw err
+        } finally {
+            setSavingAIControls(false)
+        }
+    }
+
 
     // Get current exchange info for perp-dex wallet display
     const currentExchange = exchanges?.find(
@@ -466,6 +520,43 @@ export function TraderDashboardPage({
                                     selectedTrader.ai_model
                                 )}
                             </span>
+                            <label className="flex items-center gap-2 ml-2 text-xs">
+                                <span className="opacity-60">AI Close</span>
+                                <input
+                                    type="checkbox"
+                                    checked={allowAIClose}
+                                    disabled={savingAIControls}
+                                    onChange={async (e) => {
+                                        const next = e.target.checked
+                                        setAllowAIClose(next)
+                                        try {
+                                            await saveAIControls({ allow_ai_close: next })
+                                        } catch {
+                                            setAllowAIClose(!next)
+                                        }
+                                    }}
+                                    className="h-4 w-4 accent-[#F0B90B]"
+                                />
+                            </label>
+                            <select
+                                value={aiDecisionMode}
+                                disabled={savingAIControls}
+                                onChange={async (e) => {
+                                    const next = e.target.value as 'conservative' | 'balanced' | 'aggressive'
+                                    const prev = aiDecisionMode
+                                    setAIDecisionMode(next)
+                                    try {
+                                        await saveAIControls({ ai_decision_mode: next })
+                                    } catch {
+                                        setAIDecisionMode(prev)
+                                    }
+                                }}
+                                className="bg-transparent border border-white/10 rounded px-2 py-0.5 text-xs text-nofx-text-main"
+                            >
+                                <option value="conservative" className="bg-[#0B0E11]">保守</option>
+                                <option value="balanced" className="bg-[#0B0E11]">平衡</option>
+                                <option value="aggressive" className="bg-[#0B0E11]">激进</option>
+                            </select>
                         </span>
                         <span className="w-px h-3 bg-white/10 hidden md:block" />
                         <span className="flex items-center gap-2">

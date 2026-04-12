@@ -113,6 +113,12 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 			continue
 		}
 
+		// For partial drawdown, prefer exchange-native trailing when supported.
+		// Only fall back to managed partial TP when native partial trailing is unavailable or fails.
+		if at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule) {
+			continue
+		}
+
 		candidate := buildManagedPartialDrawdownPlanCandidate(req.EntryPrice, req.Action, rule)
 		if candidate == nil {
 			continue

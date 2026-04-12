@@ -164,7 +164,8 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	be := at.getActiveBreakEvenConfig()
 	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
-	if be != nil && at.GetProtectionCapabilities().NativeStopLoss {
+	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
+	if be != nil && at.GetProtectionCapabilities().NativeStopLoss && !nativeTrailingArmed {
 		if prevBreakEvenArmed && fingerprintChanged {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even fingerprint changed, re-arming native stop", symbol, positionSide)
 			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {

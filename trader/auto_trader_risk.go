@@ -118,7 +118,9 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		matchedBreakEven := at.getActiveBreakEvenConfig()
 		if matchedBreakEven != nil {
-			if at.getBreakEvenState(symbol, side) != "armed" {
+			currentProtectionState := at.getProtectionState(symbol, side)
+			nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
+			if !nativeTrailingArmed && at.getBreakEvenState(symbol, side) != "armed" {
 				if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
 					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
 				} else if currentPnLPct >= matchedBreakEven.TriggerValue {

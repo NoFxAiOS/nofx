@@ -188,6 +188,9 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
             return !orderPosSide || orderPosSide === side
           })
           const protectionRows = buildProtectionRows(position, filteredOrders)
+          const runtimeTiers = position.protection_runtime?.scheduled_tiers || []
+          const nextTier = runtimeTiers.length > 0 ? runtimeTiers[0] : null
+          const currentPnlPct = position.unrealized_pnl_pct || 0
 
           return (
             <div key={`${symbol}-${side}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
@@ -225,6 +228,23 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '回撤止盈执行模式' : 'Drawdown Execution Mode'}</div>
                   <div className="font-mono text-nofx-text-main">{formatExecutionMode(position.drawdown_execution_mode, language)}</div>
                 </div>
+                {nextTier && (
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-3 md:col-span-2">
+                    <div className="text-nofx-text-muted mb-1">{language === 'zh' ? '原生 trailing 激活条件' : 'Native trailing activation gate'}</div>
+                    <div className="font-mono text-nofx-text-main">
+                      {language === 'zh'
+                        ? `当前利润 ${currentPnlPct.toFixed(2)}% / 最低要求 ${Number(nextTier.min_profit_pct || 0).toFixed(2)}%`
+                        : `Current PnL ${currentPnlPct.toFixed(2)}% / Required ${Number(nextTier.min_profit_pct || 0).toFixed(2)}%`}
+                    </div>
+                    {currentPnlPct < Number(nextTier.min_profit_pct || 0) && (
+                      <div className="text-nofx-text-muted mt-1">
+                        {language === 'zh'
+                          ? '尚未达到最小利润门槛，所以不会挂出 drawdown trailing 委托。'
+                          : 'Drawdown trailing will not be armed until min-profit threshold is reached.'}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-4">

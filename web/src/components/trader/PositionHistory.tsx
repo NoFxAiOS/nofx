@@ -241,6 +241,8 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
   const formatExecutionSourceLabel = (value: string): string => {
     const v = String(value || '').toLowerCase()
     if (v === 'ai_close_long' || v === 'ai_close_short') return v
+    if (v === 'managed_drawdown') return 'Managed Drawdown'
+    if (v === 'emergency_protection_close') return 'Emergency Protection Close'
     if (v === 'close_long' || v === 'close_short') return `AI ${v}`
     if (v.includes('native_trailing') || v.includes('trailing')) return 'Native Trailing'
     if (v.includes('break_even')) return 'Break-even Stop'

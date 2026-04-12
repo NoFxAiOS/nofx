@@ -151,7 +151,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		logger.Infof("🚨 Drawdown take-profit triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%% | CloseRatio: %.2f%%",
 			symbol, side, currentPnLPct, peakPnLPct, drawdownPct, matchedRule.CloseRatioPct)
 
-		if err := at.closePositionBySide(symbol, side, closeQty); err != nil {
+		if err := at.closePositionByReason(symbol, side, closeQty, "managed_drawdown"); err != nil {
 			logger.Infof("❌ Drawdown take-profit failed (%s %s): %v", symbol, side, err)
 			continue
 		}
@@ -567,6 +567,10 @@ func calculateBreakEvenStopPrice(side string, entryPrice, offsetPct float64) flo
 }
 
 func (at *AutoTrader) closePositionBySide(symbol, side string, quantity float64) error {
+	return at.closePositionByReason(symbol, side, quantity, "close_by_side")
+}
+
+func (at *AutoTrader) closePositionByReason(symbol, side string, quantity float64, closeReason string) error {
 	switch strings.ToLower(side) {
 	case "long":
 		order, err := at.trader.CloseLong(symbol, quantity)
@@ -574,12 +578,14 @@ func (at *AutoTrader) closePositionBySide(symbol, side string, quantity float64)
 			return err
 		}
 		logger.Infof("✅ Close long position succeeded, order ID: %v", order["orderId"])
+		at.persistCloseReasonFromOrderResult(order, closeReason)
 	case "short":
 		order, err := at.trader.CloseShort(symbol, quantity)
 		if err != nil {
 			return err
 		}
 		logger.Infof("✅ Close short position succeeded, order ID: %v", order["orderId"])
+		at.persistCloseReasonFromOrderResult(order, closeReason)
 	default:
 		return fmt.Errorf("unknown position direction: %s", side)
 	}
@@ -587,9 +593,31 @@ func (at *AutoTrader) closePositionBySide(symbol, side string, quantity float64)
 	return nil
 }
 
+func (at *AutoTrader) persistCloseReasonFromOrderResult(order map[string]interface{}, closeReason string) {
+	if at.store == nil || closeReason == "" || order == nil {
+		return
+	}
+	var orderID string
+	switch v := order["orderId"].(type) {
+	case int64:
+		orderID = fmt.Sprintf("%d", v)
+	case float64:
+		orderID = fmt.Sprintf("%.0f", v)
+	case string:
+		orderID = v
+	default:
+		orderID = fmt.Sprintf("%v", v)
+	}
+	if orderID == "" || orderID == "<nil>" {
+		return
+	}
+	_ = at.store.Position().UpdateCloseReasonByExitOrderID(at.id, orderID, closeReason)
+	_ = at.store.PositionClose().UpdateReasonByOrderID(at.id, orderID, closeReason, closeReason)
+}
+
 // emergencyClosePosition emergency close position function
 func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
-	return at.closePositionBySide(symbol, side, 0)
+	return at.closePositionByReason(symbol, side, 0, "emergency_protection_close")
 }
 
 // GetPeakPnLCache gets peak profit cache

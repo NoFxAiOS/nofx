@@ -379,6 +379,15 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 	return s.logCloseEvent(&pos, closeReason, executionSource, executionType, exitOrderID, pos.Quantity, exitPrice, feeDelta, realizedPnLDelta, exitTimeMs)
 }
 
+func (s *PositionStore) UpdateCloseReasonByExitOrderID(traderID, exitOrderID, closeReason string) error {
+	if exitOrderID == "" || closeReason == "" {
+		return nil
+	}
+	return s.db.Model(&TraderPosition{}).
+		Where("trader_id = ? AND exit_order_id = ?", traderID, exitOrderID).
+		Updates(map[string]interface{}{"close_reason": closeReason, "updated_at": time.Now().UTC().UnixMilli()}).Error
+}
+
 // DeleteAllOpenPositions deletes all OPEN positions for a trader
 func (s *PositionStore) DeleteAllOpenPositions(traderID string) error {
 	return s.db.Where("trader_id = ? AND status = ?", traderID, "OPEN").Delete(&TraderPosition{}).Error

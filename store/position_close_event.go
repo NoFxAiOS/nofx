@@ -75,3 +75,22 @@ func (s *PositionCloseEventStore) ListByPositionID(positionID int64) ([]*Positio
 	}
 	return events, nil
 }
+
+func (s *PositionCloseEventStore) UpdateReasonByOrderID(traderID, exchangeOrderID, closeReason, executionSource string) error {
+	if exchangeOrderID == "" {
+		return nil
+	}
+	updates := map[string]interface{}{}
+	if closeReason != "" {
+		updates["close_reason"] = closeReason
+	}
+	if executionSource != "" {
+		updates["execution_source"] = executionSource
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return s.db.Model(&PositionCloseEvent{}).
+		Where("trader_id = ? AND exchange_order_id = ?", traderID, exchangeOrderID).
+		Updates(updates).Error
+}

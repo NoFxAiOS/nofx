@@ -412,6 +412,14 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		); err != nil {
 			logger.Infof("  ⚠️ Failed to process close position: %v", err)
 		} else {
+			closeReason := action
+			if action == "close_long" {
+				closeReason = "ai_close_long"
+			} else if action == "close_short" {
+				closeReason = "ai_close_short"
+			}
+			_ = at.store.Position().UpdateCloseReasonByExitOrderID(at.id, orderID, closeReason)
+			_ = at.store.PositionClose().UpdateReasonByOrderID(at.id, orderID, closeReason, closeReason)
 			logger.Infof("  ✅ Position closed [%s] %s %s @ %.4f", at.id[:8], symbol, side, price)
 		}
 	}

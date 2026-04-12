@@ -347,12 +347,22 @@ func (at *AutoTrader) getDrawdownExecutionMode(symbol, side string) string {
 	state := at.getProtectionState(symbol, side)
 	switch state {
 	case "native_trailing_armed":
-		return "native_trailing"
+		return "native_trailing_full"
+	case "native_partial_trailing_armed":
+		return "native_partial_trailing"
 	case "managed_partial_drawdown_armed":
 		return "managed_partial_drawdown"
-	default:
-		return "local_fallback"
 	}
+
+	rules := at.getActiveDrawdownRules()
+	if len(rules) == 0 {
+		return "disabled"
+	}
+	caps := at.GetProtectionCapabilities()
+	if caps.SupportsNativePartialTrailing || caps.SupportsNativeFullTrailing {
+		return "native_trailing_pending"
+	}
+	return "local_fallback"
 }
 
 func (at *AutoTrader) getBreakEvenExecutionMode(symbol, side string) string {

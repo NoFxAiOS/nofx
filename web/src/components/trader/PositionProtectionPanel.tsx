@@ -74,7 +74,9 @@ function formatExecutionMode(mode: string | undefined, language: Language): stri
     case 'managed_partial_drawdown':
       return language === 'zh' ? '托管式分批回撤保护' : 'managed partial drawdown'
     case 'native_trailing_pending':
-      return language === 'zh' ? '支持原生 trailing（待武装）' : 'native trailing supported (pending arm)'
+      return language === 'zh' ? '支持原生 trailing（待满足激活条件）' : 'native trailing supported (awaiting activation)'
+    case 'disabled':
+      return language === 'zh' ? '未启用回撤保护' : 'drawdown disabled'
     case 'native_full_local_partial':
       return language === 'zh' ? '整仓原生 / 分批本地' : 'native for full close / local for partial'
     case 'native_stop':

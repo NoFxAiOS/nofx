@@ -149,6 +149,14 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
 			expectedOrderCount++
 		}
+		// Independent protections must be counted too, otherwise duplicate cleanup will
+		// mistakenly wipe valid break-even / native trailing orders.
+		if at.getBreakEvenState(symbol, side) == "armed" {
+			expectedOrderCount++
+		}
+		if currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" {
+			expectedOrderCount++
+		}
 		symbolOrderCount := countOrdersForPositionSide(openOrders, positionSide)
 
 		// Detect duplicate/stale orders: if we have more protection orders than expected,

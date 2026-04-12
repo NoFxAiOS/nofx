@@ -827,6 +827,7 @@ export function TraderDashboardPage({
                             positions={positions}
                             language={language}
                             exchange={getExchangeTypeFromList(selectedTrader?.exchange_id, exchanges)}
+                            onSymbolClick={handleSymbolClick}
                         />
                     </div>
 
@@ -906,7 +907,7 @@ export function TraderDashboardPage({
                             </h2>
                         </div>
                         <Suspense fallback={<SectionLoader heightClass="min-h-[420px]" />}>
-                            <PositionHistory traderId={selectedTraderId} />
+                            <PositionHistory traderId={selectedTraderId} onSymbolClick={handleSymbolClick} />
                         </Suspense>
                     </div>
                 )}

@@ -9,6 +9,7 @@ interface PositionProtectionPanelProps {
   positions?: Position[]
   language: Language
   exchange?: string
+  onSymbolClick?: (symbol: string) => void
 }
 
 function formatUsdtValue(value: number | undefined | null): string {
@@ -88,7 +89,7 @@ function ProtectionCard({
   )
 }
 
-export function PositionProtectionPanel({ traderId, positions, language, exchange }: PositionProtectionPanelProps) {
+export function PositionProtectionPanel({ traderId, positions, language, exchange, onSymbolClick }: PositionProtectionPanelProps) {
   const [ordersBySymbol, setOrdersBySymbol] = useState<Record<string, OpenOrder[]>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -199,7 +200,15 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
             <div key={`${symbol}-${side}-${index}`} className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="font-semibold text-nofx-text-main">{symbol} / {side}</div>
+                  <div className="font-semibold text-nofx-text-main">
+                    <button
+                      type="button"
+                      onClick={() => onSymbolClick?.(symbol)}
+                      className="hover:text-cyan-300 transition-colors"
+                    >
+                      {symbol} / {side}
+                    </button>
+                  </div>
                   <div className="text-xs text-nofx-text-muted mt-1">
                     {language === 'zh' ? '开仓后保护执行视图' : 'Post-open protection execution view'}
                   </div>

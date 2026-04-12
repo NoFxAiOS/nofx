@@ -13,6 +13,7 @@ import type {
 
 interface PositionHistoryProps {
   traderId: string
+  onSymbolClick?: (symbol: string) => void
 }
 
 // Format number with proper decimals (for large numbers)
@@ -108,7 +109,7 @@ function StatCard({
 }
 
 // Symbol Stats Row
-function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
+function SymbolStatsRow({ stat, onSymbolClick }: { stat: SymbolStats; onSymbolClick?: (symbol: string) => void }) {
   const totalPnl = stat.total_pnl || 0
   const winRate = stat.win_rate || 0
   const pnlColor = totalPnl >= 0 ? '#0ECB81' : '#F6465D'
@@ -121,9 +122,14 @@ function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
       style={{ borderBottom: '1px solid #2B3139' }}
     >
       <div className="flex items-center gap-3">
-        <span className="font-mono font-semibold" style={{ color: '#EAECEF' }}>
+        <button
+          type="button"
+          onClick={() => onSymbolClick?.(stat.symbol)}
+          className="font-mono font-semibold hover:text-cyan-300 transition-colors"
+          style={{ color: '#EAECEF' }}
+        >
           {(stat.symbol || '').replace('USDT', '')}
-        </span>
+        </button>
         <span className="text-xs" style={{ color: '#848E9C' }}>
           {stat.total_trades || 0} trades
         </span>
@@ -229,7 +235,7 @@ function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language
 }
 
 // Position Row Component
-function PositionRow({ position }: { position: HistoricalPosition }) {
+function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition; onSymbolClick?: (symbol: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const side = position.side || ''
   const isLong = side.toUpperCase() === 'LONG'
@@ -304,9 +310,14 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
       {/* Symbol */}
       <td className="py-3 px-4">
         <div className="flex items-center gap-2">
-          <span className="font-mono font-semibold" style={{ color: '#EAECEF' }}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onSymbolClick?.(position.symbol) }}
+            className="font-mono font-semibold hover:text-cyan-300 transition-colors"
+            style={{ color: '#EAECEF' }}
+          >
             {(position.symbol || '').replace('USDT', '')}
-          </span>
+          </button>
           <span
             className="px-2 py-0.5 rounded text-xs font-semibold uppercase"
             style={{
@@ -433,7 +444,7 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
   )
 }
 
-export function PositionHistory({ traderId }: PositionHistoryProps) {
+export function PositionHistory({ traderId, onSymbolClick }: PositionHistoryProps) {
   const { language } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -741,7 +752,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
           </div>
           <div className="space-y-1">
             {symbolStats.slice(0, 10).map((stat) => (
-              <SymbolStatsRow key={stat.symbol} stat={stat} />
+              <SymbolStatsRow key={stat.symbol} stat={stat} onSymbolClick={onSymbolClick} />
             ))}
           </div>
         </div>
@@ -896,7 +907,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             </thead>
             <tbody>
               {filteredPositions.map((position) => (
-                <PositionRow key={position.id} position={position} />
+                <PositionRow key={position.id} position={position} onSymbolClick={onSymbolClick} />
               ))}
             </tbody>
           </table>

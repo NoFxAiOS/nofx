@@ -83,7 +83,7 @@ func (f *fakeProtectionTrader) GetClosedPnL(startTime time.Time, limit int) ([]t
 func (f *fakeProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) {
 	return f.openOrders, nil
 }
-func (f *fakeProtectionTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error {
+func (f *fakeProtectionTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
 	f.trailingCalls++
 	f.trailingSymbol = symbol
 	f.trailingSide = positionSide

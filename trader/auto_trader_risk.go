@@ -248,7 +248,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	if isPartial {
 		positions, err := at.trader.GetPositions()
 		if err != nil {
-			logger.Infof("❌ Native partial trailing drawdown failed to fetch positions (%s %s): %v", symbol, side, err)
+			logger.Infof("❌ Partial drawdown failed to fetch positions (%s %s): %v", symbol, side, err)
 			return false
 		}
 		var quantity float64
@@ -265,8 +265,55 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 			break
 		}
 		if quantity <= 0 {
-			logger.Infof("❌ Native partial trailing drawdown missing quantity (%s %s)", symbol, side)
+			logger.Infof("❌ Partial drawdown missing quantity (%s %s)", symbol, side)
 			return false
+		}
+
+		partialQty := quantity * rule.CloseRatioPct / 100.0
+		if partialQty <= 0 {
+			return false
+		}
+
+		caps := at.GetProtectionCapabilities()
+		if caps.SupportsNativePartialTrailing {
+			switch exchange {
+			case "binance":
+				binanceTrader, ok := at.trader.(interface {
+					SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error
+					CancelTrailingStopOrders(symbol string) error
+				})
+				if ok {
+					if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, partialQty); err == nil {
+						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%% qty=%.4f", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct, partialQty)
+						return true
+					}
+				}
+			case "bitget":
+				bitgetTrader, ok := at.trader.(interface {
+					SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error
+					CancelTrailingStopOrders(symbol string) error
+				})
+				if ok {
+					if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, partialQty); err == nil {
+						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%% qty=%.4f", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct, partialQty)
+						return true
+					}
+				}
+			case "okx":
+				okxTrader, ok := at.trader.(interface {
+					SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error
+					CancelTrailingStopOrders(symbol string) error
+				})
+				if ok {
+					if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, partialQty); err == nil {
+						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.2f%% close=%.1f%% qty=%.4f", symbol, side, activationPrice, callbackRate, rule.CloseRatioPct, partialQty)
+						return true
+					}
+				}
+			}
 		}
 
 		candidate := buildManagedPartialDrawdownPlanCandidate(entryPrice, positionAction, rule)
@@ -286,7 +333,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	switch exchange {
 	case "binance":
 		binanceTrader, ok := at.trader.(interface {
-			SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error
+			SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error
 			CancelTrailingStopOrders(symbol string) error
 		})
 		if !ok {
@@ -295,13 +342,13 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if err := binanceTrader.CancelTrailingStopOrders(symbol); err != nil {
 			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
-		if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate); err != nil {
+		if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}
 	case "bitget":
 		bitgetTrader, ok := at.trader.(interface {
-			SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error
+			SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error
 			CancelTrailingStopOrders(symbol string) error
 		})
 		if !ok {
@@ -310,13 +357,13 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if err := bitgetTrader.CancelTrailingStopOrders(symbol); err != nil {
 			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
-		if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate); err != nil {
+		if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}
 	case "okx":
 		okxTrader, ok := at.trader.(interface {
-			SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error
+			SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error
 			CancelTrailingStopOrders(symbol string) error
 		})
 		if !ok {
@@ -325,7 +372,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if err := okxTrader.CancelTrailingStopOrders(symbol); err != nil {
 			logger.Infof("⚠️ Native trailing reconcile cancel failed (%s %s): %v", symbol, side, err)
 		}
-		if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate); err != nil {
+		if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 			return false
 		}

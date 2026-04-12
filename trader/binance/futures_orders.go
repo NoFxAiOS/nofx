@@ -10,7 +10,7 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 )
 
-func (t *FuturesTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error {
+func (t *FuturesTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
 	var side futures.SideType
 	var posSide futures.PositionSideType
 
@@ -28,8 +28,17 @@ func (t *FuturesTrader) SetTrailingStopLoss(symbol string, positionSide string, 
 		PositionSide(posSide).
 		Type(futures.AlgoOrderTypeTrailingStopMarket).
 		WorkingType(futures.WorkingTypeContractPrice).
-		ClosePosition(true).
 		ClientAlgoId(getBrOrderID())
+
+	if quantity <= 0 {
+		service = service.ClosePosition(true)
+	} else {
+		qtyStr, err := t.FormatQuantity(symbol, quantity)
+		if err != nil {
+			return fmt.Errorf("failed to format trailing stop quantity: %w", err)
+		}
+		service = service.Quantity(qtyStr).ReduceOnly(true)
+	}
 
 	if activationPrice > 0 {
 		service = service.ActivationPrice(fmt.Sprintf("%.8f", activationPrice))

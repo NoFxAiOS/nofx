@@ -66,7 +66,10 @@
 - [ ] **P0: Drawdown 原生能力收口**
   - [x] 纠正 partial drawdown 语义：从伪 native 正名为 managed
   - [x] generic cleanup 不误清 native trailing
-  - [ ] 核定 OKX/Binance/Bitget 对 partial trailing close 的真实原生能力边界
-  - [ ] 让三大交易所在支持时优先 native trailing，native armed 后禁用本地 fallback
+  - [x] capability 模型拆细：新增 native full / native partial trailing 能力位
+  - [x] 三家 trailing 接口签名扩展为支持按 quantity 下单（为 partial native 铺路）
+  - [x] 运行态优先尝试 native partial trailing，多档可按 `close_ratio_pct` 计算 quantity 下单
+  - [ ] 核定 OKX/Binance/Bitget 对 partial trailing close 的真实交易所语义边界（实盘/API 文档验证）
+  - [ ] native armed 后彻底禁用本地 fallback 接管执行
 - [ ] Break-even 实战验证（需仓位盈利触发）
 - [ ] Full TP/SL 独立实战验证（需关闭 Ladder 测试）

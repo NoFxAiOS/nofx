@@ -390,7 +390,7 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 }
 
 // SetTrailingStopLoss sets a native trailing stop on OKX advance algo orders
-func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64) error {
+func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
 	instId := t.convertSymbol(symbol)
 
 	inst, err := t.getInstrument(symbol)
@@ -398,20 +398,21 @@ func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, acti
 		return fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	positions, err := t.GetPositions()
-	if err != nil {
-		return fmt.Errorf("failed to get positions for trailing stop: %w", err)
-	}
+	if quantity <= 0 {
+		positions, err := t.GetPositions()
+		if err != nil {
+			return fmt.Errorf("failed to get positions for trailing stop: %w", err)
+		}
 
-	quantity := 0.0
-	for _, pos := range positions {
-		if pos["symbol"] == symbol && strings.EqualFold(fmt.Sprint(pos["side"]), strings.ToLower(positionSide)) {
-			if q, ok := pos["positionAmt"].(float64); ok {
-				quantity = q
-				if quantity < 0 {
-					quantity = -quantity
+		for _, pos := range positions {
+			if pos["symbol"] == symbol && strings.EqualFold(fmt.Sprint(pos["side"]), strings.ToLower(positionSide)) {
+				if q, ok := pos["positionAmt"].(float64); ok {
+					quantity = q
+					if quantity < 0 {
+						quantity = -quantity
+					}
+					break
 				}
-				break
 			}
 		}
 	}

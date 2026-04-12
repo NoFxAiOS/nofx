@@ -88,6 +88,7 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 	}
 
 	protection := at.config.StrategyConfig.Protection
+	drawdownEnabled := protection.DrawdownTakeProfit.Enabled && len(protection.DrawdownTakeProfit.Rules) > 0
 
 	// Build ladder plan first so we know which directions it covers.
 	var ladderPlan *ProtectionPlan
@@ -101,6 +102,13 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 		}
 		if err != nil {
 			return nil, err
+		}
+		// Drawdown/native trailing owns the profit-taking side. When drawdown is enabled,
+		// keep ladder stop-loss legs but suppress ladder take-profit legs to avoid conflict.
+		if drawdownEnabled && ladderPlan != nil {
+			ladderPlan.TakeProfitOrders = nil
+			ladderPlan.NeedsTakeProfit = false
+			ladderPlan.TakeProfitPrice = 0
 		}
 	}
 
@@ -132,6 +140,11 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 				fullPlan.StopLossPrice = 0
 			}
 			if ladderCoversTP {
+				fullPlan.NeedsTakeProfit = false
+				fullPlan.TakeProfitPrice = 0
+			}
+			// Drawdown/native trailing owns the profit-taking side. Keep SL, suppress TP.
+			if drawdownEnabled {
 				fullPlan.NeedsTakeProfit = false
 				fullPlan.TakeProfitPrice = 0
 			}

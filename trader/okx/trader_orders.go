@@ -3,6 +3,7 @@ package okx
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"nofx/logger"
 	"nofx/trader/types"
 	"strconv"
@@ -614,6 +615,60 @@ func (t *OKXTrader) cancelAlgoOrders(symbol string, orderType string) error {
 		logger.Infof("  ✓ Canceled %d algo orders for %s", canceledCount, symbol)
 	}
 
+	return nil
+}
+
+// CancelTakeProfitOrdersByPrices cancels only TP algo orders whose trigger prices match
+// the provided targets. This avoids wiping ladder/full TP orders when cleaning up
+// a failed drawdown plan.
+func (t *OKXTrader) CancelTakeProfitOrdersByPrices(symbol string, prices []float64) error {
+	instId := t.convertSymbol(symbol)
+	path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=conditional", okxAlgoPendingPath, instId)
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return err
+	}
+
+	var orders []struct {
+		AlgoId      string `json:"algoId"`
+		InstId      string `json:"instId"`
+		TpTriggerPx string `json:"tpTriggerPx"`
+	}
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return err
+	}
+
+	canceledCount := 0
+	for _, order := range orders {
+		if order.TpTriggerPx == "" {
+			continue
+		}
+		tpPrice, _ := strconv.ParseFloat(order.TpTriggerPx, 64)
+		matched := false
+		for _, target := range prices {
+			if target > 0 && math.Abs(tpPrice-target)/math.Max(math.Abs(tpPrice), math.Abs(target)) <= 0.005 {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+
+		body := []map[string]interface{}{{
+			"algoId": order.AlgoId,
+			"instId": order.InstId,
+		}}
+		if _, err := t.doRequest("POST", okxCancelAlgoPath, body); err != nil {
+			logger.Infof("  ⚠️ Failed to cancel targeted TP algo order: %v", err)
+			continue
+		}
+		canceledCount++
+	}
+
+	if canceledCount > 0 {
+		logger.Infof("  ✓ Canceled %d targeted TP algo orders for %s", canceledCount, symbol)
+	}
 	return nil
 }
 

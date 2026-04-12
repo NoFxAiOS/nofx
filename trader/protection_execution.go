@@ -14,10 +14,10 @@ import (
 const (
 	protectionPriceTolerancePct = 0.005 // 0.5% — widened to handle exchange price precision truncation
 	protectionSetupMaxAttempts  = 2
-	protectionVerifyMaxAttempts = 3 // retry GetOpenOrders verification up to 3 times
+	protectionVerifyMaxAttempts = 6 // retry GetOpenOrders verification up to 6 times for OKX TP visibility lag
 )
 
-var protectionVerifyDelay = 500 * time.Millisecond // delay between verification attempts
+var protectionVerifyDelay = 700 * time.Millisecond // delay between verification attempts
 
 type protectionExecutionRequest struct {
 	Symbol       string
@@ -464,16 +464,31 @@ func approximatelyEqualPrice(a, b float64) bool {
 	return math.Abs(a-b)/base <= protectionPriceTolerancePct
 }
 
-// cancelOrphanedDrawdownOrders cancels TP orders that were placed as part of a drawdown
-// plan that failed verification. This prevents orphaned orders accumulating on the exchange.
+// cancelOrphanedDrawdownOrders cancels only the TP orders created by the failed
+// drawdown plan. It must not wipe ladder/full TP orders for the same symbol.
 func (at *AutoTrader) cancelOrphanedDrawdownOrders(symbol string, plan *ProtectionPlan) {
-	if plan == nil {
+	if plan == nil || len(plan.TakeProfitOrders) == 0 {
 		return
 	}
-	// Only drawdown plans use TP orders for partial close.
-	if len(plan.TakeProfitOrders) == 0 {
+
+	targetPrices := make([]float64, 0, len(plan.TakeProfitOrders))
+	for _, order := range plan.TakeProfitOrders {
+		if order.Price > 0 {
+			targetPrices = append(targetPrices, order.Price)
+		}
+	}
+
+	if targetedCanceller, ok := at.trader.(interface {
+		CancelTakeProfitOrdersByPrices(symbol string, prices []float64) error
+	}); ok && len(targetPrices) > 0 {
+		if err := targetedCanceller.CancelTakeProfitOrdersByPrices(symbol, targetPrices); err != nil {
+			logger.Warnf("  ⚠️ Failed to cancel targeted orphaned drawdown TP orders for %s: %v", symbol, err)
+		} else {
+			logger.Infof("  🧹 Cancelled targeted orphaned drawdown TP orders for %s at prices=%v", symbol, targetPrices)
+		}
 		return
 	}
+
 	if canceller, ok := at.trader.(interface {
 		CancelTakeProfitOrders(symbol string) error
 	}); ok {

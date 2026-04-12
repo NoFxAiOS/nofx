@@ -263,6 +263,10 @@ export interface HistoricalPosition {
   leverage: number
   status: string
   close_reason: string
+  execution_source?: string
+  execution_order_type?: string
+  close_ratio_pct?: number
+  close_value_usdt?: number
   created_at: string
   updated_at: string
 }

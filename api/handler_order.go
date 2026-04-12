@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"nofx/logger"
 	"nofx/market"
@@ -213,6 +215,69 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		return
 	}
 
+	// Enrich with execution metadata for frontend expandable rows.
+	enrichedPositions := make([]map[string]interface{}, 0, len(positions))
+	for _, pos := range positions {
+		entryQty := pos.EntryQuantity
+		if entryQty <= 0 {
+			entryQty = pos.Quantity
+		}
+		closedQty := entryQty
+		if closedQty <= 0 {
+			closedQty = pos.Quantity
+		}
+		closeRatioPct := 0.0
+		if entryQty > 0 && closedQty > 0 {
+			closeRatioPct = closedQty / entryQty * 100
+		}
+		executionSource := pos.CloseReason
+		if executionSource == "" {
+			executionSource = "unknown"
+		}
+		executionOrderType := "unknown"
+		sourceLower := strings.ToLower(executionSource)
+		switch {
+		case strings.Contains(sourceLower, "trailing"):
+			executionOrderType = "TRAILING_STOP_MARKET"
+		case strings.Contains(sourceLower, "take_profit") || strings.Contains(sourceLower, "tp"):
+			executionOrderType = "TAKE_PROFIT_MARKET"
+		case strings.Contains(sourceLower, "stop") || strings.Contains(sourceLower, "sl"):
+			executionOrderType = "STOP_MARKET"
+		case strings.Contains(sourceLower, "break_even"):
+			executionOrderType = "BREAK_EVEN_STOP"
+		case strings.Contains(sourceLower, "manual"):
+			executionOrderType = "MANUAL"
+		}
+
+		enrichedPositions = append(enrichedPositions, map[string]interface{}{
+			"id": pos.ID,
+			"trader_id": pos.TraderID,
+			"exchange_id": pos.ExchangeID,
+			"exchange_type": pos.ExchangeType,
+			"symbol": pos.Symbol,
+			"side": pos.Side,
+			"quantity": pos.Quantity,
+			"entry_quantity": pos.EntryQuantity,
+			"entry_price": pos.EntryPrice,
+			"entry_order_id": pos.EntryOrderID,
+			"entry_time": time.UnixMilli(pos.EntryTime).UTC().Format(time.RFC3339),
+			"exit_price": pos.ExitPrice,
+			"exit_order_id": pos.ExitOrderID,
+			"exit_time": time.UnixMilli(pos.ExitTime).UTC().Format(time.RFC3339),
+			"realized_pnl": pos.RealizedPnL,
+			"fee": pos.Fee,
+			"leverage": pos.Leverage,
+			"status": pos.Status,
+			"close_reason": pos.CloseReason,
+			"execution_source": executionSource,
+			"execution_order_type": executionOrderType,
+			"close_ratio_pct": closeRatioPct,
+			"close_value_usdt": pos.ExitPrice * closedQty,
+			"created_at": time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
+			"updated_at": time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
+		})
+	}
+
 	// Get statistics
 	stats, _ := store.Position().GetFullStats(trader.GetID())
 
@@ -223,7 +288,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	directionStats, _ := store.Position().GetDirectionStats(trader.GetID())
 
 	c.JSON(http.StatusOK, gin.H{
-		"positions":       positions,
+		"positions":       enrichedPositions,
 		"stats":           stats,
 		"symbol_stats":    symbolStats,
 		"direction_stats": directionStats,

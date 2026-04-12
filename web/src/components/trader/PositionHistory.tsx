@@ -230,6 +230,7 @@ function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language
 
 // Position Row Component
 function PositionRow({ position }: { position: HistoricalPosition }) {
+  const [expanded, setExpanded] = useState(false)
   const side = position.side || ''
   const isLong = side.toUpperCase() === 'LONG'
   const realizedPnl = position.realized_pnl || 0
@@ -257,10 +258,17 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
   // Use entry_quantity for display (original position size)
   const displayQty = position.entry_quantity || position.quantity || 0
 
+  const closeRatioPct = position.close_ratio_pct || 0
+  const closeValueUsdt = position.close_value_usdt || (exitPrice * displayQty)
+  const executionSource = position.execution_source || position.close_reason || 'unknown'
+  const executionOrderType = position.execution_order_type || 'unknown'
+
   return (
+    <>
     <tr
-      className="transition-all duration-200 hover:bg-white/5"
-      style={{ borderBottom: '1px solid #2B3139' }}
+      className="transition-all duration-200 hover:bg-white/5 cursor-pointer"
+      style={{ borderBottom: expanded ? 'none' : '1px solid #2B3139' }}
+      onClick={() => setExpanded((v) => !v)}
     >
       {/* Symbol */}
       <td className="py-3 px-4">
@@ -330,6 +338,31 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
         {formatDate(position.exit_time)}
       </td>
     </tr>
+    {expanded && (
+      <tr style={{ borderBottom: '1px solid #2B3139', background: 'rgba(255,255,255,0.02)' }}>
+        <td colSpan={9} className="px-4 pb-4 pt-0">
+          <div className="rounded-lg border border-white/10 bg-black/20 p-4 mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
+            <div>
+              <div style={{ color: '#848E9C' }}>{'委托来源 / Source'}</div>
+              <div className="font-mono" style={{ color: '#EAECEF' }}>{executionSource}</div>
+            </div>
+            <div>
+              <div style={{ color: '#848E9C' }}>{'委托类型 / Order Type'}</div>
+              <div className="font-mono" style={{ color: '#EAECEF' }}>{executionOrderType}</div>
+            </div>
+            <div>
+              <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
+              <div className="font-mono" style={{ color: '#EAECEF' }}>{closeRatioPct > 0 ? `${closeRatioPct.toFixed(2)}%` : '—'}</div>
+            </div>
+            <div>
+              <div style={{ color: '#848E9C' }}>{'成交价值 / Value USDT'}</div>
+              <div className="font-mono" style={{ color: '#EAECEF' }}>{formatNumber(closeValueUsdt)}</div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    )}
+    </>
   )
 }
 

@@ -176,6 +176,8 @@ export interface DecisionRecord {
   decisions: DecisionAction[]
   execution_log: string[]
   protection_snapshot?: ProtectionSnapshot
+  allow_ai_close?: boolean
+  ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   success: boolean
   error_message?: string
 }

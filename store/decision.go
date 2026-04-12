@@ -28,6 +28,8 @@ type DecisionRecordDB struct {
 	ExecutionLog        string    `gorm:"column:execution_log;default:''"`
 	Decisions           string    `gorm:"column:decisions;default:'[]'"`
 	ProtectionSnapshot  string    `gorm:"column:protection_snapshot;default:''"`
+	AllowAIClose        bool      `gorm:"column:allow_ai_close;default:true"`
+	AIDecisionMode      string    `gorm:"column:ai_decision_mode;default:'balanced'"`
 	Success             bool      `gorm:"default:false"`
 	ErrorMessage        string    `gorm:"column:error_message;default:''"`
 	AIRequestDurationMs int64     `gorm:"column:ai_request_duration_ms;default:0"`
@@ -56,6 +58,8 @@ type DecisionRecord struct {
 	Positions           []PositionSnapshot  `json:"positions"`
 	Decisions           []DecisionAction    `json:"decisions"`
 	ProtectionSnapshot  *ProtectionSnapshot `json:"protection_snapshot,omitempty"`
+	AllowAIClose        bool                `json:"allow_ai_close"`
+	AIDecisionMode      string              `json:"ai_decision_mode"`
 }
 
 // AccountSnapshot account state snapshot
@@ -169,6 +173,8 @@ func (s *DecisionStore) initTables() error {
 		if tableExists > 0 {
 			// Add protection_snapshot column if missing (safe: ADD COLUMN IF NOT EXISTS)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS protection_snapshot TEXT DEFAULT ''`)
+			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS allow_ai_close BOOLEAN DEFAULT true`)
+			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS ai_decision_mode TEXT DEFAULT 'balanced'`)
 			return nil
 		}
 	}
@@ -190,6 +196,8 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 		Success:             db.Success,
 		ErrorMessage:        db.ErrorMessage,
 		AIRequestDurationMs: db.AIRequestDurationMs,
+		AllowAIClose:        db.AllowAIClose,
+		AIDecisionMode:      db.AIDecisionMode,
 	}
 	json.Unmarshal([]byte(db.CandidateCoins), &record.CandidateCoins)
 	json.Unmarshal([]byte(db.ExecutionLog), &record.ExecutionLog)
@@ -235,6 +243,8 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		ExecutionLog:        string(executionLogJSON),
 		Decisions:           string(decisionsJSON),
 		ProtectionSnapshot:  protectionSnapshotJSON,
+		AllowAIClose:        record.AllowAIClose,
+		AIDecisionMode:      record.AIDecisionMode,
 		Success:             record.Success,
 		ErrorMessage:        record.ErrorMessage,
 		AIRequestDurationMs: record.AIRequestDurationMs,

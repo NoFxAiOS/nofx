@@ -37,8 +37,10 @@ func (at *AutoTrader) runCycle() error {
 
 	// Create decision record
 	record := &store.DecisionRecord{
-		ExecutionLog: []string{},
-		Success:      true,
+		ExecutionLog:   []string{},
+		Success:        true,
+		AllowAIClose:   at.GetAllowAIClose(),
+		AIDecisionMode: at.GetAIDecisionMode(),
 	}
 
 	// Populate protection snapshot from strategy config

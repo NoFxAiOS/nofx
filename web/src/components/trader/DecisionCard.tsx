@@ -284,6 +284,16 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
         </div>
       </div>
 
+      {/* AI Control Snapshot */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(240, 185, 11, 0.12)', color: '#F0B90B', border: '1px solid rgba(240,185,11,0.25)' }}>
+          AI Close: {decision.allow_ai_close === false ? 'OFF' : 'ON'}
+        </div>
+        <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(96, 165, 250, 0.12)', color: '#60A5FA', border: '1px solid rgba(96,165,250,0.25)' }}>
+          Mode: {decision.ai_decision_mode || 'balanced'}
+        </div>
+      </div>
+
       {/* Decision Actions - Beautiful Grid */}
       {decision.decisions && decision.decisions.length > 0 && (
         <div className="space-y-3 mb-4">

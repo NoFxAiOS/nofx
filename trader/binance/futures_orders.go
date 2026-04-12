@@ -689,15 +689,17 @@ func (t *FuturesTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) 
 		for _, algoOrder := range algoOrders {
 			triggerPrice, _ := strconv.ParseFloat(algoOrder.TriggerPrice, 64)
 			quantity, _ := strconv.ParseFloat(algoOrder.Quantity, 64)
+			orderType := string(algoOrder.OrderType)
+			stopPrice := triggerPrice
 
 			result = append(result, types.OpenOrder{
 				OrderID:      fmt.Sprintf("%d", algoOrder.AlgoId),
 				Symbol:       algoOrder.Symbol,
 				Side:         string(algoOrder.Side),
 				PositionSide: string(algoOrder.PositionSide),
-				Type:         string(algoOrder.OrderType),
-				Price:        0, // Algo orders use stop price
-				StopPrice:    triggerPrice,
+				Type:         orderType,
+				Price:        0, // Algo orders use stop/trigger price
+				StopPrice:    stopPrice,
 				Quantity:     quantity,
 				Status:       "NEW",
 			})

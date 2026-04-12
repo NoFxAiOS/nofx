@@ -702,6 +702,46 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 		}
 	}
 
+	// 3. Get pending trailing track plans and expose them in unified open-orders view
+	trailParams := map[string]interface{}{
+		"symbol": symbol,
+		"isPlan": "plan",
+	}
+	trailData, err := t.doRequest("GET", "/api/mix/v1/plan/currentPlan", trailParams)
+	if err != nil {
+		logger.Warnf("[Bitget] Failed to get trailing plans: %v", err)
+	}
+	if err == nil && trailData != nil {
+		var trailOrders []struct {
+			OrderId      string `json:"orderId"`
+			Symbol       string `json:"symbol"`
+			Side         string `json:"side"`
+			TriggerPrice string `json:"triggerPrice"`
+			Size         string `json:"size"`
+			PlanType     string `json:"planType"`
+		}
+		if err := json.Unmarshal(trailData, &trailOrders); err == nil {
+			for _, order := range trailOrders {
+				if order.PlanType != "track_plan" {
+					continue
+				}
+				triggerPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
+				quantity, _ := strconv.ParseFloat(order.Size, 64)
+				result = append(result, types.OpenOrder{
+					OrderID:      order.OrderId,
+					Symbol:       order.Symbol,
+					Side:         strings.ToUpper(order.Side),
+					PositionSide: "",
+					Type:         "TRAILING_STOP_MARKET",
+					Price:        0,
+					StopPrice:    triggerPrice,
+					Quantity:     quantity,
+					Status:       "NEW",
+				})
+			}
+		}
+	}
+
 	logger.Infof("✓ BITGET GetOpenOrders: found %d open orders for %s", len(result), symbol)
 	return result, nil
 }

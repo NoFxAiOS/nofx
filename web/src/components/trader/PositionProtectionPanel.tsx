@@ -93,11 +93,18 @@ function buildScheduledActions(position: Position, stopOrders: OpenOrder[], take
 
   for (const order of stopOrders) {
     const trigger = order.stop_price || order.price
+    const isTrailing = String(order.type || '').toUpperCase().includes('TRAILING')
     actions.push({
-      title: language === 'zh' ? '交易所止损动作' : 'Exchange stop-loss action',
+      title: isTrailing
+        ? (language === 'zh' ? '交易所跟踪保护动作' : 'Exchange trailing protection action')
+        : (language === 'zh' ? '交易所止损动作' : 'Exchange stop-loss action'),
       source: exchange ? `${exchange.toUpperCase()} ${language === 'zh' ? '原生委托' : 'native order'}` : (language === 'zh' ? '交易所原生委托' : 'exchange-native order'),
-      trigger: `${language === 'zh' ? '价格到达' : 'Price reaches'} ${formatPrice(trigger)}`,
-      action: `${language === 'zh' ? '执行止损平仓' : 'Execute stop-loss close'} (${formatQuantity(order.quantity)})`,
+      trigger: isTrailing
+        ? `${language === 'zh' ? '激活价' : 'Activation'} ${formatPrice(trigger)}`
+        : `${language === 'zh' ? '价格到达' : 'Price reaches'} ${formatPrice(trigger)}`,
+      action: isTrailing
+        ? `${language === 'zh' ? '按跟踪委托执行保护平仓' : 'Protective close via trailing order'} (${formatQuantity(order.quantity)})`
+        : `${language === 'zh' ? '执行止损平仓' : 'Execute stop-loss close'} (${formatQuantity(order.quantity)})`,
     })
   }
 

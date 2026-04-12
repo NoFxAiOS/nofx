@@ -926,6 +926,46 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 		}
 	}
 
+	// 3. Get pending trailing stop algo orders (native move_order_stop)
+	trailingPath := fmt.Sprintf("%s?instId=%s&instType=SWAP&ordType=move_order_stop", okxAlgoPendingPath, instId)
+	trailingData, err := t.doRequest("GET", trailingPath, nil)
+	if err != nil {
+		logger.Warnf("[OKX] Failed to get trailing algo orders: %v", err)
+	}
+	if err == nil && trailingData != nil {
+		var trailingOrders []struct {
+			AlgoId         string `json:"algoId"`
+			InstId         string `json:"instId"`
+			Side           string `json:"side"`
+			PosSide        string `json:"posSide"`
+			ActivePx       string `json:"activePx"`
+			CallbackRatio  string `json:"callbackRatio"`
+			Sz             string `json:"sz"`
+		}
+		if err := json.Unmarshal(trailingData, &trailingOrders); err == nil {
+			for _, order := range trailingOrders {
+				quantity, _ := strconv.ParseFloat(order.Sz, 64)
+				activePx, _ := strconv.ParseFloat(order.ActivePx, 64)
+				side := strings.ToUpper(order.Side)
+				positionSide := strings.ToUpper(order.PosSide)
+				if positionSide == "NET" {
+					positionSide = "BOTH"
+				}
+				result = append(result, types.OpenOrder{
+					OrderID:      order.AlgoId,
+					Symbol:       symbol,
+					Side:         side,
+					PositionSide: positionSide,
+					Type:         "TRAILING_STOP_MARKET",
+					Price:        0,
+					StopPrice:    activePx,
+					Quantity:     quantity,
+					Status:       "NEW",
+				})
+			}
+		}
+	}
+
 	logger.Infof("✓ OKX GetOpenOrders: found %d open orders for %s", len(result), symbol)
 	return result, nil
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -11,6 +12,7 @@ import { toast } from 'sonner'
 export function ResetPasswordPage() {
   const { language } = useLanguage()
   const { resetPassword } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -41,8 +43,7 @@ export function ResetPasswordPage() {
       toast.success(t('resetPasswordSuccess', language) || '重置成功')
       // 3秒后跳转到登录页面
       setTimeout(() => {
-        window.history.pushState({}, '', '/login')
-        window.dispatchEvent(new PopStateEvent('popstate'))
+        navigate('/login')
       }, 3000)
     } else {
       const msg = result.message || t('resetPasswordFailed', language)
@@ -64,10 +65,7 @@ export function ResetPasswordPage() {
         <div className="w-full max-w-md">
           {/* Back to Login */}
           <button
-            onClick={() => {
-              window.history.pushState({}, '', '/login')
-              window.dispatchEvent(new PopStateEvent('popstate'))
-            }}
+            onClick={() => navigate('/login')}
             className="flex items-center gap-2 mb-6 text-sm hover:text-[#F0B90B] transition-colors"
             style={{ color: '#848E9C' }}
           >

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { t, Language } from '../../i18n/translations'
 interface LoginModalProps {
   onClose: () => void
@@ -7,6 +8,7 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ onClose, language }: LoginModalProps) {
+  const navigate = useNavigate()
 
   return (
     <motion.div
@@ -49,8 +51,7 @@ export default function LoginModal({ onClose, language }: LoginModalProps) {
         <div className="space-y-3">
           <motion.button
             onClick={() => {
-              window.history.pushState({}, '', '/login')
-              window.dispatchEvent(new PopStateEvent('popstate'))
+              navigate('/login')
               onClose()
             }}
             className="block w-full px-6 py-3 rounded-lg font-semibold text-center"

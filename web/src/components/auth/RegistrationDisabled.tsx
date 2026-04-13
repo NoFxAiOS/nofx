@@ -1,12 +1,13 @@
+import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 
 export function RegistrationDisabled() {
   const { language } = useLanguage()
+  const navigate = useNavigate()
 
   const handleBackToLogin = () => {
-    window.history.pushState({}, '', '/login')
-    window.dispatchEvent(new PopStateEvent('popstate'))
+    navigate('/login')
   }
 
   return (

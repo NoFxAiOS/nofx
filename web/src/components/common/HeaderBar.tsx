@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, ChevronDown, Settings } from 'lucide-react'
 import { t, type Language } from '../../i18n/translations'
@@ -10,17 +10,7 @@ import {
   setUserMode,
   type UserMode,
 } from '../../lib/onboarding'
-
-type Page =
-  | 'competition'
-  | 'traders'
-  | 'trader'
-  | 'strategy'
-  | 'strategy-market'
-  | 'data'
-  | 'faq'
-  | 'login'
-  | 'register'
+import { getCurrentPageForPath, ROUTES, type Page } from '../../router/paths'
 
 interface HeaderBarProps {
   onLoginClick?: () => void
@@ -47,16 +37,20 @@ export default function HeaderBar({
   onLoginRequired,
 }: HeaderBarProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
-  const [userMode, setUserModeState] = useState<UserMode>(() => getUserMode() ?? 'advanced')
+  const [userMode, setUserModeState] = useState<UserMode>(
+    () => getUserMode() ?? 'advanced'
+  )
   const dropdownRef = useRef<HTMLDivElement>(null)
   const userDropdownRef = useRef<HTMLDivElement>(null)
+  const resolvedCurrentPage =
+    currentPage ?? getCurrentPageForPath(location.pathname)
 
   const navigateInApp = (path: string) => {
     navigate(path)
-    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   const handleSwitchMode = (nextMode: UserMode) => {
@@ -94,14 +88,12 @@ export default function HeaderBar({
         {/* Logo - Always go to home page */}
         <div
           onClick={() => {
-            window.location.href = '/'
+            navigateInApp(ROUTES.home)
           }}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
         >
           <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-7 h-7" />
-          <span className="text-lg font-bold text-nofx-gold">
-            NOFX
-          </span>
+          <span className="text-lg font-bold text-nofx-gold">NOFX</span>
         </div>
 
         {/* Desktop Menu */}
@@ -111,17 +103,67 @@ export default function HeaderBar({
             {/* Navigation tabs configuration */}
             {(() => {
               // Define all navigation tabs
-              const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
-                { page: 'data', path: '/data', label: language === 'zh' ? '数据' : language === 'id' ? 'Data' : 'Data', requiresAuth: false },
-                { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : language === 'id' ? 'Pasar' : 'Market', requiresAuth: true },
-                { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
-                { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
-                { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
-                { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
-                { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
+              const navTabs: {
+                page: Page
+                path: string
+                label: string
+                requiresAuth: boolean
+              }[] = [
+                {
+                  page: 'data',
+                  path: ROUTES.data,
+                  label:
+                    language === 'zh'
+                      ? '数据'
+                      : language === 'id'
+                        ? 'Data'
+                        : 'Data',
+                  requiresAuth: false,
+                },
+                {
+                  page: 'strategy-market',
+                  path: ROUTES.strategyMarket,
+                  label:
+                    language === 'zh'
+                      ? '策略市场'
+                      : language === 'id'
+                        ? 'Pasar'
+                        : 'Market',
+                  requiresAuth: true,
+                },
+                {
+                  page: 'traders',
+                  path: ROUTES.traders,
+                  label: t('configNav', language),
+                  requiresAuth: true,
+                },
+                {
+                  page: 'trader',
+                  path: ROUTES.dashboard,
+                  label: t('dashboardNav', language),
+                  requiresAuth: true,
+                },
+                {
+                  page: 'strategy',
+                  path: ROUTES.strategy,
+                  label: t('strategyNav', language),
+                  requiresAuth: true,
+                },
+                {
+                  page: 'competition',
+                  path: ROUTES.competition,
+                  label: t('realtimeNav', language),
+                  requiresAuth: true,
+                },
+                {
+                  page: 'faq',
+                  path: ROUTES.faq,
+                  label: t('faqNav', language),
+                  requiresAuth: false,
+                },
               ]
 
-              const handleNavClick = (tab: typeof navTabs[0]) => {
+              const handleNavClick = (tab: (typeof navTabs)[0]) => {
                 // If requires auth and not logged in, show login prompt
                 if (tab.requiresAuth && !isLoggedIn) {
                   onLoginRequired?.(tab.label)
@@ -131,7 +173,7 @@ export default function HeaderBar({
                 if (onPageChange) {
                   onPageChange(tab.page)
                 }
-                navigate(tab.path)
+                navigateInApp(tab.path)
               }
 
               return navTabs.map((tab) => (
@@ -139,12 +181,10 @@ export default function HeaderBar({
                   key={tab.page}
                   onClick={() => handleNavClick(tab)}
                   className={`text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 px-3 py-2 rounded-lg
-                    ${currentPage === tab.page ? 'text-nofx-gold' : 'text-nofx-text-muted hover:text-nofx-gold'}`}
+                    ${resolvedCurrentPage === tab.page ? 'text-nofx-gold' : 'text-nofx-text-muted hover:text-nofx-gold'}`}
                 >
-                  {currentPage === tab.page && (
-                    <span
-                      className="absolute inset-0 rounded-lg bg-nofx-gold/15 -z-10"
-                    />
+                  {resolvedCurrentPage === tab.page && (
+                    <span className="absolute inset-0 rounded-lg bg-nofx-gold/15 -z-10" />
                   )}
                   {tab.label}
                 </button>
@@ -164,7 +204,12 @@ export default function HeaderBar({
                 className="p-2 rounded-lg transition-all hover:scale-110 text-nofx-text-muted hover:text-white hover:bg-white/5"
                 title="GitHub"
               >
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
                   <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
                 </svg>
               </a>
@@ -176,7 +221,12 @@ export default function HeaderBar({
                 className="p-2 rounded-lg transition-all hover:scale-110 text-nofx-text-muted hover:text-[#1DA1F2] hover:bg-[#1DA1F2]/10"
                 title="Twitter"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                 </svg>
               </a>
@@ -188,7 +238,12 @@ export default function HeaderBar({
                 className="p-2 rounded-lg transition-all hover:scale-110 text-nofx-text-muted hover:text-[#0088cc] hover:bg-[#0088cc]/10"
                 title="Telegram"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
                   <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
                 </svg>
               </a>
@@ -227,7 +282,7 @@ export default function HeaderBar({
                       </div>
                       <button
                         onClick={() => {
-                          window.location.href = '/settings'
+                          navigateInApp(ROUTES.settings)
                           setUserDropdownOpen(false)
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-white/5 text-nofx-text-muted hover:text-white"
@@ -236,13 +291,21 @@ export default function HeaderBar({
                         Settings
                       </button>
                       <button
-                        onClick={() => handleSwitchMode(userMode === 'beginner' ? 'advanced' : 'beginner')}
+                        onClick={() =>
+                          handleSwitchMode(
+                            userMode === 'beginner' ? 'advanced' : 'beginner'
+                          )
+                        }
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-white/5 text-nofx-text-muted hover:text-white"
                       >
                         <Settings className="w-3.5 h-3.5" />
                         {userMode === 'beginner'
-                          ? language === 'zh' ? '切到老手模式' : 'Switch to Advanced'
-                          : language === 'zh' ? '切到新手模式' : 'Switch to Beginner'}
+                          ? language === 'zh'
+                            ? '切到老手模式'
+                            : 'Switch to Advanced'
+                          : language === 'zh'
+                            ? '切到新手模式'
+                            : 'Switch to Beginner'}
                       </button>
                       {onLogout && (
                         <button
@@ -261,15 +324,16 @@ export default function HeaderBar({
               </div>
             ) : (
               /* Show login/register buttons when not logged in and not on login/register pages */
-              currentPage !== 'login' &&
-              currentPage !== 'register' && (
+              resolvedCurrentPage !== 'login' &&
+              resolvedCurrentPage !== 'register' && (
                 <div className="flex items-center gap-3">
-                  <a
-                    href="/login"
+                  <button
+                    type="button"
+                    onClick={() => navigateInApp(ROUTES.login)}
                     className="px-3 py-2 text-sm font-medium transition-colors rounded text-nofx-text-muted hover:text-white"
                   >
                     {t('signIn', language)}
-                  </a>
+                  </button>
                 </div>
               )
             )}
@@ -361,17 +425,67 @@ export default function HeaderBar({
               {/* Navigation Links */}
               <div className="flex flex-col gap-6 mb-12">
                 {(() => {
-                  const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
-                    { page: 'data', path: '/data', label: language === 'zh' ? '数据' : language === 'id' ? 'Data' : 'Data', requiresAuth: false },
-                    { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : language === 'id' ? 'Pasar' : 'Market', requiresAuth: true },
-                    { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
-                    { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
-                    { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
-                    { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
-                    { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
+                  const navTabs: {
+                    page: Page
+                    path: string
+                    label: string
+                    requiresAuth: boolean
+                  }[] = [
+                    {
+                      page: 'data',
+                      path: ROUTES.data,
+                      label:
+                        language === 'zh'
+                          ? '数据'
+                          : language === 'id'
+                            ? 'Data'
+                            : 'Data',
+                      requiresAuth: false,
+                    },
+                    {
+                      page: 'strategy-market',
+                      path: ROUTES.strategyMarket,
+                      label:
+                        language === 'zh'
+                          ? '策略市场'
+                          : language === 'id'
+                            ? 'Pasar'
+                            : 'Market',
+                      requiresAuth: true,
+                    },
+                    {
+                      page: 'traders',
+                      path: ROUTES.traders,
+                      label: t('configNav', language),
+                      requiresAuth: true,
+                    },
+                    {
+                      page: 'trader',
+                      path: ROUTES.dashboard,
+                      label: t('dashboardNav', language),
+                      requiresAuth: true,
+                    },
+                    {
+                      page: 'strategy',
+                      path: ROUTES.strategy,
+                      label: t('strategyNav', language),
+                      requiresAuth: true,
+                    },
+                    {
+                      page: 'competition',
+                      path: ROUTES.competition,
+                      label: t('realtimeNav', language),
+                      requiresAuth: true,
+                    },
+                    {
+                      page: 'faq',
+                      path: ROUTES.faq,
+                      label: t('faqNav', language),
+                      requiresAuth: false,
+                    },
                   ]
 
-                  const handleMobileNavClick = (tab: typeof navTabs[0]) => {
+                  const handleMobileNavClick = (tab: (typeof navTabs)[0]) => {
                     if (tab.requiresAuth && !isLoggedIn) {
                       onLoginRequired?.(tab.label)
                       setMobileMenuOpen(false)
@@ -380,7 +494,7 @@ export default function HeaderBar({
                     if (onPageChange) {
                       onPageChange(tab.page)
                     }
-                    navigate(tab.path)
+                    navigateInApp(tab.path)
                     setMobileMenuOpen(false)
                   }
 
@@ -392,9 +506,9 @@ export default function HeaderBar({
                       transition={{ delay: 0.1 + i * 0.05 }}
                       onClick={() => handleMobileNavClick(tab)}
                       className={`text-2xl font-black tracking-tight text-left flex items-center gap-3
-                        ${currentPage === tab.page ? 'text-nofx-gold' : 'text-zinc-500'}`}
+                        ${resolvedCurrentPage === tab.page ? 'text-nofx-gold' : 'text-zinc-500'}`}
                     >
-                      {currentPage === tab.page && (
+                      {resolvedCurrentPage === tab.page && (
                         <motion.div
                           layoutId="active-indicator"
                           className="w-1.5 h-1.5 rounded-full bg-nofx-gold"
@@ -438,9 +552,24 @@ export default function HeaderBar({
                 {/* Social Links */}
                 <div className="flex items-center gap-4">
                   {[
-                    { href: OFFICIAL_LINKS.github, icon: <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" /> },
-                    { href: OFFICIAL_LINKS.twitter, icon: <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /> },
-                    { href: OFFICIAL_LINKS.telegram, icon: <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /> }
+                    {
+                      href: OFFICIAL_LINKS.github,
+                      icon: (
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                      ),
+                    },
+                    {
+                      href: OFFICIAL_LINKS.twitter,
+                      icon: (
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                      ),
+                    },
+                    {
+                      href: OFFICIAL_LINKS.telegram,
+                      icon: (
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+                      ),
+                    },
                   ].map((link, i) => (
                     <a
                       key={i}
@@ -449,7 +578,12 @@ export default function HeaderBar({
                       rel="noopener noreferrer"
                       className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-nofx-gold hover:border-nofx-gold transition-colors"
                     >
-                      <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                      >
                         {link.icon}
                       </svg>
                     </a>
@@ -467,10 +601,11 @@ export default function HeaderBar({
                           onLanguageChange?.(lang as Language)
                           setMobileMenuOpen(false)
                         }}
-                        className={`flex-1 py-3 text-sm font-bold rounded-md transition-colors ${language === lang
-                          ? 'bg-zinc-800 text-white shadow-sm'
-                          : 'text-zinc-500'
-                          }`}
+                        className={`flex-1 py-3 text-sm font-bold rounded-md transition-colors ${
+                          language === lang
+                            ? 'bg-zinc-800 text-white shadow-sm'
+                            : 'text-zinc-500'
+                        }`}
                       >
                         {lang === 'zh' ? 'CN' : lang === 'id' ? 'ID' : 'EN'}
                       </button>
@@ -489,13 +624,18 @@ export default function HeaderBar({
                       {t('exitLogin', language)}
                     </button>
                   ) : (
-                    currentPage !== 'login' && currentPage !== 'register' && (
-                      <a
-                        href="/login"
+                    resolvedCurrentPage !== 'login' &&
+                    resolvedCurrentPage !== 'register' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigateInApp(ROUTES.login)
+                          setMobileMenuOpen(false)
+                        }}
                         className="flex items-center justify-center bg-nofx-gold text-black rounded-lg font-bold text-sm hover:bg-yellow-400 transition-colors"
                       >
                         {t('signIn', language)}
-                      </a>
+                      </button>
                     )
                   )}
                 </div>

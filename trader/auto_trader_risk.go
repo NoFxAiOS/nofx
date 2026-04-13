@@ -210,24 +210,70 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 	currentState := at.getProtectionState(symbol, side)
+	isPartial := rule.CloseRatioPct < 99.999
 	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
-		// Do not trust in-memory state alone. Verify the exchange still has a live trailing order.
-		// Once native trailing is armed on exchange, DO NOT refresh just because market price moved.
-		// Re-arm only when the exchange trailing order is actually missing.
+		// For full trailing, keep the old single-order semantics.
+		// For partial multi-tier trailing, allow additional tiers to coexist and only short-circuit
+		// when an equivalent tier is already present on the exchange.
 		if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
-			for _, order := range openOrders {
-				if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
-					continue
+			if !isPartial {
+				for _, order := range openOrders {
+					if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+						continue
+					}
+					if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+						return true
+					}
 				}
-				if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
-					return true
+				logger.Infof("⚠️ Native trailing state exists but no trailing order found on exchange (%s %s), re-arming", symbol, side)
+			} else {
+				plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+				plannedCallbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+				for _, order := range openOrders {
+					if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+						continue
+					}
+					if !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+						continue
+					}
+					if order.Quantity > 0 && math.Abs(order.Quantity-(order.Quantity)) >= 0 { // no-op to preserve block shape
+					}
+					if order.Quantity > 0 {
+						// Treat matching quantity + roughly matching callback as the same native partial tier.
+						// Activation can legitimately drift to live market price when arming.
+						qtyTarget := 0.0
+						positions, err := at.trader.GetPositions()
+						if err == nil {
+							for _, pos := range positions {
+								ps, _ := pos["symbol"].(string)
+								pd, _ := pos["side"].(string)
+								if ps != symbol || !strings.EqualFold(pd, side) {
+									continue
+								}
+								qtyTarget, _ = pos["positionAmt"].(float64)
+								if qtyTarget < 0 {
+									qtyTarget = -qtyTarget
+								}
+								break
+							}
+						}
+						if qtyTarget > 0 {
+							qtyTarget = qtyTarget * rule.CloseRatioPct / 100.0
+							callbackTolerance := 0.0002
+							qtyTolerance := math.Max(0.0001, qtyTarget*0.1)
+							if math.Abs(order.Quantity-qtyTarget) <= qtyTolerance && math.Abs(order.CallbackRate-plannedCallbackRate) <= callbackTolerance {
+								if order.StopPrice > 0 && plannedActivationPrice > 0 {
+									logger.Infof("ℹ️ Native partial trailing tier already exists on exchange (%s %s close=%.1f%% activation=%.6f callback=%.6f)", symbol, side, rule.CloseRatioPct, order.StopPrice, order.CallbackRate)
+								}
+								return true
+							}
+						}
+					}
 				}
 			}
-			logger.Infof("⚠️ Native trailing state exists but no trailing order found on exchange (%s %s), re-arming", symbol, side)
 		}
 	}
 	// For partial close rules, check if exchange supports native partial close
-	isPartial := rule.CloseRatioPct < 99.999
 	if isPartial {
 		caps := at.GetProtectionCapabilities()
 		if !caps.NativePartialClose {

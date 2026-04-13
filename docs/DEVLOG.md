@@ -79,6 +79,32 @@
 
 ## 2026-04-13
 
+### 凌晨：修复 Drawdown Take Profit 多档运行态只落一条委托的问题
+- 当前问题不是配置层没有多档，而是运行态 native partial trailing 在执行链里会被“已 armed”状态短路，且 OKX 侧会默认清掉同 symbol 的旧 trailing，导致多档 drawdown 规则最终只能在交易所侧保留一条委托。
+- 本次修复目标：在**不影响现有单档与 full trailing 语义**的前提下，贯通多档 drawdown native trailing 执行链。
+- 修复内容：
+  1. `trader/auto_trader_risk.go`
+     - 对 full trailing 保持“同 symbol 单条 trailing”旧语义不变
+     - 对 partial trailing 改为：只在交易所已存在**等价 tier**（数量 + callback 近似匹配）时跳过；否则允许继续下发新的 partial trailing tier
+  2. `trader/okx/trader_orders.go`
+     - OKX trailing 下单后，只有 **full trailing**（`quantity <= 0`）才清理旧 trailing
+     - partial trailing 多档场景允许同 symbol 多条 trailing algo 共存
+  3. `trader/auto_trader_decision.go`
+     - 运行态展示链不再只盯一条 live trailing trigger
+     - 新增 `active_trailing_orders`，并按 quantity + callback 匹配 scheduled tiers，避免“后端已多档，前端仍只显示一条”的假象
+  4. `trader/auto_trader_risk_test.go`
+     - 保留原单档 native trailing 测试
+     - 新增：
+       - 多档 partial trailing 可追加第二档
+       - 已存在等价 tier 时不重复下单
+- 验证：
+  - `go test ./...`：通过
+  - `cd web && npm test`：通过（108 tests）
+  - `cd web && npm run build`：通过
+- 当前边界：
+  - 这次修的是**多档执行链与 OKX 共存语义**
+  - 仍未最终核定 OKX/Binance/Bitget 各家对 partial trailing close 的真实交易所语义边界（这是下一阶段继续做的实盘/API 文档核定项）
+
 ### 清晨：交易复盘与数据积累 V1 最小交付落地（连接键 + 历史面板）
 - 本轮按“最小干涉运行系统、直接产出可用产品面”的原则，没有新开高耦合大页面，而是直接把现有 `PositionHistory` 提升为第一版交易复盘面板。
 - 交付目标不是一次做完整 review 平台，而是先把 **decision ↔ position ↔ close-event** 的最小连接键打通，并在现有前端历史面板里可见。

@@ -79,6 +79,7 @@
   - [x] capability 模型拆细：新增 native full / native partial trailing 能力位
   - [x] 三家 trailing 接口签名扩展为支持按 quantity 下单（为 partial native 铺路）
   - [x] 运行态优先尝试 native partial trailing，多档可按 `close_ratio_pct` 计算 quantity 下单
+  - [x] 修复多档 drawdown native trailing 只保留一条委托的问题（执行链允许 partial tiers 共存，OKX partial trailing 不再自动清旧）
   - [x] trailing runtime 已补 activation/callback/source 展示链
   - [x] 统一执行原则：native trailing 一旦挂上，不因市价波动改 activePx；只有掉单/查不到时才 re-arm
   - [x] 修复 OKX trailing `activePx` 精度问题：改为按 `tickSz` 对齐后再下单，避免价格被交易所拒绝/截断
@@ -90,4 +91,4 @@
   - [x] 执行模式文案升级：明确区分 native full / native partial / managed partial
   - [x] 面板说明文案纠偏：不再把 managed partial 误述为 native trailing
   - [x] 后端补充 trailing 元信息（activation / callback / source）供面板展示
-  - [ ] 执行面板支持“多档原生跟踪委托”逐档展示
+  - [x] 执行面板支持“多档原生跟踪委托”逐档展示（runtime active trailing orders + tier 匹配）

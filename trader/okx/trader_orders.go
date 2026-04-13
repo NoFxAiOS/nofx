@@ -465,9 +465,9 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 			return fmt.Errorf("OKX trailing stop rejected: code=%s msg=%s", orders[0].SCode, orders[0].SMsg)
 		}
 		logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s algoId=%s", symbol, activationPrice, callbackRate, quantity, szStr, orders[0].AlgoId)
-		// Safety: after the new trailing order is confirmed by OKX, remove older trailing orders
-		// for the same symbol to avoid duplicate native trailing protection.
-		if orders[0].AlgoId != "" {
+		// Safety: for full trailing, keep a single live trailing order per symbol.
+		// For partial trailing drawdown, multiple tiers must be allowed to coexist.
+		if orders[0].AlgoId != "" && quantity <= 0 {
 			if err := t.cancelOtherTrailingStopOrders(symbol, orders[0].AlgoId); err != nil {
 				logger.Infof("  ⚠️ Failed to prune older OKX trailing stop orders for %s: %v", symbol, err)
 			}

@@ -549,6 +549,7 @@ func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quantity, entryPrice float64, openOrders []OpenOrder) map[string]interface{} {
 	positionSide := strings.ToUpper(side)
 	activeOrders := make([]map[string]interface{}, 0)
+	trailingOrders := make([]map[string]interface{}, 0)
 	liveTrailingTriggerPrice := 0.0
 	liveTrailingCallbackRate := 0.0
 	for _, order := range openOrders {
@@ -564,6 +565,16 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			if order.CallbackRate > 0 {
 				liveTrailingCallbackRate = order.CallbackRate
 			}
+			trailingOrders = append(trailingOrders, map[string]interface{}{
+				"order_id":      order.OrderID,
+				"type":          order.Type,
+				"side":          order.Side,
+				"position_side": order.PositionSide,
+				"trigger_price": triggerPrice,
+				"callback_rate": order.CallbackRate,
+				"quantity":      order.Quantity,
+				"status":        order.Status,
+			})
 		}
 		activeOrders = append(activeOrders, map[string]interface{}{
 			"order_id":      order.OrderID,
@@ -600,12 +611,10 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				}
 			}
 			activationPrice := plannedActivationPrice
-			if liveTrailingTriggerPrice > 0 && (executionMode == "native_partial_trailing" || executionMode == "native_trailing_full") {
-				activationPrice = liveTrailingTriggerPrice
-			}
 			callbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
 			activationSource := "planned"
 			callbackSource := "planned"
+			plannedQty := quantity * rule.CloseRatioPct / 100.0
 			if executionMode == "native_partial_trailing" || executionMode == "native_trailing_full" {
 				activationSource = "request"
 				callbackSource = "request"
@@ -613,12 +622,38 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				case "binance", "bitget":
 					callbackRate = callbackRate * 100.0
 				}
-				if liveTrailingTriggerPrice > 0 {
-					activationSource = "exchange"
+				matchedLive := false
+				for _, order := range trailingOrders {
+					qtyVal, _ := order["quantity"].(float64)
+					cbVal, _ := order["callback_rate"].(float64)
+					trVal, _ := order["trigger_price"].(float64)
+					qtyTolerance := math.Max(0.0001, plannedQty*0.1)
+					callbackTolerance := 0.0002
+					if strings.ToLower(at.exchange) == "binance" || strings.ToLower(at.exchange) == "bitget" {
+						callbackTolerance = 0.05
+					}
+					if plannedQty > 0 && math.Abs(qtyVal-plannedQty) <= qtyTolerance && math.Abs(cbVal-callbackRate) <= callbackTolerance {
+						if trVal > 0 {
+							activationPrice = trVal
+							activationSource = "exchange"
+						}
+						if cbVal > 0 {
+							callbackRate = cbVal
+							callbackSource = "exchange"
+						}
+						matchedLive = true
+						break
+					}
 				}
-				if liveTrailingCallbackRate > 0 {
-					callbackRate = liveTrailingCallbackRate
-					callbackSource = "exchange"
+				if !matchedLive {
+					if liveTrailingTriggerPrice > 0 {
+						activationPrice = liveTrailingTriggerPrice
+						activationSource = "exchange"
+					}
+					if liveTrailingCallbackRate > 0 {
+						callbackRate = liveTrailingCallbackRate
+						callbackSource = "exchange"
+					}
 				}
 			}
 			tiers = append(tiers, map[string]interface{}{
@@ -644,6 +679,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"drawdown_execution_mode":   at.getDrawdownExecutionMode(symbol, side),
 		"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
 		"active_orders":             activeOrders,
+		"active_trailing_orders":    trailingOrders,
 		"scheduled_tiers":           tiers,
 	}
 }

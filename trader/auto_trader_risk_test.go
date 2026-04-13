@@ -23,10 +23,16 @@ type fakeProtectionTrader struct {
 	trailingActivation  float64
 	trailingCallback    float64
 	openOrders          []tradertypes.OpenOrder
+	positions           []map[string]interface{}
 }
 
 func (f *fakeProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
-func (f *fakeProtectionTrader) GetPositions() ([]map[string]interface{}, error) { return nil, nil }
+func (f *fakeProtectionTrader) GetPositions() ([]map[string]interface{}, error) {
+	if f.positions != nil {
+		return f.positions, nil
+	}
+	return nil, nil
+}
 func (f *fakeProtectionTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	return nil, nil
 }
@@ -39,9 +45,9 @@ func (f *fakeProtectionTrader) CloseLong(symbol string, quantity float64) (map[s
 func (f *fakeProtectionTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	return nil, nil
 }
-func (f *fakeProtectionTrader) SetLeverage(symbol string, leverage int) error { return nil }
+func (f *fakeProtectionTrader) SetLeverage(symbol string, leverage int) error         { return nil }
 func (f *fakeProtectionTrader) SetMarginMode(symbol string, isCrossMargin bool) error { return nil }
-func (f *fakeProtectionTrader) GetMarketPrice(symbol string) (float64, error) { return 0, nil }
+func (f *fakeProtectionTrader) GetMarketPrice(symbol string) (float64, error)         { return 0, nil }
 func (f *fakeProtectionTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	f.setStopLossCalls++
 	f.lastSymbol = symbol
@@ -69,8 +75,8 @@ func (f *fakeProtectionTrader) CancelStopLossOrders(symbol string) error {
 	return f.cancelErr
 }
 func (f *fakeProtectionTrader) CancelTakeProfitOrders(symbol string) error { return nil }
-func (f *fakeProtectionTrader) CancelAllOrders(symbol string) error { return nil }
-func (f *fakeProtectionTrader) CancelStopOrders(symbol string) error { return nil }
+func (f *fakeProtectionTrader) CancelAllOrders(symbol string) error        { return nil }
+func (f *fakeProtectionTrader) CancelStopOrders(symbol string) error       { return nil }
 func (f *fakeProtectionTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
 	return "", nil
 }
@@ -198,9 +204,97 @@ func TestApplyNativeTrailingDrawdownForOKX(t *testing.T) {
 	}
 }
 
+func TestApplyNativePartialTrailingDrawdownAllowsMultipleTiers(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		openOrders: []tradertypes.OpenOrder{{
+			Symbol:       "BTCUSDT",
+			PositionSide: "LONG",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    105,
+			CallbackRate: 0.001,
+			Quantity:     0.2,
+			Status:       "NEW",
+		}},
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"positionAmt": 1.0,
+		}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   fake,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
+		},
+		protectionState: make(map[string]string),
+	}
+	at.setProtectionState("BTCUSDT", "long", "native_partial_trailing_armed")
+
+	rule := store.DrawdownTakeProfitRule{
+		MinProfitPct:   6,
+		MaxDrawdownPct: 2.5,
+		CloseRatioPct:  50,
+	}
+
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
+	if !ok {
+		t.Fatal("expected native partial trailing drawdown to be applied for second tier")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected a new trailing call for unmatched second tier, got %d", fake.trailingCalls)
+	}
+	if at.getProtectionState("BTCUSDT", "long") != "native_partial_trailing_armed" {
+		t.Fatalf("expected protection state native_partial_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))
+	}
+}
+
+func TestApplyNativePartialTrailingDrawdownSkipsEquivalentTier(t *testing.T) {
+	entryPrice := 100.0
+	rule := store.DrawdownTakeProfitRule{
+		MinProfitPct:   6,
+		MaxDrawdownPct: 2.5,
+		CloseRatioPct:  50,
+	}
+	callback := calculateProfitBasedTrailingCallbackRatio(entryPrice, "long", rule.MinProfitPct, rule.MaxDrawdownPct)
+	fake := &fakeProtectionTrader{
+		openOrders: []tradertypes.OpenOrder{{
+			Symbol:       "BTCUSDT",
+			PositionSide: "LONG",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    106,
+			CallbackRate: callback,
+			Quantity:     0.5,
+			Status:       "NEW",
+		}},
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"positionAmt": 1.0,
+		}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   fake,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
+		},
+		protectionState: make(map[string]string),
+	}
+	at.setProtectionState("BTCUSDT", "long", "native_partial_trailing_armed")
+
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", entryPrice, rule)
+	if !ok {
+		t.Fatal("expected equivalent native partial trailing tier to be treated as already armed")
+	}
+	if fake.trailingCalls != 0 {
+		t.Fatalf("expected no new trailing call when equivalent tier exists, got %d", fake.trailingCalls)
+	}
+}
+
 func TestMatchDrawdownRule(t *testing.T) {
 	at := &AutoTrader{}
-	 rules := []store.DrawdownTakeProfitRule{
+	rules := []store.DrawdownTakeProfitRule{
 		{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100},
 		{MinProfitPct: 10, MaxDrawdownPct: 20, CloseRatioPct: 50},
 	}

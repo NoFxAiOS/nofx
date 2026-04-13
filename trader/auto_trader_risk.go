@@ -119,19 +119,23 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			}
 		}
 
-		// For exchange-native trailing protections, arm as soon as the position reaches
-		// the minimum profit threshold. Do NOT wait for drawdown to happen first — the
-		// exchange trailing order itself is responsible for tracking the drawdown.
+		// For exchange-native trailing protections, arm all tiers whose min-profit gate is already met.
+		// Do NOT wait for drawdown to happen first — the exchange trailing order itself is responsible
+		// for tracking the drawdown once armed.
 		if at.supportsNativeTrailingStop() {
-			if armRule := at.matchDrawdownArmRule(currentPnLPct, rules); armRule != nil {
-				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, *armRule) {
-					continue
+			armedAny := false
+			for _, armRule := range at.getDrawdownArmRules(currentPnLPct, rules) {
+				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
+					armedAny = true
 				}
+			}
+			if armedAny {
+				continue
 			}
 		}
 
-		matchedRule := at.matchDrawdownRule(currentPnLPct, drawdownPct, rules)
-		if matchedRule == nil {
+		triggeredRules := at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules)
+		if len(triggeredRules) == 0 {
 			if currentPnLPct > 0 {
 				logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
 					symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
@@ -139,10 +143,15 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			continue
 		}
 
-		if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, *matchedRule) {
-			continue
+		if at.supportsNativeTrailingStop() {
+			for _, triggeredRule := range triggeredRules {
+				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
+					continue
+				}
+			}
 		}
 
+		matchedRule := triggeredRules[0]
 		closeQty := quantity * matchedRule.CloseRatioPct / 100.0
 		if closeQty <= 0 || matchedRule.CloseRatioPct >= 99.999 {
 			closeQty = 0 // exchange adapters use 0 to mean close all
@@ -528,6 +537,17 @@ func (at *AutoTrader) matchDrawdownArmRule(currentPnLPct float64, rules []store.
 	return matched
 }
 
+func (at *AutoTrader) getDrawdownArmRules(currentPnLPct float64, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
+	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
+	for _, rule := range rules {
+		if currentPnLPct < rule.MinProfitPct {
+			continue
+		}
+		matched = append(matched, rule)
+	}
+	return matched
+}
+
 func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule) *store.DrawdownTakeProfitRule {
 	var matched *store.DrawdownTakeProfitRule
 	for i := range rules {
@@ -539,6 +559,17 @@ func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rule
 			(rule.MinProfitPct == matched.MinProfitPct && rule.MaxDrawdownPct > matched.MaxDrawdownPct) {
 			matched = &rule
 		}
+	}
+	return matched
+}
+
+func (at *AutoTrader) getTriggeredDrawdownRules(currentPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
+	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
+	for _, rule := range rules {
+		if currentPnLPct < rule.MinProfitPct || drawdownPct < rule.MaxDrawdownPct {
+			continue
+		}
+		matched = append(matched, rule)
 	}
 	return matched
 }

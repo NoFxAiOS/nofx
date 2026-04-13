@@ -231,9 +231,14 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
-		if matched := at.matchDrawdownRule(currentPnLPct, drawdownPct, rules); matched != nil {
-			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, *matched) {
-				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (close=%.1f%%)", symbol, positionSide, matched.CloseRatioPct)
+		for _, armRule := range at.getDrawdownArmRules(currentPnLPct, rules) {
+			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
+				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (arm close=%.1f%%)", symbol, positionSide, armRule.CloseRatioPct)
+			}
+		}
+		for _, triggeredRule := range at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules) {
+			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
+				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (trigger close=%.1f%%)", symbol, positionSide, triggeredRule.CloseRatioPct)
 			}
 		}
 	}

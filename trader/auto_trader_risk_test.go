@@ -312,6 +312,38 @@ func TestMatchDrawdownRule(t *testing.T) {
 	}
 }
 
+func TestGetDrawdownArmRulesReturnsAllSatisfiedTiers(t *testing.T) {
+	at := &AutoTrader{}
+	rules := []store.DrawdownTakeProfitRule{
+		{MinProfitPct: 0.7, MaxDrawdownPct: 55, CloseRatioPct: 60},
+		{MinProfitPct: 1.5, MaxDrawdownPct: 40, CloseRatioPct: 85},
+		{MinProfitPct: 3.0, MaxDrawdownPct: 30, CloseRatioPct: 100},
+	}
+	matched := at.getDrawdownArmRules(1.8, rules)
+	if len(matched) != 2 {
+		t.Fatalf("expected 2 armed tiers, got %d", len(matched))
+	}
+	if matched[0].CloseRatioPct != 60 || matched[1].CloseRatioPct != 85 {
+		t.Fatalf("unexpected arm tiers: %+v", matched)
+	}
+}
+
+func TestGetTriggeredDrawdownRulesReturnsAllTriggeredTiers(t *testing.T) {
+	at := &AutoTrader{}
+	rules := []store.DrawdownTakeProfitRule{
+		{MinProfitPct: 0.7, MaxDrawdownPct: 55, CloseRatioPct: 60},
+		{MinProfitPct: 1.5, MaxDrawdownPct: 40, CloseRatioPct: 85},
+		{MinProfitPct: 3.0, MaxDrawdownPct: 30, CloseRatioPct: 100},
+	}
+	matched := at.getTriggeredDrawdownRules(2.0, 60, rules)
+	if len(matched) != 2 {
+		t.Fatalf("expected 2 triggered tiers, got %d", len(matched))
+	}
+	if matched[0].CloseRatioPct != 60 || matched[1].CloseRatioPct != 85 {
+		t.Fatalf("unexpected triggered tiers: %+v", matched)
+	}
+}
+
 func TestGetActiveDrawdownRulesFiltersInvalidRules(t *testing.T) {
 	at := &AutoTrader{
 		config: AutoTraderConfig{

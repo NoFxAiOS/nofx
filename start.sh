@@ -2,17 +2,19 @@
 # NOFX Startup Script - launches backend + frontend together
 # Usage: ./start.sh [--restart]
 
+set -euo pipefail
+
 cd "$(dirname "$0")"
 
 # Kill existing instances
 echo "🛑 Stopping existing instances..."
-pkill -f './nofx' 2>/dev/null
-pkill -f 'vite.*--port 3000' 2>/dev/null
+pkill -f './nofx' 2>/dev/null || true
+pkill -f 'vite.*--port 3000' 2>/dev/null || true
 sleep 2
 
 # Verify ports are free
-fuser -k 8080/tcp 2>/dev/null
-fuser -k 3000/tcp 2>/dev/null
+fuser -k 8080/tcp 2>/dev/null || true
+fuser -k 3000/tcp 2>/dev/null || true
 sleep 1
 
 # Start backend

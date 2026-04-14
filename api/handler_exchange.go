@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/logger"
+	gmgnprovider "nofx/provider/gmgn"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,6 +55,8 @@ type UpdateExchangeConfigRequest struct {
 		LighterPrivateKey       string `json:"lighter_private_key"`
 		LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
 		LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
+		GMGNAPIKey              string `json:"gmgn_api_key"`
+		GMGNPrivateKey          string `json:"gmgn_private_key"`
 	} `json:"exchanges"`
 }
 
@@ -74,6 +78,8 @@ type CreateExchangeRequest struct {
 	LighterPrivateKey       string `json:"lighter_private_key"`
 	LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
 	LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
+	GMGNAPIKey              string `json:"gmgn_api_key"`
+	GMGNPrivateKey          string `json:"gmgn_private_key"`
 }
 
 // handleGetExchangeConfigs Get exchange configurations
@@ -185,7 +191,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 			tradersToReload[t.ID] = true
 		}
 
-		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.HyperliquidUnifiedAcct, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
+		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.HyperliquidUnifiedAcct, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex, exchangeData.GMGNAPIKey, exchangeData.GMGNPrivateKey)
 		if err != nil {
 			SafeInternalError(c, fmt.Sprintf("Update exchange %s", exchangeID), err)
 			return
@@ -265,7 +271,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 	// Validate exchange type
 	validTypes := map[string]bool{
 		"binance": true, "bybit": true, "okx": true, "bitget": true,
-		"hyperliquid": true, "aster": true, "lighter": true, "gate": true, "kucoin": true, "indodax": true,
+		"hyperliquid": true, "aster": true, "lighter": true, "gate": true, "kucoin": true, "indodax": true, "gmgn": true,
 	}
 	if !validTypes[req.ExchangeType] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid exchange type: %s", req.ExchangeType)})
@@ -279,6 +285,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 		req.HyperliquidWalletAddr, req.HyperliquidUnifiedAcct,
 		req.AsterUser, req.AsterSigner, req.AsterPrivateKey,
 		req.LighterWalletAddr, req.LighterPrivateKey, req.LighterAPIKeyPrivateKey, req.LighterAPIKeyIndex,
+		req.GMGNAPIKey, req.GMGNPrivateKey,
 	)
 	if err != nil {
 		logger.Infof("❌ Failed to create exchange account: %v", err)
@@ -350,10 +357,72 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		{ExchangeType: "hyperliquid", Name: "Hyperliquid", Type: "dex"},
 		{ExchangeType: "aster", Name: "Aster DEX", Type: "dex"},
 		{ExchangeType: "lighter", Name: "LIGHTER DEX", Type: "dex"},
+		{ExchangeType: "gmgn", Name: "GMGN", Type: "dex"},
 		{ExchangeType: "alpaca", Name: "Alpaca (US Stocks)", Type: "stock"},
 		{ExchangeType: "forex", Name: "Forex (TwelveData)", Type: "forex"},
 		{ExchangeType: "metals", Name: "Metals (TwelveData)", Type: "metals"},
 	}
 
 	c.JSON(http.StatusOK, supportedExchanges)
+}
+
+func (s *Server) handleGetGMGNWallets(c *gin.Context) {
+	userID := c.GetString("user_id")
+	exchangeID := c.Param("id")
+
+	exchangeCfg, err := s.store.Exchange().GetByID(userID, exchangeID)
+	if err != nil {
+		SafeNotFound(c, "Exchange account")
+		return
+	}
+	if exchangeCfg.ExchangeType != "gmgn" {
+		SafeBadRequest(c, "Selected exchange is not GMGN")
+		return
+	}
+	if strings.TrimSpace(string(exchangeCfg.GMGNAPIKey)) == "" {
+		SafeBadRequest(c, "GMGN API Key is required")
+		return
+	}
+
+	client, err := gmgnprovider.NewClient(string(exchangeCfg.GMGNAPIKey), string(exchangeCfg.GMGNPrivateKey))
+	if err != nil {
+		SafeInternalError(c, "Failed to initialize GMGN client", err)
+		return
+	}
+
+	info, err := client.GetUserInfo()
+	if err != nil {
+		SafeInternalError(c, "Failed to fetch GMGN wallets", err)
+		return
+	}
+
+	wallets := make([]gin.H, 0, len(info.Wallets))
+	for _, wallet := range info.Wallets {
+		chain := gmgnprovider.NormalizeChain(wallet.Chain)
+		if _, ok := gmgnprovider.GetChainConfig(chain); !ok {
+			continue
+		}
+
+		usdcBalance := 0.0
+		nativeBalance := 0.0
+		if chainCfg, ok := gmgnprovider.GetChainConfig(chain); ok {
+			for _, balance := range wallet.Balances {
+				if strings.EqualFold(balance.TokenAddress, chainCfg.USDCAddress) || strings.EqualFold(balance.Symbol, chainCfg.USDCSymbol) {
+					usdcBalance += gmgnprovider.ParseFloatString(balance.Balance)
+				}
+				if strings.EqualFold(balance.Symbol, chainCfg.NativeTokenSymbol) {
+					nativeBalance += gmgnprovider.ParseFloatString(balance.Balance)
+				}
+			}
+		}
+
+		wallets = append(wallets, gin.H{
+			"chain":          chain,
+			"wallet_address": wallet.Address,
+			"usdc_balance":   usdcBalance,
+			"native_balance": nativeBalance,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"wallets": wallets})
 }

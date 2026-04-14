@@ -102,6 +102,8 @@ export const getExchangeIcon = (
                   ? 'aster'
                   : lowerType.includes('lighter')
                     ? 'lighter'
+                    : lowerType.includes('gmgn')
+                      ? 'gmgn'
                     : lowerType.includes('indodax')
                       ? 'indodax'
                       : lowerType

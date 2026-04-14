@@ -100,8 +100,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           : 'Altcoin leverage must be between 1x and 20x.'
       case 'trader.create.invalid_symbol':
         return zh
-          ? `交易对 ${symbol} 的格式不正确，目前只支持以 USDT 结尾的合约交易对。`
-          : `Trading pair ${symbol} is invalid. Only perpetual pairs ending with USDT are supported.`
+          ? `交易对 ${symbol} 的格式不正确，目前只支持以 USDT 结尾的合约交易对，或者 GMGN 的 chain:token_address。`
+          : `Trading pair ${symbol} is invalid. Only USDT perpetual pairs or GMGN chain:token_address symbols are supported.`
       case 'trader.create.model_not_found':
         return zh
           ? '还没有找到你选择的 AI 模型。请先到「设置 > 模型配置」添加并启用一个可用模型。'
@@ -142,6 +142,18 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         return zh
           ? `交易所账户「${exchangeName}」没有通过初始化校验，原因是：${reason}`
           : `Exchange account "${exchangeName}" failed initialization checks: ${reason}`
+      case 'trader.create.gmgn_chain_required':
+        return zh
+          ? 'GMGN Trader 必须选择交易链（sol / bsc / base）。'
+          : 'GMGN traders must select a trading chain (sol / bsc / base).'
+      case 'trader.create.gmgn_chain_invalid':
+        return zh
+          ? 'GMGN 当前只支持 sol、bsc、base 三条链。'
+          : 'GMGN currently supports only sol, bsc, and base.'
+      case 'trader.create.gmgn_wallet_required':
+        return zh
+          ? 'GMGN Trader 必须选择一个钱包地址。'
+          : 'GMGN traders must select a wallet address.'
       case 'trader.start.strategy_missing':
         return zh
           ? `机器人「${traderName}」缺少有效的交易策略配置。`
@@ -579,6 +591,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         scan_interval_minutes: data.scan_interval_minutes,
         is_cross_margin: data.is_cross_margin,
         show_in_competition: data.show_in_competition,
+        chain: data.chain,
+        wallet_address: data.wallet_address,
       }
 
       await api.updateTrader(editingTrader.trader_id, request)
@@ -881,7 +895,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     lighterWalletAddr?: string,
     lighterPrivateKey?: string,
     lighterApiKeyPrivateKey?: string,
-    lighterApiKeyIndex?: number
+    lighterApiKeyIndex?: number,
+    gmgnApiKey?: string,
+    gmgnPrivateKey?: string
   ) => {
     try {
       if (exchangeId) {
@@ -907,6 +923,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               lighter_private_key: lighterPrivateKey || '',
               lighter_api_key_private_key: lighterApiKeyPrivateKey || '',
               lighter_api_key_index: lighterApiKeyIndex || 0,
+              gmgn_api_key: gmgnApiKey || '',
+              gmgn_private_key: gmgnPrivateKey || '',
             },
           },
         }
@@ -930,6 +948,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           lighter_private_key: lighterPrivateKey || '',
           lighter_api_key_private_key: lighterApiKeyPrivateKey || '',
           lighter_api_key_index: lighterApiKeyIndex || 0,
+          gmgn_api_key: gmgnApiKey || '',
+          gmgn_private_key: gmgnPrivateKey || '',
         }
 
         await api.createExchangeEncrypted(createRequest)

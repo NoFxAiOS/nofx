@@ -176,9 +176,13 @@ export function StrategyStudioPage() {
       if (!token) return
 
       try {
+        const params = new URLSearchParams({ lang: language })
+        if (editingConfig?.template_id) {
+          params.set('template', editingConfig.template_id)
+        }
         // Fetch default config for the new language
         const response = await fetch(
-          `${API_BASE}/api/strategies/default-config?lang=${language}`,
+          `${API_BASE}/api/strategies/default-config?${params.toString()}`,
           { headers: { Authorization: `Bearer ${token}` } }
         )
         if (!response.ok) return
@@ -203,15 +207,26 @@ export function StrategyStudioPage() {
   }, [language, token]) // Only trigger when language changes
 
   // Create new strategy
-  const handleCreateStrategy = async () => {
+  const handleCreateStrategy = async (template?: 'gmgn_sol_live') => {
     if (!token) return
     try {
+      const params = new URLSearchParams({ lang: language })
+      if (template) {
+        params.set('template', template)
+      }
       const configResponse = await fetch(
-        `${API_BASE}/api/strategies/default-config?lang=${language}`,
+        `${API_BASE}/api/strategies/default-config?${params.toString()}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (!configResponse.ok) throw new Error('Failed to fetch default config')
       const defaultConfig = await configResponse.json()
+
+      const strategyName = template === 'gmgn_sol_live'
+        ? tr('gmgnSolLiveName')
+        : tr('newStrategyName')
+      const strategyDescription = template === 'gmgn_sol_live'
+        ? tr('gmgnSolLiveDescription')
+        : ''
 
       const response = await fetch(`${API_BASE}/api/strategies`, {
         method: 'POST',
@@ -220,8 +235,9 @@ export function StrategyStudioPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: tr('newStrategyName'),
-          description: '',
+          name: strategyName,
+          description: strategyDescription,
+          template,
           config: defaultConfig,
         }),
       })
@@ -233,8 +249,8 @@ export function StrategyStudioPage() {
         const now = new Date().toISOString()
         const newStrategy = {
           id: result.id,
-          name: tr('newStrategyName'),
-          description: '',
+          name: strategyName,
+          description: strategyDescription,
           is_active: false,
           is_default: false,
           is_public: false,
@@ -734,6 +750,31 @@ export function StrategyStudioPage() {
         {/* Left Column - Strategy List */}
         <div className="w-48 flex-shrink-0 border-r border-nofx-gold/20 overflow-y-auto bg-nofx-bg/30 backdrop-blur-sm z-10">
           <div className="p-2">
+            <div className="mb-3 px-2">
+              <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-nofx-text-muted mb-2">
+                {tr('templates')}
+              </div>
+              <button
+                onClick={() => handleCreateStrategy('gmgn_sol_live')}
+                className="w-full rounded-lg border border-emerald-400/20 bg-emerald-500/10 hover:bg-emerald-500/15 transition-colors p-2 text-left"
+                title={tr('gmgnSolLiveTooltip')}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded bg-emerald-400/15 text-emerald-300">
+                    <Terminal className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-nofx-text truncate">
+                      {tr('gmgnSolLiveName')}
+                    </div>
+                    <div className="text-[10px] leading-4 text-nofx-text-muted">
+                      {tr('gmgnSolLiveShort')}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
             <div className="flex items-center justify-between mb-2 px-2">
               <span className="text-xs font-medium text-nofx-text-muted">{tr('strategies')}</span>
               <div className="flex items-center gap-1">
@@ -748,7 +789,7 @@ export function StrategyStudioPage() {
                   />
                 </label>
                 <button
-                  onClick={handleCreateStrategy}
+                  onClick={() => handleCreateStrategy()}
                   className="p-1 rounded hover:bg-white/10 transition-colors text-nofx-gold"
                   title={tr('newStrategyTooltip')}
                 >

@@ -2,24 +2,26 @@ package trader
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/mcp"
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
-	"nofx/wallet"
-	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/trader/aster"
 	"nofx/trader/binance"
 	"nofx/trader/bitget"
 	"nofx/trader/bybit"
 	"nofx/trader/gate"
+	gmgntrader "nofx/trader/gmgn"
 	"nofx/trader/hyperliquid"
 	"nofx/trader/indodax"
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/wallet"
 	"sync"
 	"time"
 )
@@ -83,6 +85,12 @@ type AutoTraderConfig struct {
 	LighterAPIKeyPrivateKey string // LIGHTER API Key private key (40 bytes, for transaction signing)
 	LighterAPIKeyIndex      int    // LIGHTER API Key index (0-255)
 	LighterTestnet          bool   // Whether to use testnet
+
+	// GMGN configuration
+	GMGNAPIKey     string
+	GMGNPrivateKey string
+	GMGNChain      string
+	GMGNWalletAddr string
 
 	// AI configuration
 	UseQwen     bool
@@ -148,9 +156,9 @@ type AutoTrader struct {
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
 	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
-	consecutiveAIFailures int               // Consecutive AI call failures
-	safeMode              bool              // Safe mode: no new positions, protect existing ones
-	safeModeReason        string            // Why safe mode was activated
+	consecutiveAIFailures int                // Consecutive AI call failures
+	safeMode              bool               // Safe mode: no new positions, protect existing ones
+	safeModeReason        string             // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader
@@ -286,6 +294,12 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	case "indodax":
 		logger.Infof("🏦 [%s] Using Indodax Spot trading", config.Name)
 		trader = indodax.NewIndodaxTrader(config.IndodaxAPIKey, config.IndodaxSecretKey)
+	case "gmgn":
+		logger.Infof("🏦 [%s] Using GMGN spot trading on %s", config.Name, config.GMGNChain)
+		trader, err = gmgntrader.NewTrader(config.GMGNAPIKey, config.GMGNPrivateKey, config.GMGNChain, config.GMGNWalletAddr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize GMGN trader: %w", err)
+		}
 	default:
 		return nil, fmt.Errorf("unsupported trading platform: %s", config.Exchange)
 	}
@@ -333,6 +347,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	if config.StrategyConfig == nil {
 		return nil, fmt.Errorf("[%s] strategy not configured", config.Name)
 	}
+	if config.GMGNAPIKey != "" {
+		market.SetGMGNAPIKey(config.GMGNAPIKey)
+	}
 	// Pass claw402 wallet key to strategy engine so nofxos data requests
 	// are routed through claw402 (reuses the same wallet as AI calls)
 	var claw402Key string
@@ -340,6 +357,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		claw402Key = config.CustomAPIKey
 	}
 	strategyEngine := kernel.NewStrategyEngine(config.StrategyConfig, claw402Key)
+	strategyEngine.SetGMGNAPIKey(config.GMGNAPIKey)
 	logger.Infof("✓ [%s] Using strategy engine (strategy configuration loaded)", config.Name)
 
 	return &AutoTrader{
@@ -461,6 +479,14 @@ func (at *AutoTrader) Run() error {
 		if kucoinTrader, ok := at.trader.(*kucoin.KuCoinTrader); ok && at.store != nil {
 			kucoinTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
 			logger.Infof("🔄 [%s] KuCoin order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start GMGN order sync if using GMGN exchange
+	if at.exchange == "gmgn" {
+		if gmgnTrader, ok := at.trader.(*gmgntrader.Trader); ok && at.store != nil {
+			gmgnTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] GMGN order+position sync enabled (every 30s)", at.name)
 		}
 	}
 

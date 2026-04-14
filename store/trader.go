@@ -30,6 +30,8 @@ type Trader struct {
 	IsRunning           bool      `gorm:"column:is_running;default:false" json:"is_running"`
 	IsCrossMargin       bool      `gorm:"column:is_cross_margin;default:true" json:"is_cross_margin"`
 	ShowInCompetition   bool      `gorm:"column:show_in_competition;default:true" json:"show_in_competition"`
+	Chain               string    `gorm:"column:chain;default:''" json:"chain"`
+	WalletAddress       string    `gorm:"column:wallet_address;default:''" json:"wallet_address"`
 	CreatedAt           time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt           time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 
@@ -63,6 +65,8 @@ func (s *TraderStore) initTables() error {
 		var tableExists int64
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'traders'`).Scan(&tableExists)
 		if tableExists > 0 {
+			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS chain TEXT NOT NULL DEFAULT ''`)
+			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS wallet_address TEXT NOT NULL DEFAULT ''`)
 			return nil
 		}
 	}
@@ -110,12 +114,14 @@ func (s *TraderStore) Update(trader *Trader) error {
 		trader.ID, trader.Name, trader.AIModelID, trader.StrategyID)
 
 	updates := map[string]interface{}{
-		"name":           trader.Name,
-		"ai_model_id":    trader.AIModelID,
-		"exchange_id":    trader.ExchangeID,
-		"strategy_id":    trader.StrategyID,
-		"is_cross_margin": trader.IsCrossMargin,
+		"name":                trader.Name,
+		"ai_model_id":         trader.AIModelID,
+		"exchange_id":         trader.ExchangeID,
+		"strategy_id":         trader.StrategyID,
+		"is_cross_margin":     trader.IsCrossMargin,
 		"show_in_competition": trader.ShowInCompetition,
+		"chain":               trader.Chain,
+		"wallet_address":      trader.WalletAddress,
 	}
 
 	// Only update these if > 0

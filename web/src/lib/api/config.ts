@@ -7,6 +7,7 @@ import type {
   CreateExchangeRequest,
   BeginnerOnboardingResponse,
   CurrentBeginnerWalletResponse,
+  GMGNWallet,
 } from '../../types'
 import { API_BASE, httpClient, CryptoService } from './helpers'
 
@@ -90,6 +91,16 @@ export const configApi = {
     )
     if (!result.success) throw new Error('Failed to fetch supported exchanges')
     return result.data!
+  },
+
+  async getGMGNWallets(exchangeId: string): Promise<GMGNWallet[]> {
+    const result = await httpClient.get<{ wallets: GMGNWallet[] }>(
+      `${API_BASE}/exchanges/${exchangeId}/gmgn-wallets`
+    )
+    if (!result.success || !result.data) {
+      throw new Error('Failed to fetch GMGN wallets')
+    }
+    return Array.isArray(result.data.wallets) ? result.data.wallets : []
   },
 
   async updateExchangeConfigs(

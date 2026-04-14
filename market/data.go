@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"nofx/logger"
+	gmgnprovider "nofx/provider/gmgn"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,6 +36,30 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	var err error
 	// Normalize symbol
 	symbol = Normalize(symbol)
+
+	if gmgnprovider.IsChainSymbol(symbol) || strings.ToLower(exchange) == "gmgn" {
+		klines3m, err = getKlinesFromGMGN(symbol, "5m", 100)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get GMGN primary K-line: %v", err)
+		}
+		klines4h, err = getKlinesFromGMGN(symbol, "4h", 100)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get GMGN 4-hour K-line: %v", err)
+		}
+		if len(klines3m) == 0 || len(klines4h) == 0 {
+			return nil, fmt.Errorf("GMGN K-line data is empty")
+		}
+		data, err := BuildDataFromKlines(symbol, klines3m, klines4h)
+		if err != nil {
+			return nil, err
+		}
+		data.OpenInterest = &OIData{Latest: 0, Average: 0}
+		data.FundingRate = 0
+		if price, priceErr := getGMGNTokenPrice(symbol); priceErr == nil && price > 0 {
+			data.CurrentPrice = price
+		}
+		return data, nil
+	}
 
 	// Check if this is an xyz dex asset (use Hyperliquid API)
 	isXyzAsset := IsXyzDexAsset(symbol)
@@ -168,6 +193,46 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		timeframes = append([]string{primaryTimeframe}, timeframes...)
 	}
 
+	if gmgnprovider.IsChainSymbol(symbol) {
+		timeframeData := make(map[string]*TimeframeSeriesData)
+		var primaryKlines []Kline
+
+		for _, tf := range timeframes {
+			klines, err := getKlinesFromGMGN(symbol, tf, count)
+			if err != nil {
+				logger.Infof("⚠️ Failed to get %s %s K-line from GMGN: %v", symbol, tf, err)
+				continue
+			}
+			if len(klines) == 0 {
+				continue
+			}
+			if tf == primaryTimeframe {
+				primaryKlines = klines
+			}
+			timeframeData[tf] = calculateTimeframeSeries(klines, tf, count)
+		}
+
+		if len(primaryKlines) == 0 {
+			return nil, fmt.Errorf("Primary timeframe %s K-line data is empty", primaryTimeframe)
+		}
+		currentPrice := primaryKlines[len(primaryKlines)-1].Close
+		if price, err := getGMGNTokenPrice(symbol); err == nil && price > 0 {
+			currentPrice = price
+		}
+		return &Data{
+			Symbol:        symbol,
+			CurrentPrice:  currentPrice,
+			PriceChange1h: calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60),
+			PriceChange4h: calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240),
+			CurrentEMA20:  calculateEMA(primaryKlines, 20),
+			CurrentMACD:   calculateMACD(primaryKlines),
+			CurrentRSI7:   calculateRSI(primaryKlines, 7),
+			OpenInterest:  &OIData{Latest: 0, Average: 0},
+			FundingRate:   0,
+			TimeframeData: timeframeData,
+		}, nil
+	}
+
 	// Store data for all timeframes
 	timeframeData := make(map[string]*TimeframeSeriesData)
 	var primaryKlines []Kline
@@ -229,7 +294,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
 	// Get OI data
@@ -555,6 +620,13 @@ func IsXyzDexAsset(symbol string) bool {
 // For crypto: ensures it's a USDT trading pair
 // For xyz dex assets (stocks, forex, commodities): uses xyz: prefix without USDT suffix
 func Normalize(symbol string) string {
+	if gmgnprovider.IsChainSymbol(strings.TrimSpace(symbol)) {
+		chain, address, err := gmgnprovider.ParseSymbol(symbol)
+		if err == nil {
+			return gmgnprovider.FormatSymbol(chain, address)
+		}
+	}
+
 	symbol = strings.ToUpper(symbol)
 
 	// Check if this is an xyz dex asset

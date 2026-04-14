@@ -41,6 +41,8 @@ export interface PromptSectionsConfig {
 export interface StrategyConfig {
   // Strategy type: "ai_trading" (default) or "grid_trading"
   strategy_type?: 'ai_trading' | 'grid_trading';
+  // Optional built-in template identifier
+  template_id?: string;
   // Language setting: "zh" for Chinese, "en" for English
   // Determines the language used for data formatting and prompt generation
   language?: 'zh' | 'en';
@@ -88,7 +90,7 @@ export interface GridStrategyConfig {
 }
 
 export interface CoinSourceConfig {
-  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed';
+  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'gmgn_trending' | 'mixed';
   static_coins?: string[];
   excluded_coins?: string[];   // 排除的币种列表
   use_ai500: boolean;
@@ -97,6 +99,9 @@ export interface CoinSourceConfig {
   oi_top_limit?: number;
   use_oi_low: boolean;
   oi_low_limit?: number;
+  gmgn_trending_chain?: 'sol' | 'bsc' | 'base';
+  gmgn_trending_interval?: '1m' | '5m' | '1h' | '6h' | '24h';
+  gmgn_trending_limit?: number;
   // Note: API URLs are now built automatically using nofxos_api_key from IndicatorConfig
 }
 

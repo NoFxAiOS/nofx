@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import type { AIModel, Exchange, CreateTraderRequest, ExchangeAccountStateResponse, Strategy } from '../../types'
+import type { AIModel, Exchange, CreateTraderRequest, ExchangeAccountStateResponse, Strategy, GMGNWallet } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { toast } from 'sonner'
 import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../../lib/httpClient'
+import { api } from '../../lib/api'
 import { NofxSelect } from '../ui/select'
 
 // 提取下划线后面的名称部分
@@ -32,6 +33,8 @@ interface FormState {
   ai_model: string
   exchange_id: string
   strategy_id: string
+  chain?: 'sol' | 'bsc' | 'base'
+  wallet_address?: string
   is_cross_margin: boolean
   show_in_competition: boolean
   scan_interval_minutes: number
@@ -69,7 +72,9 @@ export function TraderConfigModal({
   })
   const [isSaving, setIsSaving] = useState(false)
   const [strategies, setStrategies] = useState<Strategy[]>([])
+  const [gmgnWallets, setGmgnWallets] = useState<GMGNWallet[]>([])
   const [isFetchingBalance, setIsFetchingBalance] = useState(false)
+  const [isLoadingGMGNWallets, setIsLoadingGMGNWallets] = useState(false)
   const [balanceFetchError, setBalanceFetchError] = useState<string>('')
 
   // 获取用户的策略列表
@@ -111,12 +116,61 @@ export function TraderConfigModal({
         ai_model: availableModels[0]?.id || '',
         exchange_id: availableExchanges[0]?.id || '',
         strategy_id: '',
+        chain: undefined,
+        wallet_address: undefined,
         is_cross_margin: true,
         show_in_competition: true,
         scan_interval_minutes: 3,
       })
     }
   }, [traderData, isEditMode, availableModels, availableExchanges])
+
+  const selectedExchange = availableExchanges.find((exchange) => exchange.id === formData.exchange_id)
+  const isGMGNExchange = selectedExchange?.exchange_type === 'gmgn'
+
+  useEffect(() => {
+    if (!isOpen || !formData.exchange_id || !isGMGNExchange) {
+      setGmgnWallets([])
+      return
+    }
+
+    let cancelled = false
+    setIsLoadingGMGNWallets(true)
+
+    api.getGMGNWallets(formData.exchange_id)
+      .then((wallets: GMGNWallet[]) => {
+        if (cancelled) return
+        setGmgnWallets(wallets)
+
+        if (wallets.length === 0) return
+
+        setFormData((prev) => {
+          const nextChain = prev.chain || wallets[0].chain
+          const walletForChain = wallets.find((wallet: GMGNWallet) => wallet.chain === nextChain) || wallets[0]
+          const nextWallet = prev.wallet_address && wallets.some((wallet: GMGNWallet) => wallet.wallet_address === prev.wallet_address)
+            ? prev.wallet_address
+            : walletForChain.wallet_address
+          return {
+            ...prev,
+            chain: nextChain,
+            wallet_address: nextWallet,
+          }
+        })
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error('Failed to fetch GMGN wallets:', error)
+          setGmgnWallets([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingGMGNWallets(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, formData.exchange_id, isGMGNExchange])
 
   if (!isOpen) return null
 
@@ -126,6 +180,7 @@ export function TraderConfigModal({
 
   const handleExchangeChange = (exchangeId: string) => {
     setBalanceFetchError('')
+    const nextExchange = availableExchanges.find((exchange) => exchange.id === exchangeId)
     setFormData((prev) => {
       if (prev.exchange_id === exchangeId) {
         return prev
@@ -137,6 +192,14 @@ export function TraderConfigModal({
       // Clear the old baseline so we don't carry Exchange B's balance into Exchange A.
       if (isEditMode) {
         next.initial_balance = undefined
+      }
+
+      if (nextExchange?.exchange_type === 'gmgn') {
+        next.chain = undefined
+        next.wallet_address = undefined
+      } else {
+        next.chain = undefined
+        next.wallet_address = undefined
       }
 
       return next
@@ -158,6 +221,16 @@ export function TraderConfigModal({
     setBalanceFetchError('')
 
     try {
+      const selectedExchange = availableExchanges.find((exchange) => exchange.id === formData.exchange_id)
+      if (selectedExchange?.exchange_type === 'gmgn' && formData.trader_id) {
+        const result = await httpClient.post<{ new_balance: number }>(`/api/traders/${formData.trader_id}/sync-balance`)
+        if (result.success && result.data?.new_balance !== undefined) {
+          setFormData((prev) => ({ ...prev, initial_balance: result.data?.new_balance }))
+          toast.success(t('balanceFetched', language))
+          return
+        }
+      }
+
       const result = await httpClient.get<ExchangeAccountStateResponse>('/api/exchanges/account-state')
 
       const selectedState = result.data?.states?.[formData.exchange_id]
@@ -195,6 +268,8 @@ export function TraderConfigModal({
         ai_model_id: formData.ai_model,
         exchange_id: formData.exchange_id,
         strategy_id: formData.strategy_id,
+        chain: formData.chain,
+        wallet_address: formData.wallet_address,
         is_cross_margin: formData.is_cross_margin,
         show_in_competition: formData.show_in_competition,
         scan_interval_minutes: formData.scan_interval_minutes,
@@ -214,6 +289,16 @@ export function TraderConfigModal({
   }
 
   const selectedStrategy = strategies.find(s => s.id === formData.strategy_id)
+  const gmgnChainOptions = Array.from(new Set(gmgnWallets.map((wallet) => wallet.chain))).map((chain) => ({
+    value: chain,
+    label: chain.toUpperCase(),
+  }))
+  const gmgnWalletOptions = gmgnWallets
+    .filter((wallet) => !formData.chain || wallet.chain === formData.chain)
+    .map((wallet) => ({
+      value: wallet.wallet_address,
+      label: `${wallet.wallet_address} · USDC ${wallet.usdc_balance.toFixed(2)}`,
+    }))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
@@ -332,6 +417,44 @@ export function TraderConfigModal({
                   })()}
                 </div>
               </div>
+
+              {isGMGNExchange && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-[#EAECEF] block mb-2">
+                      GMGN Chain
+                    </label>
+                    <NofxSelect
+                      value={formData.chain || ''}
+                      onChange={(val) => {
+                        const nextChain = val as 'sol' | 'bsc' | 'base'
+                        const firstWallet = gmgnWallets.find((wallet) => wallet.chain === nextChain)
+                        setFormData((prev) => ({
+                          ...prev,
+                          chain: nextChain,
+                          wallet_address: firstWallet?.wallet_address || '',
+                        }))
+                      }}
+                      className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF]"
+                      options={gmgnChainOptions}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-[#EAECEF] block mb-2">
+                      GMGN Wallet
+                    </label>
+                    <NofxSelect
+                      value={formData.wallet_address || ''}
+                      onChange={(val) => handleInputChange('wallet_address', val)}
+                      className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF]"
+                      options={gmgnWalletOptions}
+                    />
+                    {isLoadingGMGNWallets && (
+                      <p className="text-xs text-[#848E9C] mt-2">Loading GMGN wallets...</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -387,7 +510,8 @@ export function TraderConfigModal({
                     <div>
                       {t('coinSource', language)}: {selectedStrategy.config.coin_source.source_type === 'static' ? '固定币种' :
                         selectedStrategy.config.coin_source.source_type === 'ai500' ? 'AI500' :
-                        selectedStrategy.config.coin_source.source_type === 'oi_top' ? 'OI Top' : '混合'}
+                        selectedStrategy.config.coin_source.source_type === 'oi_top' ? 'OI Top' :
+                        selectedStrategy.config.coin_source.source_type === 'gmgn_trending' ? 'GMGN Trending' : '混合'}
                     </div>
                     <div>
                       {t('marginLimit', language)}: {((selectedStrategy.config.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%

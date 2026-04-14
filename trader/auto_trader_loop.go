@@ -95,7 +95,17 @@ func (at *AutoTrader) runCycle() error {
 
 	// 5. Use strategy engine to call AI for decision
 	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
-	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+	promptVariant := "balanced"
+	if at.exchange == "gmgn" {
+		promptVariant = "spot_only"
+	}
+	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, promptVariant)
+
+	if err == nil && at.exchange == "gmgn" {
+		if spotErr := validateSpotOnlyDecisions(aiDecision.Decisions); spotErr != nil {
+			err = fmt.Errorf("gmgn spot-only validation failed: %w", spotErr)
+		}
+	}
 
 	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
 		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
@@ -578,6 +588,22 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	}
 
 	return ctx, nil
+}
+
+func validateSpotOnlyDecisions(decisions []kernel.Decision) error {
+	for _, decision := range decisions {
+		switch decision.Action {
+		case "open_long", "close_long", "hold", "wait":
+		case "open_short", "close_short":
+			return fmt.Errorf("action %s is unsupported on spot-only exchanges", decision.Action)
+		default:
+			return fmt.Errorf("action %s is unsupported on spot-only exchanges", decision.Action)
+		}
+		if decision.Action == "open_long" && decision.Leverage > 1 {
+			return fmt.Errorf("leverage %d is unsupported on spot-only exchanges", decision.Leverage)
+		}
+	}
+	return nil
 }
 
 // sortDecisionsByPriority sorts decisions: close positions first, then open positions, finally hold/wait

@@ -19,7 +19,7 @@ export interface TelegramConfig {
 
 export interface Exchange {
   id: string                     // UUID (empty for supported exchange templates)
-  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter", "gmgn"
   account_name: string           // User-defined account name
   name: string                   // Display name
   type: 'cex' | 'dex'
@@ -39,6 +39,9 @@ export interface Exchange {
   lighterPrivateKey?: string
   lighterApiKeyPrivateKey?: string
   lighterApiKeyIndex?: number
+  // GMGN specific
+  gmgnApiKey?: string
+  gmgnPrivateKey?: string
 }
 
 export type ExchangeAccountStatus =
@@ -66,7 +69,7 @@ export interface ExchangeAccountStateResponse {
 }
 
 export interface CreateExchangeRequest {
-  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter", "gmgn"
   account_name: string           // User-defined account name
   enabled: boolean
   api_key?: string
@@ -81,6 +84,8 @@ export interface CreateExchangeRequest {
   lighter_private_key?: string
   lighter_api_key_private_key?: string
   lighter_api_key_index?: number
+  gmgn_api_key?: string
+  gmgn_private_key?: string
 }
 
 export interface CreateTraderRequest {
@@ -101,6 +106,8 @@ export interface CreateTraderRequest {
   system_prompt_template?: string
   use_ai500?: boolean
   use_oi_top?: boolean
+  chain?: 'sol' | 'bsc' | 'base'
+  wallet_address?: string
 }
 
 export interface UpdateModelConfigRequest {
@@ -133,8 +140,17 @@ export interface UpdateExchangeConfigRequest {
       lighter_private_key?: string
       lighter_api_key_private_key?: string
       lighter_api_key_index?: number
+      gmgn_api_key?: string
+      gmgn_private_key?: string
     }
   }
+}
+
+export interface GMGNWallet {
+  chain: 'sol' | 'bsc' | 'base'
+  wallet_address: string
+  usdc_balance: number
+  native_balance: number
 }
 
 export interface BeginnerOnboardingResponse {

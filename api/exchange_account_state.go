@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"nofx/logger"
+	gmgnprovider "nofx/provider/gmgn"
 	"nofx/store"
 	"nofx/trader"
 	"nofx/trader/aster"
@@ -16,6 +17,7 @@ import (
 	"nofx/trader/bitget"
 	"nofx/trader/bybit"
 	"nofx/trader/gate"
+	gmgntrader "nofx/trader/gmgn"
 	hyperliquidtrader "nofx/trader/hyperliquid"
 	"nofx/trader/indodax"
 	"nofx/trader/kucoin"
@@ -166,6 +168,10 @@ func probeExchangeAccountState(exchangeCfg *store.Exchange, userID string) Excha
 		return state
 	}
 
+	if exchangeCfg.ExchangeType == "gmgn" {
+		return probeGMGNExchangeAccountState(exchangeCfg, state)
+	}
+
 	tempTrader, err := buildExchangeProbeTrader(exchangeCfg, userID)
 	if err != nil {
 		status, code, message := classifyExchangeProbeError(err)
@@ -223,6 +229,10 @@ func probeExchangeAccountState(exchangeCfg *store.Exchange, userID string) Excha
 }
 
 func buildExchangeProbeTrader(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
+	return buildExchangeProbeTraderForWallet(exchangeCfg, userID, "", "")
+}
+
+func buildExchangeProbeTraderForWallet(exchangeCfg *store.Exchange, userID, chain, walletAddress string) (trader.Trader, error) {
 	switch exchangeCfg.ExchangeType {
 	case "binance":
 		return binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID), nil
@@ -258,9 +268,56 @@ func buildExchangeProbeTrader(exchangeCfg *store.Exchange, userID string) (trade
 			exchangeCfg.LighterAPIKeyIndex,
 			false,
 		)
+	case "gmgn":
+		if strings.TrimSpace(chain) == "" || strings.TrimSpace(walletAddress) == "" {
+			return nil, fmt.Errorf("gmgn requires chain and wallet address")
+		}
+		return gmgntrader.NewTrader(
+			string(exchangeCfg.GMGNAPIKey),
+			string(exchangeCfg.GMGNPrivateKey),
+			chain,
+			walletAddress,
+		)
 	default:
 		return nil, fmt.Errorf("unsupported exchange type: %s", exchangeCfg.ExchangeType)
 	}
+}
+
+func probeGMGNExchangeAccountState(exchangeCfg *store.Exchange, state ExchangeAccountState) ExchangeAccountState {
+	client, err := gmgnprovider.NewClient(string(exchangeCfg.GMGNAPIKey), string(exchangeCfg.GMGNPrivateKey))
+	if err != nil {
+		status, code, message := classifyExchangeProbeError(err)
+		state.Status = status
+		state.ErrorCode = code
+		state.ErrorMessage = message
+		return state
+	}
+
+	info, err := client.GetUserInfo()
+	if err != nil {
+		status, code, message := classifyExchangeProbeError(err)
+		state.Status = status
+		state.ErrorCode = code
+		state.ErrorMessage = message
+		return state
+	}
+
+	availableWallets := 0
+	for _, wallet := range info.Wallets {
+		if _, ok := gmgnprovider.GetChainConfig(wallet.Chain); ok {
+			availableWallets++
+		}
+	}
+	if availableWallets == 0 {
+		state.Status = exchangeAccountStatusUnavailable
+		state.ErrorCode = "NO_GMGN_WALLETS"
+		state.ErrorMessage = "GMGN credentials are valid but no supported wallets were found"
+		return state
+	}
+
+	state.Status = exchangeAccountStatusOK
+	state.DisplayBalance = fmt.Sprintf("%d wallet(s)", availableWallets)
+	return state
 }
 
 func extractExchangeTotalEquity(balanceInfo map[string]interface{}) (float64, bool) {
@@ -311,7 +368,7 @@ func formatDisplayBalance(value float64, asset string) string {
 
 func accountAssetForExchange(exchangeType string) string {
 	switch exchangeType {
-	case "hyperliquid", "aster", "lighter":
+	case "hyperliquid", "aster", "lighter", "gmgn":
 		return "USDC"
 	default:
 		return "USDT"
@@ -339,6 +396,10 @@ func missingExchangeCredentials(exchangeCfg *store.Exchange) (status string, cod
 	case "lighter":
 		if exchangeCfg.LighterWalletAddr == "" || exchangeCfg.LighterAPIKeyPrivateKey == "" {
 			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "Wallet address and API key private key are required", true
+		}
+	case "gmgn":
+		if exchangeCfg.GMGNAPIKey == "" || exchangeCfg.GMGNPrivateKey == "" {
+			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "GMGN API key and private key are required", true
 		}
 	default:
 		return exchangeAccountStatusUnavailable, "UNSUPPORTED_EXCHANGE", "Unsupported exchange type", true

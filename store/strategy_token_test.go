@@ -48,6 +48,32 @@ func TestEstimateTokens_ZhVsEn(t *testing.T) {
 	}
 }
 
+func TestGetStrategyTemplateConfig_GMGNSOLLive(t *testing.T) {
+	config := GetStrategyTemplateConfig("zh", "gmgn_sol_live")
+
+	if config.StrategyType != "ai_trading" {
+		t.Fatalf("strategy_type = %q, want ai_trading", config.StrategyType)
+	}
+	if config.CoinSource.SourceType != "static" {
+		t.Fatalf("source_type = %q, want static", config.CoinSource.SourceType)
+	}
+	if config.CoinSource.UseAI500 || config.CoinSource.UseOITop || config.CoinSource.UseOILow {
+		t.Fatalf("gmgn template should disable dynamic coin sources: %+v", config.CoinSource)
+	}
+	if config.Indicators.EnableOI {
+		t.Fatal("gmgn template should disable OI")
+	}
+	if config.Indicators.EnableFundingRate {
+		t.Fatal("gmgn template should disable funding rate")
+	}
+	if config.RiskControl.BTCETHMaxLeverage != 1 || config.RiskControl.AltcoinMaxLeverage != 1 {
+		t.Fatalf("gmgn template leverage should be 1x, got btc/eth=%d alt=%d", config.RiskControl.BTCETHMaxLeverage, config.RiskControl.AltcoinMaxLeverage)
+	}
+	if config.PromptSections.DecisionProcess == "" {
+		t.Fatal("gmgn template should include prompt sections")
+	}
+}
+
 func TestEstimateTokens_HighConfig(t *testing.T) {
 	config := GetDefaultStrategyConfig("en")
 	// Push config to extremes (beyond clamped limits)
@@ -108,5 +134,11 @@ func TestGetEffectiveCoinCount(t *testing.T) {
 	config.CoinSource.AI500Limit = 5
 	if got := config.getEffectiveCoinCount(); got != 5 {
 		t.Errorf("ai500 coin count = %d, want 5", got)
+	}
+
+	config.CoinSource.SourceType = "gmgn_trending"
+	config.CoinSource.GMGNTrendingLimit = 4
+	if got := config.getEffectiveCoinCount(); got != 4 {
+		t.Errorf("gmgn_trending coin count = %d, want 4", got)
 	}
 }

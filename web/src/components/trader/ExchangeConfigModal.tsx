@@ -30,6 +30,7 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
   { exchange_type: 'hyperliquid', name: 'Hyperliquid', type: 'dex' as const },
   { exchange_type: 'aster', name: 'Aster DEX', type: 'dex' as const },
   { exchange_type: 'lighter', name: 'Lighter', type: 'dex' as const },
+  { exchange_type: 'gmgn', name: 'GMGN', type: 'dex' as const },
   { exchange_type: 'indodax', name: 'Indodax', type: 'cex' as const },
 ]
 
@@ -51,7 +52,9 @@ interface ExchangeConfigModalProps {
     lighterWalletAddr?: string,
     lighterPrivateKey?: string,
     lighterApiKeyPrivateKey?: string,
-    lighterApiKeyIndex?: number
+    lighterApiKeyIndex?: number,
+    gmgnApiKey?: string,
+    gmgnPrivateKey?: string
   ) => Promise<void>
   onDelete: (exchangeId: string) => void
   onClose: () => void
@@ -177,6 +180,8 @@ export function ExchangeConfigModal({
   const [lighterWalletAddr, setLighterWalletAddr] = useState('')
   const [lighterApiKeyPrivateKey, setLighterApiKeyPrivateKey] = useState('')
   const [lighterApiKeyIndex, setLighterApiKeyIndex] = useState(0)
+  const [gmgnApiKey, setGmgnApiKey] = useState('')
+  const [gmgnPrivateKey, setGmgnPrivateKey] = useState('')
 
   // Other state
   const [secureInputTarget, setSecureInputTarget] = useState<null | 'hyperliquid' | 'aster' | 'lighter'>(null)
@@ -206,6 +211,7 @@ export function ExchangeConfigModal({
     aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
     lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
     indodax: { url: 'https://indodax.com/ref/Saep23/1', hasReferral: true },
+    gmgn: { url: 'https://gmgn.ai/' },
   }
 
   // Initialize form when editing
@@ -223,6 +229,8 @@ export function ExchangeConfigModal({
       setLighterWalletAddr(selectedExchange.lighterWalletAddr || '')
       setLighterApiKeyPrivateKey('')
       setLighterApiKeyIndex(selectedExchange.lighterApiKeyIndex || 0)
+      setGmgnApiKey(selectedExchange.gmgnApiKey || '')
+      setGmgnPrivateKey('')
     }
   }, [editingExchangeId, selectedExchange])
 
@@ -329,6 +337,9 @@ export function ExchangeConfigModal({
       } else if (currentExchangeType === 'lighter') {
         if (!lighterWalletAddr.trim() || !lighterApiKeyPrivateKey.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, undefined, undefined, undefined, lighterWalletAddr.trim(), '', lighterApiKeyPrivateKey.trim(), lighterApiKeyIndex)
+      } else if (currentExchangeType === 'gmgn') {
+        if (!gmgnApiKey.trim() || !gmgnPrivateKey.trim()) return
+        await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, gmgnApiKey.trim(), gmgnPrivateKey.trim())
       } else {
         if (!apiKey.trim() || !secretKey.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), secretKey.trim(), '', testnet)
@@ -723,6 +734,49 @@ export function ExchangeConfigModal({
                       </Tooltip>
                     </label>
                     <input type="number" min={0} max={255} value={lighterApiKeyIndex} onChange={(e) => setLighterApiKeyIndex(parseInt(e.target.value) || 0)} className="w-full px-4 py-3 rounded-xl" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }} />
+                  </div>
+                </>
+              )}
+
+              {/* GMGN Fields */}
+              {currentExchangeType === 'gmgn' && (
+                <>
+                  <div className="p-4 rounded-xl" style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.25)' }}>
+                    <div className="flex items-start gap-2">
+                      <span style={{ fontSize: '16px' }}>🟢</span>
+                      <div>
+                        <div className="text-sm font-semibold mb-1" style={{ color: '#4ADE80' }}>
+                          GMGN Spot / Swap
+                        </div>
+                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                          GMGN 交易所配置只保存账户凭证。实际交易链和钱包会在 Trader 配置页绑定。
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>GMGN API Key *</label>
+                    <input
+                      type="password"
+                      value={gmgnApiKey}
+                      onChange={(e) => setGmgnApiKey(e.target.value)}
+                      placeholder="Enter GMGN API Key"
+                      className="w-full px-4 py-3 rounded-xl"
+                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>GMGN Private Key *</label>
+                    <input
+                      type="password"
+                      value={gmgnPrivateKey}
+                      onChange={(e) => setGmgnPrivateKey(e.target.value)}
+                      placeholder="Enter GMGN Private Key"
+                      className="w-full px-4 py-3 rounded-xl"
+                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      required
+                    />
                   </div>
                 </>
               )}

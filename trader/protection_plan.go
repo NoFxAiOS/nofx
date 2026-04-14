@@ -80,8 +80,9 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 }
 
 // BuildConfiguredProtectionPlan creates a normalized protection plan from strategy configuration.
-// Unlike BuildManualProtectionPlan, it can also materialize AI-mode strategy protection config
-// when the runtime decision does not provide a concrete decision.ProtectionPlan payload yet.
+// Strategy config only materializes MANUAL protection plans.
+// AI protection plans must come from decision.ProtectionPlan so the runtime can distinguish
+// between manual defaults and concrete AI-generated targets.
 func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action string) (*ProtectionPlan, error) {
 	if at.config.StrategyConfig == nil {
 		return nil, nil
@@ -92,14 +93,9 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 
 	// Build ladder plan first so we know which directions it covers.
 	var ladderPlan *ProtectionPlan
-	if protection.LadderTPSL.Enabled {
+	if protection.LadderTPSL.Enabled && protection.LadderTPSL.Mode == store.ProtectionModeManual {
 		var err error
-		switch protection.LadderTPSL.Mode {
-		case store.ProtectionModeManual:
-			ladderPlan, err = buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-		case store.ProtectionModeAI:
-			ladderPlan, err = buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-		}
+		ladderPlan, err = buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
 		if err != nil {
 			return nil, err
 		}
@@ -121,15 +117,8 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 	}
 
 	// Build full plan, but suppress directions already covered by ladder.
-	if protection.FullTPSL.Enabled {
-		var fullPlan *ProtectionPlan
-		var err error
-		switch protection.FullTPSL.Mode {
-		case store.ProtectionModeManual:
-			fullPlan, err = buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-		case store.ProtectionModeAI:
-			fullPlan, err = buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-		}
+	if protection.FullTPSL.Enabled && protection.FullTPSL.Mode == store.ProtectionModeManual {
+		fullPlan, err := buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
 		if err != nil {
 			return nil, err
 		}

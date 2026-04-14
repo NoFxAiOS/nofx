@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"fmt"
 	"math"
 	"nofx/kernel"
 	"nofx/market"
@@ -159,22 +160,103 @@ func buildAIFullProtectionPlan(entryPrice float64, action string, full store.Ful
 	if !full.Enabled || full.Mode != store.ProtectionModeAI {
 		return nil, nil
 	}
-	full.Mode = store.ProtectionModeManual
-	plan, err := buildManualFullProtectionPlan(entryPrice, action, full)
-	if plan != nil {
-		plan.Mode = string(store.ProtectionModeAI)
+	if entryPrice <= 0 {
+		return nil, fmt.Errorf("invalid entry price %.8f for ai full protection plan", entryPrice)
 	}
-	return plan, err
+
+	isLong := action == "open_long"
+	isShort := action == "open_short"
+	if !isLong && !isShort {
+		return nil, nil
+	}
+
+	plan := &ProtectionPlan{Mode: string(store.ProtectionModeAI), RequiresNativeOrders: true}
+
+	if full.StopLoss.Enabled && full.StopLoss.PriceMovePct > 0 {
+		move := full.StopLoss.PriceMovePct / 100.0
+		if isLong {
+			plan.StopLossPrice = entryPrice * (1 - move)
+		} else {
+			plan.StopLossPrice = entryPrice * (1 + move)
+		}
+		plan.StopLossPrice = roundProtectionPrice(plan.StopLossPrice)
+		plan.NeedsStopLoss = true
+	}
+
+	if full.TakeProfit.Enabled && full.TakeProfit.PriceMovePct > 0 {
+		move := full.TakeProfit.PriceMovePct / 100.0
+		if isLong {
+			plan.TakeProfitPrice = entryPrice * (1 + move)
+		} else {
+			plan.TakeProfitPrice = entryPrice * (1 - move)
+		}
+		plan.TakeProfitPrice = roundProtectionPrice(plan.TakeProfitPrice)
+		plan.NeedsTakeProfit = true
+	}
+
+	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit {
+		return nil, nil
+	}
+
+	return plan, nil
 }
 
 func buildAILadderProtectionPlan(entryPrice float64, action string, ladder store.LadderTPSLConfig) (*ProtectionPlan, error) {
 	if !ladder.Enabled || ladder.Mode != store.ProtectionModeAI {
 		return nil, nil
 	}
-	ladder.Mode = store.ProtectionModeManual
-	plan, err := buildManualLadderProtectionPlan(entryPrice, action, ladder)
-	if plan != nil {
-		plan.Mode = string(store.ProtectionModeAI)
+	if entryPrice <= 0 {
+		return nil, fmt.Errorf("invalid entry price %.8f for ai ladder protection plan", entryPrice)
 	}
-	return plan, err
+
+	isLong := action == "open_long"
+	isShort := action == "open_short"
+	if !isLong && !isShort {
+		return nil, nil
+	}
+
+	plan := &ProtectionPlan{
+		Mode:                 string(store.ProtectionModeAI),
+		RequiresNativeOrders: true,
+		RequiresPartialClose: true,
+	}
+
+	remainingTakeProfitRatio := 100.0
+	remainingStopLossRatio := 100.0
+	for _, rule := range ladder.Rules {
+		if ladder.TakeProfitEnabled && rule.TakeProfitPct > 0 && rule.TakeProfitCloseRatioPct > 0 && remainingTakeProfitRatio > 0 {
+			closeRatio := minPositive(rule.TakeProfitCloseRatioPct, remainingTakeProfitRatio)
+			move := rule.TakeProfitPct / 100.0
+			price := entryPrice
+			if isLong {
+				price = entryPrice * (1 + move)
+			} else {
+				price = entryPrice * (1 - move)
+			}
+			price = roundProtectionPrice(price)
+			plan.TakeProfitOrders = append(plan.TakeProfitOrders, ProtectionOrder{Price: price, CloseRatioPct: closeRatio})
+			remainingTakeProfitRatio -= closeRatio
+		}
+
+		if ladder.StopLossEnabled && rule.StopLossPct > 0 && rule.StopLossCloseRatioPct > 0 && remainingStopLossRatio > 0 {
+			closeRatio := minPositive(rule.StopLossCloseRatioPct, remainingStopLossRatio)
+			move := rule.StopLossPct / 100.0
+			price := entryPrice
+			if isLong {
+				price = entryPrice * (1 - move)
+			} else {
+				price = entryPrice * (1 + move)
+			}
+			price = roundProtectionPrice(price)
+			plan.StopLossOrders = append(plan.StopLossOrders, ProtectionOrder{Price: price, CloseRatioPct: closeRatio})
+			remainingStopLossRatio -= closeRatio
+		}
+	}
+
+	if len(plan.StopLossOrders) == 0 && len(plan.TakeProfitOrders) == 0 {
+		return nil, nil
+	}
+	plan.NeedsStopLoss = len(plan.StopLossOrders) > 0
+	plan.NeedsTakeProfit = len(plan.TakeProfitOrders) > 0
+	return plan, nil
 }

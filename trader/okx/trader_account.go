@@ -83,11 +83,8 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 // SetMarginMode sets margin mode
 func (t *OKXTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	instId := t.convertSymbol(symbol)
-
-	mgnMode := "isolated"
-	if isCrossMargin {
-		mgnMode = "cross"
-	}
+	t.isCrossMargin = isCrossMargin
+	mgnMode := t.marginMode()
 
 	body := map[string]interface{}{
 		"instId":  instId,
@@ -116,13 +113,14 @@ func (t *OKXTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 // SetLeverage sets leverage
 func (t *OKXTrader) SetLeverage(symbol string, leverage int) error {
 	instId := t.convertSymbol(symbol)
+	marginMode := t.marginMode()
 
 	// Set leverage for both long and short
 	for _, posSide := range []string{"long", "short"} {
 		body := map[string]interface{}{
 			"instId":  instId,
 			"lever":   strconv.Itoa(leverage),
-			"mgnMode": "cross",
+			"mgnMode": marginMode,
 			"posSide": posSide,
 		}
 
@@ -136,7 +134,7 @@ func (t *OKXTrader) SetLeverage(symbol string, leverage int) error {
 		}
 	}
 
-	logger.Infof("  ✓ %s leverage set to %dx", symbol, leverage)
+	logger.Infof("  ✓ %s leverage set to %dx (%s)", symbol, leverage, marginMode)
 	return nil
 }
 

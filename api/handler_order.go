@@ -90,6 +90,8 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"trader_name":           traderConfig.Name,
 		"ai_model":              aiModelID,
 		"exchange_id":           traderConfig.ExchangeID,
+		"chain":                 traderConfig.Chain,
+		"wallet_address":        traderConfig.WalletAddress,
 		"strategy_id":           traderConfig.StrategyID,
 		"initial_balance":       traderConfig.InitialBalance,
 		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,

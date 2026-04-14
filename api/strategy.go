@@ -164,7 +164,8 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	var req struct {
 		Name        string                `json:"name" binding:"required"`
 		Description string                `json:"description"`
-		Lang        string                `json:"lang"`   // "zh" or "en", used when config is omitted
+		Lang        string                `json:"lang"` // "zh" or "en", used when config is omitted
+		Template    string                `json:"template"`
 		Config      *store.StrategyConfig `json:"config"` // optional — uses default if omitted
 	}
 
@@ -179,7 +180,7 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 		if lang == "" {
 			lang = "zh"
 		}
-		defaultCfg := store.GetDefaultStrategyConfig(lang)
+		defaultCfg := store.GetStrategyTemplateConfig(lang, req.Template)
 		req.Config = &defaultCfg
 	}
 
@@ -437,9 +438,10 @@ func (s *Server) handleGetDefaultStrategyConfig(c *gin.Context) {
 	if lang != "zh" {
 		lang = "en"
 	}
+	template := c.Query("template")
 
-	// Return default configuration with i18n support
-	defaultConfig := store.GetDefaultStrategyConfig(lang)
+	// Return default/template configuration with i18n support
+	defaultConfig := store.GetStrategyTemplateConfig(lang, template)
 	c.JSON(http.StatusOK, defaultConfig)
 }
 

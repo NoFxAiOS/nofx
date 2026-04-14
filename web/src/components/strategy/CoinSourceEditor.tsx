@@ -19,13 +19,32 @@ export function CoinSourceEditor({
 }: CoinSourceEditorProps) {
   const [newCoin, setNewCoin] = useState('')
   const [newExcludedCoin, setNewExcludedCoin] = useState('')
+  const gmgnTrendingChain = config.gmgn_trending_chain || 'sol'
+  const gmgnTrendingInterval = config.gmgn_trending_interval || '1h'
+  const gmgnTrendingLimit = config.gmgn_trending_limit || 5
 
   const sourceTypes = [
     { value: 'static', icon: List, color: '#848E9C' },
     { value: 'ai500', icon: Database, color: '#F0B90B' },
     { value: 'oi_top', icon: TrendingUp, color: '#0ECB81' },
     { value: 'oi_low', icon: TrendingDown, color: '#F6465D' },
+    { value: 'gmgn_trending', icon: Zap, color: '#10B981' },
   ] as const
+
+  const handleSourceTypeChange = (value: CoinSourceConfig['source_type']) => {
+    if (disabled) return
+    if (value === 'gmgn_trending') {
+      onChange({
+        ...config,
+        source_type: value,
+        gmgn_trending_chain: gmgnTrendingChain,
+        gmgn_trending_interval: gmgnTrendingInterval,
+        gmgn_trending_limit: gmgnTrendingLimit,
+      })
+      return
+    }
+    onChange({ ...config, source_type: value })
+  }
 
   // Calculate mixed mode summary
   const getMixedSummary = () => {
@@ -73,6 +92,13 @@ export function CoinSourceEditor({
 
   const MAX_STATIC_COINS = 10
 
+  const isGMGNStyleSymbol = (symbol: string): boolean => {
+    const normalized = symbol.trim()
+    return /^(sol|bsc|base):.+$/i.test(normalized)
+  }
+
+  const isBareEvmAddress = (symbol: string): boolean => /^0x[a-fA-F0-9]{40}$/.test(symbol.trim())
+
   const showToast = (msg: string) => {
     const toast = document.createElement('div')
     toast.textContent = msg
@@ -95,7 +121,12 @@ export function CoinSourceEditor({
 
     // For xyz dex assets (stocks, forex, commodities), use xyz: prefix without USDT
     let formattedSymbol: string
-    if (isXyzDexAsset(symbol)) {
+    if (isGMGNStyleSymbol(symbol)) {
+      const [chain, address] = symbol.split(':', 2)
+      formattedSymbol = `${chain.toLowerCase()}:${address.trim()}`
+    } else if (isBareEvmAddress(symbol)) {
+      formattedSymbol = symbol
+    } else if (isXyzDexAsset(symbol)) {
       // Remove xyz: prefix (case-insensitive) and any USD suffixes
       const base = symbol.replace(/^xyz:/i, '').replace(/USDT$|USD$|-USDC$/i, '')
       formattedSymbol = `xyz:${base}`
@@ -125,7 +156,12 @@ export function CoinSourceEditor({
 
     // For xyz dex assets, use xyz: prefix without USDT
     let formattedSymbol: string
-    if (isXyzDexAsset(symbol)) {
+    if (isGMGNStyleSymbol(symbol)) {
+      const [chain, address] = symbol.split(':', 2)
+      formattedSymbol = `${chain.toLowerCase()}:${address.trim()}`
+    } else if (isBareEvmAddress(symbol)) {
+      formattedSymbol = symbol
+    } else if (isXyzDexAsset(symbol)) {
       const base = symbol.replace(/^xyz:/i, '').replace(/USDT$|USD$|-USDC$/i, '')
       formattedSymbol = `xyz:${base}`
     } else {
@@ -165,14 +201,11 @@ export function CoinSourceEditor({
         <label className="block text-sm font-medium mb-3 text-nofx-text">
           {ts(coinSource.sourceType, language)}
         </label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
           {sourceTypes.map(({ value, icon: Icon, color }) => (
             <button
               key={value}
-              onClick={() =>
-                !disabled &&
-                onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
-              }
+              onClick={() => handleSourceTypeChange(value as CoinSourceConfig['source_type'])}
               disabled={disabled}
               className={`p-4 rounded-lg border transition-all ${config.source_type === value
                 ? 'ring-2 ring-nofx-gold bg-nofx-gold/10'
@@ -222,7 +255,7 @@ export function CoinSourceEditor({
                 value={newCoin}
                 onChange={(e) => setNewCoin(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCoin()}
-                placeholder="BTC, ETH, SOL..."
+                placeholder="BTC, ETH, sol:DezX..., bsc:0x..."
                 className="flex-1 px-4 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
               />
               <button
@@ -451,6 +484,78 @@ export function CoinSourceEditor({
               {ts(coinSource.nofxosNote, language)}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* GMGN Trending Options */}
+      {config.source_type === 'gmgn_trending' && (
+        <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-medium text-nofx-text">
+                {ts(coinSource.gmgnTrendingTitle, language)} {ts(coinSource.dataSourceConfig, language)}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <span className="text-sm text-nofx-text-muted">
+                {ts(coinSource.gmgnTrendingChain, language)}
+              </span>
+              <NofxSelect
+                value={gmgnTrendingChain}
+                onChange={(val) => !disabled && onChange({
+                  ...config,
+                  gmgn_trending_chain: val as CoinSourceConfig['gmgn_trending_chain'],
+                })}
+                disabled={disabled}
+                options={[
+                  { value: 'sol', label: 'SOL' },
+                  { value: 'bsc', label: 'BSC' },
+                  { value: 'base', label: 'BASE' },
+                ]}
+                className="px-3 py-2 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-sm text-nofx-text-muted">
+                {ts(coinSource.gmgnTrendingInterval, language)}
+              </span>
+              <NofxSelect
+                value={gmgnTrendingInterval}
+                onChange={(val) => !disabled && onChange({
+                  ...config,
+                  gmgn_trending_interval: val as CoinSourceConfig['gmgn_trending_interval'],
+                })}
+                disabled={disabled}
+                options={['1m', '5m', '1h', '6h', '24h'].map(value => ({ value, label: value }))}
+                className="px-3 py-2 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-sm text-nofx-text-muted">
+                {ts(coinSource.gmgnTrendingLimit, language)}
+              </span>
+              <NofxSelect
+                value={gmgnTrendingLimit}
+                onChange={(val) => !disabled && onChange({
+                  ...config,
+                  gmgn_trending_limit: parseInt(val) || 5,
+                })}
+                disabled={disabled}
+                options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({ value: n, label: String(n) }))}
+                className="px-3 py-2 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+              />
+            </div>
+          </div>
+
+          <p className="text-xs mt-3 text-nofx-text-muted">
+            {ts(coinSource.gmgnTrendingNote, language)}
+          </p>
         </div>
       )}
 

@@ -644,6 +644,8 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		InitialBalance:        traderCfg.InitialBalance,
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		ShowInCompetition:     traderCfg.ShowInCompetition,
+		GMGNChain:             traderCfg.Chain,
+		GMGNWalletAddr:        traderCfg.WalletAddress,
 		StrategyConfig:        strategyConfig,
 	}
 
@@ -690,6 +692,9 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	case "indodax":
 		traderConfig.IndodaxAPIKey = string(exchangeCfg.APIKey)
 		traderConfig.IndodaxSecretKey = string(exchangeCfg.SecretKey)
+	case "gmgn":
+		traderConfig.GMGNAPIKey = string(exchangeCfg.GMGNAPIKey)
+		traderConfig.GMGNPrivateKey = string(exchangeCfg.GMGNPrivateKey)
 	}
 
 	// Set API keys based on AI model (convert EncryptedString to string)
@@ -740,4 +745,3 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 
 	return nil
 }
-

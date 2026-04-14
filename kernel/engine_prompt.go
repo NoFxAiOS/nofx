@@ -18,6 +18,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	var sb strings.Builder
 	riskControl := e.config.RiskControl
 	promptSections := e.config.PromptSections
+	spotOnly := strings.ToLower(strings.TrimSpace(variant)) == "spot_only"
 
 	// 0. Data Dictionary & Schema (ensure AI understands all fields)
 	lang := e.GetLanguage()
@@ -43,6 +44,8 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("## Mode: Conservative\n- Only open positions when multiple signals resonate\n- Prioritize cash preservation, must pause for multiple periods after consecutive losses\n\n")
 	case "scalping":
 		sb.WriteString("## Mode: Scalping\n- Focus on short-term momentum, smaller profit targets but require quick action\n- If price doesn't move as expected within two bars, immediately reduce position or stop-loss\n\n")
+	case "spot_only":
+		sb.WriteString("## Mode: Spot-Only Swap Trading\n- This exchange only supports spot token holdings and spot swaps\n- Only output actions: open_long | close_long | hold | wait\n- Do not output short positions, leverage > 1, or perpetual-specific assumptions\n- `position_size_usd` is denominated in USDC\n\n")
 	}
 
 	// 3. Hard constraints (risk control)
@@ -66,8 +69,12 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT\n\n", riskControl.MinPositionSize))
 
 	sb.WriteString("## AI GUIDED (Recommended, you should follow):\n")
-	sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
-		riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
+	if spotOnly {
+		sb.WriteString("- Trading Leverage: fixed at 1x (spot-only)\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
+			riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
+	}
 	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
 	sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
 
@@ -130,13 +137,23 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("```json\n[\n")
 	// Use the actual configured position value ratio for BTC/ETH in the example
 	examplePositionSize := accountEquity * btcEthPosValueRatio
-	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
-		riskControl.BTCETHMaxLeverage, examplePositionSize))
-	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
+	if spotOnly {
+		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"sol:DezX...\", \"action\": \"open_long\", \"leverage\": 1, \"position_size_usd\": %.0f, \"stop_loss\": 0.08, \"take_profit\": 0.12, \"confidence\": 85, \"risk_usd\": 300},\n",
+			examplePositionSize))
+		sb.WriteString("  {\"symbol\": \"sol:DezX...\", \"action\": \"close_long\"}\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
+			riskControl.BTCETHMaxLeverage, examplePositionSize))
+		sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
+	}
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
-	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	if spotOnly {
+		sb.WriteString("- `action`: open_long | close_long | hold | wait\n")
+	} else {
+		sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	}
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
@@ -445,6 +462,7 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 		hasAI500 := false
 		hasOITop := false
 		hasOILow := false
+		hasGMGNTrending := false
 		hasHyperAll := false
 		hasHyperMain := false
 		for _, s := range sources {
@@ -455,6 +473,8 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 				hasOITop = true
 			case "oi_low":
 				hasOILow = true
+			case "gmgn_trending":
+				hasGMGNTrending = true
 			case "hyper_all":
 				hasHyperAll = true
 			case "hyper_main":
@@ -463,6 +483,12 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 		}
 		if hasAI500 && hasOITop {
 			return " (AI500+OI_Top dual signal)"
+		}
+		if hasGMGNTrending && hasAI500 {
+			return " (GMGN Trending+AI500)"
+		}
+		if hasGMGNTrending && hasOITop {
+			return " (GMGN Trending+OI_Top)"
 		}
 		if hasAI500 && hasOILow {
 			return " (AI500+OI_Low dual signal)"
@@ -485,6 +511,8 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 			return " (OI_Top OI increase)"
 		case "oi_low":
 			return " (OI_Low OI decrease)"
+		case "gmgn_trending":
+			return " (GMGN Trending)"
 		case "static":
 			return " (Manual selection)"
 		case "hyper_all":

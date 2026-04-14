@@ -132,6 +132,8 @@ export interface TraderConfigData {
   trader_name: string
   ai_model: string
   exchange_id: string
+  chain?: 'sol' | 'bsc' | 'base'
+  wallet_address?: string
   strategy_id?: string  // 策略ID
   strategy_name?: string  // 策略名称
   is_cross_margin: boolean

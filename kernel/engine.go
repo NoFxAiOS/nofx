@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"nofx/logger"
 	"nofx/market"
+	gmgnprovider "nofx/provider/gmgn"
 	"nofx/provider/hyperliquid"
 	"nofx/provider/nofxos"
 	"nofx/security"
 	"nofx/store"
+	"os"
 	"strings"
 	"time"
 )
@@ -52,7 +53,7 @@ type AccountInfo struct {
 // CandidateCoin candidate coin (from coin pool)
 type CandidateCoin struct {
 	Symbol  string   `json:"symbol"`
-	Sources []string `json:"sources"` // Sources: "ai500" and/or "oi_top"
+	Sources []string `json:"sources"` // Sources: static / ai500 / oi_top / oi_low / gmgn_trending / hyper_*
 }
 
 // OITopData open interest growth top data (for AI decision reference)
@@ -184,6 +185,7 @@ type OIDeltaData struct {
 type StrategyEngine struct {
 	config       *store.StrategyConfig
 	nofxosClient *nofxos.Client
+	gmgnAPIKey   string
 }
 
 // NewStrategyEngine creates strategy execution engine.
@@ -245,6 +247,10 @@ func (e *StrategyEngine) GetLanguage() Language {
 // GetConfig gets complete strategy configuration
 func (e *StrategyEngine) GetConfig() *store.StrategyConfig {
 	return e.config
+}
+
+func (e *StrategyEngine) SetGMGNAPIKey(apiKey string) {
+	e.gmgnAPIKey = strings.TrimSpace(apiKey)
 }
 
 // ============================================================================
@@ -328,6 +334,17 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 			return nil, err
 		}
 		// Empty list is a normal condition, return directly
+		return e.filterExcludedCoins(coins), nil
+
+	case "gmgn_trending":
+		coins, err := e.getGMGNTrendingCoins(
+			coinSource.GMGNTrendingChain,
+			coinSource.GMGNTrendingInterval,
+			coinSource.GMGNTrendingLimit,
+		)
+		if err != nil {
+			return nil, err
+		}
 		return e.filterExcludedCoins(coins), nil
 
 	case "hyper_all":
@@ -540,6 +557,72 @@ func (e *StrategyEngine) getOILowCoins(limit int) ([]CandidateCoin, error) {
 	return candidates, nil
 }
 
+func (e *StrategyEngine) getGMGNTrendingCoins(chain, interval string, limit int) ([]CandidateCoin, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > store.MaxCandidateCoins {
+		limit = store.MaxCandidateCoins
+	}
+
+	normalizedChain := gmgnprovider.NormalizeChain(chain)
+	if normalizedChain == "" {
+		normalizedChain = "sol"
+	}
+	if _, ok := gmgnprovider.GetChainConfig(normalizedChain); !ok {
+		return nil, fmt.Errorf("unsupported gmgn trending chain: %s", chain)
+	}
+
+	switch interval {
+	case "", "1m", "5m", "1h", "6h", "24h":
+		if interval == "" {
+			interval = "1h"
+		}
+	default:
+		return nil, fmt.Errorf("unsupported gmgn trending interval: %s", interval)
+	}
+
+	apiKey := strings.TrimSpace(e.gmgnAPIKey)
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(os.Getenv("GMGN_API_KEY"))
+	}
+	if apiKey == "" {
+		return nil, fmt.Errorf("gmgn api key not configured for gmgn_trending source")
+	}
+	client, err := gmgnprovider.NewClient(apiKey, "")
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.GetTrending(normalizedChain, interval, map[string]any{
+		"limit":     limit,
+		"order_by":  "volume",
+		"direction": "desc",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := make([]CandidateCoin, 0, len(resp.Rank))
+	seen := make(map[string]struct{}, len(resp.Rank))
+	for _, item := range resp.Rank {
+		address := strings.TrimSpace(item.Address)
+		if address == "" {
+			continue
+		}
+		symbol := market.Normalize(gmgnprovider.FormatSymbol(normalizedChain, address))
+		if _, ok := seen[symbol]; ok {
+			continue
+		}
+		seen[symbol] = struct{}{}
+		candidates = append(candidates, CandidateCoin{
+			Symbol:  symbol,
+			Sources: []string{"gmgn_trending"},
+		})
+	}
+	return candidates, nil
+}
+
 // getHyperAllCoins returns all available Hyperliquid perpetual coins
 func (e *StrategyEngine) getHyperAllCoins() ([]CandidateCoin, error) {
 	ctx := context.Background()
@@ -592,6 +675,9 @@ func (e *StrategyEngine) getHyperMainCoins(limit int) ([]CandidateCoin, error) {
 
 // FetchMarketData fetches market data based on strategy configuration
 func (e *StrategyEngine) FetchMarketData(symbol string) (*market.Data, error) {
+	if gmgnprovider.IsChainSymbol(symbol) && e.gmgnAPIKey != "" {
+		market.SetGMGNAPIKey(e.gmgnAPIKey)
+	}
 	return market.Get(symbol)
 }
 

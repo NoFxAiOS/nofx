@@ -31,6 +31,9 @@ func (c *StrategyConfig) ClampLimits() {
 	if c.CoinSource.OILowLimit > MaxCandidateCoins {
 		c.CoinSource.OILowLimit = MaxCandidateCoins
 	}
+	if c.CoinSource.GMGNTrendingLimit > MaxCandidateCoins {
+		c.CoinSource.GMGNTrendingLimit = MaxCandidateCoins
+	}
 
 	// Clamp static coins
 	if len(c.CoinSource.StaticCoins) > MaxCandidateCoins {
@@ -86,6 +89,8 @@ func (Strategy) TableName() string { return "strategies" }
 type StrategyConfig struct {
 	// Strategy type: "ai_trading" (default) or "grid_trading"
 	StrategyType string `json:"strategy_type,omitempty"`
+	// Optional built-in template identifier, used to preserve template-specific defaults
+	TemplateID string `json:"template_id,omitempty"`
 
 	// language setting: "zh" for Chinese, "en" for English
 	// This determines the language used for data formatting and prompt generation
@@ -153,7 +158,7 @@ type PromptSectionsConfig struct {
 
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed"
+	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "gmgn_trending" | "mixed"
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`
@@ -177,6 +182,12 @@ type CoinSourceConfig struct {
 	UseHyperMain bool `json:"use_hyper_main"`
 	// Hyperliquid Main maximum count (default 20)
 	HyperMainLimit int `json:"hyper_main_limit,omitempty"`
+	// GMGN trending chain (sol | bsc | base)
+	GMGNTrendingChain string `json:"gmgn_trending_chain,omitempty"`
+	// GMGN trending window (1m | 5m | 1h | 6h | 24h)
+	GMGNTrendingInterval string `json:"gmgn_trending_interval,omitempty"`
+	// GMGN trending maximum count
+	GMGNTrendingLimit int `json:"gmgn_trending_limit,omitempty"`
 	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 
@@ -299,13 +310,26 @@ func (s *StrategyStore) initDefaultData() error {
 	return nil
 }
 
+func normalizeStrategyLanguage(lang string) string {
+	if lang == "zh" {
+		return "zh"
+	}
+	return "en"
+}
+
+// GetStrategyTemplateConfig returns a named strategy template for the given language.
+func GetStrategyTemplateConfig(lang, template string) StrategyConfig {
+	switch template {
+	case "gmgn_sol_live":
+		return GetGMGNSOLLiveStrategyConfig(lang)
+	default:
+		return GetDefaultStrategyConfig(lang)
+	}
+}
+
 // GetDefaultStrategyConfig returns the default strategy configuration for the given language
 func GetDefaultStrategyConfig(lang string) StrategyConfig {
-	// Normalize language to "zh" or "en"
-	normalizedLang := "en"
-	if lang == "zh" {
-		normalizedLang = "zh"
-	}
+	normalizedLang := normalizeStrategyLanguage(lang)
 
 	config := StrategyConfig{
 		Language: normalizedLang,
@@ -411,6 +435,126 @@ Only enter positions when multiple signals resonate. Freely use any effective an
 1. Check positions → whether to take profit/stop loss
 2. Scan candidate coins + multi-timeframe → whether strong signals exist
 3. Write chain of thought first, then output structured JSON`,
+		}
+	}
+
+	return config
+}
+
+// GetGMGNSOLLiveStrategyConfig returns a GMGN-ready SOL spot template for live trading.
+// Users are expected to fill in the static SOL token list before enabling real trading.
+func GetGMGNSOLLiveStrategyConfig(lang string) StrategyConfig {
+	normalizedLang := normalizeStrategyLanguage(lang)
+
+	config := StrategyConfig{
+		StrategyType: "ai_trading",
+		TemplateID:   "gmgn_sol_live",
+		Language:     normalizedLang,
+		CoinSource: CoinSourceConfig{
+			SourceType:   "static",
+			StaticCoins:  []string{},
+			UseAI500:     false,
+			AI500Limit:   0,
+			UseOITop:     false,
+			OITopLimit:   0,
+			UseOILow:     false,
+			OILowLimit:   0,
+			UseHyperAll:  false,
+			UseHyperMain: false,
+		},
+		Indicators: IndicatorConfig{
+			Klines: KlineConfig{
+				PrimaryTimeframe:     "5m",
+				PrimaryCount:         24,
+				LongerTimeframe:      "4h",
+				LongerCount:          12,
+				EnableMultiTimeframe: true,
+				SelectedTimeframes:   []string{"5m", "15m", "1h", "4h"},
+			},
+			EnableRawKlines:        true,
+			EnableEMA:              true,
+			EnableMACD:             true,
+			EnableRSI:              true,
+			EnableATR:              true,
+			EnableBOLL:             false,
+			EnableVolume:           true,
+			EnableOI:               false,
+			EnableFundingRate:      false,
+			EMAPeriods:             []int{20, 50},
+			RSIPeriods:             []int{7, 14},
+			ATRPeriods:             []int{14},
+			BOLLPeriods:            []int{20},
+			EnableQuantData:        false,
+			EnableQuantOI:          false,
+			EnableQuantNetflow:     false,
+			EnableOIRanking:        false,
+			OIRankingDuration:      "1h",
+			OIRankingLimit:         0,
+			EnableNetFlowRanking:   false,
+			NetFlowRankingDuration: "1h",
+			NetFlowRankingLimit:    0,
+			EnablePriceRanking:     false,
+			PriceRankingDuration:   "1h,4h,24h",
+			PriceRankingLimit:      0,
+		},
+		RiskControl: RiskControlConfig{
+			MaxPositions:                 2,
+			BTCETHMaxLeverage:            1,
+			AltcoinMaxLeverage:           1,
+			BTCETHMaxPositionValueRatio:  0.25,
+			AltcoinMaxPositionValueRatio: 0.15,
+			MaxMarginUsage:               0.55,
+			MinPositionSize:              30,
+			MinRiskRewardRatio:           2.2,
+			MinConfidence:                82,
+		},
+	}
+
+	if normalizedLang == "zh" {
+		config.PromptSections = PromptSectionsConfig{
+			RoleDefinition: `# 你是专业的 SOL 链现货交易 AI
+
+你运行在 GMGN 的 spot-only 环境中，只能做多、持有或卖出平仓，不能做空、不能加杠杆、不能使用永续合约逻辑。账户以 USDC 作为结算资产，目标是在严格风控下捕捉高质量趋势延续与回踩确认机会，同时优先考虑流动性、滑点和 gas 安全。`,
+			TradingFrequency: `# ⏱️ 交易频率约束
+
+- 目标是低频高质量，不因每个扫描周期都强行交易
+- 每天 1-3 次新开仓已经足够
+- 单个仓位通常持有 30 分钟到 6 小时
+- 刚平仓后不要立刻追单，除非新的结构更强
+- 当信号一般、波动失真或退出路径不清晰时，优先 wait 或 hold`,
+			EntryStandards: `# 🎯 入场标准
+
+只有在以下条件同时满足时才允许 open_long：1）5m 与 15m 出现清晰趋势延续、突破回踩或缩量整理后的放量上攻；2）1h 方向不逆风；3）成交量与价格结构一致；4）止损位置清晰且不太近；5）预期收益至少为风险的 2.2 倍；6）token 流动性足够，预估滑点和 gas 成本可接受。若处于无趋势震荡、单根急拉末端、长上影、流动性薄或退出不明确，禁止开仓。`,
+			DecisionProcess: `# 📋 决策流程
+
+1. 先检查当前持仓，判断是否需要继续持有、锁盈、止损或平仓
+2. 再检查静态币池中每个 SOL token 的 5m、15m、1h、4h 结构是否共振
+3. 只允许输出 open_long、close_long、hold、wait
+4. leverage 固定为 1，position_size_usd 以 USDC 计价
+5. 若 static_coins 为空、信号冲突、gas 偏紧、成交量不支持或流动性不足，输出 wait`,
+		}
+	} else {
+		config.PromptSections = PromptSectionsConfig{
+			RoleDefinition: `# You are a professional SOL spot trading AI
+
+You operate in GMGN's spot-only environment. You may only open long positions, hold, or close long positions. You must not short, use leverage above 1x, or rely on perpetual-specific assumptions. The account is settled in USDC. Your goal is to capture high-quality continuation and pullback-confirmation setups while prioritizing liquidity, slippage, and gas safety.`,
+			TradingFrequency: `# ⏱️ Trading Frequency Constraints
+
+- Favor low-frequency, high-quality trades
+- 1-3 new entries per day is enough
+- Typical holding time is 30 minutes to 6 hours
+- Do not immediately re-enter after closing unless the new setup is clearly stronger
+- When the setup quality is mediocre or exit clarity is poor, prefer wait or hold`,
+			EntryStandards: `# 🎯 Entry Standards
+
+Only allow open_long when all of the following align: 1) clear continuation, breakout-retest, or compression breakout on 5m and 15m; 2) 1h trend is not a headwind; 3) volume confirms the price structure; 4) stop-loss placement is clear; 5) expected reward is at least 2.2x the risk; 6) token liquidity is sufficient and estimated slippage plus gas is acceptable. Avoid entries in choppy ranges, exhaustion spikes, thin liquidity, or unclear exit structures.`,
+			DecisionProcess: `# 📋 Decision Process
+
+1. Review current positions first and decide whether to hold, protect profits, stop out, or close
+2. Then evaluate each SOL token in the static pool across 5m, 15m, 1h, and 4h
+3. Only output open_long, close_long, hold, or wait
+4. Keep leverage fixed at 1 and size positions in USDC
+5. If static_coins is empty, gas is tight, liquidity is weak, or signals conflict, output wait`,
 		}
 	}
 
@@ -850,6 +994,8 @@ func (c *StrategyConfig) getEffectiveCoinCount() int {
 		count = c.CoinSource.OITopLimit
 	case "oi_low":
 		count = c.CoinSource.OILowLimit
+	case "gmgn_trending":
+		count = c.CoinSource.GMGNTrendingLimit
 	case "mixed":
 		if c.CoinSource.UseAI500 {
 			count += c.CoinSource.AI500Limit

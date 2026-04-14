@@ -37,6 +37,8 @@ type Exchange struct {
 	LighterPrivateKey       crypto.EncryptedString `gorm:"column:lighter_private_key;default:''" json:"lighterPrivateKey"`
 	LighterAPIKeyPrivateKey crypto.EncryptedString `gorm:"column:lighter_api_key_private_key;default:''" json:"lighterAPIKeyPrivateKey"`
 	LighterAPIKeyIndex      int                    `gorm:"column:lighter_api_key_index;default:0" json:"lighterAPIKeyIndex"`
+	GMGNAPIKey              crypto.EncryptedString `gorm:"column:gmgn_api_key;default:''" json:"gmgnApiKey"`
+	GMGNPrivateKey          crypto.EncryptedString `gorm:"column:gmgn_private_key;default:''" json:"gmgnPrivateKey"`
 	CreatedAt               time.Time              `json:"created_at"`
 	UpdatedAt               time.Time              `json:"updated_at"`
 }
@@ -54,6 +56,8 @@ func (s *ExchangeStore) initTables() error {
 		var tableExists int64
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'exchanges'`).Scan(&tableExists)
 		if tableExists > 0 {
+			s.db.Exec(`ALTER TABLE exchanges ADD COLUMN IF NOT EXISTS gmgn_api_key TEXT NOT NULL DEFAULT ''`)
+			s.db.Exec(`ALTER TABLE exchanges ADD COLUMN IF NOT EXISTS gmgn_private_key TEXT NOT NULL DEFAULT ''`)
 			// Still run data migrations
 			s.migrateToMultiAccount()
 			s.db.Model(&Exchange{}).Where("account_name = '' OR account_name IS NULL").Update("account_name", "Default")
@@ -81,7 +85,7 @@ func (s *ExchangeStore) migrateToMultiAccount() error {
 	// Check if migration is needed by looking for old-style IDs (non-UUID)
 	var count int64
 	err := s.db.Model(&Exchange{}).
-		Where("exchange_type = '' AND id IN ?", []string{"binance", "bybit", "okx", "bitget", "hyperliquid", "aster", "lighter"}).
+		Where("exchange_type = '' AND id IN ?", []string{"binance", "bybit", "okx", "bitget", "hyperliquid", "aster", "lighter", "gmgn"}).
 		Count(&count).Error
 	if err != nil {
 		return err
@@ -95,7 +99,7 @@ func (s *ExchangeStore) migrateToMultiAccount() error {
 
 	// Get all old records
 	var records []Exchange
-	err = s.db.Where("exchange_type = '' AND id IN ?", []string{"binance", "bybit", "okx", "bitget", "hyperliquid", "aster", "lighter"}).
+	err = s.db.Where("exchange_type = '' AND id IN ?", []string{"binance", "bybit", "okx", "bitget", "hyperliquid", "aster", "lighter", "gmgn"}).
 		Find(&records).Error
 	if err != nil {
 		return err
@@ -174,6 +178,8 @@ func getExchangeNameAndType(exchangeType string) (name string, typ string) {
 		return "Aster DEX", "dex"
 	case "lighter":
 		return "LIGHTER DEX", "dex"
+	case "gmgn":
+		return "GMGN", "dex"
 	case "indodax":
 		return "Indodax", "cex"
 	default:
@@ -186,7 +192,8 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 	apiKey, secretKey, passphrase string, testnet bool,
 	hyperliquidWalletAddr string, hyperliquidUnifiedAcct bool,
 	asterUser, asterSigner, asterPrivateKey,
-	lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int) (string, error) {
+	lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int,
+	gmgnAPIKey, gmgnPrivateKey string) (string, error) {
 
 	id := uuid.New().String()
 	name, typ := getExchangeNameAndType(exchangeType)
@@ -219,6 +226,8 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 		LighterPrivateKey:       crypto.EncryptedString(lighterPrivateKey),
 		LighterAPIKeyPrivateKey: crypto.EncryptedString(lighterApiKeyPrivateKey),
 		LighterAPIKeyIndex:      lighterApiKeyIndex,
+		GMGNAPIKey:              crypto.EncryptedString(gmgnAPIKey),
+		GMGNPrivateKey:          crypto.EncryptedString(gmgnPrivateKey),
 	}
 
 	if err := s.db.Create(exchange).Error; err != nil {
@@ -230,7 +239,8 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 // Update updates exchange configuration by UUID
 func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKey, passphrase string, testnet bool,
 	hyperliquidWalletAddr string, hyperliquidUnifiedAcct bool,
-	asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int) error {
+	asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int,
+	gmgnAPIKey, gmgnPrivateKey string) error {
 
 	logger.Debugf("🔧 ExchangeStore.Update: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
@@ -264,6 +274,12 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 	}
 	if lighterApiKeyPrivateKey != "" {
 		updates["lighter_api_key_private_key"] = crypto.EncryptedString(lighterApiKeyPrivateKey)
+	}
+	if gmgnAPIKey != "" {
+		updates["gmgn_api_key"] = crypto.EncryptedString(gmgnAPIKey)
+	}
+	if gmgnPrivateKey != "" {
+		updates["gmgn_private_key"] = crypto.EncryptedString(gmgnPrivateKey)
 	}
 
 	result := s.db.Model(&Exchange{}).Where("id = ? AND user_id = ?", id, userID).Updates(updates)
@@ -315,7 +331,7 @@ func (s *ExchangeStore) CreateLegacy(userID, id, name, typ string, enabled bool,
 	if id == "binance" || id == "bybit" || id == "okx" || id == "bitget" || id == "hyperliquid" || id == "aster" || id == "lighter" {
 		_, err := s.Create(userID, id, "Default", enabled, apiKey, secretKey, "", testnet,
 			hyperliquidWalletAddr, true, // Default to Unified Account mode
-			asterUser, asterSigner, asterPrivateKey, "", "", "", 0)
+			asterUser, asterSigner, asterPrivateKey, "", "", "", 0, "", "")
 		return err
 	}
 

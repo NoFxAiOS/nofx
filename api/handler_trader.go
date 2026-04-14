@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	gmgnprovider "nofx/provider/gmgn"
 	"strings"
 	"time"
 
@@ -33,6 +34,8 @@ type CreateTraderRequest struct {
 	SystemPromptTemplate string `json:"system_prompt_template"` // System prompt template name
 	UseAI500             bool   `json:"use_ai500"`
 	UseOITop             bool   `json:"use_oi_top"`
+	Chain                string `json:"chain"`
+	WalletAddress        string `json:"wallet_address"`
 }
 
 // UpdateTraderRequest Update trader request
@@ -52,6 +55,8 @@ type UpdateTraderRequest struct {
 	CustomPrompt         string `json:"custom_prompt"`
 	OverrideBasePrompt   bool   `json:"override_base_prompt"`
 	SystemPromptTemplate string `json:"system_prompt_template"`
+	Chain                string `json:"chain"`
+	WalletAddress        string `json:"wallet_address"`
 }
 
 func formatTraderCreationError(reason, nextStep string) string {
@@ -126,6 +131,13 @@ func missingExchangeFields(exchange *store.Exchange) []string {
 		if exchange.LighterAPIKeyPrivateKey == "" {
 			missing = append(missing, "API Key Private Key")
 		}
+	case "gmgn":
+		if exchange.GMGNAPIKey == "" {
+			missing = append(missing, "GMGN API Key")
+		}
+		if exchange.GMGNPrivateKey == "" {
+			missing = append(missing, "GMGN Private Key")
+		}
 	}
 
 	return missing
@@ -158,26 +170,59 @@ func validateExchangeForTraderCreation(exchange *store.Exchange) (string, string
 	missing := missingExchangeFields(exchange)
 	if len(missing) > 0 {
 		return formatTraderCreationError(
-			fmt.Sprintf("交易所账户「%s」的配置还不完整，缺少 %s", exchangeDisplayName(exchange), strings.Join(missing, "、")),
-			"请前往「设置 > 交易所配置」补全该账户的必填信息后，再重新创建机器人",
-		), "trader.create.exchange_missing_fields", mapStringPairs(
-			"exchange_name", exchangeDisplayName(exchange),
-			"missing_fields", strings.Join(missing, ", "),
-		)
+				fmt.Sprintf("交易所账户「%s」的配置还不完整，缺少 %s", exchangeDisplayName(exchange), strings.Join(missing, "、")),
+				"请前往「设置 > 交易所配置」补全该账户的必填信息后，再重新创建机器人",
+			), "trader.create.exchange_missing_fields", mapStringPairs(
+				"exchange_name", exchangeDisplayName(exchange),
+				"missing_fields", strings.Join(missing, ", "),
+			)
 	}
 
 	switch exchange.ExchangeType {
-	case "binance", "bybit", "okx", "bitget", "gate", "kucoin", "hyperliquid", "aster", "lighter", "indodax":
+	case "binance", "bybit", "okx", "bitget", "gate", "kucoin", "hyperliquid", "aster", "lighter", "indodax", "gmgn":
 		return "", "", nil
 	default:
 		return formatTraderCreationError(
-			fmt.Sprintf("交易所账户「%s」使用了当前版本暂不支持的类型 %s", exchangeDisplayName(exchange), exchange.ExchangeType),
-			"请改用当前版本支持的交易所账户后，再重新创建机器人",
-		), "trader.create.exchange_unsupported", mapStringPairs(
-			"exchange_name", exchangeDisplayName(exchange),
-			"exchange_type", exchange.ExchangeType,
-		)
+				fmt.Sprintf("交易所账户「%s」使用了当前版本暂不支持的类型 %s", exchangeDisplayName(exchange), exchange.ExchangeType),
+				"请改用当前版本支持的交易所账户后，再重新创建机器人",
+			), "trader.create.exchange_unsupported", mapStringPairs(
+				"exchange_name", exchangeDisplayName(exchange),
+				"exchange_type", exchange.ExchangeType,
+			)
 	}
+}
+
+func validateTraderExchangeSelection(exchange *store.Exchange, chain, walletAddress string) (string, string, map[string]string) {
+	if exchange == nil || exchange.ExchangeType != "gmgn" {
+		return "", "", nil
+	}
+	normalizedChain := gmgnprovider.NormalizeChain(chain)
+	if normalizedChain == "" {
+		return formatTraderCreationError(
+			fmt.Sprintf("交易所账户「%s」是 GMGN，但还没有选择交易链", exchangeDisplayName(exchange)),
+			"请在机器人配置里选择 sol、bsc 或 base 其中一条链后，再重新提交",
+		), "trader.create.gmgn_chain_required", mapStringPairs("exchange_name", exchangeDisplayName(exchange))
+	}
+	if _, ok := gmgnprovider.GetChainConfig(normalizedChain); !ok {
+		return formatTraderCreationError(
+			fmt.Sprintf("GMGN 当前只支持 sol、bsc、base，收到的是 %s", chain),
+			"请改用受支持的链后，再重新提交",
+		), "trader.create.gmgn_chain_invalid", mapStringPairs("chain", chain)
+	}
+	if strings.TrimSpace(walletAddress) == "" {
+		return formatTraderCreationError(
+			fmt.Sprintf("交易所账户「%s」是 GMGN，但还没有选择钱包", exchangeDisplayName(exchange)),
+			"请先选择一个可用钱包后，再重新提交",
+		), "trader.create.gmgn_wallet_required", mapStringPairs("exchange_name", exchangeDisplayName(exchange))
+	}
+	return "", "", nil
+}
+
+func isValidTradingSymbol(symbol string) bool {
+	if gmgnprovider.IsChainSymbol(symbol) {
+		return true
+	}
+	return strings.HasSuffix(strings.ToUpper(symbol), "USDT")
 }
 
 func classifyTraderSetupReason(reason string) (string, string) {
@@ -321,9 +366,9 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		symbols := strings.Split(req.TradingSymbols, ",")
 		for _, symbol := range symbols {
 			symbol = strings.TrimSpace(symbol)
-			if symbol != "" && !strings.HasSuffix(strings.ToUpper(symbol), "USDT") {
+			if symbol != "" && !isValidTradingSymbol(symbol) {
 				SafeBadRequestWithDetails(c, traderCreationRequestError(
-					fmt.Sprintf("交易对 %s 的格式不正确，目前只支持以 USDT 结尾的合约交易对", symbol),
+					fmt.Sprintf("交易对 %s 的格式不正确，目前只支持以 USDT 结尾的合约交易对，或 GMGN 的 chain:token_address", symbol),
 				), "trader.create.invalid_symbol", mapStringPairs("symbol", symbol))
 				return
 			}
@@ -441,9 +486,13 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SafeBadRequestWithDetails(c, exchangeMsg, exchangeErrorKey, exchangeErrorParams)
 		return
 	}
+	if exchangeMsg, exchangeErrorKey, exchangeErrorParams := validateTraderExchangeSelection(exchangeCfg, req.Chain, req.WalletAddress); exchangeMsg != "" {
+		SafeBadRequestWithDetails(c, exchangeMsg, exchangeErrorKey, exchangeErrorParams)
+		return
+	}
 
 	{
-		tempTrader, createErr := buildExchangeProbeTrader(exchangeCfg, userID)
+		tempTrader, createErr := buildExchangeProbeTraderForWallet(exchangeCfg, userID, req.Chain, req.WalletAddress)
 		if createErr != nil {
 			SafeBadRequestWithDetails(c, formatTraderCreationError(
 				fmt.Sprintf("交易所账户「%s」没有通过初始化校验，原因是：%s", exchangeDisplayName(exchangeCfg), humanizeTraderSetupReason(SanitizeError(createErr, "配置校验未通过"))),
@@ -489,6 +538,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		Chain:                gmgnprovider.NormalizeChain(req.Chain),
+		WalletAddress:        strings.TrimSpace(req.WalletAddress),
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            false,
 	}
@@ -520,14 +571,14 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 	if startupWarning == "" {
 		if loadErr := s.traderManager.GetLoadError(traderID); loadErr != nil {
-		logger.Infof("⚠️ Trader %s failed to load after creation: %v", traderID, loadErr)
+			logger.Infof("⚠️ Trader %s failed to load after creation: %v", traderID, loadErr)
 			startupWarning = describeTraderCreationWarning(req.Name, loadErr)
 		}
 	}
 
 	if startupWarning == "" {
 		if _, getErr := s.traderManager.GetTrader(traderID); getErr != nil {
-		logger.Infof("⚠️ Trader %s not found in memory after creation: %v", traderID, getErr)
+			logger.Infof("⚠️ Trader %s not found in memory after creation: %v", traderID, getErr)
 			startupWarning = describeTraderCreationWarning(req.Name, getErr)
 		}
 	}
@@ -535,11 +586,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	logger.Infof("✓ Trader created successfully: %s (model: %s, exchange: %s)", req.Name, req.AIModelID, req.ExchangeID)
 
 	c.JSON(http.StatusCreated, gin.H{
-		"trader_id":        traderID,
-		"trader_name":      req.Name,
-		"ai_model":         req.AIModelID,
-		"is_running":       false,
-		"startup_warning":  startupWarning,
+		"trader_id":       traderID,
+		"trader_name":     req.Name,
+		"ai_model":        req.AIModelID,
+		"is_running":      false,
+		"startup_warning": startupWarning,
 	})
 }
 
@@ -617,6 +668,41 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		strategyID = existingTrader.StrategyID
 	}
 
+	exchanges, err := s.store.Exchange().List(userID)
+	if err != nil {
+		SafeInternalError(c, "Failed to get exchange configs", err)
+		return
+	}
+	var exchangeCfg *store.Exchange
+	for _, ex := range exchanges {
+		if ex.ID == req.ExchangeID {
+			exchangeCfg = ex
+			break
+		}
+	}
+	if exchangeMsg, exchangeErrorKey, exchangeErrorParams := validateExchangeForTraderCreation(exchangeCfg); exchangeMsg != "" {
+		SafeBadRequestWithDetails(c, exchangeMsg, exchangeErrorKey, exchangeErrorParams)
+		return
+	}
+
+	chain := existingTrader.Chain
+	walletAddress := existingTrader.WalletAddress
+	if exchangeCfg != nil && exchangeCfg.ExchangeType == "gmgn" {
+		if strings.TrimSpace(req.Chain) != "" {
+			chain = gmgnprovider.NormalizeChain(req.Chain)
+		}
+		if strings.TrimSpace(req.WalletAddress) != "" {
+			walletAddress = strings.TrimSpace(req.WalletAddress)
+		}
+		if exchangeMsg, exchangeErrorKey, exchangeErrorParams := validateTraderExchangeSelection(exchangeCfg, chain, walletAddress); exchangeMsg != "" {
+			SafeBadRequestWithDetails(c, exchangeMsg, exchangeErrorKey, exchangeErrorParams)
+			return
+		}
+	} else {
+		chain = ""
+		walletAddress = ""
+	}
+
 	exchangeChanged := req.ExchangeID != "" && req.ExchangeID != existingTrader.ExchangeID
 	resetInitialBalance := exchangeChanged && req.InitialBalance <= 0
 
@@ -645,6 +731,8 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		Chain:                chain,
+		WalletAddress:        walletAddress,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            existingTrader.IsRunning, // Keep original value
 	}

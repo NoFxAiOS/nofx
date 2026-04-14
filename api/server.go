@@ -145,7 +145,7 @@ NOTE: The id field is "trader_id" (NOT "id"). Always read trader_id from this en
 				`:id = trader_id from GET /api/my-traders`,
 				s.handleGetTraderConfig)
 			s.routeWithSchema(protected, "POST", "/traders", "Create a new AI trader",
-				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>}
+				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>,"chain":"<required for GMGN: sol|bsc|base>","wallet_address":"<required for GMGN>"}
 IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.`,
 				s.handleCreateTrader)
 			s.routeWithSchema(protected, "PUT", "/traders/:id", "Update trader configuration",
@@ -204,15 +204,20 @@ CRITICAL: Always use the "id" field for exchange_id. Do not use "exchange_type" 
 				`Returns: {"states":{"<exchange_id>":{"status":"ok|disabled|missing_credentials|invalid_credentials|permission_denied|unavailable","display_balance":"<string>","total_equity":<number>,"available_balance":<number>,"asset":"USDT|USDC","checked_at":"<RFC3339>","error_code":"<string>","error_message":"<string>"}}}
 Use this endpoint to show balance and health in the exchange list without depending on traders.`,
 				s.handleGetExchangeAccountStates)
+			s.routeWithSchema(protected, "GET", "/exchanges/:id/gmgn-wallets", "List GMGN wallets discovered from configured GMGN credentials",
+				`:id = EXACT id from GET /api/exchanges. Returns {"wallets":[{"chain":"sol|bsc|base","wallet_address":"<address>","usdc_balance":<number>,"native_balance":<number>}]}.
+Use this when configuring a GMGN trader to choose chain + wallet.`,
+				s.handleGetGMGNWallets)
 			s.routeWithSchema(protected, "POST", "/exchanges", "Create a new exchange account",
 				`Body: {"exchange_type":"<string>","account_name":"<string, user label>","enabled":true,"api_key":"<string>","secret_key":"<string>","passphrase":"<string, required for okx/gate/kucoin>"}
-exchange_type values: "binance","bybit","okx","bitget","gate","kucoin","indodax" (CEX) | "hyperliquid","aster","lighter" (DEX)
+exchange_type values: "binance","bybit","okx","bitget","gate","kucoin","indodax" (CEX) | "hyperliquid","aster","lighter","gmgn" (DEX)
 Required fields by exchange:
   binance/bybit/bitget/indodax: api_key + secret_key
   okx/gate/kucoin: api_key + secret_key + passphrase
   hyperliquid: hyperliquid_wallet_addr
   aster: aster_user + aster_signer + aster_private_key
-  lighter: lighter_wallet_addr + lighter_private_key + lighter_api_key_private_key + lighter_api_key_index`,
+  lighter: lighter_wallet_addr + lighter_private_key + lighter_api_key_private_key + lighter_api_key_index
+  gmgn: gmgn_api_key + gmgn_private_key`,
 				s.handleCreateExchange)
 			s.routeWithSchema(protected, "PUT", "/exchanges", "Update an existing exchange account configuration",
 				`Body: {"id":"<EXACT id from GET /api/exchanges>","exchange_type":"<string>","account_name":"<string>","enabled":<bool>,"api_key":"<string>","secret_key":"<string>","passphrase":"<string, for okx/gate/kucoin>"}
@@ -246,20 +251,27 @@ CRITICAL: Always use the "id" field for strategy_id.`,
 				`Returns the strategy marked is_active=true for this user, or the system default. Use this to find which strategy is currently in use.`,
 				s.handleGetActiveStrategy)
 			s.routeWithSchema(protected, "GET", "/strategies/default-config", "Get default strategy config with all fields and sensible values — use as reference for building configs",
-				`No parameters needed. Returns a complete StrategyConfig object with all fields populated with recommended defaults. Read this before building a custom config.`,
+				`Optional query parameters:
+  lang=zh|en
+  template=gmgn_sol_live
+Returns a complete StrategyConfig object with recommended defaults. Use template=gmgn_sol_live for the built-in GMGN SOL spot-only starter.`,
 				s.handleGetDefaultStrategyConfig)
 			s.route(protected, "POST", "/strategies/preview-prompt", "Preview the AI prompt that will be generated from a config", s.handlePreviewPrompt)
 			s.route(protected, "POST", "/strategies/test-run", "Test-run strategy AI analysis", s.handleStrategyTestRun)
 			s.route(protected, "GET", "/strategies/:id", "Get strategy by ID", s.handleGetStrategy)
 			s.routeWithSchema(protected, "POST", "/strategies", "Create a new trading strategy",
-				`Body: {"name":"<string, required>","description":"<string, optional>","lang":"zh|en","config":<StrategyConfig object, OPTIONAL — if omitted the system applies complete working defaults automatically (ai500 top coins, all standard indicators, standard risk control)>}
+				`Body: {"name":"<string, required>","description":"<string, optional>","lang":"zh|en","template":"gmgn_sol_live|<optional>","config":<StrategyConfig object, OPTIONAL — if omitted the system applies complete working defaults automatically (ai500 top coins, all standard indicators, standard risk control)>}
 IMPORTANT: For most use cases just POST {"name":"<name>"} — the backend fills everything in. Only include "config" when the user explicitly requests custom settings (specific coins, custom leverage, custom timeframes).
+If you want the built-in GMGN SOL spot template, omit "config" and pass "template":"gmgn_sol_live".
 
 StrategyConfig fields:
-  coin_source.source_type: "static"(fixed coin list) | "ai500"(AI top500 ranking) | "oi_top"(OI increasing, suited for long) | "oi_low"(OI decreasing, suited for short) | "mixed"
+  coin_source.source_type: "static"(fixed coin list) | "ai500"(AI top500 ranking) | "oi_top"(OI increasing, suited for long) | "oi_low"(OI decreasing, suited for short) | "gmgn_trending"(GMGN hot tokens) | "mixed"
   coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — only when source_type="static"
   coin_source.use_ai500, ai500_limit: number of coins from AI500 pool (default 10)
   coin_source.use_oi_top/use_oi_low, oi_top_limit/oi_low_limit: OI-based coin selection
+  coin_source.gmgn_trending_chain: "sol"|"bsc"|"base"
+  coin_source.gmgn_trending_interval: "1m"|"5m"|"1h"|"6h"|"24h"
+  coin_source.gmgn_trending_limit: number of tokens to pull from GMGN trending (default 10)
   indicators.klines.primary_timeframe: "1m"|"3m"|"5m"|"15m"|"1h"|"4h" — scalping→"5m", trend/swing→"1h"/"4h"
   indicators.klines.primary_count: number of candles (20-100)
   indicators.klines.enable_multi_timeframe: true for trend/swing analysis

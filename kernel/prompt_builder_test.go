@@ -54,8 +54,8 @@ func TestPromptBuilder(t *testing.T) {
 			}
 		}
 
-		// 验证包含所有有效的action类型
-		actions := []string{"HOLD", "PARTIAL_CLOSE", "FULL_CLOSE", "ADD_POSITION", "OPEN_NEW", "WAIT"}
+		// 验证包含所有当前 action 类型
+		actions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait", "protection_plan"}
 		for _, action := range actions {
 			if !strings.Contains(systemPrompt, action) {
 				t.Errorf("System prompt should mention action type '%s'", action)
@@ -86,6 +86,8 @@ func TestPromptBuilder(t *testing.T) {
 			"symbol",
 			"action",
 			"reasoning",
+			"protection_plan",
+			"open_long",
 		}
 
 		for _, keyword := range mustContain {

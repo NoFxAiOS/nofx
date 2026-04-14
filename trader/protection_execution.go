@@ -210,6 +210,34 @@ func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, 
 		}
 	}
 
+	if plan.FallbackMaxLossPrice > 0 {
+		fallbackNeeded := !fullStop || plan.StopLossPrice == 0 || !approximatelyEqualPrice(plan.StopLossPrice, plan.FallbackMaxLossPrice)
+		if fallbackNeeded {
+			if err := at.placeFallbackMaxLossProtection(symbol, positionSide, quantity, plan.FallbackMaxLossPrice); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (at *AutoTrader) placeFallbackMaxLossProtection(symbol, positionSide string, quantity float64, stopLossPrice float64) error {
+	if stopLossPrice <= 0 {
+		return nil
+	}
+	if setter, ok := at.trader.(interface {
+		SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
+		SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error
+	}); ok {
+		if err := setter.SetStopLossTagged(symbol, positionSide, quantity, stopLossPrice, "fallback_maxloss_sl"); err != nil {
+			return fmt.Errorf("failed to set fallback max-loss stop loss: %w", err)
+		}
+		return nil
+	}
+	if err := at.trader.SetStopLoss(symbol, positionSide, quantity, stopLossPrice); err != nil {
+		return fmt.Errorf("failed to set fallback max-loss stop loss: %w", err)
+	}
 	return nil
 }
 

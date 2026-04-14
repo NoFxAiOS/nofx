@@ -111,12 +111,18 @@ type ProtectionSnapshot struct {
 	BreakEven  *ProtectionSnapshotBreakEven `json:"break_even,omitempty"`
 }
 
+type ProtectionSnapshotValueSource struct {
+	Mode  string  `json:"mode,omitempty"`
+	Value float64 `json:"value,omitempty"`
+}
+
 // ProtectionSnapshotFullTPSL full take-profit / stop-loss snapshot
 type ProtectionSnapshotFullTPSL struct {
-	Enabled       bool    `json:"enabled"`
-	Mode          string  `json:"mode"`
-	TakeProfitPct float64 `json:"take_profit_pct,omitempty"`
-	StopLossPct   float64 `json:"stop_loss_pct,omitempty"`
+	Enabled         bool                          `json:"enabled"`
+	Mode            string                        `json:"mode"`
+	TakeProfit      ProtectionSnapshotValueSource `json:"take_profit,omitempty"`
+	StopLoss        ProtectionSnapshotValueSource `json:"stop_loss,omitempty"`
+	FallbackMaxLoss ProtectionSnapshotValueSource `json:"fallback_max_loss,omitempty"`
 }
 
 // ProtectionSnapshotLadder ladder TP/SL snapshot with concrete rules
@@ -125,6 +131,11 @@ type ProtectionSnapshotLadder struct {
 	Mode              string                         `json:"mode"`
 	TakeProfitEnabled bool                           `json:"take_profit_enabled"`
 	StopLossEnabled   bool                           `json:"stop_loss_enabled"`
+	TakeProfitPrice   ProtectionSnapshotValueSource  `json:"take_profit_price,omitempty"`
+	TakeProfitSize    ProtectionSnapshotValueSource  `json:"take_profit_size,omitempty"`
+	StopLossPrice     ProtectionSnapshotValueSource  `json:"stop_loss_price,omitempty"`
+	StopLossSize      ProtectionSnapshotValueSource  `json:"stop_loss_size,omitempty"`
+	FallbackMaxLoss   ProtectionSnapshotValueSource  `json:"fallback_max_loss,omitempty"`
 	Rules             []ProtectionSnapshotLadderRule `json:"rules,omitempty"`
 }
 
@@ -316,6 +327,21 @@ func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 	}
 
 	return records, nil
+}
+
+func (s *DecisionStore) GetRecordByCycle(traderID string, cycleNumber int) (*DecisionRecord, error) {
+	if traderID == "" || cycleNumber <= 0 {
+		return nil, nil
+	}
+	var dbRecord DecisionRecordDB
+	err := s.db.Where("trader_id = ? AND cycle_number = ?", traderID, cycleNumber).First(&dbRecord).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query decision record by cycle: %w", err)
+	}
+	return dbRecord.toRecord(), nil
 }
 
 // GetRecordsByDate gets all records for a specified trader on a specified date

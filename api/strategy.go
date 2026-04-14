@@ -30,33 +30,51 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 
 	full := config.Protection.FullTPSL
 	if full.Enabled {
-		if full.Mode != store.ProtectionModeManual && full.Mode != store.ProtectionModeAI {
-			warnings = append(warnings, "protection.full_tp_sl.mode should be 'manual' or 'ai'.")
+		if full.Mode != store.ProtectionModeManual && full.Mode != store.ProtectionModeAI && full.Mode != store.ProtectionModeDisabled {
+			warnings = append(warnings, "protection.full_tp_sl.mode should be 'manual', 'ai', or 'disabled'.")
 		}
-		if full.TakeProfit.Enabled && full.TakeProfit.PriceMovePct <= 0 {
-			warnings = append(warnings, "protection.full_tp_sl.take_profit.price_move_pct must be > 0 when enabled.")
+		if full.TakeProfit.Mode == store.ProtectionValueModeManual && full.TakeProfit.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.take_profit.value must be > 0 when mode=manual.")
 		}
-		if full.StopLoss.Enabled && full.StopLoss.PriceMovePct <= 0 {
-			warnings = append(warnings, "protection.full_tp_sl.stop_loss.price_move_pct must be > 0 when enabled.")
+		if full.StopLoss.Mode == store.ProtectionValueModeManual && full.StopLoss.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.stop_loss.value must be > 0 when mode=manual.")
+		}
+		if full.FallbackMaxLoss.Mode == store.ProtectionValueModeManual && full.FallbackMaxLoss.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.fallback_max_loss.value must be > 0 when mode=manual.")
+		}
+		if full.FallbackMaxLoss.Mode == store.ProtectionValueModeAI {
+			warnings = append(warnings, "protection.full_tp_sl.fallback_max_loss.mode does not support 'ai'; use 'manual' or 'disabled'.")
 		}
 	}
 
 	ladder := config.Protection.LadderTPSL
 	if ladder.Enabled {
-		if ladder.Mode != store.ProtectionModeManual && ladder.Mode != store.ProtectionModeAI {
-			warnings = append(warnings, "protection.ladder_tp_sl.mode should be 'manual' or 'ai'.")
+		if ladder.Mode != store.ProtectionModeManual && ladder.Mode != store.ProtectionModeAI && ladder.Mode != store.ProtectionModeDisabled {
+			warnings = append(warnings, "protection.ladder_tp_sl.mode should be 'manual', 'ai', or 'disabled'.")
 		}
-		for i, rule := range ladder.Rules {
-			if ladder.TakeProfitEnabled {
-				if rule.TakeProfitPct <= 0 || rule.TakeProfitCloseRatioPct <= 0 || rule.TakeProfitCloseRatioPct > 100 {
-					warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] take-profit fields are invalid.", i))
+		if ladder.TakeProfitEnabled {
+			if ladder.TakeProfitPrice.Mode == store.ProtectionValueModeManual && ladder.TakeProfitSize.Mode == store.ProtectionValueModeManual {
+				for i, rule := range ladder.Rules {
+					if rule.TakeProfitPct <= 0 || rule.TakeProfitCloseRatioPct <= 0 || rule.TakeProfitCloseRatioPct > 100 {
+						warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] take-profit fields are invalid.", i))
+					}
 				}
 			}
-			if ladder.StopLossEnabled {
-				if rule.StopLossPct <= 0 || rule.StopLossCloseRatioPct <= 0 || rule.StopLossCloseRatioPct > 100 {
-					warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] stop-loss fields are invalid.", i))
+		}
+		if ladder.StopLossEnabled {
+			if ladder.StopLossPrice.Mode == store.ProtectionValueModeManual && ladder.StopLossSize.Mode == store.ProtectionValueModeManual {
+				for i, rule := range ladder.Rules {
+					if rule.StopLossPct <= 0 || rule.StopLossCloseRatioPct <= 0 || rule.StopLossCloseRatioPct > 100 {
+						warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] stop-loss fields are invalid.", i))
+					}
 				}
 			}
+		}
+		if ladder.FallbackMaxLoss.Mode == store.ProtectionValueModeManual && ladder.FallbackMaxLoss.Value <= 0 {
+			warnings = append(warnings, "protection.ladder_tp_sl.fallback_max_loss.value must be > 0 when mode=manual.")
+		}
+		if ladder.FallbackMaxLoss.Mode == store.ProtectionValueModeAI {
+			warnings = append(warnings, "protection.ladder_tp_sl.fallback_max_loss.mode does not support 'ai'; use 'manual' or 'disabled'.")
 		}
 	}
 
@@ -667,27 +685,39 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 			return
 		}
 
+		parsedDecisions, parseErr := kernel.ParseAIDecisions(aiResponse)
+		var parseErrText string
+		if parseErr != nil {
+			parseErrText = parseErr.Error()
+		} else if err := kernel.ValidateAIDecisions(parsedDecisions); err != nil {
+			parseErrText = err.Error()
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"system_prompt":   systemPrompt,
-			"user_prompt":     userPrompt,
-			"candidate_count": len(candidates),
-			"candidates":      candidates,
-			"prompt_variant":  req.PromptVariant,
-			"ai_response":     aiResponse,
-			"note":            "✅ Real AI test run successful",
+			"system_prompt":    systemPrompt,
+			"user_prompt":      userPrompt,
+			"candidate_count":  len(candidates),
+			"candidates":       candidates,
+			"prompt_variant":   req.PromptVariant,
+			"ai_response":      aiResponse,
+			"parsed_decisions": parsedDecisions,
+			"parse_error":      parseErrText,
+			"note":             "✅ Real AI test run successful",
 		})
 		return
 	}
 
 	// Return result (without actually calling AI, only return built prompt)
 	c.JSON(http.StatusOK, gin.H{
-		"system_prompt":   systemPrompt,
-		"user_prompt":     userPrompt,
-		"candidate_count": len(candidates),
-		"candidates":      candidates,
-		"prompt_variant":  req.PromptVariant,
-		"ai_response":     "Please select an AI model and click 'Run Test' to perform real AI analysis.",
-		"note":            "AI model not selected or real AI call not enabled",
+		"system_prompt":    systemPrompt,
+		"user_prompt":      userPrompt,
+		"candidate_count":  len(candidates),
+		"candidates":       candidates,
+		"prompt_variant":   req.PromptVariant,
+		"ai_response":      "Please select an AI model and click 'Run Test' to perform real AI analysis.",
+		"parsed_decisions": []kernel.Decision{},
+		"parse_error":      "",
+		"note":             "AI model not selected or real AI call not enabled",
 	})
 }
 

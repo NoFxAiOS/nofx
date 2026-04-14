@@ -1,0 +1,122 @@
+{
+  "name": "protection-test-run-fixture",
+  "description": "Fixture for validating AI protection_plan quality in StrategyStudio test-run.",
+  "prompt_variant": "balanced",
+  "config": {
+    "strategy_type": "ai_trading",
+    "language": "zh",
+    "coin_source": {
+      "source_type": "static",
+      "static_coins": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+      "excluded_coins": [],
+      "use_ai500": false,
+      "ai500_limit": 0,
+      "use_oi_top": false,
+      "oi_top_limit": 0,
+      "use_oi_low": false,
+      "oi_low_limit": 0
+    },
+    "indicators": {
+      "enable_ema": true,
+      "ema_periods": [20, 50, 200],
+      "enable_macd": true,
+      "enable_rsi": true,
+      "rsi_periods": [14],
+      "enable_atr": true,
+      "atr_periods": [14],
+      "enable_boll": false,
+      "boll_periods": [],
+      "enable_volume": true,
+      "enable_oi": true,
+      "enable_funding_rate": true,
+      "enable_quant_data": true,
+      "enable_oi_ranking": true,
+      "enable_net_flow_ranking": true,
+      "enable_price_ranking": true,
+      "nofxos_api_key": "",
+      "klines": {
+        "primary_timeframe": "15m",
+        "longer_timeframe": "4h",
+        "enable_multi_timeframe": true,
+        "selected_timeframes": ["15m", "1h", "4h"],
+        "primary_count": 60
+      }
+    },
+    "risk_control": {
+      "btc_eth_max_leverage": 5,
+      "altcoin_max_leverage": 3,
+      "btc_eth_position_value_ratio": 0.2,
+      "altcoin_position_value_ratio": 0.1,
+      "max_positions": 3,
+      "min_confidence": 75
+    },
+    "protection": {
+      "full_tp_sl": {
+        "enabled": true,
+        "mode": "ai",
+        "take_profit": { "mode": "ai", "value": 0 },
+        "stop_loss": { "mode": "ai", "value": 0 },
+        "fallback_max_loss": { "mode": "manual", "value": 12 }
+      },
+      "ladder_tp_sl": {
+        "enabled": true,
+        "mode": "ai",
+        "take_profit_enabled": true,
+        "stop_loss_enabled": true,
+        "take_profit_price": { "mode": "ai", "value": 0 },
+        "take_profit_size": { "mode": "ai", "value": 0 },
+        "stop_loss_price": { "mode": "ai", "value": 0 },
+        "stop_loss_size": { "mode": "ai", "value": 0 },
+        "fallback_max_loss": { "mode": "manual", "value": 15 },
+        "rules": [
+          {
+            "take_profit_pct": 3,
+            "take_profit_close_ratio_pct": 40,
+            "stop_loss_pct": 1.5,
+            "stop_loss_close_ratio_pct": 25
+          },
+          {
+            "take_profit_pct": 6,
+            "take_profit_close_ratio_pct": 60,
+            "stop_loss_pct": 3,
+            "stop_loss_close_ratio_pct": 75
+          }
+        ]
+      },
+      "drawdown_take_profit": {
+        "enabled": false,
+        "rules": []
+      },
+      "break_even_stop": {
+        "enabled": false,
+        "trigger_mode": "profit_pct",
+        "trigger_value": 3,
+        "offset_pct": 0.1
+      },
+      "regime_filter": {
+        "enabled": true,
+        "allowed_regimes": ["standard", "wide"],
+        "block_high_funding": true,
+        "max_funding_rate_abs": 0.01,
+        "block_high_volatility": false,
+        "max_atr14_pct": 3,
+        "require_trend_alignment": true
+      }
+    },
+    "prompt_sections": {
+      "role_definition": "你是一个偏审慎但可执行的 AI 交易决策系统。",
+      "trading_frequency": "除非结构清晰，否则宁可等待。",
+      "entry_standards": "优先使用 15m / 1h / 4h 共振；禁止在明显中段追价。",
+      "decision_process": "当 action 为 open_long/open_short 时，若适合统一 TP/SL，则输出 full protection_plan；若适合分段管理，则输出 ladder protection_plan；当 action 为 close_long/close_short/hold/wait 时，不要输出 protection_plan。"
+    },
+    "custom_prompt": "请优先遵守 protection_plan 输出规则：close/hold/wait 不要带 protection_plan；open 才允许输出，并且 full 与 ladder 二选一。"
+  },
+  "expected_checks": [
+    "parsed_decisions should be non-empty when real AI is used",
+    "close_long / close_short / hold / wait should not contain protection_plan",
+    "open_long / open_short should prefer exactly one protection_plan mode: full or ladder",
+    "when protection_plan.mode=full, prefer take_profit_pct/stop_loss_pct and no ladder_rules",
+    "when protection_plan.mode=ladder, prefer ladder_rules and avoid redundant flat TP/SL fields",
+    "fallback max loss should remain manual in config and not be invented by AI"
+  ]
+}

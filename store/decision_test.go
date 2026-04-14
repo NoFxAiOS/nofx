@@ -44,10 +44,16 @@ func TestDecisionStore_LogDecisionProtectionSnapshotRoundTrip(t *testing.T) {
 		}},
 		ProtectionSnapshot: &ProtectionSnapshot{
 			FullTPSL: &ProtectionSnapshotFullTPSL{
-				Enabled:       true,
-				Mode:          "full",
-				TakeProfitPct: 12.5,
-				StopLossPct:   4.5,
+				Enabled: true,
+				Mode:    "full",
+				TakeProfit: ProtectionSnapshotValueSource{
+					Mode:  "manual",
+					Value: 12.5,
+				},
+				StopLoss: ProtectionSnapshotValueSource{
+					Mode:  "manual",
+					Value: 4.5,
+				},
 			},
 			LadderTPSL: &ProtectionSnapshotLadder{
 				Enabled:           true,
@@ -96,7 +102,7 @@ func TestDecisionStore_LogDecisionProtectionSnapshotRoundTrip(t *testing.T) {
 	if got.ProtectionSnapshot == nil {
 		t.Fatal("expected protection snapshot to round-trip")
 	}
-	if got.ProtectionSnapshot.FullTPSL == nil || got.ProtectionSnapshot.FullTPSL.TakeProfitPct != 12.5 {
+	if got.ProtectionSnapshot.FullTPSL == nil || got.ProtectionSnapshot.FullTPSL.TakeProfit.Value != 12.5 {
 		t.Fatalf("unexpected full_tp_sl snapshot: %+v", got.ProtectionSnapshot.FullTPSL)
 	}
 	if got.ProtectionSnapshot.LadderTPSL == nil || len(got.ProtectionSnapshot.LadderTPSL.Rules) != 1 {

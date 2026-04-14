@@ -45,6 +45,40 @@ func (f *fakeReconcileTrader) SetTakeProfit(symbol string, positionSide string, 
 	return nil
 }
 
+func TestDetectMissingProtectionRequiresFallbackMaxLossStop(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	if !missingSL {
+		t.Fatal("expected missingSL when fallback max-loss stop is absent")
+	}
+	if missingTP {
+		t.Fatal("did not expect take-profit to be missing")
+	}
+}
+
+func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPresent(t *testing.T) {
+	orders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
+	}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	if missingSL || missingTP {
+		t.Fatalf("expected stop protections satisfied, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
 func TestProtectionReconciler_RearmsBreakEvenOnQuantityChange(t *testing.T) {
 	ft := &fakeReconcileTrader{
 		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
@@ -86,7 +120,6 @@ func TestProtectionReconciler_RearmsBreakEvenOnQuantityChange(t *testing.T) {
 		t.Fatalf("expected initial break-even stop placement, got %d", len(ft.stopLossOrders))
 	}
 
-	// Simulate resized position: quantity changes while break-even remained armed.
 	ft.positions = []map[string]interface{}{
 		{
 			"symbol":      "BTCUSDT",

@@ -146,6 +146,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
 			expectedOrderCount++
 		}
+		if plan.FallbackMaxLossPrice > 0 {
+			expectedOrderCount++
+		}
 		if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
 			expectedOrderCount++
 		}
@@ -283,6 +286,8 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 		return false, false
 	}
 
+	fallbackSatisfied := plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice)
+
 	if len(plan.StopLossOrders) > 1 {
 		for _, target := range plan.StopLossOrders {
 			if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
@@ -292,6 +297,10 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 		}
 	} else if plan.NeedsStopLoss {
 		missingSL = !hasMatchingProtectionOrder(openOrders, positionSide, false, plan.StopLossPrice)
+	}
+
+	if !missingSL && plan.FallbackMaxLossPrice > 0 && !fallbackSatisfied {
+		missingSL = true
 	}
 
 	if len(plan.TakeProfitOrders) > 1 {

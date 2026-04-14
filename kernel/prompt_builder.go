@@ -84,11 +84,24 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "open_long|open_short|close_long|close_short|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,
     "take_profit": 48000,
+    "protection_plan": {
+      "mode": "full|ladder",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3,
+      "ladder_rules": [
+        {
+          "take_profit_pct": 3,
+          "take_profit_close_ratio_pct": 40,
+          "stop_loss_pct": 1.5,
+          "stop_loss_close_ratio_pct": 25
+        }
+      ]
+    },
     "confidence": 85,
     "reasoning": "详细的推理过程，说明为什么做出这个决策"
   }
@@ -99,16 +112,17 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 
 - **symbol**: 交易对（必需）
 - **action**: 动作类型（必需）
-  - HOLD: 持有当前仓位
-  - PARTIAL_CLOSE: 部分平仓
-  - FULL_CLOSE: 全部平仓
-  - ADD_POSITION: 在现有仓位上加仓
-  - OPEN_NEW: 开设新仓位
-  - WAIT: 等待，不采取任何行动
+  - open_long: 开新多仓
+  - open_short: 开新空仓
+  - close_long: 平已有多仓
+  - close_short: 平已有空仓
+  - hold: 保持当前仓位不变
+  - wait: 该币种本轮不操作
 - **leverage**: 杠杆倍数（开新仓时必需）
 - **position_size_usd**: 仓位大小（USDT，开新仓时必需）
-- **stop_loss**: 止损价格（开新仓时建议提供）
-- **take_profit**: 止盈价格（开新仓时建议提供）
+- **stop_loss**: 直接止损价（可选）
+- **take_profit**: 直接止盈价（可选）
+- **protection_plan**: 可选的结构化保护计划。mode=full 时提供 take_profit_pct/stop_loss_pct；mode=ladder 时提供 ladder_rules
 - **confidence**: 信心度（0-100）
 - **reasoning**: 推理过程（必需，必须详细说明决策依据）
 
@@ -157,19 +171,37 @@ func (pb *PromptBuilder) getDecisionRequirementsZH() string {
 [
   {
     "symbol": "PIPPINUSDT",
-    "action": "PARTIAL_CLOSE",
+    "action": "close_long",
     "confidence": 85,
-    "reasoning": "当前PnL +2.96%，接近历史峰值+2.99%（回撤仅0.03%）。建议部分平仓锁定利润，因为：1) 持仓时间仅11分钟，已获得3%收益；2) 5分钟K线显示价格接近短期阻力位；3) 成交量开始萎缩，上涨动能减弱。建议平仓50%，剩余仓位设置跟踪止盈在峰值回撤20%处。"
+    "reasoning": "当前多仓已接近短期阻力且上涨动能减弱，优先锁定已有利润。本动作是平仓，不要附带 protection_plan。"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "action": "open_long",
+    "leverage": 3,
+    "position_size_usd": 500,
+    "confidence": 78,
+    "protection_plan": {
+      "mode": "full",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3
+    },
+    "reasoning": "BTCUSDT 在主趋势方向上完成回踩确认，适合统一 TP/SL 的单段管理，因此使用 full protection_plan。"
   },
   {
     "symbol": "HUSDT",
-    "action": "OPEN_NEW",
+    "action": "open_long",
     "leverage": 3,
     "position_size_usd": 500,
-    "stop_loss": 0.1560,
-    "take_profit": 0.1720,
     "confidence": 75,
-    "reasoning": "HUSDT在5分钟时间框架突破关键阻力位0.1630，持仓量1小时内增加+1.57M (+0.89%)，配合价格上涨+4.92%，符合'OI增加+价格上涨'的强多头模式。15分钟和1小时时间框架均呈现上涨趋势，多周期共振。建议开仓做多，止损设在突破点下方-5%，止盈目标+8%。"
+    "protection_plan": {
+      "mode": "ladder",
+      "ladder_rules": [
+        {"take_profit_pct": 3, "take_profit_close_ratio_pct": 40, "stop_loss_pct": 1.5, "stop_loss_close_ratio_pct": 25},
+        {"take_profit_pct": 6, "take_profit_close_ratio_pct": 60, "stop_loss_pct": 3.0, "stop_loss_close_ratio_pct": 75}
+      ]
+    },
+    "reasoning": "HUSDT 在低周期突破且多周期共振明显，更适合分段止盈止损管理，因此使用 ladder protection_plan。"
   }
 ]
 ` + "```" + `
@@ -219,11 +251,24 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "open_long|open_short|close_long|close_short|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,
     "take_profit": 48000,
+    "protection_plan": {
+      "mode": "full|ladder",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3,
+      "ladder_rules": [
+        {
+          "take_profit_pct": 3,
+          "take_profit_close_ratio_pct": 40,
+          "stop_loss_pct": 1.5,
+          "stop_loss_close_ratio_pct": 25
+        }
+      ]
+    },
     "confidence": 85,
     "reasoning": "Detailed reasoning explaining why this decision was made"
   }
@@ -234,16 +279,17 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 
 - **symbol**: Trading pair (required)
 - **action**: Action type (required)
-  - HOLD: Hold current position
-  - PARTIAL_CLOSE: Partially close position
-  - FULL_CLOSE: Fully close position
-  - ADD_POSITION: Add to existing position
-  - OPEN_NEW: Open new position
-  - WAIT: Wait, take no action
-- **leverage**: Leverage multiplier (required for new positions)
-- **position_size_usd**: Position size in USDT (required for new positions)
-- **stop_loss**: Stop-loss price (recommended for new positions)
-- **take_profit**: Take-profit price (recommended for new positions)
+  - open_long: Open new long position
+  - open_short: Open new short position
+  - close_long: Close an existing long position
+  - close_short: Close an existing short position
+  - hold: Keep current position unchanged
+  - wait: No action for this symbol
+- **leverage**: Leverage multiplier (required for open_long/open_short)
+- **position_size_usd**: Position size in USDT (required for open_long/open_short)
+- **stop_loss**: Stop-loss price (optional direct price)
+- **take_profit**: Take-profit price (optional direct price)
+- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct, or mode=ladder with ladder_rules.
 - **confidence**: Confidence level (0-100)
 - **reasoning**: Detailed reasoning (required, must explain decision basis)
 
@@ -292,19 +338,37 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
 [
   {
     "symbol": "PIPPINUSDT",
-    "action": "PARTIAL_CLOSE",
+    "action": "close_long",
     "confidence": 85,
-    "reasoning": "Current PnL +2.96%, near historical peak +2.99% (only 0.03% pullback). Suggest partial close to lock profits because: 1) Only 11 minutes holding time with 3% gain; 2) 5M chart shows price approaching short-term resistance; 3) Volume declining, upward momentum weakening. Recommend closing 50%, set trailing stop at 20% pullback from peak for remainder."
+    "reasoning": "The existing long is close to short-term resistance and momentum is weakening. Close the long to lock profit. Because this is a close action, do not attach protection_plan."
+  },
+  {
+    "symbol": "BTCUSDT",
+    "action": "open_long",
+    "leverage": 3,
+    "position_size_usd": 500,
+    "confidence": 78,
+    "protection_plan": {
+      "mode": "full",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3
+    },
+    "reasoning": "BTCUSDT completed a pullback confirmation in the primary trend direction, so a single unified TP/SL structure is sufficient and full protection_plan is appropriate."
   },
   {
     "symbol": "HUSDT",
-    "action": "OPEN_NEW",
+    "action": "open_long",
     "leverage": 3,
     "position_size_usd": 500,
-    "stop_loss": 0.1560,
-    "take_profit": 0.1720,
     "confidence": 75,
-    "reasoning": "HUSDT broke key resistance 0.1630 on 5M timeframe. OI increased +1.57M (+0.89%) in 1H paired with price +4.92%, matching 'OI up + price up' strong bullish pattern. Both 15M and 1H timeframes show uptrend, multi-timeframe resonance confirmed. Recommend long entry, stop-loss -5% below breakout, target +8% profit."
+    "protection_plan": {
+      "mode": "ladder",
+      "ladder_rules": [
+        {"take_profit_pct": 3, "take_profit_close_ratio_pct": 40, "stop_loss_pct": 1.5, "stop_loss_close_ratio_pct": 25},
+        {"take_profit_pct": 6, "take_profit_close_ratio_pct": 60, "stop_loss_pct": 3.0, "stop_loss_close_ratio_pct": 75}
+      ]
+    },
+    "reasoning": "HUSDT shows a low-timeframe breakout with multi-timeframe alignment, so staged TP/SL management is more suitable and ladder protection_plan is preferred."
   }
 ]
 ` + "```" + `
@@ -351,6 +415,12 @@ func ValidateDecisionFormat(decisions []Decision) error {
 
 		// Action type validation
 		validActions := map[string]bool{
+			"open_long":     true,
+			"open_short":    true,
+			"close_long":    true,
+			"close_short":   true,
+			"hold":          true,
+			"wait":          true,
 			"HOLD":          true,
 			"PARTIAL_CLOSE": true,
 			"FULL_CLOSE":    true,
@@ -363,12 +433,12 @@ func ValidateDecisionFormat(decisions []Decision) error {
 		}
 
 		// Required parameters for opening new positions
-		if d.Action == "OPEN_NEW" {
+		if d.Action == "open_long" || d.Action == "open_short" || d.Action == "OPEN_NEW" {
 			if d.Leverage == 0 {
-				return fmt.Errorf("decision #%d: OPEN_NEW action requires leverage", i+1)
+				return fmt.Errorf("decision #%d: open action requires leverage", i+1)
 			}
 			if d.PositionSizeUSD == 0 {
-				return fmt.Errorf("decision #%d: OPEN_NEW action requires position_size_usd", i+1)
+				return fmt.Errorf("decision #%d: open action requires position_size_usd", i+1)
 			}
 		}
 	}

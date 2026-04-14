@@ -278,7 +278,7 @@ func extractDecisions(response string) ([]Decision, error) {
 		return decisions, nil
 	}
 
-	jsonContent := strings.TrimSpace(reJSONArray.FindString(jsonPart))
+	jsonContent := strings.TrimSpace(extractTopLevelJSONArray(jsonPart))
 	if jsonContent == "" {
 		logger.Infof("⚠️  [SafeFallback] AI didn't output JSON decision, entering safe wait mode")
 
@@ -375,4 +375,53 @@ func removeInvisibleRunes(s string) string {
 
 func compactArrayOpen(s string) string {
 	return reArrayOpenSpace.ReplaceAllString(strings.TrimSpace(s), "[{")
+}
+
+// ParseAIDecisions parses structured AI decision JSON from raw model output.
+func ParseAIDecisions(response string) ([]Decision, error) {
+	return extractDecisions(response)
+}
+
+// ValidateAIDecisions validates parsed AI decisions against supported action/schema rules.
+func ValidateAIDecisions(decisions []Decision) error {
+	return ValidateDecisionFormat(decisions)
+}
+
+func extractTopLevelJSONArray(s string) string {
+	start := strings.Index(s, "[")
+	if start == -1 {
+		return ""
+	}
+	depth := 0
+	inString := false
+	escaped := false
+	for i := start; i < len(s); i++ {
+		ch := s[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return s[start : i+1]
+			}
+		}
+	}
+	return ""
 }

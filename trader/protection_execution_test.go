@@ -186,6 +186,28 @@ func TestPlaceAndVerifyLadderProtectionRetriesForPropagationDelay(t *testing.T) 
 	}
 }
 
+func TestPlaceAndVerifyProtectionPlanAddsFallbackMaxLossStop(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{
+		openOrders: []tradertypes.OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98}},
+	}
+	at := &AutoTrader{trader: fakeTrader}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+	}
+
+	if err := at.placeAndVerifyProtectionPlan("BTCUSDT", "LONG", 1, plan); err != nil {
+		t.Fatalf("expected protection plan with fallback max-loss to succeed, got %v", err)
+	}
+	if len(fakeTrader.stopLossOrders) != 2 {
+		t.Fatalf("expected main stop + fallback max-loss stop, got %d stop orders", len(fakeTrader.stopLossOrders))
+	}
+	if fakeTrader.stopLossOrders[0].price != 98 || fakeTrader.stopLossOrders[1].price != 95 {
+		t.Fatalf("expected main stop at 98 and fallback stop at 95, got %+v", fakeTrader.stopLossOrders)
+	}
+}
+
 func TestPlaceAndVerifyProtectionWithRetryRecoversOnSecondAttempt(t *testing.T) {
 	fakeTrader := &fakeOrderProtectionTrader{
 		openOrders: []tradertypes.OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98}},

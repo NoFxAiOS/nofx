@@ -29,6 +29,7 @@ import {
   Download,
   Upload,
   Globe,
+  AlertTriangle,
 } from 'lucide-react'
 import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { confirmToast, notify } from '../lib/notify'
@@ -38,7 +39,7 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
-import { ProtectionEditor, defaultProtectionConfig } from '../components/strategy/ProtectionEditor'
+import { ProtectionEditor, defaultProtectionConfig, normalizeProtectionConfig } from '../components/strategy/ProtectionEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 import { getJson, sendJson } from '../lib/httpClient'
@@ -91,6 +92,8 @@ export function StrategyStudioPage() {
     ai_response?: string
     reasoning?: string
     decisions?: unknown[]
+    parsed_decisions?: unknown[]
+    parse_error?: string
     error?: string
     duration_ms?: number
   } | null>(null)
@@ -129,7 +132,7 @@ export function StrategyStudioPage() {
         ...strategy,
         config: {
           ...strategy.config,
-          protection: strategy.config?.protection || defaultProtectionConfig,
+          protection: normalizeProtectionConfig(strategy.config?.protection),
         },
       }))
       setStrategies(normalizedStrategies)
@@ -180,7 +183,7 @@ export function StrategyStudioPage() {
             ...prev,
             language: language as 'zh' | 'en',
             prompt_sections: defaultConfig.prompt_sections,
-            protection: prev.protection || defaultProtectionConfig,
+            protection: normalizeProtectionConfig(prev.protection),
           }
         })
         setHasChanges(true)
@@ -199,9 +202,7 @@ export function StrategyStudioPage() {
       const defaultConfig = await getJson<StrategyConfig>(
         `${API_BASE}/api/strategies/default-config?lang=${language}`
       )
-      if (!defaultConfig.protection) {
-        defaultConfig.protection = defaultProtectionConfig
-      }
+      defaultConfig.protection = normalizeProtectionConfig(defaultConfig.protection || defaultProtectionConfig)
 
       const result = await sendJson<{ id?: string }>(`${API_BASE}/api/strategies`, {
         method: 'POST',
@@ -434,6 +435,8 @@ export function StrategyStudioPage() {
         ai_response?: string
         reasoning?: string
         decisions?: unknown[]
+        parsed_decisions?: unknown[]
+        parse_error?: string
         error?: string
         duration_ms?: number
       }>(`${API_BASE}/api/strategies/test-run`, {
@@ -456,6 +459,37 @@ export function StrategyStudioPage() {
   }
 
   const tr = (key: string) => t(`strategyStudio.${key}`, language)
+
+  const formatDecisionTitle = (decision: any, index: number) => {
+    const symbol = decision?.symbol || `#${index + 1}`
+    const action = decision?.action || 'unknown'
+    return `${symbol} · ${action}`
+  }
+
+  const renderProtectionPlanSummary = (decision: any) => {
+    const plan = decision?.protection_plan
+    if (!plan) return null
+    const mode = plan.mode || 'unknown'
+    return (
+      <div className="mt-2 p-2 rounded border border-yellow-500/20 bg-yellow-500/5">
+        <div className="text-[11px] font-medium text-yellow-300">Protection Plan · {mode}</div>
+        {mode === 'full' && (
+          <div className="mt-1 text-[11px] text-nofx-text-muted">
+            TP%: {String(plan.take_profit_pct ?? '-')} · SL%: {String(plan.stop_loss_pct ?? '-')}
+          </div>
+        )}
+        {mode === 'ladder' && Array.isArray(plan.ladder_rules) && (
+          <div className="mt-1 space-y-1">
+            {plan.ladder_rules.map((rule: any, idx: number) => (
+              <div key={idx} className="text-[11px] text-nofx-text-muted">
+                #{idx + 1} TP {String(rule.take_profit_pct ?? '-')}% / {String(rule.take_profit_close_ratio_pct ?? '-')}% · SL {String(rule.stop_loss_pct ?? '-')}% / {String(rule.stop_loss_close_ratio_pct ?? '-')}%
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -544,7 +578,7 @@ export function StrategyStudioPage() {
       forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <ProtectionEditor
-          config={editingConfig.protection || defaultProtectionConfig}
+          config={normalizeProtectionConfig(editingConfig.protection)}
           onChange={(protection) => updateConfig('protection', protection)}
           disabled={selectedStrategy?.is_default}
           language={language}
@@ -1087,6 +1121,50 @@ export function StrategyStudioPage() {
                               style={{ maxHeight: '200px' }}
                             >
                               {aiTestResult.reasoning}
+                            </pre>
+                          </div>
+                        )}
+
+                        {aiTestResult.parsed_decisions && aiTestResult.parsed_decisions.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Activity className="w-3 h-3 text-green-500" />
+                              <span className="text-xs font-medium text-nofx-text">Parsed Decisions</span>
+                            </div>
+                            {aiTestResult.parsed_decisions.map((decision: any, index: number) => (
+                              <div key={index} className="p-2 rounded-lg bg-nofx-bg border border-green-500/20">
+                                <div className="text-xs font-medium text-nofx-text">{formatDecisionTitle(decision, index)}</div>
+                                <div className="mt-1 text-[11px] text-nofx-text-muted">
+                                  Leverage: {String(decision?.leverage ?? '-')} · Size: {String(decision?.position_size_usd ?? '-')} · Confidence: {String(decision?.confidence ?? '-')}
+                                </div>
+                                {decision?.reasoning && (
+                                  <div className="mt-1 text-[11px] text-nofx-text-muted whitespace-pre-wrap">
+                                    {decision.reasoning}
+                                  </div>
+                                )}
+                                {renderProtectionPlanSummary(decision)}
+                              </div>
+                            ))}
+                            <details className="p-2 rounded-lg bg-nofx-bg border border-green-500/20">
+                              <summary className="cursor-pointer text-[11px] text-green-400">Raw Parsed Decision JSON</summary>
+                              <pre className="mt-2 text-[10px] font-mono overflow-auto text-nofx-text" style={{ maxHeight: '220px' }}>
+                                {JSON.stringify(aiTestResult.parsed_decisions, null, 2)}
+                              </pre>
+                            </details>
+                          </div>
+                        )}
+
+                        {aiTestResult.parse_error && (
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                              <span className="text-xs font-medium text-yellow-400">Parse Error</span>
+                            </div>
+                            <pre
+                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-yellow-500/30 text-yellow-300"
+                              style={{ maxHeight: '160px' }}
+                            >
+                              {aiTestResult.parse_error}
                             </pre>
                           </div>
                         )}

@@ -58,10 +58,20 @@ func (at *AutoTrader) runCycle() error {
 		if protCfg.FullTPSL.Enabled {
 			hasProtection = true
 			ps.FullTPSL = &store.ProtectionSnapshotFullTPSL{
-				Enabled:       true,
-				Mode:          string(protCfg.FullTPSL.Mode),
-				TakeProfitPct: protCfg.FullTPSL.TakeProfit.PriceMovePct,
-				StopLossPct:   protCfg.FullTPSL.StopLoss.PriceMovePct,
+				Enabled: true,
+				Mode:    string(protCfg.FullTPSL.Mode),
+				TakeProfit: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.FullTPSL.TakeProfit.Mode),
+					Value: protCfg.FullTPSL.TakeProfit.Value,
+				},
+				StopLoss: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.FullTPSL.StopLoss.Mode),
+					Value: protCfg.FullTPSL.StopLoss.Value,
+				},
+				FallbackMaxLoss: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.FullTPSL.FallbackMaxLoss.Mode),
+					Value: protCfg.FullTPSL.FallbackMaxLoss.Value,
+				},
 			}
 		}
 
@@ -72,6 +82,26 @@ func (at *AutoTrader) runCycle() error {
 				Mode:              string(protCfg.LadderTPSL.Mode),
 				TakeProfitEnabled: protCfg.LadderTPSL.TakeProfitEnabled,
 				StopLossEnabled:   protCfg.LadderTPSL.StopLossEnabled,
+				TakeProfitPrice: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.TakeProfitPrice.Mode),
+					Value: protCfg.LadderTPSL.TakeProfitPrice.Value,
+				},
+				TakeProfitSize: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.TakeProfitSize.Mode),
+					Value: protCfg.LadderTPSL.TakeProfitSize.Value,
+				},
+				StopLossPrice: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.StopLossPrice.Mode),
+					Value: protCfg.LadderTPSL.StopLossPrice.Value,
+				},
+				StopLossSize: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.StopLossSize.Mode),
+					Value: protCfg.LadderTPSL.StopLossSize.Value,
+				},
+				FallbackMaxLoss: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.FallbackMaxLoss.Mode),
+					Value: protCfg.LadderTPSL.FallbackMaxLoss.Value,
+				},
 			}
 			for _, r := range protCfg.LadderTPSL.Rules {
 				ladder.Rules = append(ladder.Rules, store.ProtectionSnapshotLadderRule{

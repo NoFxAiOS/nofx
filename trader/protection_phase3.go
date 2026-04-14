@@ -127,8 +127,8 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		full := store.FullTPSLConfig{
 			Enabled:    true,
 			Mode:       store.ProtectionModeAI,
-			TakeProfit: store.ProtectionThresholdRule{Enabled: plan.TakeProfitPct > 0, PriceMovePct: plan.TakeProfitPct},
-			StopLoss:   store.ProtectionThresholdRule{Enabled: plan.StopLossPct > 0, PriceMovePct: plan.StopLossPct},
+			TakeProfit: store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: plan.TakeProfitPct},
+			StopLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: plan.StopLossPct},
 		}
 		return buildAIFullProtectionPlan(entryPrice, action, full)
 	}
@@ -172,8 +172,8 @@ func buildAIFullProtectionPlan(entryPrice float64, action string, full store.Ful
 
 	plan := &ProtectionPlan{Mode: string(store.ProtectionModeAI), RequiresNativeOrders: true}
 
-	if full.StopLoss.Enabled && full.StopLoss.PriceMovePct > 0 {
-		move := full.StopLoss.PriceMovePct / 100.0
+	if stopLossPct, ok := resolveFullStopLoss(full, full.StopLoss.Value); ok {
+		move := stopLossPct / 100.0
 		if isLong {
 			plan.StopLossPrice = entryPrice * (1 - move)
 		} else {
@@ -183,8 +183,17 @@ func buildAIFullProtectionPlan(entryPrice float64, action string, full store.Ful
 		plan.NeedsStopLoss = true
 	}
 
-	if full.TakeProfit.Enabled && full.TakeProfit.PriceMovePct > 0 {
-		move := full.TakeProfit.PriceMovePct / 100.0
+	if fallbackPct, ok := resolveFallbackMaxLoss(full); ok {
+		move := fallbackPct / 100.0
+		if isLong {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 - move))
+		} else {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 + move))
+		}
+	}
+
+	if takeProfitPct, ok := resolveFullTakeProfit(full, full.TakeProfit.Value); ok {
+		move := takeProfitPct / 100.0
 		if isLong {
 			plan.TakeProfitPrice = entryPrice * (1 + move)
 		} else {
@@ -194,7 +203,7 @@ func buildAIFullProtectionPlan(entryPrice float64, action string, full store.Ful
 		plan.NeedsTakeProfit = true
 	}
 
-	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit {
+	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit && plan.FallbackMaxLossPrice == 0 {
 		return nil, nil
 	}
 

@@ -336,13 +336,13 @@ func TestBuildManualFullProtectionPlanLong(t *testing.T) {
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
 		Enabled: true,
 		Mode:    store.ProtectionModeManual,
-		StopLoss: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 5,
+		StopLoss: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 5,
 		},
-		TakeProfit: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 10,
+		TakeProfit: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 10,
 		},
 	}
 
@@ -369,13 +369,13 @@ func TestBuildManualFullProtectionPlanShort(t *testing.T) {
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
 		Enabled: true,
 		Mode:    store.ProtectionModeManual,
-		StopLoss: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 5,
+		StopLoss: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 5,
 		},
-		TakeProfit: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 10,
+		TakeProfit: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 10,
 		},
 	}
 
@@ -414,9 +414,9 @@ func TestBuildManualProtectionPlanInvalidEntry(t *testing.T) {
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
 		Enabled: true,
 		Mode:    store.ProtectionModeManual,
-		StopLoss: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 5,
+		StopLoss: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 5,
 		},
 	}
 

@@ -54,19 +54,21 @@ export interface StrategyConfig {
   grid_config?: GridStrategyConfig;
 }
 
-export type ProtectionMode = 'manual' | 'ai';
+export type ProtectionMode = 'disabled' | 'manual' | 'ai';
+export type ProtectionValueMode = 'disabled' | 'manual' | 'ai';
 export type BreakEvenTriggerMode = 'profit_pct' | 'r_multiple';
 
-export interface ProtectionThresholdRule {
-  enabled: boolean;
-  price_move_pct: number;
+export interface ProtectionValueSource {
+  mode: ProtectionValueMode;
+  value: number;
 }
 
 export interface FullTPSLConfig {
   enabled: boolean;
   mode: ProtectionMode;
-  take_profit: ProtectionThresholdRule;
-  stop_loss: ProtectionThresholdRule;
+  take_profit: ProtectionValueSource;
+  stop_loss: ProtectionValueSource;
+  fallback_max_loss: ProtectionValueSource;
 }
 
 export interface LadderTPSLRule {
@@ -81,6 +83,11 @@ export interface LadderTPSLConfig {
   mode: ProtectionMode;
   take_profit_enabled: boolean;
   stop_loss_enabled: boolean;
+  take_profit_price: ProtectionValueSource;
+  take_profit_size: ProtectionValueSource;
+  stop_loss_price: ProtectionValueSource;
+  stop_loss_size: ProtectionValueSource;
+  fallback_max_loss: ProtectionValueSource;
   rules: LadderTPSLRule[];
 }
 

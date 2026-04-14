@@ -689,7 +689,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		var parseErrText string
 		if parseErr != nil {
 			parseErrText = parseErr.Error()
-		} else if err := kernel.ValidateAIDecisions(parsedDecisions); err != nil {
+		} else if err := kernel.ValidateAIDecisionsWithStrategy(parsedDecisions, &req.Config); err != nil {
 			parseErrText = err.Error()
 		}
 

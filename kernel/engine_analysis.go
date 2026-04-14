@@ -387,6 +387,49 @@ func ValidateAIDecisions(decisions []Decision) error {
 	return ValidateDecisionFormat(decisions)
 }
 
+func ValidateAIDecisionsWithStrategy(decisions []Decision, config *store.StrategyConfig) error {
+	if err := ValidateDecisionFormat(decisions); err != nil {
+		return err
+	}
+	if config == nil {
+		return nil
+	}
+	fullAI := config.Protection.FullTPSL.Enabled && config.Protection.FullTPSL.Mode == store.ProtectionModeAI
+	ladderAI := config.Protection.LadderTPSL.Enabled && config.Protection.LadderTPSL.Mode == store.ProtectionModeAI
+	for i, d := range decisions {
+		isOpen := d.Action == "open_long" || d.Action == "open_short" || d.Action == "OPEN_NEW"
+		if !isOpen {
+			continue
+		}
+		if ladderAI && !fullAI {
+			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "ladder" {
+				return fmt.Errorf("decision #%d: current strategy route requires ladder protection_plan for open actions", i+1)
+			}
+			if n := len(d.ProtectionPlan.LadderRules); n < 2 || n > 3 {
+				return fmt.Errorf("decision #%d: ladder protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
+			}
+		}
+		if fullAI && !ladderAI {
+			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "full" {
+				return fmt.Errorf("decision #%d: current strategy route requires full protection_plan for open actions", i+1)
+			}
+		}
+	}
+	return nil
+}
+
+// ParseAndValidateAIDecisions parses decisions and validates them with awareness of XML reasoning blocks.
+func ParseAndValidateAIDecisions(response string) ([]Decision, error) {
+	decisions, err := extractDecisions(response)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateDecisionFormatWithCoT(decisions, extractCoTTrace(response)); err != nil {
+		return decisions, err
+	}
+	return decisions, nil
+}
+
 func extractTopLevelJSONArray(s string) string {
 	start := strings.Index(s, "[")
 	if start == -1 {

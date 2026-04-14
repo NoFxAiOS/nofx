@@ -777,8 +777,6 @@ func ParseSSEStream(body io.Reader, onChunk func(string), onLine func()) (string
 		}
 
 		if chunk.Usage != nil && chunk.Usage.TotalTokens > 0 {
-			fmt.Printf("📊 [TokenUsage] prompt=%d, completion=%d, total=%d\n",
-				chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens, chunk.Usage.TotalTokens)
 			usage = &TokenUsage{
 				PromptTokens:     chunk.Usage.PromptTokens,
 				CompletionTokens: chunk.Usage.CompletionTokens,

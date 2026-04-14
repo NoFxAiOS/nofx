@@ -98,6 +98,34 @@ func TestOKXSetLeverageUsesConfiguredMarginMode(t *testing.T) {
 	}
 }
 
+func TestOKXSetMarginModeUpdatesFutureRequestsWithoutAPIError(t *testing.T) {
+	rt := &recordingTransport{}
+	trader := newTestOKXTrader(rt, true)
+
+	if err := trader.SetMarginMode("BTCUSDT", false); err != nil {
+		t.Fatalf("SetMarginMode failed: %v", err)
+	}
+
+	if len(rt.requestsForPath("/api/v5/account/set-isolated-mode")) != 0 {
+		t.Fatal("expected SetMarginMode not to call legacy isolated-mode endpoint")
+	}
+
+	if err := trader.SetLeverage("BTCUSDT", 5); err != nil {
+		t.Fatalf("SetLeverage failed: %v", err)
+	}
+
+	leverageRequests := rt.requestsForPath(okxLeveragePath)
+	if len(leverageRequests) != 2 {
+		t.Fatalf("expected 2 leverage requests, got %d", len(leverageRequests))
+	}
+
+	for _, req := range leverageRequests {
+		if req.Body["mgnMode"] != "isolated" {
+			t.Fatalf("expected isolated leverage mode after SetMarginMode(false), got %#v", req.Body["mgnMode"])
+		}
+	}
+}
+
 func TestOKXOpenLongUsesConfiguredMarginMode(t *testing.T) {
 	rt := &recordingTransport{}
 	trader := newTestOKXTrader(rt, false)

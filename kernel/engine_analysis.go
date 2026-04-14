@@ -430,6 +430,24 @@ func ParseAndValidateAIDecisions(response string) ([]Decision, error) {
 	return decisions, nil
 }
 
+func ParseAndValidateAIDecisionsWithStrategy(response string, config *store.StrategyConfig) ([]Decision, error) {
+	decisions, err := extractDecisions(response)
+	if err != nil {
+		return nil, err
+	}
+	cot := extractCoTTrace(response)
+	if err := ValidateDecisionFormatWithCoT(decisions, cot); err != nil {
+		return decisions, err
+	}
+	if err := ValidateAIDecisionsWithStrategy(decisions, config); err != nil {
+		return decisions, err
+	}
+	if err := ValidateProtectionReasoningContract(cot, config); err != nil {
+		return decisions, err
+	}
+	return decisions, nil
+}
+
 func extractTopLevelJSONArray(s string) string {
 	start := strings.Index(s, "[")
 	if start == -1 {

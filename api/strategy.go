@@ -685,12 +685,10 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 			return
 		}
 
-		parsedDecisions, parseErr := kernel.ParseAIDecisions(aiResponse)
+		parsedDecisions, parseErr := kernel.ParseAndValidateAIDecisionsWithStrategy(aiResponse, &req.Config)
 		var parseErrText string
 		if parseErr != nil {
 			parseErrText = parseErr.Error()
-		} else if err := kernel.ValidateAIDecisionsWithStrategy(parsedDecisions, &req.Config); err != nil {
-			parseErrText = err.Error()
 		}
 
 		c.JSON(http.StatusOK, gin.H{

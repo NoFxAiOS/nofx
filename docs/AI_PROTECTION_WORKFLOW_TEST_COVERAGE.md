@@ -1,44 +1,17 @@
-# AI Protection Workflow Test Coverage
 
-## Current Covered Layers
+## Route-aware Protection Hard Constraints (2026-04-15)
 
-### 1. Config / Persistence
-- strategy config round-trip preserves new protection fields
-- update merge semantics preserve nested protection fields
+### What is now enforced
+- Full and Ladder are no longer treated as AI preference choices in the acceptance layer.
+- They are treated as strategy-selected protection routes.
+- Under `full_tp_sl.mode=ai` with ladder disabled, open actions must carry `protection_plan.mode=full`.
+- Under `ladder_tp_sl.mode=ai` with full disabled, open actions must carry `protection_plan.mode=ladder`.
+- Ladder route currently enforces 2~3 tiers.
 
-### 2. Planner / Execution
-- Full / Ladder / fallback max loss planner paths
-- manual / ai / disabled structural paths
-- reconciler presence checks for fallback max loss
+### What is not fully enforced yet
+- Drawdown / Break-even are currently treated as analysis-contract constraints, not output-shape constraints.
+- They are acknowledged in prompt guidance, but not yet promoted to full route-aware validator rules.
 
-### 3. Prompt / Parsing / Validation
-- prompt contains protection_plan guidance and few-shot examples
-- parser supports nested protection_plan and ladder_rules
-- validator accepts current action set and rejects invalid protection_plan shapes
-
-### 4. API / UI Observability
-- test-run envelope always returns parsed_decisions + parse_error
-- StrategyStudio test panel displays parsed_decisions and protection_plan summary
-
-## Positive Acceptance Covered
-- open with full protection_plan
-- open with ladder protection_plan
-- close without protection_plan
-- fixture-driven prompt workflow acceptance
-
-## Negative Acceptance Covered
-- close action carrying protection_plan
-- full mode carrying ladder_rules
-- ladder mode without rules
-- full mode without any thresholds
-- unknown protection_plan mode
-- invalid ladder close ratios / ladder rule bounds
-- invalid outputs propagate through parse_error envelope
-
-## Remaining Non-Automated Area
-- real provider/model output quality under live external inference
-- this depends on model availability, credentials, and current market context
-
-## Current Guidance
-- for code changes: keep extending validator and prompt together
-- for live quality checks: use docs/fixtures/protection-test-run-fixture.json with StrategyStudio test-run
+### Real validation status
+- Full route: real model output validated successfully (`open_long + protection_plan.mode=full + pct fields`, parse_error empty).
+- Ladder route: engineering path validated, but real model under tested market contexts still prefers `wait`; no real ladder output observed yet.

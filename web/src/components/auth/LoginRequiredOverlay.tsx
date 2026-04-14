@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogIn, UserPlus, X, AlertTriangle, Terminal } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { DeepVoidBackground } from '../common/DeepVoidBackground'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -10,7 +11,11 @@ interface LoginRequiredOverlayProps {
   featureName?: string
 }
 
-export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequiredOverlayProps) {
+export function LoginRequiredOverlay({
+  isOpen,
+  onClose,
+  featureName,
+}: LoginRequiredOverlayProps) {
   const { language } = useLanguage()
 
   const tr = (key: string, params?: Record<string, string | number>) =>
@@ -20,11 +25,7 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
     ? tr('subtitleWithFeature', { featureName })
     : tr('subtitleDefault')
 
-  const benefits = [
-    tr('benefit1'),
-    tr('benefit2'),
-    tr('benefit4'),
-  ]
+  const benefits = [tr('benefit1'), tr('benefit2'), tr('benefit4')]
 
   return (
     <AnimatePresence>
@@ -40,7 +41,6 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
             disableAnimation
             onClick={onClose}
           >
-
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -53,7 +53,9 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
               <div className="flex items-center justify-between px-3 py-2 bg-nofx-bg-lighter border-b border-nofx-gold/20">
                 <div className="flex items-center gap-2">
                   <Terminal size={12} className="text-nofx-gold" />
-                  <span className="text-[10px] text-nofx-text-muted uppercase tracking-wider">auth_protocol.exe</span>
+                  <span className="text-[10px] text-nofx-text-muted uppercase tracking-wider">
+                    auth_protocol.exe
+                  </span>
                 </div>
                 <button
                   onClick={onClose}
@@ -75,7 +77,9 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                       <div className="absolute inset-0 bg-red-500/20 blur-xl animate-pulse"></div>
                       <div className="bg-nofx-bg border border-red-500/50 text-red-500 px-4 py-2 flex items-center gap-3 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
                         <AlertTriangle size={18} className="animate-pulse" />
-                        <span className="font-bold tracking-widest text-sm uppercase">{tr('accessDenied')}</span>
+                        <span className="font-bold tracking-widest text-sm uppercase">
+                          {tr('accessDenied')}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -83,8 +87,12 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                   {/* Terminal Text */}
                   <div className="space-y-4 mb-8">
                     <div className="text-center">
-                      <h2 className="text-xl font-bold text-white uppercase tracking-wider mb-2">{tr('title')}</h2>
-                      <p className="text-nofx-gold text-xs uppercase tracking-widest border-b border-nofx-gold/20 pb-4 inline-block">{subtitle}</p>
+                      <h2 className="text-xl font-bold text-white uppercase tracking-wider mb-2">
+                        {tr('title')}
+                      </h2>
+                      <p className="text-nofx-gold text-xs uppercase tracking-widest border-b border-nofx-gold/20 pb-4 inline-block">
+                        {subtitle}
+                      </p>
                     </div>
 
                     <div className="bg-nofx-bg-lighter border-l-2 border-nofx-gold/20 p-3 my-4">
@@ -96,7 +104,10 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
 
                     <div className="grid grid-cols-2 gap-2">
                       {benefits.map((benefit, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[10px] text-nofx-text-muted uppercase tracking-wide">
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 text-[10px] text-nofx-text-muted uppercase tracking-wide"
+                        >
                           <span className="text-nofx-gold">✓</span> {benefit}
                         </div>
                       ))}
@@ -105,22 +116,24 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
 
                   {/* Action Buttons */}
                   <div className="space-y-3">
-                    <a
-                      href="/login"
+                    <Link
+                      to="/login"
                       className="flex items-center justify-center gap-2 w-full py-3 bg-nofx-gold text-black font-bold text-xs uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-neon hover:shadow-[0_0_25px_rgba(240,185,11,0.4)] group"
                     >
                       <LogIn size={14} />
                       <span>{tr('loginButton')}</span>
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity -ml-2 group-hover:ml-0">-&gt;</span>
-                    </a>
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity -ml-2 group-hover:ml-0">
+                        -&gt;
+                      </span>
+                    </Link>
 
-                    <a
-                      href="/register"
+                    <Link
+                      to="/register"
                       className="flex items-center justify-center gap-2 w-full py-3 bg-transparent border border-nofx-gold/20 text-nofx-text-muted hover:text-white hover:border-nofx-gold font-bold text-xs uppercase tracking-widest transition-all hover:bg-nofx-gold/10"
                     >
                       <UserPlus size={14} />
                       <span>{tr('registerButton')}</span>
-                    </a>
+                    </Link>
                   </div>
 
                   <div className="mt-4 text-center">
@@ -131,14 +144,12 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                       [ {tr('abort')} ]
                     </button>
                   </div>
-
                 </div>
               </div>
 
               {/* Corner Accents */}
               <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-nofx-gold"></div>
               <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-nofx-gold"></div>
-
             </motion.div>
           </DeepVoidBackground>
         </motion.div>

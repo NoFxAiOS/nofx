@@ -34,24 +34,8 @@ export function LandingPage() {
         user={user}
         onLogout={logout}
         onLoginRequired={handleLoginRequired}
-        onPageChange={(page) => {
-          const pathMap: Record<string, string> = {
-            'data': '/data',
-            'competition': '/competition',
-            'strategy-market': '/strategy-market',
-            'traders': '/traders',
-            'trader': '/dashboard',
-            'strategy': '/strategy',
-            'faq': '/faq',
-          }
-          const path = pathMap[page]
-          if (path) {
-            window.location.href = path
-          }
-        }}
       />
       <div className="min-h-screen bg-nofx-bg text-nofx-text font-sans selection:bg-nofx-gold selection:text-black">
-
         <TerminalHero />
 
         <LiveFeed />

@@ -20,12 +20,7 @@ import { ModelConfigModal } from './ModelConfigModal'
 import { ConfigStatusGrid } from './ConfigStatusGrid'
 import { TradersList } from './TradersList'
 import { BeginnerGuideCards } from './BeginnerGuideCards'
-import {
-  AlertTriangle,
-  Bot,
-  Plus,
-  MessageCircle,
-} from 'lucide-react'
+import { AlertTriangle, Bot, Plus, MessageCircle } from 'lucide-react'
 import { confirmToast } from '../../lib/notify'
 import { toast } from 'sonner'
 import {
@@ -55,11 +50,17 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [allModels, setAllModels] = useState<AIModel[]>([])
   const [allExchanges, setAllExchanges] = useState<Exchange[]>([])
   const [supportedModels, setSupportedModels] = useState<AIModel[]>([])
-  const [visibleTraderAddresses, setVisibleTraderAddresses] = useState<Set<string>>(new Set())
-  const [visibleExchangeAddresses, setVisibleExchangeAddresses] = useState<Set<string>>(new Set())
+  const [visibleTraderAddresses, setVisibleTraderAddresses] = useState<
+    Set<string>
+  >(new Set())
+  const [visibleExchangeAddresses, setVisibleExchangeAddresses] = useState<
+    Set<string>
+  >(new Set())
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [quickSetupLoading, setQuickSetupLoading] = useState(false)
-  const [beginnerWalletAddress, setBeginnerWalletAddress] = useState<string | null>(() => getBeginnerWalletAddress())
+  const [beginnerWalletAddress, setBeginnerWalletAddress] = useState<
+    string | null
+  >(() => getBeginnerWalletAddress())
   const isBeginnerMode = getUserMode() === 'beginner'
   const getErrorMessage = (error: unknown, fallback: string) => {
     if (error instanceof Error && error.message.trim() !== '') {
@@ -74,54 +75,98 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   ) => {
     const traderName = params.trader_name || params.traderName || 'this trader'
     const modelName = params.model_name || params.modelName || 'selected model'
-    const exchangeName = params.exchange_name || params.exchangeName || 'selected exchange account'
-    const reason = localizeTraderReason(params.reason_key, params.reason || fallback)
+    const exchangeName =
+      params.exchange_name || params.exchangeName || 'selected exchange account'
+    const reason = localizeTraderReason(
+      params.reason_key,
+      params.reason || fallback
+    )
     const symbol = params.symbol || ''
 
     const zh = language === 'zh'
 
     switch (errorKey) {
       case 'trader.create.invalid_request':
-        return zh ? '提交的信息不完整，或者格式不正确。请检查后重新提交。' : 'The submitted information is incomplete or invalid. Please review it and try again.'
+        return zh
+          ? '提交的信息不完整，或者格式不正确。请检查后重新提交。'
+          : 'The submitted information is incomplete or invalid. Please review it and try again.'
       case 'trader.create.invalid_btc_eth_leverage':
-        return zh ? 'BTC/ETH 杠杆倍数需要在 1 到 50 倍之间。' : 'BTC/ETH leverage must be between 1x and 50x.'
+        return zh
+          ? 'BTC/ETH 杠杆倍数需要在 1 到 50 倍之间。'
+          : 'BTC/ETH leverage must be between 1x and 50x.'
       case 'trader.create.invalid_altcoin_leverage':
-        return zh ? '山寨币杠杆倍数需要在 1 到 20 倍之间。' : 'Altcoin leverage must be between 1x and 20x.'
+        return zh
+          ? '山寨币杠杆倍数需要在 1 到 20 倍之间。'
+          : 'Altcoin leverage must be between 1x and 20x.'
       case 'trader.create.invalid_symbol':
-        return zh ? `交易对 ${symbol} 的格式不正确，目前只支持以 USDT 结尾的合约交易对。` : `Trading pair ${symbol} is invalid. Only perpetual pairs ending with USDT are supported.`
+        return zh
+          ? `交易对 ${symbol} 的格式不正确，目前只支持以 USDT 结尾的合约交易对。`
+          : `Trading pair ${symbol} is invalid. Only perpetual pairs ending with USDT are supported.`
       case 'trader.create.model_not_found':
-        return zh ? '还没有找到你选择的 AI 模型。请先到「设置 > 模型配置」添加并启用一个可用模型。' : 'The selected AI model was not found. Please add and enable a valid model in Settings > Model Config.'
+        return zh
+          ? '还没有找到你选择的 AI 模型。请先到「设置 > 模型配置」添加并启用一个可用模型。'
+          : 'The selected AI model was not found. Please add and enable a valid model in Settings > Model Config.'
       case 'trader.create.model_disabled':
-        return zh ? `AI 模型「${modelName}」目前还没有启用。请先启用它再创建机器人。` : `AI model "${modelName}" is currently disabled. Please enable it before creating a trader.`
+        return zh
+          ? `AI 模型「${modelName}」目前还没有启用。请先启用它再创建机器人。`
+          : `AI model "${modelName}" is currently disabled. Please enable it before creating a trader.`
       case 'trader.create.model_missing_credentials':
-        return zh ? `AI 模型「${modelName}」缺少 API Key 或支付凭证。请先补全模型配置。` : `AI model "${modelName}" is missing API credentials or payment setup. Please complete the model configuration first.`
+        return zh
+          ? `AI 模型「${modelName}」缺少 API Key 或支付凭证。请先补全模型配置。`
+          : `AI model "${modelName}" is missing API credentials or payment setup. Please complete the model configuration first.`
       case 'trader.create.strategy_required':
-        return zh ? '你还没有选择交易策略。请先选择一个策略，再继续创建机器人。' : 'No trading strategy is selected yet. Please choose a strategy before creating a trader.'
+        return zh
+          ? '你还没有选择交易策略。请先选择一个策略，再继续创建机器人。'
+          : 'No trading strategy is selected yet. Please choose a strategy before creating a trader.'
       case 'trader.create.strategy_not_found':
-        return zh ? '你选择的策略不存在，或者已经被删除了。请重新选择一个可用策略。' : 'The selected strategy no longer exists. Please choose another available strategy.'
+        return zh
+          ? '你选择的策略不存在，或者已经被删除了。请重新选择一个可用策略。'
+          : 'The selected strategy no longer exists. Please choose another available strategy.'
       case 'trader.create.exchange_not_found':
-        return zh ? '还没有找到你选择的交易所账户。请先到「设置 > 交易所配置」添加一个可用账户。' : 'The selected exchange account was not found. Please add an exchange account in Settings > Exchange Config.'
+        return zh
+          ? '还没有找到你选择的交易所账户。请先到「设置 > 交易所配置」添加一个可用账户。'
+          : 'The selected exchange account was not found. Please add an exchange account in Settings > Exchange Config.'
       case 'trader.create.exchange_disabled':
-        return zh ? `交易所账户「${exchangeName}」目前处于未启用状态。请先启用它。` : `Exchange account "${exchangeName}" is currently disabled. Please enable it first.`
+        return zh
+          ? `交易所账户「${exchangeName}」目前处于未启用状态。请先启用它。`
+          : `Exchange account "${exchangeName}" is currently disabled. Please enable it first.`
       case 'trader.create.exchange_missing_fields':
-        return zh ? `交易所账户「${exchangeName}」的配置还不完整。请先补全必填信息。` : `Exchange account "${exchangeName}" is incomplete. Please fill in the required fields first.`
+        return zh
+          ? `交易所账户「${exchangeName}」的配置还不完整。请先补全必填信息。`
+          : `Exchange account "${exchangeName}" is incomplete. Please fill in the required fields first.`
       case 'trader.create.exchange_unsupported':
-        return zh ? `交易所账户「${exchangeName}」当前类型暂不支持机器人创建。` : `Exchange account "${exchangeName}" uses a type that is not supported for trader creation.`
+        return zh
+          ? `交易所账户「${exchangeName}」当前类型暂不支持机器人创建。`
+          : `Exchange account "${exchangeName}" uses a type that is not supported for trader creation.`
       case 'trader.create.exchange_probe_failed':
-        return zh ? `交易所账户「${exchangeName}」没有通过初始化校验，原因是：${reason}` : `Exchange account "${exchangeName}" failed initialization checks: ${reason}`
+        return zh
+          ? `交易所账户「${exchangeName}」没有通过初始化校验，原因是：${reason}`
+          : `Exchange account "${exchangeName}" failed initialization checks: ${reason}`
       case 'trader.start.strategy_missing':
-        return zh ? `机器人「${traderName}」缺少有效的交易策略配置。` : `Trader "${traderName}" does not have a valid strategy configuration.`
+        return zh
+          ? `机器人「${traderName}」缺少有效的交易策略配置。`
+          : `Trader "${traderName}" does not have a valid strategy configuration.`
       case 'trader.start.model_not_found':
-        return zh ? `机器人「${traderName}」关联的 AI 模型不存在。请检查模型配置。` : `Trader "${traderName}" references an AI model that no longer exists. Please check the model configuration.`
+        return zh
+          ? `机器人「${traderName}」关联的 AI 模型不存在。请检查模型配置。`
+          : `Trader "${traderName}" references an AI model that no longer exists. Please check the model configuration.`
       case 'trader.start.model_disabled':
-        return zh ? `机器人「${traderName}」关联的 AI 模型「${modelName}」目前还没有启用。` : `Trader "${traderName}" uses AI model "${modelName}", which is currently disabled.`
+        return zh
+          ? `机器人「${traderName}」关联的 AI 模型「${modelName}」目前还没有启用。`
+          : `Trader "${traderName}" uses AI model "${modelName}", which is currently disabled.`
       case 'trader.start.exchange_not_found':
-        return zh ? `机器人「${traderName}」关联的交易所账户不存在。请检查交易所配置。` : `Trader "${traderName}" references an exchange account that no longer exists. Please check the exchange configuration.`
+        return zh
+          ? `机器人「${traderName}」关联的交易所账户不存在。请检查交易所配置。`
+          : `Trader "${traderName}" references an exchange account that no longer exists. Please check the exchange configuration.`
       case 'trader.start.exchange_disabled':
-        return zh ? `机器人「${traderName}」关联的交易所账户「${exchangeName}」目前还没有启用。` : `Trader "${traderName}" uses exchange account "${exchangeName}", which is currently disabled.`
+        return zh
+          ? `机器人「${traderName}」关联的交易所账户「${exchangeName}」目前还没有启用。`
+          : `Trader "${traderName}" uses exchange account "${exchangeName}", which is currently disabled.`
       case 'trader.start.setup_invalid':
       case 'trader.start.load_failed':
-        return zh ? `机器人「${traderName}」暂时还不能启动，原因是：${reason}` : `Trader "${traderName}" cannot be started yet because ${reason}`
+        return zh
+          ? `机器人「${traderName}」暂时还不能启动，原因是：${reason}`
+          : `Trader "${traderName}" cannot be started yet because ${reason}`
       default:
         return fallback
     }
@@ -131,34 +176,69 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
     switch (reasonKey) {
       case 'trader.reason.strategy_config_invalid':
-        return zh ? '当前策略配置内容已损坏，系统暂时无法解析' : 'the current strategy configuration is corrupted and cannot be parsed'
+        return zh
+          ? '当前策略配置内容已损坏，系统暂时无法解析'
+          : 'the current strategy configuration is corrupted and cannot be parsed'
       case 'trader.reason.strategy_missing':
-        return zh ? '当前机器人缺少有效的交易策略配置' : 'the trader is missing a valid strategy configuration'
+        return zh
+          ? '当前机器人缺少有效的交易策略配置'
+          : 'the trader is missing a valid strategy configuration'
       case 'trader.reason.private_key_invalid':
-        return zh ? '私钥格式不正确，系统无法识别' : 'the private key format is invalid and cannot be recognized'
+        return zh
+          ? '私钥格式不正确，系统无法识别'
+          : 'the private key format is invalid and cannot be recognized'
       case 'trader.reason.hyperliquid_init_failed':
-        return zh ? 'Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确' : 'Hyperliquid account initialization failed. Please verify the private key, main wallet address, and Agent Wallet configuration'
+        return zh
+          ? 'Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确'
+          : 'Hyperliquid account initialization failed. Please verify the private key, main wallet address, and Agent Wallet configuration'
       case 'trader.reason.aster_init_failed':
-        return zh ? 'Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确' : 'Aster account initialization failed. Please verify the Aster User, Signer, and private key'
+        return zh
+          ? 'Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确'
+          : 'Aster account initialization failed. Please verify the Aster User, Signer, and private key'
       case 'trader.reason.exchange_meta_unavailable':
-        return zh ? '系统暂时无法从交易所读取账户元信息' : 'the system could not read account metadata from the exchange'
+        return zh
+          ? '系统暂时无法从交易所读取账户元信息'
+          : 'the system could not read account metadata from the exchange'
       case 'trader.reason.hyperliquid_agent_balance_too_high':
-        return zh ? 'Hyperliquid Agent Wallet 余额过高，不符合当前安全要求' : 'the Hyperliquid Agent Wallet balance is too high for the current safety requirements'
+        return zh
+          ? 'Hyperliquid Agent Wallet 余额过高，不符合当前安全要求'
+          : 'the Hyperliquid Agent Wallet balance is too high for the current safety requirements'
       case 'trader.reason.exchange_account_init_failed':
-        return zh ? '交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配' : 'exchange account initialization failed. Please verify that the wallet address and API key match'
+        return zh
+          ? '交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配'
+          : 'exchange account initialization failed. Please verify that the wallet address and API key match'
       case 'trader.reason.exchange_unsupported':
-        return zh ? '当前交易所类型暂不支持机器人初始化' : 'the selected exchange type is not currently supported for trader initialization'
+        return zh
+          ? '当前交易所类型暂不支持机器人初始化'
+          : 'the selected exchange type is not currently supported for trader initialization'
       case 'trader.reason.exchange_balance_unavailable':
-        return zh ? '系统暂时无法从交易所读取账户余额' : 'the system could not read the account balance from the exchange'
+        return zh
+          ? '系统暂时无法从交易所读取账户余额'
+          : 'the system could not read the account balance from the exchange'
       case 'trader.reason.exchange_service_unreachable':
-        return zh ? '系统暂时无法连接交易所服务' : 'the system could not reach the exchange service right now'
+        return zh
+          ? '系统暂时无法连接交易所服务'
+          : 'the system could not reach the exchange service right now'
       default:
-        return fallback || (zh ? '系统返回了一个未知错误' : 'an unknown error was returned by the system')
+        return (
+          fallback ||
+          (zh
+            ? '系统返回了一个未知错误'
+            : 'an unknown error was returned by the system')
+        )
     }
   }
-  const normalizeActionableDescription = (error: unknown, message: string, title: string) => {
+  const normalizeActionableDescription = (
+    error: unknown,
+    message: string,
+    title: string
+  ) => {
     if (error instanceof ApiError && error.errorKey) {
-      return formatActionableDescriptionByKey(error.errorKey, error.errorParams, message)
+      return formatActionableDescriptionByKey(
+        error.errorKey,
+        error.errorParams,
+        message
+      )
     }
 
     const prefixes = [
@@ -247,12 +327,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const navigateInApp = (path: string) => {
     navigate(path)
-    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   // Toggle wallet address visibility for a trader
   const toggleTraderAddressVisibility = (traderId: string) => {
-    setVisibleTraderAddresses(prev => {
+    setVisibleTraderAddresses((prev) => {
       const next = new Set(prev)
       if (next.has(traderId)) {
         next.delete(traderId)
@@ -265,7 +344,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   // Toggle wallet address visibility for an exchange
   const toggleExchangeAddressVisibility = (exchangeId: string) => {
-    setVisibleExchangeAddresses(prev => {
+    setVisibleExchangeAddresses((prev) => {
       const next = new Set(prev)
       if (next.has(exchangeId)) {
         next.delete(exchangeId)
@@ -287,11 +366,13 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
   }
 
-  const { data: traders, mutate: mutateTraders, isLoading: isTradersLoading } = useSWR<TraderInfo[]>(
-    user && token ? 'traders' : null,
-    api.getTraders,
-    { refreshInterval: 5000 }
-  )
+  const {
+    data: traders,
+    mutate: mutateTraders,
+    isLoading: isTradersLoading,
+  } = useSWR<TraderInfo[]>(user && token ? 'traders' : null, api.getTraders, {
+    refreshInterval: 5000,
+  })
   const {
     data: exchangeAccountStateData,
     mutate: mutateExchangeAccountStates,
@@ -323,18 +404,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       try {
-        const [
-          modelConfigs,
-          exchangeConfigs,
-          models,
-        ] = await Promise.all([
+        const [modelConfigs, exchangeConfigs, models] = await Promise.all([
           api.getModelConfigs(),
           api.getExchangeConfigs(),
           api.getSupportedModels(),
         ])
         setAllModels(modelConfigs)
         const clawWalletAddress =
-          modelConfigs.find((model) => model.provider === 'claw402')?.walletAddress || null
+          modelConfigs.find((model) => model.provider === 'claw402')
+            ?.walletAddress || null
         if (clawWalletAddress) {
           setBeginnerWalletAddress(clawWalletAddress)
           persistBeginnerWalletAddress(clawWalletAddress)
@@ -365,10 +443,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }) || []
 
   const enabledModels = allModels?.filter((m) => m.enabled) || []
-  const enabledClaw402Model = enabledModels.find((model) => model.provider === 'claw402') || null
-  const enabledClaw402Balance = parseBalanceUsdc(enabledClaw402Model?.balanceUsdc)
+  const enabledClaw402Model =
+    enabledModels.find((model) => model.provider === 'claw402') || null
+  const enabledClaw402Balance = parseBalanceUsdc(
+    enabledClaw402Model?.balanceUsdc
+  )
   const claw402BalanceAlert =
-    enabledClaw402Model && enabledClaw402Balance !== null && enabledClaw402Balance < 1
+    enabledClaw402Model &&
+    enabledClaw402Balance !== null &&
+    enabledClaw402Balance < 1
       ? {
           blocking: enabledClaw402Balance <= 0,
           title:
@@ -379,7 +462,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               : enabledClaw402Balance <= 0
                 ? 'Claw402 wallet balance is zero'
                 : 'Claw402 wallet balance is low',
-          description: getClaw402BalanceMessage(enabledClaw402Balance, enabledClaw402Balance <= 0),
+          description: getClaw402BalanceMessage(
+            enabledClaw402Balance,
+            enabledClaw402Balance <= 0
+          ),
         }
       : null
   const enabledExchanges =
@@ -415,7 +501,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const getExchangeUsageInfo = (exchangeId: string) => {
-    const usingTraders = traders?.filter((tr) => tr.exchange_id === exchangeId) || []
+    const usingTraders =
+      traders?.filter((tr) => tr.exchange_id === exchangeId) || []
     const runningCount = usingTraders.filter((tr) => tr.is_running).length
     const totalCount = usingTraders.length
     return { runningCount, totalCount, usingTraders }
@@ -571,13 +658,18 @@ console.log('🔥 handleSaveEditTrader - data:', data)
     } catch (error) {
       console.error('Failed to toggle trader:', error)
       showActionableError(
-        running ? t('aiTradersToast.stopFailed', language) : t('aiTradersToast.startFailed', language),
+        running
+          ? t('aiTradersToast.stopFailed', language)
+          : t('aiTradersToast.startFailed', language),
         error
       )
     }
   }
 
-  const handleToggleCompetition = async (traderId: string, currentShowInCompetition: boolean) => {
+  const handleToggleCompetition = async (
+    traderId: string,
+    currentShowInCompetition: boolean
+) => {
     try {
       const newValue = !currentShowInCompetition
       await toast.promise(api.toggleCompetition(traderId, newValue), {
@@ -724,12 +816,12 @@ console.log('🔥 handleSaveEditTrader - data:', data)
           allModels?.map((m) =>
             m.id === modelId
               ? {
-                ...m,
-                apiKey,
-                customApiUrl: customApiUrl || '',
-                customModelName: customModelName || '',
-                enabled: true,
-              }
+                  ...m,
+                  apiKey,
+                  customApiUrl: customApiUrl || '',
+                  customModelName: customModelName || '',
+                  enabled: true,
+                }
               : m
           ) || []
       } else {
@@ -850,7 +942,7 @@ console.log('🔥 handleSaveEditTrader - data:', data)
           },
         }
 
-        await toast.promise(api.updateExchangeConfigsEncrypted(request), {
+await toast.promise(api.updateExchangeConfigsEncrypted(request), {
           loading: t('aiTradersToast.updatingExchangeConfig', language),
           success: t('aiTradersToast.exchangeConfigUpdated', language),
           error: t('aiTradersToast.exchangeConfigUpdateFailed', language),
@@ -929,10 +1021,13 @@ console.log('🔥 handleSaveEditTrader - data:', data)
     }
   }
 
-  const claw402Configured = configuredModels.some((model) => model.provider === 'claw402')
+  const claw402Configured = configuredModels.some(
+    (model) => model.provider === 'claw402'
+  )
   const hasStrategies = (strategies?.length || 0) > 0
   const hasCreatedTrader = (traders?.length || 0) > 0
-  const canCreateTrader = configuredModels.length > 0 && configuredExchanges.length > 0
+  const canCreateTrader =
+    configuredModels.length > 0 && configuredExchanges.length > 0
 
   return (
     <DeepVoidBackground className="py-8" disableAnimation>
@@ -993,7 +1088,10 @@ console.log('🔥 handleSaveEditTrader - data:', data)
 
             <button
               onClick={() => setShowCreateModal(true)}
-              disabled={configuredModels.length === 0 || configuredExchanges.length === 0}
+              disabled={
+                configuredModels.length === 0 ||
+                configuredExchanges.length === 0
+              }
               className="group relative px-6 py-2 rounded text-xs font-bold font-mono uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap overflow-hidden bg-nofx-gold text-black hover:bg-yellow-400 shadow-[0_0_20px_rgba(240,185,11,0.2)] hover:shadow-[0_0_30px_rgba(240,185,11,0.4)]"
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -1025,15 +1123,21 @@ console.log('🔥 handleSaveEditTrader - data:', data)
           <div
             className="mb-6 rounded-xl border px-4 py-4 md:px-5 md:py-4 flex flex-col md:flex-row md:items-start md:justify-between gap-3"
             style={{
-              borderColor: claw402BalanceAlert.blocking ? 'rgba(239, 68, 68, 0.55)' : 'rgba(245, 158, 11, 0.45)',
-              background: claw402BalanceAlert.blocking ? 'rgba(127, 29, 29, 0.22)' : 'rgba(120, 53, 15, 0.18)',
+              borderColor: claw402BalanceAlert.blocking
+                ? 'rgba(239, 68, 68, 0.55)'
+                : 'rgba(245, 158, 11, 0.45)',
+              background: claw402BalanceAlert.blocking
+                ? 'rgba(127, 29, 29, 0.22)'
+                : 'rgba(120, 53, 15, 0.18)',
             }}
           >
             <div className="flex items-start gap-3">
               <div
                 className="mt-0.5 rounded-full p-2"
                 style={{
-                  background: claw402BalanceAlert.blocking ? 'rgba(239, 68, 68, 0.16)' : 'rgba(245, 158, 11, 0.14)',
+                  background: claw402BalanceAlert.blocking
+                    ? 'rgba(239, 68, 68, 0.16)'
+                    : 'rgba(245, 158, 11, 0.14)',
                   color: claw402BalanceAlert.blocking ? '#F87171' : '#FBBF24',
                 }}
               >
@@ -1042,11 +1146,16 @@ console.log('🔥 handleSaveEditTrader - data:', data)
               <div>
                 <div
                   className="text-sm font-semibold"
-                  style={{ color: claw402BalanceAlert.blocking ? '#FCA5A5' : '#FDE68A' }}
+                  style={{
+                    color: claw402BalanceAlert.blocking ? '#FCA5A5' : '#FDE68A',
+                  }}
                 >
                   {claw402BalanceAlert.title}
                 </div>
-                <div className="text-sm mt-1 leading-6" style={{ color: '#D4D4D8' }}>
+                <div
+                  className="text-sm mt-1 leading-6"
+                  style={{ color: '#D4D4D8' }}
+                >
                   {claw402BalanceAlert.description}
                 </div>
               </div>
@@ -1054,10 +1163,14 @@ console.log('🔥 handleSaveEditTrader - data:', data)
 
             <button
               type="button"
-              onClick={() => enabledClaw402Model && handleModelClick(enabledClaw402Model.id)}
+              onClick={() =>
+                enabledClaw402Model && handleModelClick(enabledClaw402Model.id)
+              }
               className="px-4 py-2 rounded text-xs font-mono uppercase tracking-wider border whitespace-nowrap self-start"
               style={{
-                borderColor: claw402BalanceAlert.blocking ? 'rgba(248, 113, 113, 0.45)' : 'rgba(251, 191, 36, 0.35)',
+                borderColor: claw402BalanceAlert.blocking
+                  ? 'rgba(248, 113, 113, 0.45)'
+                  : 'rgba(251, 191, 36, 0.35)',
                 color: claw402BalanceAlert.blocking ? '#FCA5A5' : '#FDE68A',
                 background: 'rgba(0, 0, 0, 0.18)',
               }}

@@ -460,6 +460,9 @@ func (s *StrategyStore) Delete(userID, id string) error {
 		if st.IsDefault {
 			return fmt.Errorf("cannot delete system default strategy")
 		}
+		if st.IsActive {
+			return fmt.Errorf("cannot delete active strategy")
+		}
 	}
 
 	// Check if any trader references this strategy

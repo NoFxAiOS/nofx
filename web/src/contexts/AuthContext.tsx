@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { getSystemConfig, invalidateSystemConfig } from '../lib/config'
 import { reset401Flag, httpClient } from '../lib/httpClient'
 import { getPostAuthPath, setUserMode, type UserMode } from '../lib/onboarding'
+import { ROUTES } from '../router/paths'
 import { useLanguage } from './LanguageContext'
 
 interface User {
@@ -43,6 +45,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { language } = useLanguage()
+  const navigate = useNavigate()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -120,8 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionStorage.removeItem('returnUrl')
     }
 
-    window.history.pushState({}, '', nextPath)
-    window.dispatchEvent(new PopStateEvent('popstate'))
+    navigate(nextPath)
   }
 
   const login = async (email: string, password: string, mode?: UserMode) => {
@@ -145,7 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Unexpected success response
-        return { success: false, message: data.message || 'Unexpected login response' }
+        return {
+          success: false,
+          message: data.message || 'Unexpected login response',
+        }
       } else {
         return {
           success: false,
@@ -184,12 +189,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const returnUrl = sessionStorage.getItem('returnUrl')
         if (returnUrl) {
           sessionStorage.removeItem('returnUrl')
-          window.history.pushState({}, '', returnUrl)
-          window.dispatchEvent(new PopStateEvent('popstate'))
+          navigate(returnUrl)
         } else {
           // Redirect to dashboard
-          window.history.pushState({}, '', '/dashboard')
-          window.dispatchEvent(new PopStateEvent('popstate'))
+          navigate(ROUTES.dashboard)
         }
         return { success: true }
       } else {
@@ -244,13 +247,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         message: result.message || 'Registration failed',
       }
     } catch (error) {
-      console.error('Auth register error:', error);
+      console.error('Auth register error:', error)
       // Re-throw if it's a critical error, or return structured error
       // Since httpClient throws on 500, we should return a structured error response
       // to let the UI display it gracefully without crashing.
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Detailed server error'
+        message:
+          error instanceof Error ? error.message : 'Detailed server error',
       }
     }
   }
@@ -276,7 +280,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: data.error }
       }
     } catch (error) {
-      return { success: false, message: 'Password reset failed, please try again' }
+      return {
+        success: false,
+        message: 'Password reset failed, please try again',
+      }
     }
   }
 
@@ -295,8 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
     invalidateSystemConfig()
-    window.history.pushState({}, '', '/')
-    window.dispatchEvent(new PopStateEvent('popstate'))
+    navigate(ROUTES.home)
   }
 
   return (

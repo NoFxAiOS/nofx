@@ -1,7 +1,18 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { RegistrationDisabled } from './RegistrationDisabled'
 import { LanguageProvider } from '../../contexts/LanguageContext'
+
+const mockNavigate = vi.fn()
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
 
 // Mock useLanguage hook
 vi.mock('../../contexts/LanguageContext', async () => {
@@ -21,9 +32,11 @@ vi.mock('../../contexts/LanguageContext', async () => {
 describe('RegistrationDisabled Component', () => {
   const renderComponent = () => {
     return render(
-      <LanguageProvider>
-        <RegistrationDisabled />
-      </LanguageProvider>
+      <MemoryRouter>
+        <LanguageProvider>
+          <RegistrationDisabled />
+        </LanguageProvider>
+      </MemoryRouter>
     )
   }
 
@@ -48,7 +61,9 @@ describe('RegistrationDisabled Component', () => {
 
     it('should display registration closed message', () => {
       renderComponent()
-      const message = screen.getByText(/User registration is currently disabled/i)
+      const message = screen.getByText(
+        /User registration is currently disabled/i
+      )
       expect(message).toBeTruthy()
     })
 
@@ -61,19 +76,12 @@ describe('RegistrationDisabled Component', () => {
 
   describe('Navigation', () => {
     it('should navigate to login page when button is clicked', () => {
-      const pushStateSpy = vi.spyOn(window.history, 'pushState')
-      const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
-
       renderComponent()
       const button = screen.getByRole('button', { name: /back to login/i })
 
       fireEvent.click(button)
 
-      expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/login')
-      expect(dispatchEventSpy).toHaveBeenCalled()
-
-      pushStateSpy.mockRestore()
-      dispatchEventSpy.mockRestore()
+      expect(mockNavigate).toHaveBeenCalledWith('/login')
     })
   })
 

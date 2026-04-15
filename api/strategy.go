@@ -17,6 +17,50 @@ import (
 	"github.com/google/uuid"
 )
 
+func mergeStrategyConfig(existing store.StrategyConfig, incoming json.RawMessage) (store.StrategyConfig, error) {
+	merged := existing
+	if len(incoming) == 0 || string(incoming) == "null" {
+		return merged, nil
+	}
+
+	var existingMap map[string]any
+	if blob, err := json.Marshal(existing); err == nil {
+		_ = json.Unmarshal(blob, &existingMap)
+	}
+	if existingMap == nil {
+		existingMap = map[string]any{}
+	}
+
+	var incomingMap map[string]any
+	if err := json.Unmarshal(incoming, &incomingMap); err != nil {
+		return store.StrategyConfig{}, err
+	}
+
+	deepMergeMap(existingMap, incomingMap)
+
+	blob, err := json.Marshal(existingMap)
+	if err != nil {
+		return store.StrategyConfig{}, err
+	}
+	if err := json.Unmarshal(blob, &merged); err != nil {
+		return store.StrategyConfig{}, err
+	}
+	return merged, nil
+}
+
+func deepMergeMap(dst, src map[string]any) {
+	for key, srcVal := range src {
+		srcMap, srcIsMap := srcVal.(map[string]any)
+		dstMap, dstIsMap := dst[key].(map[string]any)
+		if srcIsMap && dstIsMap {
+			deepMergeMap(dstMap, srcMap)
+			dst[key] = dstMap
+			continue
+		}
+		dst[key] = srcVal
+	}
+}
+
 // validateStrategyConfig validates strategy configuration and returns warnings
 func validateStrategyConfig(config *store.StrategyConfig) []string {
 	var warnings []string
@@ -335,10 +379,11 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		mergedConfig = store.StrategyConfig{}
 	}
 
-	// Apply incoming config on top: top-level sections present in the request overwrite
-	// their corresponding existing section; absent sections remain unchanged.
+	// Apply incoming config with deep object merge so nested protection fields
+	// such as ladder/full AI mode are preserved when sibling fields are omitted.
 	if len(req.Config) > 0 && string(req.Config) != "null" {
-		if err := json.Unmarshal(req.Config, &mergedConfig); err != nil {
+		mergedConfig, err = mergeStrategyConfig(mergedConfig, req.Config)
+		if err != nil {
 			SafeBadRequest(c, "Invalid config JSON")
 			return
 		}

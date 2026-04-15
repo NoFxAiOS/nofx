@@ -1,10 +1,147 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"nofx/auth"
 	"nofx/store"
 )
+
+func TestStrategyUpdateAPIEndToEndPreservesNestedProtectionConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "strategy-merge-e2e.db")
+
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create test store failed: %v", err)
+	}
+	defer func() {
+		if st != nil {
+			_ = st.Close()
+		}
+		_ = os.Remove(dbPath)
+	}()
+
+	auth.SetJWTSecret("test-secret-strategy-merge")
+	token, err := auth.GenerateJWT("u-e2e", "e2e@example.com")
+	if err != nil {
+		t.Fatalf("generate jwt failed: %v", err)
+	}
+
+	srv := NewServer(nil, st, nil, 0)
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	cfg.Protection.FullTPSL = store.FullTPSLConfig{
+		Enabled:         true,
+		Mode:            store.ProtectionModeAI,
+		TakeProfit:      store.ProtectionValueSource{Mode: store.ProtectionValueModeAI},
+		StopLoss:        store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 2},
+		FallbackMaxLoss: store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 7},
+	}
+	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{
+		Enabled:           true,
+		Mode:              store.ProtectionModeAI,
+		TakeProfitEnabled: true,
+		StopLossEnabled:   true,
+		TakeProfitPrice:   store.ProtectionValueSource{Mode: store.ProtectionValueModeAI},
+		TakeProfitSize:    store.ProtectionValueSource{Mode: store.ProtectionValueModeAI},
+		StopLossPrice:     store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 2},
+		StopLossSize:      store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 50},
+		FallbackMaxLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 8},
+		Rules:             []store.LadderTPSLRule{{TakeProfitPct: 3, TakeProfitCloseRatioPct: 50, StopLossPct: 2, StopLossCloseRatioPct: 50}},
+	}
+
+	cfgBlob, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal config failed: %v", err)
+	}
+
+	strategy := &store.Strategy{
+		ID:            "st-e2e",
+		UserID:        "u-e2e",
+		Name:          "e2e-strategy",
+		Description:   "before",
+		Config:        string(cfgBlob),
+		IsPublic:      false,
+		ConfigVisible: true,
+	}
+	if err := st.Strategy().Create(strategy); err != nil {
+		t.Fatalf("create strategy failed: %v", err)
+	}
+
+	updateBody := map[string]any{
+		"name": "e2e-strategy",
+		"description": "after",
+		"is_public": false,
+		"config_visible": true,
+		"config": map[string]any{
+			"protection": map[string]any{
+				"full_tp_sl": map[string]any{
+					"fallback_max_loss": map[string]any{
+						"mode": "manual",
+						"value": 6,
+					},
+				},
+				"ladder_tp_sl": map[string]any{
+					"take_profit_enabled": false,
+				},
+			},
+		},
+	}
+	payload, err := json.Marshal(updateBody)
+	if err != nil {
+		t.Fatalf("marshal update payload failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/api/strategies/st-e2e", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected PUT status 200, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/strategies/st-e2e", nil)
+	getReq.Header.Set("Authorization", "Bearer "+token)
+	getW := httptest.NewRecorder()
+	srv.router.ServeHTTP(getW, getReq)
+	if getW.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d, body=%s", getW.Code, getW.Body.String())
+	}
+
+	var resp struct {
+		Config store.StrategyConfig `json:"config"`
+	}
+	if err := json.Unmarshal(getW.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode get response failed: %v", err)
+	}
+
+	if resp.Config.Protection.FullTPSL.Mode != store.ProtectionModeAI {
+		t.Fatalf("expected full mode ai to survive PUT/GET flow, got %+v", resp.Config.Protection.FullTPSL)
+	}
+	if resp.Config.Protection.FullTPSL.FallbackMaxLoss.Mode != store.ProtectionValueModeManual || resp.Config.Protection.FullTPSL.FallbackMaxLoss.Value != 6 {
+		t.Fatalf("expected full fallback update to persist, got %+v", resp.Config.Protection.FullTPSL)
+	}
+	if resp.Config.Protection.LadderTPSL.Mode != store.ProtectionModeAI {
+		t.Fatalf("expected ladder mode ai to survive PUT/GET flow, got %+v", resp.Config.Protection.LadderTPSL)
+	}
+	if resp.Config.Protection.LadderTPSL.TakeProfitPrice.Mode != store.ProtectionValueModeAI || resp.Config.Protection.LadderTPSL.TakeProfitSize.Mode != store.ProtectionValueModeAI {
+		t.Fatalf("expected ladder ai value modes to survive PUT/GET flow, got %+v", resp.Config.Protection.LadderTPSL)
+	}
+	if resp.Config.Protection.LadderTPSL.TakeProfitEnabled {
+		t.Fatalf("expected ladder partial update to persist take_profit_enabled=false, got %+v", resp.Config.Protection.LadderTPSL)
+	}
+	if resp.Config.Protection.LadderTPSL.FallbackMaxLoss.Value != 8 {
+		t.Fatalf("expected ladder fallback to survive unrelated PUT field update, got %+v", resp.Config.Protection.LadderTPSL)
+	}
+}
 
 func TestStrategyConfigMergePreservesNewProtectionFieldsOnPartialTopLevelUpdate(t *testing.T) {
 	existing := store.GetDefaultStrategyConfig("zh")

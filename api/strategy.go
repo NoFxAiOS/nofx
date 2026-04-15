@@ -516,8 +516,31 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		req.PromptVariant = "balanced"
 	}
 
+	claw402WalletKey := ""
+	if req.AIModelID != "" {
+		model, err := s.store.AIModel().Get(userID, req.AIModelID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":       "Failed to load selected AI model",
+				"ai_response": "",
+			})
+			return
+		}
+
+		if model.Provider == "claw402" {
+			claw402WalletKey = string(model.APIKey)
+			if claw402WalletKey == "" {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":       "Selected claw402 model is missing wallet private key",
+					"ai_response": "",
+				})
+				return
+			}
+		}
+	}
+
 	// Create strategy engine to build prompt
-	engine := kernel.NewStrategyEngine(&req.Config)
+	engine := kernel.NewStrategyEngine(&req.Config, claw402WalletKey)
 
 	// Get candidate coins
 	candidates, err := engine.GetCandidateCoins()

@@ -1,7 +1,10 @@
 
 - 阶段切换：`Protection AI Workflow` 主线阶段性收口，后续主线转向执行层真实问题：Drawdown 多档委托生命周期 + Break-even 实盘委托可观测性。
 
-- 2026-04-16：针对“任务易因模型波动/会话中断而半途断开”的长期执行问题，已把持续推进方案正式落地到仓库：新增 `docs/DURABLE_EXECUTION_WORKFLOW_CN.md`，明确采用 **TaskFlow × Agentic Coding** 组合作为长期任务默认执行框架。
+- 2026-04-17：针对“编码任务中断、模型波动导致交付不连续”的用户体验问题，已进一步完成两层落地：
+  - 本地建立 `~/agentic-coding/` 持久体系（memory / contracts / evidence / handoffs），把 coding 执行纪律从临时会话状态升级为持久方法。
+  - 仓库新增 `docs/MODEL_RESILIENCE_AND_DELIVERY_CONTINUITY_CN.md`，明确后续默认采用：流程级容灾、subagent 子任务隔离、fallback 模型续航、文件化证据、少打断多收口。
+  - 目标不是“换一个模型赌稳定”，而是让任务在模型波动时也能继续推进并最终一次性交付。
   - TaskFlow 负责：任务身份、当前步骤、等待态、子任务关联、可恢复状态。
   - Agentic Coding 负责：Objective / Acceptance / Non-goals / 最小改动 / 修前修后证据 / handoff 收口。
   - 后续复杂任务统一按 `Flow 卡片 → Contract → 最小改动 → 证据验证 → 文档记忆 → 提交` 执行，不再只依赖单轮聊天上下文硬顶。

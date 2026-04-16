@@ -18,21 +18,26 @@ const (
 	USDCDecimals     = 6
 )
 
-// QueryUSDCBalance queries USDC balance on Base chain and returns as float64
+// QueryUSDCBalance queries USDC balance on Base chain. RPC / decode failures
+// are surfaced as errors so callers can distinguish a real zero balance from
+// an unreachable RPC.
 func QueryUSDCBalance(address string) (float64, error) {
-	balanceStr := QueryUSDCBalanceStr(address)
-	var balance float64
-	_, err := fmt.Sscanf(balanceStr, "%f", &balance)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse balance: %w", err)
-	}
-	return balance, nil
+	return queryUSDCBalanceRPC(address)
 }
 
-// QueryUSDCBalanceStr queries USDC balance on Base chain and returns as formatted string
+// QueryUSDCBalanceStr is the display-oriented counterpart to QueryUSDCBalance:
+// it swallows errors and returns "0.00" so UI handlers always have a string to
+// render. Use QueryUSDCBalance when you need to react to failure.
 func QueryUSDCBalanceStr(address string) string {
-	// Build balanceOf(address) call data
-	// Function selector: 0x70a08231
+	balance, err := queryUSDCBalanceRPC(address)
+	if err != nil {
+		return "0.00"
+	}
+	return fmt.Sprintf("%.6f", balance)
+}
+
+func queryUSDCBalanceRPC(address string) (float64, error) {
+	// Build balanceOf(address) call data — function selector 0x70a08231.
 	addrNoPre := strings.TrimPrefix(strings.ToLower(address), "0x")
 	data := "0x70a08231" + fmt.Sprintf("%064s", addrNoPre)
 
@@ -51,41 +56,50 @@ func QueryUSDCBalanceStr(address string) string {
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return "0.00"
+		return 0, fmt.Errorf("marshal rpc payload: %w", err)
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Post(BaseRPCURL, "application/json", bytes.NewReader(body))
 	if err != nil {
-		return "0.00"
+		return 0, fmt.Errorf("rpc post: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "0.00"
+		return 0, fmt.Errorf("read rpc response: %w", err)
 	}
 
 	var rpcResp struct {
-		Result string `json:"result"`
+		Result string          `json:"result"`
+		Error  json.RawMessage `json:"error"`
 	}
 	if err := json.Unmarshal(respBody, &rpcResp); err != nil {
-		return "0.00"
+		return 0, fmt.Errorf("decode rpc response: %w", err)
+	}
+	if len(rpcResp.Error) > 0 {
+		return 0, fmt.Errorf("rpc error: %s", string(rpcResp.Error))
 	}
 
-	// Parse hex result
 	hexStr := strings.TrimPrefix(rpcResp.Result, "0x")
-	if hexStr == "" || hexStr == "0" {
-		return "0.00"
+	if hexStr == "" {
+		return 0, nil
+	}
+	balance, ok := new(big.Int).SetString(hexStr, 16)
+	if !ok {
+		return 0, fmt.Errorf("invalid hex balance: %q", rpcResp.Result)
 	}
 
-	balance := new(big.Int)
-	balance.SetString(hexStr, 16)
-
-	// Convert to float with 6 decimals
 	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(USDCDecimals), nil)
-	whole := new(big.Int).Div(balance, divisor)
+	whole := new(big.Int).Quo(balance, divisor)
 	remainder := new(big.Int).Mod(balance, divisor)
-
-	return fmt.Sprintf("%d.%06d", whole, remainder)
+	// Preserve 6-decimal precision without float drift.
+	frac := fmt.Sprintf("%06d", remainder.Int64())
+	combined := whole.String() + "." + frac
+	var out float64
+	if _, err := fmt.Sscanf(combined, "%f", &out); err != nil {
+		return 0, fmt.Errorf("parse balance %q: %w", combined, err)
+	}
+	return out, nil
 }

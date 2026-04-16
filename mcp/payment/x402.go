@@ -452,7 +452,8 @@ func X402CallStream(c *mcp.Client, signFn X402SignFunc, tag string, systemPrompt
 	var bodyBuf bytes.Buffer
 	tee := io.TeeReader(resp.Body, &bodyBuf)
 
-	text, sseErr := mcp.ParseSSEStream(tee, onChunk, onLine)
+	text, usage, sseErr := mcp.ParseSSEStream(tee, onChunk, onLine)
+	mcp.ReportStreamUsage(usage, c.Provider, c.Model)
 
 	if text != "" {
 		c.Log.Infof("📡 [%s] SSE stream complete, got %d chars", tag, len(text))

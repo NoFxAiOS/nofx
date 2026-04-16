@@ -3,6 +3,7 @@
 > 目的：把项目开始前已经约定的原则、分支策略、交付门禁、风险边界，固化为一份可执行工作流。
 > 适用范围：当前 `nofxmax` 接管与持续交付阶段。
 > 当前工作分支：`fox/project-takeover-baseline`
+> 长期任务续航方案：另见 `docs/DURABLE_EXECUTION_WORKFLOW_CN.md`（TaskFlow × Agentic Coding 持续推进工作流）。
 
 ---
 

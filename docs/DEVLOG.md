@@ -1,6 +1,11 @@
 
 - 阶段切换：`Protection AI Workflow` 主线阶段性收口，后续主线转向执行层真实问题：Drawdown 多档委托生命周期 + Break-even 实盘委托可观测性。
-- 2026-04-16：继续完成 protection 配置闭环核查，已确认当前链路分层如下：
+
+- 2026-04-16：针对“任务易因模型波动/会话中断而半途断开”的长期执行问题，已把持续推进方案正式落地到仓库：新增 `docs/DURABLE_EXECUTION_WORKFLOW_CN.md`，明确采用 **TaskFlow × Agentic Coding** 组合作为长期任务默认执行框架。
+  - TaskFlow 负责：任务身份、当前步骤、等待态、子任务关联、可恢复状态。
+  - Agentic Coding 负责：Objective / Acceptance / Non-goals / 最小改动 / 修前修后证据 / handoff 收口。
+  - 后续复杂任务统一按 `Flow 卡片 → Contract → 最小改动 → 证据验证 → 文档记忆 → 提交` 执行，不再只依赖单轮聊天上下文硬顶。
+  - 这次落地不是抽象建议，而是为了直接解决当前 `nofxmax` 上长期任务“断线后重摸索”的执行顽疾。
   - Strategy Studio 保存使用 `PUT /api/strategies/:id`，保存后重新 `GET /api/strategies` 刷新编辑态；前端 `ie()` 仅做展示层默认值补齐。
   - Trader 运行时**不会读取 active strategy 作为实时配置源**；真正使用的是 trader 记录里的 `strategy_id`，由 `store.Trader().GetFullConfig()` 优先按该 ID 载入 strategy；只有 `strategy_id` 为空时才 fallback 到 active/default strategy。
   - 启动 trader 时会 `RemoveTrader` 后重新 `LoadUserTradersFromStore`，因此**重启后会拿到数据库里 strategy_id 对应的最新配置**。

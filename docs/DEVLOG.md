@@ -10,3 +10,7 @@
   - `AITradersPage.handleSaveEditTrader()` 会把 modal 返回的 `data.strategy_id` 原样带入 `api.updateTrader()`。
   - `TraderDashboardPage.saveAIControls()` 会先 `getTraderConfig()` 再把 `current.strategy_id` 连同其他字段一并 PUT 回去。
   - 这意味着：常规“编辑 trader 配置”与“dashboard 调整 AI 控制项”两条路径本身，不像是把 strategy 绑定悄悄清空的根因。
+- 2026-04-16：已定位并修复 protection UI“看起来回到手动”的真实根因：数据库里存在旧版 protection value 结构（如 `{"enabled":false}`），而当前前端/后端新结构期望 `{"mode":"ai|manual|disabled","value":...}`。旧数据被反序列化后，`mode` 为空，前端 normalize 会补成默认 `manual`，导致页面回填看起来像“AI 模式丢失/回到手动”。已在 `store.ProtectionValueSource.UnmarshalJSON` 增加旧结构兼容迁移：
+  - `{"enabled":true,"value":x}` → `mode=manual,value=x`
+  - `{"enabled":false}` → `mode=disabled,value=0`
+  - 新旧结构现可并存读取；`go test ./store ./api/...` 已通过。

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -84,6 +85,44 @@ const (
 type ProtectionValueSource struct {
 	Mode  ProtectionValueMode `json:"mode,omitempty"`
 	Value float64             `json:"value,omitempty"`
+}
+
+func (p *ProtectionValueSource) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		*p = ProtectionValueSource{}
+		return nil
+	}
+
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &probe); err == nil {
+		if _, hasEnabled := probe["enabled"]; hasEnabled {
+			var legacy struct {
+				Enabled bool    `json:"enabled"`
+				Value   float64 `json:"value,omitempty"`
+			}
+			if err := json.Unmarshal(trimmed, &legacy); err != nil {
+				return err
+			}
+			if legacy.Enabled {
+				p.Mode = ProtectionValueModeManual
+				p.Value = legacy.Value
+			} else {
+				p.Mode = ProtectionValueModeDisabled
+				p.Value = 0
+			}
+			return nil
+		}
+	}
+
+	type alias ProtectionValueSource
+	var decoded alias
+	if err := json.Unmarshal(trimmed, &decoded); err != nil {
+		return err
+	}
+	p.Mode = decoded.Mode
+	p.Value = decoded.Value
+	return nil
 }
 
 type FullTPSLConfig struct {

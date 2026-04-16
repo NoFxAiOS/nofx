@@ -79,7 +79,7 @@ func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPresent(t *testing
 	}
 }
 
-func TestProtectionReconciler_RearmsBreakEvenOnQuantityChange(t *testing.T) {
+func TestProtectionReconciler_DoesNotReapplyBreakEvenWhenAlreadyArmedAndFingerprintStable(t *testing.T) {
 	ft := &fakeReconcileTrader{
 		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
 			openOrders: []tradertypes.OpenOrder{},
@@ -120,21 +120,9 @@ func TestProtectionReconciler_RearmsBreakEvenOnQuantityChange(t *testing.T) {
 		t.Fatalf("expected initial break-even stop placement, got %d", len(ft.stopLossOrders))
 	}
 
-	ft.positions = []map[string]interface{}{
-		{
-			"symbol":      "BTCUSDT",
-			"side":        "long",
-			"entryPrice":  100.0,
-			"positionAmt": 1.5,
-			"markPrice":   106.0,
-		},
-	}
 	before := len(ft.stopLossOrders)
 	at.reconcilePositionProtections()
-	if len(ft.stopLossOrders) != before+1 {
-		t.Fatalf("expected break-even to re-arm on quantity change, got %d stop-loss orders", len(ft.stopLossOrders))
-	}
-	if ft.stopLossOrders[len(ft.stopLossOrders)-1].quantity != 1.5 {
-		t.Fatalf("expected re-armed stop to use updated quantity 1.5, got %.2f", ft.stopLossOrders[len(ft.stopLossOrders)-1].quantity)
+	if len(ft.stopLossOrders) != before {
+		t.Fatalf("expected no duplicate break-even placement when already armed, got %d stop-loss orders", len(ft.stopLossOrders))
 	}
 }

@@ -214,7 +214,11 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			at.setBreakEvenState(symbol, side, "armed")
 		} else if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even trigger met (%.2f%% >= %.2f%%), applying native stop", symbol, positionSide, currentPnLPct, be.TriggerValue)
+			// Mark as arming before placement so overlapping reconcile turns do not race and
+			// place duplicate native break-even stops for the same position snapshot.
+			at.setBreakEvenState(symbol, side, "arming")
 			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
+				at.setBreakEvenState(symbol, side, "pending")
 				return fmt.Errorf("apply break-even native stop: %w", err)
 			}
 			at.setBreakEvenState(symbol, side, "armed")

@@ -2,6 +2,7 @@ package payment
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -9,7 +10,43 @@ import (
 
 	"nofx/mcp"
 	"nofx/mcp/provider"
+	"nofx/store"
+	"nofx/wallet"
 )
+
+// Per-call cost buffers for preflight. Reasoner models emit long chain-of-thought
+// tokens whose cost can far exceed the flat per-call estimate in store.GetModelPrice,
+// so they use a larger multiplier.
+const (
+	preflightSafetyMultiplier         = 1.5
+	preflightReasonerSafetyMultiplier = 4.0
+)
+
+// ErrInsufficientFunds is returned when the claw402 wallet does not hold
+// enough USDC to cover the estimated cost of a call. Callers can type-assert
+// to surface balance/needed/address to the UI.
+type ErrInsufficientFunds struct {
+	Address string
+	Balance float64
+	Needed  float64
+	Model   string
+}
+
+func (e *ErrInsufficientFunds) Error() string {
+	return fmt.Sprintf(
+		"claw402 insufficient USDC: wallet=%s balance=$%.4f needed=$%.4f model=%s",
+		shortAddr(e.Address), e.Balance, e.Needed, e.Model,
+	)
+}
+
+// shortAddr renders 0x1234…abcd for log/error strings that may leak into
+// telemetry bundles. The full address stays on the struct for programmatic use.
+func shortAddr(addr string) string {
+	if len(addr) < 10 {
+		return addr
+	}
+	return addr[:6] + "…" + addr[len(addr)-4:]
+}
 
 const (
 	DefaultClaw402URL   = "https://claw402.ai"
@@ -128,11 +165,55 @@ func (c *Claw402Client) resolveEndpoint() string {
 func (c *Claw402Client) SetAuthHeader(h http.Header) { X402SetAuthHeader(h) }
 
 func (c *Claw402Client) Call(systemPrompt, userPrompt string) (string, error) {
+	if err := c.preflightBalance(); err != nil {
+		return "", err
+	}
 	return X402CallStream(c.Client, c.signPayment, "Claw402", systemPrompt, userPrompt, nil)
 }
 
 func (c *Claw402Client) CallWithRequestFull(req *mcp.Request) (*mcp.LLMResponse, error) {
+	if err := c.preflightBalance(); err != nil {
+		return nil, err
+	}
 	return X402CallFull(c.Client, c.signPayment, "Claw402", req)
+}
+
+// walletAddress derives the EVM address from the configured private key.
+// Returns "" when no key has been set (client unconfigured).
+func (c *Claw402Client) walletAddress() string {
+	if c.privateKey == nil {
+		return ""
+	}
+	return crypto.PubkeyToAddress(c.privateKey.PublicKey).Hex()
+}
+
+// preflightBalance short-circuits a call when the wallet cannot cover the
+// estimated cost. RPC failures fall through — x402 will still reject an
+// actually-empty wallet, so we prefer availability over extra strictness.
+func (c *Claw402Client) preflightBalance() error {
+	addr := c.walletAddress()
+	if addr == "" {
+		return nil
+	}
+	balance, err := wallet.QueryUSDCBalanceCached(addr)
+	if err != nil {
+		c.Log.Warnf("⚠️  [MCP] Claw402 balance preflight skipped (RPC error): %v", err)
+		return nil
+	}
+	multiplier := preflightSafetyMultiplier
+	if strings.Contains(strings.ToLower(c.Model), "reasoner") {
+		multiplier = preflightReasonerSafetyMultiplier
+	}
+	needed := store.GetModelPrice(c.Model) * multiplier
+	if balance < needed {
+		return &ErrInsufficientFunds{
+			Address: addr,
+			Balance: balance,
+			Needed:  needed,
+			Model:   c.Model,
+		}
+	}
+	return nil
 }
 
 // signPayment signs x402 v2 EIP-712 payment on Base chain + USDC.

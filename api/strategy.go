@@ -61,6 +61,13 @@ func deepMergeMap(dst, src map[string]any) {
 	}
 }
 
+func truncateForLog(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...<truncated>"
+}
+
 // validateStrategyConfig validates strategy configuration and returns warnings
 func validateStrategyConfig(config *store.StrategyConfig) []string {
 	var warnings []string
@@ -382,6 +389,8 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	// Apply incoming config with deep object merge so nested protection fields
 	// such as ladder/full AI mode are preserved when sibling fields are omitted.
 	if len(req.Config) > 0 && string(req.Config) != "null" {
+		logger.Infof("[strategy.update] id=%s incoming config snippet=%s", strategyID, truncateForLog(string(req.Config), 1200))
+		logger.Infof("[strategy.update] id=%s existing config snippet=%s", strategyID, truncateForLog(existing.Config, 1200))
 		mergedConfig, err = mergeStrategyConfig(mergedConfig, req.Config)
 		if err != nil {
 			SafeBadRequest(c, "Invalid config JSON")
@@ -404,6 +413,7 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		SafeInternalError(c, "Serialize configuration", err)
 		return
 	}
+	logger.Infof("[strategy.update] id=%s merged config snippet=%s", strategyID, truncateForLog(string(configJSON), 1200))
 
 	strategy := &store.Strategy{
 		ID:            strategyID,

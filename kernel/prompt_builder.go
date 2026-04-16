@@ -3,6 +3,7 @@ package kernel
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ============================================================================
@@ -87,8 +88,6 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
     "action": "open_long|open_short|close_long|close_short|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
-    "stop_loss": 42000,
-    "take_profit": 48000,
     "protection_plan": {
       "mode": "full|ladder",
       "take_profit_pct": 8,
@@ -120,9 +119,9 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
   - wait: 该币种本轮不操作
 - **leverage**: 杠杆倍数（开新仓时必需）
 - **position_size_usd**: 仓位大小（USDT，开新仓时必需）
-- **stop_loss**: 直接止损价（可选）
-- **take_profit**: 直接止盈价（可选）
-- **protection_plan**: 可选的结构化保护计划。mode=full 时提供 take_profit_pct/stop_loss_pct；mode=ladder 时提供 ladder_rules
+- **stop_loss**: 直接止损价（可选，仅当你不使用 protection_plan 时）
+- **take_profit**: 直接止盈价（可选，仅当你不使用 protection_plan 时）
+- **protection_plan**: 可选的结构化保护计划。mode=full 时只提供 take_profit_pct/stop_loss_pct（不要写价格字段）；mode=ladder 时提供 ladder_rules
 - **confidence**: 信心度（0-100）
 - **reasoning**: 推理过程（必需，必须详细说明决策依据）
 
@@ -186,7 +185,7 @@ func (pb *PromptBuilder) getDecisionRequirementsZH() string {
       "take_profit_pct": 8,
       "stop_loss_pct": 3
     },
-    "reasoning": "BTCUSDT 在主趋势方向上完成回踩确认，适合统一 TP/SL 的单段管理，因此使用 full protection_plan。"
+    "reasoning": "BTCUSDT 在主趋势方向上完成回踩确认，适合统一 TP/SL 的单段管理，因此使用 full protection_plan，并且用百分比字段表达止盈止损，而不是直接价格。"
   },
   {
     "symbol": "HUSDT",
@@ -254,8 +253,6 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
     "action": "open_long|open_short|close_long|close_short|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
-    "stop_loss": 42000,
-    "take_profit": 48000,
     "protection_plan": {
       "mode": "full|ladder",
       "take_profit_pct": 8,
@@ -287,9 +284,9 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
   - wait: No action for this symbol
 - **leverage**: Leverage multiplier (required for open_long/open_short)
 - **position_size_usd**: Position size in USDT (required for open_long/open_short)
-- **stop_loss**: Stop-loss price (optional direct price)
-- **take_profit**: Take-profit price (optional direct price)
-- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct, or mode=ladder with ladder_rules.
+- **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
+- **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
+- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), or mode=ladder with ladder_rules.
 - **confidence**: Confidence level (0-100)
 - **reasoning**: Detailed reasoning (required, must explain decision basis)
 
@@ -353,7 +350,7 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
       "take_profit_pct": 8,
       "stop_loss_pct": 3
     },
-    "reasoning": "BTCUSDT completed a pullback confirmation in the primary trend direction, so a single unified TP/SL structure is sufficient and full protection_plan is appropriate."
+    "reasoning": "BTCUSDT completed a pullback confirmation in the primary trend direction, so a single unified TP/SL structure is sufficient and full protection_plan is appropriate. Express TP/SL as percentage fields rather than absolute prices."
   },
   {
     "symbol": "HUSDT",
@@ -398,22 +395,23 @@ func FormatDecisionExample(lang Language) string {
 // ValidateDecisionFormat validates that the decision format is correct
 func ValidateDecisionFormat(decisions []Decision) error {
 	if len(decisions) == 0 {
-		return fmt.Errorf("decision list cannot be empty")
+		return nil
 	}
+	return validateDecisionFormatInternal(decisions, false)
+}
 
+func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bool) error {
 	for i, d := range decisions {
-		// Required field checks
 		if d.Symbol == "" {
 			return fmt.Errorf("decision #%d: symbol cannot be empty", i+1)
 		}
 		if d.Action == "" {
 			return fmt.Errorf("decision #%d: action cannot be empty", i+1)
 		}
-		if d.Reasoning == "" {
+		if d.Reasoning == "" && !allowEmptyReasoning {
 			return fmt.Errorf("decision #%d: reasoning cannot be empty", i+1)
 		}
 
-		// Action type validation
 		validActions := map[string]bool{
 			"open_long":     true,
 			"open_short":    true,
@@ -432,8 +430,8 @@ func ValidateDecisionFormat(decisions []Decision) error {
 			return fmt.Errorf("decision #%d: invalid action type: %s", i+1, d.Action)
 		}
 
-		// Required parameters for opening new positions
-		if d.Action == "open_long" || d.Action == "open_short" || d.Action == "OPEN_NEW" {
+		isOpenAction := d.Action == "open_long" || d.Action == "open_short" || d.Action == "OPEN_NEW"
+		if isOpenAction {
 			if d.Leverage == 0 {
 				return fmt.Errorf("decision #%d: open action requires leverage", i+1)
 			}
@@ -441,7 +439,50 @@ func ValidateDecisionFormat(decisions []Decision) error {
 				return fmt.Errorf("decision #%d: open action requires position_size_usd", i+1)
 			}
 		}
-	}
 
+		if d.ProtectionPlan != nil {
+			if !isOpenAction {
+				return fmt.Errorf("decision #%d: protection_plan is only allowed for open actions", i+1)
+			}
+			switch d.ProtectionPlan.Mode {
+			case "full":
+				if len(d.ProtectionPlan.LadderRules) > 0 {
+					return fmt.Errorf("decision #%d: full protection_plan must not include ladder_rules", i+1)
+				}
+				if d.ProtectionPlan.TakeProfitPct <= 0 && d.ProtectionPlan.StopLossPct <= 0 {
+					return fmt.Errorf("decision #%d: full protection_plan requires take_profit_pct or stop_loss_pct", i+1)
+				}
+			case "ladder":
+				if len(d.ProtectionPlan.LadderRules) == 0 {
+					return fmt.Errorf("decision #%d: ladder protection_plan requires ladder_rules", i+1)
+				}
+				for j, rule := range d.ProtectionPlan.LadderRules {
+					if rule.TakeProfitPct <= 0 && rule.StopLossPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct or stop_loss_pct", i+1, j)
+					}
+					if rule.TakeProfitCloseRatioPct < 0 || rule.TakeProfitCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid take_profit_close_ratio_pct", i+1, j)
+					}
+					if rule.StopLossCloseRatioPct < 0 || rule.StopLossCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid stop_loss_close_ratio_pct", i+1, j)
+					}
+					if rule.TakeProfitPct > 0 && rule.TakeProfitCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] take_profit_pct requires positive take_profit_close_ratio_pct", i+1, j)
+					}
+					if rule.StopLossPct > 0 && rule.StopLossCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] stop_loss_pct requires positive stop_loss_close_ratio_pct", i+1, j)
+					}
+				}
+			case "":
+				return fmt.Errorf("decision #%d: protection_plan.mode cannot be empty", i+1)
+			default:
+				return fmt.Errorf("decision #%d: invalid protection_plan.mode: %s", i+1, d.ProtectionPlan.Mode)
+			}
+		}
+	}
 	return nil
+}
+
+func ValidateDecisionFormatWithCoT(decisions []Decision, cotTrace string) error {
+	return validateDecisionFormatInternal(decisions, strings.TrimSpace(cotTrace) != "")
 }

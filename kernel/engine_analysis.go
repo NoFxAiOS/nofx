@@ -338,6 +338,10 @@ func fixMissingQuotes(jsonStr string) string {
 func validateJSONFormat(jsonStr string) error {
 	trimmed := strings.TrimSpace(jsonStr)
 
+	if trimmed == "[]" {
+		return nil
+	}
+
 	if !reArrayHead.MatchString(trimmed) {
 		if strings.HasPrefix(trimmed, "[") && !strings.Contains(trimmed[:min(20, len(trimmed))], "{") {
 			return fmt.Errorf("not a valid decision array (must contain objects {}), actual content: %s", trimmed[:min(50, len(trimmed))])

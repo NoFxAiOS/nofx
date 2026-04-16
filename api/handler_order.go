@@ -95,6 +95,7 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"ai_model":              aiModelID,
 		"exchange_id":           traderConfig.ExchangeID,
 		"strategy_id":           traderConfig.StrategyID,
+		"strategy_name":         "",
 		"initial_balance":       traderConfig.InitialBalance,
 		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,
 		"allow_ai_close":        traderConfig.AllowAIClose,
@@ -108,6 +109,9 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"use_ai500":             traderConfig.UseAI500,
 		"use_oi_top":            traderConfig.UseOITop,
 		"is_running":            isRunning,
+	}
+	if fullCfg.Strategy != nil {
+		result["strategy_name"] = fullCfg.Strategy.Name
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -219,6 +223,29 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		return
 	}
 
+	type decisionReviewRef struct {
+		DecisionRecordID int64                  `json:"decision_record_id"`
+		CycleNumber      int                    `json:"cycle_number"`
+		Timestamp        string                 `json:"timestamp"`
+		ReviewContext    map[string]interface{} `json:"review_context,omitempty"`
+	}
+
+	buildDecisionReviewRef := func(cycle int) map[string]interface{} {
+		if cycle <= 0 || store.Decision() == nil {
+			return nil
+		}
+		record, err := store.Decision().GetRecordByCycle(trader.GetID(), cycle)
+		if err != nil || record == nil {
+			return nil
+		}
+		return map[string]interface{}{
+			"decision_record_id": record.ID,
+			"cycle_number":       record.CycleNumber,
+			"timestamp":          record.Timestamp.UTC().Format(time.RFC3339),
+			"review_context":     record.ReviewContext,
+		}
+	}
+
 	// Enrich with execution metadata for frontend expandable rows.
 	enrichedPositions := make([]map[string]interface{}, 0, len(positions))
 	for _, pos := range positions {
@@ -298,6 +325,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 						"execution_source":   ev.ExecutionSource,
 						"execution_type":     ev.ExecutionType,
 						"decision_cycle":     ev.DecisionCycle,
+						"decision_review":    buildDecisionReviewRef(ev.DecisionCycle),
 						"exchange_order_id":  ev.ExchangeOrderID,
 						"close_quantity":     ev.CloseQuantity,
 						"close_ratio_pct":    ev.CloseRatioPct,
@@ -312,34 +340,36 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		}
 
 		enrichedPositions = append(enrichedPositions, map[string]interface{}{
-			"id":                   pos.ID,
-			"trader_id":            pos.TraderID,
-			"exchange_id":          pos.ExchangeID,
-			"exchange_type":        pos.ExchangeType,
-			"symbol":               pos.Symbol,
-			"side":                 pos.Side,
-			"quantity":             pos.Quantity,
-			"entry_quantity":       pos.EntryQuantity,
-			"entry_price":          pos.EntryPrice,
-			"entry_order_id":       pos.EntryOrderID,
-			"entry_decision_cycle": pos.EntryDecisionCycle,
-			"entry_time":           time.UnixMilli(pos.EntryTime).UTC().Format(time.RFC3339),
-			"exit_price":           pos.ExitPrice,
-			"exit_order_id":        pos.ExitOrderID,
-			"exit_decision_cycle":  pos.ExitDecisionCycle,
-			"exit_time":            time.UnixMilli(pos.ExitTime).UTC().Format(time.RFC3339),
-			"realized_pnl":         pos.RealizedPnL,
-			"fee":                  pos.Fee,
-			"leverage":             pos.Leverage,
-			"status":               pos.Status,
-			"close_reason":         pos.CloseReason,
-			"execution_source":     executionSource,
-			"execution_order_type": executionOrderType,
-			"close_ratio_pct":      closeRatioPct,
-			"close_value_usdt":     pos.ExitPrice * closedQty,
-			"close_events":         closeEvents,
-			"created_at":           time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
-			"updated_at":           time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
+			"id":                    pos.ID,
+			"trader_id":             pos.TraderID,
+			"exchange_id":           pos.ExchangeID,
+			"exchange_type":         pos.ExchangeType,
+			"symbol":                pos.Symbol,
+			"side":                  pos.Side,
+			"quantity":              pos.Quantity,
+			"entry_quantity":        pos.EntryQuantity,
+			"entry_price":           pos.EntryPrice,
+			"entry_order_id":        pos.EntryOrderID,
+			"entry_decision_cycle":  pos.EntryDecisionCycle,
+			"entry_decision_review": buildDecisionReviewRef(pos.EntryDecisionCycle),
+			"entry_time":            time.UnixMilli(pos.EntryTime).UTC().Format(time.RFC3339),
+			"exit_price":            pos.ExitPrice,
+			"exit_order_id":         pos.ExitOrderID,
+			"exit_decision_cycle":   pos.ExitDecisionCycle,
+			"exit_decision_review":  buildDecisionReviewRef(pos.ExitDecisionCycle),
+			"exit_time":             time.UnixMilli(pos.ExitTime).UTC().Format(time.RFC3339),
+			"realized_pnl":          pos.RealizedPnL,
+			"fee":                   pos.Fee,
+			"leverage":              pos.Leverage,
+			"status":                pos.Status,
+			"close_reason":          pos.CloseReason,
+			"execution_source":      executionSource,
+			"execution_order_type":  executionOrderType,
+			"close_ratio_pct":       closeRatioPct,
+			"close_value_usdt":      pos.ExitPrice * closedQty,
+			"close_events":          closeEvents,
+			"created_at":            time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
+			"updated_at":            time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
 		})
 	}
 

@@ -46,6 +46,25 @@ import { getJson, sendJson } from '../lib/httpClient'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
+export function buildStrategySavePayload(
+  selectedStrategy: Pick<Strategy, 'name' | 'description' | 'is_public' | 'config_visible'>,
+  editingConfig: StrategyConfig,
+  language: 'zh' | 'en'
+) {
+  const configWithLanguage = {
+    ...editingConfig,
+    language,
+  }
+
+  return {
+    name: selectedStrategy.name,
+    description: selectedStrategy.description,
+    config: configWithLanguage,
+    is_public: selectedStrategy.is_public,
+    config_visible: selectedStrategy.config_visible,
+  }
+}
+
 export function StrategyStudioPage() {
   const { token } = useAuth()
   const { language } = useLanguage()
@@ -359,20 +378,9 @@ export function StrategyStudioPage() {
     if (!token || !selectedStrategy || !editingConfig) return
     setIsSaving(true)
     try {
-      // Always sync the config language with the current interface language
-      const configWithLanguage = {
-        ...editingConfig,
-        language: language as 'zh' | 'en',
-      }
       await sendJson(`${API_BASE}/api/strategies/${selectedStrategy.id}`, {
         method: 'PUT',
-        data: {
-          name: selectedStrategy.name,
-          description: selectedStrategy.description,
-          config: configWithLanguage,
-          is_public: selectedStrategy.is_public,
-          config_visible: selectedStrategy.config_visible,
-        },
+        data: buildStrategySavePayload(selectedStrategy, editingConfig, language as 'zh' | 'en'),
       })
       setHasChanges(false)
       notify.success(tr('strategySaved'))

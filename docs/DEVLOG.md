@@ -1,3 +1,7 @@
 
-- 本阶段 `Protection AI Workflow` 已形成阶段总结：`docs/PROTECTION_AI_WORKFLOW_PHASE_SUMMARY.md`
-- 结论：Full route 已真实输出验证通过；Ladder route 已工程验证通过但在当前真实市场上下文下未触发真实 ladder 输出；Drawdown / Break-even 已进入 analysis-contract 层。
+- 阶段切换：`Protection AI Workflow` 主线阶段性收口，后续主线转向执行层真实问题：Drawdown 多档委托生命周期 + Break-even 实盘委托可观测性。
+- 2026-04-16：继续完成 protection 配置闭环核查，已确认当前链路分层如下：
+  - Strategy Studio 保存使用 `PUT /api/strategies/:id`，保存后重新 `GET /api/strategies` 刷新编辑态；前端 `ie()` 仅做展示层默认值补齐。
+  - Trader 运行时**不会读取 active strategy 作为实时配置源**；真正使用的是 trader 记录里的 `strategy_id`，由 `store.Trader().GetFullConfig()` 优先按该 ID 载入 strategy；只有 `strategy_id` 为空时才 fallback 到 active/default strategy。
+  - 启动 trader 时会 `RemoveTrader` 后重新 `LoadUserTradersFromStore`，因此**重启后会拿到数据库里 strategy_id 对应的最新配置**。
+  - 由此判断：若 UI 中“策略页保存后刷新正常”，但真实运行/某 trader 页面仍表现异常，下一层应优先排查 **trader 绑定的 strategy_id 不是当前编辑那份**，而不是继续怀疑 protection merge。

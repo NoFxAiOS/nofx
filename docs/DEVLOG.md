@@ -14,3 +14,4 @@
   - `{"enabled":true,"value":x}` → `mode=manual,value=x`
   - `{"enabled":false}` → `mode=disabled,value=0`
   - 新旧结构现可并存读取；`go test ./store ./api/...` 已通过。
+- 2026-04-16：继续补 UI 解释层，避免用户把 `enabled`、`global mode`、`TP/SL value mode` 混为一谈。在 `web/src/components/strategy/ProtectionEditor.tsx` 为 Full / Ladder 增加状态摘要与提示：当出现“整体模式 = AI，但执行开关仍关闭”时，明确提示“页面保留 AI 配置，但运行时不会实际挂保护单，直到启用执行开关”。前端测试 `npm test` 已通过。

@@ -12,6 +12,7 @@ import type {
   ProtectionValueSource,
 } from '../../types'
 
+
 interface ProtectionEditorProps {
   config: ProtectionConfig
   onChange: (config: ProtectionConfig) => void
@@ -221,6 +222,31 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     </div>
   )
 
+  const statusChip = (active: boolean, label: string) => (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+      style={{
+        background: active ? 'rgba(14, 203, 129, 0.12)' : 'rgba(132, 142, 156, 0.12)',
+        color: active ? '#0ECB81' : '#848E9C',
+        border: active ? '1px solid rgba(14, 203, 129, 0.25)' : '1px solid rgba(132, 142, 156, 0.2)',
+      }}
+    >
+      {label}
+    </span>
+  )
+
+  const fullStateSummary = isZh
+    ? `执行开关：${config.full_tp_sl.enabled ? '已启用' : '未启用'} · 整体模式：${modeLabel(config.full_tp_sl.mode)} · TP：${modeLabel(config.full_tp_sl.take_profit.mode)} · SL：${modeLabel(config.full_tp_sl.stop_loss.mode)}`
+    : `Execution: ${config.full_tp_sl.enabled ? 'enabled' : 'disabled'} · Global mode: ${modeLabel(config.full_tp_sl.mode)} · TP: ${modeLabel(config.full_tp_sl.take_profit.mode)} · SL: ${modeLabel(config.full_tp_sl.stop_loss.mode)}`
+
+  const ladderStateSummary = isZh
+    ? `执行开关：${config.ladder_tp_sl.enabled ? '已启用' : '未启用'} · 整体模式：${modeLabel(config.ladder_tp_sl.mode)} · TP侧：${config.ladder_tp_sl.take_profit_enabled ? '开启' : '关闭'} · SL侧：${config.ladder_tp_sl.stop_loss_enabled ? '开启' : '关闭'}`
+    : `Execution: ${config.ladder_tp_sl.enabled ? 'enabled' : 'disabled'} · Global mode: ${modeLabel(config.ladder_tp_sl.mode)} · TP side: ${config.ladder_tp_sl.take_profit_enabled ? 'on' : 'off'} · SL side: ${config.ladder_tp_sl.stop_loss_enabled ? 'on' : 'off'}`
+
+  const fullModeMismatch = !config.full_tp_sl.enabled && config.full_tp_sl.mode === 'ai'
+  const ladderModeMismatch = !config.ladder_tp_sl.enabled && config.ladder_tp_sl.mode === 'ai'
+
+
   const drawdownOwnsTp = config.drawdown_take_profit.enabled && (config.drawdown_take_profit.rules || []).length > 0
   const ladderTpEnabled = config.ladder_tp_sl.enabled && config.ladder_tp_sl.take_profit_enabled
   const fullTpEnabled = config.full_tp_sl.enabled && config.full_tp_sl.take_profit.mode !== 'disabled'
@@ -255,6 +281,21 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
           {drawdownOwnsTp && fullTpEnabled && (
             <div className="p-3 rounded-lg text-xs" style={{ background: '#2B1619', border: '1px solid #41272B', color: '#F0B90B' }}>
               {isZh ? 'Drawdown Take Profit 已接管止盈侧，Full TP 会被抑制；Full SL 仍保留为长期止损。' : 'Drawdown Take Profit owns the take-profit side, so Full TP is suppressed while Full SL remains active as long-lived stop-loss.'}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {statusChip(config.full_tp_sl.enabled, isZh ? '执行开关' : 'Execution')}
+            {statusChip(config.full_tp_sl.mode === 'ai', isZh ? '整体 AI' : 'Global AI')}
+            {statusChip(config.full_tp_sl.take_profit.mode === 'ai', isZh ? 'TP 由 AI' : 'TP via AI')}
+            {statusChip(config.full_tp_sl.stop_loss.mode === 'ai', isZh ? 'SL 由 AI' : 'SL via AI')}
+          </div>
+          <div className="text-xs" style={{ color: '#848E9C' }}>{fullStateSummary}</div>
+          {fullModeMismatch && (
+            <div className="p-3 rounded-lg text-xs" style={{ background: '#11161C', border: '1px solid #2B3139', color: '#F0B90B' }}>
+              {isZh
+                ? '注意：当前 Full 的“整体模式”是 AI，但“执行开关”仍关闭。页面会保留 AI 模式配置，但运行时不会实际挂 Full 保护单，直到你打开执行开关。'
+                : 'Note: Full global mode is AI, but execution is still disabled. The page preserves the AI setting, but runtime will not place Full protection orders until execution is enabled.'}
             </div>
           )}
 
@@ -325,6 +366,21 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
           {ladderTpEnabled && drawdownOwnsTp && (
             <div className="p-3 rounded-lg text-xs" style={{ background: '#2B1619', border: '1px solid #41272B', color: '#F0B90B' }}>
               {isZh ? 'Drawdown Take Profit 已接管止盈侧，Ladder TP 会被抑制；Ladder SL 继续保留。' : 'Drawdown Take Profit owns the take-profit side, so Ladder TP is suppressed while Ladder SL remains active.'}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {statusChip(config.ladder_tp_sl.enabled, isZh ? '执行开关' : 'Execution')}
+            {statusChip(config.ladder_tp_sl.mode === 'ai', isZh ? '整体 AI' : 'Global AI')}
+            {statusChip(config.ladder_tp_sl.take_profit_enabled, isZh ? 'TP 侧开启' : 'TP side on')}
+            {statusChip(config.ladder_tp_sl.stop_loss_enabled, isZh ? 'SL 侧开启' : 'SL side on')}
+          </div>
+          <div className="text-xs" style={{ color: '#848E9C' }}>{ladderStateSummary}</div>
+          {ladderModeMismatch && (
+            <div className="p-3 rounded-lg text-xs" style={{ background: '#11161C', border: '1px solid #2B3139', color: '#F0B90B' }}>
+              {isZh
+                ? '注意：当前 Ladder 的“整体模式”是 AI，但“执行开关”仍关闭。页面会保留 AI 模式配置，但运行时不会实际挂 Ladder 保护单，直到你打开执行开关。'
+                : 'Note: Ladder global mode is AI, but execution is still disabled. The page preserves the AI setting, but runtime will not place Ladder protection orders until execution is enabled.'}
             </div>
           )}
 

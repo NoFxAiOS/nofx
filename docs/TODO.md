@@ -8,4 +8,5 @@
   - [x] `GET /api/trader/config/:id` 已补回 `strategy_name`，避免 trader 配置弹窗只拿到 `strategy_id` 导致“看起来没绑对策略”的误判
   - [x] 前端主要 trader 更新路径已核查：编辑 trader 与 dashboard 保存 AI 控制项时，都会显式回传 `strategy_id`
   - [x] 已修复旧版 protection value 结构兼容问题：旧数据中的 `{"enabled":...}` 现在会在反序列化时迁移为新结构 `mode/value`，避免策略页回填时误显示为默认 manual
-  - [ ] 修复后请 UI 复测：Full / Ladder / fallback 保存后刷新是否仍显示错误；若仍异常，再看具体组件文案/控件联动是否把 `enabled` 与 `mode` 混淆
+  - [x] 已补 UI 状态摘要与提示，明确区分“执行开关 enabled”与“整体/子项 mode”，减少“AI 模式已保留但尚未启用执行”被误读成“回到手动”
+  - [ ] 请 UI 复测：Full / Ladder / fallback 保存后刷新是否符合预期；重点观察 `enabled=false + mode=ai` 是否仍会被误解为 manual

@@ -253,6 +253,43 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 }
 
 // Create creates an AI model
+// ResolveClaw402WalletKey returns the claw402 wallet private key for a user.
+// If preferredModelID is non-empty and points to a claw402 model, its key is returned first.
+// Otherwise the first enabled claw402 model in the user's model list is used.
+// Returns ("", nil) when no claw402 model is configured — callers should treat this as
+// "no paid data routing" rather than an error.
+func (s *AIModelStore) ResolveClaw402WalletKey(userID, preferredModelID string) (string, error) {
+	if preferredModelID != "" {
+		model, err := s.Get(userID, preferredModelID)
+		if err != nil {
+			return "", fmt.Errorf("failed to load selected AI model")
+		}
+		if model.Provider == "claw402" {
+			walletKey := string(model.APIKey)
+			if walletKey == "" {
+				return "", fmt.Errorf("selected claw402 model is missing wallet private key")
+			}
+			return walletKey, nil
+		}
+	}
+
+	models, err := s.List(userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to load AI models")
+	}
+
+	for _, model := range models {
+		if model == nil || model.Provider != "claw402" {
+			continue
+		}
+		if walletKey := string(model.APIKey); walletKey != "" {
+			return walletKey, nil
+		}
+	}
+
+	return "", nil
+}
+
 func (s *AIModelStore) Create(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error {
 	model := &AIModel{
 		ID:           id,

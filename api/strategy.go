@@ -516,8 +516,17 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		req.PromptVariant = "balanced"
 	}
 
+	claw402WalletKey, err := s.resolveStrategyDataWalletKey(userID, req.AIModelID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":       err.Error(),
+			"ai_response": "",
+		})
+		return
+	}
+
 	// Create strategy engine to build prompt
-	engine := kernel.NewStrategyEngine(&req.Config)
+	engine := kernel.NewStrategyEngine(&req.Config, claw402WalletKey)
 
 	// Get candidate coins
 	candidates, err := engine.GetCandidateCoins()
@@ -696,4 +705,8 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	}
 
 	return response, nil
+}
+
+func (s *Server) resolveStrategyDataWalletKey(userID, selectedModelID string) (string, error) {
+	return s.store.AIModel().ResolveClaw402WalletKey(userID, selectedModelID)
 }

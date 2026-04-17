@@ -439,7 +439,9 @@ export function AppRoutes() {
         <Route
           path={ROUTES.setup}
           element={
-            systemConfig?.initialized ? (
+            user ? (
+              <Navigate to={ROUTES.welcome} replace />
+            ) : systemConfig?.initialized ? (
               <Navigate to={ROUTES.login} replace />
             ) : (
               <SetupPage />

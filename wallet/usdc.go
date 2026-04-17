@@ -78,7 +78,7 @@ func queryUSDCBalanceRPC(address string) (float64, error) {
 	if err := json.Unmarshal(respBody, &rpcResp); err != nil {
 		return 0, fmt.Errorf("decode rpc response: %w", err)
 	}
-	if len(rpcResp.Error) > 0 {
+	if len(rpcResp.Error) > 0 && string(rpcResp.Error) != "null" {
 		return 0, fmt.Errorf("rpc error: %s", string(rpcResp.Error))
 	}
 

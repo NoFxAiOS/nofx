@@ -324,6 +324,17 @@ func (at *AutoTrader) InitializeGrid() error {
 
 	at.gridState.IsInitialized = true
 
+	// Keep grid orders aligned with the trader's configured cross/isolated mode.
+	if err := at.trader.SetMarginMode(gridConfig.Symbol, at.config.IsCrossMargin); err != nil {
+		logger.Warnf("[Grid] Failed to set margin mode for %s: %v", gridConfig.Symbol, err)
+	} else {
+		marginMode := "cross"
+		if !at.config.IsCrossMargin {
+			marginMode = "isolated"
+		}
+		logger.Infof("[Grid] Margin mode set to %s for %s", marginMode, gridConfig.Symbol)
+	}
+
 	// CRITICAL: Set leverage on exchange before trading
 	if err := at.trader.SetLeverage(gridConfig.Symbol, gridConfig.Leverage); err != nil {
 		logger.Warnf("[Grid] Failed to set leverage %dx on exchange: %v", gridConfig.Leverage, err)

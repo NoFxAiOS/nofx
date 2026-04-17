@@ -41,7 +41,7 @@ type OKXTrader struct {
 	secretKey  string
 	passphrase string
 
-	// Margin mode setting
+	// Margin mode setting used for new orders and leverage changes.
 	isCrossMargin bool
 
 	// Position mode: "long_short_mode" (hedge) or "net_mode" (one-way)
@@ -121,6 +121,7 @@ func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
 		apiKey:           apiKey,
 		secretKey:        secretKey,
 		passphrase:       passphrase,
+		isCrossMargin:    true,
 		httpClient:       httpClient,
 		cacheDuration:    15 * time.Second,
 		instrumentsCache: make(map[string]*OKXInstrument),
@@ -139,8 +140,16 @@ func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
 		}
 	}
 
-	logger.Infof("✓ OKX trader initialized with position mode: %s", trader.positionMode)
+	logger.Infof("✓ OKX trader initialized with position mode: %s, default margin mode: %s",
+		trader.positionMode, trader.marginMode())
 	return trader
+}
+
+func (t *OKXTrader) marginMode() string {
+	if t.isCrossMargin {
+		return "cross"
+	}
+	return "isolated"
 }
 
 // detectPositionMode gets current position mode from account config

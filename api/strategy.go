@@ -708,36 +708,5 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 }
 
 func (s *Server) resolveStrategyDataWalletKey(userID, selectedModelID string) (string, error) {
-	if selectedModelID != "" {
-		model, err := s.store.AIModel().Get(userID, selectedModelID)
-		if err != nil {
-			return "", fmt.Errorf("failed to load selected AI model")
-		}
-
-		if model.Provider == "claw402" {
-			walletKey := string(model.APIKey)
-			if walletKey == "" {
-				return "", fmt.Errorf("selected claw402 model is missing wallet private key")
-			}
-			return walletKey, nil
-		}
-	}
-
-	models, err := s.store.AIModel().List(userID)
-	if err != nil {
-		return "", fmt.Errorf("failed to load AI models")
-	}
-
-	for _, model := range models {
-		if model == nil || model.Provider != "claw402" {
-			continue
-		}
-
-		walletKey := string(model.APIKey)
-		if walletKey != "" {
-			return walletKey, nil
-		}
-	}
-
-	return "", nil
+	return s.store.AIModel().ResolveClaw402WalletKey(userID, selectedModelID)
 }

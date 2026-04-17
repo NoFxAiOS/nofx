@@ -188,3 +188,60 @@ func TestOKXPlaceLimitOrderUsesConfiguredMarginMode(t *testing.T) {
 		t.Fatalf("expected isolated tdMode, got %#v", orderRequests[0].Body["tdMode"])
 	}
 }
+
+func TestOKXCrossMarginModeUsedInLeverage(t *testing.T) {
+	rt := &recordingTransport{}
+	trader := newTestOKXTrader(rt, true) // cross margin
+
+	if err := trader.SetLeverage("BTCUSDT", 10); err != nil {
+		t.Fatalf("SetLeverage failed: %v", err)
+	}
+
+	leverageRequests := rt.requestsForPath(okxLeveragePath)
+	if len(leverageRequests) != 2 {
+		t.Fatalf("expected 2 leverage requests, got %d", len(leverageRequests))
+	}
+
+	for _, req := range leverageRequests {
+		if req.Body["mgnMode"] != "cross" {
+			t.Fatalf("expected cross leverage mode, got %#v", req.Body["mgnMode"])
+		}
+	}
+}
+
+func TestOKXOpenShortUsesConfiguredMarginMode(t *testing.T) {
+	rt := &recordingTransport{}
+	trader := newTestOKXTrader(rt, false) // isolated
+
+	if _, err := trader.OpenShort("BTCUSDT", 0.1, 5); err != nil {
+		t.Fatalf("OpenShort failed: %v", err)
+	}
+
+	orderRequests := rt.requestsForPath(okxOrderPath)
+	if len(orderRequests) == 0 {
+		t.Fatal("expected at least one order request")
+	}
+
+	lastOrder := orderRequests[len(orderRequests)-1]
+	if lastOrder.Body["tdMode"] != "isolated" {
+		t.Fatalf("expected isolated tdMode for OpenShort, got %#v", lastOrder.Body["tdMode"])
+	}
+}
+
+func TestOKXSetTakeProfitUsesConfiguredMarginMode(t *testing.T) {
+	rt := &recordingTransport{}
+	trader := newTestOKXTrader(rt, false) // isolated
+
+	if err := trader.SetTakeProfit("BTCUSDT", "LONG", 0.1, 100000); err != nil {
+		t.Fatalf("SetTakeProfit failed: %v", err)
+	}
+
+	algoRequests := rt.requestsForPath(okxAlgoOrderPath)
+	if len(algoRequests) != 1 {
+		t.Fatalf("expected 1 algo order request, got %d", len(algoRequests))
+	}
+
+	if algoRequests[0].Body["tdMode"] != "isolated" {
+		t.Fatalf("expected isolated tdMode for SetTakeProfit, got %#v", algoRequests[0].Body["tdMode"])
+	}
+}

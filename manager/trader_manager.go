@@ -744,6 +744,7 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 }
 
 func resolveTraderDataWalletKey(st *store.Store, userID string, selectedModel *store.AIModel) string {
+	// Fast path: selected model is itself a claw402 model.
 	if selectedModel != nil && selectedModel.Provider == "claw402" {
 		if walletKey := string(selectedModel.APIKey); walletKey != "" {
 			return walletKey
@@ -754,20 +755,14 @@ func resolveTraderDataWalletKey(st *store.Store, userID string, selectedModel *s
 		return ""
 	}
 
-	models, err := st.AIModel().List(userID)
+	// Fallback: find any configured claw402 model for this user so that paid
+	// NofxAI data sources work even when a non-claw402 model (e.g. deepseek) is
+	// selected as the AI brain.
+	preferredID := ""
+	walletKey, err := st.AIModel().ResolveClaw402WalletKey(userID, preferredID)
 	if err != nil {
 		logger.Warnf("⚠️ Failed to load claw402 wallet for trader data routing: %v", err)
 		return ""
 	}
-
-	for _, model := range models {
-		if model == nil || model.Provider != "claw402" {
-			continue
-		}
-		if walletKey := string(model.APIKey); walletKey != "" {
-			return walletKey
-		}
-	}
-
-	return ""
+	return walletKey
 }

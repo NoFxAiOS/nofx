@@ -80,7 +80,19 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 	return result, nil
 }
 
-// SetMarginMode sets margin mode
+// SetMarginMode configures the margin mode (cross/isolated) that will be applied
+// to all subsequent leverage and order requests for this trader instance.
+//
+// OKX V5 unified accounts do not expose a per-symbol mode-switch endpoint that
+// works reliably — the legacy /api/v5/account/set-isolated-mode endpoint returns
+// error 51000 ("Parameter isoMode error") when called on a unified account.
+// Instead, OKX applies the mode per-request via the mgnMode field on
+// /api/v5/account/set-leverage and via the tdMode field on order placement.
+//
+// This implementation therefore stores the configured mode locally and injects it
+// into each subsequent API request, rather than making an API call here.
+// NOTE: unlike Binance/Bybit implementations of this interface, no network call
+// is made — the method only updates local state.
 func (t *OKXTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	t.isCrossMargin = isCrossMargin
 	mgnMode := t.marginMode()

@@ -80,49 +80,42 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 	return result, nil
 }
 
-// SetMarginMode sets margin mode
+// SetMarginMode configures the margin mode (cross/isolated) that will be applied
+// to all subsequent leverage and order requests for this trader instance.
+//
+// OKX V5 unified accounts do not expose a per-symbol mode-switch endpoint that
+// works reliably — the legacy /api/v5/account/set-isolated-mode endpoint returns
+// error 51000 ("Parameter isoMode error") when called on a unified account.
+// Instead, OKX applies the mode per-request via the mgnMode field on
+// /api/v5/account/set-leverage and via the tdMode field on order placement.
+//
+// This implementation therefore stores the configured mode locally and injects it
+// into each subsequent API request, rather than making an API call here.
+// NOTE: unlike Binance/Bybit implementations of this interface, no network call
+// is made — the method only updates local state.
 func (t *OKXTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
-	instId := t.convertSymbol(symbol)
+	t.isCrossMargin = isCrossMargin
+	mgnMode := t.marginMode()
 
-	mgnMode := "isolated"
-	if isCrossMargin {
-		mgnMode = "cross"
-	}
-
-	body := map[string]interface{}{
-		"instId":  instId,
-		"mgnMode": mgnMode,
-	}
-
-	_, err := t.doRequest("POST", "/api/v5/account/set-isolated-mode", body)
-	if err != nil {
-		// Ignore error if already in target mode
-		if strings.Contains(err.Error(), "already") {
-			logger.Infof("  ✓ %s margin mode is already %s", symbol, mgnMode)
-			return nil
-		}
-		// Cannot change when there are positions
-		if strings.Contains(err.Error(), "position") {
-			logger.Infof("  ⚠️ %s has positions, cannot change margin mode", symbol)
-			return nil
-		}
-		return err
-	}
-
-	logger.Infof("  ✓ %s margin mode set to %s", symbol, mgnMode)
+	// OKX V5 unified account applies cross/isolated per order via tdMode,
+	// while leverage uses mgnMode on /account/set-leverage.
+	// Persist the configured mode locally so subsequent leverage/order calls use it,
+	// instead of calling the legacy isolated-mode endpoint that returns 51000 errors.
+	logger.Infof("  ✓ %s margin mode configured as %s (applied via tdMode/mgnMode on subsequent requests)", symbol, mgnMode)
 	return nil
 }
 
 // SetLeverage sets leverage
 func (t *OKXTrader) SetLeverage(symbol string, leverage int) error {
 	instId := t.convertSymbol(symbol)
+	marginMode := t.marginMode()
 
 	// Set leverage for both long and short
 	for _, posSide := range []string{"long", "short"} {
 		body := map[string]interface{}{
 			"instId":  instId,
 			"lever":   strconv.Itoa(leverage),
-			"mgnMode": "cross",
+			"mgnMode": marginMode,
 			"posSide": posSide,
 		}
 
@@ -136,7 +129,7 @@ func (t *OKXTrader) SetLeverage(symbol string, leverage int) error {
 		}
 	}
 
-	logger.Infof("  ✓ %s leverage set to %dx", symbol, leverage)
+	logger.Infof("  ✓ %s leverage set to %dx (%s)", symbol, leverage, marginMode)
 	return nil
 }
 

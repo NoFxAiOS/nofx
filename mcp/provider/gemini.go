@@ -8,7 +8,7 @@ import (
 
 const (
 	DefaultGeminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
-	DefaultGeminiModel   = "gemini-3-pro-preview"
+	DefaultGeminiModel   = "gemini-3.1-pro"
 )
 
 func init() {

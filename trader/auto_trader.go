@@ -2,14 +2,13 @@ package trader
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/mcp"
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
-	"nofx/wallet"
-	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/trader/aster"
 	"nofx/trader/binance"
 	"nofx/trader/bitget"
@@ -20,6 +19,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/wallet"
 	"sync"
 	"time"
 )
@@ -90,9 +90,10 @@ type AutoTraderConfig struct {
 	QwenKey     string
 
 	// Custom AI API configuration
-	CustomAPIURL    string
-	CustomAPIKey    string
-	CustomModelName string
+	CustomAPIURL     string
+	CustomAPIKey     string
+	CustomModelName  string
+	Claw402WalletKey string
 
 	// Scan configuration
 	ScanInterval time.Duration // Scan interval (recommended 3 minutes)
@@ -148,9 +149,9 @@ type AutoTrader struct {
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
 	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
-	consecutiveAIFailures int               // Consecutive AI call failures
-	safeMode              bool              // Safe mode: no new positions, protect existing ones
-	safeModeReason        string            // Why safe mode was activated
+	consecutiveAIFailures int                // Consecutive AI call failures
+	safeMode              bool               // Safe mode: no new positions, protect existing ones
+	safeModeReason        string             // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader
@@ -335,8 +336,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	}
 	// Pass claw402 wallet key to strategy engine so nofxos data requests
 	// are routed through claw402 (reuses the same wallet as AI calls)
-	var claw402Key string
-	if config.AIModel == "claw402" && config.CustomAPIKey != "" {
+	claw402Key := config.Claw402WalletKey
+	if claw402Key == "" && config.AIModel == "claw402" && config.CustomAPIKey != "" {
 		claw402Key = config.CustomAPIKey
 	}
 	strategyEngine := kernel.NewStrategyEngine(config.StrategyConfig, claw402Key)

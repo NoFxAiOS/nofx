@@ -617,7 +617,7 @@ func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
 // FetchAdanosSentimentForContext fetches optional Adanos sentiment for symbols
 // already selected by the strategy. Missing configuration returns an empty map.
 func (e *StrategyEngine) FetchAdanosSentimentForContext(ctx *Context) map[string]*adanos.Sentiment {
-	return e.FetchAdanosSentimentBatch(collectAdanosSymbols(ctx))
+	return e.FetchAdanosSentimentBatch(collectAdanosSymbols(ctx, e.config.Indicators.AdanosSource))
 }
 
 // FetchAdanosSentimentBatch fetches Adanos compare data for up to the configured
@@ -639,7 +639,7 @@ func (e *StrategyEngine) FetchAdanosSentimentBatch(symbols []string) map[string]
 		return result
 	}
 
-	symbols = uniqueSymbols(symbols)
+	symbols = uniqueAdanosSymbols(symbols, indicators.AdanosSource)
 	maxSymbols := indicators.AdanosMaxSymbols
 	if maxSymbols <= 0 || maxSymbols > 10 {
 		maxSymbols = 10
@@ -671,7 +671,7 @@ func (e *StrategyEngine) FetchAdanosSentimentBatch(symbols []string) map[string]
 	return data
 }
 
-func collectAdanosSymbols(ctx *Context) []string {
+func collectAdanosSymbols(ctx *Context, source string) []string {
 	if ctx == nil {
 		return nil
 	}
@@ -692,14 +692,14 @@ func collectAdanosSymbols(ctx *Context) []string {
 	for _, symbol := range marketSymbols {
 		symbols = append(symbols, symbol)
 	}
-	return uniqueSymbols(symbols)
+	return uniqueAdanosSymbols(symbols, source)
 }
 
-func uniqueSymbols(symbols []string) []string {
+func uniqueAdanosSymbols(symbols []string, source string) []string {
 	seen := make(map[string]bool, len(symbols))
 	unique := make([]string, 0, len(symbols))
 	for _, symbol := range symbols {
-		normalized := market.Normalize(symbol)
+		normalized := normalizeAdanosSymbol(symbol, source)
 		if normalized == "" || seen[normalized] {
 			continue
 		}
@@ -707,6 +707,46 @@ func uniqueSymbols(symbols []string) []string {
 		unique = append(unique, normalized)
 	}
 	return unique
+}
+
+func normalizeAdanosSymbol(symbol string, source string) string {
+	symbol = strings.TrimSpace(symbol)
+	if symbol == "" {
+		return ""
+	}
+	symbol = strings.TrimPrefix(symbol, "$")
+
+	if adanos.NormalizeSource(source) == adanos.SourceRedditCrypto {
+		return normalizeAdanosCryptoSymbol(symbol)
+	}
+
+	normalized := strings.ToUpper(symbol)
+	normalized = strings.TrimPrefix(normalized, "XYZ:")
+	normalized = strings.ReplaceAll(normalized, "/", "")
+	normalized = strings.ReplaceAll(normalized, "_", "")
+	normalized = strings.ReplaceAll(normalized, "-SWAP", "")
+	normalized = strings.ReplaceAll(normalized, "-", "")
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(normalized, suffix) && len(normalized) > len(suffix) {
+			return strings.TrimSuffix(normalized, suffix)
+		}
+	}
+	return normalized
+}
+
+func normalizeAdanosCryptoSymbol(symbol string) string {
+	normalized := strings.ToUpper(symbol)
+	normalized = strings.ReplaceAll(normalized, "/", "")
+	normalized = strings.ReplaceAll(normalized, "_", "")
+	normalized = strings.ReplaceAll(normalized, "-SWAP", "")
+	normalized = strings.ReplaceAll(normalized, "-", "")
+
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(normalized, suffix) && len(normalized) > len(suffix) {
+			return strings.TrimSuffix(normalized, suffix) + "USDT"
+		}
+	}
+	return normalized + "USDT"
 }
 
 func (e *StrategyEngine) fetchSingleExternalSource(source store.ExternalDataSource) (interface{}, error) {

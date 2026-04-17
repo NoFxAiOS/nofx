@@ -75,6 +75,62 @@ func TestFetchAdanosSentimentBatchUsesOptionalAPIKeyAndLimit(t *testing.T) {
 	}
 }
 
+func TestFetchAdanosSentimentBatchIgnoresBlankSymbols(t *testing.T) {
+	var gotSymbols string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSymbols = r.URL.Query().Get("symbols")
+		_ = json.NewEncoder(w).Encode([]map[string]any{{"symbol": "BTC", "buzz_score": 72.0}})
+	}))
+	defer server.Close()
+
+	t.Setenv("ADANOS_BASE_URL", server.URL)
+
+	config := store.GetDefaultStrategyConfig("en")
+	config.Indicators.EnableAdanosSentiment = true
+	config.Indicators.AdanosAPIKey = "sk_live_test"
+	engine := NewStrategyEngine(&config)
+
+	got := engine.FetchAdanosSentimentBatch([]string{"", "  ", "$BTC"})
+	if gotSymbols != "BTC" {
+		t.Fatalf("symbols query = %q, want only BTC", gotSymbols)
+	}
+	if got["BTCUSDT"] == nil {
+		t.Fatal("expected BTCUSDT sentiment")
+	}
+}
+
+func TestFetchAdanosSentimentBatchNormalizesCryptoPairs(t *testing.T) {
+	var gotSymbols string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSymbols = r.URL.Query().Get("symbols")
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"symbol": "BTC", "buzz_score": 72.0},
+			{"symbol": "ETH", "buzz_score": 71.0},
+			{"symbol": "SOL", "buzz_score": 70.0},
+		})
+	}))
+	defer server.Close()
+
+	t.Setenv("ADANOS_BASE_URL", server.URL)
+
+	config := store.GetDefaultStrategyConfig("en")
+	config.Indicators.EnableAdanosSentiment = true
+	config.Indicators.AdanosAPIKey = "sk_live_test"
+	engine := NewStrategyEngine(&config)
+
+	got := engine.FetchAdanosSentimentBatch([]string{"BTC/USD", "ETH-USDC", "SOL_USDT"})
+	if gotSymbols != "BTC,ETH,SOL" {
+		t.Fatalf("symbols query = %q, want normalized crypto bases", gotSymbols)
+	}
+	for _, symbol := range []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"} {
+		if got[symbol] == nil {
+			t.Fatalf("expected %s sentiment", symbol)
+		}
+	}
+}
+
 func TestFetchAdanosSentimentBatchFallsBackToEnvAPIKey(t *testing.T) {
 	var gotAPIKey string
 
@@ -98,6 +154,32 @@ func TestFetchAdanosSentimentBatchFallsBackToEnvAPIKey(t *testing.T) {
 	}
 	if got["BTCUSDT"] == nil {
 		t.Fatal("expected BTCUSDT sentiment")
+	}
+}
+
+func TestFetchAdanosSentimentBatchKeepsStockTickers(t *testing.T) {
+	var gotTickers string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTickers = r.URL.Query().Get("tickers")
+		_ = json.NewEncoder(w).Encode([]map[string]any{{"ticker": "AAPL", "buzz_score": 72.0}})
+	}))
+	defer server.Close()
+
+	t.Setenv("ADANOS_BASE_URL", server.URL)
+
+	config := store.GetDefaultStrategyConfig("en")
+	config.Indicators.EnableAdanosSentiment = true
+	config.Indicators.AdanosAPIKey = "sk_live_test"
+	config.Indicators.AdanosSource = adanos.SourceXStocks
+	engine := NewStrategyEngine(&config)
+
+	got := engine.FetchAdanosSentimentBatch([]string{"AAPL", "xyz:MSFT", "NVDAUSDT"})
+	if gotTickers != "AAPL,MSFT,NVDA" {
+		t.Fatalf("tickers query = %q, want stock tickers without crypto quote suffixes", gotTickers)
+	}
+	if got["AAPL"] == nil {
+		t.Fatal("expected AAPL sentiment")
 	}
 }
 
@@ -183,6 +265,42 @@ func TestBuildUserPromptIncludesAdanosSentimentWithoutAPIKey(t *testing.T) {
 	}
 	if strings.Contains(prompt, "sk_live_secret") {
 		t.Fatal("prompt must not include Adanos API keys")
+	}
+}
+
+func TestBuildUserPromptFindsStockSentimentForXyzSymbols(t *testing.T) {
+	config := store.GetDefaultStrategyConfig("en")
+	config.Indicators.EnableAdanosSentiment = true
+	config.Indicators.AdanosSource = adanos.SourceXStocks
+	engine := NewStrategyEngine(&config)
+
+	ctx := &Context{
+		CurrentTime:    "2026-04-17 08:00:00 UTC",
+		RuntimeMinutes: 10,
+		CallCount:      2,
+		Account: AccountInfo{
+			TotalEquity:      1000,
+			AvailableBalance: 800,
+		},
+		CandidateCoins: []CandidateCoin{{Symbol: "xyz:AAPL", Sources: []string{"static"}}},
+		MarketDataMap: map[string]*market.Data{
+			"xyz:AAPL": {
+				Symbol:       "xyz:AAPL",
+				CurrentPrice: 180,
+			},
+		},
+		AdanosSentimentMap: map[string]*adanos.Sentiment{
+			"AAPL": {
+				Symbol:    "AAPL",
+				Source:    adanos.SourceXStocks,
+				BuzzScore: floatPtr(70.5),
+			},
+		},
+	}
+
+	prompt := engine.BuildUserPrompt(ctx)
+	if !strings.Contains(prompt, "AAPL Adanos Market Sentiment") {
+		t.Fatalf("prompt missing stock Adanos sentiment:\n%s", prompt)
 	}
 }
 

@@ -101,6 +101,38 @@ func TestCompareSupportsStockSources(t *testing.T) {
 	}
 }
 
+func TestCompareRequiresAPIKey(t *testing.T) {
+	client := NewClient(Config{APIKey: ""})
+
+	result, err := client.Compare(context.Background(), []string{"BTCUSDT"})
+	if err == nil {
+		t.Fatal("expected missing API key error")
+	}
+	if len(result) != 0 {
+		t.Fatalf("result length = %d, want 0", len(result))
+	}
+}
+
+func TestCompareReturnsStatusErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "rate limited", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{
+		BaseURL: server.URL,
+		APIKey:  "sk_live_test",
+	})
+
+	result, err := client.Compare(context.Background(), []string{"BTCUSDT"})
+	if err == nil {
+		t.Fatal("expected non-2xx status error")
+	}
+	if len(result) != 0 {
+		t.Fatalf("result length = %d, want 0", len(result))
+	}
+}
+
 func TestNormalizeSourceDefaultsToRedditCrypto(t *testing.T) {
 	if got := NormalizeSource(""); got != SourceRedditCrypto {
 		t.Fatalf("empty source = %q, want %q", got, SourceRedditCrypto)

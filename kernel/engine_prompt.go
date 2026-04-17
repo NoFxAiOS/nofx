@@ -770,6 +770,9 @@ func lookupAdanosSentiment(ctx *Context, symbol string) *adanos.Sentiment {
 	if sentiment, ok := ctx.AdanosSentimentMap[normalized]; ok {
 		return sentiment
 	}
+	if sentiment, ok := ctx.AdanosSentimentMap[normalizeAdanosSymbol(symbol, adanos.SourceXStocks)]; ok {
+		return sentiment
+	}
 	return ctx.AdanosSentimentMap[symbol]
 }
 

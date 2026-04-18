@@ -303,3 +303,16 @@ func (s *AIModelStore) Create(userID, id, name, provider string, enabled bool, a
 	// Use FirstOrCreate to ignore if already exists
 	return s.db.Where("id = ?", id).FirstOrCreate(model).Error
 }
+
+// Delete removes a user-owned AI model configuration.
+func (s *AIModelStore) Delete(userID, id string) error {
+	result := s.db.Where("user_id = ? AND id = ?", userID, id).Delete(&AIModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("ai model not found: id=%s, userID=%s", id, userID)
+	}
+	logger.Infof("🗑️ Deleted AI model: id=%s, userID=%s", id, userID)
+	return nil
+}

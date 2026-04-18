@@ -1,26 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  User,
-  Cpu,
-  Building2,
-  MessageCircle,
-  Eye,
-  EyeOff,
-  ChevronRight,
-  Plus,
-  Pencil,
-} from 'lucide-react'
+import { User, Cpu, Building2, MessageCircle, Eye, EyeOff, ChevronRight, Plus, Pencil } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { api } from '../lib/api'
-import {
-  getPostAuthPath,
-  getUserMode,
-  setUserMode,
-  type UserMode,
-} from '../lib/onboarding'
 import { ExchangeConfigModal } from '../components/trader/ExchangeConfigModal'
 import { TelegramConfigModal } from '../components/trader/TelegramConfigModal'
 import { ModelConfigModal } from '../components/trader/ModelConfigModal'
@@ -28,14 +11,24 @@ import type { Exchange, AIModel } from '../types'
 
 type Tab = 'account' | 'models' | 'exchanges' | 'telegram'
 
+function configBadge(label: string, active: boolean) {
+  return (
+    <span
+      className={`text-[11px] px-2 py-0.5 rounded-full ${
+        active
+          ? 'bg-emerald-500/10 text-emerald-300'
+          : 'bg-zinc-800 text-zinc-500'
+      }`}
+    >
+      {label}
+    </span>
+  )
+}
+
 export function SettingsPage() {
   const { user } = useAuth()
   const { language } = useLanguage()
-  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<Tab>('account')
-  const [userMode, setUserModeState] = useState<UserMode>(
-    () => getUserMode() ?? 'advanced'
-  )
 
   // Account state
   const [newPassword, setNewPassword] = useState('')
@@ -56,23 +49,40 @@ export function SettingsPage() {
   // Telegram state
   const [showTelegramModal, setShowTelegramModal] = useState(false)
 
+  const refreshModelConfigs = async () => {
+    const [configs, supported] = await Promise.all([
+      api.getModelConfigs(),
+      api.getSupportedModels(),
+    ])
+    setConfiguredModels(configs)
+    setSupportedModels(supported)
+  }
+
+  const refreshExchangeConfigs = async () => {
+    const refreshed = await api.getExchangeConfigs()
+    setExchanges(refreshed)
+  }
+
   // Fetch data when tabs are visited
   useEffect(() => {
     if (activeTab === 'models') {
-      Promise.all([api.getModelConfigs(), api.getSupportedModels()])
-        .then(([configs, supported]) => {
-          setConfiguredModels(configs)
-          setSupportedModels(supported)
-        })
+      refreshModelConfigs()
         .catch(() => toast.error('Failed to load AI models'))
     }
     if (activeTab === 'exchanges') {
-      api
-        .getExchangeConfigs()
-        .then(setExchanges)
+      refreshExchangeConfigs()
         .catch(() => toast.error('Failed to load exchanges'))
     }
   }, [activeTab])
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      refreshModelConfigs().catch(() => {})
+      refreshExchangeConfigs().catch(() => {})
+    }
+    window.addEventListener('agent-config-refresh', handleRefresh)
+    return () => window.removeEventListener('agent-config-refresh', handleRefresh)
+  }, [])
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -86,7 +96,7 @@ export function SettingsPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
         },
         body: JSON.stringify({ new_password: newPassword }),
       })
@@ -97,31 +107,10 @@ export function SettingsPage() {
       toast.success('Password updated successfully')
       setNewPassword('')
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to update password'
-      )
+      toast.error(err instanceof Error ? err.message : 'Failed to update password')
     } finally {
       setChangingPassword(false)
     }
-  }
-
-  const handleSwitchMode = (nextMode: UserMode) => {
-    if (nextMode === userMode) {
-      return
-    }
-
-    setUserMode(nextMode)
-    setUserModeState(nextMode)
-    toast.success(
-      language === 'zh'
-        ? `已切换到${nextMode === 'beginner' ? '新手模式' : '老手模式'}`
-        : nextMode === 'beginner'
-          ? 'Switched to beginner mode'
-          : 'Switched to advanced mode'
-    )
-
-    const nextPath = getPostAuthPath(nextMode)
-    navigate(nextPath)
   }
 
   const handleSaveModel = async (
@@ -134,54 +123,38 @@ export function SettingsPage() {
       const existingModel = configuredModels.find((m) => m.id === modelId)
       const modelTemplate = supportedModels.find((m) => m.id === modelId)
       const modelToUpdate = existingModel || modelTemplate
-      if (!modelToUpdate) {
-        toast.error('Model not found')
-        return
-      }
+      if (!modelToUpdate) { toast.error('Model not found'); return }
 
       let updatedModels: AIModel[]
       if (existingModel) {
         updatedModels = configuredModels.map((m) =>
           m.id === modelId
-            ? {
-                ...m,
-                apiKey,
-                customApiUrl: customApiUrl || '',
-                customModelName: customModelName || '',
-                enabled: true,
-              }
+            ? { ...m, apiKey, customApiUrl: customApiUrl || '', customModelName: customModelName || '', enabled: true }
             : m
         )
       } else {
-        updatedModels = [
-          ...configuredModels,
-          {
-            ...modelToUpdate,
-            apiKey,
-            customApiUrl: customApiUrl || '',
-            customModelName: customModelName || '',
-            enabled: true,
-          },
-        ]
+        updatedModels = [...configuredModels, {
+          ...modelToUpdate,
+          apiKey,
+          customApiUrl: customApiUrl || '',
+          customModelName: customModelName || '',
+          enabled: true,
+        }]
       }
 
       const request = {
         models: Object.fromEntries(
-          updatedModels.map((m) => [
-            m.provider,
-            {
-              enabled: m.enabled,
-              api_key: m.apiKey || '',
-              custom_api_url: m.customApiUrl || '',
-              custom_model_name: m.customModelName || '',
-            },
-          ])
+          updatedModels.map((m) => [m.provider, {
+            enabled: m.enabled,
+            api_key: m.apiKey || '',
+            custom_api_url: m.customApiUrl || '',
+            custom_model_name: m.customModelName || '',
+          }])
         ),
       }
       await api.updateModelConfigs(request)
       toast.success('Model config saved')
-      const refreshed = await api.getModelConfigs()
-      setConfiguredModels(refreshed)
+      await refreshModelConfigs()
       setShowModelModal(false)
       setEditingModel(null)
     } catch {
@@ -192,32 +165,20 @@ export function SettingsPage() {
   const handleDeleteModel = async (modelId: string) => {
     try {
       const updatedModels = configuredModels.map((m) =>
-        m.id === modelId
-          ? {
-              ...m,
-              apiKey: '',
-              customApiUrl: '',
-              customModelName: '',
-              enabled: false,
-            }
-          : m
+        m.id === modelId ? { ...m, apiKey: '', customApiUrl: '', customModelName: '', enabled: false } : m
       )
       const request = {
         models: Object.fromEntries(
-          updatedModels.map((m) => [
-            m.provider,
-            {
-              enabled: m.enabled,
-              api_key: m.apiKey || '',
-              custom_api_url: m.customApiUrl || '',
-              custom_model_name: m.customModelName || '',
-            },
-          ])
+          updatedModels.map((m) => [m.provider, {
+            enabled: m.enabled,
+            api_key: m.apiKey || '',
+            custom_api_url: m.customApiUrl || '',
+            custom_model_name: m.customModelName || '',
+          }])
         ),
       }
       await api.updateModelConfigs(request)
-      const refreshed = await api.getModelConfigs()
-      setConfiguredModels(refreshed)
+      await refreshModelConfigs()
       setShowModelModal(false)
       setEditingModel(null)
       toast.success('Model config removed')
@@ -265,7 +226,7 @@ export function SettingsPage() {
           },
         }
         await api.updateExchangeConfigsEncrypted(request)
-        toast.success('Exchange config updated')
+      toast.success('Exchange config updated')
       } else {
         const createRequest = {
           exchange_type: exchangeType,
@@ -285,10 +246,9 @@ export function SettingsPage() {
           lighter_api_key_index: lighterApiKeyIndex || 0,
         }
         await api.createExchangeEncrypted(createRequest)
-        toast.success('Exchange account created')
+      toast.success('Exchange account created')
       }
-      const refreshed = await api.getExchangeConfigs()
-      setExchanges(refreshed)
+      await refreshExchangeConfigs()
       setShowExchangeModal(false)
       setEditingExchange(null)
     } catch {
@@ -300,8 +260,7 @@ export function SettingsPage() {
     try {
       await api.deleteExchange(exchangeId)
       toast.success('Exchange account deleted')
-      const refreshed = await api.getExchangeConfigs()
-      setExchanges(refreshed)
+      await refreshExchangeConfigs()
       setShowExchangeModal(false)
       setEditingExchange(null)
     } catch {
@@ -317,10 +276,7 @@ export function SettingsPage() {
   ]
 
   return (
-    <div
-      className="min-h-screen pt-20 pb-12 px-4"
-      style={{ background: '#0B0E11' }}
-    >
+    <div className="min-h-screen pt-20 pb-12 px-4" style={{ background: '#0B0E11' }}>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-xl font-bold text-white mb-6">Settings</h1>
 
@@ -331,10 +287,9 @@ export function SettingsPage() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
-                ${
-                  activeTab === tab.key
-                    ? 'bg-nofx-gold text-black'
-                    : 'text-zinc-400 hover:text-white'
+                ${activeTab === tab.key
+                  ? 'bg-nofx-gold text-black'
+                  : 'text-zinc-400 hover:text-white'
                 }`}
             >
               {tab.icon}
@@ -345,6 +300,7 @@ export function SettingsPage() {
 
         {/* Tab Content */}
         <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+
           {/* Account Tab */}
           {activeTab === 'account' && (
             <div className="space-y-6">
@@ -354,78 +310,10 @@ export function SettingsPage() {
               </div>
 
               <div className="border-t border-zinc-800 pt-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">
-                      {language === 'zh' ? '使用模式' : 'Usage Mode'}
-                    </h3>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {language === 'zh'
-                        ? '新手模式会显示钱包引导和 4 步卡片；老手模式保持原来的专业界面。'
-                        : 'Beginner mode shows wallet onboarding and quickstart cards. Advanced mode keeps the original pro workflow.'}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-nofx-gold/20 bg-nofx-gold/10 px-3 py-1 text-xs font-semibold text-nofx-gold">
-                    {userMode === 'beginner'
-                      ? language === 'zh'
-                        ? '当前：新手模式'
-                        : 'Current: Beginner'
-                      : language === 'zh'
-                        ? '当前：老手模式'
-                        : 'Current: Advanced'}
-                  </span>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchMode('beginner')}
-                    className={`rounded-2xl border px-4 py-4 text-left transition-all ${
-                      userMode === 'beginner'
-                        ? 'border-nofx-gold bg-nofx-gold/10'
-                        : 'border-zinc-800 bg-zinc-950/70 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold text-white">
-                      {language === 'zh' ? '新手模式' : 'Beginner Mode'}
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-500">
-                      {language === 'zh'
-                        ? '更简单，优先显示钱包、充值和快速上手引导。'
-                        : 'Simpler flow with wallet, funding, and quickstart guidance first.'}
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchMode('advanced')}
-                    className={`rounded-2xl border px-4 py-4 text-left transition-all ${
-                      userMode === 'advanced'
-                        ? 'border-nofx-gold bg-nofx-gold/10'
-                        : 'border-zinc-800 bg-zinc-950/70 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold text-white">
-                      {language === 'zh' ? '老手模式' : 'Advanced Mode'}
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-500">
-                      {language === 'zh'
-                        ? '保持原来的配置与交易流程，不展示新手引导。'
-                        : 'Keeps the original configuration and trading workflow without beginner hints.'}
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="border-t border-zinc-800 pt-6">
-                <h3 className="text-sm font-semibold text-white mb-4">
-                  Change Password
-                </h3>
+                <h3 className="text-sm font-semibold text-white mb-4">Change Password</h3>
                 <form onSubmit={handleChangePassword} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-2">
-                      New Password
-                    </label>
+                    <label className="block text-xs font-medium text-zinc-400 mb-2">New Password</label>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
@@ -440,11 +328,7 @@ export function SettingsPage() {
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
                       >
-                        {showPassword ? (
-                          <EyeOff size={16} />
-                        ) : (
-                          <Eye size={16} />
-                        )}
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
                   </div>
@@ -465,14 +349,10 @@ export function SettingsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-zinc-400">
-                  {configuredModels.length} model
-                  {configuredModels.length !== 1 ? 's' : ''} configured
+                  {configuredModels.length} model{configuredModels.length !== 1 ? 's' : ''} configured
                 </p>
                 <button
-                  onClick={() => {
-                    setEditingModel(null)
-                    setShowModelModal(true)
-                  }}
+                  onClick={() => { setEditingModel(null); setShowModelModal(true) }}
                   className="flex items-center gap-1.5 text-xs font-medium bg-nofx-gold/10 hover:bg-nofx-gold/20 text-nofx-gold px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <Plus size={14} />
@@ -489,10 +369,7 @@ export function SettingsPage() {
                   {configuredModels.map((model) => (
                     <button
                       key={model.id}
-                      onClick={() => {
-                        setEditingModel(model.id)
-                        setShowModelModal(true)
-                      }}
+                      onClick={() => { setEditingModel(model.id); setShowModelModal(true) }}
                       className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors group"
                     >
                       <div className="flex items-center gap-3">
@@ -500,24 +377,20 @@ export function SettingsPage() {
                           <Cpu size={14} className="text-zinc-300" />
                         </div>
                         <div className="text-left">
-                          <p className="text-sm font-medium text-white">
-                            {model.name}
-                          </p>
-                          <p className="text-xs text-zinc-500">
-                            {model.provider}
-                          </p>
+                          <p className="text-sm font-medium text-white">{model.name}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                            <p className="text-xs text-zinc-500">{model.provider}</p>
+                            {configBadge('API Key', !!model.has_api_key)}
+                            {model.customModelName ? configBadge('Custom Model', true) : null}
+                            {model.customApiUrl ? configBadge('Base URL', true) : null}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${model.enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-700 text-zinc-500'}`}
-                        >
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${model.enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-700 text-zinc-500'}`}>
                           {model.enabled ? 'Active' : 'Inactive'}
                         </span>
-                        <Pencil
-                          size={14}
-                          className="text-zinc-600 group-hover:text-zinc-400 transition-colors"
-                        />
+                        <Pencil size={14} className="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
                       </div>
                     </button>
                   ))}
@@ -531,14 +404,10 @@ export function SettingsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-zinc-400">
-                  {exchanges.length} account{exchanges.length !== 1 ? 's' : ''}{' '}
-                  connected
+                  {exchanges.length} account{exchanges.length !== 1 ? 's' : ''} connected
                 </p>
                 <button
-                  onClick={() => {
-                    setEditingExchange(null)
-                    setShowExchangeModal(true)
-                  }}
+                  onClick={() => { setEditingExchange(null); setShowExchangeModal(true) }}
                   className="flex items-center gap-1.5 text-xs font-medium bg-nofx-gold/10 hover:bg-nofx-gold/20 text-nofx-gold px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <Plus size={14} />
@@ -555,10 +424,7 @@ export function SettingsPage() {
                   {exchanges.map((exchange) => (
                     <button
                       key={exchange.id}
-                      onClick={() => {
-                        setEditingExchange(exchange.id)
-                        setShowExchangeModal(true)
-                      }}
+                      onClick={() => { setEditingExchange(exchange.id); setShowExchangeModal(true) }}
                       className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors group"
                     >
                       <div className="flex items-center gap-3">
@@ -566,18 +432,19 @@ export function SettingsPage() {
                           <Building2 size={14} className="text-zinc-300" />
                         </div>
                         <div className="text-left">
-                          <p className="text-sm font-medium text-white">
-                            {exchange.account_name || exchange.name}
-                          </p>
-                          <p className="text-xs text-zinc-500 capitalize">
-                            {exchange.exchange_type || exchange.type}
-                          </p>
+                          <p className="text-sm font-medium text-white">{exchange.account_name || exchange.name}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                            <p className="text-xs text-zinc-500 capitalize">{exchange.exchange_type || exchange.type}</p>
+                            {configBadge('API Key', !!exchange.has_api_key)}
+                            {configBadge('Secret', !!exchange.has_secret_key)}
+                            {exchange.has_passphrase ? configBadge('Passphrase', true) : null}
+                            {exchange.hyperliquidWalletAddr ? configBadge('Wallet', true) : null}
+                            {exchange.has_aster_private_key ? configBadge('Aster Key', true) : null}
+                            {exchange.has_lighter_private_key || exchange.has_lighter_api_key_private_key ? configBadge('Lighter Key', true) : null}
+                          </div>
                         </div>
                       </div>
-                      <ChevronRight
-                        size={14}
-                        className="text-zinc-600 group-hover:text-zinc-400 transition-colors"
-                      />
+                      <ChevronRight size={14} className="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
                     </button>
                   ))}
                 </div>
@@ -589,8 +456,7 @@ export function SettingsPage() {
           {activeTab === 'telegram' && (
             <div className="space-y-4">
               <p className="text-sm text-zinc-400">
-                Connect a Telegram bot to receive trading notifications and
-                interact with your traders.
+                Connect a Telegram bot to receive trading notifications and interact with your traders.
               </p>
               <button
                 onClick={() => setShowTelegramModal(true)}
@@ -600,14 +466,9 @@ export function SettingsPage() {
                   <div className="w-8 h-8 rounded-lg bg-[#0088cc]/20 flex items-center justify-center">
                     <MessageCircle size={14} className="text-[#0088cc]" />
                   </div>
-                  <span className="text-sm font-medium text-white">
-                    Configure Telegram Bot
-                  </span>
+                  <span className="text-sm font-medium text-white">Configure Telegram Bot</span>
                 </div>
-                <ChevronRight
-                  size={14}
-                  className="text-zinc-600 group-hover:text-zinc-400 transition-colors"
-                />
+                <ChevronRight size={14} className="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
               </button>
             </div>
           )}
@@ -623,10 +484,7 @@ export function SettingsPage() {
             editingModelId={editingModel}
             onSave={handleSaveModel}
             onDelete={handleDeleteModel}
-            onClose={() => {
-              setShowModelModal(false)
-              setEditingModel(null)
-            }}
+            onClose={() => { setShowModelModal(false); setEditingModel(null) }}
             language={language}
           />
         </div>
@@ -640,10 +498,7 @@ export function SettingsPage() {
             editingExchangeId={editingExchange}
             onSave={handleSaveExchange}
             onDelete={handleDeleteExchange}
-            onClose={() => {
-              setShowExchangeModal(false)
-              setEditingExchange(null)
-            }}
+            onClose={() => { setShowExchangeModal(false); setEditingExchange(null) }}
             language={language}
           />
         </div>

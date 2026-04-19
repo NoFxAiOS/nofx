@@ -618,8 +618,17 @@ func (at *AutoTrader) matchDrawdownArmRule(currentPnLPct float64, rules []store.
 
 func (at *AutoTrader) getDrawdownArmRules(currentPnLPct float64, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
 	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
+	maxSatisfiedMinProfit := 0.0
 	for _, rule := range rules {
 		if currentPnLPct < rule.MinProfitPct {
+			continue
+		}
+		if rule.MinProfitPct > maxSatisfiedMinProfit {
+			maxSatisfiedMinProfit = rule.MinProfitPct
+		}
+	}
+	for _, rule := range rules {
+		if currentPnLPct < rule.MinProfitPct || rule.MinProfitPct < maxSatisfiedMinProfit {
 			continue
 		}
 		matched = append(matched, rule)

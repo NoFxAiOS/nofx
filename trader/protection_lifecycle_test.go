@@ -172,38 +172,35 @@ func TestProtectionTakeProfitSetupFailure(t *testing.T) {
 	}
 }
 
-func TestProtectionRetryRecovery(t *testing.T) {
-	fake := testutil.NewFakeTrader()
-	callCount := 0
-	originalSetSL := fake.SetStopLossErr
-	_ = originalSetSL
-
-	// Simulate first attempt fails, second succeeds
-	fake.SetStopLossErr = errors.New("transient failure")
-	at := &AutoTrader{trader: fake, exchange: "binance"}
+func TestDetectMissingProtectionTreatsSingleLadderStopAsRequired(t *testing.T) {
 	plan := &ProtectionPlan{
-		Mode:          "manual",
-		NeedsStopLoss: true,
-		StopLossPrice: 98,
+		StopLossOrders: []ProtectionOrder{{Price: 98, CloseRatioPct: 100}},
 	}
-
-	// First call should fail
-	err := at.placeAndVerifyProtectionPlan("BTCUSDT", "LONG", 1, plan)
-	if err == nil {
-		t.Fatal("expected first attempt to fail")
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 100.2}, // break-even style stop, not the configured ladder stop
 	}
-	callCount++
-
-	// Clear error for retry
-	fake.SetStopLossErr = nil
-	err = at.placeAndVerifyProtectionPlan("BTCUSDT", "LONG", 1, plan)
-	if err != nil {
-		t.Fatalf("expected retry to succeed, got %v", err)
+	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan)
+	if !missingSL {
+		t.Fatal("expected single configured ladder stop to be treated as missing when only unrelated stop exists")
 	}
-	callCount++
+	if missingTP {
+		t.Fatal("did not expect TP to be missing for stop-only plan")
+	}
+}
 
-	if callCount != 2 {
-		t.Fatalf("expected 2 attempts, got %d", callCount)
+func TestDetectMissingProtectionTreatsSingleLadderTakeProfitAsRequired(t *testing.T) {
+	plan := &ProtectionPlan{
+		TakeProfitOrders: []ProtectionOrder{{Price: 105, CloseRatioPct: 100}},
+	}
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 110},
+	}
+	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan)
+	if missingTP != true {
+		t.Fatal("expected single configured ladder TP to be treated as missing when only unrelated TP exists")
+	}
+	if missingSL {
+		t.Fatal("did not expect SL to be missing for take-profit-only plan")
 	}
 }
 

@@ -292,7 +292,10 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 
 	fallbackSatisfied := plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice)
 
-	if len(plan.StopLossOrders) > 1 {
+	// For stop-loss side, treat ladder plans as requiring ALL configured stop orders, not only when >1 tiers.
+	// This matters because break-even / trailing can add extra stop-like orders that would otherwise make a
+	// single-tier ladder look "present" while the intended ladder stop is actually missing.
+	if len(plan.StopLossOrders) > 0 {
 		for _, target := range plan.StopLossOrders {
 			if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
 				missingSL = true
@@ -307,7 +310,8 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 		missingSL = true
 	}
 
-	if len(plan.TakeProfitOrders) > 1 {
+	// Same rule for take-profit: when ladder TP orders exist, require each configured tier explicitly.
+	if len(plan.TakeProfitOrders) > 0 {
 		for _, target := range plan.TakeProfitOrders {
 			if countMatchingProtectionOrders(openOrders, positionSide, true, target.Price) == 0 {
 				missingTP = true

@@ -503,10 +503,25 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 	userID := c.GetString("user_id")
 	traderID := c.Query("trader_id")
 
-	// Ensure user's traders are loaded into memory
-	err := s.traderManager.LoadUserTradersFromStore(s.store, userID)
-	if err != nil {
-		logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, err)
+	// Only lazy-load user traders when the requested trader is not already in memory.
+	// Query-style APIs (status/account/positions/statistics/decisions/...) call this helper
+	// frequently via frontend polling, so unconditional reload here creates a reload storm
+	// and perturbs runtime protection state.
+	if traderID != "" {
+		if _, err := s.traderManager.GetTrader(traderID); err != nil {
+			logger.Infof("[reload.trigger] source=query_lazy_load trader_id=%s user_id=%s", traderID, userID)
+			if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+				logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, loadErr)
+			}
+		}
+	} else {
+		ids := s.traderManager.GetTraderIDs()
+		if len(ids) == 0 {
+			logger.Infof("[reload.trigger] source=query_lazy_load_missing_default user_id=%s", userID)
+			if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+				logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, loadErr)
+			}
+		}
 	}
 
 	if traderID == "" {

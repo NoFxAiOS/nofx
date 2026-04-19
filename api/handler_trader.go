@@ -448,6 +448,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	s.traderManager.RemoveTrader(traderID)
 
 	// Reload traders into memory with fresh config
+	logger.Infof("[reload.trigger] source=update_trader trader_id=%s user_id=%s", traderID, userID)
 	err = s.traderManager.LoadUserTradersFromStore(s.store, userID)
 	if err != nil {
 		logger.Infof("⚠️ Failed to reload user traders into memory: %v", err)
@@ -530,6 +531,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 
 	// Load trader from database (always reload to get latest config)
 	logger.Infof("🔄 Loading trader %s from database...", traderID)
+	logger.Infof("[reload.trigger] source=start_trader trader_id=%s user_id=%s", traderID, userID)
 	if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
 		logger.Infof("❌ Failed to load user traders: %v", loadErr)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load trader: " + loadErr.Error()})

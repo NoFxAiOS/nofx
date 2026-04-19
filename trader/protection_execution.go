@@ -186,7 +186,69 @@ func (at *AutoTrader) placeAndVerifyProtectionWithRetry(symbol, positionSide str
 	return fmt.Errorf("protection setup failed after %d attempts: %w", protectionSetupMaxAttempts, lastErr)
 }
 
+func (at *AutoTrader) validateProtectionPlanExecution(symbol, positionSide string, quantity float64, plan *ProtectionPlan) (*ProtectionPlan, error) {
+	if plan == nil {
+		return nil, nil
+	}
+
+	adjusted := *plan
+	if len(plan.StopLossOrders) > 0 {
+		adjusted.StopLossOrders = append([]ProtectionOrder(nil), plan.StopLossOrders...)
+	}
+	if len(plan.TakeProfitOrders) > 0 {
+		adjusted.TakeProfitOrders = append([]ProtectionOrder(nil), plan.TakeProfitOrders...)
+	}
+
+	if okxTrader, ok := at.trader.(interface {
+		FormatQuantity(symbol string, quantity float64) (string, error)
+	}); ok {
+		filterExecutable := func(orders []ProtectionOrder) []ProtectionOrder {
+			if len(orders) == 0 {
+				return orders
+			}
+			filtered := make([]ProtectionOrder, 0, len(orders))
+			for _, order := range orders {
+				orderQty := quantity * order.CloseRatioPct / 100.0
+				if orderQty <= 0 {
+					continue
+				}
+				if _, err := okxTrader.FormatQuantity(symbol, orderQty); err != nil {
+					logger.Warnf("  ⚠️ Protection tier dropped as non-executable: symbol=%s side=%s price=%.6f qty=%.6f err=%v", symbol, positionSide, order.Price, orderQty, err)
+					continue
+				}
+				filtered = append(filtered, order)
+			}
+			return filtered
+		}
+
+		adjusted.StopLossOrders = filterExecutable(adjusted.StopLossOrders)
+		adjusted.TakeProfitOrders = filterExecutable(adjusted.TakeProfitOrders)
+
+		if len(plan.StopLossOrders) > 0 && len(adjusted.StopLossOrders) == 0 && plan.NeedsStopLoss && plan.StopLossPrice > 0 {
+			logger.Warnf("  ⚠️ Ladder stop-loss tiers all below exchange minimum; degrading to full stop for %s %s", symbol, positionSide)
+		}
+		if len(plan.TakeProfitOrders) > 0 && len(adjusted.TakeProfitOrders) == 0 && plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 {
+			logger.Warnf("  ⚠️ Ladder take-profit tiers all below exchange minimum; degrading to full TP for %s %s", symbol, positionSide)
+		}
+	}
+
+	if len(adjusted.StopLossOrders) == 0 && len(adjusted.TakeProfitOrders) == 0 && !adjusted.NeedsStopLoss && !adjusted.NeedsTakeProfit && adjusted.FallbackMaxLossPrice <= 0 {
+		return &adjusted, nil
+	}
+	return &adjusted, nil
+}
+
 func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {
+	if plan == nil {
+		return nil
+	}
+
+	validatedPlan, err := at.validateProtectionPlanExecution(symbol, positionSide, quantity, plan)
+	if err != nil {
+		return err
+	}
+	plan = validatedPlan
+
 	if plan == nil {
 		return nil
 	}

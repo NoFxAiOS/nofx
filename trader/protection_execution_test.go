@@ -17,12 +17,13 @@ type fakeOrderProtectionTrader struct {
 		symbol, positionSide string
 		quantity, price      float64
 	}
-	openOrders         []tradertypes.OpenOrder
-	setStopLossErr     error
-	setTakeProfitErr   error
-	getOpenOrdersErr   error
-	getOpenOrdersCalls int
-	visibleFromCall    int
+	openOrders             []tradertypes.OpenOrder
+	setStopLossErr         error
+	setTakeProfitErr       error
+	getOpenOrdersErr       error
+	getOpenOrdersCalls     int
+	visibleFromCall        int
+	formatQuantityErrBelow float64
 }
 
 func (f *fakeOrderProtectionTrader) GetBalance() (map[string]interface{}, error)     { return nil, nil }
@@ -85,6 +86,9 @@ func (f *fakeOrderProtectionTrader) CancelTakeProfitOrders(symbol string) error 
 func (f *fakeOrderProtectionTrader) CancelAllOrders(symbol string) error        { return nil }
 func (f *fakeOrderProtectionTrader) CancelStopOrders(symbol string) error       { return nil }
 func (f *fakeOrderProtectionTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
+	if f.formatQuantityErrBelow > 0 && quantity < f.formatQuantityErrBelow {
+		return "", fmt.Errorf("minimum order amount")
+	}
 	return "", nil
 }
 func (f *fakeOrderProtectionTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
@@ -102,6 +106,56 @@ func (f *fakeOrderProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.
 		return []tradertypes.OpenOrder{}, nil
 	}
 	return f.openOrders, nil
+}
+
+func TestValidateProtectionPlanExecutionDropsNonExecutableLadderTiers(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{}
+	at := &AutoTrader{trader: fakeTrader, exchange: "okx"}
+	plan := &ProtectionPlan{
+		NeedsStopLoss: true,
+		StopLossPrice: 98,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 98, CloseRatioPct: 50},
+			{Price: 96, CloseRatioPct: 50},
+		},
+	}
+
+	// Fake OKX min-size enforcement via FormatQuantity error on tiny split qty.
+	fakeTrader.formatQuantityErrBelow = 0.06
+	validated, err := at.validateProtectionPlanExecution("TRUMPUSDT", "LONG", 0.1, plan)
+	if err != nil {
+		t.Fatalf("expected validation success, got %v", err)
+	}
+	if len(validated.StopLossOrders) != 0 {
+		t.Fatalf("expected ladder stop tiers to be dropped, got %d", len(validated.StopLossOrders))
+	}
+	if !validated.NeedsStopLoss || validated.StopLossPrice != 98 {
+		t.Fatalf("expected fallback to full stop-loss, got %+v", validated)
+	}
+}
+
+func TestPlaceAndVerifyProtectionPlanFallsBackToFullStopWhenLadderIsNonExecutable(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{}
+	at := &AutoTrader{trader: fakeTrader, exchange: "okx"}
+	plan := &ProtectionPlan{
+		NeedsStopLoss: true,
+		StopLossPrice: 98,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 98, CloseRatioPct: 50},
+			{Price: 96, CloseRatioPct: 50},
+		},
+	}
+	fakeTrader.formatQuantityErrBelow = 0.06
+
+	if err := at.placeAndVerifyProtectionPlan("TRUMPUSDT", "LONG", 0.1, plan); err != nil {
+		t.Fatalf("expected protection plan to degrade to full stop, got %v", err)
+	}
+	if len(fakeTrader.stopLossOrders) != 1 {
+		t.Fatalf("expected one full stop order after degradation, got %d", len(fakeTrader.stopLossOrders))
+	}
+	if fakeTrader.stopLossOrders[0].price != 98 {
+		t.Fatalf("expected full stop at 98, got %+v", fakeTrader.stopLossOrders[0])
+	}
 }
 
 func TestPlaceAndVerifyLadderProtection(t *testing.T) {

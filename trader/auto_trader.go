@@ -302,36 +302,13 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		return nil, fmt.Errorf("unsupported trading platform: %s", config.Exchange)
 	}
 
-	// Validate initial balance configuration, auto-fetch from exchange if 0
+	// Validate initial balance configuration.
+	// Keep startup resilient: if InitialBalance is not set, do NOT block trader creation on
+	// a live exchange balance fetch here. Startup/health should come up even when the
+	// exchange is slow or temporarily unreachable. Users can sync balance later, and runtime
+	// account info will still come from the exchange when available.
 	if config.InitialBalance <= 0 {
-		logger.Infof("📊 [%s] Initial balance not set, attempting to fetch current balance from exchange...", config.Name)
-		account, err := trader.GetBalance()
-		if err != nil {
-			return nil, fmt.Errorf("initial balance not set and unable to fetch balance from exchange: %w", err)
-		}
-		// Try multiple balance field names (different exchanges return different formats)
-		balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
-		var foundBalance float64
-		for _, key := range balanceKeys {
-			if balance, ok := account[key].(float64); ok && balance > 0 {
-				foundBalance = balance
-				break
-			}
-		}
-		if foundBalance > 0 {
-			config.InitialBalance = foundBalance
-			logger.Infof("✓ [%s] Auto-fetched initial balance: %.2f USDT", config.Name, foundBalance)
-			// Save to database so it persists across restarts
-			if st != nil {
-				if err := st.Trader().UpdateInitialBalance(userID, config.ID, foundBalance); err != nil {
-					logger.Infof("⚠️  [%s] Failed to save initial balance to database: %v", config.Name, err)
-				} else {
-					logger.Infof("✓ [%s] Initial balance saved to database", config.Name)
-				}
-			}
-		} else {
-			return nil, fmt.Errorf("initial balance must be greater than 0, please set InitialBalance in config or ensure exchange account has balance")
-		}
+		logger.Infof("⚠️ [%s] Initial balance not set; using 0 as temporary baseline and skipping startup balance fetch", config.Name)
 	}
 
 	// Get last cycle number (for recovery)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"nofx/store"
 	tradertypes "nofx/trader/types"
+	"strings"
 	"testing"
 	"time"
 )
@@ -18,6 +19,7 @@ type fakeProtectionTrader struct {
 	cancelErr           error
 	setStopLossErr      error
 	trailingCalls       int
+	cancelTrailingCalls int
 	trailingSymbol      string
 	trailingSide        string
 	trailingActivation  float64
@@ -95,9 +97,51 @@ func (f *fakeProtectionTrader) SetTrailingStopLoss(symbol string, positionSide s
 	f.trailingSide = positionSide
 	f.trailingActivation = activationPrice
 	f.trailingCallback = callbackRate
+	f.openOrders = append(f.openOrders, tradertypes.OpenOrder{
+		OrderID:      fmt.Sprintf("new-tier-%d", f.trailingCalls),
+		Symbol:       symbol,
+		PositionSide: positionSide,
+		Type:         "TRAILING_STOP_MARKET",
+		StopPrice:    activationPrice,
+		CallbackRate: callbackRate,
+		Quantity:     quantity,
+		Status:       "NEW",
+	})
 	return nil
 }
-func (f *fakeProtectionTrader) CancelTrailingStopOrders(symbol string) error { return nil }
+func (f *fakeProtectionTrader) SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error {
+	return f.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, quantity)
+}
+func (f *fakeProtectionTrader) CancelTrailingStopOrders(symbol string) error {
+	removed := 0
+	filtered := make([]tradertypes.OpenOrder, 0, len(f.openOrders))
+	for _, order := range f.openOrders {
+		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			removed++
+			continue
+		}
+		filtered = append(filtered, order)
+	}
+	f.cancelTrailingCalls += removed
+	f.openOrders = filtered
+	return nil
+}
+func (f *fakeProtectionTrader) CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error {
+	f.cancelTrailingCalls += len(orderIDs)
+	filtered := make([]tradertypes.OpenOrder, 0, len(f.openOrders))
+	set := make(map[string]struct{}, len(orderIDs))
+	for _, id := range orderIDs {
+		set[id] = struct{}{}
+	}
+	for _, order := range f.openOrders {
+		if _, ok := set[order.OrderID]; ok {
+			continue
+		}
+		filtered = append(filtered, order)
+	}
+	f.openOrders = filtered
+	return nil
+}
 
 func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
 	fake := &fakeProtectionTrader{}
@@ -292,23 +336,90 @@ func TestApplyNativePartialTrailingDrawdownSkipsEquivalentTier(t *testing.T) {
 	}
 }
 
-func TestMatchDrawdownRule(t *testing.T) {
-	at := &AutoTrader{}
-	rules := []store.DrawdownTakeProfitRule{
-		{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100},
-		{MinProfitPct: 10, MaxDrawdownPct: 20, CloseRatioPct: 50},
+func TestApplyNativePartialTrailingDrawdownAppendsVisibleNewTierBeforeAnyCleanup(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		openOrders: []tradertypes.OpenOrder{{
+			Symbol:       "BTCUSDT",
+			PositionSide: "LONG",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    105,
+			CallbackRate: 0.001,
+			Quantity:     0.2,
+			Status:       "NEW",
+		}},
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"positionAmt": 1.0,
+		}},
 	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: make(map[string]string),
+	}
+	at.setProtectionState("BTCUSDT", "long", "native_partial_trailing_armed")
 
-	matched := at.matchDrawdownRule(12, 25, rules)
-	if matched == nil {
-		t.Fatal("expected a matched rule")
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 6, MaxDrawdownPct: 2.5, CloseRatioPct: 50}
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
+	if !ok {
+		t.Fatal("expected native partial trailing drawdown to succeed")
 	}
-	if matched.MinProfitPct != 10 || matched.CloseRatioPct != 50 {
-		t.Fatalf("expected higher-priority rule, got %+v", *matched)
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected exactly one new trailing order placement, got %d", fake.trailingCalls)
 	}
+	if len(fake.openOrders) < 2 {
+		t.Fatalf("expected new trailing order to be visible in open orders before any cleanup logic, got %d orders", len(fake.openOrders))
+	}
+	if fake.cancelTrailingCalls != 0 {
+		t.Fatalf("expected no blanket trailing cleanup during append path, got %d", fake.cancelTrailingCalls)
+	}
+}
 
-	if matched := at.matchDrawdownRule(4, 60, rules); matched != nil {
-		t.Fatalf("expected no rule below min profit, got %+v", *matched)
+func TestApplyNativePartialTrailingDrawdownReplacesOldTierAfterNewTierVisible(t *testing.T) {
+	entryPrice := 100.0
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 6, MaxDrawdownPct: 2.5, CloseRatioPct: 50}
+	callback := calculateProfitBasedTrailingCallbackRatio(entryPrice, "long", rule.MinProfitPct, rule.MaxDrawdownPct)
+	fake := &fakeProtectionTrader{
+		openOrders: []tradertypes.OpenOrder{{
+			OrderID:      "old-tier",
+			Symbol:       "BTCUSDT",
+			PositionSide: "LONG",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    103,
+			CallbackRate: callback,
+			Quantity:     0.5,
+			Status:       "NEW",
+		}},
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"positionAmt": 1.0,
+		}},
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: make(map[string]string),
+	}
+	at.setProtectionState("BTCUSDT", "long", "native_partial_trailing_armed")
+
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", entryPrice, rule)
+	if !ok {
+		t.Fatal("expected partial trailing replacement to succeed")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected one new tier placement, got %d", fake.trailingCalls)
+	}
+	if fake.cancelTrailingCalls == 0 {
+		t.Fatal("expected old tier to be canceled after new tier became visible")
+	}
+	for _, order := range fake.openOrders {
+		if order.OrderID == "old-tier" {
+			t.Fatalf("expected old tier to be removed, still found %+v", order)
+		}
 	}
 }
 

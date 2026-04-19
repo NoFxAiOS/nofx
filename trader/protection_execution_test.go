@@ -52,6 +52,14 @@ func (f *fakeOrderProtectionTrader) SetStopLoss(symbol string, positionSide stri
 		symbol, positionSide string
 		quantity, price      float64
 	}{symbol, positionSide, quantity, stopPrice})
+	f.openOrders = append(f.openOrders, tradertypes.OpenOrder{
+		Symbol:       symbol,
+		PositionSide: positionSide,
+		Type:         "STOP_MARKET",
+		StopPrice:    stopPrice,
+		Quantity:     quantity,
+		Status:       "NEW",
+	})
 	return nil
 }
 func (f *fakeOrderProtectionTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
@@ -62,6 +70,14 @@ func (f *fakeOrderProtectionTrader) SetTakeProfit(symbol string, positionSide st
 		symbol, positionSide string
 		quantity, price      float64
 	}{symbol, positionSide, quantity, takeProfitPrice})
+	f.openOrders = append(f.openOrders, tradertypes.OpenOrder{
+		Symbol:       symbol,
+		PositionSide: positionSide,
+		Type:         "TAKE_PROFIT_MARKET",
+		StopPrice:    takeProfitPrice,
+		Quantity:     quantity,
+		Status:       "NEW",
+	})
 	return nil
 }
 func (f *fakeOrderProtectionTrader) CancelStopLossOrders(symbol string) error   { return nil }

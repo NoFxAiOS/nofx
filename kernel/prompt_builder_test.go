@@ -168,12 +168,8 @@ func TestValidateDecisionFormat(t *testing.T) {
 		decisions := []Decision{}
 
 		err := ValidateDecisionFormat(decisions)
-		if err == nil {
-			t.Error("Empty decisions should return error")
-		}
-
-		if !strings.Contains(err.Error(), "cannot be empty") {
-			t.Errorf("Error message should mention 'cannot be empty', got: %v", err)
+		if err != nil {
+			t.Errorf("Empty decisions should be allowed as no-trade, got: %v", err)
 		}
 	})
 

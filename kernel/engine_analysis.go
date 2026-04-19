@@ -391,10 +391,21 @@ func ValidateAIDecisions(decisions []Decision) error {
 	return ValidateDecisionFormat(decisions)
 }
 
+func ValidateAIDecisionsWithStrategyAndCoT(decisions []Decision, config *store.StrategyConfig, cotTrace string) error {
+	if err := ValidateDecisionFormatWithCoT(decisions, cotTrace); err != nil {
+		return err
+	}
+	return validateAIDecisionRoutesWithStrategy(decisions, config)
+}
+
 func ValidateAIDecisionsWithStrategy(decisions []Decision, config *store.StrategyConfig) error {
 	if err := ValidateDecisionFormat(decisions); err != nil {
 		return err
 	}
+	return validateAIDecisionRoutesWithStrategy(decisions, config)
+}
+
+func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.StrategyConfig) error {
 	if config == nil {
 		return nil
 	}
@@ -440,10 +451,7 @@ func ParseAndValidateAIDecisionsWithStrategy(response string, config *store.Stra
 		return nil, err
 	}
 	cot := extractCoTTrace(response)
-	if err := ValidateDecisionFormatWithCoT(decisions, cot); err != nil {
-		return decisions, err
-	}
-	if err := ValidateAIDecisionsWithStrategy(decisions, config); err != nil {
+	if err := ValidateAIDecisionsWithStrategyAndCoT(decisions, config, cot); err != nil {
 		return decisions, err
 	}
 	if err := ValidateProtectionReasoningContract(cot, config); err != nil {

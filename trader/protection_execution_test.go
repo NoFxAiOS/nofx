@@ -24,6 +24,7 @@ type fakeOrderProtectionTrader struct {
 	getOpenOrdersCalls     int
 	visibleFromCall        int
 	formatQuantityErrBelow float64
+	validateQtyErrBelow    float64
 }
 
 func (f *fakeOrderProtectionTrader) GetBalance() (map[string]interface{}, error)     { return nil, nil }
@@ -91,6 +92,12 @@ func (f *fakeOrderProtectionTrader) FormatQuantity(symbol string, quantity float
 	}
 	return "", nil
 }
+func (f *fakeOrderProtectionTrader) ValidateProtectionQuantity(symbol string, quantity float64) error {
+	if f.validateQtyErrBelow > 0 && quantity < f.validateQtyErrBelow {
+		return fmt.Errorf("minimum order amount")
+	}
+	return nil
+}
 func (f *fakeOrderProtectionTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
 	return nil, nil
 }
@@ -120,8 +127,8 @@ func TestValidateProtectionPlanExecutionDropsNonExecutableLadderTiers(t *testing
 		},
 	}
 
-	// Fake OKX min-size enforcement via FormatQuantity error on tiny split qty.
-	fakeTrader.formatQuantityErrBelow = 0.06
+	// Fake OKX min-size enforcement via explicit protection quantity validation on tiny split qty.
+	fakeTrader.validateQtyErrBelow = 0.06
 	validated, err := at.validateProtectionPlanExecution("TRUMPUSDT", "LONG", 0.1, plan)
 	if err != nil {
 		t.Fatalf("expected validation success, got %v", err)
@@ -145,7 +152,7 @@ func TestPlaceAndVerifyProtectionPlanFallsBackToFullStopWhenLadderIsNonExecutabl
 			{Price: 96, CloseRatioPct: 50},
 		},
 	}
-	fakeTrader.formatQuantityErrBelow = 0.06
+	fakeTrader.validateQtyErrBelow = 0.06
 
 	if err := at.placeAndVerifyProtectionPlan("TRUMPUSDT", "LONG", 0.1, plan); err != nil {
 		t.Fatalf("expected protection plan to degrade to full stop, got %v", err)

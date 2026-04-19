@@ -200,7 +200,7 @@ func (at *AutoTrader) validateProtectionPlanExecution(symbol, positionSide strin
 	}
 
 	if okxTrader, ok := at.trader.(interface {
-		FormatQuantity(symbol string, quantity float64) (string, error)
+		ValidateProtectionQuantity(symbol string, quantity float64) error
 	}); ok {
 		filterExecutable := func(orders []ProtectionOrder) []ProtectionOrder {
 			if len(orders) == 0 {
@@ -212,7 +212,7 @@ func (at *AutoTrader) validateProtectionPlanExecution(symbol, positionSide strin
 				if orderQty <= 0 {
 					continue
 				}
-				if _, err := okxTrader.FormatQuantity(symbol, orderQty); err != nil {
+				if err := okxTrader.ValidateProtectionQuantity(symbol, orderQty); err != nil {
 					logger.Warnf("  ⚠️ Protection tier dropped as non-executable: symbol=%s side=%s price=%.6f qty=%.6f err=%v", symbol, positionSide, order.Price, orderQty, err)
 					continue
 				}

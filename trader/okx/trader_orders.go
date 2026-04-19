@@ -389,6 +389,35 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 	}, nil
 }
 
+// ValidateProtectionQuantity checks whether a base-asset quantity can produce a valid
+// OKX contract size after lot-size rounding. It is intentionally stricter than
+// FormatQuantity so protection planning can degrade before sending impossible orders.
+func (t *OKXTrader) ValidateProtectionQuantity(symbol string, quantity float64) error {
+	inst, err := t.getInstrument(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to get instrument info: %w", err)
+	}
+	if inst.CtVal <= 0 {
+		return fmt.Errorf("invalid instrument contract value")
+	}
+	contracts := quantity / inst.CtVal
+	if inst.MinSz > 0 && contracts < inst.MinSz {
+		return fmt.Errorf("quantity %.8f below min contracts %.8f", contracts, inst.MinSz)
+	}
+	if inst.LotSz > 0 && contracts < inst.LotSz {
+		return fmt.Errorf("quantity %.8f below lot size %.8f", contracts, inst.LotSz)
+	}
+	formatted := t.formatSize(contracts, inst)
+	formattedContracts, err := strconv.ParseFloat(formatted, 64)
+	if err != nil || formattedContracts <= 0 {
+		return fmt.Errorf("quantity %.8f rounds to invalid contract size %q", contracts, formatted)
+	}
+	if inst.MinSz > 0 && formattedContracts < inst.MinSz {
+		return fmt.Errorf("quantity %.8f rounds below min contracts %.8f", formattedContracts, inst.MinSz)
+	}
+	return nil
+}
+
 // SetTrailingStopLoss sets a native trailing stop on OKX advance algo orders
 func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
 	return t.setTrailingStopLossWithTag(symbol, positionSide, activationPrice, callbackRate, quantity, "")

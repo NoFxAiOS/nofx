@@ -45,6 +45,20 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ---
 
+## 빠른 데모
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1frzw-HDZ3viQvLOQKsAJGc9bT0dXs68D/view">
+    <img src="../../../screenshots/demo-cover.png" alt="NOFX 빠른 데모 영상" width="900"/>
+  </a>
+</p>
+
+<p align="center">
+  커버 이미지를 클릭하면 데모 영상을 볼 수 있습니다.
+</p>
+
+---
+
 ## x402 작동 방식
 
 기존 플로우: 계정 등록 → 크레딧 구매 → API 키 받기 → 쿼터 관리 → 키 교체.

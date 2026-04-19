@@ -1,17 +1,24 @@
 
-## Route-aware Protection Hard Constraints (2026-04-15)
+## Drawdown / Break-even Analysis Contracts (2026-04-15)
 
 ### What is now enforced
-- Full and Ladder are no longer treated as AI preference choices in the acceptance layer.
-- They are treated as strategy-selected protection routes.
-- Under `full_tp_sl.mode=ai` with ladder disabled, open actions must carry `protection_plan.mode=full`.
-- Under `ladder_tp_sl.mode=ai` with full disabled, open actions must carry `protection_plan.mode=ladder`.
-- Ladder route currently enforces 2~3 tiers.
+- Drawdown Take Profit and Break-even Stop are no longer only prompt hints.
+- They are treated as reasoning contracts when enabled in strategy config.
+- AI reasoning must explicitly acknowledge:
+  - drawdown / trailing / profit-protection ownership when drawdown_take_profit is enabled
+  - break-even / additional stop layer when break_even_stop is enabled
 
-### What is not fully enforced yet
-- Drawdown / Break-even are currently treated as analysis-contract constraints, not output-shape constraints.
-- They are acknowledged in prompt guidance, but not yet promoted to full route-aware validator rules.
+### Where this is enforced
+- `kernel/protection_reasoning_contract.go`
+- `kernel/engine_analysis.go` via `ParseAndValidateAIDecisionsWithStrategy(...)`
+- `/api/strategies/test-run` now exposes reasoning-contract failures through `parse_error`
+- `cmd/protectiontestrun` also uses the same contract-aware validation chain
 
-### Real validation status
-- Full route: real model output validated successfully (`open_long + protection_plan.mode=full + pct fields`, parse_error empty).
-- Ladder route: engineering path validated, but real model under tested market contexts still prefers `wait`; no real ladder output observed yet.
+### Covered tests
+- `kernel/protection_reasoning_contract_test.go`
+- `api/strategy_test_run_reasoning_contract_test.go`
+
+### Scope boundary
+- These are analysis-contract constraints, not new decision JSON shape constraints.
+- Full / Ladder remain route-aware shape constraints.
+- Drawdown / Break-even currently require explicit acknowledgement in reasoning, not a dedicated protection JSON payload.

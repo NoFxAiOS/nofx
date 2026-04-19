@@ -1,7 +1,7 @@
 
 
-- [x] 已形成“模型波动/任务中断”容灾方案：新增 `docs/MODEL_RESILIENCE_AND_DELIVERY_CONTINUITY_CN.md`，明确默认采用流程级容灾 + subagent 子任务隔离 + fallback 模型续航 + 文件化证据，减少因单次模型失稳而中断交付。
-- [ ] 在真实 `nofxmax` 主线任务中持续执行该容灾方案，观察是否显著减少中途回问与任务断线。
+- [x] 已明确“一次交付目标”：后续 coding 任务默认自主推进到可交付再汇报，不再把普通推进步骤、一般阻塞、模型瞬时波动反复抛回给用户。
+- [ ] 在当前 `nofxmax` 主线上按一次交付模式继续：优先恢复对 Drawdown / Break-even / protection 真实执行层问题的连续推进，并在阶段完成后直接交付结果包。
 - protection 配置闭环补充：
   - [x] `PUT /api/strategies/:id` → `GET /api/strategies/:id` API 级回读验证已补齐，确认 Full/Ladder/fallback 深层字段不会因局部更新被冲掉
   - [x] 运行态配置来源已核清：Trader 优先读取自身 `strategy_id` 对应的 strategy；`active strategy` 只在 trader 未绑定 strategy_id 时作为 fallback

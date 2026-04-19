@@ -48,7 +48,8 @@
       "btc_eth_position_value_ratio": 0.2,
       "altcoin_position_value_ratio": 0.1,
       "max_positions": 3,
-      "min_confidence": 75
+      "min_confidence": 75,
+      "max_margin_usage": 0.9
     },
     "protection": {
       "full_tp_sl": {

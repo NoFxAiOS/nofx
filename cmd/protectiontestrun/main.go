@@ -145,12 +145,10 @@ func main() {
 		log.Fatalf("real AI call failed: %v", err)
 	}
 
-	parsed, parseErr := kernel.ParseAIDecisions(response)
+	parsed, parseErr := kernel.ParseAndValidateAIDecisionsWithStrategy(response, &fixture.Config)
 	parseErrText := ""
 	if parseErr != nil {
 		parseErrText = parseErr.Error()
-	} else if err := kernel.ValidateAIDecisionsWithStrategy(parsed, &fixture.Config); err != nil {
-		parseErrText = err.Error()
 	}
 
 	result := map[string]any{

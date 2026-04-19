@@ -1,7 +1,7 @@
 
 - 阶段切换：`Protection AI Workflow` 主线阶段性收口，后续主线转向执行层真实问题：Drawdown 多档委托生命周期 + Break-even 实盘委托可观测性。
 
-- 2026-04-17：针对“编码任务中断、模型波动导致交付不连续”的用户体验问题，已进一步完成两层落地：
+- 2026-04-17：用户再次明确要求“不是讲规则，是现在开工，而且要按一次交付目标推进”。已把执行目标进一步收紧为：默认自主推进到可交付结果包再汇报，普通阻塞、模型瞬时波动、一般调查验证步骤都由内部自行消化；当前主线继续回到 `nofxmax` 执行层真实问题（Drawdown / Break-even / protection），不再停在流程讨论。
   - 本地建立 `~/agentic-coding/` 持久体系（memory / contracts / evidence / handoffs），把 coding 执行纪律从临时会话状态升级为持久方法。
   - 仓库新增 `docs/MODEL_RESILIENCE_AND_DELIVERY_CONTINUITY_CN.md`，明确后续默认采用：流程级容灾、subagent 子任务隔离、fallback 模型续航、文件化证据、少打断多收口。
   - 目标不是“换一个模型赌稳定”，而是让任务在模型波动时也能继续推进并最终一次性交付。

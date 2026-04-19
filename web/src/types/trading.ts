@@ -254,6 +254,13 @@ export interface TraderConfigData {
 }
 
 // Position History Types
+export interface DecisionReviewRef {
+  decision_record_id: number
+  cycle_number: number
+  timestamp: string
+  review_context?: Record<string, unknown>
+}
+
 export interface PositionCloseEvent {
   id: number
   position_id: number
@@ -265,6 +272,7 @@ export interface PositionCloseEvent {
   execution_source: string
   execution_type: string
   decision_cycle?: number
+  decision_review?: DecisionReviewRef
   exchange_order_id: string
   close_quantity: number
   close_ratio_pct: number
@@ -287,10 +295,12 @@ export interface HistoricalPosition {
   entry_price: number
   entry_order_id: string
   entry_decision_cycle?: number
+  entry_decision_review?: DecisionReviewRef
   entry_time: string
   exit_price: number
   exit_order_id: string
   exit_decision_cycle?: number
+  exit_decision_review?: DecisionReviewRef
   exit_time: string
   realized_pnl: number
   fee: number

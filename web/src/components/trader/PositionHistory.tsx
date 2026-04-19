@@ -48,6 +48,27 @@ function formatDate(dateStr: string): string {
   })
 }
 
+function formatReviewContextSummary(reviewContext?: Record<string, unknown>): string {
+  if (!reviewContext) return '—'
+
+  const safeMode = reviewContext.safe_mode
+  const safeModeReason = reviewContext.safe_mode_reason
+  const aiDecisionMode = reviewContext.ai_decision_mode
+  const candidateCount = reviewContext.candidate_count
+  const positionCount = reviewContext.position_count
+  const marginUsedPct = reviewContext.margin_used_pct
+
+  const parts: string[] = []
+  if (typeof aiDecisionMode === 'string' && aiDecisionMode) parts.push(`mode=${aiDecisionMode}`)
+  if (typeof candidateCount === 'number') parts.push(`candidates=${candidateCount}`)
+  if (typeof positionCount === 'number') parts.push(`positions=${positionCount}`)
+  if (typeof marginUsedPct === 'number') parts.push(`margin=${marginUsedPct.toFixed(1)}%`)
+  if (typeof safeMode === 'boolean') parts.push(`safe=${safeMode ? 'on' : 'off'}`)
+  if (typeof safeModeReason === 'string' && safeModeReason) parts.push(`reason=${safeModeReason}`)
+
+  return parts.length > 0 ? parts.join(' | ') : '—'
+}
+
 // Stats Card Component with formula tooltip
 function StatCard({
   title,
@@ -402,6 +423,12 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                 </div>
               </div>
               <div>
+                <div style={{ color: '#848E9C' }}>{'复盘上下文 / Review Context'}</div>
+                <div className="text-[11px] leading-5" style={{ color: '#EAECEF' }}>
+                  {formatReviewContextSummary(position.exit_decision_review?.review_context || position.entry_decision_review?.review_context)}
+                </div>
+              </div>
+              <div>
                 <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
                 <div className="font-mono" style={{ color: '#EAECEF' }}>{closeRatioPct > 0 ? `${closeRatioPct.toFixed(2)}%` : '—'}</div>
               </div>
@@ -436,6 +463,12 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                       <div>
                         <div style={{ color: '#848E9C' }}>{'决策周期 / Cycle'}</div>
                         <div className="font-mono" style={{ color: '#EAECEF' }}>{event.decision_cycle || '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'复盘上下文 / Review'}</div>
+                        <div className="text-[11px] leading-5" style={{ color: '#EAECEF' }}>
+                          {formatReviewContextSummary(event.decision_review?.review_context)}
+                        </div>
                       </div>
                       <div>
                         <div style={{ color: '#848E9C' }}>{'PnL / Time'}</div>

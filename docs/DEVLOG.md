@@ -1,7 +1,14 @@
 
 - 阶段切换：`Protection AI Workflow` 主线阶段性收口，后续主线转向执行层真实问题：Drawdown 多档委托生命周期 + Break-even 实盘委托可观测性。
 
-- 2026-04-17：用户再次明确要求“不是讲规则，是现在开工，而且要按一次交付目标推进”。已把执行目标进一步收紧为：默认自主推进到可交付结果包再汇报，普通阻塞、模型瞬时波动、一般调查验证步骤都由内部自行消化；当前主线继续回到 `nofxmax` 执行层真实问题（Drawdown / Break-even / protection），不再停在流程讨论。
+- 2026-04-20：完成 `nofxmax` Drawdown / Break-even / protection 执行层集中收口，并产出交付总结 `docs/PROTECTION_EXECUTION_DELIVERY_2026-04-20.md`。
+  - 启动链路：修复启动期余额拉取阻塞、`start.sh` 非幂等重启、API query reload storm。
+  - 基础保护：ladder / full / fallback 在执行前做可执行性校验；小仓位不可执行 ladder 会降级，不再无限重试交易所拒单。
+  - Reconciler：single-tier ladder 必须按具体价格存在，不能被 break-even/fallback/旧 stop 冒充；unexpected order 改为按角色识别；OKX cleanup 优先按 tag 精确清理。
+  - Drawdown：多档规则只取当前满足的最高利润阶段，同档多规则可共存，避免高利润阶段回头补低档。
+  - Break-even：独立 overlay，不再破坏 ladder/full stop-loss；stable fingerprint 不重复 reapply。
+  - 验证：本轮收口后 `go test ./...` 通过。后续新任务建议转入真实持仓验收、保护摘要可视化、fixture 产物取舍。
+
   - 本地建立 `~/agentic-coding/` 持久体系（memory / contracts / evidence / handoffs），把 coding 执行纪律从临时会话状态升级为持久方法。
   - 仓库新增 `docs/MODEL_RESILIENCE_AND_DELIVERY_CONTINUITY_CN.md`，明确后续默认采用：流程级容灾、subagent 子任务隔离、fallback 模型续航、文件化证据、少打断多收口。
   - 目标不是“换一个模型赌稳定”，而是让任务在模型波动时也能继续推进并最终一次性交付。

@@ -580,6 +580,44 @@ func (t *OKXTrader) CancelTrailingStopOrdersByIDs(symbol string, orderIDs []stri
 	return nil
 }
 
+func (t *OKXTrader) cancelAlgoOrdersByTag(symbol string, ordType string, reasonTag string) error {
+	instId := t.convertSymbol(symbol)
+	tag := okxReasonTag(reasonTag)
+	path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=%s", okxAlgoPendingPath, instId, ordType)
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get algo orders for cleanup: %w", err)
+	}
+
+	var orders []struct {
+		AlgoId string `json:"algoId"`
+		InstId string `json:"instId"`
+		Tag    string `json:"tag"`
+	}
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return fmt.Errorf("failed to parse algo orders for cleanup: %w", err)
+	}
+
+	for _, order := range orders {
+		if strings.TrimSpace(order.Tag) != tag {
+			continue
+		}
+		body := []map[string]interface{}{{"algoId": order.AlgoId, "instId": order.InstId}}
+		if _, err := t.doRequest("POST", okxCancelAlgoPath, body); err != nil {
+			return fmt.Errorf("failed to cancel tagged algo order %s: %w", order.AlgoId, err)
+		}
+	}
+	return nil
+}
+
+func (t *OKXTrader) CancelStopLossOrdersTagged(symbol string, reasonTag string) error {
+	return t.cancelAlgoOrdersByTag(symbol, "conditional", reasonTag)
+}
+
+func (t *OKXTrader) CancelTakeProfitOrdersTagged(symbol string, reasonTag string) error {
+	return t.cancelAlgoOrdersByTag(symbol, "conditional", reasonTag)
+}
+
 // SetStopLoss sets stop loss order
 func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	return t.setStopLossWithTag(symbol, positionSide, quantity, stopPrice, "")

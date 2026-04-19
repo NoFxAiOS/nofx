@@ -640,17 +640,32 @@ func countOrdersForPositionSide(openOrders []OpenOrder, positionSide string) int
 
 // cancelProtectionOrdersForCleanup cancels all SL and TP algo orders for a symbol
 // to prepare for a clean re-application of the correct protection plan.
+type okxProtectionCanceller interface {
+	CancelStopLossOrders(symbol string) error
+	CancelTakeProfitOrders(symbol string) error
+}
+
+type okxTaggedProtectionCanceller interface {
+	CancelStopLossOrdersTagged(symbol string, reasonTag string) error
+	CancelTakeProfitOrdersTagged(symbol string, reasonTag string) error
+}
+
 func (at *AutoTrader) cancelProtectionOrdersForCleanup(symbol string) {
-	if canceller, ok := at.trader.(interface {
-		CancelStopLossOrders(symbol string) error
-	}); ok {
+	if tagged, ok := at.trader.(okxTaggedProtectionCanceller); ok {
+		for _, tag := range []string{"ladder_sl", "full_sl", "fallback_maxloss_sl", "break_even_stop"} {
+			if err := tagged.CancelStopLossOrdersTagged(symbol, tag); err != nil {
+				logger.Warnf("  ⚠️ Cleanup: failed to cancel tagged SL orders for %s [%s]: %v", symbol, tag, err)
+			}
+		}
+		for _, tag := range []string{"ladder_tp", "full_tp"} {
+			if err := tagged.CancelTakeProfitOrdersTagged(symbol, tag); err != nil {
+				logger.Warnf("  ⚠️ Cleanup: failed to cancel tagged TP orders for %s [%s]: %v", symbol, tag, err)
+			}
+		}
+	} else if canceller, ok := at.trader.(okxProtectionCanceller); ok {
 		if err := canceller.CancelStopLossOrders(symbol); err != nil {
 			logger.Warnf("  ⚠️ Cleanup: failed to cancel SL orders for %s: %v", symbol, err)
 		}
-	}
-	if canceller, ok := at.trader.(interface {
-		CancelTakeProfitOrders(symbol string) error
-	}); ok {
 		if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
 			logger.Warnf("  ⚠️ Cleanup: failed to cancel TP orders for %s: %v", symbol, err)
 		}

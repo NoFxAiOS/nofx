@@ -45,6 +45,20 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ---
 
+## Швидке демо
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1frzw-HDZ3viQvLOQKsAJGc9bT0dXs68D/view">
+    <img src="../../../screenshots/demo-cover.png" alt="Відео швидкого демо NOFX" width="900"/>
+  </a>
+</p>
+
+<p align="center">
+  Натисніть на зображення обкладинки, щоб переглянути демо-відео.
+</p>
+
+---
+
 ## Як працює x402
 
 Традиційний процес: реєстрація → купівля кредитів → отримання API ключа → управління квотою → ротація ключів.

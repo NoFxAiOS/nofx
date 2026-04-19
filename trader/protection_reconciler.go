@@ -94,6 +94,38 @@ func (at *AutoTrader) reconcilePositionProtections() {
 	at.cleanupInactiveProtectionState(active)
 }
 
+func (at *AutoTrader) describeProtectionSnapshot(symbol, side string, openOrders []OpenOrder, plan *ProtectionPlan, breakEvenArmed bool, nativeTrailingArmed bool) string {
+	parts := make([]string, 0, len(openOrders)+8)
+	for _, order := range openOrders {
+		if side != "" && order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+			continue
+		}
+		kind := order.Type
+		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			kind = fmt.Sprintf("%s@%.6f/cb=%.6f", order.Type, order.StopPrice, order.CallbackRate)
+		} else {
+			kind = fmt.Sprintf("%s@%.6f", order.Type, order.StopPrice)
+		}
+		parts = append(parts, kind)
+	}
+	if plan != nil {
+		parts = append(parts, fmt.Sprintf("planStops=%d", len(plan.StopLossOrders)))
+		parts = append(parts, fmt.Sprintf("planTPs=%d", len(plan.TakeProfitOrders)))
+		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
+			parts = append(parts, fmt.Sprintf("fullSL=%.6f", plan.StopLossPrice))
+		}
+		if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
+			parts = append(parts, fmt.Sprintf("fullTP=%.6f", plan.TakeProfitPrice))
+		}
+		if plan.FallbackMaxLossPrice > 0 {
+			parts = append(parts, fmt.Sprintf("fallback=%.6f", plan.FallbackMaxLossPrice))
+		}
+	}
+	parts = append(parts, fmt.Sprintf("beArmed=%t", breakEvenArmed))
+	parts = append(parts, fmt.Sprintf("trailingArmed=%t", nativeTrailingArmed))
+	return strings.Join(parts, " | ")
+}
+
 func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quantity, entryPrice float64) error {
 	positionSide := strings.ToUpper(side)
 	currentProtectionState := at.getProtectionState(symbol, side)
@@ -146,6 +178,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		planOrderCount := protectionOrderCountForPlan(plan)
 		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
 		unexpectedStops, unexpectedTPs := detectUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+		logger.Infof("🔎 Protection snapshot: %s %s | %s", symbol, positionSide, at.describeProtectionSnapshot(symbol, side, openOrders, plan, breakEvenArmed, nativeTrailingArmed))
 
 		// Detect duplicate/stale orders by explicit order-role mismatch, not only coarse order counts.
 		// This keeps valid break-even / trailing orders while removing old ladder/fallback debris.

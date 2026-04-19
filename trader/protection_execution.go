@@ -232,8 +232,18 @@ func (at *AutoTrader) validateProtectionPlanExecution(symbol, positionSide strin
 		}
 	}
 
-	if len(adjusted.StopLossOrders) == 0 && len(adjusted.TakeProfitOrders) == 0 && !adjusted.NeedsStopLoss && !adjusted.NeedsTakeProfit && adjusted.FallbackMaxLossPrice <= 0 {
-		return &adjusted, nil
+	adjusted.NeedsStopLoss = plan.NeedsStopLoss && (plan.StopLossPrice > 0 || len(adjusted.StopLossOrders) > 0)
+	adjusted.NeedsTakeProfit = plan.NeedsTakeProfit && (plan.TakeProfitPrice > 0 || len(adjusted.TakeProfitOrders) > 0)
+
+	if len(adjusted.StopLossOrders) > 0 {
+		adjusted.StopLossPrice = 0
+	}
+	if len(adjusted.TakeProfitOrders) > 0 {
+		adjusted.TakeProfitPrice = 0
+	}
+
+	if !adjusted.NeedsStopLoss && !adjusted.NeedsTakeProfit && adjusted.FallbackMaxLossPrice <= 0 {
+		return nil, nil
 	}
 	return &adjusted, nil
 }

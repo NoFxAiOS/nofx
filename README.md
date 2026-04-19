@@ -45,6 +45,20 @@ Open **http://127.0.0.1:3000**. Done.
 
 ---
 
+## Quick Demo
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1ig3GSTuKpvpvJTGe1vnONsKd3AeT8pBr/view">
+    <img src="screenshots/demo-cover.png" alt="NOFX quick demo video" width="900"/>
+  </a>
+</p>
+
+<p align="center">
+  Click the cover image to watch the demo video.
+</p>
+
+---
+
 ## How x402 Works
 
 Traditional flow: register account → buy credits → get API key → manage quota → rotate keys.

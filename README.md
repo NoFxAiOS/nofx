@@ -48,7 +48,7 @@ Open **http://127.0.0.1:3000**. Done.
 ## Quick Demo
 
 <p align="center">
-  <a href="https://drive.google.com/file/d/1ig3GSTuKpvpvJTGe1vnONsKd3AeT8pBr/view">
+  <a href="https://drive.google.com/file/d/1frzw-HDZ3viQvLOQKsAJGc9bT0dXs68D/view">
     <img src="screenshots/demo-cover.png" alt="NOFX quick demo video" width="900"/>
   </a>
 </p>
@@ -73,22 +73,22 @@ No accounts. No API keys. No prepaid credits. One wallet, every model.
 
 ### Built-in x402 Providers
 
-| Provider | Chain | Models |
-|:---------|:------|:-------|
-| <img src="web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base | GPT-5.4, Claude Opus, DeepSeek, Qwen, Grok, Gemini, Kimi — 15+ models |
+| Provider                                                                                                                           | Chain | Models                                                                |
+| :--------------------------------------------------------------------------------------------------------------------------------- | :---- | :-------------------------------------------------------------------- |
+| <img src="web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base  | GPT-5.4, Claude Opus, DeepSeek, Qwen, Grok, Gemini, Kimi — 15+ models |
 
 ---
 
 ## What It Does
 
-| Feature | Description |
-|:--------|:------------|
-| **Multi-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — switch anytime |
-| **Multi-Exchange** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
-| **Strategy Studio** | Visual builder — coin sources, indicators, risk controls |
-| **AI Competition** | AIs compete in real-time, leaderboard ranks performance |
-| **Telegram Agent** | Chat with your trading assistant — streaming, tool calling, memory |
-| **Dashboard** | Live positions, P/L, AI decision logs with Chain of Thought |
+| Feature             | Description                                                               |
+| :------------------ | :------------------------------------------------------------------------ |
+| **Multi-AI**        | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — switch anytime |
+| **Multi-Exchange**  | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter    |
+| **Strategy Studio** | Visual builder — coin sources, indicators, risk controls                  |
+| **AI Competition**  | AIs compete in real-time, leaderboard ranks performance                   |
+| **Telegram Agent**  | Chat with your trading assistant — streaming, tool calling, memory        |
+| **Dashboard**       | Live positions, P/L, AI decision logs with Chain of Thought               |
 
 ### Markets
 
@@ -96,35 +96,35 @@ Crypto · US Stocks · Forex · Metals
 
 ### Exchanges (CEX)
 
-| Exchange | Status | Register (Fee Discount) |
-|:---------|:------:|:------------------------|
-| <img src="web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [Register](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [Register](https://partner.bybit.com/b/83856) |
-| <img src="web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [Register](https://www.okx.com/join/1865360) |
-| <img src="web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [Register](https://www.kucoin.com/r/broker/CXEV7XKK) |
-| <img src="web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [Register](https://www.gatenode.xyz/share/VQBGUAxY) |
+| Exchange                                                                                                              | Status | Register (Fee Discount)                                                              |
+| :-------------------------------------------------------------------------------------------------------------------- | :----: | :----------------------------------------------------------------------------------- |
+| <img src="web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** |   ✅   | [Register](https://www.binance.com/join?ref=NOFXENG)                                 |
+| <img src="web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit**     |   ✅   | [Register](https://partner.bybit.com/b/83856)                                        |
+| <img src="web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX**         |   ✅   | [Register](https://www.okx.com/join/1865360)                                         |
+| <img src="web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget**   |   ✅   | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| <img src="web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin**   |   ✅   | [Register](https://www.kucoin.com/r/broker/CXEV7XKK)                                 |
+| <img src="web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate**       |   ✅   | [Register](https://www.gatenode.xyz/share/VQBGUAxY)                                  |
 
 ### Exchanges (Perp-DEX)
 
-| Exchange | Status | Register (Fee Discount) |
-|:---------|:------:|:------------------------|
-| <img src="web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [Register](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster DEX** | ✅ | [Register](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [Register](https://app.lighter.xyz/?referral=68151432) |
+| Exchange                                                                                                                      | Status | Register (Fee Discount)                                 |
+| :---------------------------------------------------------------------------------------------------------------------------- | :----: | :------------------------------------------------------ |
+| <img src="web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** |   ✅   | [Register](https://app.hyperliquid.xyz/join/AITRADING)  |
+| <img src="web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster DEX**         |   ✅   | [Register](https://www.asterdex.com/en/referral/fdfc0e) |
+| <img src="web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter**         |   ✅   | [Register](https://app.lighter.xyz/?referral=68151432)  |
 
 ### AI Models (API Key Mode)
 
-| AI Model | Status | Get API Key |
-|:---------|:------:|:------------|
-| <img src="web/public/icons/deepseek.svg" width="20" height="20" style="vertical-align: middle;"/> **DeepSeek** | ✅ | [Get API Key](https://platform.deepseek.com) |
-| <img src="web/public/icons/qwen.svg" width="20" height="20" style="vertical-align: middle;"/> **Qwen** | ✅ | [Get API Key](https://dashscope.console.aliyun.com) |
-| <img src="web/public/icons/openai.svg" width="20" height="20" style="vertical-align: middle;"/> **OpenAI (GPT)** | ✅ | [Get API Key](https://platform.openai.com) |
-| <img src="web/public/icons/claude.svg" width="20" height="20" style="vertical-align: middle;"/> **Claude** | ✅ | [Get API Key](https://console.anthropic.com) |
-| <img src="web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [Get API Key](https://aistudio.google.com) |
-| <img src="web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [Get API Key](https://console.x.ai) |
-| <img src="web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [Get API Key](https://platform.moonshot.cn) |
-| <img src="web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [Get API Key](https://platform.minimaxi.com) |
+| AI Model                                                                                                         | Status | Get API Key                                         |
+| :--------------------------------------------------------------------------------------------------------------- | :----: | :-------------------------------------------------- |
+| <img src="web/public/icons/deepseek.svg" width="20" height="20" style="vertical-align: middle;"/> **DeepSeek**   |   ✅   | [Get API Key](https://platform.deepseek.com)        |
+| <img src="web/public/icons/qwen.svg" width="20" height="20" style="vertical-align: middle;"/> **Qwen**           |   ✅   | [Get API Key](https://dashscope.console.aliyun.com) |
+| <img src="web/public/icons/openai.svg" width="20" height="20" style="vertical-align: middle;"/> **OpenAI (GPT)** |   ✅   | [Get API Key](https://platform.openai.com)          |
+| <img src="web/public/icons/claude.svg" width="20" height="20" style="vertical-align: middle;"/> **Claude**       |   ✅   | [Get API Key](https://console.anthropic.com)        |
+| <img src="web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini**       |   ✅   | [Get API Key](https://aistudio.google.com)          |
+| <img src="web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok**           |   ✅   | [Get API Key](https://console.x.ai)                 |
+| <img src="web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi**           |   ✅   | [Get API Key](https://platform.moonshot.cn)         |
+| <img src="web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax**     |   ✅   | [Get API Key](https://platform.minimaxi.com)        |
 
 ### AI Models (x402 Mode — No API Key)
 
@@ -137,41 +137,45 @@ Crypto · US Stocks · Forex · Metals
 <details>
 <summary><b>Config Page</b></summary>
 
-| AI Models & Exchanges | Traders List |
-|:---:|:---:|
+|                    AI Models & Exchanges                     |                         Traders List                         |
+| :----------------------------------------------------------: | :----------------------------------------------------------: |
 | <img src="screenshots/config-ai-exchanges.png" width="400"/> | <img src="screenshots/config-traders-list.png" width="400"/> |
+
 </details>
 
 <details>
 <summary><b>Dashboard</b></summary>
 
-| Overview | Market Chart |
-|:---:|:---:|
+|                        Overview                         |                          Market Chart                           |
+| :-----------------------------------------------------: | :-------------------------------------------------------------: |
 | <img src="screenshots/dashboard-page.png" width="400"/> | <img src="screenshots/dashboard-market-chart.png" width="400"/> |
 
-| Trading Stats | Position History |
-|:---:|:---:|
+|                          Trading Stats                           |                          Position History                           |
+| :--------------------------------------------------------------: | :-----------------------------------------------------------------: |
 | <img src="screenshots/dashboard-trading-stats.png" width="400"/> | <img src="screenshots/dashboard-position-history.png" width="400"/> |
 
-| Positions | Trader Details |
-|:---:|:---:|
+|                          Positions                           |                    Trader Details                     |
+| :----------------------------------------------------------: | :---------------------------------------------------: |
 | <img src="screenshots/dashboard-positions.png" width="400"/> | <img src="screenshots/details-page.png" width="400"/> |
+
 </details>
 
 <details>
 <summary><b>Strategy Studio</b></summary>
 
-| Strategy Editor | Indicators Config |
-|:---:|:---:|
+|                     Strategy Editor                      |                      Indicators Config                       |
+| :------------------------------------------------------: | :----------------------------------------------------------: |
 | <img src="screenshots/strategy-studio.png" width="400"/> | <img src="screenshots/strategy-indicators.png" width="400"/> |
+
 </details>
 
 <details>
 <summary><b>Competition</b></summary>
 
-| Competition Mode |
-|:---:|
+|                     Competition Mode                      |
+| :-------------------------------------------------------: |
 | <img src="screenshots/competition-page.png" width="400"/> |
+
 </details>
 
 ---
@@ -243,12 +247,14 @@ Everything through the web UI at **http://127.0.0.1:3000**.
 ## Deploy to Server
 
 **HTTP (quick):**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 # Access via http://YOUR_IP:3000
 ```
 
 **HTTPS (Cloudflare):**
+
 1. Add domain to [Cloudflare](https://dash.cloudflare.com) (free plan)
 2. A record → your server IP (Proxied)
 3. SSL/TLS → Flexible
@@ -286,12 +292,12 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## Docs
 
-| | |
-|:--|:--|
-| [Architecture](docs/architecture/README.md) | System design and module index |
+|                                                         |                                       |
+| :------------------------------------------------------ | :------------------------------------ |
+| [Architecture](docs/architecture/README.md)             | System design and module index        |
 | [Strategy Module](docs/architecture/STRATEGY_MODULE.md) | Coin selection, AI prompts, execution |
-| [FAQ](docs/faq/README.md) | Common questions |
-| [Getting Started](docs/getting-started/README.md) | Deployment guide |
+| [FAQ](docs/faq/README.md)                               | Common questions                      |
+| [Getting Started](docs/getting-started/README.md)       | Deployment guide                      |
 
 ---
 
@@ -305,26 +311,26 @@ All contributions are tracked. When NOFX generates revenue, contributors receive
 
 **[Pinned Issues](https://github.com/NoFxAiOS/nofx/issues) get the highest rewards.**
 
-| Contribution | Weight |
-|:-------------|:------:|
-| Pinned Issue PRs | ★★★★★★ |
-| Code (Merged PRs) | ★★★★★ |
-| Bug Fixes | ★★★★ |
-| Feature Ideas | ★★★ |
-| Bug Reports | ★★ |
-| Documentation | ★★ |
+| Contribution      | Weight |
+| :---------------- | :----: |
+| Pinned Issue PRs  | ★★★★★★ |
+| Code (Merged PRs) | ★★★★★  |
+| Bug Fixes         |  ★★★★  |
+| Feature Ideas     |  ★★★   |
+| Bug Reports       |   ★★   |
+| Documentation     |   ★★   |
 
 ---
 
 ## Links
 
-| | |
-|:--|:--|
-| Website | [nofxai.com](https://nofxai.com) |
-| Dashboard | [nofxos.ai/dashboard](https://nofxos.ai/dashboard) |
-| API Docs | [nofxos.ai/api-docs](https://nofxos.ai/api-docs) |
-| Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@nofx_official](https://x.com/nofx_official) |
+|           |                                                       |
+| :-------- | :---------------------------------------------------- |
+| Website   | [nofxai.com](https://nofxai.com)                      |
+| Dashboard | [nofxos.ai/dashboard](https://nofxos.ai/dashboard)    |
+| API Docs  | [nofxos.ai/api-docs](https://nofxos.ai/api-docs)      |
+| Telegram  | [nofx_dev_community](https://t.me/nofx_dev_community) |
+| Twitter   | [@nofx_official](https://x.com/nofx_official)         |
 
 > **Risk Warning**: AI auto-trading carries significant risks. Recommended for learning/research or small amounts only.
 

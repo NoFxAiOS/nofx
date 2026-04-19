@@ -204,6 +204,43 @@ func TestDetectMissingProtectionTreatsSingleLadderTakeProfitAsRequired(t *testin
 	}
 }
 
+func TestDetectUnexpectedProtectionOrdersFlagsUnplannedStopsAndTakeProfits(t *testing.T) {
+	plan := &ProtectionPlan{
+		StopLossOrders:       []ProtectionOrder{{Price: 98, CloseRatioPct: 50}},
+		TakeProfitOrders:     []ProtectionOrder{{Price: 105, CloseRatioPct: 50}},
+		FallbackMaxLossPrice: 95,
+	}
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
+		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 105},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 101.2}, // stray break-even-like stop without armed state
+		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 111},
+	}
+	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(openOrders, "LONG", plan, false, false)
+	if unexpectedSL != 1 {
+		t.Fatalf("expected 1 unexpected stop, got %d", unexpectedSL)
+	}
+	if unexpectedTP != 1 {
+		t.Fatalf("expected 1 unexpected take-profit, got %d", unexpectedTP)
+	}
+}
+
+func TestDetectUnexpectedProtectionOrdersAllowsBreakEvenAndTrailingWhenArmed(t *testing.T) {
+	plan := &ProtectionPlan{
+		StopLossOrders: []ProtectionOrder{{Price: 98, CloseRatioPct: 100}},
+	}
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 100.2}, // break-even
+		{PositionSide: "LONG", Type: "TRAILING_STOP_MARKET", StopPrice: 106, CallbackRate: 0.001},
+	}
+	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(openOrders, "LONG", plan, true, true)
+	if unexpectedSL != 0 || unexpectedTP != 0 {
+		t.Fatalf("expected no unexpected orders when break-even/trailing are armed, got SL=%d TP=%d", unexpectedSL, unexpectedTP)
+	}
+}
+
 func TestLadderProtectionLifecycle(t *testing.T) {
 	fake := testutil.NewFakeTrader()
 	at := &AutoTrader{trader: fake, exchange: "binance"}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"nofx/logger"
+	"nofx/store"
 )
 
 const (
@@ -142,31 +143,15 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 	if plan != nil {
 		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
-		expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)
-		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
-			expectedOrderCount++
-		}
-		if plan.FallbackMaxLossPrice > 0 {
-			expectedOrderCount++
-		}
-		if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
-			expectedOrderCount++
-		}
-		// Independent protections must be counted too, otherwise duplicate cleanup will
-		// mistakenly wipe valid break-even / native trailing orders.
-		if at.getBreakEvenState(symbol, side) == "armed" {
-			expectedOrderCount++
-		}
-		if currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" {
-			expectedOrderCount++
-		}
-		symbolOrderCount := countOrdersForPositionSide(openOrders, positionSide)
+		planOrderCount := protectionOrderCountForPlan(plan)
+		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
+		unexpectedStops, unexpectedTPs := detectUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
 
-		// Detect duplicate/stale orders: if we have more protection orders than expected,
-		// cancel all and re-apply cleanly to avoid accumulation.
-		if symbolOrderCount > expectedOrderCount+2 {
-			logger.Warnf("🧹 Protection reconciler: %s %s has %d orders (expected ~%d), cleaning duplicates",
-				symbol, positionSide, symbolOrderCount, expectedOrderCount)
+		// Detect duplicate/stale orders by explicit order-role mismatch, not only coarse order counts.
+		// This keeps valid break-even / trailing orders while removing old ladder/fallback debris.
+		if unexpectedStops > 0 || unexpectedTPs > 0 {
+			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), cleaning and re-applying",
+				symbol, positionSide, unexpectedStops, unexpectedTPs, planOrderCount)
 			at.cancelProtectionOrdersForCleanup(symbol)
 			// Re-apply clean protection plan.
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
@@ -178,17 +163,6 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 
 		if missingSL || missingTP {
-			// Safety cap: if there are already many orders for this symbol, do NOT keep adding.
-			maxAllowed := expectedOrderCount * 3
-			if maxAllowed < 6 {
-				maxAllowed = 6
-			}
-			if symbolOrderCount >= maxAllowed {
-				logger.Warnf("🛑 Protection reconciler: %s %s already has %d orders (max %d), cancelling and re-applying",
-					symbol, positionSide, symbolOrderCount, maxAllowed)
-				at.cancelProtectionOrdersForCleanup(symbol)
-			}
-
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				at.setReconcileCooldown(positionKey(symbol, side))
@@ -283,6 +257,96 @@ func calculatePositionPnLPct(side string, entryPrice, markPrice float64) float64
 		return ((entryPrice - markPrice) / entryPrice) * 100
 	}
 	return 0
+}
+
+func protectionOrderCountForPlan(plan *ProtectionPlan) int {
+	if plan == nil {
+		return 0
+	}
+	count := 0
+	if len(plan.StopLossOrders) > 0 {
+		count += len(plan.StopLossOrders)
+	} else if plan.NeedsStopLoss && plan.StopLossPrice > 0 {
+		count++
+	}
+	if len(plan.TakeProfitOrders) > 0 {
+		count += len(plan.TakeProfitOrders)
+	} else if plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 {
+		count++
+	}
+	if plan.FallbackMaxLossPrice > 0 {
+		count++
+	}
+	return count
+}
+
+func detectUnexpectedProtectionOrders(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan, breakEvenArmed bool, nativeTrailingArmed bool) (unexpectedStops int, unexpectedTPs int) {
+	allowedStops := make(map[string]int)
+	allowedTPs := make(map[string]int)
+
+	if plan != nil {
+		for _, target := range plan.StopLossOrders {
+			allowedStops[fmt.Sprintf("%.8f", target.Price)]++
+		}
+		if len(plan.StopLossOrders) == 0 && plan.NeedsStopLoss && plan.StopLossPrice > 0 {
+			allowedStops[fmt.Sprintf("%.8f", plan.StopLossPrice)]++
+		}
+		if plan.FallbackMaxLossPrice > 0 {
+			allowedStops[fmt.Sprintf("%.8f", plan.FallbackMaxLossPrice)]++
+		}
+		for _, target := range plan.TakeProfitOrders {
+			allowedTPs[fmt.Sprintf("%.8f", target.Price)]++
+		}
+		if len(plan.TakeProfitOrders) == 0 && plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 {
+			allowedTPs[fmt.Sprintf("%.8f", plan.TakeProfitPrice)]++
+		}
+	}
+
+	for _, order := range openOrders {
+		if positionSide != "" && order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
+			continue
+		}
+
+		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			if nativeTrailingArmed {
+				continue
+			}
+			unexpectedStops++
+			continue
+		}
+
+		key := fmt.Sprintf("%.8f", order.StopPrice)
+		if looksLikeTakeProfit(order) {
+			if allowedTPs[key] > 0 {
+				allowedTPs[key]--
+				continue
+			}
+			unexpectedTPs++
+			continue
+		}
+		if looksLikeStopLoss(order) {
+			if allowedStops[key] > 0 {
+				allowedStops[key]--
+				continue
+			}
+			// One additional stop can be valid when break-even is independently armed.
+			if breakEvenArmed {
+				breakEvenArmed = false
+				continue
+			}
+			unexpectedStops++
+		}
+	}
+
+	return unexpectedStops, unexpectedTPs
+}
+
+func hasExplicitBreakEvenConfig(config *store.StrategyConfig) bool {
+	if config == nil {
+		return false
+	}
+	be := config.Protection.BreakEvenStop
+	return be.Enabled && be.TriggerMode == store.BreakEvenTriggerProfitPct && be.TriggerValue > 0
 }
 
 func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) (missingSL bool, missingTP bool) {

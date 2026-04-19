@@ -45,6 +45,20 @@ Mở **http://127.0.0.1:3000**. Xong.
 
 ---
 
+## Demo nhanh
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1frzw-HDZ3viQvLOQKsAJGc9bT0dXs68D/view">
+    <img src="../../../screenshots/demo-cover.png" alt="Video demo nhanh của NOFX" width="900"/>
+  </a>
+</p>
+
+<p align="center">
+  Nhấp vào ảnh bìa để xem video demo.
+</p>
+
+---
+
 ## x402 hoạt động như thế nào
 
 Quy trình truyền thống: đăng ký tài khoản → mua credits → lấy API key → quản lý quota → xoay key.

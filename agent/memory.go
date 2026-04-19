@@ -299,7 +299,7 @@ func (a *Agent) maybeCompressHistory(ctx context.Context, userID int64) {
 		return
 	}
 	if err := a.saveTaskState(userID, updatedState); err != nil {
-		a.logger.Warn("failed to persist task state", "error", err, "user_id", userID)
+		a.log().Warn("failed to persist task state", "error", err, "user_id", userID)
 		return
 	}
 	a.history.Replace(userID, recentPart)
@@ -323,11 +323,11 @@ func (a *Agent) maybeUpdateTaskStateIncrementally(ctx context.Context, userID in
 	existingState := a.getTaskState(userID)
 	updatedState, err := a.summarizeRecentConversationToTaskState(ctx, userID, existingState, window)
 	if err != nil {
-		a.logger.Warn("failed to incrementally update task state", "error", err, "user_id", userID)
+		a.log().Warn("failed to incrementally update task state", "error", err, "user_id", userID)
 		return
 	}
 	if err := a.saveTaskState(userID, updatedState); err != nil {
-		a.logger.Warn("failed to persist incremental task state", "error", err, "user_id", userID)
+		a.log().Warn("failed to persist incremental task state", "error", err, "user_id", userID)
 	}
 }
 
@@ -383,7 +383,7 @@ Rules:
 		return TaskState{}, err
 	}
 	state = normalizeTaskState(state)
-	a.logger.Info("compressed chat history into task state", "user_id", userID, "archived_messages", len(oldPart))
+	a.log().Info("compressed chat history into task state", "user_id", userID, "archived_messages", len(oldPart))
 	return state, nil
 }
 
@@ -436,7 +436,7 @@ Rules:
 		return TaskState{}, err
 	}
 	state = normalizeTaskState(state)
-	a.logger.Info("incrementally refreshed task state", "user_id", userID, "window_messages", len(recentPart))
+	a.log().Info("incrementally refreshed task state", "user_id", userID, "window_messages", len(recentPart))
 	return state, nil
 }
 

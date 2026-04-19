@@ -37,8 +37,8 @@ type traderSkillOption struct {
 }
 
 var (
-	quotedNamePattern    = regexp.MustCompile(`[“"]([^“”"]{1,40})[”"]`)
-	traderNamedPattern   = regexp.MustCompile(`(?:叫|名为|名字是)\s*([A-Za-z0-9_\-\p{Han}]{2,40})`)
+	quotedNamePattern  = regexp.MustCompile(`[“"]([^“”"]{1,40})[”"]`)
+	traderNamedPattern = regexp.MustCompile(`(?:叫|名为|名字是)\s*([A-Za-z0-9_\-\p{Han}]{2,40})`)
 )
 
 func skillSessionConfigKey(userID int64) string {
@@ -157,7 +157,12 @@ func isNoReply(text string) bool {
 
 func isCancelSkillReply(text string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
-	return lower == "取消" || lower == "/cancel" || lower == "cancel"
+	switch lower {
+	case "取消", "/cancel", "cancel", "不改", "先不改", "算了", "先不用", "不用了", "不弄了", "不搞了", "换话题", "换话题了", "聊别的", "先聊别的":
+		return true
+	default:
+		return false
+	}
 }
 
 func detectCreateTraderSkill(text string) bool {
@@ -198,6 +203,116 @@ func detectStartIntent(text string) bool {
 	return containsAny(lower, []string{"启动", "跑起来", "run", "start", "立即运行", "并启动"})
 }
 
+func looksLikeStandaloneValueReply(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if firstIntegerPattern.MatchString(lower) && len(strings.Fields(lower)) <= 4 {
+		return true
+	}
+	return containsAny(lower, []string{"启用", "禁用", "enable", "disable", "打开", "关闭"})
+}
+
+func detectImplicitStrategyAction(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	switch {
+	case containsAny(lower, []string{"prompt", "提示词"}):
+		return "update_prompt"
+	case containsAny(lower, []string{"参数", "配置", "置信度", "持仓", "周期", "timeframe", "调到", "改到", "改成", "调整"}):
+		return "update_config"
+	default:
+		return ""
+	}
+}
+
+func detectImplicitTraderAction(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	switch {
+	case containsAny(lower, []string{"启动", "开始", "run", "start"}):
+		return "start"
+	case containsAny(lower, []string{"停止", "停掉", "stop", "pause"}):
+		return "stop"
+	case containsAny(lower, []string{"换模型", "换交易所", "换策略", "绑定", "切换模型", "切换交易所", "切换策略"}):
+		return "update_bindings"
+	case containsAny(lower, []string{"改名", "重命名", "rename"}):
+		return "update_name"
+	default:
+		return ""
+	}
+}
+
+func detectImplicitModelAction(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	switch {
+	case containsAny(lower, []string{"启用", "禁用", "enable", "disable"}):
+		return "update_status"
+	case containsAny(lower, []string{"url", "endpoint", "地址", "接口"}):
+		return "update_endpoint"
+	case containsAny(lower, []string{"模型名", "模型名称", "model name", "改名", "重命名", "rename"}):
+		return "update_name"
+	default:
+		return ""
+	}
+}
+
+func detectImplicitExchangeAction(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	switch {
+	case containsAny(lower, []string{"启用", "禁用", "enable", "disable"}):
+		return "update_status"
+	case containsAny(lower, []string{"账户名", "改名", "重命名", "rename"}):
+		return "update_name"
+	default:
+		return ""
+	}
+}
+
+func (a *Agent) inferContextualSkillSession(storeUserID string, userID int64, text string, session skillSession) skillSession {
+	if session.Name != "" || strings.TrimSpace(text) == "" {
+		return session
+	}
+	state := a.getExecutionState(userID)
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if state.CurrentReferences != nil {
+		if ref := state.CurrentReferences.Strategy; ref != nil {
+			if action := detectImplicitStrategyAction(text); action != "" || looksLikeStandaloneValueReply(text) {
+				return skillSession{Name: "strategy_management", Action: defaultIfEmpty(action, "update_config"), Phase: "collecting", TargetRef: ref}
+			}
+		}
+		if ref := state.CurrentReferences.Trader; ref != nil {
+			if action := detectImplicitTraderAction(text); action != "" {
+				return skillSession{Name: "trader_management", Action: action, Phase: "collecting", TargetRef: ref}
+			}
+		}
+		if ref := state.CurrentReferences.Model; ref != nil {
+			if action := detectImplicitModelAction(text); action != "" {
+				return skillSession{Name: "model_management", Action: action, Phase: "collecting", TargetRef: ref}
+			}
+		}
+		if ref := state.CurrentReferences.Exchange; ref != nil {
+			if action := detectImplicitExchangeAction(text); action != "" {
+				return skillSession{Name: "exchange_management", Action: action, Phase: "collecting", TargetRef: ref}
+			}
+		}
+	}
+	if containsAny(lower, []string{"调整参数", "改参数", "改配置"}) {
+		options := a.loadStrategyOptions(storeUserID)
+		if len(options) == 1 {
+			return skillSession{
+				Name:   "strategy_management",
+				Action: "update_config",
+				Phase:  "collecting",
+				TargetRef: &EntityReference{
+					ID:   options[0].ID,
+					Name: options[0].Name,
+				},
+			}
+		}
+	}
+	return session
+}
+
 func extractTraderName(text string) string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -212,11 +327,45 @@ func extractTraderName(text string) string {
 	return ""
 }
 
+func extractSegmentAfterKeywords(text string, keywords []string) string {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	for _, keyword := range keywords {
+		idx := strings.Index(lower, strings.ToLower(keyword))
+		if idx < 0 {
+			continue
+		}
+		segment := strings.TrimSpace(trimmed[idx+len(keyword):])
+		if segment == "" {
+			continue
+		}
+		cut := len(segment)
+		for i, r := range segment {
+			switch r {
+			case '，', ',', '。', '；', ';', '\n', '、':
+				cut = i
+				goto done
+			}
+		}
+	done:
+		segment = strings.TrimSpace(segment[:cut])
+		segment = strings.Trim(segment, "“”\"'：: ")
+		if segment != "" {
+			return segment
+		}
+	}
+	return ""
+}
+
 func pickMentionedOption(text string, options []traderSkillOption) *traderSkillOption {
 	lower := strings.ToLower(strings.TrimSpace(text))
 	if lower == "" {
 		return nil
 	}
+	bestScore := 0
 	var matched *traderSkillOption
 	for _, option := range options {
 		id := strings.ToLower(strings.TrimSpace(option.ID))
@@ -224,15 +373,88 @@ func pickMentionedOption(text string, options []traderSkillOption) *traderSkillO
 		if id == "" && name == "" {
 			continue
 		}
-		if (id != "" && strings.Contains(lower, id)) || (name != "" && strings.Contains(lower, name)) {
-			if matched != nil {
-				return nil
-			}
+		score := optionMatchScore(lower, id, name)
+		if score == 0 {
+			continue
+		}
+		if score == bestScore {
+			matched = nil
+			continue
+		}
+		if score > bestScore {
+			bestScore = score
 			copy := option
 			matched = &copy
 		}
 	}
 	return matched
+}
+
+func pickOptionFromSegment(text string, keywords []string, options []traderSkillOption) *traderSkillOption {
+	segment := extractSegmentAfterKeywords(text, keywords)
+	if strings.TrimSpace(segment) == "" {
+		return nil
+	}
+	return pickMentionedOption(segment, options)
+}
+
+func optionMatchScore(text, id, name string) int {
+	if id != "" && strings.Contains(text, id) {
+		return 4
+	}
+	return optionNameMatchScore(text, name)
+}
+
+func optionNameMatchScore(text, name string) int {
+	name = strings.TrimSpace(strings.ToLower(name))
+	if name == "" {
+		return 0
+	}
+	if strings.Contains(text, name) {
+		return 3
+	}
+	fields := strings.FieldsFunc(name, func(r rune) bool {
+		switch r {
+		case ' ', ',', '，', '/', '|', '、', '(', ')', '（', '）':
+			return true
+		default:
+			return false
+		}
+	})
+	best := 0
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		if len([]rune(field)) <= 2 && !containsHan(field) {
+			continue
+		}
+		if strings.Contains(text, field) {
+			if containsHan(field) && len([]rune(field)) >= 3 {
+				best = max(best, 2)
+			} else {
+				best = max(best, 1)
+			}
+		}
+	}
+	return best
+}
+
+func containsHan(s string) bool {
+	for _, r := range s {
+		if r >= 0x4E00 && r <= 0x9FFF {
+			return true
+		}
+	}
+	return false
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func choosePreferredOption(options []traderSkillOption) *traderSkillOption {
@@ -262,6 +484,8 @@ func formatOptionList(prefix string, options []traderSkillOption) string {
 		}
 		if option.Enabled {
 			label += "（已启用）"
+		} else {
+			label += "（已禁用）"
 		}
 		parts = append(parts, label)
 	}
@@ -291,13 +515,12 @@ func (a *Agent) loadEnabledModelOptions(storeUserID string) []traderSkillOption 
 	}
 	out := make([]traderSkillOption, 0, len(models))
 	for _, model := range models {
-		name := strings.TrimSpace(model.Name)
-		if name == "" {
-			name = strings.TrimSpace(model.CustomModelName)
-		}
-		if name == "" {
-			name = strings.TrimSpace(model.Provider)
-		}
+		parts := cleanStringList([]string{
+			strings.TrimSpace(model.Name),
+			strings.TrimSpace(model.CustomModelName),
+			strings.TrimSpace(model.Provider),
+		})
+		name := strings.Join(parts, " ")
 		out = append(out, traderSkillOption{ID: model.ID, Name: name, Enabled: model.Enabled})
 	}
 	return out
@@ -342,6 +565,7 @@ func (a *Agent) tryHardSkill(ctx context.Context, storeUserID string, userID int
 		return "", false
 	}
 	session := a.getSkillSession(userID)
+	session = a.inferContextualSkillSession(storeUserID, userID, text, session)
 	if (session.Name == "trader_management" && session.Action == "create") || detectCreateTraderSkill(text) {
 		answer, handled := a.handleCreateTraderSkill(storeUserID, userID, lang, text, session)
 		if handled {
@@ -459,13 +683,13 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 		return "Cancelled the current trader creation flow.", true
 	}
 
-		if session.Name == "" {
-			session = skillSession{
-				Name:   "trader_management",
-				Action: "create",
-				Phase:  "collecting",
-				Slots:  &createTraderSkillSlots{},
-			}
+	if session.Name == "" {
+		session = skillSession{
+			Name:   "trader_management",
+			Action: "create",
+			Phase:  "collecting",
+			Slots:  &createTraderSkillSlots{},
+		}
 		if detectStartIntent(text) {
 			autoStart := true
 			session.Slots.AutoStart = &autoStart
@@ -474,8 +698,12 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 	if session.Slots == nil {
 		session.Slots = &createTraderSkillSlots{}
 	}
+	if fieldValue(session, skillDAGStepField) == "" {
+		setSkillDAGStep(&session, "resolve_name")
+	}
 
 	if session.Phase == "await_start_confirmation" {
+		setSkillDAGStep(&session, "await_start_confirmation")
 		switch {
 		case isYesReply(text):
 			answer := a.executeCreateTraderSkill(storeUserID, userID, lang, session, true)
@@ -496,13 +724,19 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 	if slots.Name == "" {
 		slots.Name = extractTraderName(text)
 	}
+	if slots.Name != "" {
+		setSkillDAGStep(&session, "resolve_exchange")
+	}
 
 	models := a.loadEnabledModelOptions(storeUserID)
 	exchanges := a.loadExchangeOptions(storeUserID)
 	strategies := a.loadStrategyOptions(storeUserID)
 
 	if slots.ModelID == "" {
-		if match := pickMentionedOption(text, models); match != nil {
+		if match := pickOptionFromSegment(text, []string{"模型用", "模型", "model"}, models); match != nil {
+			slots.ModelID = match.ID
+			slots.ModelName = match.Name
+		} else if match := pickMentionedOption(text, models); match != nil {
 			slots.ModelID = match.ID
 			slots.ModelName = match.Name
 		} else if choice := choosePreferredOption(models); choice != nil {
@@ -510,17 +744,46 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 			slots.ModelName = choice.Name
 		}
 	}
+	if slots.ExchangeID != "" {
+		setSkillDAGStep(&session, "resolve_model")
+	}
 	if slots.ExchangeID == "" {
-		if match := pickMentionedOption(text, exchanges); match != nil {
-			slots.ExchangeID = match.ID
-			slots.ExchangeName = match.Name
+		if match := pickOptionFromSegment(text, []string{"交易所用", "交易所", "exchange"}, exchanges); match != nil {
+			if match.Enabled {
+				slots.ExchangeID = match.ID
+				slots.ExchangeName = match.Name
+			} else {
+				if lang == "zh" {
+					extra := "你刚才提到的交易所“" + defaultIfEmpty(match.Name, match.ID) + "”当前已禁用，请换一个已启用的交易所。"
+					a.saveSkillSession(userID, session)
+					return extra + "\n" + formatOptionList("可用交易所：", exchanges), true
+				}
+				a.saveSkillSession(userID, session)
+				return "The exchange you mentioned is currently disabled. Please choose an enabled exchange.\n" + formatOptionList("Available exchanges:", exchanges), true
+			}
+		} else if match := pickMentionedOption(text, exchanges); match != nil {
+			if match.Enabled {
+				slots.ExchangeID = match.ID
+				slots.ExchangeName = match.Name
+			} else {
+				if lang == "zh" {
+					extra := "你刚才提到的交易所“" + defaultIfEmpty(match.Name, match.ID) + "”当前已禁用，请换一个已启用的交易所。"
+					a.saveSkillSession(userID, session)
+					return extra + "\n" + formatOptionList("可用交易所：", exchanges), true
+				}
+				a.saveSkillSession(userID, session)
+				return "The exchange you mentioned is currently disabled. Please choose an enabled exchange.\n" + formatOptionList("Available exchanges:", exchanges), true
+			}
 		} else if choice := choosePreferredOption(exchanges); choice != nil {
 			slots.ExchangeID = choice.ID
 			slots.ExchangeName = choice.Name
 		}
 	}
 	if slots.StrategyID == "" {
-		if match := pickMentionedOption(text, strategies); match != nil {
+		if match := pickOptionFromSegment(text, []string{"策略用", "策略", "strategy"}, strategies); match != nil {
+			slots.StrategyID = match.ID
+			slots.StrategyName = match.Name
+		} else if match := pickMentionedOption(text, strategies); match != nil {
 			slots.StrategyID = match.ID
 			slots.StrategyName = match.Name
 		} else if choice := choosePreferredOption(strategies); choice != nil {
@@ -528,32 +791,16 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 			slots.StrategyName = choice.Name
 		}
 	}
+	if slots.ModelID != "" {
+		setSkillDAGStep(&session, "resolve_strategy")
+	}
+	if slots.StrategyID != "" {
+		setSkillDAGStep(&session, "maybe_confirm_start")
+	}
 
 	if slots.AutoStart == nil && detectStartIntent(text) {
 		autoStart := true
 		slots.AutoStart = &autoStart
-	}
-
-	if len(strategies) == 0 {
-		a.clearSkillSession(userID)
-		if lang == "zh" {
-			return "当前还没有可用策略，暂时不能创建交易员。请先创建一个策略，再回来继续。", true
-		}
-		return "There is no strategy available yet, so I can't create a trader. Please create a strategy first.", true
-	}
-	if len(models) == 0 {
-		a.clearSkillSession(userID)
-		if lang == "zh" {
-			return "当前还没有模型配置，暂时不能创建交易员。请先配置并启用一个模型。", true
-		}
-		return "There is no model config yet, so I can't create a trader. Please configure and enable a model first.", true
-	}
-	if len(exchanges) == 0 {
-		a.clearSkillSession(userID)
-		if lang == "zh" {
-			return "当前还没有交易所配置，暂时不能创建交易员。请先配置并启用一个交易所账户。", true
-		}
-		return "There is no exchange config yet, so I can't create a trader. Please configure and enable an exchange first.", true
 	}
 
 	missing := make([]string, 0, 3)
@@ -563,15 +810,53 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 	}
 	if actionRequiresSlot("trader_management", "create", "exchange") && slots.ExchangeID == "" {
 		missing = append(missing, slotDisplayName("exchange", lang))
-		extraLines = append(extraLines, formatOptionList("可用交易所：", exchanges))
+		if len(exchanges) == 0 {
+			if lang == "zh" {
+				extraLines = append(extraLines, "当前还没有可用交易所配置，请先配置并启用一个交易所账户。")
+			} else {
+				extraLines = append(extraLines, "There is no enabled exchange config yet. Please create and enable one first.")
+			}
+		} else {
+			label := "Available exchanges:"
+			if lang == "zh" {
+				label = "可用交易所："
+			}
+			extraLines = append(extraLines, formatOptionList(label, exchanges))
+		}
 	}
 	if actionRequiresSlot("trader_management", "create", "model") && slots.ModelID == "" {
 		missing = append(missing, slotDisplayName("model", lang))
-		extraLines = append(extraLines, formatOptionList("可用模型：", models))
+		if len(models) == 0 {
+			if lang == "zh" {
+				extraLines = append(extraLines, "当前还没有可用模型配置，请先配置并启用一个模型。")
+			} else {
+				extraLines = append(extraLines, "There is no enabled model config yet. Please create and enable one first.")
+			}
+		} else {
+			label := "Available models:"
+			if lang == "zh" {
+				label = "可用模型："
+			}
+			extraLines = append(extraLines, formatOptionList(label, models))
+		}
 	}
-	if actionRequiresSlot("trader_management", "create", "strategy") && slots.StrategyID == "" {
+	if slots.StrategyID == "" && (actionRequiresSlot("trader_management", "create", "strategy") || len(strategies) == 0) {
 		missing = append(missing, slotDisplayName("strategy", lang))
-		extraLines = append(extraLines, formatOptionList("可用策略：", strategies))
+	}
+	if slots.StrategyID == "" {
+		if len(strategies) == 0 {
+			if lang == "zh" {
+				extraLines = append(extraLines, "当前还没有可用策略，请先创建一个策略。")
+			} else {
+				extraLines = append(extraLines, "There is no strategy available yet. Please create one first.")
+			}
+		} else {
+			label := "Available strategies:"
+			if lang == "zh" {
+				label = "可用策略："
+			}
+			extraLines = append(extraLines, formatOptionList(label, strategies))
+		}
 	}
 
 	if len(missing) > 0 {
@@ -595,6 +880,7 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 
 	if slots.AutoStart != nil && *slots.AutoStart {
 		session.Phase = "await_start_confirmation"
+		setSkillDAGStep(&session, "await_start_confirmation")
 		a.saveSkillSession(userID, session)
 		if lang == "zh" {
 			return fmt.Sprintf("我已经准备好创建交易员“%s”，并在创建后立即启动它。\n使用的交易所：%s\n使用的模型：%s\n使用的策略：%s\n\n这是高风险动作。回复“确认”继续，回复“先不用”则只创建不启动。",
@@ -631,16 +917,31 @@ func (s *createTraderSkillSlots) StrategyNameOrID() string {
 
 func (a *Agent) executeCreateTraderSkill(storeUserID string, userID int64, lang string, session skillSession, startAfterCreate bool) string {
 	args := manageTraderArgs{
-		Action:      "create",
-		Name:        session.Slots.Name,
-		AIModelID:   session.Slots.ModelID,
-		ExchangeID:  session.Slots.ExchangeID,
-		StrategyID:  session.Slots.StrategyID,
+		Action:     "create",
+		Name:       session.Slots.Name,
+		AIModelID:  session.Slots.ModelID,
+		ExchangeID: session.Slots.ExchangeID,
+		StrategyID: session.Slots.StrategyID,
 	}
 	createRaw := a.toolCreateTrader(storeUserID, args)
 	if errMsg := parseSkillError(createRaw); errMsg != "" && strings.Contains(createRaw, `"error"`) {
 		session.Phase = "collecting"
 		a.saveSkillSession(userID, session)
+		if strings.Contains(strings.ToLower(errMsg), "exchange is disabled") {
+			exchanges := a.loadExchangeOptions(storeUserID)
+			if lang == "zh" {
+				reply := fmt.Sprintf("创建交易员失败：你选的交易所“%s”当前已禁用，请换一个已启用的交易所。", session.Slots.ExchangeNameOrID())
+				if list := formatOptionList("可用交易所：", exchanges); list != "" {
+					reply += "\n" + list
+				}
+				return reply
+			}
+			reply := fmt.Sprintf("Failed to create trader: the selected exchange %q is disabled. Please choose an enabled exchange.", session.Slots.ExchangeNameOrID())
+			if list := formatOptionList("Available exchanges:", exchanges); list != "" {
+				reply += "\n" + list
+			}
+			return reply
+		}
 		if lang == "zh" {
 			return "创建交易员失败：" + errMsg
 		}
@@ -658,6 +959,7 @@ func (a *Agent) executeCreateTraderSkill(storeUserID string, userID int64, lang 
 	}
 
 	if !startAfterCreate {
+		setSkillDAGStep(&session, "execute_create_only")
 		a.clearSkillSession(userID)
 		if lang == "zh" {
 			return fmt.Sprintf("已创建交易员“%s”。\n交易所：%s\n模型：%s\n策略：%s\n当前状态：未启动。",
@@ -667,6 +969,7 @@ func (a *Agent) executeCreateTraderSkill(storeUserID string, userID int64, lang 
 			created.Trader.Name, session.Slots.ExchangeNameOrID(), session.Slots.ModelNameOrID(), session.Slots.StrategyNameOrID())
 	}
 
+	setSkillDAGStep(&session, "execute_create_and_start")
 	startRaw := a.toolStartTrader(storeUserID, created.Trader.ID)
 	if errMsg := parseSkillError(startRaw); errMsg != "" && strings.Contains(startRaw, `"error"`) {
 		a.clearSkillSession(userID)
@@ -735,6 +1038,9 @@ func (a *Agent) handleModelDiagnosisSkill(storeUserID, lang, text string) string
 		lines = append(lines, fmt.Sprintf("1. 当前共 %d 个模型配置，已启用 %d 个。", len(payload.ModelConfigs), enabledCount))
 		lines = append(lines, "2. 检查目标模型是否同时具备 enabled、API Key、custom_api_url。")
 		lines = append(lines, "3. 如果是 OpenAI / Claude / DeepSeek 等 provider，确认 model name 填的是该 provider 实际可用的模型名。")
+		if excerpt := backendLogDiagnosisExcerpt(lang, text, "model"); excerpt != "" {
+			lines = append(lines, excerpt)
+		}
 		lines = append(lines, "下一步：如果你愿意，我下一步可以继续帮你逐项检查你当前配置里的具体模型。")
 		return strings.Join(lines, "\n")
 	}
@@ -749,6 +1055,9 @@ func (a *Agent) handleModelDiagnosisSkill(storeUserID, lang, text string) string
 		lines = append(lines, "Likely cause: the model was saved, but the API key, custom_api_url, or custom_model_name does not match the provider runtime config.")
 	}
 	lines = append(lines, fmt.Sprintf("Check first: %d model configs exist, %d are enabled.", len(payload.ModelConfigs), enabledCount))
+	if excerpt := backendLogDiagnosisExcerpt(lang, text, "model"); excerpt != "" {
+		lines = append(lines, excerpt)
+	}
 	lines = append(lines, "Next step: verify the target model has enabled=true, a non-empty API key, a valid HTTPS custom_api_url, and a correct model name.")
 	return strings.Join(lines, "\n")
 }
@@ -779,6 +1088,9 @@ func (a *Agent) handleExchangeDiagnosisSkill(storeUserID, lang, text string) str
 		}
 		lines = append(lines, "4. 检查 API 白名单是否包含当前服务器 IP。")
 		lines = append(lines, "5. 检查是否已经开启交易/合约权限。")
+		if excerpt := backendLogDiagnosisExcerpt(lang, text, "exchange"); excerpt != "" {
+			lines = append(lines, excerpt)
+		}
 		lines = append(lines, "下一步：如果你把具体报错原文贴给我，我可以按报错类型继续缩小范围。")
 		return strings.Join(lines, "\n")
 	}
@@ -788,5 +1100,28 @@ func (a *Agent) handleExchangeDiagnosisSkill(storeUserID, lang, text string) str
 	if len(exchanges) > 0 {
 		lines = append(lines, "Current exchange bindings exist, so the next step is to match the exact error text to the most likely cause.")
 	}
+	if excerpt := backendLogDiagnosisExcerpt(lang, text, "exchange"); excerpt != "" {
+		lines = append(lines, excerpt)
+	}
 	return strings.Join(lines, "\n")
+}
+
+func backendLogDiagnosisExcerpt(lang, text, fallbackFilter string) string {
+	filter := strings.TrimSpace(text)
+	if strings.TrimSpace(filter) == "" {
+		filter = fallbackFilter
+	}
+	_, entries, err := readBackendLogEntries(8, filter, true)
+	if err != nil || len(entries) == 0 {
+		if filter != fallbackFilter {
+			_, entries, err = readBackendLogEntries(8, fallbackFilter, true)
+		}
+	}
+	if err != nil || len(entries) == 0 {
+		return ""
+	}
+	if lang == "zh" {
+		return "最近命中的后端错误日志：\n- " + strings.Join(entries, "\n- ")
+	}
+	return "Recent matching backend error logs:\n- " + strings.Join(entries, "\n- ")
 }

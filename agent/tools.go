@@ -1,13 +1,17 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"nofx/kernel"
 	"nofx/mcp"
 	"nofx/safe"
 	"nofx/security"
@@ -59,6 +63,24 @@ func buildAgentTools() []mcp.Tool {
 		{
 			Type: "function",
 			Function: mcp.FunctionDef{
+				Name:        "get_backend_logs",
+				Description: "Get recent backend log lines for a trader diagnosis. Prefer this when the user asks why a specific trader failed, stopped, or behaved unexpectedly. Returns recent matching log lines for the authenticated user's trader.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"trader_id": map[string]any{
+							"type":        "string",
+							"description": "Trader id to diagnose. The backend verifies that this trader belongs to the authenticated user before returning logs.",
+						},
+						"limit":       map[string]any{"type": "number", "description": "Maximum number of recent log lines to return. Default 30."},
+						"errors_only": map[string]any{"type": "boolean", "description": "When true, only return error-like log lines. Default true."},
+					},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: mcp.FunctionDef{
 				Name:        "get_exchange_configs",
 				Description: "Get the user's current exchange account bindings. Returns safe metadata only and whether credentials are already stored.",
 				Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
@@ -92,19 +114,19 @@ func buildAgentTools() []mcp.Tool {
 							"type":        "boolean",
 							"description": "Whether this exchange binding should be enabled.",
 						},
-						"api_key": map[string]any{"type": "string"},
-						"secret_key": map[string]any{"type": "string"},
-						"passphrase": map[string]any{"type": "string"},
-						"testnet":    map[string]any{"type": "boolean"},
-						"hyperliquid_wallet_addr": map[string]any{"type": "string"},
+						"api_key":                     map[string]any{"type": "string"},
+						"secret_key":                  map[string]any{"type": "string"},
+						"passphrase":                  map[string]any{"type": "string"},
+						"testnet":                     map[string]any{"type": "boolean"},
+						"hyperliquid_wallet_addr":     map[string]any{"type": "string"},
 						"hyperliquid_unified_account": map[string]any{"type": "boolean"},
-						"aster_user":                 map[string]any{"type": "string"},
-						"aster_signer":               map[string]any{"type": "string"},
-						"aster_private_key":          map[string]any{"type": "string"},
-						"lighter_wallet_addr":        map[string]any{"type": "string"},
-						"lighter_private_key":        map[string]any{"type": "string"},
+						"aster_user":                  map[string]any{"type": "string"},
+						"aster_signer":                map[string]any{"type": "string"},
+						"aster_private_key":           map[string]any{"type": "string"},
+						"lighter_wallet_addr":         map[string]any{"type": "string"},
+						"lighter_private_key":         map[string]any{"type": "string"},
 						"lighter_api_key_private_key": map[string]any{"type": "string"},
-						"lighter_api_key_index":      map[string]any{"type": "number"},
+						"lighter_api_key_index":       map[string]any{"type": "number"},
 					},
 					"required": []string{"action"},
 				},
@@ -171,10 +193,10 @@ func buildAgentTools() []mcp.Tool {
 							"type": "string",
 							"enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"},
 						},
-						"strategy_id": map[string]any{"type": "string"},
-						"name":        map[string]any{"type": "string"},
-						"description": map[string]any{"type": "string"},
-						"lang":        map[string]any{"type": "string", "enum": []string{"zh", "en"}},
+						"strategy_id":    map[string]any{"type": "string"},
+						"name":           map[string]any{"type": "string"},
+						"description":    map[string]any{"type": "string"},
+						"lang":           map[string]any{"type": "string", "enum": []string{"zh", "en"}},
 						"is_public":      map[string]any{"type": "boolean"},
 						"config_visible": map[string]any{"type": "boolean"},
 						"config":         map[string]any{"type": "object", "description": "Full or partial strategy config JSON object, depending on action."},
@@ -199,22 +221,22 @@ func buildAgentTools() []mcp.Tool {
 							"type":        "string",
 							"description": "Required for update, delete, start, and stop.",
 						},
-						"name": map[string]any{"type": "string"},
-						"ai_model_id": map[string]any{"type": "string"},
-						"exchange_id": map[string]any{"type": "string"},
-						"strategy_id": map[string]any{"type": "string"},
-						"initial_balance": map[string]any{"type": "number"},
-						"scan_interval_minutes": map[string]any{"type": "number"},
-						"is_cross_margin": map[string]any{"type": "boolean"},
-						"show_in_competition": map[string]any{"type": "boolean"},
-						"btc_eth_leverage": map[string]any{"type": "number"},
-						"altcoin_leverage": map[string]any{"type": "number"},
-						"trading_symbols": map[string]any{"type": "string"},
-						"custom_prompt": map[string]any{"type": "string"},
-						"override_base_prompt": map[string]any{"type": "boolean"},
+						"name":                   map[string]any{"type": "string"},
+						"ai_model_id":            map[string]any{"type": "string"},
+						"exchange_id":            map[string]any{"type": "string"},
+						"strategy_id":            map[string]any{"type": "string"},
+						"initial_balance":        map[string]any{"type": "number"},
+						"scan_interval_minutes":  map[string]any{"type": "number"},
+						"is_cross_margin":        map[string]any{"type": "boolean"},
+						"show_in_competition":    map[string]any{"type": "boolean"},
+						"btc_eth_leverage":       map[string]any{"type": "number"},
+						"altcoin_leverage":       map[string]any{"type": "number"},
+						"trading_symbols":        map[string]any{"type": "string"},
+						"custom_prompt":          map[string]any{"type": "string"},
+						"override_base_prompt":   map[string]any{"type": "boolean"},
 						"system_prompt_template": map[string]any{"type": "string"},
-						"use_ai500": map[string]any{"type": "boolean"},
-						"use_oi_top": map[string]any{"type": "boolean"},
+						"use_ai500":              map[string]any{"type": "boolean"},
+						"use_oi_top":             map[string]any{"type": "boolean"},
 					},
 					"required": []string{"action"},
 				},
@@ -316,6 +338,26 @@ func buildAgentTools() []mcp.Tool {
 				},
 			},
 		},
+		{
+			Type: "function",
+			Function: mcp.FunctionDef{
+				Name:        "get_candidate_coins",
+				Description: "Get the current candidate coin list for a trader or strategy, including AI500 coin-source settings and the selected symbols.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"trader_id": map[string]any{
+							"type":        "string",
+							"description": "Optional trader id. Prefer this when asking about a running trader.",
+						},
+						"strategy_id": map[string]any{
+							"type":        "string",
+							"description": "Optional strategy id. Use this when asking about a strategy template directly.",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -326,6 +368,8 @@ func (a *Agent) handleToolCall(ctx context.Context, storeUserID string, userID i
 		return a.toolGetPreferences(userID)
 	case "manage_preferences":
 		return a.toolManagePreferences(userID, tc.Function.Arguments)
+	case "get_backend_logs":
+		return a.toolGetBackendLogs(storeUserID, tc.Function.Arguments)
 	case "get_exchange_configs":
 		return a.toolGetExchangeConfigs(storeUserID)
 	case "manage_exchange_config":
@@ -352,6 +396,8 @@ func (a *Agent) handleToolCall(ctx context.Context, storeUserID string, userID i
 		return a.toolGetMarketPrice(tc.Function.Arguments)
 	case "get_trade_history":
 		return a.toolGetTradeHistory(tc.Function.Arguments)
+	case "get_candidate_coins":
+		return a.toolGetCandidateCoins(storeUserID, userID, tc.Function.Arguments)
 	default:
 		return fmt.Sprintf(`{"error": "unknown tool: %s"}`, tc.Function.Name)
 	}
@@ -388,21 +434,21 @@ type safeModelToolConfig struct {
 }
 
 type safeTraderToolConfig struct {
-	ID                  string  `json:"id"`
-	Name                string  `json:"name"`
-	AIModelID           string  `json:"ai_model_id"`
-	ExchangeID          string  `json:"exchange_id"`
-	StrategyID          string  `json:"strategy_id,omitempty"`
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	IsRunning           bool    `json:"is_running"`
-	IsCrossMargin       bool    `json:"is_cross_margin"`
-	ShowInCompetition   bool    `json:"show_in_competition"`
-	BTCETHLeverage      int     `json:"btc_eth_leverage,omitempty"`
-	AltcoinLeverage     int     `json:"altcoin_leverage,omitempty"`
-	TradingSymbols      string  `json:"trading_symbols,omitempty"`
-	CustomPrompt        string  `json:"custom_prompt,omitempty"`
-	SystemPromptTemplate string `json:"system_prompt_template,omitempty"`
+	ID                   string  `json:"id"`
+	Name                 string  `json:"name"`
+	AIModelID            string  `json:"ai_model_id"`
+	ExchangeID           string  `json:"exchange_id"`
+	StrategyID           string  `json:"strategy_id,omitempty"`
+	InitialBalance       float64 `json:"initial_balance"`
+	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
+	IsRunning            bool    `json:"is_running"`
+	IsCrossMargin        bool    `json:"is_cross_margin"`
+	ShowInCompetition    bool    `json:"show_in_competition"`
+	BTCETHLeverage       int     `json:"btc_eth_leverage,omitempty"`
+	AltcoinLeverage      int     `json:"altcoin_leverage,omitempty"`
+	TradingSymbols       string  `json:"trading_symbols,omitempty"`
+	CustomPrompt         string  `json:"custom_prompt,omitempty"`
+	SystemPromptTemplate string  `json:"system_prompt_template,omitempty"`
 }
 
 type safeStrategyToolConfig struct {
@@ -472,6 +518,14 @@ func safeModelForTool(model *store.AIModel) safeModelToolConfig {
 	}
 }
 
+func modelConfigUsable(provider, modelID, apiKey, customAPIURL, customModelName string) bool {
+	if strings.TrimSpace(apiKey) == "" {
+		return false
+	}
+	resolvedURL, resolvedModel := resolveModelRuntimeConfig(provider, customAPIURL, customModelName, modelID)
+	return strings.TrimSpace(resolvedURL) != "" && strings.TrimSpace(resolvedModel) != ""
+}
+
 func safeTraderForTool(trader *store.Trader, isRunning bool) safeTraderToolConfig {
 	return safeTraderToolConfig{
 		ID:                   trader.ID,
@@ -531,29 +585,131 @@ func (a *Agent) toolGetExchangeConfigs(storeUserID string) string {
 	return string(result)
 }
 
+func latestBackendLogFilePath() string {
+	matches, err := filepath.Glob(filepath.Join("data", "nofx_*.log"))
+	if err != nil || len(matches) == 0 {
+		return ""
+	}
+	sort.Strings(matches)
+	return matches[len(matches)-1]
+}
+
+func isBackendErrorLikeLogLine(line string) bool {
+	lower := strings.ToLower(strings.TrimSpace(line))
+	if lower == "" {
+		return false
+	}
+	return strings.Contains(lower, "[erro]") ||
+		strings.Contains(lower, " panic") ||
+		strings.Contains(lower, "🔥") ||
+		strings.Contains(lower, "❌") ||
+		strings.Contains(lower, " failed") ||
+		strings.Contains(lower, " error") ||
+		strings.Contains(lower, "invalid ")
+}
+
+func readBackendLogEntries(limit int, contains string, errorsOnly bool) (string, []string, error) {
+	path := latestBackendLogFilePath()
+	if path == "" {
+		return "", nil, fmt.Errorf("backend log file not found")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return path, nil, err
+	}
+	defer file.Close()
+
+	filter := strings.ToLower(strings.TrimSpace(contains))
+	matches := make([]string, 0, max(limit, 1))
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if errorsOnly && !isBackendErrorLikeLogLine(line) {
+			continue
+		}
+		if filter != "" && !strings.Contains(strings.ToLower(line), filter) {
+			continue
+		}
+		matches = append(matches, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return path, nil, err
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	if len(matches) > limit {
+		matches = matches[len(matches)-limit:]
+	}
+	return path, matches, nil
+}
+
+func (a *Agent) toolGetBackendLogs(storeUserID, argsJSON string) string {
+	var args struct {
+		TraderID   string `json:"trader_id"`
+		Limit      int    `json:"limit"`
+		ErrorsOnly *bool  `json:"errors_only"`
+	}
+	if strings.TrimSpace(argsJSON) != "" {
+		if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+			return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
+		}
+	}
+	errorsOnly := true
+	if args.ErrorsOnly != nil {
+		errorsOnly = *args.ErrorsOnly
+	}
+	traderID := strings.TrimSpace(args.TraderID)
+	if traderID == "" {
+		return `{"error":"trader_id is required"}`
+	}
+	if a.store == nil {
+		return `{"error":"store unavailable"}`
+	}
+	trader, err := a.store.Trader().GetByID(traderID)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to load trader: %s"}`, err)
+	}
+	if trader.UserID != storeUserID {
+		return `{"error":"trader not found for current user"}`
+	}
+	path, entries, err := readBackendLogEntries(args.Limit, traderID, errorsOnly)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to read backend logs: %s"}`, err)
+	}
+	result, _ := json.Marshal(map[string]any{
+		"trader_id":   traderID,
+		"log_file":    path,
+		"entries":     entries,
+		"count":       len(entries),
+		"errors_only": errorsOnly,
+	})
+	return string(result)
+}
+
 func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 	if a.store == nil {
 		return `{"error":"store unavailable"}`
 	}
 	var args struct {
-		Action                     string `json:"action"`
-		ExchangeID                 string `json:"exchange_id"`
-		ExchangeType               string `json:"exchange_type"`
-		AccountName                string `json:"account_name"`
-		Enabled                    *bool  `json:"enabled"`
-		APIKey                     string `json:"api_key"`
-		SecretKey                  string `json:"secret_key"`
-		Passphrase                 string `json:"passphrase"`
-		Testnet                    *bool  `json:"testnet"`
-		HyperliquidWalletAddr      string `json:"hyperliquid_wallet_addr"`
-		HyperliquidUnifiedAccount  *bool  `json:"hyperliquid_unified_account"`
-		AsterUser                  string `json:"aster_user"`
-		AsterSigner                string `json:"aster_signer"`
-		AsterPrivateKey            string `json:"aster_private_key"`
-		LighterWalletAddr          string `json:"lighter_wallet_addr"`
-		LighterPrivateKey          string `json:"lighter_private_key"`
-		LighterAPIKeyPrivateKey    string `json:"lighter_api_key_private_key"`
-		LighterAPIKeyIndex         *int   `json:"lighter_api_key_index"`
+		Action                    string `json:"action"`
+		ExchangeID                string `json:"exchange_id"`
+		ExchangeType              string `json:"exchange_type"`
+		AccountName               string `json:"account_name"`
+		Enabled                   *bool  `json:"enabled"`
+		APIKey                    string `json:"api_key"`
+		SecretKey                 string `json:"secret_key"`
+		Passphrase                string `json:"passphrase"`
+		Testnet                   *bool  `json:"testnet"`
+		HyperliquidWalletAddr     string `json:"hyperliquid_wallet_addr"`
+		HyperliquidUnifiedAccount *bool  `json:"hyperliquid_unified_account"`
+		AsterUser                 string `json:"aster_user"`
+		AsterSigner               string `json:"aster_signer"`
+		AsterPrivateKey           string `json:"aster_private_key"`
+		LighterWalletAddr         string `json:"lighter_wallet_addr"`
+		LighterPrivateKey         string `json:"lighter_private_key"`
+		LighterAPIKeyPrivateKey   string `json:"lighter_api_key_private_key"`
+		LighterAPIKeyIndex        *int   `json:"lighter_api_key_index"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
@@ -802,7 +958,15 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 		if strings.TrimSpace(args.CustomModelName) != "" {
 			customModelName = strings.TrimSpace(args.CustomModelName)
 		}
-		if err := a.store.AIModel().Update(storeUserID, existing.ID, enabled, strings.TrimSpace(args.APIKey), customAPIURL, customModelName); err != nil {
+		apiKey := strings.TrimSpace(args.APIKey)
+		effectiveAPIKey := string(existing.APIKey)
+		if apiKey != "" {
+			effectiveAPIKey = apiKey
+		}
+		if enabled && !modelConfigUsable(existing.Provider, existing.ID, effectiveAPIKey, customAPIURL, customModelName) {
+			return `{"error":"cannot enable model config before API key is configured"}`
+		}
+		if err := a.store.AIModel().Update(storeUserID, existing.ID, enabled, apiKey, customAPIURL, customModelName); err != nil {
 			return fmt.Sprintf(`{"error":"failed to update model config: %s"}`, err)
 		}
 		updated, err := a.store.AIModel().Get(storeUserID, existing.ID)
@@ -1891,6 +2055,136 @@ func (a *Agent) toolGetTradeHistory(argsJSON string) string {
 		},
 	})
 	return string(result)
+}
+
+func (a *Agent) toolGetCandidateCoins(storeUserID string, userID int64, argsJSON string) string {
+	if a.store == nil {
+		return `{"error":"store unavailable"}`
+	}
+
+	var args struct {
+		TraderID   string `json:"trader_id"`
+		StrategyID string `json:"strategy_id"`
+	}
+	if strings.TrimSpace(argsJSON) != "" {
+		if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+			return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
+		}
+	}
+
+	traderID := strings.TrimSpace(args.TraderID)
+	strategyID := strings.TrimSpace(args.StrategyID)
+	state := a.getExecutionState(userID)
+	if traderID == "" && state.CurrentReferences != nil && state.CurrentReferences.Trader != nil {
+		traderID = strings.TrimSpace(state.CurrentReferences.Trader.ID)
+	}
+	if strategyID == "" && state.CurrentReferences != nil && state.CurrentReferences.Strategy != nil {
+		strategyID = strings.TrimSpace(state.CurrentReferences.Strategy.ID)
+	}
+
+	if traderID != "" {
+		return a.toolGetCandidateCoinsForTrader(storeUserID, traderID)
+	}
+	if strategyID != "" {
+		return a.toolGetCandidateCoinsForStrategy(storeUserID, strategyID)
+	}
+	return `{"error":"trader_id or strategy_id is required"}`
+}
+
+func (a *Agent) toolGetCandidateCoinsForTrader(storeUserID, traderID string) string {
+	if a.traderManager == nil {
+		return `{"error":"no trader manager configured"}`
+	}
+	record, err := a.store.Trader().GetFullConfig(storeUserID, traderID)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to load trader: %s"}`, err)
+	}
+	memTrader, err := a.traderManager.GetTrader(traderID)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"trader is not loaded in memory: %s"}`, err)
+	}
+
+	coins, coinErr := memTrader.GetCandidateCoins()
+	cfg := memTrader.GetStrategyConfig()
+	status := memTrader.GetStatus()
+	isRunning, _ := status["is_running"].(bool)
+	payload := map[string]any{
+		"trader":            safeTraderForTool(record.Trader, isRunning),
+		"coin_source":       candidateCoinSourceSummary(cfg),
+		"candidate_count":   len(coins),
+		"candidate_symbols": candidateCoinSymbols(coins),
+		"candidates":        candidateCoinDetails(coins),
+	}
+	if coinErr != nil {
+		payload["error"] = coinErr.Error()
+	}
+	result, _ := json.Marshal(payload)
+	return string(result)
+}
+
+func (a *Agent) toolGetCandidateCoinsForStrategy(storeUserID, strategyID string) string {
+	record, err := a.store.Strategy().Get(storeUserID, strategyID)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to load strategy: %s"}`, err)
+	}
+	cfg, err := record.ParseConfig()
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to parse strategy config: %s"}`, err)
+	}
+
+	engine := kernel.NewStrategyEngine(cfg)
+	coins, coinErr := engine.GetCandidateCoins()
+	payload := map[string]any{
+		"strategy":          safeStrategyForTool(record),
+		"coin_source":       candidateCoinSourceSummary(cfg),
+		"candidate_count":   len(coins),
+		"candidate_symbols": candidateCoinSymbols(coins),
+		"candidates":        candidateCoinDetails(coins),
+	}
+	if coinErr != nil {
+		payload["error"] = coinErr.Error()
+	}
+	result, _ := json.Marshal(payload)
+	return string(result)
+}
+
+func candidateCoinSourceSummary(cfg *store.StrategyConfig) map[string]any {
+	if cfg == nil {
+		return nil
+	}
+	return map[string]any{
+		"source_type":      cfg.CoinSource.SourceType,
+		"use_ai500":        cfg.CoinSource.UseAI500,
+		"ai500_limit":      cfg.CoinSource.AI500Limit,
+		"use_oi_top":       cfg.CoinSource.UseOITop,
+		"oi_top_limit":     cfg.CoinSource.OITopLimit,
+		"use_oi_low":       cfg.CoinSource.UseOILow,
+		"oi_low_limit":     cfg.CoinSource.OILowLimit,
+		"use_hyper_all":    cfg.CoinSource.UseHyperAll,
+		"use_hyper_main":   cfg.CoinSource.UseHyperMain,
+		"hyper_main_limit": cfg.CoinSource.HyperMainLimit,
+		"static_coins":     cfg.CoinSource.StaticCoins,
+		"excluded_coins":   cfg.CoinSource.ExcludedCoins,
+	}
+}
+
+func candidateCoinSymbols(coins []kernel.CandidateCoin) []string {
+	out := make([]string, 0, len(coins))
+	for _, coin := range coins {
+		out = append(out, coin.Symbol)
+	}
+	return out
+}
+
+func candidateCoinDetails(coins []kernel.CandidateCoin) []map[string]any {
+	out := make([]map[string]any, 0, len(coins))
+	for _, coin := range coins {
+		out = append(out, map[string]any{
+			"symbol":  coin.Symbol,
+			"sources": coin.Sources,
+		})
+	}
+	return out
 }
 
 // knownCryptoSymbols is a set of well-known cryptocurrency base symbols.

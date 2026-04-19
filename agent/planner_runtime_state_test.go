@@ -617,6 +617,39 @@ func TestThinkAndActPrioritizesActiveExecutionStateOverDirectReply(t *testing.T)
 	}
 }
 
+func TestThinkAndActInterruptsWaitingExecutionStateForNewTopic(t *testing.T) {
+	a := newTestAgentWithStore(t)
+	a.history = newChatHistory(10)
+
+	_ = a.toolManageStrategy("user-1", `{
+		"action":"create",
+		"name":"激进",
+		"lang":"zh"
+	}`)
+
+	userID := int64(91)
+	state := newExecutionState(userID, "创建交易员")
+	state.Status = executionStatusWaitingUser
+	state.Waiting = &WaitingState{
+		Question:      "请告诉我交易员名称",
+		PendingFields: []string{"name"},
+	}
+	if err := a.saveExecutionState(state); err != nil {
+		t.Fatalf("saveExecutionState() error = %v", err)
+	}
+
+	resp, err := a.thinkAndAct(context.Background(), "user-1", userID, "zh", "列出我当前的策略")
+	if err != nil {
+		t.Fatalf("thinkAndAct() error = %v", err)
+	}
+	if !strings.Contains(resp, "当前策略") || !strings.Contains(resp, "激进") {
+		t.Fatalf("expected new topic to be handled, got %q", resp)
+	}
+	if got := a.getExecutionState(userID); got.SessionID != "" {
+		t.Fatalf("expected execution state to be cleared, got %+v", got)
+	}
+}
+
 func TestCreateExecutionPlanIncludesRecentConversation(t *testing.T) {
 	client := &capturePlannerAIClient{}
 	a := &Agent{

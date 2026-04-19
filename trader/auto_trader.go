@@ -24,6 +24,31 @@ import (
 	"time"
 )
 
+func (at *AutoTrader) logTag() string {
+	if at == nil {
+		return "[trader_id=unknown]"
+	}
+	if at.name != "" {
+		return fmt.Sprintf("[trader_id=%s trader_name=%s]", at.id, at.name)
+	}
+	return fmt.Sprintf("[trader_id=%s]", at.id)
+}
+
+func (at *AutoTrader) logInfof(format string, args ...interface{}) {
+	values := append([]interface{}{at.logTag()}, args...)
+	logger.Infof("%s "+format, values...)
+}
+
+func (at *AutoTrader) logWarnf(format string, args ...interface{}) {
+	values := append([]interface{}{at.logTag()}, args...)
+	logger.Warnf("%s "+format, values...)
+}
+
+func (at *AutoTrader) logErrorf(format string, args ...interface{}) {
+	values := append([]interface{}{at.logTag()}, args...)
+	logger.Errorf("%s "+format, values...)
+}
+
 // AutoTraderConfig auto trading configuration (simplified version - AI makes all decisions)
 type AutoTraderConfig struct {
 	// Trader identification
@@ -381,8 +406,8 @@ func (at *AutoTrader) Run() error {
 	at.startTime = time.Now()
 
 	logger.Info("🚀 AI-driven automatic trading system started")
-	logger.Infof("💰 Initial balance: %.2f USDT", at.initialBalance)
-	logger.Infof("⚙️  Scan interval: %v", at.config.ScanInterval)
+	at.logInfof("💰 Initial balance: %.2f USDT", at.initialBalance)
+	at.logInfof("⚙️  Scan interval: %v", at.config.ScanInterval)
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
 
 	// Pre-launch checks for claw402 users
@@ -397,7 +422,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "lighter" {
 		if lighterTrader, ok := at.trader.(*lighter.LighterTraderV2); ok && at.store != nil {
 			lighterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Lighter order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 Lighter order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -405,7 +430,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "hyperliquid" {
 		if hyperliquidTrader, ok := at.trader.(*hyperliquid.HyperliquidTrader); ok && at.store != nil {
 			hyperliquidTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Hyperliquid order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 Hyperliquid order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -413,7 +438,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "bybit" {
 		if bybitTrader, ok := at.trader.(*bybit.BybitTrader); ok && at.store != nil {
 			bybitTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Bybit order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 Bybit order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -421,7 +446,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "okx" {
 		if okxTrader, ok := at.trader.(*okx.OKXTrader); ok && at.store != nil {
 			okxTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] OKX order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 OKX order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -429,7 +454,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "bitget" {
 		if bitgetTrader, ok := at.trader.(*bitget.BitgetTrader); ok && at.store != nil {
 			bitgetTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Bitget order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 Bitget order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -437,7 +462,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "aster" {
 		if asterTrader, ok := at.trader.(*aster.AsterTrader); ok && at.store != nil {
 			asterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Aster order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 Aster order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -445,7 +470,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "binance" {
 		if binanceTrader, ok := at.trader.(*binance.FuturesTrader); ok && at.store != nil {
 			binanceTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Binance order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 Binance order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -453,7 +478,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "gate" {
 		if gateTrader, ok := at.trader.(*gate.GateTrader); ok && at.store != nil {
 			gateTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Gate order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 Gate order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -461,7 +486,7 @@ func (at *AutoTrader) Run() error {
 	if at.exchange == "kucoin" {
 		if kucoinTrader, ok := at.trader.(*kucoin.KuCoinTrader); ok && at.store != nil {
 			kucoinTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] KuCoin order+position sync enabled (every 30s)", at.name)
+			at.logInfof("🔄 KuCoin order+position sync enabled (every 30s)")
 		}
 	}
 
@@ -471,9 +496,9 @@ func (at *AutoTrader) Run() error {
 	// Check if this is a grid trading strategy
 	isGridStrategy := at.IsGridStrategy()
 	if isGridStrategy {
-		logger.Infof("🔲 [%s] Grid trading strategy detected, initializing grid...", at.name)
+		at.logInfof("🔲 Grid trading strategy detected, initializing grid...")
 		if err := at.InitializeGrid(); err != nil {
-			logger.Errorf("❌ [%s] Failed to initialize grid: %v", at.name, err)
+			at.logErrorf("❌ Failed to initialize grid: %v", err)
 			return fmt.Errorf("grid initialization failed: %w", err)
 		}
 	}
@@ -481,11 +506,11 @@ func (at *AutoTrader) Run() error {
 	// Execute immediately on first run
 	if isGridStrategy {
 		if err := at.RunGridCycle(); err != nil {
-			logger.Infof("❌ Grid execution failed: %v", err)
+			at.logErrorf("❌ Grid execution failed: %v", err)
 		}
 	} else {
 		if err := at.runCycle(); err != nil {
-			logger.Infof("❌ Execution failed: %v", err)
+			at.logErrorf("❌ Execution failed: %v", err)
 		}
 	}
 
@@ -502,15 +527,15 @@ func (at *AutoTrader) Run() error {
 		case <-ticker.C:
 			if isGridStrategy {
 				if err := at.RunGridCycle(); err != nil {
-					logger.Infof("❌ Grid execution failed: %v", err)
+					at.logErrorf("❌ Grid execution failed: %v", err)
 				}
 			} else {
 				if err := at.runCycle(); err != nil {
-					logger.Infof("❌ Execution failed: %v", err)
+					at.logErrorf("❌ Execution failed: %v", err)
 				}
 			}
 		case <-at.stopMonitorCh:
-			logger.Infof("[%s] ⏹ Stop signal received, exiting automatic trading main loop", at.name)
+			at.logInfof("⏹ Stop signal received, exiting automatic trading main loop")
 			return nil
 		}
 	}
@@ -588,6 +613,22 @@ func (at *AutoTrader) GetSystemPromptTemplate() string {
 		}
 	}
 	return "strategy"
+}
+
+// GetCandidateCoins returns the current candidate coin set from the trader's strategy engine.
+func (at *AutoTrader) GetCandidateCoins() ([]kernel.CandidateCoin, error) {
+	if at.strategyEngine == nil {
+		return nil, fmt.Errorf("strategy engine not configured")
+	}
+	return at.strategyEngine.GetCandidateCoins()
+}
+
+// GetStrategyConfig returns the current strategy config used by the trader.
+func (at *AutoTrader) GetStrategyConfig() *store.StrategyConfig {
+	if at.strategyEngine == nil {
+		return at.config.StrategyConfig
+	}
+	return at.strategyEngine.GetConfig()
 }
 
 // GetStore gets data store (for external access to decision records, etc.)

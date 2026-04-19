@@ -20,6 +20,11 @@ import { ChatMessages } from '../components/agent/ChatMessages'
 import { ChatInput, type ChatInputHandle } from '../components/agent/ChatInput'
 import { UserPreferencesPanel } from '../components/agent/UserPreferencesPanel'
 import {
+  useAgentChatStore,
+  type AgentMessage as Message,
+  type AgentStep,
+} from '../stores/agentChatStore'
+import {
   chatStorageKey,
   clearAgentMessages,
   getStoredAuthUserId,
@@ -28,22 +33,6 @@ import {
   prepareAgentMessagesForPersistence,
   persistAgentMessages,
 } from '../lib/agentChatStorage'
-
-interface Message {
-  id: string
-  role: 'user' | 'bot'
-  text: string
-  time: string
-  streaming?: boolean
-  steps?: AgentStep[]
-}
-
-interface AgentStep {
-  id: string
-  label: string
-  status: 'planning' | 'pending' | 'running' | 'completed' | 'replanned'
-  detail?: string
-}
 
 let msgIdCounter = 0
 function nextId() {
@@ -66,7 +55,7 @@ function parsePlanSteps(data: string): AgentStep[] {
   return text.split(/\s*->\s*/).map((part, index) => {
     const cleaned = part.replace(/^\d+\./, '').trim()
     return {
-      id: `plan-${index + 1}`,
+      id: `action-${index + 1}`,
       label: cleaned || `Step ${index + 1}`,
       status: 'pending',
     }
@@ -76,7 +65,7 @@ function parsePlanSteps(data: string): AgentStep[] {
 function parseStepEvent(data: string, fallbackIndex: number): AgentStep {
   const match = data.match(/Step\s+(\d+)\/(\d+):\s+(.+)$/i) || data.match(/步骤\s+(\d+)\/(\d+):\s+(.+)$/)
   if (match) {
-    const id = `plan-${match[1]}`
+    const id = `action-${match[1]}`
     return {
       id,
       label: match[3].trim(),
@@ -110,11 +99,14 @@ export function AgentChatPage() {
   const [storageUserId, setStorageUserId] = useState<string | undefined>(() => getStoredAuthUserId())
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024)
   const storageKey = chatStorageKey(user?.id || storageUserId)
-  const [messages, setMessages] = useState<Message[]>(
-    () => loadAgentMessages<Message>(window.localStorage, user?.id || storageUserId).messages
-  )
-  const [historyHydrated, setHistoryHydrated] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const messages = useAgentChatStore((state) => state.messages)
+  const loading = useAgentChatStore((state) => state.loading)
+  const historyHydrated = useAgentChatStore((state) => state.hydrated)
+  const activeUserId = useAgentChatStore((state) => state.activeUserId)
+  const setMessages = useAgentChatStore((state) => state.setMessages)
+  const updateMessages = useAgentChatStore((state) => state.updateMessages)
+  const setLoading = useAgentChatStore((state) => state.setLoading)
+  const resetForUser = useAgentChatStore((state) => state.resetForUser)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputHandle>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -147,10 +139,13 @@ export function AgentChatPage() {
 
   // Restore chat history for the current user when opening the agent page.
   useEffect(() => {
-    setHistoryHydrated(false)
-    setMessages(loadAgentMessages<Message>(window.localStorage, user?.id || storageUserId).messages)
-    setHistoryHydrated(true)
-  }, [storageKey, storageUserId, user?.id])
+    const nextUserId = user?.id || storageUserId
+    if (activeUserId === nextUserId && historyHydrated) return
+    resetForUser(
+      nextUserId,
+      loadAgentMessages<Message>(window.localStorage, nextUserId).messages
+    )
+  }, [activeUserId, historyHydrated, resetForUser, storageKey, storageUserId, user?.id])
 
   // Persist chat history locally so page navigation does not wipe the conversation.
   useEffect(() => {
@@ -162,6 +157,26 @@ export function AgentChatPage() {
       // Ignore storage failures and keep the chat usable.
     }
   }, [historyHydrated, messages, storageKey, storageUserId, user?.id])
+
+  const persistMessagesSnapshot = (nextMessages: Message[]) => {
+    const persistable = prepareAgentMessagesForPersistence(nextMessages).slice(-100)
+    persistAgentMessages(window.localStorage, user?.id || storageUserId, persistable)
+  }
+
+  const replaceMessages = (nextMessages: Message[]) => {
+    setMessages(nextMessages)
+    if (historyHydrated) {
+      persistMessagesSnapshot(nextMessages)
+    }
+  }
+
+  const patchMessages = (updater: (prev: Message[]) => Message[]) => {
+    const nextMessages = updater(useAgentChatStore.getState().messages)
+    updateMessages(() => nextMessages)
+    if (useAgentChatStore.getState().hydrated) {
+      persistMessagesSnapshot(nextMessages)
+    }
+  }
 
   // Responsive sidebar
   useEffect(() => {
@@ -201,10 +216,10 @@ export function AgentChatPage() {
         streaming: true,
       },
     ]
-    setMessages((prev) =>
+    replaceMessages(
       text.trim() === '/clear'
         ? nextConversation
-        : [...prev, ...nextConversation]
+        : [...useAgentChatStore.getState().messages, ...nextConversation]
     )
     setLoading(true)
 
@@ -275,7 +290,7 @@ export function AgentChatPage() {
             if (eventType === 'delta') {
               // data is the accumulated text so far
               finalText = data
-              setMessages((prev) =>
+              patchMessages((prev) =>
                 prev.map((m) =>
                   m.id === botId
                     ? { ...m, text: data, time: now() }
@@ -284,13 +299,12 @@ export function AgentChatPage() {
               )
             } else if (eventType === 'plan') {
               const parsedSteps = parsePlanSteps(data)
-              setMessages((prev) =>
+              patchMessages((prev) =>
                 prev.map((m) =>
                   m.id === botId
                     ? {
                         ...m,
                         steps: parsedSteps.length > 0 ? parsedSteps : m.steps,
-                        text: m.text || data,
                         time: now(),
                       }
                     : m
@@ -299,33 +313,31 @@ export function AgentChatPage() {
             } else if (eventType === 'step_start') {
               stepCounter += 1
               const nextStep = parseStepEvent(data, stepCounter)
-              setMessages((prev) =>
+              patchMessages((prev) =>
                 prev.map((m) =>
                   m.id === botId
                     ? {
                         ...m,
                         steps: appendStep(m.steps, nextStep),
-                        text: m.text || data,
                         time: now(),
                       }
                     : m
                 )
               )
             } else if (eventType === 'step_complete') {
-              setMessages((prev) =>
+              patchMessages((prev) =>
                 prev.map((m) =>
                   m.id === botId
                     ? {
                         ...m,
                         steps: markLatestRunningCompleted(m.steps, data),
-                        text: m.text || data,
                         time: now(),
                       }
                     : m
                 )
               )
             } else if (eventType === 'replan') {
-              setMessages((prev) =>
+              patchMessages((prev) =>
                 prev.map((m) =>
                   m.id === botId
                     ? {
@@ -336,7 +348,6 @@ export function AgentChatPage() {
                           status: 'replanned',
                           detail: data,
                         }),
-                        text: m.text || data,
                         time: now(),
                       }
                     : m
@@ -346,12 +357,11 @@ export function AgentChatPage() {
               eventType === 'tool'
             ) {
               // Show tool being called as a status indicator
-              setMessages((prev) =>
+              patchMessages((prev) =>
                 prev.map((m) =>
                   m.id === botId
                     ? {
                         ...m,
-                        text: m.text || `🔧 _Calling ${data}..._`,
                         steps: appendStep(m.steps, {
                           id: `tool-${Date.now()}`,
                           label: `Tool: ${data}`,
@@ -365,7 +375,7 @@ export function AgentChatPage() {
               )
             } else if (eventType === 'done') {
               finalText = data
-              setMessages((prev) =>
+              patchMessages((prev) =>
                 prev.map((m) =>
                   m.id === botId
                     ? { ...m, text: data, time: now(), streaming: false }
@@ -381,7 +391,7 @@ export function AgentChatPage() {
       }
 
       // If stream ended without a "done" event, mark as done
-      setMessages((prev) =>
+      patchMessages((prev) =>
         prev.map((m) =>
           m.id === botId && m.streaming
             ? {
@@ -398,9 +408,9 @@ export function AgentChatPage() {
     } catch (e: any) {
       if (e.name === 'AbortError') {
         // Request was cancelled (e.g. user sent a new message), clean up silently
-        setMessages((prev) => prev.filter((m) => m.id !== botId))
+        patchMessages((prev) => prev.filter((m) => m.id !== botId))
       } else {
-        setMessages((prev) =>
+        patchMessages((prev) =>
           prev.map((m) =>
             m.id === botId
               ? {

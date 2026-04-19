@@ -131,7 +131,7 @@ func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 	if userID == "" {
 		userID = "default"
 	}
-	model, err := s.firstEnabled(userID)
+	model, err := s.firstEnabledUsable(userID)
 	if err == nil {
 		return model, nil
 	}
@@ -139,14 +139,14 @@ func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 		return nil, err
 	}
 	if userID != "default" {
-		return s.firstEnabled("default")
+		return s.firstEnabledUsable("default")
 	}
 	return nil, fmt.Errorf("please configure an available AI model in the system first")
 }
 
-func (s *AIModelStore) firstEnabled(userID string) (*AIModel, error) {
+func (s *AIModelStore) firstEnabledUsable(userID string) (*AIModel, error) {
 	var model AIModel
-	err := s.db.Where("user_id = ? AND enabled = ?", userID, true).
+	err := s.db.Where("user_id = ? AND enabled = ? AND api_key != ''", userID, true).
 		Order("updated_at DESC, id ASC").
 		First(&model).Error
 	if err != nil {

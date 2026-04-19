@@ -86,6 +86,7 @@ func TestToolManageModelConfigLifecycle(t *testing.T) {
 		"action":"create",
 		"provider":"openai",
 		"enabled":true,
+		"api_key":"sk-test",
 		"custom_api_url":"https://api.openai.com/v1",
 		"custom_model_name":"gpt-5-mini"
 	}`)
@@ -136,6 +137,71 @@ func TestToolManageModelConfigLifecycle(t *testing.T) {
 	}
 }
 
+func TestToolManageModelConfigRejectsEnableWithoutAPIKey(t *testing.T) {
+	a := newTestAgentWithStore(t)
+
+	createResp := a.toolManageModelConfig("user-1", `{
+		"action":"create",
+		"provider":"openai",
+		"enabled":false,
+		"custom_model_name":"gpt-4o"
+	}`)
+	var created struct {
+		Model safeModelToolConfig `json:"model"`
+	}
+	if err := json.Unmarshal([]byte(createResp), &created); err != nil {
+		t.Fatalf("unmarshal create response: %v\nraw=%s", err, createResp)
+	}
+
+	updateResp := a.toolManageModelConfig("user-1", `{
+		"action":"update",
+		"model_id":"`+created.Model.ID+`",
+		"enabled":true
+	}`)
+	if !strings.Contains(updateResp, "cannot enable model config before API key is configured") {
+		t.Fatalf("expected enabling incomplete model to fail, got %s", updateResp)
+	}
+}
+
+func TestGetDefaultSkipsEnabledModelWithoutAPIKey(t *testing.T) {
+	a := newTestAgentWithStore(t)
+
+	incompleteCreate := a.toolManageModelConfig("user-1", `{
+		"action":"create",
+		"provider":"openai",
+		"enabled":true,
+		"custom_model_name":"gpt-4o"
+	}`)
+	var incomplete struct {
+		Model safeModelToolConfig `json:"model"`
+	}
+	if err := json.Unmarshal([]byte(incompleteCreate), &incomplete); err != nil {
+		t.Fatalf("unmarshal incomplete create response: %v\nraw=%s", err, incompleteCreate)
+	}
+
+	completeCreate := a.toolManageModelConfig("user-1", `{
+		"action":"create",
+		"provider":"deepseek",
+		"enabled":true,
+		"api_key":"sk-test",
+		"custom_model_name":"deepseek-chat"
+	}`)
+	var complete struct {
+		Model safeModelToolConfig `json:"model"`
+	}
+	if err := json.Unmarshal([]byte(completeCreate), &complete); err != nil {
+		t.Fatalf("unmarshal complete create response: %v\nraw=%s", err, completeCreate)
+	}
+
+	model, err := a.store.AIModel().GetDefault("user-1")
+	if err != nil {
+		t.Fatalf("GetDefault() error = %v", err)
+	}
+	if model.ID != complete.Model.ID {
+		t.Fatalf("expected GetDefault to skip incomplete enabled model and return %s, got %s", complete.Model.ID, model.ID)
+	}
+}
+
 func TestToolManageTraderLifecycle(t *testing.T) {
 	a := newTestAgentWithStore(t)
 
@@ -143,6 +209,7 @@ func TestToolManageTraderLifecycle(t *testing.T) {
 		"action":"create",
 		"provider":"openai",
 		"enabled":true,
+		"api_key":"sk-test",
 		"custom_api_url":"https://api.openai.com/v1",
 		"custom_model_name":"gpt-5-mini"
 	}`)

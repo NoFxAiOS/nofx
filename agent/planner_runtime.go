@@ -198,16 +198,6 @@ func isRealtimeAccountIntent(text string) bool {
 
 func snapshotKindsForIntent(userText string) []string {
 	kinds := make([]string, 0, 6)
-	if isConfigOrTraderIntent(userText) {
-		kinds = append(kinds,
-			"current_model_configs",
-			"current_exchange_configs",
-			"current_traders",
-		)
-	}
-	if isStrategyIntent(userText) {
-		kinds = append(kinds, "current_strategies")
-	}
 	return uniqueStrings(kinds)
 }
 
@@ -756,16 +746,16 @@ func (a *Agent) thinkAndAct(ctx context.Context, storeUserID string, userID int6
 	if answer, ok, err := a.tryStatePriorityPath(ctx, storeUserID, userID, lang, text, nil); ok || err != nil {
 		return answer, err
 	}
-	if answer, ok := a.tryDirectAnswer(ctx, userID, lang, text, nil); ok {
-		return answer, nil
-	}
-	if answer, ok := a.tryLLMSkillRoute(ctx, storeUserID, userID, lang, text, nil); ok {
-		return answer, nil
-	}
-	if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, nil); ok {
+	if answer, ok := tryInstantDirectReply(lang, text); ok {
 		return answer, nil
 	}
 	if answer, ok := a.tryReadFastPath(storeUserID, userID, lang, text); ok {
+		return answer, nil
+	}
+	if answer, ok, err := a.tryWorkflowIntent(ctx, storeUserID, userID, lang, text, nil); ok || err != nil {
+		return answer, err
+	}
+	if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, nil); ok {
 		return answer, nil
 	}
 	if a.aiClient == nil {
@@ -778,13 +768,10 @@ func (a *Agent) thinkAndActStream(ctx context.Context, storeUserID string, userI
 	if answer, ok, err := a.tryStatePriorityPath(ctx, storeUserID, userID, lang, text, onEvent); ok || err != nil {
 		return answer, err
 	}
-	if answer, ok := a.tryDirectAnswer(ctx, userID, lang, text, onEvent); ok {
-		return answer, nil
-	}
-	if answer, ok := a.tryLLMSkillRoute(ctx, storeUserID, userID, lang, text, onEvent); ok {
-		return answer, nil
-	}
-	if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, onEvent); ok {
+	if answer, ok := tryInstantDirectReply(lang, text); ok {
+		if onEvent != nil {
+			onEvent(StreamEventDelta, answer)
+		}
 		return answer, nil
 	}
 	if answer, ok := a.tryReadFastPath(storeUserID, userID, lang, text); ok {
@@ -794,10 +781,63 @@ func (a *Agent) thinkAndActStream(ctx context.Context, storeUserID string, userI
 		}
 		return answer, nil
 	}
+	if answer, ok, err := a.tryWorkflowIntent(ctx, storeUserID, userID, lang, text, onEvent); ok || err != nil {
+		return answer, err
+	}
+	if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, onEvent); ok {
+		return answer, nil
+	}
 	if a.aiClient == nil {
 		return a.noAIFallback(lang, text)
 	}
 	return a.runPlannedAgent(ctx, storeUserID, userID, lang, text, onEvent)
+}
+
+func tryInstantDirectReply(lang, text string) (string, bool) {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return "", false
+	}
+
+	zhReplies := map[string]string{
+		"hi":     "在，有什么我帮你看的？",
+		"hello":  "在，有什么我帮你看的？",
+		"hey":    "在，有什么我帮你看的？",
+		"你好":     "在，有什么我帮你看的？",
+		"嗨":      "在，有什么我帮你看的？",
+		"在吗":     "在，有什么我帮你看的？",
+		"谢谢":     "不客气。",
+		"多谢":     "不客气。",
+		"谢了":     "不客气。",
+		"ok":     "好。",
+		"好的":     "好。",
+		"收到":     "好。",
+	}
+	enReplies := map[string]string{
+		"hi":        "I'm here. What should we look at?",
+		"hello":     "I'm here. What should we look at?",
+		"hey":       "I'm here. What should we look at?",
+		"thanks":    "You're welcome.",
+		"thank you": "You're welcome.",
+		"ok":        "Okay.",
+		"okay":      "Okay.",
+		"got it":    "Got it.",
+	}
+
+	if lang == "zh" {
+		if reply, ok := zhReplies[lower]; ok {
+			return reply, true
+		}
+		if reply, ok := enReplies[lower]; ok {
+			return reply, true
+		}
+		return "", false
+	}
+
+	if reply, ok := enReplies[lower]; ok {
+		return reply, true
+	}
+	return "", false
 }
 
 func (a *Agent) hasActiveSkillSession(userID int64) bool {
@@ -818,19 +858,333 @@ func hasActiveExecutionState(state ExecutionState) bool {
 }
 
 func (a *Agent) tryStatePriorityPath(ctx context.Context, storeUserID string, userID int64, lang, text string, onEvent func(event, data string)) (string, bool, error) {
-	if a.hasActiveSkillSession(userID) {
-		if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, onEvent); ok {
-			return answer, true, nil
+	if workflow := a.getWorkflowSession(userID); hasActiveWorkflowSession(workflow) {
+		answer, handled, err := a.handleWorkflowSession(ctx, storeUserID, userID, lang, text, workflow, onEvent)
+		if handled || err != nil {
+			return answer, true, err
+		}
+	}
+	if session := a.getSkillSession(userID); strings.TrimSpace(session.Name) != "" {
+		switch a.classifySkillSessionInput(ctx, userID, lang, session, text) {
+		case "cancel":
+			a.clearSkillSession(userID)
+			a.clearWorkflowSession(userID)
+			if lang == "zh" {
+				return "已取消当前流程。", true, nil
+			}
+			return "Cancelled the current flow.", true, nil
+		case "interrupt":
+			a.clearSkillSession(userID)
+		default:
+			if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, onEvent); ok {
+				return answer, true, nil
+			}
 		}
 	}
 
 	state := a.getExecutionState(userID)
 	if hasActiveExecutionState(state) {
-		answer, err := a.runPlannedAgent(ctx, storeUserID, userID, lang, text, onEvent)
-		return answer, true, err
+		switch classifyExecutionStateInput(state, text) {
+		case "cancel":
+			a.clearExecutionState(userID)
+			if lang == "zh" {
+				return "已取消当前流程。", true, nil
+			}
+			return "Cancelled the current flow.", true, nil
+		case "interrupt":
+			a.clearExecutionState(userID)
+		default:
+			answer, err := a.runPlannedAgent(ctx, storeUserID, userID, lang, text, onEvent)
+			return answer, true, err
+		}
 	}
 
 	return "", false, nil
+}
+
+func (a *Agent) classifySkillSessionInput(ctx context.Context, userID int64, lang string, session skillSession, text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return "continue"
+	}
+	if isYesReply(text) || isNoReply(text) {
+		return "continue"
+	}
+	if isExplicitFlowAbort(text) {
+		return "cancel"
+	}
+	if shouldContinueSkillSessionByExpectedSlot(session, text) {
+		return "continue"
+	}
+	if decision := a.classifySkillSessionIntentWithLLM(ctx, userID, lang, session, text); decision != "" {
+		return decision
+	}
+	if isNewSkillRootIntent(session, text) {
+		return "interrupt"
+	}
+	if isSkillFlowDeflection(session, text) {
+		return "interrupt"
+	}
+	if belongsToSkillDomain(session.Name, text) || !looksLikeNewTopLevelIntent(text) {
+		return "continue"
+	}
+	return "interrupt"
+}
+
+type skillSessionIntentDecision struct {
+	Decision string `json:"decision"`
+}
+
+func shouldUseLLMSkillSessionClassifier(session skillSession, text string) bool {
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	if isExplicitFlowAbort(text) || isYesReply(text) || isNoReply(text) {
+		return false
+	}
+	if shouldContinueSkillSessionByExpectedSlot(session, text) {
+		return false
+	}
+	return true
+}
+
+func shouldContinueSkillSessionByExpectedSlot(session skillSession, text string) bool {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false
+	}
+	currentStep, ok := currentSkillDAGStep(session)
+	if !ok {
+		return false
+	}
+	switch currentStep.ID {
+	case "await_start_confirmation", "await_confirmation":
+		return isYesReply(text) || isNoReply(text)
+	case "resolve_config_value":
+		if fieldValue(session, "config_field") == "selected_timeframes" {
+			return timeframeTokenRE.MatchString(strings.ToLower(text))
+		}
+		return firstIntegerPattern.MatchString(text)
+	case "collect_enabled":
+		_, ok := parseEnabledValue(text)
+		return ok
+	case "collect_custom_api_url":
+		return extractURL(text) != ""
+	case "resolve_exchange_type":
+		return exchangeTypeFromText(text) != ""
+	case "resolve_provider":
+		return providerFromText(text) != ""
+	case "resolve_name", "collect_name", "collect_prompt", "collect_account_name", "collect_custom_model_name":
+		return !looksLikeNewTopLevelIntent(text)
+	}
+	for _, field := range currentStep.RequiredFields {
+		switch field {
+		case "config_value":
+			return firstIntegerPattern.MatchString(text)
+		case "enabled":
+			_, ok := parseEnabledValue(text)
+			return ok
+		case "custom_api_url":
+			return extractURL(text) != ""
+		}
+	}
+	return false
+}
+
+func (a *Agent) classifySkillSessionIntentWithLLM(ctx context.Context, userID int64, lang string, session skillSession, text string) string {
+	if a == nil || a.aiClient == nil {
+		return ""
+	}
+	if !shouldUseLLMSkillSessionClassifier(session, text) {
+		return ""
+	}
+	currentStep, _ := currentSkillDAGStep(session)
+	recentConversationCtx := a.buildRecentConversationContext(userID, text)
+	systemPrompt := `You classify one user message while a NOFXi structured management flow is active.
+Return JSON only. No markdown.
+
+Possible decisions:
+- "continue": the user is still answering the current flow
+- "cancel": the user wants to stop the current flow
+- "interrupt": the user changed topic, wants diagnosis/query/new task, or should leave the current flow
+
+Be conservative:
+- Prefer "continue" only when the message clearly answers the current slot/question.
+- Use "cancel" for explicit abandonment like "算了", "不改了", "换话题", "别弄了".
+- Use "interrupt" for diagnosis, query, new requests, or topic shifts.`
+	userPrompt := fmt.Sprintf(
+		"Language: %s\nActive skill: %s\nAction: %s\nCurrent DAG step: %s\nExpected required fields: %s\nUser message: %s\n\nRecent conversation:\n%s",
+		lang,
+		session.Name,
+		session.Action,
+		currentStep.ID,
+		strings.Join(currentStep.RequiredFields, ", "),
+		text,
+		recentConversationCtx,
+	)
+	stageCtx, cancel := withPlannerStageTimeout(ctx, directReplyTimeout)
+	defer cancel()
+	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
+		Messages: []mcp.Message{
+			mcp.NewSystemMessage(systemPrompt),
+			mcp.NewUserMessage(userPrompt),
+		},
+		Ctx: stageCtx,
+	})
+	if err != nil {
+		return ""
+	}
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "```json")
+	raw = strings.TrimPrefix(raw, "```")
+	raw = strings.TrimSuffix(raw, "```")
+	raw = strings.TrimSpace(raw)
+	var decision skillSessionIntentDecision
+	if err := json.Unmarshal([]byte(raw), &decision); err != nil {
+		start := strings.Index(raw, "{")
+		end := strings.LastIndex(raw, "}")
+		if start < 0 || end <= start || json.Unmarshal([]byte(raw[start:end+1]), &decision) != nil {
+			return ""
+		}
+	}
+	switch strings.TrimSpace(decision.Decision) {
+	case "continue", "cancel", "interrupt":
+		return decision.Decision
+	default:
+		return ""
+	}
+}
+
+func isSkillFlowDeflection(session skillSession, text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if containsAny(lower, []string{
+		"看下报错", "看看报错", "帮我看下报错", "帮我看看报错", "报错怎么回事", "错误怎么回事",
+		"换话题", "聊别的", "不是这个", "先说别的", "不聊这个",
+	}) {
+		return true
+	}
+	switch strings.TrimSpace(session.Name) {
+	case "exchange_management":
+		return detectModelDiagnosisSkill(text) || detectTraderDiagnosisSkill(text) || detectStrategyDiagnosisSkill(text)
+	case "model_management":
+		return detectExchangeDiagnosisSkill(text) || detectTraderDiagnosisSkill(text) || detectStrategyDiagnosisSkill(text)
+	case "strategy_management":
+		return detectExchangeDiagnosisSkill(text) || detectTraderDiagnosisSkill(text) || detectModelDiagnosisSkill(text)
+	case "trader_management":
+		return detectExchangeDiagnosisSkill(text) || detectModelDiagnosisSkill(text) || detectStrategyDiagnosisSkill(text)
+	default:
+		return false
+	}
+}
+
+func isNewSkillRootIntent(session skillSession, text string) bool {
+	currentSkill := strings.TrimSpace(session.Name)
+	currentAction := strings.TrimSpace(session.Action)
+	if currentSkill == "" {
+		return false
+	}
+	switch currentSkill {
+	case "trader_management":
+		if detectCreateTraderSkill(text) && currentAction != "create" {
+			return true
+		}
+		if action := normalizeAtomicSkillAction("trader_management", detectManagementAction(text, "trader")); action == "create" && currentAction != "create" {
+			return true
+		}
+	case "strategy_management":
+		if action := normalizeAtomicSkillAction("strategy_management", detectManagementAction(text, "strategy")); action == "create" && currentAction != "create" {
+			return true
+		}
+	case "model_management":
+		if action := normalizeAtomicSkillAction("model_management", detectManagementAction(text, "model")); action == "create" && currentAction != "create" {
+			return true
+		}
+	case "exchange_management":
+		if action := normalizeAtomicSkillAction("exchange_management", detectManagementAction(text, "exchange")); action == "create" && currentAction != "create" {
+			return true
+		}
+	}
+	return false
+}
+
+func classifyExecutionStateInput(state ExecutionState, text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return "continue"
+	}
+	if isExplicitFlowAbort(text) {
+		return "cancel"
+	}
+	if isYesReply(text) || isNoReply(text) || shouldResetExecutionStateForNewAttempt(text, state) {
+		return "continue"
+	}
+	if state.Waiting != nil && !looksLikeNewTopLevelIntent(text) {
+		return "continue"
+	}
+	if looksLikeNewTopLevelIntent(text) {
+		return "interrupt"
+	}
+	return "continue"
+}
+
+func isExplicitFlowAbort(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if isCancelSkillReply(text) {
+		return true
+	}
+	return containsAny(lower, []string{
+		"算了", "先不", "不配了", "别弄了", "不搞了", "先停", "换个话题", "换话题", "聊点别的", "聊别的",
+		"stop this", "drop it", "never mind", "forget it", "skip this",
+	})
+}
+
+func belongsToSkillDomain(skillName, text string) bool {
+	switch strings.TrimSpace(skillName) {
+	case "trader_management":
+		return detectCreateTraderSkill(text) || detectTraderManagementIntent(text) || detectTraderDiagnosisSkill(text)
+	case "strategy_management":
+		return detectStrategyManagementIntent(text) || detectStrategyDiagnosisSkill(text)
+	case "model_management":
+		return detectModelManagementIntent(text) || detectModelDiagnosisSkill(text)
+	case "exchange_management":
+		return detectExchangeManagementIntent(text) || detectExchangeDiagnosisSkill(text)
+	default:
+		return false
+	}
+}
+
+func looksLikeNewTopLevelIntent(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if strings.HasPrefix(lower, "/") {
+		return true
+	}
+	if detectCreateTraderSkill(text) ||
+		detectTraderManagementIntent(text) ||
+		detectExchangeManagementIntent(text) ||
+		detectModelManagementIntent(text) ||
+		detectStrategyManagementIntent(text) ||
+		detectTraderDiagnosisSkill(text) ||
+		detectExchangeDiagnosisSkill(text) ||
+		detectModelDiagnosisSkill(text) ||
+		detectStrategyDiagnosisSkill(text) {
+		return true
+	}
+	if detectReadFastPath(text) != nil {
+		return true
+	}
+	return containsAny(lower, []string{
+		"btc", "eth", "sol", "市场", "行情", "余额", "仓位", "持仓", "订单", "账户",
+		"price", "market", "balance", "position", "portfolio", "account",
+	})
 }
 
 func (a *Agent) tryDirectAnswer(ctx context.Context, userID int64, lang, text string, onEvent func(event, data string)) (string, bool) {
@@ -948,8 +1302,10 @@ func (a *Agent) runPlannedAgent(ctx context.Context, storeUserID string, userID 
 		onEvent(StreamEventPlanning, a.planningStatusText(lang))
 	}
 
+	requestStartedAt := time.Now()
 	state, err := a.prepareExecutionState(ctx, storeUserID, userID, lang, text)
 	if err != nil {
+		a.logPlannerTiming("", userID, "prepare_execution_state", requestStartedAt, err)
 		if isPlannerTimeoutError(err) {
 			msg := plannerTimeoutMessage(lang)
 			if onEvent != nil {
@@ -961,8 +1317,11 @@ func (a *Agent) runPlannedAgent(ctx context.Context, storeUserID string, userID 
 		a.logger.Warn("planner failed, falling back to legacy loop", "error", err, "user_id", userID)
 		return a.thinkAndActLegacy(ctx, userID, lang, text, onEvent)
 	}
+	a.logPlannerTiming(state.SessionID, userID, "prepare_execution_state", requestStartedAt, nil)
 
+	executionStartedAt := time.Now()
 	answer, err := a.executePlan(ctx, storeUserID, userID, lang, &state, onEvent)
+	a.logPlannerTiming(state.SessionID, userID, "execute_plan", executionStartedAt, err)
 	if err != nil {
 		if isPlannerTimeoutError(err) {
 			msg := plannerTimeoutMessage(lang)
@@ -979,6 +1338,7 @@ func (a *Agent) runPlannedAgent(ctx context.Context, storeUserID string, userID 
 	a.history.Add(userID, "assistant", answer)
 	a.maybeUpdateTaskStateIncrementally(ctx, userID)
 	a.maybeCompressHistory(ctx, userID)
+	a.logPlannerTiming(state.SessionID, userID, "run_planned_agent_total", requestStartedAt, nil)
 	return answer, nil
 }
 
@@ -1005,12 +1365,7 @@ func (a *Agent) prepareExecutionState(ctx context.Context, storeUserID string, u
 		existing.FinalAnswer = ""
 		existing.LastError = ""
 		existing = a.refreshStateForDynamicRequests(storeUserID, text, existing)
-		plan, err := a.createExecutionPlan(ctx, userID, lang, text, existing)
-		if err != nil {
-			return ExecutionState{}, err
-		}
-		existing.Goal = plan.Goal
-		existing.Steps = plan.Steps
+		existing.Steps = completedSteps(existing.Steps)
 		existing.CurrentStepID = ""
 		existing.Status = executionStatusRunning
 		existing.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
@@ -1023,17 +1378,119 @@ func (a *Agent) prepareExecutionState(ctx context.Context, storeUserID string, u
 	state := newExecutionState(userID, text)
 	a.refreshCurrentReferencesForUserText(storeUserID, text, &state)
 	state = a.refreshStateForDynamicRequests(storeUserID, text, state)
-	plan, err := a.createExecutionPlan(ctx, userID, lang, text, state)
-	if err != nil {
-		return ExecutionState{}, err
-	}
-	state.Goal = plan.Goal
-	state.Steps = plan.Steps
 	state.Status = executionStatusRunning
 	if err := a.saveExecutionState(state); err != nil {
 		return ExecutionState{}, err
 	}
 	return state, nil
+}
+
+type nextStepDecision struct {
+	Goal  string     `json:"goal"`
+	Steps []PlanStep `json:"steps,omitempty"`
+	Step  PlanStep   `json:"step"`
+}
+
+func (a *Agent) decideNextStep(ctx context.Context, userID int64, lang string, state ExecutionState) (nextStepDecision, error) {
+	toolDefs, _ := json.Marshal(agentTools())
+	stateJSON, _ := json.Marshal(normalizeExecutionState(state))
+	obsJSON, _ := json.Marshal(buildObservationContext(state))
+	recentlyFetchedJSON, _ := json.Marshal(buildRecentlyFetchedData(state, time.Now().UTC()))
+	taskStateCtx := buildTaskStateContext(a.getTaskState(userID))
+	recentConversationCtx := a.buildRecentConversationContext(userID, state.Goal)
+
+	systemPrompt := `You are the step selector for NOFXi.
+Return JSON only. Do not return markdown.
+
+You are operating in ReAct mode: Thought -> Action -> Observation.
+Choose the immediate next action batch. Do not generate a long multi-step execution plan.
+
+Allowed step types:
+- tool
+- reason
+- ask_user
+- respond
+
+Rules:
+- Use all available memory layers: Execution state JSON, Observations JSON, Recent conversation, and Task state.
+- Use Recently fetched data JSON as the deduplication source of truth for fresh tool results.
+- Prefer the freshest evidence in this order: execution state, observations, recent conversation, then task state.
+- If fresh external or system data is needed, choose a tool step.
+- If the user is blocked on a missing parameter, choose ask_user.
+- If there is enough information to answer now, choose respond.
+- Use reason only when a short intermediate synthesis is necessary before the next action.
+- Prefer tool or respond over reason whenever possible.
+- Never emit the same reason step twice in a row.
+- After a reason step, the next batch should usually be tool, ask_user, or respond. Do not stay in analysis loops.
+- Never invent tools.
+- If the task needs multiple independent tool reads, emit ALL of them together in one response.
+- Parallelism rule: when multiple tool reads are mutually independent, do not split them across turns. Return them together in steps.
+- Never mix ask_user/respond with additional steps in the same batch.
+- Only emit multiple steps when every emitted step is a tool step.
+- Avoid repeated tool calls. If a matching tool call already exists in Recently fetched data and age_seconds <= 60, do not call it again unless the user explicitly asks to refresh.
+- For tool steps, set tool_name exactly to one available tool and provide tool_args as a JSON object.
+- For ask_user or respond steps, put the user-facing question/response instruction in instruction.
+- If the latest observation already answers the goal, prefer respond over another tool call.
+- Never place a trade unless the user intent is explicit.
+
+Return JSON with this exact shape:
+{"goal":"","steps":[{"id":"step_1","type":"tool|reason|ask_user|respond","title":"","tool_name":"","tool_args":{},"instruction":"","requires_confirmation":false}]}`
+
+	userPrompt := fmt.Sprintf("Language: %s\nGoal: %s\n\nRecent conversation:\n%s\n\nAvailable tools JSON:\n%s\n\nPersistent preferences:\n%s\n\nTask state:\n%s\n\nExecution state JSON:\n%s\n\nObservations JSON:\n%s\n\nRecently fetched data JSON:\n%s", lang, state.Goal, recentConversationCtx, string(toolDefs), a.buildPersistentPreferencesContext(userID), taskStateCtx, string(stateJSON), string(obsJSON), string(recentlyFetchedJSON))
+
+	stageCtx, cancel := withPlannerStageTimeout(ctx, plannerCreateTimeout)
+	defer cancel()
+
+	startedAt := time.Now()
+	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
+		Messages: []mcp.Message{
+			mcp.NewSystemMessage(systemPrompt),
+			mcp.NewUserMessage(userPrompt),
+		},
+		Ctx: stageCtx,
+	})
+	a.logPlannerTiming(state.SessionID, userID, "decide_next_step_llm", startedAt, err)
+	if err != nil {
+		return nextStepDecision{}, err
+	}
+	return parseNextStepDecisionJSON(raw)
+}
+
+func parseNextStepDecisionJSON(raw string) (nextStepDecision, error) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "```json")
+	raw = strings.TrimPrefix(raw, "```")
+	raw = strings.TrimSuffix(raw, "```")
+	raw = strings.TrimSpace(raw)
+
+	var decision nextStepDecision
+	if err := json.Unmarshal([]byte(raw), &decision); err == nil {
+		return normalizeNextStepDecision(decision), nil
+	}
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start >= 0 && end > start {
+		if err := json.Unmarshal([]byte(raw[start:end+1]), &decision); err == nil {
+			return normalizeNextStepDecision(decision), nil
+		}
+	}
+	return nextStepDecision{}, fmt.Errorf("invalid next step decision json")
+}
+
+func normalizeNextStepDecision(decision nextStepDecision) nextStepDecision {
+	decision.Goal = strings.TrimSpace(decision.Goal)
+	steps := decision.Steps
+	if len(steps) == 0 && decision.Step.Type != "" {
+		steps = []PlanStep{decision.Step}
+	}
+	if len(steps) > 0 {
+		steps = normalizeExecutionState(ExecutionState{Steps: steps}).Steps
+	}
+	decision.Steps = steps
+	if len(steps) > 0 {
+		decision.Step = steps[0]
+	}
+	return decision
 }
 
 func (a *Agent) refreshStateForDynamicRequests(storeUserID, userText string, state ExecutionState) ExecutionState {
@@ -1187,6 +1644,7 @@ Rules:
 	stageCtx, cancel := withPlannerStageTimeout(ctx, plannerCreateTimeout)
 	defer cancel()
 
+	startedAt := time.Now()
 	resp, err := a.aiClient.CallWithRequest(&mcp.Request{
 		Messages: []mcp.Message{
 			mcp.NewSystemMessage(systemPrompt),
@@ -1194,6 +1652,7 @@ Rules:
 		},
 		Ctx: stageCtx,
 	})
+	a.logPlannerTiming(state.SessionID, userID, "create_execution_plan_llm", startedAt, err)
 	if err != nil {
 		return executionPlan{}, err
 	}
@@ -1247,28 +1706,63 @@ func parseExecutionPlanJSON(raw string) (executionPlan, error) {
 }
 
 func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int64, lang string, state *ExecutionState, onEvent func(event, data string)) (string, error) {
-	if onEvent != nil {
+	if onEvent != nil && len(state.Steps) > 0 {
 		onEvent(StreamEventPlan, formatPlanStatus(*state, lang))
 	}
 
 	for i := 0; i < plannerMaxIterations; i++ {
 		stepIndex := nextPendingStepIndex(state.Steps)
 		if stepIndex < 0 {
-			finalText, err := a.generateFinalPlanResponse(ctx, userID, lang, *state, "")
+			decisionStartedAt := time.Now()
+			decision, err := a.decideNextStep(ctx, userID, lang, *state)
+			a.logPlannerTiming(state.SessionID, userID, "decide_next_step", decisionStartedAt, err)
 			if err != nil {
 				return "", err
 			}
-			state.Status = executionStatusCompleted
-			state.FinalAnswer = finalText
-			state.CurrentStepID = ""
+			steps := filterFreshDuplicateToolSteps(decision.Steps, *state, time.Now().UTC())
+			if len(steps) == 0 {
+				appendExecutionLog(state, Observation{
+					Kind:      "decision_note",
+					Summary:   "Skipped duplicate fresh tool calls from next-step decision",
+					CreatedAt: time.Now().UTC().Format(time.RFC3339),
+				})
+				state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+				if err := a.saveExecutionState(*state); err != nil {
+					return "", err
+				}
+				continue
+			}
+			if hasRepeatedReasonLoop(*state, steps) {
+				return "", fmt.Errorf("repeated reasoning loop detected")
+			}
+			if decision.Goal != "" {
+				state.Goal = decision.Goal
+			}
+			base := len(completedSteps(state.Steps))
+			for idx := range steps {
+				if steps[idx].Type == "" {
+					return "", fmt.Errorf("next step decision missing step type")
+				}
+				if steps[idx].ID == "" {
+					steps[idx].ID = fmt.Sprintf("step_%d", base+idx+1)
+				}
+				if steps[idx].Title == "" {
+					steps[idx].Title = strings.ReplaceAll(steps[idx].ID, "_", " ")
+				}
+				if steps[idx].Status == "" {
+					steps[idx].Status = planStepStatusPending
+				}
+			}
+			state.Steps = append(completedSteps(state.Steps), steps...)
+			state.Status = executionStatusRunning
 			state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 			if err := a.saveExecutionState(*state); err != nil {
 				return "", err
 			}
 			if onEvent != nil {
-				onEvent(StreamEventDelta, finalText)
+				onEvent(StreamEventPlan, formatPlanStatus(*state, lang))
 			}
-			return finalText, nil
+			continue
 		}
 
 		step := &state.Steps[stepIndex]
@@ -1288,7 +1782,9 @@ func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int6
 			if onEvent != nil {
 				onEvent(StreamEventTool, step.ToolName)
 			}
+			stepStartedAt := time.Now()
 			result := a.executePlanTool(ctx, storeUserID, userID, lang, *step)
+			a.logPlannerTiming(state.SessionID, userID, "tool:"+step.ToolName, stepStartedAt, nil)
 			summary := summarizeObservation(result)
 			referencesChanged := false
 			step.Status = planStepStatusCompleted
@@ -1301,29 +1797,11 @@ func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int6
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			})
 			referencesChanged = updateCurrentReferencesFromToolResult(state, step.ToolName, result)
-			if shouldAttemptReplan(*state, *step, referencesChanged) {
-				state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-				if err := a.saveExecutionState(*state); err != nil {
-					return "", err
-				}
-				if onEvent != nil {
-					onEvent(StreamEventStepComplete, formatStepCompleteStatus(*step, lang))
-				}
-				decision, err := a.replanAfterStep(ctx, userID, lang, *state, *step)
-				if err == nil && applyReplannerDecision(state, decision) {
-					state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-					if err := a.saveExecutionState(*state); err != nil {
-						return "", err
-					}
-					if onEvent != nil {
-						onEvent(StreamEventReplan, formatReplanStatus(decision, lang))
-						onEvent(StreamEventPlan, formatPlanStatus(*state, lang))
-					}
-				}
-				continue
-			}
+			_ = referencesChanged
 		case planStepTypeReason:
+			reasonStartedAt := time.Now()
 			reasoning, err := a.executeReasonStep(ctx, userID, lang, state.Goal, *state, *step)
+			a.logPlannerTiming(state.SessionID, userID, "reason_step", reasonStartedAt, err)
 			if err != nil {
 				step.Status = planStepStatusFailed
 				step.Error = err.Error()
@@ -1364,7 +1842,9 @@ func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int6
 			}
 			return question, nil
 		case planStepTypeRespond:
+			respondStartedAt := time.Now()
 			finalText, err := a.generateFinalPlanResponse(ctx, userID, lang, *state, step.Instruction)
+			a.logPlannerTiming(state.SessionID, userID, "respond_step", respondStartedAt, err)
 			if err != nil {
 				return "", err
 			}
@@ -1399,6 +1879,134 @@ func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int6
 	return "", fmt.Errorf("plan execution exceeded iteration limit")
 }
 
+type fetchedToolRecord struct {
+	ToolName     string `json:"tool_name"`
+	ToolArgsJSON string `json:"tool_args_json"`
+	FetchedAt    string `json:"fetched_at"`
+	AgeSeconds   int64  `json:"age_seconds"`
+}
+
+func buildRecentlyFetchedData(state ExecutionState, now time.Time) []fetchedToolRecord {
+	state = normalizeExecutionState(state)
+	stepByID := make(map[string]PlanStep, len(state.Steps))
+	for _, step := range state.Steps {
+		stepByID[step.ID] = step
+	}
+	latest := map[string]fetchedToolRecord{}
+	for _, obs := range state.ExecutionLog {
+		if obs.Kind != "tool_result" {
+			continue
+		}
+		step, ok := stepByID[obs.StepID]
+		if !ok || step.ToolName == "" {
+			continue
+		}
+		sig := toolCallSignature(step.ToolName, step.ToolArgs)
+		createdAt := parseRFC3339(obs.CreatedAt)
+		record := fetchedToolRecord{
+			ToolName:     step.ToolName,
+			ToolArgsJSON: toolArgsJSONString(step.ToolArgs),
+			FetchedAt:    obs.CreatedAt,
+			AgeSeconds:   int64(now.Sub(createdAt).Seconds()),
+		}
+		prev, exists := latest[sig]
+		if !exists || prev.FetchedAt < record.FetchedAt {
+			latest[sig] = record
+		}
+	}
+	out := make([]fetchedToolRecord, 0, len(latest))
+	for _, record := range latest {
+		if record.AgeSeconds < 0 {
+			record.AgeSeconds = 0
+		}
+		out = append(out, record)
+	}
+	return out
+}
+
+func filterFreshDuplicateToolSteps(steps []PlanStep, state ExecutionState, now time.Time) []PlanStep {
+	if len(steps) == 0 {
+		return nil
+	}
+	fresh := make(map[string]struct{})
+	for _, item := range buildRecentlyFetchedData(state, now) {
+		if item.AgeSeconds <= 60 {
+			fresh[item.ToolName+"|"+item.ToolArgsJSON] = struct{}{}
+		}
+	}
+	out := make([]PlanStep, 0, len(steps))
+	for _, step := range steps {
+		if step.Type != planStepTypeTool {
+			out = append(out, step)
+			continue
+		}
+		sig := toolCallSignature(step.ToolName, step.ToolArgs)
+		if _, ok := fresh[sig]; ok {
+			continue
+		}
+		fresh[sig] = struct{}{}
+		out = append(out, step)
+	}
+	return out
+}
+
+func hasRepeatedReasonLoop(state ExecutionState, steps []PlanStep) bool {
+	if len(steps) == 0 {
+		return false
+	}
+	last := lastCompletedStep(state.Steps)
+	if last == nil || last.Type != planStepTypeReason {
+		return false
+	}
+	for _, step := range steps {
+		if step.Type != planStepTypeReason {
+			return false
+		}
+		if stepSemanticKey(*last) != stepSemanticKey(step) {
+			return false
+		}
+	}
+	return true
+}
+
+func lastCompletedStep(steps []PlanStep) *PlanStep {
+	for i := len(steps) - 1; i >= 0; i-- {
+		if steps[i].Status == planStepStatusCompleted {
+			return &steps[i]
+		}
+	}
+	return nil
+}
+
+func stepSemanticKey(step PlanStep) string {
+	return strings.ToLower(strings.TrimSpace(
+		step.Type + "|" + step.ToolName + "|" + step.Title + "|" + step.Instruction,
+	))
+}
+
+func toolCallSignature(toolName string, args map[string]any) string {
+	return strings.TrimSpace(toolName) + "|" + toolArgsJSONString(args)
+}
+
+func toolArgsJSONString(args map[string]any) string {
+	if len(args) == 0 {
+		return "{}"
+	}
+	data, err := json.Marshal(args)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+func parseRFC3339(value string) time.Time {
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 func (a *Agent) replanAfterStep(ctx context.Context, userID int64, lang string, state ExecutionState, completedStep PlanStep) (replannerDecision, error) {
 	obsJSON, _ := json.Marshal(buildObservationContext(state))
 	stepsJSON, _ := json.Marshal(state.Steps)
@@ -1426,6 +2034,7 @@ Rules:
 	stageCtx, cancel := withPlannerStageTimeout(ctx, plannerReplanTimeout)
 	defer cancel()
 
+	startedAt := time.Now()
 	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
 		Messages: []mcp.Message{
 			mcp.NewSystemMessage(systemPrompt),
@@ -1434,6 +2043,7 @@ Rules:
 		Ctx:       stageCtx,
 		MaxTokens: intPtr(500),
 	})
+	a.logPlannerTiming(state.SessionID, userID, "replan_after_step_llm", startedAt, err)
 	if err != nil {
 		return replannerDecision{}, err
 	}
@@ -1688,6 +2298,7 @@ func (a *Agent) executeReasonStep(ctx context.Context, userID int64, lang, goal 
 	stageCtx, cancel := withPlannerStageTimeout(ctx, plannerReasonTimeout)
 	defer cancel()
 
+	startedAt := time.Now()
 	resp, err := a.aiClient.CallWithRequest(&mcp.Request{
 		Messages: []mcp.Message{
 			mcp.NewSystemMessage("You are the reasoning module for NOFXi. Return one short paragraph only. No markdown, no bullet list."),
@@ -1695,6 +2306,7 @@ func (a *Agent) executeReasonStep(ctx context.Context, userID int64, lang, goal 
 		},
 		Ctx: stageCtx,
 	})
+	a.logPlannerTiming(state.SessionID, userID, "reason_step_llm", startedAt, err)
 	if err != nil {
 		return "", err
 	}
@@ -1709,7 +2321,8 @@ func (a *Agent) generateFinalPlanResponse(ctx context.Context, userID int64, lan
 	}
 	stageCtx, cancel := withPlannerStageTimeout(ctx, plannerFinalTimeout)
 	defer cancel()
-	return a.aiClient.CallWithRequest(&mcp.Request{
+	startedAt := time.Now()
+	resp, err := a.aiClient.CallWithRequest(&mcp.Request{
 		Messages: []mcp.Message{
 			mcp.NewSystemMessage(systemPrompt),
 			mcp.NewSystemMessage("You are responding after a completed execution plan. Use the observations as the source of truth. Be concise and actionable."),
@@ -1717,6 +2330,24 @@ func (a *Agent) generateFinalPlanResponse(ctx context.Context, userID int64, lan
 		},
 		Ctx: stageCtx,
 	})
+	a.logPlannerTiming(state.SessionID, userID, "generate_final_response_llm", startedAt, err)
+	return resp, err
+}
+
+func (a *Agent) logPlannerTiming(sessionID string, userID int64, stage string, startedAt time.Time, err error) {
+	if stage == "" || startedAt.IsZero() {
+		return
+	}
+	attrs := []any{
+		"session_id", sessionID,
+		"user_id", userID,
+		"stage", stage,
+		"elapsed_ms", time.Since(startedAt).Milliseconds(),
+	}
+	if err != nil {
+		attrs = append(attrs, "error", err.Error())
+	}
+	a.log().Info("planner timing", attrs...)
 }
 
 func nextPendingStepIndex(steps []PlanStep) int {

@@ -194,6 +194,9 @@ func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, 
 	hasLadderSL := len(plan.StopLossOrders) > 0
 	hasLadderTP := len(plan.TakeProfitOrders) > 0
 
+	logger.Infof("  🧾 Protection plan materialized: symbol=%s side=%s mode=%s ladderSL=%d ladderTP=%d fullSL=%v@%.6f fullTP=%v@%.6f fallback=%.6f",
+		symbol, positionSide, plan.Mode, len(plan.StopLossOrders), len(plan.TakeProfitOrders), plan.NeedsStopLoss, plan.StopLossPrice, plan.NeedsTakeProfit, plan.TakeProfitPrice, plan.FallbackMaxLossPrice)
+
 	// Apply ladder legs first when present.
 	if hasLadderSL || hasLadderTP {
 		if err := at.placeAndVerifyLadderProtection(symbol, positionSide, quantity, plan); err != nil {
@@ -212,11 +215,24 @@ func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, 
 
 	if plan.FallbackMaxLossPrice > 0 {
 		fallbackNeeded := !fullStop || plan.StopLossPrice == 0 || !approximatelyEqualPrice(plan.StopLossPrice, plan.FallbackMaxLossPrice)
+		logger.Infof("  🧾 Fallback evaluation: symbol=%s side=%s fallback=%.6f fullStop=%v stopPrice=%.6f needed=%v",
+			symbol, positionSide, plan.FallbackMaxLossPrice, fullStop, plan.StopLossPrice, fallbackNeeded)
 		if fallbackNeeded {
 			if err := at.placeFallbackMaxLossProtection(symbol, positionSide, quantity, plan.FallbackMaxLossPrice); err != nil {
 				return err
 			}
 		}
+	}
+
+	if plan.FallbackMaxLossPrice > 0 {
+		openOrders, err := at.trader.GetOpenOrders(symbol)
+		if err != nil {
+			return fmt.Errorf("failed to verify fallback max-loss stop loss: %w", err)
+		}
+		if !hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice) {
+			return fmt.Errorf("fallback max-loss stop verification failed for %s %s at %.6f", symbol, positionSide, plan.FallbackMaxLossPrice)
+		}
+		logger.Infof("  ✅ Fallback max-loss stop verified: symbol=%s side=%s stop=%.6f", symbol, positionSide, plan.FallbackMaxLossPrice)
 	}
 
 	return nil
@@ -226,6 +242,7 @@ func (at *AutoTrader) placeFallbackMaxLossProtection(symbol, positionSide string
 	if stopLossPrice <= 0 {
 		return nil
 	}
+	logger.Infof("  🛡 Placing fallback max-loss stop: symbol=%s side=%s qty=%.6f stop=%.6f", symbol, positionSide, quantity, stopLossPrice)
 	if setter, ok := at.trader.(interface {
 		SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
 		SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error

@@ -545,6 +545,41 @@ func (t *OKXTrader) CancelTrailingStopOrders(symbol string) error {
 	return nil
 }
 
+func (t *OKXTrader) CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error {
+	if len(orderIDs) == 0 {
+		return nil
+	}
+	instId := t.convertSymbol(symbol)
+	set := make(map[string]struct{}, len(orderIDs))
+	for _, id := range orderIDs {
+		if id != "" {
+			set[id] = struct{}{}
+		}
+	}
+	path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=move_order_stop", okxAlgoPendingPath, instId)
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get trailing stop algo orders: %w", err)
+	}
+	var orders []struct {
+		AlgoId string `json:"algoId"`
+		InstId string `json:"instId"`
+	}
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return fmt.Errorf("failed to parse trailing stop algo orders: %w", err)
+	}
+	for _, order := range orders {
+		if _, ok := set[order.AlgoId]; !ok {
+			continue
+		}
+		body := []map[string]interface{}{{"algoId": order.AlgoId, "instId": order.InstId}}
+		if _, err := t.doRequest("POST", okxCancelAdvanceAlgoPath, body); err != nil {
+			return fmt.Errorf("failed to cancel targeted OKX trailing stop algo %s: %w", order.AlgoId, err)
+		}
+	}
+	return nil
+}
+
 // SetStopLoss sets stop loss order
 func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	return t.setStopLossWithTag(symbol, positionSide, quantity, stopPrice, "")

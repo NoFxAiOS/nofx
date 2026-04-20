@@ -565,10 +565,14 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		}
 	}
 
-	be := at.getActiveBreakEvenConfig()
+	be := at.getActiveBreakEvenConfigForPlan(nil)
 	breakEvenTrigger := 0.0
 	breakEvenOffset := 0.0
 	nextBreakEvenGap := 0.0
+	breakEvenSource := "strategy"
+	if planBE := at.getActiveBreakEvenConfigForPlan(nil); planBE == nil {
+		breakEvenSource = "none"
+	}
 	if be != nil {
 		breakEvenTrigger = be.TriggerValue
 		breakEvenOffset = be.OffsetPct
@@ -738,6 +742,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"current_break_even_trigger_pct":        breakEvenTrigger,
 		"break_even_offset_pct":                 breakEvenOffset,
 		"next_break_even_gap_pct":               nextBreakEvenGap,
+		"break_even_config_source":              breakEvenSource,
 		"live_break_even_stop_price":            liveBreakEvenStopPrice,
 		"break_even_order_detected":             breakEvenOrderDetected,
 		"current_drawdown_stage_min_profit_pct": currentStageMinProfit,

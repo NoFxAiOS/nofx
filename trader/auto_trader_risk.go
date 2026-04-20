@@ -670,6 +670,15 @@ func (at *AutoTrader) getTriggeredDrawdownRules(currentPnLPct, drawdownPct float
 	return matched
 }
 
+func (at *AutoTrader) getBreakEvenConfigSource(symbol, side string) string {
+	at.breakEvenStateMutex.RLock()
+	defer at.breakEvenStateMutex.RUnlock()
+	if src, ok := at.breakEvenSource[positionKey(symbol, side)]; ok && src != "" {
+		return src
+	}
+	return "strategy"
+}
+
 func (at *AutoTrader) getActiveBreakEvenConfigForPlan(plan *ProtectionPlan) *store.BreakEvenStopConfig {
 	if plan != nil && plan.BreakEvenConfig != nil {
 		cfg := *plan.BreakEvenConfig

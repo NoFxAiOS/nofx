@@ -569,8 +569,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	breakEvenTrigger := 0.0
 	breakEvenOffset := 0.0
 	nextBreakEvenGap := 0.0
-	breakEvenSource := "strategy"
-	if planBE := at.getActiveBreakEvenConfigForPlan(nil); planBE == nil {
+	breakEvenSource := at.getBreakEvenConfigSource(symbol, side)
+	if be == nil {
 		breakEvenSource = "none"
 	}
 	if be != nil {

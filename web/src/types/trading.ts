@@ -38,6 +38,7 @@ export interface ProtectionRuntimeOrder {
   callback_rate?: number
   quantity: number
   status: string
+  client_order_id?: string
 }
 
 export interface ProtectionRuntimeTier {
@@ -68,6 +69,8 @@ export interface ProtectionRuntime {
   current_break_even_trigger_pct?: number
   break_even_offset_pct?: number
   next_break_even_gap_pct?: number
+  live_break_even_stop_price?: number
+  break_even_order_detected?: boolean
   current_drawdown_stage_min_profit_pct?: number
   current_drawdown_stage_rule_count?: number
   active_orders?: ProtectionRuntimeOrder[]

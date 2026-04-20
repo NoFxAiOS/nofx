@@ -591,6 +591,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	trailingOrders := make([]map[string]interface{}, 0)
 	liveTrailingTriggerPrice := 0.0
 	liveTrailingCallbackRate := 0.0
+	liveBreakEvenStopPrice := 0.0
+	breakEvenOrderDetected := false
 	for _, order := range openOrders {
 		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
 			continue
@@ -599,31 +601,42 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		if triggerPrice <= 0 {
 			triggerPrice = order.Price
 		}
+		clientOrderID := strings.ToLower(strings.TrimSpace(order.ClientOrderID))
+		if !breakEvenOrderDetected && looksLikeStopLoss(order) {
+			if strings.Contains(clientOrderID, "break_even") || strings.Contains(clientOrderID, "breakeven") {
+				breakEvenOrderDetected = true
+				if triggerPrice > 0 {
+					liveBreakEvenStopPrice = triggerPrice
+				}
+			}
+		}
 		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") && triggerPrice > 0 {
 			liveTrailingTriggerPrice = triggerPrice
 			if order.CallbackRate > 0 {
 				liveTrailingCallbackRate = order.CallbackRate
 			}
 			trailingOrders = append(trailingOrders, map[string]interface{}{
-				"order_id":      order.OrderID,
-				"type":          order.Type,
-				"side":          order.Side,
-				"position_side": order.PositionSide,
-				"trigger_price": triggerPrice,
-				"callback_rate": order.CallbackRate,
-				"quantity":      order.Quantity,
-				"status":        order.Status,
+				"order_id":        order.OrderID,
+				"type":            order.Type,
+				"side":            order.Side,
+				"position_side":   order.PositionSide,
+				"trigger_price":   triggerPrice,
+				"callback_rate":   order.CallbackRate,
+				"quantity":        order.Quantity,
+				"status":          order.Status,
+				"client_order_id": order.ClientOrderID,
 			})
 		}
 		activeOrders = append(activeOrders, map[string]interface{}{
-			"order_id":      order.OrderID,
-			"type":          order.Type,
-			"side":          order.Side,
-			"position_side": order.PositionSide,
-			"trigger_price": triggerPrice,
-			"callback_rate": order.CallbackRate,
-			"quantity":      order.Quantity,
-			"status":        order.Status,
+			"order_id":        order.OrderID,
+			"type":            order.Type,
+			"side":            order.Side,
+			"position_side":   order.PositionSide,
+			"trigger_price":   triggerPrice,
+			"callback_rate":   order.CallbackRate,
+			"quantity":        order.Quantity,
+			"status":          order.Status,
+			"client_order_id": order.ClientOrderID,
 		})
 	}
 
@@ -725,6 +738,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"current_break_even_trigger_pct":        breakEvenTrigger,
 		"break_even_offset_pct":                 breakEvenOffset,
 		"next_break_even_gap_pct":               nextBreakEvenGap,
+		"live_break_even_stop_price":            liveBreakEvenStopPrice,
+		"break_even_order_detected":             breakEvenOrderDetected,
 		"current_drawdown_stage_min_profit_pct": currentStageMinProfit,
 		"current_drawdown_stage_rule_count":     currentStageRuleCount,
 		"active_orders":                         activeOrders,

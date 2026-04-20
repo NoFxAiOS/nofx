@@ -116,6 +116,7 @@ type OpenOrder struct {
 	CallbackRate float64 `json:"callback_rate"`
 	Quantity     float64 `json:"quantity"`
 	Status       string  `json:"status"` // NEW
+	ClientOrderID string `json:"client_order_id,omitempty"`
 }
 
 // LimitOrderRequest represents a limit order request for grid trading

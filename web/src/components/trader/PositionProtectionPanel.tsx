@@ -203,6 +203,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const breakEvenTriggerPct = Number(position.protection_runtime?.current_break_even_trigger_pct ?? 0)
           const breakEvenGapPct = Number(position.protection_runtime?.next_break_even_gap_pct ?? 0)
           const breakEvenOffsetPct = Number(position.protection_runtime?.break_even_offset_pct ?? 0)
+          const liveBreakEvenStopPrice = Number(position.protection_runtime?.live_break_even_stop_price ?? 0)
+          const breakEvenOrderDetected = Boolean(position.protection_runtime?.break_even_order_detected)
           const trailingOrders = protectionRows.filter((row) => row.type.includes('TRAILING'))
           const liveTrailingPrice = trailingOrders.length > 0 ? trailingOrders[0].triggerPrice : 0
 
@@ -275,6 +277,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '触发阈值' : 'Trigger Threshold', value: breakEvenTriggerPct > 0 ? `${breakEvenTriggerPct.toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '距触发还差' : 'Gap to Trigger', value: breakEvenTriggerPct > 0 ? `${breakEvenGapPct.toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '保本偏移' : 'Offset', value: breakEvenTriggerPct > 0 ? `${breakEvenOffsetPct.toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? '实盘挂单' : 'Live Order', value: breakEvenOrderDetected ? (language === 'zh' ? '已检测' : 'detected') : (language === 'zh' ? '未检测' : 'not detected') },
+                    { label: language === 'zh' ? '保本价' : 'Break-even Price', value: liveBreakEvenStopPrice > 0 ? formatPrice(liveBreakEvenStopPrice) : '—' },
                     { label: language === 'zh' ? '本地监测' : 'Local Monitor', value: 'on' },
                   ]}
                 />

@@ -484,11 +484,22 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64) error {
 	if riskDistance > 0 && rewardDistance > 0 {
 		computedRR = rewardDistance / riskDistance
 	}
-
 	effectiveRR := rr.GrossEstimatedRR
 	if rr.NetEstimatedRR > 0 {
 		effectiveRR = rr.NetEstimatedRR
 	}
+	if hasRiskRewardExecutionConstraints(d.EntryProtection.ExecutionConstraints) {
+		if recomputedGross, recomputedNet, ok := recomputeRiskRewardWithExecutionConstraints(d.Action, rr, d.EntryProtection.ExecutionConstraints); ok {
+			computedRR = recomputedGross
+			if rr.NetEstimatedRR > 0 {
+				effectiveRR = recomputedNet
+			}
+			if rr.NetEstimatedRR > 0 && absFloat(rr.NetEstimatedRR-recomputedNet) > 0.05 {
+				return fmt.Errorf("entry_protection_rationale.risk_reward net_estimated_rr %.2f inconsistent with execution constraints %.2f", rr.NetEstimatedRR, recomputedNet)
+			}
+		}
+	}
+
 	if effectiveRR < minRR {
 		return fmt.Errorf("entry_protection_rationale.risk_reward %.2f below min %.2f", effectiveRR, minRR)
 	}

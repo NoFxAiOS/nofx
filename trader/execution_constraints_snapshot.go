@@ -1,7 +1,6 @@
 package trader
 
 import (
-	"math"
 	"strings"
 
 	"nofx/kernel"
@@ -135,8 +134,8 @@ func collectOKXInstrumentSnapshot(tr interface{}, symbol string, snap *Execution
 	if err != nil || inst == nil {
 		return
 	}
-	// Avoid importing adapter internals into core trader package: use compact
-	// structural access through known JSON-like field names via reflection.
+	// Avoid broad interface churn and keep adapter coupling narrow: use compact
+	// structural access through known exported field names on the OKX instrument.
 	v := reflectValue(inst)
 	setFloatFromField(v, "TickSz", &snap.TickSize, snap.Source, "tick_size", "okx:instrument")
 	setFloatFromField(v, "LotSz", &snap.QtyStepSize, snap.Source, "qty_step_size", "okx:instrument")
@@ -205,5 +204,3 @@ func mergeExecutionConstraints(decision *kernel.Decision, snap *ExecutionConstra
 		decision.EntryProtection.ExecutionConstraints = mapExecutionConstraintsToKernel(snap)
 	}
 }
-
-func finitePositive(v float64) bool { return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0) }

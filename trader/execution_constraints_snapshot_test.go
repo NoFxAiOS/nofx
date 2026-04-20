@@ -5,9 +5,17 @@ import (
 	"time"
 )
 
+type okxInstrumentStub struct {
+	TickSz float64
+	LotSz  float64
+	MinSz  float64
+	CtVal  float64
+}
+
 type stubExecutionConstraintsTrader struct {
 	constraints map[string]float64
 	price       float64
+	instrument  interface{}
 }
 
 func (s *stubExecutionConstraintsTrader) GetBalance() (map[string]interface{}, error) {
@@ -66,6 +74,9 @@ func (s *stubExecutionConstraintsTrader) GetSymbolPricePrecision(symbol string) 
 func (s *stubExecutionConstraintsTrader) GetSymbolPrecision(symbol string) (int, error) {
 	return 3, nil
 }
+func (s *stubExecutionConstraintsTrader) GetInstrument(symbol string) (interface{}, error) {
+	return s.instrument, nil
+}
 
 func TestCollectExecutionConstraintsSnapshotBinanceUsesCompactFieldsOnly(t *testing.T) {
 	at := &AutoTrader{
@@ -93,6 +104,35 @@ func TestCollectExecutionConstraintsSnapshotBinanceUsesCompactFieldsOnly(t *test
 	}
 	if snap.BestBid != 0 || snap.BestAsk != 0 || snap.SpreadBps != 0 {
 		t.Fatalf("did not expect top-of-book fields for default Binance profile: %+v", snap)
+	}
+}
+
+func TestCollectExecutionConstraintsSnapshotOKXUsesInstrumentFieldsWithoutBroadChurn(t *testing.T) {
+	at := &AutoTrader{
+		exchange: "okx",
+		trader: &stubExecutionConstraintsTrader{
+			price: 321.09,
+			instrument: okxInstrumentStub{
+				TickSz: 0.1,
+				LotSz:  1,
+				MinSz:  2,
+				CtVal:  0.01,
+			},
+		},
+	}
+
+	snap := at.collectExecutionConstraintsSnapshot("BTCUSDT")
+	if snap == nil {
+		t.Fatal("expected snapshot")
+	}
+	if snap.TickSize != 0.1 || snap.QtyStepSize != 1 || snap.MinQty != 2 || snap.ContractValue != 0.01 {
+		t.Fatalf("unexpected okx instrument constraints: %+v", snap)
+	}
+	if snap.LastPrice != 321.09 {
+		t.Fatalf("expected okx last price, got %+v", snap)
+	}
+	if got := snap.Source["contract_value"]; got != "okx:instrument" {
+		t.Fatalf("expected compact okx source map, got %+v", snap.Source)
 	}
 }
 

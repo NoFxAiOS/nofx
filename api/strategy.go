@@ -131,6 +131,18 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 
 	drawdown := config.Protection.DrawdownTakeProfit
 	if drawdown.Enabled {
+		if drawdown.Mode != "" && drawdown.Mode != store.ProtectionModeManual && drawdown.Mode != store.ProtectionModeAI && drawdown.Mode != store.ProtectionModeDisabled {
+			warnings = append(warnings, "protection.drawdown_take_profit.mode should be 'manual', 'ai', or 'disabled'.")
+		}
+		if drawdown.Mode == store.ProtectionModeManual && len(drawdown.Rules) == 0 {
+			warnings = append(warnings, "protection.drawdown_take_profit.rules must contain at least one rule when mode=manual.")
+		}
+		if drawdown.Mode == store.ProtectionModeAI && full.Mode == store.ProtectionModeAI {
+			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai cannot currently be combined with protection.full_tp_sl.mode=ai.")
+		}
+		if drawdown.Mode == store.ProtectionModeAI && ladder.Mode == store.ProtectionModeAI {
+			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai cannot currently be combined with protection.ladder_tp_sl.mode=ai.")
+		}
 		for i, rule := range drawdown.Rules {
 			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.MaxDrawdownPct > 100 ||
 				rule.CloseRatioPct <= 0 || rule.CloseRatioPct > 100 {

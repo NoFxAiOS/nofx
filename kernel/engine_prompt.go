@@ -157,6 +157,8 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("  - Use `mode=full` when one unified TP/SL plan is enough\n")
 	sb.WriteString("  - For `mode=full`, output `take_profit_pct` / `stop_loss_pct` only; do not place absolute price fields inside protection_plan\n")
 	sb.WriteString("  - Use `mode=ladder` when you want staged TP/SL with multiple ladder_rules\n")
+	sb.WriteString("  - Use `mode=drawdown` when the strategy route enables AI drawdown profit protection; then `drawdown_rules` must be non-empty\n")
+	sb.WriteString("  - In drawdown AI mode, reasoning must reference the primary timeframe, adjacent timeframes, and structural anchors such as support/resistance, fibonacci, and volatility\n")
 	sb.WriteString("  - If Drawdown Take Profit is enabled in strategy config, your reasoning must explicitly mention drawdown, trailing, or profit-protection ownership\n")
 	sb.WriteString("  - If Break-even Stop is enabled in strategy config, your reasoning must explicitly mention break-even or acknowledge that an additional stop layer exists after profit trigger\n")
 	sb.WriteString("  - Do NOT output protection_plan for hold/wait/close actions\n")

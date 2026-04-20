@@ -146,14 +146,14 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("```json\n[\n")
 	// Use the actual configured position value ratio for BTC/ETH in the example
 	examplePositionSize := accountEquity * btcEthPosValueRatio
-	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
-		riskControl.BTCETHMaxLeverage, examplePositionSize))
+	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"entry_protection_rationale\": {\"timeframe_context\": {\"primary\": \"15m\", \"lower\": [\"5m\"], \"higher\": [\"1h\"]}, \"risk_reward\": {\"entry\": 95000, \"invalidation\": 97000, \"first_target\": 91000, \"gross_estimated_rr\": 2.0, \"net_estimated_rr\": 1.8, \"min_required_rr\": %.1f, \"passed\": true}, \"anchors\": [{\"type\": \"resistance\", \"timeframe\": \"15m\", \"price\": 96000, \"reason\": \"primary rejection\"}], \"alignment_notes\": [\"full stop remains beyond invalidation\"]}, \"confidence\": 85, \"risk_usd\": 300},\n", riskControl.BTCETHMaxLeverage, examplePositionSize, riskControl.MinRiskRewardRatio))
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
 	sb.WriteString("- `protection_plan`: optional structured protection output for open actions only\n")
+	sb.WriteString("- `entry_protection_rationale`: required for `open_long` / `open_short`; must include timeframe_context, risk_reward (entry/invalidation/first_target/gross_estimated_rr and preferably net_estimated_rr), and at least one structural anchor when opening\n")
 	sb.WriteString("  - Use `mode=full` when one unified TP/SL plan is enough\n")
 	sb.WriteString("  - For `mode=full`, output `take_profit_pct` / `stop_loss_pct` only; do not place absolute price fields inside protection_plan\n")
 	sb.WriteString("  - Use `mode=ladder` when you want staged TP/SL with multiple ladder_rules\n")
@@ -164,7 +164,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("  - If Break-even Stop is enabled in strategy config, your reasoning must explicitly mention break-even or acknowledge that an additional stop layer exists after profit trigger\n")
 	sb.WriteString("  - Do NOT output protection_plan for hold/wait/close actions\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
-	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString(fmt.Sprintf("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, entry_protection_rationale; risk_reward must satisfy min RR ≥ %.1f and direction sanity (long: invalidation < entry < first_target, short: invalidation > entry > first_target)\n", riskControl.MinRiskRewardRatio))
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt

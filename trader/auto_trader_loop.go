@@ -3,6 +3,7 @@ package trader
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/store"
@@ -392,8 +393,13 @@ func (at *AutoTrader) runCycle() error {
 			TakeProfit: d.TakeProfit,
 			Confidence: d.Confidence,
 			Reasoning:  d.Reasoning,
-			Timestamp:  time.Now().UTC(),
-			Success:    false,
+			ReviewContext: buildDecisionActionReviewContext(
+				&d,
+				at.getMinRiskRewardRatio(),
+				record.ProtectionSnapshot,
+			),
+			Timestamp: time.Now().UTC(),
+			Success:   false,
 		}
 
 		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
@@ -714,6 +720,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 // sortDecisionsByPriority sorts decisions: close positions first, then open positions, finally hold/wait
 // This avoids position stacking overflow when changing positions
+
 func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 	if len(decisions) <= 1 {
 		return decisions
@@ -780,4 +787,297 @@ func (at *AutoTrader) checkClaw402Balance() {
 		logger.Infof("💰 [%s] USDC Balance: $%.2f | Daily AI cost: ~$%.2f | Runway: ~%.1f days",
 			at.name, balance, dailyCost, runway)
 	}
+}
+
+func (at *AutoTrader) getMinRiskRewardRatio() float64 {
+	if at != nil && at.config.StrategyConfig != nil {
+		if v := at.config.StrategyConfig.RiskControl.MinRiskRewardRatio; v > 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, snapshot *store.ProtectionSnapshot) *store.DecisionActionReviewContext {
+	ctx := &store.DecisionActionReviewContext{}
+	if minRR > 0 {
+		ctx.MinRiskReward = minRR
+	}
+	if decision == nil {
+		if reviewContextIsEmpty(ctx) {
+			return nil
+		}
+		return ctx
+	}
+	if decision.EntryProtection != nil {
+		ep := decision.EntryProtection
+		if ep.TimeframeContext.Primary != "" {
+			ctx.PrimaryTimeframe = ep.TimeframeContext.Primary
+		}
+		rr := ep.RiskReward
+		if rr.Entry > 0 || rr.Invalidation > 0 || rr.FirstTarget > 0 || rr.GrossEstimatedRR > 0 || rr.NetEstimatedRR > 0 || rr.Passed {
+			riskReward := &store.DecisionActionRiskRewardSummary{
+				Entry:            rr.Entry,
+				Invalidation:     rr.Invalidation,
+				FirstTarget:      rr.FirstTarget,
+				GrossEstimatedRR: rr.GrossEstimatedRR,
+				NetEstimatedRR:   rr.NetEstimatedRR,
+				Passed:           rr.Passed,
+			}
+			if !riskReward.Passed && minRR > 0 {
+				effectiveRR := rr.GrossEstimatedRR
+				if rr.NetEstimatedRR > 0 {
+					effectiveRR = rr.NetEstimatedRR
+				}
+				if effectiveRR > 0 && effectiveRR >= minRR {
+					riskReward.Passed = true
+				}
+			}
+			ctx.RiskReward = riskReward
+		}
+		if len(ep.KeyLevels.Support) > 0 || len(ep.KeyLevels.Resistance) > 0 {
+			ctx.KeyLevels = &store.DecisionActionKeyLevels{
+				Support:    compactLevelList(ep.KeyLevels.Support),
+				Resistance: compactLevelList(ep.KeyLevels.Resistance),
+			}
+			if len(ctx.KeyLevels.Support) == 0 && len(ctx.KeyLevels.Resistance) == 0 {
+				ctx.KeyLevels = nil
+			}
+		}
+		if len(ep.Anchors) > 0 {
+			ctx.Anchors = compactReasonAnchors(ep.Anchors)
+		}
+		ctx.Protection = deriveProtectionAlignment(decision, snapshot)
+	}
+	if reviewContextIsEmpty(ctx) {
+		return nil
+	}
+	return ctx
+}
+
+func compactLevelList(levels []float64) []float64 {
+	compact := make([]float64, 0, 2)
+	for _, level := range levels {
+		if !isFinitePositive(level) {
+			continue
+		}
+		compact = append(compact, level)
+		if len(compact) >= 2 {
+			break
+		}
+	}
+	return compact
+}
+
+func compactReasonAnchors(anchors []kernel.AIEntryProtectionAnchor) []store.DecisionActionReasonAnchor {
+	compact := make([]store.DecisionActionReasonAnchor, 0, minInt(len(anchors), 3))
+	for _, anchor := range anchors {
+		if anchor.Type == "" && anchor.Timeframe == "" && anchor.Price <= 0 && anchor.Reason == "" {
+			continue
+		}
+		compact = append(compact, store.DecisionActionReasonAnchor{
+			Type:      anchor.Type,
+			Timeframe: anchor.Timeframe,
+			Price:     anchor.Price,
+			Reason:    anchor.Reason,
+		})
+		if len(compact) >= 3 {
+			break
+		}
+	}
+	return compact
+}
+
+func deriveProtectionAlignment(decision *kernel.Decision, snapshot *store.ProtectionSnapshot) *store.DecisionActionProtectionAlignment {
+	if decision == nil || decision.EntryProtection == nil {
+		return nil
+	}
+	rr := decision.EntryProtection.RiskReward
+	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
+		if len(decision.EntryProtection.AlignmentNotes) == 0 {
+			return nil
+		}
+		return &store.DecisionActionProtectionAlignment{Notes: compactNotes(decision.EntryProtection.AlignmentNotes, 3)}
+	}
+	isLong := decision.Action == "open_long"
+	isShort := decision.Action == "open_short"
+	alignment := &store.DecisionActionProtectionAlignment{
+		Notes: compactNotes(decision.EntryProtection.AlignmentNotes, 3),
+	}
+	hasSignal := len(alignment.Notes) > 0
+	if snapshot != nil {
+		if stopPrice, ok := deriveProtectionStopPrice(snapshot, rr.Entry, isLong, isShort); ok {
+			alignment.StopBeyondInvalidation = (isLong && stopPrice <= rr.Invalidation) || (isShort && stopPrice >= rr.Invalidation)
+			hasSignal = true
+		}
+		if targetPrice, ok := deriveProtectionTargetPrice(snapshot, rr.Entry, isLong, isShort); ok {
+			alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
+			hasSignal = true
+		}
+		if snapshot.BreakEven != nil && snapshot.BreakEven.Enabled {
+			triggerPrice, ok := deriveBreakEvenTriggerPrice(snapshot.BreakEven, rr.Entry, isLong, isShort)
+			if ok {
+				alignment.BreakEvenBeforeTarget = (isLong && triggerPrice <= rr.FirstTarget) || (isShort && triggerPrice >= rr.FirstTarget)
+				hasSignal = true
+			}
+		}
+		if fallbackPrice, ok := deriveFallbackMaxLossPrice(snapshot, rr.Entry, isLong, isShort); ok {
+			alignment.FallbackWithinEnvelope = (isLong && fallbackPrice <= rr.Invalidation) || (isShort && fallbackPrice >= rr.Invalidation)
+			hasSignal = true
+		}
+	}
+	if !hasSignal {
+		return nil
+	}
+	return alignment
+}
+
+func deriveProtectionStopPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
+	if snapshot == nil || entry <= 0 {
+		return 0, false
+	}
+	if snapshot.FullTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.FullTPSL.StopLoss, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+	}
+	if snapshot.LadderTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.LadderTPSL.StopLossPrice, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+		for _, rule := range snapshot.LadderTPSL.Rules {
+			if price, ok := pctOffsetPrice(entry, rule.StopLossPct, isLong, isShort, false); ok {
+				return price, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func deriveProtectionTargetPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
+	if snapshot == nil || entry <= 0 {
+		return 0, false
+	}
+	if snapshot.FullTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.FullTPSL.TakeProfit, entry, isLong, isShort, true); ok {
+			return price, true
+		}
+	}
+	if snapshot.LadderTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.LadderTPSL.TakeProfitPrice, entry, isLong, isShort, true); ok {
+			return price, true
+		}
+		for _, rule := range snapshot.LadderTPSL.Rules {
+			if price, ok := pctOffsetPrice(entry, rule.TakeProfitPct, isLong, isShort, true); ok {
+				return price, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func deriveFallbackMaxLossPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
+	if snapshot == nil || entry <= 0 {
+		return 0, false
+	}
+	if snapshot.FullTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.FullTPSL.FallbackMaxLoss, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+	}
+	if snapshot.LadderTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.LadderTPSL.FallbackMaxLoss, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+	}
+	return 0, false
+}
+
+func deriveBreakEvenTriggerPrice(be *store.ProtectionSnapshotBreakEven, entry float64, isLong, isShort bool) (float64, bool) {
+	if be == nil || !be.Enabled || entry <= 0 || be.TriggerValue <= 0 {
+		return 0, false
+	}
+	switch be.TriggerMode {
+	case "profit_pct", "pnl_pct", "percent", "pct":
+		return pctOffsetPrice(entry, be.TriggerValue, isLong, isShort, true)
+	case "price":
+		return be.TriggerValue, be.TriggerValue > 0
+	default:
+		return 0, false
+	}
+}
+
+func valueSourceToAbsolutePrice(src store.ProtectionSnapshotValueSource, entry float64, isLong, isShort bool, favorable bool) (float64, bool) {
+	if entry <= 0 {
+		return 0, false
+	}
+	mode := src.Mode
+	if mode == "" {
+		mode = "price"
+	}
+	switch mode {
+	case "price", "absolute":
+		return src.Value, src.Value > 0
+	case "percent", "pct", "profit_pct", "loss_pct", "offset_pct":
+		return pctOffsetPrice(entry, src.Value, isLong, isShort, favorable)
+	default:
+		return 0, false
+	}
+}
+
+func pctOffsetPrice(entry, pct float64, isLong, isShort bool, favorable bool) (float64, bool) {
+	if entry <= 0 || pct <= 0 {
+		return 0, false
+	}
+	multiplier := pct / 100.0
+	switch {
+	case isLong && favorable:
+		return entry * (1 + multiplier), true
+	case isLong && !favorable:
+		return entry * (1 - multiplier), true
+	case isShort && favorable:
+		return entry * (1 - multiplier), true
+	case isShort && !favorable:
+		return entry * (1 + multiplier), true
+	default:
+		return 0, false
+	}
+}
+
+func compactNotes(notes []string, limit int) []string {
+	compact := make([]string, 0, minInt(len(notes), limit))
+	for _, note := range notes {
+		note = strings.TrimSpace(note)
+		if note == "" {
+			continue
+		}
+		compact = append(compact, note)
+		if len(compact) >= limit {
+			break
+		}
+	}
+	return compact
+}
+
+func reviewContextIsEmpty(ctx *store.DecisionActionReviewContext) bool {
+	if ctx == nil {
+		return true
+	}
+	return ctx.PrimaryTimeframe == "" &&
+		ctx.MinRiskReward == 0 &&
+		ctx.RiskReward == nil &&
+		ctx.KeyLevels == nil &&
+		len(ctx.Anchors) == 0 &&
+		ctx.Protection == nil
+}
+
+func isFinitePositive(v float64) bool {
+	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

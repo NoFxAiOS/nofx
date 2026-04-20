@@ -291,6 +291,31 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
         }
       ]
     },
+    "entry_protection_rationale": {
+      "timeframe_context": {
+        "primary": "15m",
+        "lower": ["5m"],
+        "higher": ["1h"]
+      },
+      "risk_reward": {
+        "entry": 42000,
+        "invalidation": 41400,
+        "first_target": 43200,
+        "gross_estimated_rr": 2.0,
+        "net_estimated_rr": 1.8,
+        "min_required_rr": 1.5,
+        "passed": true
+      },
+      "anchors": [
+        {
+          "type": "support",
+          "timeframe": "15m",
+          "price": 41850,
+          "reason": "breakout retest"
+        }
+      ],
+      "alignment_notes": ["stop remains beyond invalidation"]
+    },
     "confidence": 85,
     "reasoning": "Detailed reasoning explaining why this decision was made"
   }
@@ -312,6 +337,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
 - **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
 - **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), mode=ladder with ladder_rules, or mode=drawdown with non-empty drawdown_rules.
+- **entry_protection_rationale**: Required for open_long/open_short. Must include structured timeframe/key-level/RR rationale. At minimum include ` + "`risk_reward.entry`" + `, ` + "`risk_reward.invalidation`" + `, ` + "`risk_reward.first_target`" + `, ` + "`risk_reward.gross_estimated_rr`" + `, and preferably ` + "`risk_reward.net_estimated_rr`" + ` plus structural ` + "`anchors`" + `.
 - **confidence**: Confidence level (0-100)
 - **reasoning**: Detailed reasoning (required, must explain decision basis)
 
@@ -375,7 +401,13 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
       "take_profit_pct": 8,
       "stop_loss_pct": 3
     },
-    "reasoning": "BTCUSDT completed a pullback confirmation in the primary trend direction, so a single unified TP/SL structure is sufficient and full protection_plan is appropriate. Express TP/SL as percentage fields rather than absolute prices."
+    "entry_protection_rationale": {
+      "timeframe_context": {"primary": "15m", "lower": ["5m"], "higher": ["1h"]},
+      "risk_reward": {"entry": 62000, "invalidation": 61200, "first_target": 63600, "gross_estimated_rr": 2.0, "net_estimated_rr": 1.8, "min_required_rr": 1.5, "passed": true},
+      "anchors": [{"type": "support", "timeframe": "15m", "price": 61850, "reason": "pullback confirmation"}],
+      "alignment_notes": ["full stop remains beyond invalidation"]
+    },
+    "reasoning": "BTCUSDT completed a pullback confirmation in the primary trend direction, so a single unified TP/SL structure is sufficient and full protection_plan is appropriate. The entry_protection_rationale records the key support anchor and confirms RR stays above the minimum threshold even after costs. Express TP/SL as percentage fields rather than absolute prices."
   },
   {
     "symbol": "HUSDT",
@@ -390,7 +422,13 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
         {"take_profit_pct": 6, "take_profit_close_ratio_pct": 60, "stop_loss_pct": 3.0, "stop_loss_close_ratio_pct": 75}
       ]
     },
-    "reasoning": "HUSDT shows a low-timeframe breakout with multi-timeframe alignment, so staged TP/SL management is more suitable and ladder protection_plan is preferred."
+    "entry_protection_rationale": {
+      "timeframe_context": {"primary": "5m", "lower": ["3m"], "higher": ["15m"]},
+      "risk_reward": {"entry": 1.2, "invalidation": 1.15, "first_target": 1.32, "gross_estimated_rr": 2.4, "net_estimated_rr": 2.1, "min_required_rr": 1.5, "passed": true},
+      "anchors": [{"type": "support", "timeframe": "5m", "price": 1.18, "reason": "breakout base"}],
+      "alignment_notes": ["first ladder target remains before the final target"]
+    },
+    "reasoning": "HUSDT shows a low-timeframe breakout with multi-timeframe alignment, so staged TP/SL management is more suitable and ladder protection_plan is preferred. The entry_protection_rationale captures the breakout base, invalidation, and RR logic for the open_long decision."
   }
 ]
 ` + "```" + `
@@ -543,6 +581,9 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 			default:
 				return fmt.Errorf("decision #%d: invalid protection_plan.mode: %s", i+1, d.ProtectionPlan.Mode)
 			}
+		}
+		if !isOpenAction && d.EntryProtection != nil {
+			return fmt.Errorf("decision #%d: entry_protection_rationale is only allowed for open actions", i+1)
 		}
 	}
 	return nil

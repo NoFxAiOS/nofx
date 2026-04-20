@@ -88,19 +88,63 @@ type PositionSnapshot struct {
 
 // DecisionAction decision action
 type DecisionAction struct {
-	Action     string    `json:"action"`
-	Symbol     string    `json:"symbol"`
-	Quantity   float64   `json:"quantity"`
-	Leverage   int       `json:"leverage"`
-	Price      float64   `json:"price"`
-	StopLoss   float64   `json:"stop_loss,omitempty"`   // Stop loss price
-	TakeProfit float64   `json:"take_profit,omitempty"` // Take profit price
-	Confidence int       `json:"confidence,omitempty"`  // AI confidence (0-100)
-	Reasoning  string    `json:"reasoning,omitempty"`   // Brief reasoning
-	OrderID    int64     `json:"order_id"`
-	Timestamp  time.Time `json:"timestamp"`
-	Success    bool      `json:"success"`
-	Error      string    `json:"error"`
+	Action        string                       `json:"action"`
+	Symbol        string                       `json:"symbol"`
+	Quantity      float64                      `json:"quantity"`
+	Leverage      int                          `json:"leverage"`
+	Price         float64                      `json:"price"`
+	StopLoss      float64                      `json:"stop_loss,omitempty"`   // Stop loss price
+	TakeProfit    float64                      `json:"take_profit,omitempty"` // Take profit price
+	Confidence    int                          `json:"confidence,omitempty"`  // AI confidence (0-100)
+	Reasoning     string                       `json:"reasoning,omitempty"`   // Brief reasoning
+	ReviewContext *DecisionActionReviewContext `json:"review_context,omitempty"`
+	OrderID       int64                        `json:"order_id"`
+	Timestamp     time.Time                    `json:"timestamp"`
+	Success       bool                         `json:"success"`
+	Error         string                       `json:"error"`
+}
+
+// DecisionActionReviewContext captures compact, structured rationale for a single action.
+type DecisionActionReviewContext struct {
+	PrimaryTimeframe string                             `json:"primary_timeframe,omitempty"`
+	MinRiskReward    float64                            `json:"min_risk_reward,omitempty"`
+	RiskReward       *DecisionActionRiskRewardSummary   `json:"risk_reward,omitempty"`
+	KeyLevels        *DecisionActionKeyLevels           `json:"key_levels,omitempty"`
+	Anchors          []DecisionActionReasonAnchor       `json:"anchors,omitempty"`
+	Protection       *DecisionActionProtectionAlignment `json:"protection,omitempty"`
+}
+
+// DecisionActionRiskRewardSummary stores gross/net RR and pass/fail metadata.
+type DecisionActionRiskRewardSummary struct {
+	Entry            float64 `json:"entry,omitempty"`
+	Invalidation     float64 `json:"invalidation,omitempty"`
+	FirstTarget      float64 `json:"first_target,omitempty"`
+	GrossEstimatedRR float64 `json:"gross_estimated_rr,omitempty"`
+	NetEstimatedRR   float64 `json:"net_estimated_rr,omitempty"`
+	Passed           bool    `json:"passed"`
+}
+
+// DecisionActionKeyLevels stores compact key support/resistance levels for audit UI.
+type DecisionActionKeyLevels struct {
+	Support    []float64 `json:"support,omitempty"`
+	Resistance []float64 `json:"resistance,omitempty"`
+}
+
+// DecisionActionReasonAnchor stores a compact rationale anchor.
+type DecisionActionReasonAnchor struct {
+	Type      string  `json:"type,omitempty"`
+	Timeframe string  `json:"timeframe,omitempty"`
+	Price     float64 `json:"price,omitempty"`
+	Reason    string  `json:"reason,omitempty"`
+}
+
+// DecisionActionProtectionAlignment stores compact protection alignment audit notes.
+type DecisionActionProtectionAlignment struct {
+	StopBeyondInvalidation bool     `json:"stop_beyond_invalidation,omitempty"`
+	TargetAligned          bool     `json:"target_aligned,omitempty"`
+	BreakEvenBeforeTarget  bool     `json:"break_even_before_target,omitempty"`
+	FallbackWithinEnvelope bool     `json:"fallback_within_envelope,omitempty"`
+	Notes                  []string `json:"notes,omitempty"`
 }
 
 // ProtectionSnapshot captures the active protection configuration at decision time

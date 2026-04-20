@@ -9,6 +9,8 @@ import type {
   TraderStats,
   SymbolStats,
   DirectionStats,
+  DecisionAction,
+  DecisionReviewRef,
 } from '../../types'
 
 interface PositionHistoryProps {
@@ -46,6 +48,108 @@ function formatDate(dateStr: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function findPrimaryOpenDecision(review?: DecisionReviewRef): DecisionAction | undefined {
+  return (review?.decisions || []).find((decision) => {
+    const action = String(decision.action || '').toLowerCase()
+    return action === 'open_long' || action === 'open_short'
+  })
+}
+
+function formatCompactRr(value?: number | null): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return '—'
+  return `${value.toFixed(value >= 10 ? 1 : 2)}R`
+}
+
+function formatCompactLevelList(levels?: number[]): string[] {
+  return (levels || [])
+    .filter((value) => typeof value === 'number' && Number.isFinite(value))
+    .slice(0, 3)
+    .map((value) => formatPrice(value))
+}
+
+function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
+  const decision = findPrimaryOpenDecision(review)
+  const ctx = decision?.review_context
+  const rr = ctx?.risk_reward
+  return {
+    decision,
+    ctx,
+    rr,
+    support: formatCompactLevelList(ctx?.key_levels?.support),
+    resistance: formatCompactLevelList(ctx?.key_levels?.resistance),
+    anchors: ctx?.anchors || [],
+  }
+}
+
+function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
+  const audit = getDecisionAuditSnapshot(review)
+  if (!audit.ctx && !audit.rr && audit.support.length === 0 && audit.resistance.length === 0) {
+    return null
+  }
+
+  const pass = audit.rr?.passed
+  const passCls = pass
+    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+    : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] text-nofx-text-muted">Entry audit</span>
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${passCls}`}>
+          RR {formatCompactRr(audit.rr?.net_estimated_rr ?? audit.rr?.gross_estimated_rr)}
+        </span>
+        {audit.ctx?.min_risk_reward ? (
+          <span className="inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-nofx-text-muted">
+            min {formatCompactRr(audit.ctx.min_risk_reward)}
+          </span>
+        ) : null}
+        {typeof pass === 'boolean' ? (
+          <span className="inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-nofx-text-main">
+            {pass ? 'pass' : 'fail'}
+          </span>
+        ) : null}
+        {audit.ctx?.primary_timeframe ? (
+          <span className="inline-flex items-center rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">
+            {audit.ctx.primary_timeframe}
+          </span>
+        ) : null}
+      </div>
+
+      {(audit.support.length > 0 || audit.resistance.length > 0) && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.support.map((value, idx) => (
+            <span key={`s-${idx}`} className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">
+              S {value}
+            </span>
+          ))}
+          {audit.resistance.map((value, idx) => (
+            <span key={`r-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-rose-200">
+              R {value}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.anchors.length > 0 && (
+        <details className="text-[11px] text-nofx-text-muted">
+          <summary className="cursor-pointer select-none">anchors ({audit.anchors.length})</summary>
+          <div className="mt-2 space-y-1">
+            {audit.anchors.slice(0, 5).map((anchor, idx) => (
+              <div key={idx} className="rounded border border-white/10 bg-white/5 px-2 py-1.5">
+                <span className="text-nofx-text-main">{anchor.type || 'anchor'}</span>
+                {anchor.timeframe ? <span>{` · ${anchor.timeframe}`}</span> : null}
+                {anchor.price ? <span>{` · ${formatPrice(anchor.price)}`}</span> : null}
+                {anchor.reason ? <span>{` · ${anchor.reason}`}</span> : null}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  )
 }
 
 function formatReviewContextSummary(reviewContext?: Record<string, unknown>): string {
@@ -486,6 +590,9 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                     </span>
                   ))}
                 </div>
+                <div className="mt-2">
+                  <DecisionAuditPanel review={position.entry_decision_review || position.exit_decision_review} />
+                </div>
               </div>
               <div>
                 <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
@@ -541,6 +648,9 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                               {item.label}
                             </span>
                           ))}
+                        </div>
+                        <div className="mt-2">
+                          <DecisionAuditPanel review={event.decision_review} />
                         </div>
                       </div>
                       <div>

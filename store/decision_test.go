@@ -34,11 +34,39 @@ func TestDecisionStore_LogDecisionProtectionSnapshotRoundTrip(t *testing.T) {
 		CandidateCoins: []string{"BTC", "ETH"},
 		ExecutionLog:   []string{"built context", "saved decision"},
 		Decisions: []DecisionAction{{
-			Action:    "open_long",
-			Symbol:    "BTCUSDT",
-			Quantity:  0.1,
-			Leverage:  5,
-			Price:     65000,
+			Action:   "open_long",
+			Symbol:   "BTCUSDT",
+			Quantity: 0.1,
+			Leverage: 5,
+			Price:    65000,
+			ReviewContext: &DecisionActionReviewContext{
+				PrimaryTimeframe: "15m",
+				MinRiskReward:    1.5,
+				RiskReward: &DecisionActionRiskRewardSummary{
+					Entry:            65000,
+					Invalidation:     64200,
+					FirstTarget:      66600,
+					GrossEstimatedRR: 2.0,
+					NetEstimatedRR:   1.82,
+					Passed:           true,
+				},
+				KeyLevels: &DecisionActionKeyLevels{
+					Support:    []float64{64650, 64200},
+					Resistance: []float64{66600, 67200},
+				},
+				Anchors: []DecisionActionReasonAnchor{{
+					Type:      "support",
+					Timeframe: "15m",
+					Price:     64650,
+					Reason:    "breakout retest",
+				}},
+				Protection: &DecisionActionProtectionAlignment{
+					StopBeyondInvalidation: true,
+					TargetAligned:          true,
+					BreakEvenBeforeTarget:  true,
+					Notes:                  []string{"full stop beyond invalidation"},
+				},
+			},
 			Timestamp: ts,
 			Success:   true,
 		}},
@@ -113,6 +141,15 @@ func TestDecisionStore_LogDecisionProtectionSnapshotRoundTrip(t *testing.T) {
 	}
 	if got.ProtectionSnapshot.BreakEven == nil || got.ProtectionSnapshot.BreakEven.TriggerMode != "profit_pct" {
 		t.Fatalf("unexpected break-even snapshot: %+v", got.ProtectionSnapshot.BreakEven)
+	}
+	if len(got.Decisions) != 1 || got.Decisions[0].ReviewContext == nil {
+		t.Fatalf("expected decision action review context to round-trip: %+v", got.Decisions)
+	}
+	if got.Decisions[0].ReviewContext.PrimaryTimeframe != "15m" {
+		t.Fatalf("unexpected primary timeframe: %+v", got.Decisions[0].ReviewContext)
+	}
+	if got.Decisions[0].ReviewContext.RiskReward == nil || got.Decisions[0].ReviewContext.RiskReward.NetEstimatedRR != 1.82 {
+		t.Fatalf("unexpected risk reward review context: %+v", got.Decisions[0].ReviewContext)
 	}
 }
 

@@ -409,6 +409,10 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 	if config == nil {
 		return nil
 	}
+	minRR := config.RiskControl.MinRiskRewardRatio
+	if minRR <= 0 {
+		minRR = 1.5
+	}
 	fullAI := config.Protection.FullTPSL.Enabled && config.Protection.FullTPSL.Mode == store.ProtectionModeAI
 	ladderAI := config.Protection.LadderTPSL.Enabled && config.Protection.LadderTPSL.Mode == store.ProtectionModeAI
 	drawdownAI := config.Protection.DrawdownTakeProfit.Enabled && config.Protection.DrawdownTakeProfit.Mode == store.ProtectionModeAI
@@ -416,6 +420,9 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		isOpen := d.Action == "open_long" || d.Action == "open_short" || d.Action == "OPEN_NEW"
 		if !isOpen {
 			continue
+		}
+		if err := ValidateEntryProtectionRationale(d, minRR); err != nil {
+			return fmt.Errorf("decision #%d: %w", i+1, err)
 		}
 		if (fullAI && drawdownAI) || (ladderAI && drawdownAI) || (fullAI && ladderAI) {
 			return fmt.Errorf("current strategy route supports only one AI protection route at a time (full, ladder, or drawdown)")
@@ -446,6 +453,36 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 				return fmt.Errorf("decision #%d: drawdown protection_plan must contain drawdown_rules under current strategy route", i+1)
 			}
 		}
+	}
+	return nil
+}
+
+func ValidateEntryProtectionRationale(d Decision, minRR float64) error {
+	if d.Action != "open_long" && d.Action != "open_short" {
+		return nil
+	}
+	if minRR <= 0 {
+		minRR = 1.5
+	}
+	if d.EntryProtection == nil {
+		return fmt.Errorf("open action requires entry_protection_rationale")
+	}
+	rr := d.EntryProtection.RiskReward
+	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 || rr.GrossEstimatedRR <= 0 {
+		return fmt.Errorf("entry_protection_rationale.risk_reward requires positive entry, invalidation, first_target, and gross_estimated_rr")
+	}
+	if d.Action == "open_long" && !(rr.Invalidation < rr.Entry && rr.FirstTarget > rr.Entry) {
+		return fmt.Errorf("entry_protection_rationale.risk_reward direction mismatch for open_long")
+	}
+	if d.Action == "open_short" && !(rr.Invalidation > rr.Entry && rr.FirstTarget < rr.Entry) {
+		return fmt.Errorf("entry_protection_rationale.risk_reward direction mismatch for open_short")
+	}
+	effectiveRR := rr.GrossEstimatedRR
+	if rr.NetEstimatedRR > 0 {
+		effectiveRR = rr.NetEstimatedRR
+	}
+	if effectiveRR < minRR {
+		return fmt.Errorf("entry_protection_rationale.risk_reward %.2f below min %.2f", effectiveRR, minRR)
 	}
 	return nil
 }

@@ -245,6 +245,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			"timestamp":           record.Timestamp.UTC().Format(time.RFC3339),
 			"review_context":      record.ReviewContext,
 			"protection_snapshot": record.ProtectionSnapshot,
+			"decisions":           record.Decisions,
 		}
 	}
 

@@ -117,11 +117,12 @@ type Decision struct {
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
 	// Opening position parameters
-	Leverage        int               `json:"leverage,omitempty"`
-	PositionSizeUSD float64           `json:"position_size_usd,omitempty"`
-	StopLoss        float64           `json:"stop_loss,omitempty"`
-	TakeProfit      float64           `json:"take_profit,omitempty"`
-	ProtectionPlan  *AIProtectionPlan `json:"protection_plan,omitempty"`
+	Leverage        int                         `json:"leverage,omitempty"`
+	PositionSizeUSD float64                     `json:"position_size_usd,omitempty"`
+	StopLoss        float64                     `json:"stop_loss,omitempty"`
+	TakeProfit      float64                     `json:"take_profit,omitempty"`
+	ProtectionPlan  *AIProtectionPlan           `json:"protection_plan,omitempty"`
+	EntryProtection *AIEntryProtectionRationale `json:"entry_protection_rationale,omitempty"`
 
 	// Grid trading parameters
 	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
@@ -133,6 +134,93 @@ type Decision struct {
 	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
 	RiskUSD    float64 `json:"risk_usd,omitempty"`   // Maximum USD risk
 	Reasoning  string  `json:"reasoning"`
+}
+
+type AIEntryProtectionRationale struct {
+	TimeframeContext     AIEntryTimeframeContext     `json:"timeframe_context,omitempty"`
+	KeyLevels            AIEntryKeyLevels            `json:"key_levels,omitempty"`
+	VolatilityAdjustment AIEntryVolatilityAdjustment `json:"volatility_adjustment,omitempty"`
+	RiskReward           AIRiskRewardRationale       `json:"risk_reward,omitempty"`
+	ExecutionConstraints AIEntryExecutionConstraints `json:"execution_constraints,omitempty"`
+	DerivativesContext   AIEntryDerivativesContext   `json:"derivatives_context,omitempty"`
+	Anchors              []AIEntryProtectionAnchor   `json:"anchors,omitempty"`
+	AlignmentNotes       []string                    `json:"alignment_notes,omitempty"`
+}
+
+type AIEntryTimeframeContext struct {
+	Primary string   `json:"primary,omitempty"`
+	Lower   []string `json:"lower,omitempty"`
+	Higher  []string `json:"higher,omitempty"`
+}
+
+type AIEntryKeyLevels struct {
+	Support    []float64         `json:"support,omitempty"`
+	Resistance []float64         `json:"resistance,omitempty"`
+	SwingHighs []float64         `json:"swing_highs,omitempty"`
+	SwingLows  []float64         `json:"swing_lows,omitempty"`
+	Fibonacci  *AIEntryFibonacci `json:"fibonacci,omitempty"`
+}
+
+type AIEntryFibonacci struct {
+	SwingHigh float64   `json:"swing_high,omitempty"`
+	SwingLow  float64   `json:"swing_low,omitempty"`
+	Levels    []float64 `json:"levels,omitempty"`
+}
+
+type AIEntryVolatilityAdjustment struct {
+	ATR14Pct     float64 `json:"atr14_pct,omitempty"`
+	BollWidthPct float64 `json:"boll_width_pct,omitempty"`
+	MarketRegime string  `json:"market_regime,omitempty"`
+	WideningPct  float64 `json:"widening_pct,omitempty"`
+}
+
+type AIRiskRewardRationale struct {
+	Entry            float64 `json:"entry,omitempty"`
+	Invalidation     float64 `json:"invalidation,omitempty"`
+	FirstTarget      float64 `json:"first_target,omitempty"`
+	GrossEstimatedRR float64 `json:"gross_estimated_rr,omitempty"`
+	NetEstimatedRR   float64 `json:"net_estimated_rr,omitempty"`
+	MinRequiredRR    float64 `json:"min_required_rr,omitempty"`
+	Passed           bool    `json:"passed,omitempty"`
+}
+
+type AIEntryExecutionConstraints struct {
+	TickSize             float64 `json:"tick_size,omitempty"`
+	PricePrecision       int     `json:"price_precision,omitempty"`
+	QtyStepSize          float64 `json:"qty_step_size,omitempty"`
+	QtyPrecision         int     `json:"qty_precision,omitempty"`
+	MinQty               float64 `json:"min_qty,omitempty"`
+	MinNotional          float64 `json:"min_notional,omitempty"`
+	MarkPrice            float64 `json:"mark_price,omitempty"`
+	LastPrice            float64 `json:"last_price,omitempty"`
+	IndexPrice           float64 `json:"index_price,omitempty"`
+	BestBid              float64 `json:"best_bid,omitempty"`
+	BestAsk              float64 `json:"best_ask,omitempty"`
+	SpreadBps            float64 `json:"spread_bps,omitempty"`
+	TakerFeeRate         float64 `json:"taker_fee_rate,omitempty"`
+	MakerFeeRate         float64 `json:"maker_fee_rate,omitempty"`
+	EstimatedSlippageBps float64 `json:"estimated_slippage_bps,omitempty"`
+}
+
+type AIEntryDerivativesContext struct {
+	OICurrent          float64 `json:"oi_current,omitempty"`
+	OIDelta5mPct       float64 `json:"oi_delta_5m_pct,omitempty"`
+	OIDelta15mPct      float64 `json:"oi_delta_15m_pct,omitempty"`
+	OIDelta1hPct       float64 `json:"oi_delta_1h_pct,omitempty"`
+	FundingRateCurrent float64 `json:"funding_rate_current,omitempty"`
+	FundingRateAvg8h   float64 `json:"funding_rate_avg_8h,omitempty"`
+	MarkIndexBasisBps  float64 `json:"mark_index_basis_bps,omitempty"`
+	PremiumIndex       float64 `json:"premium_index,omitempty"`
+	OrderbookImbalance float64 `json:"orderbook_imbalance,omitempty"`
+	Top5BidNotional    float64 `json:"top5_bid_notional,omitempty"`
+	Top5AskNotional    float64 `json:"top5_ask_notional,omitempty"`
+}
+
+type AIEntryProtectionAnchor struct {
+	Type      string  `json:"type,omitempty"`
+	Timeframe string  `json:"timeframe,omitempty"`
+	Price     float64 `json:"price,omitempty"`
+	Reason    string  `json:"reason,omitempty"`
 }
 
 type AIProtectionPlan struct {

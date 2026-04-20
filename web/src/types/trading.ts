@@ -101,11 +101,17 @@ export interface Position {
   protection_runtime?: ProtectionRuntime
 }
 
+export interface ProtectionSnapshotValueSource {
+  mode?: string
+  value?: number
+}
+
 export interface ProtectionSnapshotFullTPSL {
   enabled: boolean
   mode: string
-  take_profit_pct?: number
-  stop_loss_pct?: number
+  take_profit?: ProtectionSnapshotValueSource
+  stop_loss?: ProtectionSnapshotValueSource
+  fallback_max_loss?: ProtectionSnapshotValueSource
 }
 
 export interface ProtectionSnapshotLadderRule {
@@ -120,6 +126,11 @@ export interface ProtectionSnapshotLadder {
   mode: string
   take_profit_enabled: boolean
   stop_loss_enabled: boolean
+  take_profit_price?: ProtectionSnapshotValueSource
+  take_profit_size?: ProtectionSnapshotValueSource
+  stop_loss_price?: ProtectionSnapshotValueSource
+  stop_loss_size?: ProtectionSnapshotValueSource
+  fallback_max_loss?: ProtectionSnapshotValueSource
   rules: ProtectionSnapshotLadderRule[]
 }
 
@@ -163,6 +174,44 @@ export interface OpenOrder {
   protection_status?: string
 }
 
+export interface DecisionActionReasonAnchor {
+  type?: string
+  timeframe?: string
+  price?: number
+  reason?: string
+}
+
+export interface DecisionActionKeyLevels {
+  support?: number[]
+  resistance?: number[]
+}
+
+export interface DecisionActionRiskRewardSummary {
+  entry?: number
+  invalidation?: number
+  first_target?: number
+  gross_estimated_rr?: number
+  net_estimated_rr?: number
+  passed: boolean
+}
+
+export interface DecisionActionProtectionAlignment {
+  stop_beyond_invalidation?: boolean
+  target_aligned?: boolean
+  break_even_before_target?: boolean
+  fallback_within_envelope?: boolean
+  notes?: string[]
+}
+
+export interface DecisionActionReviewContext {
+  primary_timeframe?: string
+  min_risk_reward?: number
+  risk_reward?: DecisionActionRiskRewardSummary
+  key_levels?: DecisionActionKeyLevels
+  anchors?: DecisionActionReasonAnchor[]
+  protection?: DecisionActionProtectionAlignment
+}
+
 export interface DecisionAction {
   action: string
   symbol: string
@@ -173,6 +222,7 @@ export interface DecisionAction {
   take_profit?: number    // Take profit price
   confidence?: number     // AI confidence (0-100)
   reasoning?: string      // Brief reasoning
+  review_context?: DecisionActionReviewContext
   order_id: number
   timestamp: string
   success: boolean
@@ -284,6 +334,7 @@ export interface DecisionReviewRef {
   timestamp: string
   review_context?: Record<string, unknown>
   protection_snapshot?: ProtectionSnapshot
+  decisions?: DecisionAction[]
 }
 
 export interface PositionCloseEvent {

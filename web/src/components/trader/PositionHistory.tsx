@@ -74,11 +74,31 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const decision = findPrimaryOpenDecision(review)
   const ctx = decision?.review_context
   const rr = ctx?.risk_reward
+  const control = ctx?.control
   const executionConstraintItems = formatExecutionConstraintItems(ctx?.execution_constraints)
+  const controlStatus = control?.decision
+    ? {
+        label: formatControlDecisionLabel(control.decision),
+        tone: control.decision === 'rejected' ? 'danger' : control.decision === 'overridden' || control.decision === 'downgraded_to_wait' ? 'warn' : 'neutral' as const,
+      }
+    : null
+  const controlBadges = [
+    control?.effective_rr && Number.isFinite(control.effective_rr)
+      ? { label: `eff ${formatCompactRr(control.effective_rr)} · ${formatControlRrSource(control.effective_rr_source)}` }
+      : null,
+    control?.constraints_merged ? { label: 'constraints merged', tone: 'warn' as const } : null,
+    control?.runtime_rr_recomputed ? { label: 'runtime RR', tone: 'warn' as const } : null,
+    control?.no_order_placed ? { label: 'no order placed', tone: 'danger' as const } : null,
+  ].filter(Boolean) as { label: string; tone?: 'warn' | 'danger' }[]
+
   return {
     decision,
     ctx,
     rr,
+    control,
+    controlStatus,
+    controlBadges,
+    failedChecks: (control?.failed_checks || []).map((check) => formatControlCheck(check)).slice(0, 4),
     support: formatCompactLevelList(ctx?.key_levels?.support),
     resistance: formatCompactLevelList(ctx?.key_levels?.resistance),
     anchors: ctx?.anchors || [],
@@ -156,12 +176,56 @@ function formatExecutionConstraintItems(constraints?: DecisionActionReviewContex
   return items
 }
 
+function formatControlDecisionLabel(decision?: string): string {
+  switch (String(decision || '').toLowerCase()) {
+    case 'accepted':
+      return 'accepted'
+    case 'rejected':
+      return 'rejected'
+    case 'downgraded_to_wait':
+      return 'downgraded to wait'
+    case 'overridden':
+      return 'overridden'
+    default:
+      return decision || 'control'
+  }
+}
+
+function formatControlRrSource(source?: string): string {
+  switch (String(source || '').toLowerCase()) {
+    case 'net':
+      return 'net'
+    case 'gross':
+      return 'gross'
+    case 'execution_recomputed_net':
+      return 'runtime net'
+    case 'execution_recomputed_gross':
+      return 'runtime gross'
+    default:
+      return source || 'system'
+  }
+}
+
+function formatControlCheck(check?: string): string {
+  return String(check || 'check_failed').replace(/_/g, ' ')
+}
+
 function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
   const audit = getDecisionAuditSnapshot(review)
   const protection = audit.ctx?.protection
   const policyStatus = formatProtectionPolicyStatus(protection)
   const policyReasons = protection?.policy_reasons || []
-  if (!audit.ctx && !audit.rr && audit.support.length === 0 && audit.resistance.length === 0 && audit.executionConstraintItems.length === 0 && !policyStatus) {
+  if (
+    !audit.ctx &&
+    !audit.rr &&
+    audit.support.length === 0 &&
+    audit.resistance.length === 0 &&
+    audit.executionConstraintItems.length === 0 &&
+    !policyStatus &&
+    !audit.controlStatus &&
+    audit.controlBadges.length === 0 &&
+    audit.failedChecks.length === 0
+  ) {
     return null
   }
 
@@ -177,6 +241,17 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${passCls}`}>
           RR {formatCompactRr(audit.rr?.net_estimated_rr ?? audit.rr?.gross_estimated_rr)}
         </span>
+        {audit.controlStatus ? (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
+            audit.controlStatus.tone === 'danger'
+              ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+              : audit.controlStatus.tone === 'warn'
+                ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-200'
+          }`}>
+            {audit.controlStatus.label}
+          </span>
+        ) : null}
         {policyStatus ? (
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
             policyStatus.tone === 'danger'
@@ -204,6 +279,35 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
           </span>
         ) : null}
       </div>
+
+      {audit.controlBadges.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.controlBadges.map((item, idx) => (
+            <span
+              key={`control-badge-${idx}`}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 ${
+                item.tone === 'danger'
+                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                  : item.tone === 'warn'
+                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                    : 'border-sky-500/20 bg-sky-500/10 text-sky-200'
+              }`}
+            >
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.failedChecks.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.failedChecks.map((check, idx) => (
+            <span key={`failed-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-rose-200">
+              {check}
+            </span>
+          ))}
+        </div>
+      )}
 
       {(audit.support.length > 0 || audit.resistance.length > 0) && (
         <div className="flex flex-wrap gap-1.5 text-[10px]">

@@ -225,6 +225,22 @@ export interface DecisionActionExecutionConstraints {
   estimated_slippage_bps?: number
 }
 
+export interface DecisionActionControlOutcome {
+  decision?: string
+  reasons?: string[]
+  failed_checks?: string[]
+  constraints_merged?: boolean
+  runtime_rr_recomputed?: boolean
+  ai_gross_rr?: number
+  ai_net_rr?: number
+  runtime_gross_rr?: number
+  runtime_net_rr?: number
+  effective_rr?: number
+  effective_rr_source?: string
+  execution_constraint_sources?: string[]
+  no_order_placed?: boolean
+}
+
 export interface DecisionActionReviewContext {
   primary_timeframe?: string
   min_risk_reward?: number
@@ -232,6 +248,7 @@ export interface DecisionActionReviewContext {
   key_levels?: DecisionActionKeyLevels
   anchors?: DecisionActionReasonAnchor[]
   protection?: DecisionActionProtectionAlignment
+  control?: DecisionActionControlOutcome
   execution_constraints?: DecisionActionExecutionConstraints
 }
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"nofx/kernel"
+	"nofx/store"
 )
 
 // runtimePolicyResult captures the narrow, deterministic runtime policy effect
@@ -13,6 +14,7 @@ type runtimePolicyResult struct {
 	Blocked            bool
 	Reason             string
 	ReasonCode         string
+	Decision           string
 	ConstraintsMerged  bool
 	RRRecomputed       bool
 	AIGrossRR          float64
@@ -30,10 +32,11 @@ type runtimePolicyResult struct {
 // Current scope is intentionally narrow and audit-friendly:
 //  1. merge runtime execution constraints when AI omitted them;
 //  2. recompute execution-aware RR deterministically from merged constraints;
-//  3. block only open actions whose runtime-effective RR falls below minRR.
+//  3. block only open actions whose runtime-effective RR falls below minRR when
+//     strategy control mode is strict.
 //
 // Non-open actions remain untouched so wait/hold legality is preserved.
-func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstraintsSnapshot, minRR float64) runtimePolicyResult {
+func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstraintsSnapshot, minRR float64, mode store.StrategyControlPolicyMode) runtimePolicyResult {
 	if decision == nil {
 		return runtimePolicyResult{}
 	}
@@ -46,11 +49,13 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 	if minRR <= 0 {
 		minRR = 1.5
 	}
+	mode = effectiveRuntimePolicyMode(mode)
 
 	merged := mergeExecutionConstraints(decision, snapshot)
 
 	rr := decision.EntryProtection.RiskReward
 	result := runtimePolicyResult{
+		Decision:           "accepted",
 		ConstraintsMerged:  merged,
 		AIGrossRR:          rr.GrossEstimatedRR,
 		AINetRR:            rr.NetEstimatedRR,
@@ -82,12 +87,31 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 	result.EffectiveRR = effectiveRR
 	result.EffectiveRRSource = effectiveRRSource
 	if effectiveRR > 0 && effectiveRR+0.02 < minRR {
-		result.Blocked = true
 		result.ReasonCode = "runtime_rr_below_min"
-		result.Reason = fmt.Sprintf("runtime RR policy blocked %s %s: execution-aware rr %.2f below min %.2f", decision.Action, decision.Symbol, effectiveRR, minRR)
+		result.Reason = fmt.Sprintf("runtime RR policy %s %s %s: execution-aware rr %.2f below min %.2f", runtimePolicyVerb(mode), decision.Action, decision.Symbol, effectiveRR, minRR)
+		if mode == store.StrategyControlPolicyModeStrict {
+			result.Blocked = true
+			result.Decision = "rejected"
+		}
 		return result
 	}
 	return result
+}
+
+func effectiveRuntimePolicyMode(mode store.StrategyControlPolicyMode) store.StrategyControlPolicyMode {
+	switch mode {
+	case store.StrategyControlPolicyModeAuditOnly, store.StrategyControlPolicyModeRecommendOnly:
+		return mode
+	default:
+		return store.StrategyControlPolicyModeStrict
+	}
+}
+
+func runtimePolicyVerb(mode store.StrategyControlPolicyMode) string {
+	if effectiveRuntimePolicyMode(mode) == store.StrategyControlPolicyModeStrict {
+		return "blocked"
+	}
+	return "flagged"
 }
 
 func recomputeRuntimeRiskRewardWithExecutionConstraints(action string, rr kernel.AIRiskRewardRationale, c kernel.AIEntryExecutionConstraints) (grossRR, netRR float64, ok bool) {

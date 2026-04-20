@@ -384,7 +384,11 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		constraintSnapshot := at.collectExecutionConstraintsSnapshot(d.Symbol)
-		policy := applyRuntimeOpenPolicy(&d, constraintSnapshot, at.getMinRiskRewardRatio())
+		policyMode := store.StrategyControlPolicyModeStrict
+		if at.config.StrategyConfig != nil {
+			policyMode = at.config.StrategyConfig.StrategyControlPolicy.EffectiveMode()
+		}
+		policy := applyRuntimeOpenPolicy(&d, constraintSnapshot, at.getMinRiskRewardRatio(), policyMode)
 		if policy.Reason != "" {
 			appendRuntimePolicyNote(&d, policy.Reason)
 		}
@@ -888,6 +892,9 @@ func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.Decisio
 		EffectiveRR:                policy.EffectiveRR,
 		EffectiveRRSource:          policy.EffectiveRRSource,
 		ExecutionConstraintSources: policy.ConstraintsSources,
+	}
+	if policy.Decision != "" {
+		out.Decision = policy.Decision
 	}
 	if policy.Blocked {
 		out.Decision = "rejected"

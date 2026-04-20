@@ -25,6 +25,13 @@ function makeReview(policyStatus?: string, policyReasons?: string[]): DecisionRe
             net_estimated_rr: 1.8,
             passed: true,
           },
+          control: {
+            decision: 'accepted',
+            effective_rr: 1.72,
+            effective_rr_source: 'execution_recomputed_net',
+            constraints_merged: true,
+            runtime_rr_recomputed: true,
+          },
           protection: policyStatus
             ? {
                 policy_status: policyStatus,
@@ -61,6 +68,39 @@ describe('getDecisionAuditSnapshot', () => {
       'fee 0.050%',
       'slip 1.2bps',
     ])
+  })
+
+  it('extracts compact control outcome fields when present', () => {
+    const snap = getDecisionAuditSnapshot(makeReview())
+
+    expect(snap.controlStatus).toEqual({ label: 'accepted', tone: 'neutral' })
+    expect(snap.controlBadges).toEqual([
+      { label: 'eff 1.72R · runtime net' },
+      { label: 'constraints merged', tone: 'warn' },
+      { label: 'runtime RR', tone: 'warn' },
+    ])
+    expect(snap.failedChecks).toEqual([])
+  })
+
+  it('keeps rejected control outcomes concise and marks no-order placement', () => {
+    const review = makeReview()
+    if (review.decisions?.[0].review_context) {
+      review.decisions[0].review_context.control = {
+        decision: 'rejected',
+        effective_rr: 0.94,
+        effective_rr_source: 'net',
+        failed_checks: ['effective_rr_below_min', 'target_before_first_target'],
+        no_order_placed: true,
+      }
+    }
+
+    const snap = getDecisionAuditSnapshot(review)
+    expect(snap.controlStatus).toEqual({ label: 'rejected', tone: 'danger' })
+    expect(snap.controlBadges).toEqual([
+      { label: 'eff 0.94R · net' },
+      { label: 'no order placed', tone: 'danger' },
+    ])
+    expect(snap.failedChecks).toEqual(['effective rr below min', 'target before first target'])
   })
 
   it('preserves compact policy transparency fields on protection context', () => {

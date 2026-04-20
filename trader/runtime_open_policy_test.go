@@ -28,7 +28,7 @@ func TestApplyRuntimeOpenPolicyMergesRuntimeConstraintsAndBlocksLowNetRR(t *test
 		Source:               map[string]string{"tick_size": "test"},
 	}
 
-	result := applyRuntimeOpenPolicy(decision, snapshot, 1.5)
+	result := applyRuntimeOpenPolicy(decision, snapshot, 1.5, "")
 
 	if !result.Blocked || !strings.Contains(result.Reason, "execution-aware rr") {
 		t.Fatalf("expected runtime policy block, got %+v", result)
@@ -55,7 +55,7 @@ func TestApplyRuntimeOpenPolicyMergesRuntimeConstraintsAndBlocksLowNetRR(t *test
 
 func TestApplyRuntimeOpenPolicyPreservesWaitAndEmptyLegality(t *testing.T) {
 	decision := &kernel.Decision{Symbol: "BTCUSDT", Action: "wait", Reasoning: "no trade"}
-	result := applyRuntimeOpenPolicy(decision, &ExecutionConstraintsSnapshot{TickSize: 1, Source: map[string]string{"tick_size": "test"}}, 1.5)
+	result := applyRuntimeOpenPolicy(decision, &ExecutionConstraintsSnapshot{TickSize: 1, Source: map[string]string{"tick_size": "test"}}, 1.5, "")
 	if result.Blocked || result.Reason != "" {
 		t.Fatalf("wait should not be blocked by runtime open policy: %+v", result)
 	}
@@ -79,7 +79,7 @@ func TestApplyRuntimeOpenPolicyKeepsPassingOpenExecutable(t *testing.T) {
 		},
 	}
 
-	result := applyRuntimeOpenPolicy(decision, &ExecutionConstraintsSnapshot{TickSize: 1, Source: map[string]string{"tick_size": "test"}}, 1.5)
+	result := applyRuntimeOpenPolicy(decision, &ExecutionConstraintsSnapshot{TickSize: 1, Source: map[string]string{"tick_size": "test"}}, 1.5, "")
 	if result.Blocked {
 		t.Fatalf("expected passing open to remain executable: %+v", result)
 	}
@@ -91,5 +91,76 @@ func TestApplyRuntimeOpenPolicyKeepsPassingOpenExecutable(t *testing.T) {
 	}
 	if !decision.EntryProtection.RiskReward.Passed {
 		t.Fatalf("expected passed to remain true after runtime recompute")
+	}
+}
+
+func TestApplyRuntimeOpenPolicyAuditOnlyFlagsLowNetRRWithoutBlocking(t *testing.T) {
+	decision := &kernel.Decision{
+		Symbol: "BTCUSDT",
+		Action: "open_long",
+		EntryProtection: &kernel.AIEntryProtectionRationale{
+			RiskReward: kernel.AIRiskRewardRationale{
+				Entry:            100,
+				Invalidation:     90,
+				FirstTarget:      120,
+				GrossEstimatedRR: 2.0,
+				Passed:           true,
+			},
+		},
+	}
+	snapshot := &ExecutionConstraintsSnapshot{
+		TickSize:             1,
+		TakerFeeRate:         0.02,
+		EstimatedSlippageBps: 200,
+		Source:               map[string]string{"tick_size": "test"},
+	}
+
+	result := applyRuntimeOpenPolicy(decision, snapshot, 1.5, "audit_only")
+
+	if result.Blocked {
+		t.Fatalf("audit_only should not block low runtime RR: %+v", result)
+	}
+	if result.Decision != "accepted" || result.ReasonCode != "runtime_rr_below_min" || !strings.Contains(result.Reason, "flagged") {
+		t.Fatalf("expected audited failed check without rejection, got %+v", result)
+	}
+	if !result.RRRecomputed || result.EffectiveRRSource != "runtime_net" {
+		t.Fatalf("expected runtime RR audit to be preserved, got %+v", result)
+	}
+	if decision.EntryProtection.RiskReward.Passed {
+		t.Fatalf("expected audit fields to preserve failed runtime RR outcome")
+	}
+}
+
+func TestApplyRuntimeOpenPolicyRecommendOnlyFlagsLowNetRRWithoutBlocking(t *testing.T) {
+	decision := &kernel.Decision{
+		Symbol: "BTCUSDT",
+		Action: "open_long",
+		EntryProtection: &kernel.AIEntryProtectionRationale{
+			RiskReward: kernel.AIRiskRewardRationale{
+				Entry:            100,
+				Invalidation:     90,
+				FirstTarget:      120,
+				GrossEstimatedRR: 2.0,
+				Passed:           true,
+			},
+		},
+	}
+	snapshot := &ExecutionConstraintsSnapshot{
+		TickSize:             1,
+		TakerFeeRate:         0.02,
+		EstimatedSlippageBps: 200,
+		Source:               map[string]string{"tick_size": "test"},
+	}
+
+	result := applyRuntimeOpenPolicy(decision, snapshot, 1.5, "recommend_only")
+
+	if result.Blocked {
+		t.Fatalf("recommend_only should not block low runtime RR: %+v", result)
+	}
+	if result.Decision != "accepted" || result.ReasonCode != "runtime_rr_below_min" {
+		t.Fatalf("expected recommendation audit failed check without rejection, got %+v", result)
+	}
+	if !result.RRRecomputed || decision.EntryProtection.RiskReward.Passed {
+		t.Fatalf("expected recommendation mode to preserve failed runtime RR audit, got %+v", result)
 	}
 }

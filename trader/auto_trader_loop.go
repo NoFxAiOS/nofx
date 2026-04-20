@@ -409,6 +409,10 @@ func (at *AutoTrader) runCycle() error {
 			Success:   false,
 		}
 
+		if actionRecord.ReviewContext != nil {
+			actionRecord.ReviewContext.Control = buildRuntimePolicyControlOutcome(policy)
+		}
+
 		if policy.Blocked {
 			logger.Infof("🚫 %s", policy.Reason)
 			actionRecord.Error = policy.Reason
@@ -867,6 +871,35 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 		return nil
 	}
 	return ctx
+}
+
+func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.DecisionActionControlOutcome {
+	if !policy.Blocked && policy.Reason == "" && !policy.ConstraintsMerged && !policy.RRRecomputed && policy.AIGrossRR == 0 && policy.AINetRR == 0 && policy.RuntimeGrossRR == 0 && policy.RuntimeNetRR == 0 && policy.EffectiveRR == 0 && len(policy.ConstraintsSources) == 0 {
+		return nil
+	}
+	out := &store.DecisionActionControlOutcome{
+		Decision:                   "accepted",
+		ConstraintsMerged:          policy.ConstraintsMerged,
+		RuntimeRRRecomputed:        policy.RRRecomputed,
+		AIGrossRR:                  policy.AIGrossRR,
+		AINetRR:                    policy.AINetRR,
+		RuntimeGrossRR:             policy.RuntimeGrossRR,
+		RuntimeNetRR:               policy.RuntimeNetRR,
+		EffectiveRR:                policy.EffectiveRR,
+		EffectiveRRSource:          policy.EffectiveRRSource,
+		ExecutionConstraintSources: policy.ConstraintsSources,
+	}
+	if policy.Blocked {
+		out.Decision = "rejected"
+		out.NoOrderPlaced = true
+	}
+	if policy.Reason != "" {
+		out.Reasons = []string{policy.Reason}
+	}
+	if policy.ReasonCode != "" {
+		out.FailedChecks = []string{policy.ReasonCode}
+	}
+	return out
 }
 
 func compactLevelList(levels []float64) []float64 {

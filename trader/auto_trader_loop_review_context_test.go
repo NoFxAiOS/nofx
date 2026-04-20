@@ -7,6 +7,50 @@ import (
 	"nofx/store"
 )
 
+func TestBuildRuntimePolicyControlOutcomeAcceptedSummary(t *testing.T) {
+	out := buildRuntimePolicyControlOutcome(runtimePolicyResult{
+		ConstraintsMerged:  true,
+		RRRecomputed:       true,
+		AIGrossRR:          2,
+		AINetRR:            1.8,
+		RuntimeGrossRR:     1.95,
+		RuntimeNetRR:       1.72,
+		EffectiveRR:        1.72,
+		EffectiveRRSource:  "runtime_net",
+		ConstraintsSources: []string{"binance:instrument", "binance:ticker"},
+	})
+	if out == nil {
+		t.Fatal("expected control outcome")
+	}
+	if out.Decision != "accepted" || !out.ConstraintsMerged || !out.RuntimeRRRecomputed {
+		t.Fatalf("unexpected control outcome header: %+v", out)
+	}
+	if out.RuntimeNetRR != 1.72 || out.EffectiveRRSource != "runtime_net" {
+		t.Fatalf("unexpected rr summary: %+v", out)
+	}
+	if len(out.ExecutionConstraintSources) != 2 {
+		t.Fatalf("unexpected constraint sources: %+v", out)
+	}
+}
+
+func TestBuildRuntimePolicyControlOutcomeRejectedSummary(t *testing.T) {
+	out := buildRuntimePolicyControlOutcome(runtimePolicyResult{
+		Blocked:     true,
+		Reason:      "runtime RR policy blocked open_long BTCUSDT: execution-aware rr 1.20 below min 1.50",
+		ReasonCode:  "runtime_rr_below_min",
+		EffectiveRR: 1.2,
+	})
+	if out == nil {
+		t.Fatal("expected control outcome")
+	}
+	if out.Decision != "rejected" || !out.NoOrderPlaced {
+		t.Fatalf("expected rejected/no_order_placed outcome, got %+v", out)
+	}
+	if len(out.FailedChecks) != 1 || out.FailedChecks[0] != "runtime_rr_below_min" {
+		t.Fatalf("unexpected failed checks: %+v", out)
+	}
+}
+
 func TestBuildDecisionActionReviewContextMapsEntryProtectionCompactly(t *testing.T) {
 	decision := &kernel.Decision{
 		Symbol: "BTCUSDT",

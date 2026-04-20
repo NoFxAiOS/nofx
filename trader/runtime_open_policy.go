@@ -10,8 +10,18 @@ import (
 // runtimePolicyResult captures the narrow, deterministic runtime policy effect
 // applied after compact execution constraints are collected.
 type runtimePolicyResult struct {
-	Blocked bool
-	Reason  string
+	Blocked            bool
+	Reason             string
+	ReasonCode         string
+	ConstraintsMerged  bool
+	RRRecomputed       bool
+	AIGrossRR          float64
+	AINetRR            float64
+	RuntimeGrossRR     float64
+	RuntimeNetRR       float64
+	EffectiveRR        float64
+	EffectiveRRSource  string
+	ConstraintsSources []string
 }
 
 // applyRuntimeOpenPolicy enforces the smallest system-controlled final judgment
@@ -37,33 +47,47 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 		minRR = 1.5
 	}
 
-	mergeExecutionConstraints(decision, snapshot)
+	merged := mergeExecutionConstraints(decision, snapshot)
 
 	rr := decision.EntryProtection.RiskReward
+	result := runtimePolicyResult{
+		ConstraintsMerged:  merged,
+		AIGrossRR:          rr.GrossEstimatedRR,
+		AINetRR:            rr.NetEstimatedRR,
+		ConstraintsSources: compactExecutionConstraintSources(snapshot),
+	}
 	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
-		return runtimePolicyResult{}
+		return result
 	}
 	if !hasRuntimeRiskRewardExecutionConstraints(decision.EntryProtection.ExecutionConstraints) {
-		return runtimePolicyResult{}
+		return result
 	}
 
 	effectiveRR := rr.GrossEstimatedRR
+	effectiveRRSource := "gross"
 	if rr.NetEstimatedRR > 0 {
 		effectiveRR = rr.NetEstimatedRR
+		effectiveRRSource = "net"
 	}
 	if recomputedGross, recomputedNet, ok := recomputeRuntimeRiskRewardWithExecutionConstraints(decision.Action, rr, decision.EntryProtection.ExecutionConstraints); ok {
 		decision.EntryProtection.RiskReward.GrossEstimatedRR = recomputedGross
 		decision.EntryProtection.RiskReward.NetEstimatedRR = recomputedNet
 		effectiveRR = recomputedNet
+		effectiveRRSource = "runtime_net"
 		decision.EntryProtection.RiskReward.Passed = effectiveRR+0.02 >= minRR
+		result.RRRecomputed = true
+		result.RuntimeGrossRR = recomputedGross
+		result.RuntimeNetRR = recomputedNet
 	}
+	result.EffectiveRR = effectiveRR
+	result.EffectiveRRSource = effectiveRRSource
 	if effectiveRR > 0 && effectiveRR+0.02 < minRR {
-		return runtimePolicyResult{
-			Blocked: true,
-			Reason:  fmt.Sprintf("runtime RR policy blocked %s %s: execution-aware rr %.2f below min %.2f", decision.Action, decision.Symbol, effectiveRR, minRR),
-		}
+		result.Blocked = true
+		result.ReasonCode = "runtime_rr_below_min"
+		result.Reason = fmt.Sprintf("runtime RR policy blocked %s %s: execution-aware rr %.2f below min %.2f", decision.Action, decision.Symbol, effectiveRR, minRR)
+		return result
 	}
-	return runtimePolicyResult{}
+	return result
 }
 
 func recomputeRuntimeRiskRewardWithExecutionConstraints(action string, rr kernel.AIRiskRewardRationale, c kernel.AIEntryExecutionConstraints) (grossRR, netRR float64, ok bool) {
@@ -77,8 +101,12 @@ func hasRuntimeRiskRewardExecutionConstraints(c kernel.AIEntryExecutionConstrain
 // Thin indirection vars keep the helper easy to unit-test without widening the
 // kernel API surface.
 var (
-	kernelRuntimeRecomputeRR  = func(action string, rr kernel.AIRiskRewardRationale, c kernel.AIEntryExecutionConstraints) (float64, float64, bool) { return 0, 0, false }
-	kernelRuntimeHasRRConstraints = func(c kernel.AIEntryExecutionConstraints) bool { return c.TickSize > 0 || c.PricePrecision > 0 || c.TakerFeeRate > 0 || c.MakerFeeRate > 0 || c.EstimatedSlippageBps > 0 }
+	kernelRuntimeRecomputeRR = func(action string, rr kernel.AIRiskRewardRationale, c kernel.AIEntryExecutionConstraints) (float64, float64, bool) {
+		return 0, 0, false
+	}
+	kernelRuntimeHasRRConstraints = func(c kernel.AIEntryExecutionConstraints) bool {
+		return c.TickSize > 0 || c.PricePrecision > 0 || c.TakerFeeRate > 0 || c.MakerFeeRate > 0 || c.EstimatedSlippageBps > 0
+	}
 )
 
 func init() {
@@ -100,4 +128,21 @@ func appendRuntimePolicyNote(decision *kernel.Decision, note string) {
 		return
 	}
 	decision.EntryProtection.AlignmentNotes = append(decision.EntryProtection.AlignmentNotes, note)
+}
+
+func compactExecutionConstraintSources(snapshot *ExecutionConstraintsSnapshot) []string {
+	if snapshot == nil || len(snapshot.Source) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(snapshot.Source))
+	for _, source := range snapshot.Source {
+		source = strings.TrimSpace(source)
+		if source == "" || seen[source] {
+			continue
+		}
+		seen[source] = true
+		out = append(out, source)
+	}
+	return out
 }

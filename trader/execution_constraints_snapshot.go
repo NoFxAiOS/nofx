@@ -196,11 +196,13 @@ func executionConstraintsEmpty(c kernel.AIEntryExecutionConstraints) bool {
 	return c.TickSize == 0 && c.PricePrecision == 0 && c.QtyStepSize == 0 && c.QtyPrecision == 0 && c.MinQty == 0 && c.MinNotional == 0 && c.MarkPrice == 0 && c.LastPrice == 0 && c.IndexPrice == 0 && c.BestBid == 0 && c.BestAsk == 0 && c.SpreadBps == 0 && c.TakerFeeRate == 0 && c.MakerFeeRate == 0 && c.EstimatedSlippageBps == 0
 }
 
-func mergeExecutionConstraints(decision *kernel.Decision, snap *ExecutionConstraintsSnapshot) {
+func mergeExecutionConstraints(decision *kernel.Decision, snap *ExecutionConstraintsSnapshot) bool {
 	if decision == nil || decision.EntryProtection == nil || snap == nil {
-		return
+		return false
 	}
 	if executionConstraintsEmpty(decision.EntryProtection.ExecutionConstraints) {
 		decision.EntryProtection.ExecutionConstraints = mapExecutionConstraintsToKernel(snap)
+		return !executionConstraintsEmpty(decision.EntryProtection.ExecutionConstraints)
 	}
+	return false
 }

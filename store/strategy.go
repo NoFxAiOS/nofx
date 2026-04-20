@@ -52,8 +52,37 @@ type StrategyConfig struct {
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
 
+	// Strategy-control policy for system-governed entry/protection decisions.
+	// Omitted or unknown modes default to strict to preserve current runtime blocks.
+	StrategyControlPolicy StrategyControlPolicyConfig `json:"strategy_control_policy,omitempty"`
+
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+}
+
+type StrategyControlPolicyMode string
+
+const (
+	StrategyControlPolicyModeStrict        StrategyControlPolicyMode = "strict"
+	StrategyControlPolicyModeAuditOnly     StrategyControlPolicyMode = "audit_only"
+	StrategyControlPolicyModeRecommendOnly StrategyControlPolicyMode = "recommend_only"
+)
+
+// StrategyControlPolicyConfig is the first narrow config surface for
+// system-governed strategy-control behavior. Mode defaults to strict so legacy
+// configs keep the current reject/block behavior.
+type StrategyControlPolicyConfig struct {
+	Mode StrategyControlPolicyMode `json:"mode,omitempty"`
+}
+
+// EffectiveMode returns the safe default for omitted or unknown policy modes.
+func (c StrategyControlPolicyConfig) EffectiveMode() StrategyControlPolicyMode {
+	switch c.Mode {
+	case StrategyControlPolicyModeAuditOnly, StrategyControlPolicyModeRecommendOnly:
+		return c.Mode
+	default:
+		return StrategyControlPolicyModeStrict
+	}
 }
 
 // ProtectionConfig unified trade protection / profit-control configuration.
@@ -463,6 +492,7 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
 			MinConfidence:                75,  // Min 75% confidence (AI guided)
 		},
+		StrategyControlPolicy: StrategyControlPolicyConfig{Mode: StrategyControlPolicyModeStrict},
 		Protection: ProtectionConfig{
 			FullTPSL: FullTPSLConfig{
 				Enabled:         false,

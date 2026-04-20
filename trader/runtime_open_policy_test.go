@@ -33,6 +33,15 @@ func TestApplyRuntimeOpenPolicyMergesRuntimeConstraintsAndBlocksLowNetRR(t *test
 	if !result.Blocked || !strings.Contains(result.Reason, "execution-aware rr") {
 		t.Fatalf("expected runtime policy block, got %+v", result)
 	}
+	if result.ReasonCode != "runtime_rr_below_min" {
+		t.Fatalf("expected stable reason code, got %+v", result)
+	}
+	if !result.ConstraintsMerged || !result.RRRecomputed || result.EffectiveRRSource != "runtime_net" {
+		t.Fatalf("expected compact runtime audit flags, got %+v", result)
+	}
+	if result.AIGrossRR != 2.0 || result.RuntimeNetRR <= 0 {
+		t.Fatalf("expected ai/runtime rr summary, got %+v", result)
+	}
 	if decision.EntryProtection.ExecutionConstraints.TickSize != 1 {
 		t.Fatalf("expected runtime constraints to be merged: %+v", decision.EntryProtection.ExecutionConstraints)
 	}
@@ -73,6 +82,9 @@ func TestApplyRuntimeOpenPolicyKeepsPassingOpenExecutable(t *testing.T) {
 	result := applyRuntimeOpenPolicy(decision, &ExecutionConstraintsSnapshot{TickSize: 1, Source: map[string]string{"tick_size": "test"}}, 1.5)
 	if result.Blocked {
 		t.Fatalf("expected passing open to remain executable: %+v", result)
+	}
+	if !result.ConstraintsMerged || !result.RRRecomputed || result.EffectiveRRSource != "runtime_net" {
+		t.Fatalf("expected runtime audit summary, got %+v", result)
 	}
 	if decision.EntryProtection.RiskReward.NetEstimatedRR < 1.5 {
 		t.Fatalf("unexpected low runtime net RR: %+v", decision.EntryProtection.RiskReward)

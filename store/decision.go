@@ -112,7 +112,25 @@ type DecisionActionReviewContext struct {
 	KeyLevels            *DecisionActionKeyLevels            `json:"key_levels,omitempty"`
 	Anchors              []DecisionActionReasonAnchor        `json:"anchors,omitempty"`
 	Protection           *DecisionActionProtectionAlignment  `json:"protection,omitempty"`
+	Control              *DecisionActionControlOutcome       `json:"control,omitempty"`
 	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
+}
+
+// DecisionActionControlOutcome stores compact system policy outcome metadata.
+type DecisionActionControlOutcome struct {
+	Decision                   string   `json:"decision,omitempty"`
+	Reasons                    []string `json:"reasons,omitempty"`
+	FailedChecks               []string `json:"failed_checks,omitempty"`
+	ConstraintsMerged          bool     `json:"constraints_merged,omitempty"`
+	RuntimeRRRecomputed        bool     `json:"runtime_rr_recomputed,omitempty"`
+	AIGrossRR                  float64  `json:"ai_gross_rr,omitempty"`
+	AINetRR                    float64  `json:"ai_net_rr,omitempty"`
+	RuntimeGrossRR             float64  `json:"runtime_gross_rr,omitempty"`
+	RuntimeNetRR               float64  `json:"runtime_net_rr,omitempty"`
+	EffectiveRR                float64  `json:"effective_rr,omitempty"`
+	EffectiveRRSource          string   `json:"effective_rr_source,omitempty"`
+	ExecutionConstraintSources []string `json:"execution_constraint_sources,omitempty"`
+	NoOrderPlaced              bool     `json:"no_order_placed,omitempty"`
 }
 
 // DecisionActionExecutionConstraints stores compact execution-relevant venue constraints.

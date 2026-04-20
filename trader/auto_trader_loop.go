@@ -384,7 +384,10 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		constraintSnapshot := at.collectExecutionConstraintsSnapshot(d.Symbol)
-		mergeExecutionConstraints(&d, constraintSnapshot)
+		policy := applyRuntimeOpenPolicy(&d, constraintSnapshot, at.getMinRiskRewardRatio())
+		if policy.Reason != "" {
+			appendRuntimePolicyNote(&d, policy.Reason)
+		}
 
 		actionRecord := store.DecisionAction{
 			Action:     d.Action,
@@ -406,7 +409,11 @@ func (at *AutoTrader) runCycle() error {
 			Success:   false,
 		}
 
-		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
+		if policy.Blocked {
+			logger.Infof("🚫 %s", policy.Reason)
+			actionRecord.Error = policy.Reason
+			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("🚫 %s %s blocked: %s", d.Symbol, d.Action, policy.Reason))
+		} else if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
 			logger.Infof("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
 			actionRecord.Error = err.Error()
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("❌ %s %s failed: %v", d.Symbol, d.Action, err))
@@ -901,10 +908,17 @@ func deriveProtectionAlignment(decision *kernel.Decision, snapshot *store.Protec
 	}
 	rr := decision.EntryProtection.RiskReward
 	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
-		if len(decision.EntryProtection.AlignmentNotes) == 0 {
+		policyStatus, policyOverride, policyRejected, policyReasons := deriveProtectionPolicyTransparency(nil)
+		if len(decision.EntryProtection.AlignmentNotes) == 0 && policyStatus == "" {
 			return nil
 		}
-		return &store.DecisionActionProtectionAlignment{Notes: compactNotes(decision.EntryProtection.AlignmentNotes, 3)}
+		return &store.DecisionActionProtectionAlignment{
+			PolicyStatus:   policyStatus,
+			PolicyOverride: policyOverride,
+			PolicyRejected: policyRejected,
+			PolicyReasons:  policyReasons,
+			Notes:          compactNotes(decision.EntryProtection.AlignmentNotes, 3),
+		}
 	}
 	isLong := decision.Action == "open_long"
 	isShort := decision.Action == "open_short"
@@ -933,10 +947,42 @@ func deriveProtectionAlignment(decision *kernel.Decision, snapshot *store.Protec
 			hasSignal = true
 		}
 	}
+	alignment.PolicyStatus, alignment.PolicyOverride, alignment.PolicyRejected, alignment.PolicyReasons = deriveProtectionPolicyTransparency(alignment)
+	if alignment.PolicyStatus != "" {
+		hasSignal = true
+	}
 	if !hasSignal {
 		return nil
 	}
 	return alignment
+}
+
+func deriveProtectionPolicyTransparency(alignment *store.DecisionActionProtectionAlignment) (status string, override bool, rejected bool, reasons []string) {
+	if alignment == nil {
+		return "", false, false, nil
+	}
+	reasons = make([]string, 0, 4)
+	if !alignment.StopBeyondInvalidation {
+		reasons = append(reasons, "stop_inside_invalidation")
+	}
+	if !alignment.TargetAligned {
+		reasons = append(reasons, "target_before_first_target")
+	}
+	if !alignment.BreakEvenBeforeTarget {
+		reasons = append(reasons, "break_even_after_target")
+	}
+	if !alignment.FallbackWithinEnvelope {
+		reasons = append(reasons, "fallback_inside_invalidation")
+	}
+
+	switch len(reasons) {
+	case 0:
+		return "aligned", false, false, nil
+	case 1:
+		return "recomputed", true, false, reasons
+	default:
+		return "rejected", true, true, reasons
+	}
 }
 
 func deriveProtectionStopPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {

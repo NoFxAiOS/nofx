@@ -4,6 +4,8 @@ _Updated: 2026-04-20_
 
 This document describes the **current implemented contract** for Protection Rationalization / Entry-Protection Alignment.
 
+For system final-judgment policy over AI proposals, see `docs/STRATEGY_CONTROL_POLICY_2026-04-20.md`.
+
 It is not a wishlist. It records what open-action decisions are already expected to provide, what the backend currently validates, what compact execution data is intentionally carried, and what audit fields are surfaced to persistence/API/UI.
 
 ## 1. Scope

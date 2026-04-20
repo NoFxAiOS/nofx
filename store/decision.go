@@ -164,6 +164,10 @@ type DecisionActionProtectionAlignment struct {
 	TargetAligned          bool     `json:"target_aligned,omitempty"`
 	BreakEvenBeforeTarget  bool     `json:"break_even_before_target,omitempty"`
 	FallbackWithinEnvelope bool     `json:"fallback_within_envelope,omitempty"`
+	PolicyStatus           string   `json:"policy_status,omitempty"`
+	PolicyOverride         bool     `json:"policy_override,omitempty"`
+	PolicyRejected         bool     `json:"policy_rejected,omitempty"`
+	PolicyReasons          []string `json:"policy_reasons,omitempty"`
 	Notes                  []string `json:"notes,omitempty"`
 }
 

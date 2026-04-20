@@ -200,6 +200,10 @@ export interface DecisionActionProtectionAlignment {
   target_aligned?: boolean
   break_even_before_target?: boolean
   fallback_within_envelope?: boolean
+  policy_status?: string
+  policy_override?: boolean
+  policy_rejected?: boolean
+  policy_reasons?: string[]
   notes?: string[]
 }
 

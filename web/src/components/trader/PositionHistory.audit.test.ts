@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { getDecisionAuditSnapshot } from './PositionHistory'
 import type { DecisionReviewRef } from '../../types'
 
-function makeReview(): DecisionReviewRef {
+function makeReview(policyStatus?: string, policyReasons?: string[]): DecisionReviewRef {
   return {
     decision_record_id: 1,
     cycle_number: 12,
@@ -25,6 +25,14 @@ function makeReview(): DecisionReviewRef {
             net_estimated_rr: 1.8,
             passed: true,
           },
+          protection: policyStatus
+            ? {
+                policy_status: policyStatus,
+                policy_override: policyStatus !== 'aligned',
+                policy_rejected: policyStatus === 'rejected',
+                policy_reasons: policyReasons,
+              }
+            : undefined,
           execution_constraints: {
             tick_size: 0.1,
             qty_step_size: 0.001,
@@ -53,6 +61,15 @@ describe('getDecisionAuditSnapshot', () => {
       'fee 0.050%',
       'slip 1.2bps',
     ])
+  })
+
+  it('preserves compact policy transparency fields on protection context', () => {
+    const snap = getDecisionAuditSnapshot(makeReview('recomputed', ['stop_inside_invalidation']))
+
+    expect(snap.ctx?.protection?.policy_status).toBe('recomputed')
+    expect(snap.ctx?.protection?.policy_override).toBe(true)
+    expect(snap.ctx?.protection?.policy_rejected).toBe(false)
+    expect(snap.ctx?.protection?.policy_reasons).toEqual(['stop_inside_invalidation'])
   })
 
   it('omits execution constraint items when values are absent', () => {

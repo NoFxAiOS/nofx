@@ -6,6 +6,13 @@ import "math"
 // RR recomputation using only execution constraints already present in the AI
 // rationale. It never fetches live exchange data.
 func recomputeRiskRewardWithExecutionConstraints(action string, rr AIRiskRewardRationale, c AIEntryExecutionConstraints) (grossRR, netRR float64, ok bool) {
+	return RuntimeRecomputeRiskRewardWithExecutionConstraints(action, rr, c)
+}
+
+// RuntimeRecomputeRiskRewardWithExecutionConstraints is the runtime-facing form
+// of the compact RR recomputation used by kernel validation. It is deterministic
+// and never fetches live exchange data.
+func RuntimeRecomputeRiskRewardWithExecutionConstraints(action string, rr AIRiskRewardRationale, c AIEntryExecutionConstraints) (grossRR, netRR float64, ok bool) {
 	entry := roundPriceForRR(rr.Entry, c)
 	invalidation := roundPriceForRR(rr.Invalidation, c)
 	firstTarget := roundPriceForRR(rr.FirstTarget, c)

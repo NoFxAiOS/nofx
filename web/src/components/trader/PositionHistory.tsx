@@ -99,6 +99,41 @@ function formatFeeRate(value?: number | null): string | undefined {
   return `${(value * 100).toFixed(3)}%`
 }
 
+function formatProtectionPolicyReason(reason?: string): string {
+  switch (String(reason || '').toLowerCase()) {
+    case 'stop_inside_invalidation':
+      return 'stop > invalidation'
+    case 'target_before_first_target':
+      return 'target < 1st target'
+    case 'break_even_after_target':
+      return 'BE after target'
+    case 'fallback_inside_invalidation':
+      return 'fallback > invalidation'
+    default:
+      return reason || 'policy mismatch'
+  }
+}
+
+function formatProtectionPolicyStatus(protection?: DecisionActionReviewContext['protection']): {
+  label: string
+  tone: 'neutral' | 'warn' | 'danger'
+} | null {
+  if (!protection?.policy_status) return null
+  switch (protection.policy_status) {
+    case 'aligned':
+      return { label: 'policy aligned', tone: 'neutral' }
+    case 'recomputed':
+      return { label: 'policy recomputed', tone: 'warn' }
+    case 'rejected':
+      return { label: 'policy rejected', tone: 'danger' }
+    default:
+      return {
+        label: `policy ${protection.policy_status}`,
+        tone: protection.policy_rejected ? 'danger' : protection.policy_override ? 'warn' : 'neutral',
+      }
+  }
+}
+
 function formatExecutionConstraintItems(constraints?: DecisionActionReviewContext['execution_constraints']): { label: string; tone?: 'cost' }[] {
   if (!constraints) return []
   const items: { label: string; tone?: 'cost' }[] = []
@@ -123,7 +158,10 @@ function formatExecutionConstraintItems(constraints?: DecisionActionReviewContex
 
 function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
   const audit = getDecisionAuditSnapshot(review)
-  if (!audit.ctx && !audit.rr && audit.support.length === 0 && audit.resistance.length === 0 && audit.executionConstraintItems.length === 0) {
+  const protection = audit.ctx?.protection
+  const policyStatus = formatProtectionPolicyStatus(protection)
+  const policyReasons = protection?.policy_reasons || []
+  if (!audit.ctx && !audit.rr && audit.support.length === 0 && audit.resistance.length === 0 && audit.executionConstraintItems.length === 0 && !policyStatus) {
     return null
   }
 
@@ -139,6 +177,17 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${passCls}`}>
           RR {formatCompactRr(audit.rr?.net_estimated_rr ?? audit.rr?.gross_estimated_rr)}
         </span>
+        {policyStatus ? (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
+            policyStatus.tone === 'danger'
+              ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+              : policyStatus.tone === 'warn'
+                ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+          }`}>
+            {policyStatus.label}
+          </span>
+        ) : null}
         {audit.ctx?.min_risk_reward ? (
           <span className="inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-nofx-text-muted">
             min {formatCompactRr(audit.ctx.min_risk_reward)}
@@ -166,6 +215,16 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
           {audit.resistance.map((value, idx) => (
             <span key={`r-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-rose-200">
               R {value}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {policyReasons.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {policyReasons.map((reason, idx) => (
+            <span key={`policy-${idx}`} className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-200">
+              {formatProtectionPolicyReason(reason)}
             </span>
           ))}
         </div>

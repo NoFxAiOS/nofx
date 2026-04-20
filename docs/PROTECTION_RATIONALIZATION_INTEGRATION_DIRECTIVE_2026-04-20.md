@@ -13,6 +13,10 @@ Near-term exchange focus:
 1. Binance
 2. OKX
 
+See also:
+
+- `docs/STRATEGY_CONTROL_POLICY_2026-04-20.md` for the current system-governed final-judgment policy (accept / reject / future downgrade-to-wait posture, execution-aware control, and required audit fields).
+
 Other exchanges should degrade cleanly and should not block Phase 1/2.
 
 Longer-term goal:

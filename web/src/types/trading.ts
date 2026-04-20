@@ -203,6 +203,24 @@ export interface DecisionActionProtectionAlignment {
   notes?: string[]
 }
 
+export interface DecisionActionExecutionConstraints {
+  tick_size?: number
+  price_precision?: number
+  qty_step_size?: number
+  qty_precision?: number
+  min_qty?: number
+  min_notional?: number
+  contract_value?: number
+  mark_price?: number
+  last_price?: number
+  best_bid?: number
+  best_ask?: number
+  spread_bps?: number
+  taker_fee_rate?: number
+  maker_fee_rate?: number
+  estimated_slippage_bps?: number
+}
+
 export interface DecisionActionReviewContext {
   primary_timeframe?: string
   min_risk_reward?: number
@@ -210,6 +228,7 @@ export interface DecisionActionReviewContext {
   key_levels?: DecisionActionKeyLevels
   anchors?: DecisionActionReasonAnchor[]
   protection?: DecisionActionProtectionAlignment
+  execution_constraints?: DecisionActionExecutionConstraints
 }
 
 export interface DecisionAction {

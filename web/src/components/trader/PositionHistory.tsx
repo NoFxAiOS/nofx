@@ -11,6 +11,7 @@ import type {
   DirectionStats,
   DecisionAction,
   DecisionReviewRef,
+  DecisionActionReviewContext,
 } from '../../types'
 
 interface PositionHistoryProps {
@@ -69,10 +70,11 @@ function formatCompactLevelList(levels?: number[]): string[] {
     .map((value) => formatPrice(value))
 }
 
-function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
+export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const decision = findPrimaryOpenDecision(review)
   const ctx = decision?.review_context
   const rr = ctx?.risk_reward
+  const executionConstraintItems = formatExecutionConstraintItems(ctx?.execution_constraints)
   return {
     decision,
     ctx,
@@ -80,12 +82,48 @@ function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     support: formatCompactLevelList(ctx?.key_levels?.support),
     resistance: formatCompactLevelList(ctx?.key_levels?.resistance),
     anchors: ctx?.anchors || [],
+    executionConstraintItems,
   }
+}
+
+function formatOptionalNumber(value?: number | null, maxDecimals = 8): string | undefined {
+  if (value === undefined || value === null || !Number.isFinite(value) || value <= 0) return undefined
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: maxDecimals,
+    minimumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatFeeRate(value?: number | null): string | undefined {
+  if (value === undefined || value === null || !Number.isFinite(value) || value <= 0) return undefined
+  return `${(value * 100).toFixed(3)}%`
+}
+
+function formatExecutionConstraintItems(constraints?: DecisionActionReviewContext['execution_constraints']): { label: string; tone?: 'cost' }[] {
+  if (!constraints) return []
+  const items: { label: string; tone?: 'cost' }[] = []
+  const pushNumber = (prefix: string, value?: number | null, maxDecimals = 8) => {
+    const formatted = formatOptionalNumber(value, maxDecimals)
+    if (formatted) items.push({ label: `${prefix} ${formatted}` })
+  }
+
+  pushNumber('tick', constraints.tick_size)
+  pushNumber('qty', constraints.qty_step_size)
+  pushNumber('min', constraints.min_qty)
+  pushNumber('ctVal', constraints.contract_value)
+  pushNumber('last', constraints.last_price, 4)
+
+  const fee = formatFeeRate(constraints.taker_fee_rate ?? constraints.maker_fee_rate)
+  if (fee) items.push({ label: `fee ${fee}`, tone: 'cost' })
+  const slippage = formatOptionalNumber(constraints.estimated_slippage_bps, 2)
+  if (slippage) items.push({ label: `slip ${slippage}bps`, tone: 'cost' })
+
+  return items
 }
 
 function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
   const audit = getDecisionAuditSnapshot(review)
-  if (!audit.ctx && !audit.rr && audit.support.length === 0 && audit.resistance.length === 0) {
+  if (!audit.ctx && !audit.rr && audit.support.length === 0 && audit.resistance.length === 0 && audit.executionConstraintItems.length === 0) {
     return null
   }
 
@@ -128,6 +166,23 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
           {audit.resistance.map((value, idx) => (
             <span key={`r-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-rose-200">
               R {value}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.executionConstraintItems.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.executionConstraintItems.map((item, idx) => (
+            <span
+              key={`exec-${idx}`}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 ${
+                item.tone === 'cost'
+                  ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                  : 'border-slate-500/20 bg-slate-500/10 text-slate-200'
+              }`}
+            >
+              {item.label}
             </span>
           ))}
         </div>

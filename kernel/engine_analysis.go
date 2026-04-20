@@ -421,7 +421,7 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		if !isOpen {
 			continue
 		}
-		if err := ValidateEntryProtectionRationale(d, minRR); err != nil {
+		if err := ValidateEntryProtectionRationale(d, minRR, config); err != nil {
 			return fmt.Errorf("decision #%d: %w", i+1, err)
 		}
 		if (fullAI && drawdownAI) || (ladderAI && drawdownAI) || (fullAI && ladderAI) {
@@ -457,7 +457,7 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 	return nil
 }
 
-func ValidateEntryProtectionRationale(d Decision, minRR float64) error {
+func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.StrategyConfig) error {
 	if d.Action != "open_long" && d.Action != "open_short" {
 		return nil
 	}
@@ -515,33 +515,92 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64) error {
 	if absFloat(rr.GrossEstimatedRR-computedRR) > 0.05 {
 		return fmt.Errorf("entry_protection_rationale.risk_reward gross_estimated_rr %.2f inconsistent with entry/invalidation/first_target %.2f", rr.GrossEstimatedRR, computedRR)
 	}
-	if err := validateProtectionPlanAlignmentSkeleton(d, rr); err != nil {
+	if err := validateProtectionPlanAlignmentSkeleton(d, rr, config); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateProtectionPlanAlignmentSkeleton(d Decision, rr AIRiskRewardRationale) error {
-	if d.ProtectionPlan == nil {
+func validateProtectionPlanAlignmentSkeleton(d Decision, rr AIRiskRewardRationale, config *store.StrategyConfig) error {
+	if d.ProtectionPlan == nil && (config == nil || !config.Protection.FullTPSL.FallbackMaxLossEnabled) {
 		return nil
 	}
-	plan := d.ProtectionPlan
-	mode := strings.ToLower(plan.Mode)
-	if mode == "" || mode == "full" {
-		if plan.StopLossPct > 0 {
-			expectedSL := protectionPctFromPrices(d.Action, rr.Entry, rr.Invalidation)
-			if expectedSL > 0 && absFloat(plan.StopLossPct-expectedSL) > 0.05 {
-				return fmt.Errorf("protection_plan.stop_loss_pct %.2f inconsistent with rationale invalidation %.2f", plan.StopLossPct, expectedSL)
+	var plan *AIProtectionPlan
+	if d.ProtectionPlan != nil {
+		plan = d.ProtectionPlan
+		mode := strings.ToLower(plan.Mode)
+		if mode == "" || mode == "full" {
+			if plan.StopLossPct > 0 {
+				expectedSL := protectionPctFromPrices(d.Action, rr.Entry, rr.Invalidation)
+				if expectedSL > 0 && absFloat(plan.StopLossPct-expectedSL) > 0.05 {
+					return fmt.Errorf("protection_plan.stop_loss_pct %.2f inconsistent with rationale invalidation %.2f", plan.StopLossPct, expectedSL)
+				}
+			}
+			if plan.TakeProfitPct > 0 {
+				expectedTP := protectionPctFromPrices(d.Action, rr.Entry, rr.FirstTarget)
+				if expectedTP > 0 && absFloat(plan.TakeProfitPct-expectedTP) > 0.05 {
+					return fmt.Errorf("protection_plan.take_profit_pct %.2f inconsistent with rationale first_target %.2f", plan.TakeProfitPct, expectedTP)
+				}
 			}
 		}
-		if plan.TakeProfitPct > 0 {
-			expectedTP := protectionPctFromPrices(d.Action, rr.Entry, rr.FirstTarget)
-			if expectedTP > 0 && absFloat(plan.TakeProfitPct-expectedTP) > 0.05 {
-				return fmt.Errorf("protection_plan.take_profit_pct %.2f inconsistent with rationale first_target %.2f", plan.TakeProfitPct, expectedTP)
-			}
+		if err := validateBreakEvenTriggerAlignment(d.Action, rr, plan); err != nil {
+			return err
+		}
+	}
+	if err := validateFallbackMaxLossAlignment(d.Action, rr, plan, config); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateBreakEvenTriggerAlignment(action string, rr AIRiskRewardRationale, plan *AIProtectionPlan) error {
+	if plan == nil || plan.BreakEvenValue <= 0 || plan.BreakEvenTrigger == "" {
+		return nil
+	}
+	firstTargetPct := protectionPctFromPrices(action, rr.Entry, rr.FirstTarget)
+	if firstTargetPct <= 0 {
+		return nil
+	}
+	switch strings.ToLower(plan.BreakEvenTrigger) {
+	case "profit_pct":
+		if plan.BreakEvenValue-firstTargetPct > 0.05 {
+			return fmt.Errorf("protection_plan.break_even_trigger_value %.2f exceeds rationale first_target %.2f", plan.BreakEvenValue, firstTargetPct)
+		}
+	case "r_multiple":
+		if plan.BreakEvenValue-rr.GrossEstimatedRR > 0.05 {
+			return fmt.Errorf("protection_plan.break_even_trigger_value %.2f exceeds rationale first_target rr %.2f", plan.BreakEvenValue, rr.GrossEstimatedRR)
 		}
 	}
 	return nil
+}
+
+func validateFallbackMaxLossAlignment(action string, rr AIRiskRewardRationale, plan *AIProtectionPlan, cfg *store.StrategyConfig) error {
+	if cfg == nil {
+		return nil
+	}
+	full := cfg.Protection.FullTPSL
+	if !full.Enabled || full.Mode == store.ProtectionModeDisabled || !full.FallbackMaxLossEnabled {
+		return nil
+	}
+	fallbackPct, ok := resolveManualFallbackMaxLossPct(full)
+	if !ok {
+		return nil
+	}
+	invalidationPct := protectionPctFromPrices(action, rr.Entry, rr.Invalidation)
+	if invalidationPct <= 0 {
+		return nil
+	}
+	if fallbackPct+0.05 < invalidationPct {
+		return fmt.Errorf("strategy full_tp_sl fallback_max_loss %.2f sits inside rationale invalidation %.2f", fallbackPct, invalidationPct)
+	}
+	return nil
+}
+
+func resolveManualFallbackMaxLossPct(full store.FullTPSLConfig) (float64, bool) {
+	if full.FallbackMaxLoss.Mode != store.ProtectionValueModeManual || full.FallbackMaxLoss.Value <= 0 {
+		return 0, false
+	}
+	return full.FallbackMaxLoss.Value, true
 }
 
 func protectionPctFromPrices(action string, entry, target float64) float64 {

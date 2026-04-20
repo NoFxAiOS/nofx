@@ -18,6 +18,12 @@ func validEntryProtectionForTest(action string) *AIEntryProtectionRationale {
 	}
 }
 
+func validTighterLongEntryProtectionForTest() *AIEntryProtectionRationale {
+	return &AIEntryProtectionRationale{
+		RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 96, FirstTarget: 108, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
+	}
+}
+
 func TestValidateAIDecisionsWithStrategyRequiresEntryProtectionRationale(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.RiskControl.MinRiskRewardRatio = 1.5
@@ -213,5 +219,85 @@ func TestValidateAIDecisionsWithStrategyRejectsFullProtectionPlanRationaleMismat
 	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
 	if err == nil || !strings.Contains(err.Error(), "stop_loss_pct") {
 		t.Fatalf("expected stop_loss_pct alignment error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsBreakEvenProfitTriggerBeyondFirstTarget(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+		ProtectionPlan: &AIProtectionPlan{
+			Mode:             "break_even",
+			BreakEvenTrigger: "profit_pct",
+			BreakEvenValue:   12,
+			BreakEvenOffset:  0.1,
+		},
+	}}
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "break_even_trigger_value") {
+		t.Fatalf("expected break_even trigger alignment error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyAllowsBreakEvenRMultipleAtFirstTargetRR(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+		ProtectionPlan: &AIProtectionPlan{
+			Mode:             "break_even",
+			BreakEvenTrigger: "r_multiple",
+			BreakEvenValue:   2.0,
+			BreakEvenOffset:  0.1,
+		},
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err != nil {
+		t.Fatalf("expected break_even r_multiple at first target RR to validate, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsFallbackMaxLossInsideInvalidationEnvelope(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+	cfg.Protection.FullTPSL = store.FullTPSLConfig{
+		Enabled:                true,
+		Mode:                   store.ProtectionModeManual,
+		FallbackMaxLossEnabled: true,
+		FallbackMaxLoss:        store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 4.0},
+	}
+
+	err := validateFallbackMaxLossAlignment("open_long", validEntryProtectionForTest("open_long").RiskReward, nil, cfg)
+	if err == nil || !strings.Contains(err.Error(), "fallback_max_loss") {
+		t.Fatalf("expected fallback_max_loss alignment error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyAllowsFallbackMaxLossOutsideInvalidationEnvelope(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+	cfg.Protection.FullTPSL = store.FullTPSLConfig{
+		Enabled:                true,
+		Mode:                   store.ProtectionModeManual,
+		FallbackMaxLossEnabled: true,
+		FallbackMaxLoss:        store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 6.0},
+	}
+
+	if err := validateFallbackMaxLossAlignment("open_long", validEntryProtectionForTest("open_long").RiskReward, nil, cfg); err != nil {
+		t.Fatalf("expected fallback_max_loss outside invalidation envelope to validate, got %v", err)
 	}
 }

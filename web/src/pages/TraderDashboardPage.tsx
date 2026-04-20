@@ -662,6 +662,7 @@ export function TraderDashboardPage({
                                         selectedTrader.exchange_id,
                                         exchanges
                                     )}
+                                    disableAutoRefresh={true}
                                 />
                             </Suspense>
                         </div>

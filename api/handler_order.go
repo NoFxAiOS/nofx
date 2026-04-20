@@ -326,6 +326,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 						"close_reason":       ev.CloseReason,
 						"execution_source":   ev.ExecutionSource,
 						"execution_type":     ev.ExecutionType,
+						"protection_status":  ev.ProtectionStatus,
 						"decision_cycle":     ev.DecisionCycle,
 						"decision_review":    buildDecisionReviewRef(ev.DecisionCycle),
 						"exchange_order_id":  ev.ExchangeOrderID,

@@ -506,6 +506,13 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                       <div>
                         <div style={{ color: '#848E9C' }}>{'原因 / Reason'}</div>
                         <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(event.execution_source || event.close_reason)}>{formatExecutionSourceLabel(event.execution_source || event.close_reason)}</div>
+                        {event.protection_status ? (
+                          <div className="mt-2">
+                            <span className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              {`Protection: ${event.protection_status}`}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                       <div>
                         <div style={{ color: '#848E9C' }}>{'类型 / Type'}</div>

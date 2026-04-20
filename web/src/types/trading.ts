@@ -296,6 +296,7 @@ export interface PositionCloseEvent {
   close_reason: string
   execution_source: string
   execution_type: string
+  protection_status?: string
   decision_cycle?: number
   decision_review?: DecisionReviewRef
   exchange_order_id: string

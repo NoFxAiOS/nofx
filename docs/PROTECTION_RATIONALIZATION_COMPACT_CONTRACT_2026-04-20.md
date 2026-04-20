@@ -6,7 +6,7 @@ _Updated: 2026-04-20_
 
 This document records the compact, implementation-grounded contract that now exists for entry/protection rationalization in `nofxmax`.
 
-For final system authority over AI proposals, reject/downgrade policy candidates, and required control audit fields, see `docs/STRATEGY_CONTROL_POLICY_2026-04-20.md`.
+For final system authority over AI proposals, reject/downgrade policy candidates, and required control audit fields, see `docs/STRATEGY_CONTROL_POLICY_2026-04-20.md`. For the field-level priority matrix of what AI may propose vs what the system validates, recomputes, overrides, or rejects today, see `docs/SYSTEM_JUDGMENT_PRIORITY_2026-04-20.md`.
 
 It is intentionally narrow:
 

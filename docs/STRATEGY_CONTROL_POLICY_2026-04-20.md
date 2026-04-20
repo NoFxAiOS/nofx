@@ -10,6 +10,8 @@ The AI may propose a trade thesis and structured rationale. The system must make
 
 This is an implementation-grounded policy for the current codebase, not a future design wishlist.
 
+For a field-level implementation status matrix, including mode-specific `strict` / `audit_only` / `recommend_only` behavior, see `docs/SYSTEM_JUDGMENT_PRIORITY_2026-04-20.md`.
+
 ## Current implementation anchors
 
 Authoritative paths today:
@@ -226,6 +228,8 @@ Excluded by default:
 If a field is not trusted, not compact, or not actionable, it must not become a hard dependency.
 
 ## Practical near-term implementation checklist
+
+Detailed implementation parity is tracked in [`SYSTEM_JUDGMENT_PRIORITY_CHECKLIST_2026-04-20.md`](./SYSTEM_JUDGMENT_PRIORITY_CHECKLIST_2026-04-20.md).
 
 To move from current rationale validation to full system-controlled final judgment without changing the compact design:
 

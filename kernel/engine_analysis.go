@@ -207,7 +207,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) (*FullDecision, error) {
 	cotTrace := extractCoTTrace(aiResponse)
 
-	decisions, err := extractDecisions(aiResponse)
+	decisions, fallbackReason, err := extractDecisions(aiResponse)
 	if err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
@@ -223,8 +223,10 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 	}
 
 	return &FullDecision{
-		CoTTrace:  cotTrace,
-		Decisions: decisions,
+		CoTTrace:            cotTrace,
+		Decisions:           decisions,
+		ParseFallback:       fallbackReason != "",
+		ParseFallbackReason: fallbackReason,
 	}, nil
 }
 
@@ -248,7 +250,7 @@ func extractCoTTrace(response string) string {
 	return strings.TrimSpace(response)
 }
 
-func extractDecisions(response string) ([]Decision, error) {
+func extractDecisions(response string) ([]Decision, string, error) {
 	s := removeInvisibleRunes(response)
 	s = strings.TrimSpace(s)
 	s = fixMissingQuotes(s)
@@ -269,13 +271,13 @@ func extractDecisions(response string) ([]Decision, error) {
 		jsonContent = compactArrayOpen(jsonContent)
 		jsonContent = fixMissingQuotes(jsonContent)
 		if err := validateJSONFormat(jsonContent); err != nil {
-			return nil, fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
+			return nil, "", fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
 		}
 		var decisions []Decision
 		if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-			return nil, fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
+			return nil, "", fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
 		}
-		return decisions, nil
+		return decisions, "", nil
 	}
 
 	jsonContent := strings.TrimSpace(extractTopLevelJSONArray(jsonPart))
@@ -293,22 +295,22 @@ func extractDecisions(response string) ([]Decision, error) {
 			Reasoning: fmt.Sprintf("Model didn't output structured JSON decision, entering safe wait; summary: %s", cotSummary),
 		}
 
-		return []Decision{fallbackDecision}, nil
+		return []Decision{fallbackDecision}, "missing_json_decision_array", nil
 	}
 
 	jsonContent = compactArrayOpen(jsonContent)
 	jsonContent = fixMissingQuotes(jsonContent)
 
 	if err := validateJSONFormat(jsonContent); err != nil {
-		return nil, fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
+		return nil, "", fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
 	}
 
 	var decisions []Decision
 	if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-		return nil, fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
+		return nil, "", fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
 	}
 
-	return decisions, nil
+	return decisions, "", nil
 }
 
 func fixMissingQuotes(jsonStr string) string {
@@ -383,7 +385,8 @@ func compactArrayOpen(s string) string {
 
 // ParseAIDecisions parses structured AI decision JSON from raw model output.
 func ParseAIDecisions(response string) ([]Decision, error) {
-	return extractDecisions(response)
+	decisions, _, err := extractDecisions(response)
+	return decisions, err
 }
 
 // ValidateAIDecisions validates parsed AI decisions against supported action/schema rules.
@@ -632,7 +635,7 @@ func absFloat(v float64) float64 {
 
 // ParseAndValidateAIDecisions parses decisions and validates them with awareness of XML reasoning blocks.
 func ParseAndValidateAIDecisions(response string) ([]Decision, error) {
-	decisions, err := extractDecisions(response)
+	decisions, _, err := extractDecisions(response)
 	if err != nil {
 		return nil, err
 	}
@@ -643,7 +646,7 @@ func ParseAndValidateAIDecisions(response string) ([]Decision, error) {
 }
 
 func ParseAndValidateAIDecisionsWithStrategy(response string, config *store.StrategyConfig) ([]Decision, error) {
-	decisions, err := extractDecisions(response)
+	decisions, _, err := extractDecisions(response)
 	if err != nil {
 		return nil, err
 	}

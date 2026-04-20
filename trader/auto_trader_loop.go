@@ -229,6 +229,18 @@ func (at *AutoTrader) runCycle() error {
 		record.InputPrompt = aiDecision.UserPrompt
 		record.CoTTrace = aiDecision.CoTTrace
 		record.RawResponse = aiDecision.RawResponse // Save raw AI response for debugging
+		if aiDecision.ParseFallback {
+			fallbackMsg := "AI decision parser used safe fallback"
+			if aiDecision.ParseFallbackReason != "" {
+				fallbackMsg = fmt.Sprintf("AI decision parser used safe fallback: %s", aiDecision.ParseFallbackReason)
+			}
+			record.ExecutionLog = append(record.ExecutionLog, fallbackMsg)
+			if record.ReviewContext == nil {
+				record.ReviewContext = map[string]interface{}{}
+			}
+			record.ReviewContext["parse_fallback"] = true
+			record.ReviewContext["parse_fallback_reason"] = aiDecision.ParseFallbackReason
+		}
 		if len(aiDecision.Decisions) > 0 {
 			decisionJSON, _ := json.MarshalIndent(aiDecision.Decisions, "", "  ")
 			record.DecisionJSON = string(decisionJSON)
@@ -878,11 +890,13 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 }
 
 func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.DecisionActionControlOutcome {
-	if !policy.Blocked && policy.Reason == "" && !policy.ConstraintsMerged && !policy.RRRecomputed && policy.AIGrossRR == 0 && policy.AINetRR == 0 && policy.RuntimeGrossRR == 0 && policy.RuntimeNetRR == 0 && policy.EffectiveRR == 0 && len(policy.ConstraintsSources) == 0 {
+	if !policy.Blocked && policy.Reason == "" && !policy.ConstraintsMerged && !policy.RRRecomputed && policy.AIGrossRR == 0 && policy.AINetRR == 0 && policy.RuntimeGrossRR == 0 && policy.RuntimeNetRR == 0 && policy.EffectiveRR == 0 && len(policy.ConstraintsSources) == 0 && policy.OriginalAction == "" && policy.FinalAction == "" {
 		return nil
 	}
 	out := &store.DecisionActionControlOutcome{
 		Decision:                   "accepted",
+		OriginalAction:             policy.OriginalAction,
+		FinalAction:                policy.FinalAction,
 		ConstraintsMerged:          policy.ConstraintsMerged,
 		RuntimeRRRecomputed:        policy.RRRecomputed,
 		AIGrossRR:                  policy.AIGrossRR,

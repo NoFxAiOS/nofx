@@ -119,6 +119,8 @@ type DecisionActionReviewContext struct {
 // DecisionActionControlOutcome stores compact system policy outcome metadata.
 type DecisionActionControlOutcome struct {
 	Decision                   string   `json:"decision,omitempty"`
+	OriginalAction             string   `json:"original_action,omitempty"`
+	FinalAction                string   `json:"final_action,omitempty"`
 	Reasons                    []string `json:"reasons,omitempty"`
 	FailedChecks               []string `json:"failed_checks,omitempty"`
 	ConstraintsMerged          bool     `json:"constraints_merged,omitempty"`

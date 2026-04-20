@@ -39,6 +39,9 @@ func TestApplyRuntimeOpenPolicyMergesRuntimeConstraintsAndBlocksLowNetRR(t *test
 	if !result.ConstraintsMerged || !result.RRRecomputed || result.EffectiveRRSource != "runtime_net" {
 		t.Fatalf("expected compact runtime audit flags, got %+v", result)
 	}
+	if result.OriginalAction != "open_long" || result.FinalAction != "open_long" {
+		t.Fatalf("expected original/final action audit to preserve strict reject action, got %+v", result)
+	}
 	if result.AIGrossRR != 2.0 || result.RuntimeNetRR <= 0 {
 		t.Fatalf("expected ai/runtime rr summary, got %+v", result)
 	}
@@ -85,6 +88,9 @@ func TestApplyRuntimeOpenPolicyKeepsPassingOpenExecutable(t *testing.T) {
 	}
 	if !result.ConstraintsMerged || !result.RRRecomputed || result.EffectiveRRSource != "runtime_net" {
 		t.Fatalf("expected runtime audit summary, got %+v", result)
+	}
+	if result.OriginalAction != "open_short" || result.FinalAction != "open_short" || result.Decision != "accepted" {
+		t.Fatalf("expected accepted action audit to preserve original/final action, got %+v", result)
 	}
 	if decision.EntryProtection.RiskReward.NetEstimatedRR < 1.5 {
 		t.Fatalf("unexpected low runtime net RR: %+v", decision.EntryProtection.RiskReward)

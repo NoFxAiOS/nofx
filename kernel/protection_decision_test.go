@@ -26,7 +26,7 @@ func TestExtractDecisionsPreservesProtectionPlan(t *testing.T) {
 	  }
 	]`
 
-	decisions, err := extractDecisions(response)
+	decisions, _, err := extractDecisions(response)
 	if err != nil {
 		t.Fatalf("extractDecisions failed: %v", err)
 	}

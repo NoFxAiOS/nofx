@@ -227,6 +227,8 @@ export interface DecisionActionExecutionConstraints {
 
 export interface DecisionActionControlOutcome {
   decision?: string
+  original_action?: string
+  final_action?: string
   reasons?: string[]
   failed_checks?: string[]
   constraints_merged?: boolean

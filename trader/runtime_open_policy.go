@@ -15,6 +15,8 @@ type runtimePolicyResult struct {
 	Reason             string
 	ReasonCode         string
 	Decision           string
+	OriginalAction     string
+	FinalAction        string
 	ConstraintsMerged  bool
 	RRRecomputed       bool
 	AIGrossRR          float64
@@ -56,6 +58,8 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 	rr := decision.EntryProtection.RiskReward
 	result := runtimePolicyResult{
 		Decision:           "accepted",
+		OriginalAction:     decision.Action,
+		FinalAction:        decision.Action,
 		ConstraintsMerged:  merged,
 		AIGrossRR:          rr.GrossEstimatedRR,
 		AINetRR:            rr.NetEstimatedRR,

@@ -76,6 +76,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const rr = ctx?.risk_reward
   const control = ctx?.control
   const executionConstraintItems = formatExecutionConstraintItems(ctx?.execution_constraints)
+  const actionAudit = formatActionAudit(control)
   const controlStatus = control?.decision
     ? {
         label: formatControlDecisionLabel(control.decision),
@@ -96,6 +97,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     ctx,
     rr,
     control,
+    actionAudit,
     controlStatus,
     controlBadges,
     failedChecks: (control?.failed_checks || []).map((check) => formatControlCheck(check)).slice(0, 4),
@@ -210,6 +212,32 @@ function formatControlCheck(check?: string): string {
   return String(check || 'check_failed').replace(/_/g, ' ')
 }
 
+function formatActionLabel(action?: string): string {
+  switch (String(action || '').toLowerCase()) {
+    case 'open_long':
+      return 'open long'
+    case 'open_short':
+      return 'open short'
+    case 'close_long':
+      return 'close long'
+    case 'close_short':
+      return 'close short'
+    default:
+      return action || 'action'
+  }
+}
+
+function formatActionAudit(control?: DecisionActionReviewContext['control']): string | null {
+  if (!control) return null
+  const original = String(control.original_action || '').trim()
+  const final = String(control.final_action || '').trim()
+  if (!original && !final) return null
+  if (original && final && original !== final) {
+    return `${formatActionLabel(original)} → ${formatActionLabel(final)}`
+  }
+  return formatActionLabel(final || original)
+}
+
 function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
   const audit = getDecisionAuditSnapshot(review)
   const protection = audit.ctx?.protection
@@ -223,6 +251,7 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
     audit.executionConstraintItems.length === 0 &&
     !policyStatus &&
     !audit.controlStatus &&
+    !audit.actionAudit &&
     audit.controlBadges.length === 0 &&
     audit.failedChecks.length === 0
   ) {
@@ -298,6 +327,12 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
           ))}
         </div>
       )}
+
+      {audit.actionAudit ? (
+        <div className="text-[10px] text-nofx-text-muted">
+          action {audit.actionAudit}
+        </div>
+      ) : null}
 
       {audit.failedChecks.length > 0 && (
         <div className="flex flex-wrap gap-1.5 text-[10px]">

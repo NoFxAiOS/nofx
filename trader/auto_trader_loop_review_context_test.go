@@ -9,6 +9,8 @@ import (
 
 func TestBuildRuntimePolicyControlOutcomeAcceptedSummary(t *testing.T) {
 	out := buildRuntimePolicyControlOutcome(runtimePolicyResult{
+		OriginalAction:     "open_long",
+		FinalAction:        "open_long",
 		ConstraintsMerged:  true,
 		RRRecomputed:       true,
 		AIGrossRR:          2,
@@ -25,6 +27,9 @@ func TestBuildRuntimePolicyControlOutcomeAcceptedSummary(t *testing.T) {
 	if out.Decision != "accepted" || !out.ConstraintsMerged || !out.RuntimeRRRecomputed {
 		t.Fatalf("unexpected control outcome header: %+v", out)
 	}
+	if out.OriginalAction != "open_long" || out.FinalAction != "open_long" {
+		t.Fatalf("expected original/final action audit on accepted outcome, got %+v", out)
+	}
 	if out.RuntimeNetRR != 1.72 || out.EffectiveRRSource != "runtime_net" {
 		t.Fatalf("unexpected rr summary: %+v", out)
 	}
@@ -35,16 +40,22 @@ func TestBuildRuntimePolicyControlOutcomeAcceptedSummary(t *testing.T) {
 
 func TestBuildRuntimePolicyControlOutcomeRejectedSummary(t *testing.T) {
 	out := buildRuntimePolicyControlOutcome(runtimePolicyResult{
-		Blocked:     true,
-		Reason:      "runtime RR policy blocked open_long BTCUSDT: execution-aware rr 1.20 below min 1.50",
-		ReasonCode:  "runtime_rr_below_min",
-		EffectiveRR: 1.2,
+		Blocked:        true,
+		Decision:       "rejected",
+		OriginalAction: "open_long",
+		FinalAction:    "open_long",
+		Reason:         "runtime RR policy blocked open_long BTCUSDT: execution-aware rr 1.20 below min 1.50",
+		ReasonCode:     "runtime_rr_below_min",
+		EffectiveRR:    1.2,
 	})
 	if out == nil {
 		t.Fatal("expected control outcome")
 	}
 	if out.Decision != "rejected" || !out.NoOrderPlaced {
 		t.Fatalf("expected rejected/no_order_placed outcome, got %+v", out)
+	}
+	if out.OriginalAction != "open_long" || out.FinalAction != "open_long" {
+		t.Fatalf("expected strict reject to retain original/final action, got %+v", out)
 	}
 	if len(out.FailedChecks) != 1 || out.FailedChecks[0] != "runtime_rr_below_min" {
 		t.Fatalf("unexpected failed checks: %+v", out)

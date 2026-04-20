@@ -74,6 +74,7 @@ describe('getDecisionAuditSnapshot', () => {
     const snap = getDecisionAuditSnapshot(makeReview())
 
     expect(snap.controlStatus).toEqual({ label: 'accepted', tone: 'neutral' })
+    expect(snap.actionAudit).toBeNull()
     expect(snap.controlBadges).toEqual([
       { label: 'eff 1.72R · runtime net' },
       { label: 'constraints merged', tone: 'warn' },
@@ -101,6 +102,23 @@ describe('getDecisionAuditSnapshot', () => {
       { label: 'no order placed', tone: 'danger' },
     ])
     expect(snap.failedChecks).toEqual(['effective rr below min', 'target before first target'])
+  })
+
+  it('formats action audit when original/final actions are present', () => {
+    const review = makeReview()
+    if (review.decisions?.[0].review_context) {
+      review.decisions[0].review_context.control = {
+        ...review.decisions[0].review_context.control,
+        original_action: 'open_long',
+        final_action: 'wait',
+        decision: 'downgraded_to_wait',
+        no_order_placed: true,
+      }
+    }
+
+    const snap = getDecisionAuditSnapshot(review)
+    expect(snap.controlStatus).toEqual({ label: 'downgraded to wait', tone: 'warn' })
+    expect(snap.actionAudit).toBe('open long → wait')
   })
 
   it('preserves compact policy transparency fields on protection context', () => {

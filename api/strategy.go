@@ -68,6 +68,27 @@ func truncateForLog(s string, max int) string {
 	return s[:max] + "...<truncated>"
 }
 
+func fullTakeProfitEnabledConfig(full store.FullTPSLConfig) bool {
+	if full.TakeProfitEnabled {
+		return true
+	}
+	return full.TakeProfit.Mode != store.ProtectionValueModeDisabled && full.TakeProfit.Value > 0
+}
+
+func fullStopLossEnabledConfig(full store.FullTPSLConfig) bool {
+	if full.StopLossEnabled {
+		return true
+	}
+	return full.StopLoss.Mode != store.ProtectionValueModeDisabled && full.StopLoss.Value > 0
+}
+
+func fullFallbackMaxLossEnabledConfig(full store.FullTPSLConfig) bool {
+	if full.FallbackMaxLossEnabled {
+		return true
+	}
+	return full.FallbackMaxLoss.Mode != store.ProtectionValueModeDisabled && full.FallbackMaxLoss.Value > 0
+}
+
 // validateStrategyConfig validates strategy configuration and returns warnings
 func validateStrategyConfig(config *store.StrategyConfig) []string {
 	var warnings []string
@@ -84,14 +105,14 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 		if full.Mode != store.ProtectionModeManual && full.Mode != store.ProtectionModeAI && full.Mode != store.ProtectionModeDisabled {
 			warnings = append(warnings, "protection.full_tp_sl.mode should be 'manual', 'ai', or 'disabled'.")
 		}
-		if full.TakeProfit.Mode == store.ProtectionValueModeManual && full.TakeProfit.Value <= 0 {
-			warnings = append(warnings, "protection.full_tp_sl.take_profit.value must be > 0 when mode=manual.")
+		if fullTakeProfitEnabledConfig(full) && full.TakeProfit.Mode == store.ProtectionValueModeManual && full.TakeProfit.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.take_profit.value must be > 0 when TP side is enabled and mode=manual.")
 		}
-		if full.StopLoss.Mode == store.ProtectionValueModeManual && full.StopLoss.Value <= 0 {
-			warnings = append(warnings, "protection.full_tp_sl.stop_loss.value must be > 0 when mode=manual.")
+		if fullStopLossEnabledConfig(full) && full.StopLoss.Mode == store.ProtectionValueModeManual && full.StopLoss.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.stop_loss.value must be > 0 when SL side is enabled and mode=manual.")
 		}
-		if full.FallbackMaxLoss.Mode == store.ProtectionValueModeManual && full.FallbackMaxLoss.Value <= 0 {
-			warnings = append(warnings, "protection.full_tp_sl.fallback_max_loss.value must be > 0 when mode=manual.")
+		if fullFallbackMaxLossEnabledConfig(full) && full.FallbackMaxLoss.Mode == store.ProtectionValueModeManual && full.FallbackMaxLoss.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.fallback_max_loss.value must be > 0 when fallback side is enabled and mode=manual.")
 		}
 		if full.FallbackMaxLoss.Mode == store.ProtectionValueModeAI {
 			warnings = append(warnings, "protection.full_tp_sl.fallback_max_loss.mode does not support 'ai'; use 'manual' or 'disabled'.")

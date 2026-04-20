@@ -14,8 +14,8 @@ func TestBuildConfiguredProtectionPlanUsesStrategyLevelAIModeConfig(t *testing.T
 			StrategyConfig: &store.StrategyConfig{
 				Protection: store.ProtectionConfig{
 					FullTPSL: store.FullTPSLConfig{
-						Enabled: true,
-						Mode:    store.ProtectionModeAI,
+						Enabled:    true,
+						Mode:       store.ProtectionModeAI,
 						TakeProfit: store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: 8},
 						StopLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: 1.5},
 					},
@@ -99,8 +99,8 @@ func TestBuildConfiguredProtectionPlanSupportsManualMode(t *testing.T) {
 func TestBuildManualProtectionPlanFallsBackToFullTPSL(t *testing.T) {
 	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
-		Enabled: true,
-		Mode:    store.ProtectionModeManual,
+		Enabled:    true,
+		Mode:       store.ProtectionModeManual,
 		TakeProfit: store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 10},
 		StopLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 5},
 	}
@@ -137,8 +137,8 @@ func TestBuildManualProtectionPlanPrefersLadder(t *testing.T) {
 		},
 	}
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
-		Enabled: true,
-		Mode:    store.ProtectionModeManual,
+		Enabled:    true,
+		Mode:       store.ProtectionModeManual,
 		TakeProfit: store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 20},
 		StopLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 10},
 	}
@@ -175,7 +175,7 @@ func TestBuildManualProtectionPlanSupportsMixedLadderModes(t *testing.T) {
 		TakeProfitSize:    store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: 0},
 		StopLossPrice:     store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: 0},
 		StopLossSize:      store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 1},
-		Rules: []store.LadderTPSLRule{{TakeProfitPct: 5, TakeProfitCloseRatioPct: 30, StopLossPct: 2, StopLossCloseRatioPct: 50}},
+		Rules:             []store.LadderTPSLRule{{TakeProfitPct: 5, TakeProfitCloseRatioPct: 30, StopLossPct: 2, StopLossCloseRatioPct: 50}},
 	}
 
 	takeProfitPct, takeProfitSize, ok := resolveLadderTakeProfitRule(at.config.StrategyConfig.Protection.LadderTPSL.Rules[0], at.config.StrategyConfig.Protection.LadderTPSL, &kernel.AIProtectionLadderRule{TakeProfitCloseRatioPct: 45})
@@ -207,10 +207,10 @@ func TestBuildManualProtectionPlanDisablesLadderSideWhenAnyDimensionDisabled(t *
 
 func TestResolveFullProtectionSupportsMixedModes(t *testing.T) {
 	full := store.FullTPSLConfig{
-		Enabled: true,
-		Mode:    store.ProtectionModeAI,
-		TakeProfit: store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: 8},
-		StopLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 5},
+		Enabled:         true,
+		Mode:            store.ProtectionModeAI,
+		TakeProfit:      store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: 8},
+		StopLoss:        store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 5},
 		FallbackMaxLoss: store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 9},
 	}
 
@@ -230,8 +230,8 @@ func TestResolveFullProtectionSupportsMixedModes(t *testing.T) {
 
 func TestResolveFullProtectionDisabledDimensionSkipsOutput(t *testing.T) {
 	full := store.FullTPSLConfig{
-		Enabled: true,
-		Mode:    store.ProtectionModeManual,
+		Enabled:    true,
+		Mode:       store.ProtectionModeManual,
 		TakeProfit: store.ProtectionValueSource{Mode: store.ProtectionValueModeDisabled, Value: 0},
 		StopLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 5},
 	}

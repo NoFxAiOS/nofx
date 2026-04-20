@@ -82,17 +82,34 @@ function formatProtectionSourceLabel(source?: string): string {
   }
 }
 
-function formatProtectionSummary(snapshot?: HistoricalPosition['protection_snapshot']): string[] {
+function formatProtectionBadge(sourceLabel: string, modeLabel?: string, kind?: 'full' | 'ladder' | 'drawdown' | 'break_even') {
+  const colorMap = {
+    full: { bg: 'rgba(14, 203, 129, 0.10)', border: '1px solid rgba(14, 203, 129, 0.22)', color: '#8CF4C4' },
+    ladder: { bg: 'rgba(59, 130, 246, 0.10)', border: '1px solid rgba(59, 130, 246, 0.22)', color: '#93C5FD' },
+    drawdown: { bg: 'rgba(168, 85, 247, 0.10)', border: '1px solid rgba(168, 85, 247, 0.22)', color: '#D8B4FE' },
+    break_even: { bg: 'rgba(249, 115, 22, 0.10)', border: '1px solid rgba(249, 115, 22, 0.22)', color: '#FDBA74' },
+  } as const
+  return {
+    label: modeLabel ? `${sourceLabel} · ${modeLabel}` : sourceLabel,
+    style: colorMap[kind || 'full'],
+  }
+}
+
+function formatProtectionSummary(snapshot?: HistoricalPosition['protection_snapshot']): { label: string; style: React.CSSProperties }[] {
   if (!snapshot) return []
-  const parts: string[] = []
-  if (snapshot.full_tp_sl?.enabled) parts.push(`Full(${snapshot.full_tp_sl.mode || 'manual'})`)
-  if (snapshot.ladder_tp_sl?.enabled) parts.push(`Ladder(${snapshot.ladder_tp_sl.mode || 'manual'})`)
+  const parts: { label: string; style: React.CSSProperties }[] = []
+  if (snapshot.full_tp_sl?.enabled) {
+    parts.push(formatProtectionBadge('Full', snapshot.full_tp_sl.mode || 'manual', 'full'))
+  }
+  if (snapshot.ladder_tp_sl?.enabled) {
+    parts.push(formatProtectionBadge('Ladder', snapshot.ladder_tp_sl.mode || 'manual', 'ladder'))
+  }
   if (snapshot.drawdown && snapshot.drawdown.length > 0) {
     const first = snapshot.drawdown[0]
-    parts.push(`Drawdown(${first.mode || 'manual'} / ${formatProtectionSourceLabel(first.source)})`)
+    parts.push(formatProtectionBadge('Drawdown', `${first.mode || 'manual'} · ${formatProtectionSourceLabel(first.source)}`, 'drawdown'))
   }
   if (snapshot.break_even?.enabled) {
-    parts.push(`Break-even(${formatProtectionSourceLabel(snapshot.break_even.source)})`)
+    parts.push(formatProtectionBadge('Break-even', formatProtectionSourceLabel(snapshot.break_even.source), 'break_even'))
   }
   return parts
 }
@@ -441,8 +458,8 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {formatProtectionSummary(position.protection_snapshot).map((item, idx) => (
-                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      {item}
+                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={item.style}>
+                      {item.label}
                     </span>
                   ))}
                 </div>
@@ -464,8 +481,8 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {formatProtectionSummary(position.exit_decision_review?.protection_snapshot || position.entry_decision_review?.protection_snapshot).map((item, idx) => (
-                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      {item}
+                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={item.style}>
+                      {item.label}
                     </span>
                   ))}
                 </div>
@@ -513,8 +530,8 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {formatProtectionSummary(event.decision_review?.protection_snapshot).map((item, idx) => (
-                            <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
-                              {item}
+                            <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={item.style}>
+                              {item.label}
                             </span>
                           ))}
                         </div>

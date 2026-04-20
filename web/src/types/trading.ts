@@ -62,6 +62,7 @@ export interface ProtectionRuntime {
   protection_state?: string
   break_even_state?: string
   drawdown_execution_mode?: string
+  drawdown_config_source?: string
   break_even_execution_mode?: string
   current_pnl_pct?: number
   drawdown_peak_pnl_pct?: number
@@ -93,6 +94,7 @@ export interface Position {
   break_even_state?: string
   // native_trailing_full | native_partial_trailing | managed_partial_drawdown | local_fallback ...
   drawdown_execution_mode?: string
+  drawdown_config_source?: string
   break_even_execution_mode?: string
   protection_runtime?: ProtectionRuntime
 }

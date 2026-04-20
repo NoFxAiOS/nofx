@@ -583,6 +583,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	}
 
 	drawdownRules := at.getActiveDrawdownRules()
+	drawdownSource := at.getDrawdownConfigSource(symbol, side)
 	armRules := at.getDrawdownArmRules(currentPnLPct, drawdownRules)
 	currentStageMinProfit := 0.0
 	currentStageRuleCount := 0
@@ -735,6 +736,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"protection_state":                      at.getProtectionState(symbol, side),
 		"break_even_state":                      at.getBreakEvenState(symbol, side),
 		"drawdown_execution_mode":               at.getDrawdownExecutionMode(symbol, side),
+		"drawdown_config_source":                drawdownSource,
 		"break_even_execution_mode":             at.getBreakEvenExecutionMode(symbol, side),
 		"current_pnl_pct":                       currentPnLPct,
 		"drawdown_peak_pnl_pct":                 peakPnLPct,

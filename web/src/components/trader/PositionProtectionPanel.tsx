@@ -196,6 +196,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const peakPnlPct = Number(position.protection_runtime?.drawdown_peak_pnl_pct ?? currentPnlPct)
           const currentStageMinProfit = Number(position.protection_runtime?.current_drawdown_stage_min_profit_pct ?? 0)
           const currentStageRuleCount = Number(position.protection_runtime?.current_drawdown_stage_rule_count ?? 0)
+          const drawdownConfigSource = String(position.protection_runtime?.drawdown_config_source || 'strategy')
           const satisfiedTiers = runtimeTiers.filter((tier) => Boolean(tier.is_satisfied))
           const triggeredTiers = runtimeTiers.filter((tier) => Boolean(tier.is_triggered))
           const nextTier = runtimeTiers.find((tier) => !tier.is_satisfied) || runtimeTiers[0] || null
@@ -263,6 +264,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '当前利润' : 'Current PnL', value: `${currentPnlPct.toFixed(2)}%` },
                     { label: language === 'zh' ? '峰值 / 回撤' : 'Peak / Drawdown', value: `${peakPnlPct.toFixed(2)}% / ${currentDrawdownPct.toFixed(2)}%` },
                     { label: language === 'zh' ? '当前档位' : 'Current Stage', value: currentStageMinProfit > 0 ? `${currentStageMinProfit.toFixed(2)}% (${currentStageRuleCount})` : '—' },
+                    { label: language === 'zh' ? '配置来源' : 'Config Source', value: drawdownConfigSource },
                     { label: language === 'zh' ? '满足 / 触发档' : 'Satisfied / Triggered', value: `${satisfiedTiers.length} / ${triggeredTiers.length}` },
                     { label: language === 'zh' ? '激活价（已挂）' : 'Armed Activation', value: liveTrailingPrice > 0 ? `${formatPrice(liveTrailingPrice)}${currentStageTier?.activation_source ? ` / ${currentStageTier.activation_source}` : nextTier?.activation_source ? ` / ${nextTier.activation_source}` : ''}` : '—' },
                     { label: language === 'zh' ? '激活价（理论）' : 'Planned Activation', value: nextTier && Number(nextTier.planned_activation_price || 0) > 0 ? formatPrice(Number(nextTier.planned_activation_price || 0)) : '—' },

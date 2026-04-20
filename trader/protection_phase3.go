@@ -117,12 +117,39 @@ func (at *AutoTrader) allowDecisionByRegime(decision *kernel.Decision, data *mar
 	return true
 }
 
+func buildAIBreakEvenConfig(plan *kernel.AIProtectionPlan) *store.BreakEvenStopConfig {
+	if plan == nil || strings.ToLower(plan.Mode) != "break_even" {
+		return nil
+	}
+	if plan.BreakEvenTrigger == "" || plan.BreakEvenValue <= 0 || plan.BreakEvenOffset < 0 {
+		return nil
+	}
+	triggerMode := store.BreakEvenTriggerMode(plan.BreakEvenTrigger)
+	if triggerMode != store.BreakEvenTriggerProfitPct && triggerMode != store.BreakEvenTriggerRMultiple {
+		return nil
+	}
+	cfg := &store.BreakEvenStopConfig{
+		Enabled:      true,
+		TriggerMode:  triggerMode,
+		TriggerValue: plan.BreakEvenValue,
+		OffsetPct:    plan.BreakEvenOffset,
+	}
+	return cfg
+}
+
 func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIProtectionPlan) (*ProtectionPlan, error) {
 	if plan == nil || entryPrice <= 0 {
 		return nil, nil
 	}
 
 	mode := strings.ToLower(plan.Mode)
+	if mode == "break_even" {
+		be := buildAIBreakEvenConfig(plan)
+		if be == nil {
+			return nil, nil
+		}
+		return &ProtectionPlan{Mode: string(store.ProtectionModeAI), BreakEvenConfig: be}, nil
+	}
 	if mode == "" || mode == "full" {
 		full := store.FullTPSLConfig{
 			Enabled:    true,

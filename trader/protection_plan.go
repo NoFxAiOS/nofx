@@ -156,6 +156,7 @@ type ProtectionPlan struct {
 	StopLossOrders       []ProtectionOrder
 	TakeProfitOrders     []ProtectionOrder
 	DrawdownRules        []store.DrawdownTakeProfitRule
+	BreakEvenConfig      *store.BreakEvenStopConfig
 	RequiresNativeOrders bool
 	RequiresPartialClose bool
 }
@@ -178,6 +179,10 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		merged.TakeProfitOrders = append(merged.TakeProfitOrders, plan.TakeProfitOrders...)
 		if len(plan.DrawdownRules) > 0 {
 			merged.DrawdownRules = append(merged.DrawdownRules, plan.DrawdownRules...)
+		}
+		if merged.BreakEvenConfig == nil && plan.BreakEvenConfig != nil {
+			cfg := *plan.BreakEvenConfig
+			merged.BreakEvenConfig = &cfg
 		}
 		merged.RequiresNativeOrders = merged.RequiresNativeOrders || plan.RequiresNativeOrders
 		merged.RequiresPartialClose = merged.RequiresPartialClose || plan.RequiresPartialClose

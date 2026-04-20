@@ -146,7 +146,7 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 	}
 
 	// 2. Break-even should prefer exchange-native stop as soon as trigger condition is met.
-	if be := at.getActiveBreakEvenConfig(); be != nil && be.TriggerValue <= 0 {
+	if be := at.getActiveBreakEvenConfigForPlan(plan); be != nil && be.TriggerValue <= 0 {
 		if err := at.applyBreakEvenStop(req.Symbol, strings.ToLower(req.PositionSide), req.Quantity, req.EntryPrice, be.TriggerValue, *be); err == nil {
 			at.setBreakEvenState(req.Symbol, strings.ToLower(req.PositionSide), "armed")
 		}

@@ -670,6 +670,19 @@ func (at *AutoTrader) getTriggeredDrawdownRules(currentPnLPct, drawdownPct float
 	return matched
 }
 
+func (at *AutoTrader) getActiveBreakEvenConfigForPlan(plan *ProtectionPlan) *store.BreakEvenStopConfig {
+	if plan != nil && plan.BreakEvenConfig != nil {
+		cfg := *plan.BreakEvenConfig
+		if cfg.Enabled && cfg.TriggerValue > 0 {
+			if cfg.OffsetPct < 0 {
+				cfg.OffsetPct = 0
+			}
+			return &cfg
+		}
+	}
+	return at.getActiveBreakEvenConfig()
+}
+
 func (at *AutoTrader) getActiveBreakEvenConfig() *store.BreakEvenStopConfig {
 	if at.config.StrategyConfig == nil {
 		return nil

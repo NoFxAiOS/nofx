@@ -119,6 +119,23 @@ func TestValidateAIDecisionsWithStrategyRejectsMissingFullProtectionPlan(t *test
 	}
 }
 
+func TestValidateAIDecisionsWithStrategyRequiresBreakEvenProtectionOutput(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.BreakEvenStop = store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 3, OffsetPct: 0.1}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err == nil {
+		t.Fatal("expected break-even enabled route to reject missing break-even protection output")
+	}
+}
+
 func TestValidateAIDecisionsWithStrategyRequiresDrawdownRoute(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}

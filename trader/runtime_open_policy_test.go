@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"nofx/kernel"
+	"nofx/store"
 )
 
 func TestApplyRuntimeOpenPolicyMergesRuntimeConstraintsAndBlocksLowNetRR(t *testing.T) {
@@ -134,6 +135,115 @@ func TestApplyRuntimeOpenPolicyAuditOnlyFlagsLowNetRRWithoutBlocking(t *testing.
 	}
 	if decision.EntryProtection.RiskReward.Passed {
 		t.Fatalf("expected audit fields to preserve failed runtime RR outcome")
+	}
+}
+
+func TestApplyRuntimeOpenPolicyRecommendOnlyDowngradesTargetAlignmentMismatchToWait(t *testing.T) {
+	decision := &kernel.Decision{
+		Symbol:    "BTCUSDT",
+		Action:    "open_long",
+		Reasoning: "breakout setup",
+		EntryProtection: &kernel.AIEntryProtectionRationale{
+			RiskReward: kernel.AIRiskRewardRationale{
+				Entry:            100,
+				Invalidation:     95,
+				FirstTarget:      110,
+				GrossEstimatedRR: 2.0,
+				NetEstimatedRR:   1.8,
+				Passed:           true,
+			},
+		},
+	}
+	protection := &store.DecisionActionProtectionAlignment{
+		StopBeyondInvalidation: true,
+		TargetAligned:          false,
+		BreakEvenBeforeTarget:  true,
+		FallbackWithinEnvelope: true,
+		PolicyStatus:           "recomputed",
+		PolicyOverride:         true,
+		PolicyReasons:          []string{"target_before_first_target"},
+	}
+
+	result := applyRuntimeOpenPolicy(decision, nil, 1.5, "recommend_only", protection)
+
+	if result.Blocked {
+		t.Fatalf("recommend_only target mismatch should downgrade, not block: %+v", result)
+	}
+	if result.Decision != "downgraded_to_wait" || result.ReasonCode != "protection_target_before_first_target" {
+		t.Fatalf("expected target mismatch downgrade, got %+v", result)
+	}
+	if result.OriginalAction != "open_long" || result.FinalAction != "wait" {
+		t.Fatalf("expected original open/final wait audit fields, got %+v", result)
+	}
+	if decision.Action != "wait" {
+		t.Fatalf("expected executable action to be downgraded to wait, got %q", decision.Action)
+	}
+	if !strings.Contains(result.Reason, "configured target is before rationale first target") || !strings.Contains(decision.Reasoning, "configured target is before rationale first target") {
+		t.Fatalf("expected downgrade reason to be auditable, result=%+v reasoning=%q", result, decision.Reasoning)
+	}
+}
+
+func TestApplyRuntimeOpenPolicyStrictRejectsTargetAlignmentMismatch(t *testing.T) {
+	decision := &kernel.Decision{
+		Symbol: "BTCUSDT",
+		Action: "open_long",
+		EntryProtection: &kernel.AIEntryProtectionRationale{
+			RiskReward: kernel.AIRiskRewardRationale{
+				Entry:            100,
+				Invalidation:     95,
+				FirstTarget:      110,
+				GrossEstimatedRR: 2.0,
+				NetEstimatedRR:   1.8,
+				Passed:           true,
+			},
+		},
+	}
+	protection := &store.DecisionActionProtectionAlignment{
+		StopBeyondInvalidation: true,
+		TargetAligned:          false,
+		BreakEvenBeforeTarget:  true,
+		FallbackWithinEnvelope: true,
+	}
+
+	result := applyRuntimeOpenPolicy(decision, nil, 1.5, "strict", protection)
+
+	if !result.Blocked || result.Decision != "rejected" || result.ReasonCode != "protection_target_before_first_target" {
+		t.Fatalf("expected strict target mismatch rejection, got %+v", result)
+	}
+	if result.FinalAction != "open_long" || decision.Action != "open_long" {
+		t.Fatalf("strict reject should preserve executable action, got result=%+v action=%q", result, decision.Action)
+	}
+}
+
+func TestApplyRuntimeOpenPolicyAuditOnlyFlagsTargetAlignmentMismatchWithoutBlocking(t *testing.T) {
+	decision := &kernel.Decision{
+		Symbol: "BTCUSDT",
+		Action: "open_long",
+		EntryProtection: &kernel.AIEntryProtectionRationale{
+			RiskReward: kernel.AIRiskRewardRationale{
+				Entry:            100,
+				Invalidation:     95,
+				FirstTarget:      110,
+				GrossEstimatedRR: 2.0,
+				NetEstimatedRR:   1.8,
+				Passed:           true,
+			},
+		},
+	}
+	protection := &store.DecisionActionProtectionAlignment{
+		StopBeyondInvalidation: true,
+		TargetAligned:          false,
+		BreakEvenBeforeTarget:  true,
+		FallbackWithinEnvelope: true,
+	}
+
+	result := applyRuntimeOpenPolicy(decision, nil, 1.5, "audit_only", protection)
+
+	if result.Blocked || result.Decision != "accepted" || result.ReasonCode != "protection_target_before_first_target" {
+		t.Fatalf("expected audit_only target mismatch flag without block, got %+v", result)
+	}
+	if decision.Action != "open_long" {
+		t.Fatalf("audit_only should preserve action, got %q", decision.Action)
 	}
 }
 

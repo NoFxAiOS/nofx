@@ -108,8 +108,9 @@ Strategy-control mode is configured at `strategy_control_policy.mode` and resolv
 ### `recommend_only`
 
 - Kernel parse/schema/rationale failures still reject the decision cycle.
-- Current code behaves the same as `audit_only` for runtime blocking: low runtime RR is flagged but not blocked.
-- The name is reserved for softer advisory behavior, but there is no distinct recommendation channel beyond current compact control audit fields yet.
+- Current code downgrades low runtime RR opens to `wait`: it records `control.decision = downgraded_to_wait`, `original_action`, `final_action = wait`, `failed_checks = [runtime_rr_below_min]`, and skips order placement.
+- The next supported soft-control extension should use the same audited downgrade shape for a protection alignment mismatch (`failed_checks = [protection_alignment_mismatch]`) once that runtime branch is lifted out of the current hard-kernel rejection path.
+- The mode name still implies advisory behavior, but the current compact control audit now also captures explicit downgrade-to-wait outcomes.
 
 ## Current audit surface
 
@@ -129,7 +130,7 @@ Not currently implemented as first-class audit fields:
 - broad semantic equivalence proofs for ladder/drawdown protection;
 - deep orderbook/liquidation/funding hard gates.
 
-UI and stored review context now treat both `control.decision = downgraded` and legacy `downgraded_to_wait` as the same visible outcome: **downgraded to wait**. When runtime/store emits `original_action` plus `final_action: wait`, Position History presents the transition compactly as `open long → wait` (or `open short → wait`) and marks `no_order_placed` when present.
+UI and stored review context now treat both `control.decision = downgraded` and legacy `downgraded_to_wait` as the same visible outcome: **downgraded to wait**. When runtime/store emits `original_action` plus `final_action: wait`, Position History presents the transition compactly as `open long → wait` (or `open short → wait`), renders failed checks as labeled badges such as `failed · protection alignment mismatch`, and marks `no_order_placed` when present.
 
 ## Non-goals for current implementation
 

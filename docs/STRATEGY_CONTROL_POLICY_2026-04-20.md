@@ -111,7 +111,8 @@ Candidate downgrade reasons:
 
 - missing optional compact execution data on a weak exchange, while pure price geometry is otherwise safe but not strong enough for the selected strategy mode;
 - stale or unavailable runtime quote data where the configured policy prefers waiting rather than failing the entire cycle;
-- confidence/protection rationale too weak for open, but existing position handling can continue independently.
+- confidence/protection rationale too weak for open, but existing position handling can continue independently;
+- in `recommend_only`, a system-detected protection alignment mismatch should be the next supported downgrade trigger once runtime policy lifts the current hard-kernel rejection path into an audited `wait` downgrade.
 
 ### Audit requirement for downgrade
 
@@ -197,7 +198,7 @@ Additional fields required before system-controlled final judgment becomes fully
 
 - `control_decision`: `accepted`, `rejected`, `downgraded`, `overridden` (UI should continue accepting legacy `downgraded_to_wait` records as equivalent downgrade-to-wait history)
 - `control_reasons[]`: short human-readable reasons
-- `failed_checks[]`: machine-stable check names
+- `failed_checks[]`: machine-stable check names such as `runtime_rr_below_min` or the next supported alignment downgrade trigger `protection_alignment_mismatch`
 - `original_action` and `final_action` when they differ
 - `effective_rr` and `effective_rr_source`: `net`, `gross`, or `execution_recomputed_net`
 - `recomputed_gross_rr` and `recomputed_net_rr` when execution recomputation ran

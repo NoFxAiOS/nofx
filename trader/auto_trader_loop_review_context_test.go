@@ -85,6 +85,59 @@ func TestBuildRuntimePolicyControlOutcomeDowngradedSummary(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimePolicyControlOutcomeDowngradedProtectionMismatchSummary(t *testing.T) {
+	out := buildRuntimePolicyControlOutcome(runtimePolicyResult{
+		Decision:       "downgraded_to_wait",
+		OriginalAction: "open_long",
+		FinalAction:    "wait",
+		Reason:         "runtime protection policy downgraded open_long BTCUSDT to wait: configured target is before rationale first target",
+		ReasonCode:     "protection_target_before_first_target",
+	})
+	if out == nil {
+		t.Fatal("expected control outcome")
+	}
+	if out.Decision != "downgraded_to_wait" || !out.NoOrderPlaced {
+		t.Fatalf("expected downgraded/no_order_placed outcome, got %+v", out)
+	}
+	if out.OriginalAction != "open_long" || out.FinalAction != "wait" {
+		t.Fatalf("expected original/final action delta, got %+v", out)
+	}
+	if len(out.FailedChecks) != 1 || out.FailedChecks[0] != "protection_target_before_first_target" {
+		t.Fatalf("unexpected failed checks: %+v", out)
+	}
+}
+
+func TestBuildDecisionActionReviewContextUsesProvidedProtectionOverride(t *testing.T) {
+	decision := &kernel.Decision{
+		Symbol: "BTCUSDT",
+		Action: "open_long",
+		EntryProtection: &kernel.AIEntryProtectionRationale{
+			RiskReward: kernel.AIRiskRewardRationale{
+				Entry:            100,
+				Invalidation:     95,
+				FirstTarget:      110,
+				GrossEstimatedRR: 2.0,
+				NetEstimatedRR:   1.8,
+			},
+		},
+	}
+	override := &store.DecisionActionProtectionAlignment{TargetAligned: false, PolicyStatus: "recomputed", PolicyOverride: true, PolicyReasons: []string{"target_before_first_target"}}
+	ctx := buildDecisionActionReviewContext(decision, 1.5, &store.ProtectionSnapshot{
+		FullTPSL: &store.ProtectionSnapshotFullTPSL{
+			Enabled:    true,
+			Mode:       "full",
+			StopLoss:   store.ProtectionSnapshotValueSource{Mode: "percent", Value: 5},
+			TakeProfit: store.ProtectionSnapshotValueSource{Mode: "percent", Value: 8},
+		},
+	}, nil, override)
+	if ctx == nil || ctx.Protection == nil {
+		t.Fatal("expected protection override in review context")
+	}
+	if ctx.Protection.TargetAligned || ctx.Protection.PolicyStatus != "recomputed" || len(ctx.Protection.PolicyReasons) != 1 || ctx.Protection.PolicyReasons[0] != "target_before_first_target" {
+		t.Fatalf("expected provided protection alignment override, got %+v", ctx.Protection)
+	}
+}
+
 func TestBuildDecisionActionReviewContextMapsEntryProtectionCompactly(t *testing.T) {
 	decision := &kernel.Decision{
 		Symbol: "BTCUSDT",

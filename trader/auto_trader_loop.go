@@ -400,7 +400,8 @@ func (at *AutoTrader) runCycle() error {
 		if at.config.StrategyConfig != nil {
 			policyMode = at.config.StrategyConfig.StrategyControlPolicy.EffectiveMode()
 		}
-		policy := applyRuntimeOpenPolicy(&d, constraintSnapshot, at.getMinRiskRewardRatio(), policyMode)
+		protectionAlignment := deriveProtectionAlignment(&d, record.ProtectionSnapshot)
+		policy := applyRuntimeOpenPolicy(&d, constraintSnapshot, at.getMinRiskRewardRatio(), policyMode, protectionAlignment)
 		if policy.Reason != "" {
 			appendRuntimePolicyNote(&d, policy.Reason)
 		}
@@ -420,6 +421,7 @@ func (at *AutoTrader) runCycle() error {
 				at.getMinRiskRewardRatio(),
 				record.ProtectionSnapshot,
 				constraintSnapshot,
+				protectionAlignment,
 			),
 			Timestamp: time.Now().UTC(),
 			Success:   false,
@@ -832,10 +834,18 @@ func (at *AutoTrader) getMinRiskRewardRatio() float64 {
 	return 0
 }
 
-func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, snapshot *store.ProtectionSnapshot, executionSnapshot ...*ExecutionConstraintsSnapshot) *store.DecisionActionReviewContext {
+func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, snapshot *store.ProtectionSnapshot, executionSnapshot ...interface{}) *store.DecisionActionReviewContext {
 	ctx := &store.DecisionActionReviewContext{}
+	var protectionOverride *store.DecisionActionProtectionAlignment
 	if len(executionSnapshot) > 0 {
-		ctx.ExecutionConstraints = mapExecutionConstraintsToActionReview(executionSnapshot[0])
+		if snap, ok := executionSnapshot[0].(*ExecutionConstraintsSnapshot); ok {
+			ctx.ExecutionConstraints = mapExecutionConstraintsToActionReview(snap)
+		}
+	}
+	if len(executionSnapshot) > 1 {
+		if alignment, ok := executionSnapshot[1].(*store.DecisionActionProtectionAlignment); ok {
+			protectionOverride = alignment
+		}
 	}
 	if minRR > 0 {
 		ctx.MinRiskReward = minRR
@@ -884,7 +894,11 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 		if len(ep.Anchors) > 0 {
 			ctx.Anchors = compactReasonAnchors(ep.Anchors)
 		}
-		ctx.Protection = deriveProtectionAlignment(decision, snapshot)
+		if protectionOverride != nil {
+			ctx.Protection = protectionOverride
+		} else {
+			ctx.Protection = deriveProtectionAlignment(decision, snapshot)
+		}
 	}
 	if reviewContextIsEmpty(ctx) {
 		return nil

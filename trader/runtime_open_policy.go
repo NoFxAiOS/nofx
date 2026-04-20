@@ -26,6 +26,7 @@ type runtimePolicyResult struct {
 	EffectiveRR        float64
 	EffectiveRRSource  string
 	ConstraintsSources []string
+	Protection         *store.DecisionActionProtectionAlignment
 }
 
 // applyRuntimeOpenPolicy enforces the smallest system-controlled final judgment
@@ -37,10 +38,13 @@ type runtimePolicyResult struct {
 //  3. block only open actions whose runtime-effective RR falls below minRR when
 //     strategy control mode is strict;
 //  4. in recommend_only, downgrade low-RR open actions to wait with explicit
-//     original/final action audit fields so execution skips order placement.
+//     original/final action audit fields so execution skips order placement;
+//  5. in recommend_only, downgrade one stable protection-alignment mismatch
+//     (target before first target) to wait using existing compact protection
+//     data; strict/audit_only keep their existing reject/flag semantics.
 //
 // Non-open actions remain untouched so wait/hold legality is preserved.
-func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstraintsSnapshot, minRR float64, mode store.StrategyControlPolicyMode) runtimePolicyResult {
+func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstraintsSnapshot, minRR float64, mode store.StrategyControlPolicyMode, protection ...*store.DecisionActionProtectionAlignment) runtimePolicyResult {
 	if decision == nil {
 		return runtimePolicyResult{}
 	}
@@ -66,6 +70,10 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 		AIGrossRR:          rr.GrossEstimatedRR,
 		AINetRR:            rr.NetEstimatedRR,
 		ConstraintsSources: compactExecutionConstraintSources(snapshot),
+		Protection:         firstRuntimeProtectionAlignment(protection),
+	}
+	if applyRuntimeProtectionAlignmentPolicy(decision, mode, &result) {
+		return result
 	}
 	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
 		return result
@@ -114,6 +122,14 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 
 func appendDowngradedToWaitReasoning(reasoning string, effectiveRR, minRR float64) string {
 	note := fmt.Sprintf("runtime policy downgraded to wait: execution-aware rr %.2f below min %.2f", effectiveRR, minRR)
+	return appendRuntimeDowngradeReasoning(reasoning, note)
+}
+
+func appendRuntimeDowngradeReasoning(reasoning, note string) string {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return strings.TrimSpace(reasoning)
+	}
 	reasoning = strings.TrimSpace(reasoning)
 	if reasoning == "" {
 		return note
@@ -122,6 +138,34 @@ func appendDowngradedToWaitReasoning(reasoning string, effectiveRR, minRR float6
 		return reasoning
 	}
 	return reasoning + " | " + note
+}
+
+func firstRuntimeProtectionAlignment(protection []*store.DecisionActionProtectionAlignment) *store.DecisionActionProtectionAlignment {
+	if len(protection) == 0 {
+		return nil
+	}
+	return protection[0]
+}
+
+func applyRuntimeProtectionAlignmentPolicy(decision *kernel.Decision, mode store.StrategyControlPolicyMode, result *runtimePolicyResult) bool {
+	if decision == nil || result == nil || result.Protection == nil || result.Protection.TargetAligned {
+		return false
+	}
+	result.ReasonCode = "protection_target_before_first_target"
+	if mode == store.StrategyControlPolicyModeRecommendOnly {
+		result.Decision = "downgraded_to_wait"
+		result.FinalAction = "wait"
+		result.Reason = fmt.Sprintf("runtime protection policy downgraded %s %s to wait: configured target is before rationale first target", result.OriginalAction, decision.Symbol)
+		decision.Action = "wait"
+		decision.Reasoning = appendRuntimeDowngradeReasoning(decision.Reasoning, "runtime policy downgraded to wait: configured target is before rationale first target")
+		return true
+	}
+	result.Reason = fmt.Sprintf("runtime protection policy %s %s %s: configured target is before rationale first target", runtimePolicyVerb(mode), result.OriginalAction, decision.Symbol)
+	if mode == store.StrategyControlPolicyModeStrict {
+		result.Blocked = true
+		result.Decision = "rejected"
+	}
+	return true
 }
 
 func effectiveRuntimePolicyMode(mode store.StrategyControlPolicyMode) store.StrategyControlPolicyMode {

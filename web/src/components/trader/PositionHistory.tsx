@@ -216,7 +216,22 @@ function formatControlRrSource(source?: string): string {
 }
 
 function formatControlCheck(check?: string): string {
-  return String(check || 'check_failed').replace(/_/g, ' ')
+  switch (String(check || '').toLowerCase()) {
+    case 'runtime_rr_below_min':
+      return 'runtime RR below min'
+    case 'protection_alignment_mismatch':
+      return 'protection alignment mismatch'
+    case 'stop_inside_invalidation':
+      return 'stop above invalidation'
+    case 'target_before_first_target':
+      return 'target before first target'
+    case 'break_even_after_target':
+      return 'break-even after target'
+    case 'fallback_inside_invalidation':
+      return 'fallback above invalidation'
+    default:
+      return String(check || 'check_failed').replace(/_/g, ' ')
+  }
 }
 
 function formatActionLabel(action?: string): string {
@@ -347,7 +362,7 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
         <div className="flex flex-wrap gap-1.5 text-[10px]">
           {audit.failedChecks.map((check, idx) => (
             <span key={`failed-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-rose-200">
-              {check}
+              failed · {check}
             </span>
           ))}
         </div>

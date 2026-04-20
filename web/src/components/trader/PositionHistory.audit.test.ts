@@ -112,6 +112,7 @@ describe('getDecisionAuditSnapshot', () => {
         original_action: 'open_long',
         final_action: 'wait',
         decision: 'downgraded',
+        failed_checks: ['protection_alignment_mismatch'],
         no_order_placed: true,
       }
     }
@@ -119,17 +120,18 @@ describe('getDecisionAuditSnapshot', () => {
     const snap = getDecisionAuditSnapshot(review)
     expect(snap.controlStatus).toEqual({ label: 'downgraded to wait', tone: 'warn' })
     expect(snap.actionAudit).toBe('open long → wait')
+    expect(snap.failedChecks).toEqual(['protection alignment mismatch'])
     expect(snap.controlBadges).toContainEqual({ label: 'no order placed', tone: 'danger' })
   })
 
-  it('preserves legacy downgraded_to_wait control label', () => {
-    const review = makeReview()
+  it('keeps alignment downgrade failed checks concise and readable', () => {
+    const review = makeReview('rejected', ['stop_inside_invalidation'])
     if (review.decisions?.[0].review_context) {
       review.decisions[0].review_context.control = {
-        ...review.decisions[0].review_context.control,
+        decision: 'downgraded_to_wait',
         original_action: 'open_short',
         final_action: 'wait',
-        decision: 'downgraded_to_wait',
+        failed_checks: ['protection_alignment_mismatch', 'break_even_after_target'],
         no_order_placed: true,
       }
     }
@@ -137,7 +139,10 @@ describe('getDecisionAuditSnapshot', () => {
     const snap = getDecisionAuditSnapshot(review)
     expect(snap.controlStatus).toEqual({ label: 'downgraded to wait', tone: 'warn' })
     expect(snap.actionAudit).toBe('open short → wait')
+    expect(snap.failedChecks).toEqual(['protection alignment mismatch', 'break-even after target'])
+    expect(snap.ctx?.protection?.policy_reasons).toEqual(['stop_inside_invalidation'])
   })
+
 
   it('preserves compact policy transparency fields on protection context', () => {
     const snap = getDecisionAuditSnapshot(makeReview('recomputed', ['stop_inside_invalidation']))

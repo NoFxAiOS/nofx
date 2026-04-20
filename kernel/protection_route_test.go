@@ -18,7 +18,7 @@ func TestValidateAIDecisionsWithStrategyRequiresLadderRoute(t *testing.T) {
 		PositionSizeUSD: 100,
 		Reasoning:       "test",
 		ProtectionPlan: &AIProtectionPlan{
-			Mode: "full",
+			Mode:          "full",
 			TakeProfitPct: 8,
 			StopLossPct:   3,
 		},
@@ -91,7 +91,7 @@ func TestValidateAIDecisionsWithStrategyRejectsTooManyLadderTiers(t *testing.T) 
 		PositionSizeUSD: 100,
 		Reasoning:       "test",
 		ProtectionPlan: &AIProtectionPlan{
-			Mode: "ladder",
+			Mode:        "ladder",
 			LadderRules: []AIProtectionLadderRule{{TakeProfitPct: 2, TakeProfitCloseRatioPct: 20, StopLossPct: 1, StopLossCloseRatioPct: 20}, {TakeProfitPct: 4, TakeProfitCloseRatioPct: 30, StopLossPct: 2, StopLossCloseRatioPct: 30}, {TakeProfitPct: 6, TakeProfitCloseRatioPct: 30, StopLossPct: 3, StopLossCloseRatioPct: 30}, {TakeProfitPct: 8, TakeProfitCloseRatioPct: 20, StopLossPct: 4, StopLossCloseRatioPct: 20}},
 		},
 	}}
@@ -116,5 +116,67 @@ func TestValidateAIDecisionsWithStrategyRejectsMissingFullProtectionPlan(t *test
 
 	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err == nil {
 		t.Fatal("expected full-only strategy route to reject missing protection_plan")
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRequiresDrawdownRoute(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
+	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		ProtectionPlan: &AIProtectionPlan{
+			Mode:          "full",
+			TakeProfitPct: 8,
+			StopLossPct:   3,
+		},
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err == nil {
+		t.Fatal("expected drawdown-only strategy route to reject non-drawdown protection_plan")
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsMissingDrawdownProtectionPlan(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
+	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err == nil {
+		t.Fatal("expected drawdown-only strategy route to reject missing protection_plan")
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsMultipleAIProtectionRoutes(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		ProtectionPlan:  &AIProtectionPlan{Mode: "drawdown", DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100}}},
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err == nil {
+		t.Fatal("expected multiple ai protection routes to be rejected")
 	}
 }

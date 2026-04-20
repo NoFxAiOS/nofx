@@ -114,3 +114,57 @@ func TestValidateDecisionFormatRejectsLadderRuleWithInvalidRatios(t *testing.T) 
 		t.Fatal("expected invalid ladder rule ratios to be rejected")
 	}
 }
+
+func TestValidateDecisionFormatRejectsDrawdownModeWithoutRules(t *testing.T) {
+	decisions := []Decision{{
+		Symbol:          "SOLUSDT",
+		Action:          "open_short",
+		Leverage:        2,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		ProtectionPlan: &AIProtectionPlan{
+			Mode: "drawdown",
+		},
+	}}
+
+	if err := ValidateDecisionFormat(decisions); err == nil {
+		t.Fatal("expected drawdown mode without drawdown_rules to be rejected")
+	}
+}
+
+func TestValidateDecisionFormatRejectsDrawdownModeWithMixedFields(t *testing.T) {
+	decisions := []Decision{{
+		Symbol:          "SOLUSDT",
+		Action:          "open_short",
+		Leverage:        2,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		ProtectionPlan: &AIProtectionPlan{
+			Mode:          "drawdown",
+			TakeProfitPct: 3,
+			DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100}},
+		},
+	}}
+
+	if err := ValidateDecisionFormat(decisions); err == nil {
+		t.Fatal("expected drawdown mode with mixed full fields to be rejected")
+	}
+}
+
+func TestValidateDecisionFormatRejectsDrawdownRuleWithInvalidThresholds(t *testing.T) {
+	decisions := []Decision{{
+		Symbol:          "SOLUSDT",
+		Action:          "open_short",
+		Leverage:        2,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		ProtectionPlan: &AIProtectionPlan{
+			Mode:          "drawdown",
+			DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 0, MaxDrawdownPct: 120, CloseRatioPct: 0, PollIntervalSeconds: 3}},
+		},
+	}}
+
+	if err := ValidateDecisionFormat(decisions); err == nil {
+		t.Fatal("expected invalid drawdown rules to be rejected")
+	}
+}

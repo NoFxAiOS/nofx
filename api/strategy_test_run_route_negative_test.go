@@ -9,6 +9,26 @@ import (
 	"nofx/store"
 )
 
+func TestRouteAwareDrawdownProtectionErrorsExposeParseErrorInEnvelope(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
+	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
+
+	raw := `[{"symbol":"XRPUSDT","action":"open_long","leverage":2,"position_size_usd":100,"reasoning":"test","protection_plan":{"mode":"full","take_profit_pct":8,"stop_loss_pct":3}}]`
+	decisions, parseErr := kernel.ParseAIDecisions(raw)
+	if parseErr != nil {
+		t.Fatalf("expected parser to succeed before route-aware validation, got %v", parseErr)
+	}
+	validationErr := kernel.ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if validationErr == nil {
+		t.Fatal("expected route-aware validator to fail")
+	}
+	if !strings.Contains(validationErr.Error(), "current strategy route requires drawdown protection_plan") {
+		t.Fatalf("unexpected validation error: %v", validationErr)
+	}
+}
+
 func TestRouteAwareProtectionErrorsExposeParseErrorInEnvelope(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
@@ -36,7 +56,9 @@ func TestRouteAwareProtectionErrorsExposeParseErrorInEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal envelope failed: %v", err)
 	}
-	var decoded struct{ ParseError string `json:"parse_error"` }
+	var decoded struct {
+		ParseError string `json:"parse_error"`
+	}
 	if err := json.Unmarshal(blob, &decoded); err != nil {
 		t.Fatalf("unmarshal envelope failed: %v", err)
 	}

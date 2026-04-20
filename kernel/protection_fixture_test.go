@@ -30,6 +30,7 @@ func TestProtectionFixtureBuildsPromptWithProtectionPlanGuidance(t *testing.T) {
 		"protection_plan",
 		"mode=full",
 		"mode=ladder",
+		"mode=drawdown",
 		"Do NOT output protection_plan for hold/wait/close actions",
 		"open_long",
 		"close_long",

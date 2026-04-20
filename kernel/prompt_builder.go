@@ -188,6 +188,21 @@ func (pb *PromptBuilder) getDecisionRequirementsZH() string {
     "reasoning": "BTCUSDT 在主趋势方向上完成回踩确认，适合统一 TP/SL 的单段管理，因此使用 full protection_plan，并且用百分比字段表达止盈止损，而不是直接价格。"
   },
   {
+    "symbol": "XRPUSDT",
+    "action": "open_long",
+    "leverage": 2,
+    "position_size_usd": 400,
+    "confidence": 74,
+    "protection_plan": {
+      "mode": "drawdown",
+      "drawdown_rules": [
+        {"timeframe":"5m","min_profit_pct":2.5,"max_drawdown_pct":35,"close_ratio_pct":20,"poll_interval_seconds":30,"reason_anchor":"5m micro swing near local resistance"},
+        {"timeframe":"15m","min_profit_pct":4.5,"max_drawdown_pct":30,"close_ratio_pct":50,"poll_interval_seconds":60,"reason_anchor":"15m primary trend profit protection"}
+      ]
+    },
+    "reasoning": "XRPUSDT 与 15m 主趋势和 5m 延续结构一致，适合使用 drawdown protection_plan；规则参考主周期、邻近周期、支撑阻力、斐波那契和当前波动率。"
+  },
+  {
     "symbol": "HUSDT",
     "action": "open_long",
     "leverage": 3,
@@ -254,9 +269,19 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
     "leverage": 3,
     "position_size_usd": 1000,
     "protection_plan": {
-      "mode": "full|ladder",
+      "mode": "full|ladder|drawdown",
       "take_profit_pct": 8,
       "stop_loss_pct": 3,
+      "drawdown_rules": [
+        {
+          "timeframe": "15m",
+          "min_profit_pct": 4,
+          "max_drawdown_pct": 30,
+          "close_ratio_pct": 50,
+          "poll_interval_seconds": 60,
+          "reason_anchor": "primary timeframe structure"
+        }
+      ],
       "ladder_rules": [
         {
           "take_profit_pct": 3,
@@ -286,7 +311,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - **position_size_usd**: Position size in USDT (required for open_long/open_short)
 - **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
 - **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
-- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), or mode=ladder with ladder_rules.
+- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), mode=ladder with ladder_rules, or mode=drawdown with non-empty drawdown_rules.
 - **confidence**: Confidence level (0-100)
 - **reasoning**: Detailed reasoning (required, must explain decision basis)
 

@@ -26,7 +26,7 @@ func TestProtectionFixtureWorkflowAcceptance(t *testing.T) {
 	if systemPrompt == "" {
 		t.Fatal("system prompt should not be empty")
 	}
-	for _, needle := range []string{"protection_plan", "mode=full", "mode=ladder", "open_long", "close_long"} {
+	for _, needle := range []string{"protection_plan", "mode=full", "mode=ladder", "mode=drawdown", "open_long", "close_long"} {
 		if !containsString(systemPrompt, needle) {
 			t.Fatalf("system prompt should contain %q", needle)
 		}
@@ -39,20 +39,26 @@ func TestProtectionFixtureWorkflowAcceptance(t *testing.T) {
 		wantCount int
 	}{
 		{
-			name: "fixture full open",
-			raw: `[{"symbol":"BTCUSDT","action":"open_long","leverage":3,"position_size_usd":500,"confidence":78,"reasoning":"test","protection_plan":{"mode":"full","take_profit_pct":8,"stop_loss_pct":3}}]`,
+			name:      "fixture full open",
+			raw:       `[{"symbol":"BTCUSDT","action":"open_long","leverage":3,"position_size_usd":500,"confidence":78,"reasoning":"test","protection_plan":{"mode":"full","take_profit_pct":8,"stop_loss_pct":3}}]`,
 			wantMode:  "full",
 			wantCount: 1,
 		},
 		{
-			name: "fixture ladder open",
-			raw: `[{"symbol":"SOLUSDT","action":"open_short","leverage":2,"position_size_usd":300,"confidence":80,"reasoning":"test","protection_plan":{"mode":"ladder","ladder_rules":[{"take_profit_pct":3,"take_profit_close_ratio_pct":40,"stop_loss_pct":1.5,"stop_loss_close_ratio_pct":25}]}}]`,
+			name:      "fixture ladder open",
+			raw:       `[{"symbol":"SOLUSDT","action":"open_short","leverage":2,"position_size_usd":300,"confidence":80,"reasoning":"test","protection_plan":{"mode":"ladder","ladder_rules":[{"take_profit_pct":3,"take_profit_close_ratio_pct":40,"stop_loss_pct":1.5,"stop_loss_close_ratio_pct":25}]}}]`,
 			wantMode:  "ladder",
 			wantCount: 1,
 		},
 		{
-			name: "fixture close without protection",
-			raw: `[{"symbol":"ETHUSDT","action":"close_long","confidence":82,"reasoning":"test"}]`,
+			name:      "fixture drawdown open",
+			raw:       `[{"symbol":"XRPUSDT","action":"open_long","leverage":2,"position_size_usd":400,"confidence":74,"reasoning":"15m primary timeframe with 5m continuation, support/resistance, fibonacci, volatility","protection_plan":{"mode":"drawdown","drawdown_rules":[{"timeframe":"5m","min_profit_pct":2.5,"max_drawdown_pct":35,"close_ratio_pct":20,"poll_interval_seconds":30,"reason_anchor":"micro structure"},{"timeframe":"15m","min_profit_pct":4.5,"max_drawdown_pct":30,"close_ratio_pct":50,"poll_interval_seconds":60,"reason_anchor":"primary structure"}]}}]`,
+			wantMode:  "drawdown",
+			wantCount: 1,
+		},
+		{
+			name:      "fixture close without protection",
+			raw:       `[{"symbol":"ETHUSDT","action":"close_long","confidence":82,"reasoning":"test"}]`,
 			wantMode:  "",
 			wantCount: 1,
 		},

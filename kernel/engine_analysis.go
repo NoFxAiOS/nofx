@@ -411,12 +411,16 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 	}
 	fullAI := config.Protection.FullTPSL.Enabled && config.Protection.FullTPSL.Mode == store.ProtectionModeAI
 	ladderAI := config.Protection.LadderTPSL.Enabled && config.Protection.LadderTPSL.Mode == store.ProtectionModeAI
+	drawdownAI := config.Protection.DrawdownTakeProfit.Enabled && config.Protection.DrawdownTakeProfit.Mode == store.ProtectionModeAI
 	for i, d := range decisions {
 		isOpen := d.Action == "open_long" || d.Action == "open_short" || d.Action == "OPEN_NEW"
 		if !isOpen {
 			continue
 		}
-		if ladderAI && !fullAI {
+		if (fullAI && drawdownAI) || (ladderAI && drawdownAI) || (fullAI && ladderAI) {
+			return fmt.Errorf("current strategy route supports only one AI protection route at a time (full, ladder, or drawdown)")
+		}
+		if ladderAI && !fullAI && !drawdownAI {
 			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "ladder" {
 				return fmt.Errorf("decision #%d: current strategy route requires ladder protection_plan for open actions", i+1)
 			}
@@ -424,9 +428,17 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 				return fmt.Errorf("decision #%d: ladder protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
 			}
 		}
-		if fullAI && !ladderAI {
+		if fullAI && !ladderAI && !drawdownAI {
 			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "full" {
 				return fmt.Errorf("decision #%d: current strategy route requires full protection_plan for open actions", i+1)
+			}
+		}
+		if drawdownAI && !fullAI && !ladderAI {
+			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "drawdown" {
+				return fmt.Errorf("decision #%d: current strategy route requires drawdown protection_plan for open actions", i+1)
+			}
+			if len(d.ProtectionPlan.DrawdownRules) == 0 {
+				return fmt.Errorf("decision #%d: drawdown protection_plan must contain drawdown_rules under current strategy route", i+1)
 			}
 		}
 	}

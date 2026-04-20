@@ -155,6 +155,7 @@ type ProtectionPlan struct {
 	FallbackMaxLossPrice float64
 	StopLossOrders       []ProtectionOrder
 	TakeProfitOrders     []ProtectionOrder
+	DrawdownRules        []store.DrawdownTakeProfitRule
 	RequiresNativeOrders bool
 	RequiresPartialClose bool
 }
@@ -175,6 +176,9 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		merged.NeedsTakeProfit = merged.NeedsTakeProfit || plan.NeedsTakeProfit
 		merged.StopLossOrders = append(merged.StopLossOrders, plan.StopLossOrders...)
 		merged.TakeProfitOrders = append(merged.TakeProfitOrders, plan.TakeProfitOrders...)
+		if len(plan.DrawdownRules) > 0 {
+			merged.DrawdownRules = append(merged.DrawdownRules, plan.DrawdownRules...)
+		}
 		merged.RequiresNativeOrders = merged.RequiresNativeOrders || plan.RequiresNativeOrders
 		merged.RequiresPartialClose = merged.RequiresPartialClose || plan.RequiresPartialClose
 		if merged.StopLossPrice == 0 && plan.StopLossPrice > 0 {
@@ -196,7 +200,7 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		merged.TakeProfitPrice = 0
 	}
 
-	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 && merged.FallbackMaxLossPrice == 0 {
+	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 && merged.FallbackMaxLossPrice == 0 && len(merged.DrawdownRules) == 0 {
 		return nil
 	}
 	return merged

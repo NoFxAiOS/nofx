@@ -153,6 +153,19 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		return buildAILadderProtectionPlan(entryPrice, action, ladder)
 	}
 
+	if mode == "drawdown" {
+		rules := make([]store.DrawdownTakeProfitRule, 0, len(plan.DrawdownRules))
+		for _, rule := range plan.DrawdownRules {
+			rules = append(rules, store.DrawdownTakeProfitRule{
+				MinProfitPct:        rule.MinProfitPct,
+				MaxDrawdownPct:      rule.MaxDrawdownPct,
+				CloseRatioPct:       rule.CloseRatioPct,
+				PollIntervalSeconds: rule.PollIntervalSeconds,
+			})
+		}
+		return &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules}, nil
+	}
+
 	return nil, nil
 }
 

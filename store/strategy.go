@@ -126,11 +126,14 @@ func (p *ProtectionValueSource) UnmarshalJSON(data []byte) error {
 }
 
 type FullTPSLConfig struct {
-	Enabled    bool                 `json:"enabled"`
-	Mode       ProtectionMode       `json:"mode,omitempty"`
-	TakeProfit ProtectionValueSource `json:"take_profit,omitempty"`
-	StopLoss   ProtectionValueSource `json:"stop_loss,omitempty"`
-	FallbackMaxLoss ProtectionValueSource `json:"fallback_max_loss,omitempty"`
+	Enabled                bool                  `json:"enabled"`
+	Mode                   ProtectionMode        `json:"mode,omitempty"`
+	TakeProfitEnabled      bool                  `json:"take_profit_enabled,omitempty"`
+	StopLossEnabled        bool                  `json:"stop_loss_enabled,omitempty"`
+	FallbackMaxLossEnabled bool                  `json:"fallback_max_loss_enabled,omitempty"`
+	TakeProfit             ProtectionValueSource `json:"take_profit,omitempty"`
+	StopLoss               ProtectionValueSource `json:"stop_loss,omitempty"`
+	FallbackMaxLoss        ProtectionValueSource `json:"fallback_max_loss,omitempty"`
 }
 
 type ProtectionThresholdRule struct {
@@ -139,15 +142,15 @@ type ProtectionThresholdRule struct {
 }
 
 type LadderTPSLConfig struct {
-	Enabled           bool                `json:"enabled"`
-	Mode              ProtectionMode      `json:"mode,omitempty"`
-	TakeProfitEnabled bool                `json:"take_profit_enabled"`
-	StopLossEnabled   bool                `json:"stop_loss_enabled"`
+	Enabled           bool                  `json:"enabled"`
+	Mode              ProtectionMode        `json:"mode,omitempty"`
+	TakeProfitEnabled bool                  `json:"take_profit_enabled"`
+	StopLossEnabled   bool                  `json:"stop_loss_enabled"`
 	TakeProfitPrice   ProtectionValueSource `json:"take_profit_price,omitempty"`
 	TakeProfitSize    ProtectionValueSource `json:"take_profit_size,omitempty"`
 	StopLossPrice     ProtectionValueSource `json:"stop_loss_price,omitempty"`
 	StopLossSize      ProtectionValueSource `json:"stop_loss_size,omitempty"`
-	Rules             []LadderTPSLRule    `json:"rules,omitempty"`
+	Rules             []LadderTPSLRule      `json:"rules,omitempty"`
 	FallbackMaxLoss   ProtectionValueSource `json:"fallback_max_loss,omitempty"`
 }
 
@@ -160,6 +163,7 @@ type LadderTPSLRule struct {
 
 type DrawdownTakeProfitConfig struct {
 	Enabled bool                     `json:"enabled"`
+	Mode    ProtectionMode           `json:"mode,omitempty"`
 	Rules   []DrawdownTakeProfitRule `json:"rules,omitempty"`
 }
 

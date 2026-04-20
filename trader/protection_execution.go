@@ -8,6 +8,7 @@ import (
 
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/store"
 	tradertypes "nofx/trader/types"
 )
 
@@ -65,7 +66,7 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		}
 	}
 
-	if err := at.applyNativeProtectionTargetsAfterOpen(req); err != nil {
+	if err := at.applyNativeProtectionTargetsAfterOpen(req, plan); err != nil {
 		if planErr != nil {
 			return fmt.Errorf("primary protection failed: %v; native targets failed: %w", planErr, err)
 		}
@@ -96,15 +97,23 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 	return nil
 }
 
-func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecutionRequest) error {
+func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecutionRequest, plan *ProtectionPlan) error {
 	if req == nil || req.Decision == nil || at.config.StrategyConfig == nil {
 		return nil
 	}
 
 	prot := at.config.StrategyConfig.Protection
+	drawdownRules := prot.DrawdownTakeProfit.Rules
+	if plan != nil && len(plan.DrawdownRules) > 0 {
+		drawdownRules = plan.DrawdownRules
+	} else if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
+		return fmt.Errorf("drawdown protection is in AI mode but decision did not provide drawdown_rules")
+	} else if !prot.DrawdownTakeProfit.Enabled || prot.DrawdownTakeProfit.Mode == store.ProtectionModeDisabled {
+		drawdownRules = nil
+	}
 
 	// 1. Native drawdown/trailing should be armed as early as safely possible.
-	for _, rule := range prot.DrawdownTakeProfit.Rules {
+	for _, rule := range drawdownRules {
 		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
 			continue
 		}

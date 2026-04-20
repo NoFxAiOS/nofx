@@ -136,10 +136,20 @@ type Decision struct {
 }
 
 type AIProtectionPlan struct {
-	Mode          string                   `json:"mode,omitempty"`
-	TakeProfitPct float64                  `json:"take_profit_pct,omitempty"`
-	StopLossPct   float64                  `json:"stop_loss_pct,omitempty"`
-	LadderRules   []AIProtectionLadderRule `json:"ladder_rules,omitempty"`
+	Mode          string                     `json:"mode,omitempty"`
+	TakeProfitPct float64                    `json:"take_profit_pct,omitempty"`
+	StopLossPct   float64                    `json:"stop_loss_pct,omitempty"`
+	LadderRules   []AIProtectionLadderRule   `json:"ladder_rules,omitempty"`
+	DrawdownRules []AIProtectionDrawdownRule `json:"drawdown_rules,omitempty"`
+}
+
+type AIProtectionDrawdownRule struct {
+	Timeframe           string  `json:"timeframe,omitempty"`
+	MinProfitPct        float64 `json:"min_profit_pct,omitempty"`
+	MaxDrawdownPct      float64 `json:"max_drawdown_pct,omitempty"`
+	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
+	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
+	ReasonAnchor        string  `json:"reason_anchor,omitempty"`
 }
 
 type AIProtectionLadderRule struct {

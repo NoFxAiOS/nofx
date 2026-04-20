@@ -66,6 +66,9 @@ export interface ProtectionValueSource {
 export interface FullTPSLConfig {
   enabled: boolean;
   mode: ProtectionMode;
+  take_profit_enabled?: boolean;
+  stop_loss_enabled?: boolean;
+  fallback_max_loss_enabled?: boolean;
   take_profit: ProtectionValueSource;
   stop_loss: ProtectionValueSource;
   fallback_max_loss: ProtectionValueSource;
@@ -100,6 +103,7 @@ export interface DrawdownTakeProfitRule {
 
 export interface DrawdownTakeProfitConfig {
   enabled: boolean;
+  mode?: ProtectionMode;
   rules: DrawdownTakeProfitRule[];
 }
 

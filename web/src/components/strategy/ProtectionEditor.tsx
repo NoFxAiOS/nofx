@@ -24,6 +24,9 @@ export const defaultProtectionConfig: ProtectionConfig = {
   full_tp_sl: {
     enabled: false,
     mode: 'manual',
+    take_profit_enabled: true,
+    stop_loss_enabled: true,
+    fallback_max_loss_enabled: false,
     take_profit: { mode: 'manual', value: 0 },
     stop_loss: { mode: 'manual', value: 0 },
     fallback_max_loss: { mode: 'disabled', value: 0 },
@@ -42,6 +45,7 @@ export const defaultProtectionConfig: ProtectionConfig = {
   },
   drawdown_take_profit: {
     enabled: false,
+    mode: 'manual',
     rules: [{ min_profit_pct: 5, max_drawdown_pct: 40, close_ratio_pct: 100, poll_interval_seconds: 60 }],
   },
   break_even_stop: {
@@ -236,8 +240,8 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
   )
 
   const fullStateSummary = isZh
-    ? `执行开关：${config.full_tp_sl.enabled ? '已启用' : '未启用'} · 整体模式：${modeLabel(config.full_tp_sl.mode)} · TP：${modeLabel(config.full_tp_sl.take_profit.mode)} · SL：${modeLabel(config.full_tp_sl.stop_loss.mode)}`
-    : `Execution: ${config.full_tp_sl.enabled ? 'enabled' : 'disabled'} · Global mode: ${modeLabel(config.full_tp_sl.mode)} · TP: ${modeLabel(config.full_tp_sl.take_profit.mode)} · SL: ${modeLabel(config.full_tp_sl.stop_loss.mode)}`
+    ? `执行开关：${config.full_tp_sl.enabled ? '已启用' : '未启用'} · 整体模式：${modeLabel(config.full_tp_sl.mode)} · TP侧：${config.full_tp_sl.take_profit_enabled !== false ? modeLabel(config.full_tp_sl.take_profit.mode) : '关闭'} · SL侧：${config.full_tp_sl.stop_loss_enabled !== false ? modeLabel(config.full_tp_sl.stop_loss.mode) : '关闭'} · 兜底：${config.full_tp_sl.fallback_max_loss_enabled ? modeLabel(config.full_tp_sl.fallback_max_loss.mode) : '关闭'}`
+    : `Execution: ${config.full_tp_sl.enabled ? 'enabled' : 'disabled'} · Global mode: ${modeLabel(config.full_tp_sl.mode)} · TP side: ${config.full_tp_sl.take_profit_enabled !== false ? modeLabel(config.full_tp_sl.take_profit.mode) : 'off'} · SL side: ${config.full_tp_sl.stop_loss_enabled !== false ? modeLabel(config.full_tp_sl.stop_loss.mode) : 'off'} · Fallback: ${config.full_tp_sl.fallback_max_loss_enabled ? modeLabel(config.full_tp_sl.fallback_max_loss.mode) : 'off'}`
 
   const ladderStateSummary = isZh
     ? `执行开关：${config.ladder_tp_sl.enabled ? '已启用' : '未启用'} · 整体模式：${modeLabel(config.ladder_tp_sl.mode)} · TP侧：${config.ladder_tp_sl.take_profit_enabled ? '开启' : '关闭'} · SL侧：${config.ladder_tp_sl.stop_loss_enabled ? '开启' : '关闭'}`
@@ -287,6 +291,9 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
           <div className="flex flex-wrap items-center gap-2">
             {statusChip(config.full_tp_sl.enabled, isZh ? '执行开关' : 'Execution')}
             {statusChip(config.full_tp_sl.mode === 'ai', isZh ? '整体 AI' : 'Global AI')}
+            {statusChip(config.full_tp_sl.take_profit_enabled !== false, isZh ? 'TP 侧开启' : 'TP side on')}
+            {statusChip(config.full_tp_sl.stop_loss_enabled !== false, isZh ? 'SL 侧开启' : 'SL side on')}
+            {statusChip(!!config.full_tp_sl.fallback_max_loss_enabled, isZh ? '兜底开启' : 'Fallback on')}
             {statusChip(config.full_tp_sl.take_profit.mode === 'ai', isZh ? 'TP 由 AI' : 'TP via AI')}
             {statusChip(config.full_tp_sl.stop_loss.mode === 'ai', isZh ? 'SL 由 AI' : 'SL via AI')}
           </div>
@@ -322,32 +329,50 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
             </div>
 
             <div className="p-4 rounded-lg space-y-2" style={sectionStyle}>
-              <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '止盈价格模式' : 'TP Price Mode'}</label>
-              <select value={config.full_tp_sl.take_profit.mode} onChange={(e) => updateFull('take_profit', updateValueSource(config.full_tp_sl.take_profit, { mode: e.target.value as ProtectionMode }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '止盈侧' : 'TP Side'}</label>
+                <input type="checkbox" checked={config.full_tp_sl.take_profit_enabled !== false} onChange={(e) => updateFull('take_profit_enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-green-500" />
+              </div>
+              <select value={config.full_tp_sl.take_profit.mode} onChange={(e) => updateFull('take_profit', updateValueSource(config.full_tp_sl.take_profit, { mode: e.target.value as ProtectionMode }))} disabled={disabled || config.full_tp_sl.take_profit_enabled === false} className="w-full px-3 py-2 rounded" style={inputStyle}>
                 {valueModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
               </select>
-              {config.full_tp_sl.take_profit.mode === 'manual' && (
-                <input type="number" min={0} step={0.1} value={config.full_tp_sl.take_profit.value} onChange={(e) => updateFull('take_profit', updateValueSource(config.full_tp_sl.take_profit, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+              {config.full_tp_sl.take_profit.mode === 'manual' && config.full_tp_sl.take_profit_enabled !== false && (
+                <>
+                  <input type="number" min={0} step={0.1} value={config.full_tp_sl.take_profit.value} onChange={(e) => updateFull('take_profit', updateValueSource(config.full_tp_sl.take_profit, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                  <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位：相对开仓价的币价波动百分比（Price Move % from Entry）' : 'Unit: Price Move % from Entry'}</div>
+                </>
               )}
             </div>
 
             <div className="p-4 rounded-lg space-y-2" style={sectionStyle}>
-              <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '止损价格模式' : 'SL Price Mode'}</label>
-              <select value={config.full_tp_sl.stop_loss.mode} onChange={(e) => updateFull('stop_loss', updateValueSource(config.full_tp_sl.stop_loss, { mode: e.target.value as ProtectionMode }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '止损侧' : 'SL Side'}</label>
+                <input type="checkbox" checked={config.full_tp_sl.stop_loss_enabled !== false} onChange={(e) => updateFull('stop_loss_enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-red-500" />
+              </div>
+              <select value={config.full_tp_sl.stop_loss.mode} onChange={(e) => updateFull('stop_loss', updateValueSource(config.full_tp_sl.stop_loss, { mode: e.target.value as ProtectionMode }))} disabled={disabled || config.full_tp_sl.stop_loss_enabled === false} className="w-full px-3 py-2 rounded" style={inputStyle}>
                 {valueModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
               </select>
-              {config.full_tp_sl.stop_loss.mode === 'manual' && (
-                <input type="number" min={0} step={0.1} value={config.full_tp_sl.stop_loss.value} onChange={(e) => updateFull('stop_loss', updateValueSource(config.full_tp_sl.stop_loss, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+              {config.full_tp_sl.stop_loss.mode === 'manual' && config.full_tp_sl.stop_loss_enabled !== false && (
+                <>
+                  <input type="number" min={0} step={0.1} value={config.full_tp_sl.stop_loss.value} onChange={(e) => updateFull('stop_loss', updateValueSource(config.full_tp_sl.stop_loss, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                  <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位：相对开仓价的币价波动百分比（Price Move % from Entry）' : 'Unit: Price Move % from Entry'}</div>
+                </>
               )}
             </div>
 
             <div className="p-4 rounded-lg space-y-2" style={sectionStyle}>
-              <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '最大损失兜底' : 'Max Loss Fallback'}</label>
-              <select value={config.full_tp_sl.fallback_max_loss.mode} onChange={(e) => updateFull('fallback_max_loss', updateValueSource(config.full_tp_sl.fallback_max_loss, { mode: e.target.value as ProtectionMode }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '最大损失兜底' : 'Max Loss Fallback'}</label>
+                <input type="checkbox" checked={!!config.full_tp_sl.fallback_max_loss_enabled} onChange={(e) => updateFull('fallback_max_loss_enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-yellow-500" />
+              </div>
+              <select value={config.full_tp_sl.fallback_max_loss.mode} onChange={(e) => updateFull('fallback_max_loss', updateValueSource(config.full_tp_sl.fallback_max_loss, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !config.full_tp_sl.fallback_max_loss_enabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
                 {(['disabled', 'manual'] as const).map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
               </select>
-              {config.full_tp_sl.fallback_max_loss.mode === 'manual' && (
-                <input type="number" min={0} step={0.1} value={config.full_tp_sl.fallback_max_loss.value} onChange={(e) => updateFull('fallback_max_loss', updateValueSource(config.full_tp_sl.fallback_max_loss, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+              {config.full_tp_sl.fallback_max_loss.mode === 'manual' && config.full_tp_sl.fallback_max_loss_enabled && (
+                <>
+                  <input type="number" min={0} step={0.1} value={config.full_tp_sl.fallback_max_loss.value} onChange={(e) => updateFull('fallback_max_loss', updateValueSource(config.full_tp_sl.fallback_max_loss, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                  <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位：相对开仓价的币价波动百分比（Price Move % from Entry）' : 'Unit: Price Move % from Entry'}</div>
+                </>
               )}
             </div>
           </div>
@@ -515,11 +540,18 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '启用回撤止盈' : 'Enable Drawdown TP'}</label>
               <input type="checkbox" checked={config.drawdown_take_profit.enabled} onChange={(e) => updateDrawdown('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-purple-500" />
             </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '模式' : 'Mode'}</label>
+              <select value={config.drawdown_take_profit.mode || 'manual'} onChange={(e) => updateDrawdown('mode', e.target.value as DrawdownTakeProfitConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+                {protectionModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              </select>
+            </div>
             {infoBlock(
               isZh ? '盈利控制主链' : 'Primary profit-control path',
-              isZh ? 'Drawdown / Native Trailing 接管止盈侧。达到最小利润门槛后，系统按回撤阈值动态保护利润；不再同时依赖 Full / Ladder TP。' : 'Drawdown / Native Trailing owns the take-profit side. After the minimum profit gate is reached, the system protects gains using drawdown thresholds instead of relying on Full / Ladder TP at the same time.',
+              isZh ? 'Drawdown / Native Trailing 接管止盈侧。达到最小利润门槛后，系统按回撤阈值动态保护利润；不再同时依赖 Full / Ladder TP。AI 模式下应由 AI 输出结构化 drawdown 规则，且不得忽略。' : 'Drawdown / Native Trailing owns the take-profit side. After the minimum profit gate is reached, the system protects gains using drawdown thresholds instead of relying on Full / Ladder TP at the same time. In AI mode, the model should output structured drawdown rules and must not ignore them.',
               isZh ? '建议：把它当成主止盈链路，只保留 Full / Ladder 的止损侧。' : 'Recommendation: treat this as the main take-profit path and keep only the stop-loss side from Full / Ladder.'
             )}
+            <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位说明：最小利润%、最大回撤%、平仓比例% 均按百分比表达；利润/回撤语义应基于主周期及其邻近周期分析。' : 'Units: min profit %, max drawdown %, and close ratio % are all percentages; profit-protection semantics should be analyzed against the primary timeframe and adjacent timeframes.'}</div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? '回撤止盈规则' : 'Drawdown Rules'}</div>

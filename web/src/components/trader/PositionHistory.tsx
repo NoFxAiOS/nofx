@@ -69,6 +69,34 @@ function formatReviewContextSummary(reviewContext?: Record<string, unknown>): st
   return parts.length > 0 ? parts.join(' | ') : '—'
 }
 
+function formatProtectionSourceLabel(source?: string): string {
+  switch (String(source || '').toLowerCase()) {
+    case 'ai_decision':
+      return 'AI'
+    case 'strategy':
+      return 'Strategy'
+    case 'none':
+      return 'None'
+    default:
+      return source || '—'
+  }
+}
+
+function formatProtectionSummary(snapshot?: HistoricalPosition['protection_snapshot']): string[] {
+  if (!snapshot) return []
+  const parts: string[] = []
+  if (snapshot.full_tp_sl?.enabled) parts.push(`Full(${snapshot.full_tp_sl.mode || 'manual'})`)
+  if (snapshot.ladder_tp_sl?.enabled) parts.push(`Ladder(${snapshot.ladder_tp_sl.mode || 'manual'})`)
+  if (snapshot.drawdown && snapshot.drawdown.length > 0) {
+    const first = snapshot.drawdown[0]
+    parts.push(`Drawdown(${first.mode || 'manual'} / ${formatProtectionSourceLabel(first.source)})`)
+  }
+  if (snapshot.break_even?.enabled) {
+    parts.push(`Break-even(${formatProtectionSourceLabel(snapshot.break_even.source)})`)
+  }
+  return parts
+}
+
 // Stats Card Component with formula tooltip
 function StatCard({
   title,
@@ -409,8 +437,15 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托来源 / Source'}</div>
                 <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(position.execution_source || position.close_reason || 'unknown')}>
-                {executionSource}
-              </div>
+                  {executionSource}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {formatProtectionSummary(position.protection_snapshot).map((item, idx) => (
+                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托类型 / Order Type'}</div>

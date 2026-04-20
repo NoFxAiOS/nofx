@@ -124,6 +124,8 @@ export interface ProtectionSnapshotLadder {
 }
 
 export interface ProtectionSnapshotDrawdown {
+  mode?: string
+  source?: string
   min_profit_pct: number
   max_drawdown_pct: number
   close_ratio_pct: number
@@ -132,6 +134,7 @@ export interface ProtectionSnapshotDrawdown {
 
 export interface ProtectionSnapshotBreakEven {
   enabled: boolean
+  source?: string
   trigger_mode: string
   trigger_value: number
   offset_pct: number
@@ -333,6 +336,7 @@ export interface HistoricalPosition {
   close_ratio_pct?: number
   close_value_usdt?: number
   close_events?: PositionCloseEvent[]
+  protection_snapshot?: ProtectionSnapshot
   created_at: string
   updated_at: string
 }

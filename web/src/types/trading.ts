@@ -283,6 +283,7 @@ export interface DecisionReviewRef {
   cycle_number: number
   timestamp: string
   review_context?: Record<string, unknown>
+  protection_snapshot?: ProtectionSnapshot
 }
 
 export interface PositionCloseEvent {

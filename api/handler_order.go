@@ -224,10 +224,11 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	}
 
 	type decisionReviewRef struct {
-		DecisionRecordID int64                  `json:"decision_record_id"`
-		CycleNumber      int                    `json:"cycle_number"`
-		Timestamp        string                 `json:"timestamp"`
-		ReviewContext    map[string]interface{} `json:"review_context,omitempty"`
+		DecisionRecordID   int64                  `json:"decision_record_id"`
+		CycleNumber        int                    `json:"cycle_number"`
+		Timestamp          string                 `json:"timestamp"`
+		ReviewContext      map[string]interface{} `json:"review_context,omitempty"`
+		ProtectionSnapshot interface{}            `json:"protection_snapshot,omitempty"`
 	}
 
 	buildDecisionReviewRef := func(cycle int) map[string]interface{} {
@@ -239,10 +240,11 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			return nil
 		}
 		return map[string]interface{}{
-			"decision_record_id": record.ID,
-			"cycle_number":       record.CycleNumber,
-			"timestamp":          record.Timestamp.UTC().Format(time.RFC3339),
-			"review_context":     record.ReviewContext,
+			"decision_record_id":  record.ID,
+			"cycle_number":        record.CycleNumber,
+			"timestamp":           record.Timestamp.UTC().Format(time.RFC3339),
+			"review_context":      record.ReviewContext,
+			"protection_snapshot": record.ProtectionSnapshot,
 		}
 	}
 
@@ -368,8 +370,17 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			"close_ratio_pct":       closeRatioPct,
 			"close_value_usdt":      pos.ExitPrice * closedQty,
 			"close_events":          closeEvents,
-			"created_at":            time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
-			"updated_at":            time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
+			"protection_snapshot": func() any {
+				if ref := buildDecisionReviewRef(pos.ExitDecisionCycle); ref != nil {
+					return ref["protection_snapshot"]
+				}
+				if ref := buildDecisionReviewRef(pos.EntryDecisionCycle); ref != nil {
+					return ref["protection_snapshot"]
+				}
+				return nil
+			}(),
+			"created_at": time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
+			"updated_at": time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
 		})
 	}
 

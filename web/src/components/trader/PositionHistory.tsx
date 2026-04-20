@@ -462,6 +462,13 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                 <div className="text-[11px] leading-5" style={{ color: '#EAECEF' }}>
                   {formatReviewContextSummary(position.exit_decision_review?.review_context || position.entry_decision_review?.review_context)}
                 </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {formatProtectionSummary(position.exit_decision_review?.protection_snapshot || position.entry_decision_review?.protection_snapshot).map((item, idx) => (
+                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div>
                 <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
@@ -503,6 +510,13 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                         <div style={{ color: '#848E9C' }}>{'复盘上下文 / Review'}</div>
                         <div className="text-[11px] leading-5" style={{ color: '#EAECEF' }}>
                           {formatReviewContextSummary(event.decision_review?.review_context)}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {formatProtectionSummary(event.decision_review?.protection_snapshot).map((item, idx) => (
+                            <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              {item}
+                            </span>
+                          ))}
                         </div>
                       </div>
                       <div>

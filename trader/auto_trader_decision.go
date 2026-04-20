@@ -224,6 +224,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		openOrders, _ := at.trader.GetOpenOrders(symbol)
 		positionSideUpper := strings.ToUpper(side)
+		openOrders = at.enrichProtectionOrders(openOrders)
 		protectionRuntime := at.buildPositionProtectionRuntime(symbol, side, quantity, entryPrice, openOrders)
 
 		result = append(result, map[string]interface{}{
@@ -541,9 +542,52 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 	}
 }
 
+func classifyProtectionOrderRole(order OpenOrder) string {
+	kind := strings.ToUpper(order.Type)
+	if strings.Contains(kind, "TRAILING") {
+		return "trailing"
+	}
+	if looksLikeTakeProfit(order) {
+		return "take_profit"
+	}
+	if looksLikeStopLoss(order) {
+		return "stop_loss"
+	}
+	return "unknown"
+}
+
+func classifyProtectionOrderStatus(order OpenOrder) string {
+	kind := strings.ToUpper(order.Type)
+	status := strings.ToUpper(order.Status)
+	if strings.Contains(kind, "TRAILING") && (order.StopPrice <= 0 && order.Price <= 0) {
+		return "pending_activation"
+	}
+	if status == "" || status == "NEW" || status == "LIVE" || status == "OPEN" || status == "PENDING" {
+		return "delegated"
+	}
+	return "delegated"
+}
+
+func (at *AutoTrader) enrichProtectionOrders(openOrders []OpenOrder) []OpenOrder {
+	if len(openOrders) == 0 {
+		return openOrders
+	}
+	enriched := make([]OpenOrder, 0, len(openOrders))
+	for _, order := range openOrders {
+		order.ProtectionRole = classifyProtectionOrderRole(order)
+		order.ProtectionStatus = classifyProtectionOrderStatus(order)
+		enriched = append(enriched, order)
+	}
+	return enriched
+}
+
 // GetOpenOrders returns open orders (pending SL/TP) from exchange
 func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
-	return at.trader.GetOpenOrders(symbol)
+	orders, err := at.trader.GetOpenOrders(symbol)
+	if err != nil {
+		return nil, err
+	}
+	return at.enrichProtectionOrders(orders), nil
 }
 
 func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quantity, entryPrice float64, openOrders []OpenOrder) map[string]interface{} {
@@ -633,15 +677,17 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			})
 		}
 		activeOrders = append(activeOrders, map[string]interface{}{
-			"order_id":        order.OrderID,
-			"type":            order.Type,
-			"side":            order.Side,
-			"position_side":   order.PositionSide,
-			"trigger_price":   triggerPrice,
-			"callback_rate":   order.CallbackRate,
-			"quantity":        order.Quantity,
-			"status":          order.Status,
-			"client_order_id": order.ClientOrderID,
+			"order_id":          order.OrderID,
+			"type":              order.Type,
+			"side":              order.Side,
+			"position_side":     order.PositionSide,
+			"trigger_price":     triggerPrice,
+			"callback_rate":     order.CallbackRate,
+			"quantity":          order.Quantity,
+			"status":            order.Status,
+			"client_order_id":   order.ClientOrderID,
+			"protection_role":   order.ProtectionRole,
+			"protection_status": order.ProtectionStatus,
 		})
 	}
 

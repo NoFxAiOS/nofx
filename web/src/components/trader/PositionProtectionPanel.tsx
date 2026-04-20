@@ -38,15 +38,23 @@ function formatSignedPercent(value: number | undefined | null, digits = 2): stri
   return `${sign}${value.toFixed(digits)}%`
 }
 
-function classifyOrderBucket(type: string): OrderBucket {
-  const v = String(type || '').toUpperCase()
+function classifyOrderBucket(order: OpenOrder): OrderBucket {
+  const role = String(order.protection_role || '').toLowerCase()
+  if (role === 'trailing') return 'trailing'
+  if (role === 'take_profit') return 'takeProfit'
+  if (role === 'stop_loss') return 'stop'
+  const v = String(order.type || '').toUpperCase()
   if (v.includes('TRAILING')) return 'trailing'
   if (v.includes('TAKE_PROFIT') || v.includes('TP')) return 'takeProfit'
   if (v.includes('STOP')) return 'stop'
   return 'other'
 }
 
-function getVisualStatus(bucket: OrderBucket, triggerPrice: number, liveTrailingPrice: number): ProtectionVisualStatus {
+function getVisualStatus(order: OpenOrder, bucket: OrderBucket, triggerPrice: number, liveTrailingPrice: number): ProtectionVisualStatus {
+  const backendStatus = String(order.protection_status || '').toLowerCase()
+  if (backendStatus === 'delegated') return 'delegated'
+  if (backendStatus === 'pending_activation') return 'pending'
+  if (backendStatus === 'missing') return 'missing'
   if (bucket === 'trailing') {
     return liveTrailingPrice > 0 && triggerPrice > 0 ? 'delegated' : 'pending'
   }
@@ -70,7 +78,7 @@ function buildProtectionRows(position: Position, orders: OpenOrder[], language: 
     const triggerPrice = order.stop_price || order.price || 0
     const closeRatioPct = positionQty > 0 && order.quantity > 0 ? (order.quantity / positionQty) * 100 : 0
     const valueUsdt = triggerPrice > 0 && order.quantity > 0 ? triggerPrice * order.quantity : 0
-    const bucket = classifyOrderBucket(String(order.type || ''))
+    const bucket = classifyOrderBucket(order)
     const deltaPct = entryPrice > 0 && triggerPrice > 0
       ? ((triggerPrice - entryPrice) / entryPrice) * 100
       : 0
@@ -83,7 +91,7 @@ function buildProtectionRows(position: Position, orders: OpenOrder[], language: 
       valueUsdt,
       deltaPct,
       bucket,
-      visualStatus: triggerPrice > 0 ? 'delegated' : 'missing',
+      visualStatus: getVisualStatus(order, bucket, triggerPrice, 0),
       label: getOrderLabel(bucket, language),
     }
   })
@@ -395,7 +403,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                 />
 
                 <OrderGroup title={language === 'zh' ? '止损委托' : 'Stop Orders'} rows={stopRows} language={language} />
-                <OrderGroup title={language === 'zh' ? '回撤 / Trailing 委托' : 'Drawdown / Trailing Orders'} rows={trailingRows.map((r) => ({ ...r, visualStatus: getVisualStatus('trailing', r.triggerPrice, liveTrailingPrice) }))} language={language} />
+                <OrderGroup title={language === 'zh' ? '回撤 / Trailing 委托' : 'Drawdown / Trailing Orders'} rows={trailingRows.map((r) => ({ ...r, visualStatus: r.visualStatus === 'missing' ? getVisualStatus({} as OpenOrder, 'trailing', r.triggerPrice, liveTrailingPrice) : r.visualStatus }))} language={language} />
                 <OrderGroup title={language === 'zh' ? '止盈委托' : 'Take-profit Orders'} rows={tpRows} language={language} />
               </div>
             </div>

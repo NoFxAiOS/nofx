@@ -39,6 +39,8 @@ export interface ProtectionRuntimeOrder {
   quantity: number
   status: string
   client_order_id?: string
+  protection_role?: string
+  protection_status?: string
 }
 
 export interface ProtectionRuntimeTier {
@@ -153,6 +155,9 @@ export interface OpenOrder {
   callback_rate?: number
   quantity: number
   status: string
+  client_order_id?: string
+  protection_role?: string
+  protection_status?: string
 }
 
 export interface DecisionAction {

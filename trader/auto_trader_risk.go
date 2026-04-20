@@ -110,7 +110,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		matchedBreakEven := at.getActiveBreakEvenConfig()
 		if matchedBreakEven != nil {
-			if at.getBreakEvenState(symbol, side) != "armed" {
+			beState := at.getBreakEvenState(symbol, side)
+			if beState == "armed" || beState == "arming" {
+				logger.Infof("🟠 Break-even monitor: %s %s already %s, skipping duplicate apply", symbol, side, beState)
+			} else {
 				if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
 					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
 				} else if currentPnLPct >= matchedBreakEven.TriggerValue {
@@ -123,6 +126,11 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		// Do NOT wait for drawdown to happen first — the exchange trailing order itself is responsible
 		// for tracking the drawdown once armed.
 		if at.supportsNativeTrailingStop() {
+			executionMode := at.getDrawdownExecutionMode(symbol, side)
+			if executionMode == "native_trailing_full" || executionMode == "native_partial_trailing" || executionMode == "managed_partial_drawdown" {
+				logger.Infof("🟣 Drawdown monitor: %s %s already in %s, skipping duplicate arm pass", symbol, side, executionMode)
+				continue
+			}
 			armedAny := false
 			for _, armRule := range at.getDrawdownArmRules(currentPnLPct, rules) {
 				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {

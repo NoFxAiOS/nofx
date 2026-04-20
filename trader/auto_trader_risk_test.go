@@ -592,3 +592,48 @@ func TestApplyBreakEvenStopReturnsCancelError(t *testing.T) {
 		t.Fatalf("expected break-even stop to be placed directly, got %d calls", fakeTrader.setStopLossCalls)
 	}
 }
+
+func TestCheckPositionDrawdown_SkipsBreakEvenWhenAlreadyArming(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol": "BTCUSDT", "side": "long", "entryPrice": 100.0, "markPrice": 106.0, "positionAmt": 1.0,
+		}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   fake,
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{Protection: store.ProtectionConfig{
+			BreakEvenStop: store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 5, OffsetPct: 0},
+		}}},
+		protectionState: make(map[string]string),
+		breakEvenState:  map[string]string{"BTCUSDT_long": "arming"},
+	}
+
+	at.checkPositionDrawdown()
+	if fake.setStopLossCalls != 0 {
+		t.Fatalf("expected no duplicate break-even stop apply while arming, got %d", fake.setStopLossCalls)
+	}
+}
+
+func TestCheckPositionDrawdown_SkipsNativeTrailingArmWhenAlreadyArmed(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol": "BTCUSDT", "side": "long", "entryPrice": 100.0, "markPrice": 106.0, "positionAmt": 1.0,
+		}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   fake,
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{Protection: store.ProtectionConfig{
+			DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Rules: []store.DrawdownTakeProfitRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100}}},
+		}}},
+		protectionState: map[string]string{"BTCUSDT_long": "native_trailing_armed"},
+		breakEvenState:  make(map[string]string),
+		peakPnLCache:    make(map[string]float64),
+	}
+
+	at.checkPositionDrawdown()
+	if fake.trailingCalls != 0 {
+		t.Fatalf("expected no duplicate trailing arm while already armed, got %d", fake.trailingCalls)
+	}
+}

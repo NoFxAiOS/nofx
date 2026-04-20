@@ -116,8 +116,11 @@ func (at *AutoTrader) runCycle() error {
 
 		if protCfg.DrawdownTakeProfit.Enabled && len(protCfg.DrawdownTakeProfit.Rules) > 0 {
 			hasProtection = true
+			drawdownSource := "strategy"
 			for _, r := range protCfg.DrawdownTakeProfit.Rules {
 				ps.Drawdown = append(ps.Drawdown, store.ProtectionSnapshotDrawdown{
+					Mode:           string(protCfg.DrawdownTakeProfit.Mode),
+					Source:         drawdownSource,
 					MinProfitPct:   r.MinProfitPct,
 					MaxDrawdownPct: r.MaxDrawdownPct,
 					CloseRatioPct:  r.CloseRatioPct,
@@ -130,6 +133,7 @@ func (at *AutoTrader) runCycle() error {
 			hasProtection = true
 			ps.BreakEven = &store.ProtectionSnapshotBreakEven{
 				Enabled:      true,
+				Source:       at.getBreakEvenConfigSource("", ""),
 				TriggerMode:  string(protCfg.BreakEvenStop.TriggerMode),
 				TriggerValue: protCfg.BreakEvenStop.TriggerValue,
 				OffsetPct:    protCfg.BreakEvenStop.OffsetPct,

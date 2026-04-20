@@ -149,6 +149,8 @@ type ProtectionSnapshotLadderRule struct {
 
 // ProtectionSnapshotDrawdown drawdown take-profit rule snapshot
 type ProtectionSnapshotDrawdown struct {
+	Mode           string  `json:"mode,omitempty"`
+	Source         string  `json:"source,omitempty"`
 	MinProfitPct   float64 `json:"min_profit_pct"`
 	MaxDrawdownPct float64 `json:"max_drawdown_pct"`
 	CloseRatioPct  float64 `json:"close_ratio_pct"`
@@ -158,6 +160,7 @@ type ProtectionSnapshotDrawdown struct {
 // ProtectionSnapshotBreakEven break-even stop snapshot
 type ProtectionSnapshotBreakEven struct {
 	Enabled      bool    `json:"enabled"`
+	Source       string  `json:"source,omitempty"`
 	TriggerMode  string  `json:"trigger_mode"`
 	TriggerValue float64 `json:"trigger_value"`
 	OffsetPct    float64 `json:"offset_pct"`

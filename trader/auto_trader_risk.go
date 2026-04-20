@@ -673,8 +673,15 @@ func (at *AutoTrader) getTriggeredDrawdownRules(currentPnLPct, drawdownPct float
 func (at *AutoTrader) getDrawdownConfigSource(symbol, side string) string {
 	at.protectionStateMutex.RLock()
 	defer at.protectionStateMutex.RUnlock()
-	if src, ok := at.drawdownSource[positionKey(symbol, side)]; ok && src != "" {
-		return src
+	if symbol != "" || side != "" {
+		if src, ok := at.drawdownSource[positionKey(symbol, side)]; ok && src != "" {
+			return src
+		}
+	}
+	for _, src := range at.drawdownSource {
+		if src == "ai_decision" {
+			return src
+		}
 	}
 	if len(at.getActiveDrawdownRules()) == 0 {
 		return "none"
@@ -685,8 +692,15 @@ func (at *AutoTrader) getDrawdownConfigSource(symbol, side string) string {
 func (at *AutoTrader) getBreakEvenConfigSource(symbol, side string) string {
 	at.breakEvenStateMutex.RLock()
 	defer at.breakEvenStateMutex.RUnlock()
-	if src, ok := at.breakEvenSource[positionKey(symbol, side)]; ok && src != "" {
-		return src
+	if symbol != "" || side != "" {
+		if src, ok := at.breakEvenSource[positionKey(symbol, side)]; ok && src != "" {
+			return src
+		}
+	}
+	for _, src := range at.breakEvenSource {
+		if src == "ai_decision" {
+			return src
+		}
 	}
 	return "strategy"
 }

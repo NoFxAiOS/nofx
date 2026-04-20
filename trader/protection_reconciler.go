@@ -209,7 +209,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	markPrice, _ := at.getPositionMarkPrice(symbol, side)
 	currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
 
-	be := at.getActiveBreakEvenConfig()
+	be := at.getActiveBreakEvenConfigForPlan(nil)
 	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
 	if be != nil && at.GetProtectionCapabilities().NativeStopLoss {

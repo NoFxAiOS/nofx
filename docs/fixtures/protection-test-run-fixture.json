@@ -110,14 +110,16 @@
       "entry_standards": "优先使用 15m / 1h / 4h 共振；禁止在明显中段追价。",
       "decision_process": "当 action 为 open_long/open_short 时，若适合统一 TP/SL，则输出 full protection_plan；若适合分段管理，则输出 ladder protection_plan；当 action 为 close_long/close_short/hold/wait 时，不要输出 protection_plan。"
     },
-    "custom_prompt": "请优先遵守 protection_plan 输出规则：close/hold/wait 不要带 protection_plan；open 才允许输出，并且 full 与 ladder 二选一。"
+    "custom_prompt": "请优先遵守 protection_plan 输出规则：close/hold/wait 不要带 protection_plan；open 才允许输出。当前基础示例覆盖 full / ladder；当策略启用 drawdown AI 或 break-even AI contract 时，必须输出对应结构化字段，不得为空。"
   },
   "expected_checks": [
     "parsed_decisions should be non-empty when real AI is used",
     "close_long / close_short / hold / wait should not contain protection_plan",
-    "open_long / open_short should prefer exactly one protection_plan mode: full or ladder",
+    "open_long / open_short should prefer exactly one protection_plan mode: full, ladder, drawdown, or break_even depending on the active AI protection route",
     "when protection_plan.mode=full, prefer take_profit_pct/stop_loss_pct and no ladder_rules",
     "when protection_plan.mode=ladder, prefer ladder_rules and avoid redundant flat TP/SL fields",
+    "when protection_plan.mode=drawdown, drawdown_rules must be non-empty and anchored to timeframe/structure/volatility",
+    "when protection_plan.mode=break_even, break_even_trigger_mode/value/offset should be present",
     "fallback max loss should remain manual in config and not be invented by AI"
   ]
 }

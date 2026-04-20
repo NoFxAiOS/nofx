@@ -9,6 +9,24 @@ import (
 	"nofx/store"
 )
 
+func TestBreakEvenRouteRequiresStructuredOutput(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.BreakEvenStop.Enabled = true
+
+	raw := `[{"symbol":"BTCUSDT","action":"open_long","leverage":3,"position_size_usd":100,"reasoning":"15m primary timeframe, 5m support/resistance, fibonacci and volatility anchors"}]`
+	decisions, err := kernel.ParseAIDecisions(raw)
+	if err != nil {
+		t.Fatalf("parser should succeed, got %v", err)
+	}
+	validationErr := kernel.ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if validationErr == nil {
+		t.Fatal("expected break-even structured output route to fail")
+	}
+	if !strings.Contains(validationErr.Error(), "requires break-even protection output") {
+		t.Fatalf("expected break-even route failure, got %v", validationErr)
+	}
+}
+
 func TestReasoningContractErrorsExposeParseErrorInEnvelope(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.Protection.DrawdownTakeProfit.Enabled = true
@@ -33,7 +51,9 @@ func TestReasoningContractErrorsExposeParseErrorInEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal failed: %v", err)
 	}
-	var decoded struct{ ParseError string `json:"parse_error"` }
+	var decoded struct {
+		ParseError string `json:"parse_error"`
+	}
 	if err := json.Unmarshal(blob, &decoded); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}

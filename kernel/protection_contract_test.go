@@ -31,6 +31,8 @@ func TestProtectionFixturePromptMentionsDrawdownAndBreakEvenContracts(t *testing
 		"Drawdown Take Profit",
 		"drawdown, trailing, or profit-protection ownership",
 		"Break-even Stop",
+		"mode=break_even",
+		"break_even_trigger_mode/value/offset",
 		"break-even or acknowledge that an additional stop layer exists",
 	}
 	for _, needle := range mustContain {

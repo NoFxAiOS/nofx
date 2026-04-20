@@ -548,6 +548,45 @@ func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 
 func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quantity, entryPrice float64, openOrders []OpenOrder) map[string]interface{} {
 	positionSide := strings.ToUpper(side)
+	currentPnLPct := 0.0
+	peakPnLPct := 0.0
+	drawdownPct := 0.0
+	markPrice, _ := at.getPositionMarkPrice(symbol, side)
+	if entryPrice > 0 && markPrice > 0 {
+		currentPnLPct = calculatePositionPnLPct(side, entryPrice, markPrice)
+		peakPnLPct = currentPnLPct
+		at.peakPnLCacheMutex.RLock()
+		if peak, ok := at.peakPnLCache[positionKey(symbol, side)]; ok && peak > peakPnLPct {
+			peakPnLPct = peak
+		}
+		at.peakPnLCacheMutex.RUnlock()
+		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		}
+	}
+
+	be := at.getActiveBreakEvenConfig()
+	breakEvenTrigger := 0.0
+	breakEvenOffset := 0.0
+	nextBreakEvenGap := 0.0
+	if be != nil {
+		breakEvenTrigger = be.TriggerValue
+		breakEvenOffset = be.OffsetPct
+		nextBreakEvenGap = be.TriggerValue - currentPnLPct
+		if nextBreakEvenGap < 0 {
+			nextBreakEvenGap = 0
+		}
+	}
+
+	drawdownRules := at.getActiveDrawdownRules()
+	armRules := at.getDrawdownArmRules(currentPnLPct, drawdownRules)
+	currentStageMinProfit := 0.0
+	currentStageRuleCount := 0
+	if len(armRules) > 0 {
+		currentStageMinProfit = armRules[0].MinProfitPct
+		currentStageRuleCount = len(armRules)
+	}
+
 	activeOrders := make([]map[string]interface{}, 0)
 	trailingOrders := make([]map[string]interface{}, 0)
 	liveTrailingTriggerPrice := 0.0
@@ -669,17 +708,27 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				"planned_quantity":         quantity * rule.CloseRatioPct / 100.0,
 				"source":                   source,
 				"execution_mode":           executionMode,
+				"is_satisfied":             currentPnLPct >= rule.MinProfitPct,
+				"is_triggered":             currentPnLPct >= rule.MinProfitPct && drawdownPct >= rule.MaxDrawdownPct,
 			})
 		}
 	}
 
 	return map[string]interface{}{
-		"protection_state":          at.getProtectionState(symbol, side),
-		"break_even_state":          at.getBreakEvenState(symbol, side),
-		"drawdown_execution_mode":   at.getDrawdownExecutionMode(symbol, side),
-		"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
-		"active_orders":             activeOrders,
-		"active_trailing_orders":    trailingOrders,
-		"scheduled_tiers":           tiers,
+		"protection_state":                      at.getProtectionState(symbol, side),
+		"break_even_state":                      at.getBreakEvenState(symbol, side),
+		"drawdown_execution_mode":               at.getDrawdownExecutionMode(symbol, side),
+		"break_even_execution_mode":             at.getBreakEvenExecutionMode(symbol, side),
+		"current_pnl_pct":                       currentPnLPct,
+		"drawdown_peak_pnl_pct":                 peakPnLPct,
+		"current_drawdown_pct":                  drawdownPct,
+		"current_break_even_trigger_pct":        breakEvenTrigger,
+		"break_even_offset_pct":                 breakEvenOffset,
+		"next_break_even_gap_pct":               nextBreakEvenGap,
+		"current_drawdown_stage_min_profit_pct": currentStageMinProfit,
+		"current_drawdown_stage_rule_count":     currentStageRuleCount,
+		"active_orders":                         activeOrders,
+		"active_trailing_orders":                trailingOrders,
+		"scheduled_tiers":                       tiers,
 	}
 }

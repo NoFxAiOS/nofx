@@ -191,8 +191,18 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           })
           const protectionRows = buildProtectionRows(position, filteredOrders)
           const runtimeTiers = position.protection_runtime?.scheduled_tiers || []
-          const nextTier = runtimeTiers.length > 0 ? runtimeTiers[0] : null
-          const currentPnlPct = position.unrealized_pnl_pct || 0
+          const currentPnlPct = Number(position.protection_runtime?.current_pnl_pct ?? position.unrealized_pnl_pct ?? 0)
+          const currentDrawdownPct = Number(position.protection_runtime?.current_drawdown_pct ?? 0)
+          const peakPnlPct = Number(position.protection_runtime?.drawdown_peak_pnl_pct ?? currentPnlPct)
+          const currentStageMinProfit = Number(position.protection_runtime?.current_drawdown_stage_min_profit_pct ?? 0)
+          const currentStageRuleCount = Number(position.protection_runtime?.current_drawdown_stage_rule_count ?? 0)
+          const satisfiedTiers = runtimeTiers.filter((tier) => Boolean(tier.is_satisfied))
+          const triggeredTiers = runtimeTiers.filter((tier) => Boolean(tier.is_triggered))
+          const nextTier = runtimeTiers.find((tier) => !tier.is_satisfied) || runtimeTiers[0] || null
+          const currentStageTier = satisfiedTiers.length > 0 ? satisfiedTiers[satisfiedTiers.length - 1] : null
+          const breakEvenTriggerPct = Number(position.protection_runtime?.current_break_even_trigger_pct ?? 0)
+          const breakEvenGapPct = Number(position.protection_runtime?.next_break_even_gap_pct ?? 0)
+          const breakEvenOffsetPct = Number(position.protection_runtime?.break_even_offset_pct ?? 0)
           const trailingOrders = protectionRows.filter((row) => row.type.includes('TRAILING'))
           const liveTrailingPrice = trailingOrders.length > 0 ? trailingOrders[0].triggerPrice : 0
 
@@ -248,7 +258,10 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '执行模式' : 'Mode', value: compactExecutionMode(position.drawdown_execution_mode, language) },
                     { label: language === 'zh' ? '最低利润门槛' : 'Min Profit Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '当前利润' : 'Current PnL', value: `${currentPnlPct.toFixed(2)}%` },
-                    { label: language === 'zh' ? '激活价（已挂）' : 'Armed Activation', value: liveTrailingPrice > 0 ? `${formatPrice(liveTrailingPrice)}${nextTier?.activation_source ? ` / ${nextTier.activation_source}` : ''}` : '—' },
+                    { label: language === 'zh' ? '峰值 / 回撤' : 'Peak / Drawdown', value: `${peakPnlPct.toFixed(2)}% / ${currentDrawdownPct.toFixed(2)}%` },
+                    { label: language === 'zh' ? '当前档位' : 'Current Stage', value: currentStageMinProfit > 0 ? `${currentStageMinProfit.toFixed(2)}% (${currentStageRuleCount})` : '—' },
+                    { label: language === 'zh' ? '满足 / 触发档' : 'Satisfied / Triggered', value: `${satisfiedTiers.length} / ${triggeredTiers.length}` },
+                    { label: language === 'zh' ? '激活价（已挂）' : 'Armed Activation', value: liveTrailingPrice > 0 ? `${formatPrice(liveTrailingPrice)}${currentStageTier?.activation_source ? ` / ${currentStageTier.activation_source}` : nextTier?.activation_source ? ` / ${nextTier.activation_source}` : ''}` : '—' },
                     { label: language === 'zh' ? '激活价（理论）' : 'Planned Activation', value: nextTier && Number(nextTier.planned_activation_price || 0) > 0 ? formatPrice(Number(nextTier.planned_activation_price || 0)) : '—' },
                     { label: language === 'zh' ? '回撤 / 回调' : 'Giveback / Callback', value: nextTier ? `${Number(nextTier.max_drawdown_pct || 0).toFixed(2)}% / ${Number(nextTier.callback_rate || 0).toFixed(4)}${nextTier.callback_source ? ` / ${nextTier.callback_source}` : ''}` : '—' },
                     { label: language === 'zh' ? '本地监测' : 'Local Monitor', value: language === 'zh' ? '运行中' : 'active' },
@@ -259,7 +272,9 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   subtitle={language === 'zh' ? '独立管理，不覆盖 Drawdown / Ladder / Full' : 'Managed independently; does not replace Drawdown / Ladder / Full'}
                   rows={[
                     { label: language === 'zh' ? '当前状态' : 'State', value: position.break_even_state || 'idle' },
-                    { label: language === 'zh' ? '触发值' : 'Trigger', value: position.protection_runtime?.scheduled_tiers?.length ? 'runtime' : 'runtime' },
+                    { label: language === 'zh' ? '触发阈值' : 'Trigger Threshold', value: breakEvenTriggerPct > 0 ? `${breakEvenTriggerPct.toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? '距触发还差' : 'Gap to Trigger', value: breakEvenTriggerPct > 0 ? `${breakEvenGapPct.toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? '保本偏移' : 'Offset', value: breakEvenTriggerPct > 0 ? `${breakEvenOffsetPct.toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '本地监测' : 'Local Monitor', value: 'on' },
                   ]}
                 />

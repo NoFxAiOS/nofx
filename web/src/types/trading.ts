@@ -53,6 +53,8 @@ export interface ProtectionRuntimeTier {
   planned_quantity: number
   source: string
   execution_mode: string
+  is_satisfied?: boolean
+  is_triggered?: boolean
 }
 
 export interface ProtectionRuntime {
@@ -60,6 +62,14 @@ export interface ProtectionRuntime {
   break_even_state?: string
   drawdown_execution_mode?: string
   break_even_execution_mode?: string
+  current_pnl_pct?: number
+  drawdown_peak_pnl_pct?: number
+  current_drawdown_pct?: number
+  current_break_even_trigger_pct?: number
+  break_even_offset_pct?: number
+  next_break_even_gap_pct?: number
+  current_drawdown_stage_min_profit_pct?: number
+  current_drawdown_stage_rule_count?: number
   active_orders?: ProtectionRuntimeOrder[]
   scheduled_tiers?: ProtectionRuntimeTier[]
 }

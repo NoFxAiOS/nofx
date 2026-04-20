@@ -104,12 +104,30 @@ describe('getDecisionAuditSnapshot', () => {
     expect(snap.failedChecks).toEqual(['effective rr below min', 'target before first target'])
   })
 
-  it('formats action audit when original/final actions are present', () => {
+  it('formats downgraded control outcome from open action to wait', () => {
     const review = makeReview()
     if (review.decisions?.[0].review_context) {
       review.decisions[0].review_context.control = {
         ...review.decisions[0].review_context.control,
         original_action: 'open_long',
+        final_action: 'wait',
+        decision: 'downgraded',
+        no_order_placed: true,
+      }
+    }
+
+    const snap = getDecisionAuditSnapshot(review)
+    expect(snap.controlStatus).toEqual({ label: 'downgraded to wait', tone: 'warn' })
+    expect(snap.actionAudit).toBe('open long → wait')
+    expect(snap.controlBadges).toContainEqual({ label: 'no order placed', tone: 'danger' })
+  })
+
+  it('preserves legacy downgraded_to_wait control label', () => {
+    const review = makeReview()
+    if (review.decisions?.[0].review_context) {
+      review.decisions[0].review_context.control = {
+        ...review.decisions[0].review_context.control,
+        original_action: 'open_short',
         final_action: 'wait',
         decision: 'downgraded_to_wait',
         no_order_placed: true,
@@ -118,7 +136,7 @@ describe('getDecisionAuditSnapshot', () => {
 
     const snap = getDecisionAuditSnapshot(review)
     expect(snap.controlStatus).toEqual({ label: 'downgraded to wait', tone: 'warn' })
-    expect(snap.actionAudit).toBe('open long → wait')
+    expect(snap.actionAudit).toBe('open short → wait')
   })
 
   it('preserves compact policy transparency fields on protection context', () => {

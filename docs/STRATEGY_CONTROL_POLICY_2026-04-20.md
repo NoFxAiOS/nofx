@@ -119,12 +119,12 @@ A downgrade-to-wait implementation must persist at least:
 
 - `original_action`
 - `final_action: wait`
-- `control_decision: downgraded_to_wait`
+- `control_decision: downgraded` (legacy `downgraded_to_wait` may still appear in older records/UI compatibility paths)
 - `control_reasons[]`
 - `failed_checks[]`
 - `no_order_placed: true`
 
-Until these fields exist, hard rejection remains the clearer current behavior for invalid opens.
+If runtime is still using hard rejection for invalid opens, the UI/docs should treat downgrade semantics as a compact audited alternative rather than assume it always occurs.
 
 ## Binance/OKX-first execution-aware rules
 
@@ -195,7 +195,7 @@ Existing compact action audit fields that should remain first-class:
 
 Additional fields required before system-controlled final judgment becomes fully explainable:
 
-- `control_decision`: `accepted`, `rejected`, `downgraded_to_wait`, `overridden`
+- `control_decision`: `accepted`, `rejected`, `downgraded`, `overridden` (UI should continue accepting legacy `downgraded_to_wait` records as equivalent downgrade-to-wait history)
 - `control_reasons[]`: short human-readable reasons
 - `failed_checks[]`: machine-stable check names
 - `original_action` and `final_action` when they differ

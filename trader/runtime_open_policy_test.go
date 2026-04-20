@@ -137,10 +137,11 @@ func TestApplyRuntimeOpenPolicyAuditOnlyFlagsLowNetRRWithoutBlocking(t *testing.
 	}
 }
 
-func TestApplyRuntimeOpenPolicyRecommendOnlyFlagsLowNetRRWithoutBlocking(t *testing.T) {
+func TestApplyRuntimeOpenPolicyRecommendOnlyDowngradesLowNetRRToWait(t *testing.T) {
 	decision := &kernel.Decision{
-		Symbol: "BTCUSDT",
-		Action: "open_long",
+		Symbol:    "BTCUSDT",
+		Action:    "open_long",
+		Reasoning: "breakout setup",
 		EntryProtection: &kernel.AIEntryProtectionRationale{
 			RiskReward: kernel.AIRiskRewardRationale{
 				Entry:            100,
@@ -161,10 +162,19 @@ func TestApplyRuntimeOpenPolicyRecommendOnlyFlagsLowNetRRWithoutBlocking(t *test
 	result := applyRuntimeOpenPolicy(decision, snapshot, 1.5, "recommend_only")
 
 	if result.Blocked {
-		t.Fatalf("recommend_only should not block low runtime RR: %+v", result)
+		t.Fatalf("recommend_only downgrade should not use strict block path: %+v", result)
 	}
-	if result.Decision != "accepted" || result.ReasonCode != "runtime_rr_below_min" {
-		t.Fatalf("expected recommendation audit failed check without rejection, got %+v", result)
+	if result.Decision != "downgraded_to_wait" || result.ReasonCode != "runtime_rr_below_min" {
+		t.Fatalf("expected downgraded low-RR recommendation with failed check, got %+v", result)
+	}
+	if result.OriginalAction != "open_long" || result.FinalAction != "wait" {
+		t.Fatalf("expected original open/final wait audit fields, got %+v", result)
+	}
+	if decision.Action != "wait" {
+		t.Fatalf("expected executable action to be downgraded to wait, got %q", decision.Action)
+	}
+	if !strings.Contains(result.Reason, "downgraded") || !strings.Contains(decision.Reasoning, "downgraded to wait") {
+		t.Fatalf("expected downgrade reason to be auditable, result=%+v reasoning=%q", result, decision.Reasoning)
 	}
 	if !result.RRRecomputed || decision.EntryProtection.RiskReward.Passed {
 		t.Fatalf("expected recommendation mode to preserve failed runtime RR audit, got %+v", result)

@@ -62,6 +62,29 @@ func TestBuildRuntimePolicyControlOutcomeRejectedSummary(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimePolicyControlOutcomeDowngradedSummary(t *testing.T) {
+	out := buildRuntimePolicyControlOutcome(runtimePolicyResult{
+		Decision:       "downgraded_to_wait",
+		OriginalAction: "open_long",
+		FinalAction:    "wait",
+		Reason:         "runtime RR policy downgraded open_long BTCUSDT to wait: execution-aware rr 1.20 below min 1.50",
+		ReasonCode:     "runtime_rr_below_min",
+		EffectiveRR:    1.2,
+	})
+	if out == nil {
+		t.Fatal("expected control outcome")
+	}
+	if out.Decision != "downgraded_to_wait" || !out.NoOrderPlaced {
+		t.Fatalf("expected downgraded/no_order_placed outcome, got %+v", out)
+	}
+	if out.OriginalAction != "open_long" || out.FinalAction != "wait" {
+		t.Fatalf("expected original/final action delta, got %+v", out)
+	}
+	if len(out.FailedChecks) != 1 || out.FailedChecks[0] != "runtime_rr_below_min" {
+		t.Fatalf("unexpected failed checks: %+v", out)
+	}
+}
+
 func TestBuildDecisionActionReviewContextMapsEntryProtectionCompactly(t *testing.T) {
 	decision := &kernel.Decision{
 		Symbol: "BTCUSDT",

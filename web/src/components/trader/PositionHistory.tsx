@@ -77,10 +77,11 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const control = ctx?.control
   const executionConstraintItems = formatExecutionConstraintItems(ctx?.execution_constraints)
   const actionAudit = formatActionAudit(control)
-  const controlStatus = control?.decision
+  const normalizedDecision = String(control?.decision || '').toLowerCase()
+  const controlStatus = normalizedDecision
     ? {
-        label: formatControlDecisionLabel(control.decision),
-        tone: control.decision === 'rejected' ? 'danger' : control.decision === 'overridden' || control.decision === 'downgraded_to_wait' ? 'warn' : 'neutral' as const,
+        label: formatControlDecisionLabel(normalizedDecision),
+        tone: normalizedDecision === 'rejected' ? 'danger' : normalizedDecision === 'overridden' || isDowngradedDecision(normalizedDecision) ? 'warn' : 'neutral' as const,
       }
     : null
   const controlBadges = [
@@ -184,6 +185,7 @@ function formatControlDecisionLabel(decision?: string): string {
       return 'accepted'
     case 'rejected':
       return 'rejected'
+    case 'downgraded':
     case 'downgraded_to_wait':
       return 'downgraded to wait'
     case 'overridden':
@@ -191,6 +193,11 @@ function formatControlDecisionLabel(decision?: string): string {
     default:
       return decision || 'control'
   }
+}
+
+function isDowngradedDecision(decision?: string): boolean {
+  const normalized = String(decision || '').toLowerCase()
+  return normalized === 'downgraded' || normalized === 'downgraded_to_wait'
 }
 
 function formatControlRrSource(source?: string): string {
@@ -214,6 +221,8 @@ function formatControlCheck(check?: string): string {
 
 function formatActionLabel(action?: string): string {
   switch (String(action || '').toLowerCase()) {
+    case 'wait':
+      return 'wait'
     case 'open_long':
       return 'open long'
     case 'open_short':

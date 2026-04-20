@@ -126,10 +126,10 @@ Implemented compact audit fields include:
 
 Not currently implemented as first-class audit fields:
 
-- `original_action` / `final_action` differences for downgrade-to-wait;
-- general downgrade-to-wait control branch;
 - broad semantic equivalence proofs for ladder/drawdown protection;
 - deep orderbook/liquidation/funding hard gates.
+
+UI and stored review context now treat both `control.decision = downgraded` and legacy `downgraded_to_wait` as the same visible outcome: **downgraded to wait**. When runtime/store emits `original_action` plus `final_action: wait`, Position History presents the transition compactly as `open long → wait` (or `open short → wait`) and marks `no_order_placed` when present.
 
 ## Non-goals for current implementation
 

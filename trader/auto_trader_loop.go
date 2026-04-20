@@ -432,7 +432,10 @@ func (at *AutoTrader) runCycle() error {
 		if policy.Blocked {
 			logger.Infof("🚫 %s", policy.Reason)
 			actionRecord.Error = policy.Reason
-			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("🚫 %s %s blocked: %s", d.Symbol, d.Action, policy.Reason))
+			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("🚫 %s %s blocked: %s", d.Symbol, policy.OriginalAction, policy.Reason))
+		} else if policy.Decision == "downgraded_to_wait" {
+			actionRecord.Success = true
+			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("⏸ %s %s downgraded to wait: %s", d.Symbol, policy.OriginalAction, policy.Reason))
 		} else if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
 			logger.Infof("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
 			actionRecord.Error = err.Error()
@@ -910,8 +913,7 @@ func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.Decisio
 	if policy.Decision != "" {
 		out.Decision = policy.Decision
 	}
-	if policy.Blocked {
-		out.Decision = "rejected"
+	if policy.Blocked || policy.Decision == "downgraded_to_wait" {
 		out.NoOrderPlaced = true
 	}
 	if policy.Reason != "" {

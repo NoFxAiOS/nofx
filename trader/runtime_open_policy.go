@@ -35,7 +35,9 @@ type runtimePolicyResult struct {
 //  1. merge runtime execution constraints when AI omitted them;
 //  2. recompute execution-aware RR deterministically from merged constraints;
 //  3. block only open actions whose runtime-effective RR falls below minRR when
-//     strategy control mode is strict.
+//     strategy control mode is strict;
+//  4. in recommend_only, downgrade low-RR open actions to wait with explicit
+//     original/final action audit fields so execution skips order placement.
 //
 // Non-open actions remain untouched so wait/hold legality is preserved.
 func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstraintsSnapshot, minRR float64, mode store.StrategyControlPolicyMode) runtimePolicyResult {
@@ -92,6 +94,14 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 	result.EffectiveRRSource = effectiveRRSource
 	if effectiveRR > 0 && effectiveRR+0.02 < minRR {
 		result.ReasonCode = "runtime_rr_below_min"
+		if mode == store.StrategyControlPolicyModeRecommendOnly {
+			result.Decision = "downgraded_to_wait"
+			result.FinalAction = "wait"
+			result.Reason = fmt.Sprintf("runtime RR policy downgraded %s %s to wait: execution-aware rr %.2f below min %.2f", decision.Action, decision.Symbol, effectiveRR, minRR)
+			decision.Action = "wait"
+			decision.Reasoning = appendDowngradedToWaitReasoning(decision.Reasoning, effectiveRR, minRR)
+			return result
+		}
 		result.Reason = fmt.Sprintf("runtime RR policy %s %s %s: execution-aware rr %.2f below min %.2f", runtimePolicyVerb(mode), decision.Action, decision.Symbol, effectiveRR, minRR)
 		if mode == store.StrategyControlPolicyModeStrict {
 			result.Blocked = true
@@ -100,6 +110,18 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 		return result
 	}
 	return result
+}
+
+func appendDowngradedToWaitReasoning(reasoning string, effectiveRR, minRR float64) string {
+	note := fmt.Sprintf("runtime policy downgraded to wait: execution-aware rr %.2f below min %.2f", effectiveRR, minRR)
+	reasoning = strings.TrimSpace(reasoning)
+	if reasoning == "" {
+		return note
+	}
+	if strings.Contains(reasoning, note) {
+		return reasoning
+	}
+	return reasoning + " | " + note
 }
 
 func effectiveRuntimePolicyMode(mode store.StrategyControlPolicyMode) store.StrategyControlPolicyMode {

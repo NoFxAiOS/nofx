@@ -10,11 +10,11 @@ import (
 func validEntryProtectionForTest(action string) *AIEntryProtectionRationale {
 	if action == "open_short" {
 		return &AIEntryProtectionRationale{
-			RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 110, FirstTarget: 90, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8},
+			RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 110, FirstTarget: 80, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
 		}
 	}
 	return &AIEntryProtectionRationale{
-		RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8},
+		RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
 	}
 }
 
@@ -51,7 +51,7 @@ func TestValidateAIDecisionsWithStrategyRejectsWrongLongDirection(t *testing.T) 
 				Entry:            100,
 				Invalidation:     105,
 				FirstTarget:      120,
-				GrossEstimatedRR: 2.0,
+				GrossEstimatedRR: 4.0,
 			},
 		},
 	}}
@@ -76,9 +76,11 @@ func TestValidateAIDecisionsWithStrategyRejectsRRBelowMinimum(t *testing.T) {
 			RiskReward: AIRiskRewardRationale{
 				Entry:            100,
 				Invalidation:     110,
-				FirstTarget:      90,
+				FirstTarget:      75,
 				GrossEstimatedRR: 2.5,
 				NetEstimatedRR:   1.8,
+				MinRequiredRR:    2.0,
+				Passed:           false,
 			},
 		},
 	}}
@@ -118,5 +120,98 @@ func TestValidateDecisionFormatRejectsEntryProtectionOnCloseAction(t *testing.T)
 	err := ValidateDecisionFormat(decisions)
 	if err == nil || !strings.Contains(err.Error(), "entry_protection_rationale is only allowed for open actions") {
 		t.Fatalf("expected close-action entry_protection_rationale error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsGrossRRMismatch(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: &AIEntryProtectionRationale{
+			RiskReward: AIRiskRewardRationale{
+				Entry:            100,
+				Invalidation:     95,
+				FirstTarget:      110,
+				GrossEstimatedRR: 1.5,
+				NetEstimatedRR:   1.6,
+				MinRequiredRR:    1.5,
+				Passed:           true,
+			},
+		},
+	}}
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "gross_estimated_rr") {
+		t.Fatalf("expected gross_estimated_rr mismatch error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsMinRequiredRRMismatch(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+	}}
+	decisions[0].EntryProtection.RiskReward.MinRequiredRR = 2.0
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "min_required_rr") {
+		t.Fatalf("expected min_required_rr mismatch error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsPassedFlagMismatch(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+	}}
+	decisions[0].EntryProtection.RiskReward.Passed = false
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "passed=false") {
+		t.Fatalf("expected passed flag mismatch error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsFullProtectionPlanRationaleMismatch(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+		ProtectionPlan: &AIProtectionPlan{
+			Mode:          "full",
+			StopLossPct:   2,
+			TakeProfitPct: 10,
+		},
+	}}
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "stop_loss_pct") {
+		t.Fatalf("expected stop_loss_pct alignment error, got %v", err)
 	}
 }

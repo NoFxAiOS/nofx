@@ -383,6 +383,9 @@ func (at *AutoTrader) runCycle() error {
 			break
 		}
 
+		constraintSnapshot := at.collectExecutionConstraintsSnapshot(d.Symbol)
+		mergeExecutionConstraints(&d, constraintSnapshot)
+
 		actionRecord := store.DecisionAction{
 			Action:     d.Action,
 			Symbol:     d.Symbol,
@@ -397,6 +400,7 @@ func (at *AutoTrader) runCycle() error {
 				&d,
 				at.getMinRiskRewardRatio(),
 				record.ProtectionSnapshot,
+				constraintSnapshot,
 			),
 			Timestamp: time.Now().UTC(),
 			Success:   false,
@@ -798,8 +802,11 @@ func (at *AutoTrader) getMinRiskRewardRatio() float64 {
 	return 0
 }
 
-func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, snapshot *store.ProtectionSnapshot) *store.DecisionActionReviewContext {
+func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, snapshot *store.ProtectionSnapshot, executionSnapshot ...*ExecutionConstraintsSnapshot) *store.DecisionActionReviewContext {
 	ctx := &store.DecisionActionReviewContext{}
+	if len(executionSnapshot) > 0 {
+		ctx.ExecutionConstraints = mapExecutionConstraintsToActionReview(executionSnapshot[0])
+	}
 	if minRR > 0 {
 		ctx.MinRiskReward = minRR
 	}
@@ -1068,7 +1075,8 @@ func reviewContextIsEmpty(ctx *store.DecisionActionReviewContext) bool {
 		ctx.RiskReward == nil &&
 		ctx.KeyLevels == nil &&
 		len(ctx.Anchors) == 0 &&
-		ctx.Protection == nil
+		ctx.Protection == nil &&
+		ctx.ExecutionConstraints == nil
 }
 
 func isFinitePositive(v float64) bool {

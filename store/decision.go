@@ -106,12 +106,32 @@ type DecisionAction struct {
 
 // DecisionActionReviewContext captures compact, structured rationale for a single action.
 type DecisionActionReviewContext struct {
-	PrimaryTimeframe string                             `json:"primary_timeframe,omitempty"`
-	MinRiskReward    float64                            `json:"min_risk_reward,omitempty"`
-	RiskReward       *DecisionActionRiskRewardSummary   `json:"risk_reward,omitempty"`
-	KeyLevels        *DecisionActionKeyLevels           `json:"key_levels,omitempty"`
-	Anchors          []DecisionActionReasonAnchor       `json:"anchors,omitempty"`
-	Protection       *DecisionActionProtectionAlignment `json:"protection,omitempty"`
+	PrimaryTimeframe     string                              `json:"primary_timeframe,omitempty"`
+	MinRiskReward        float64                             `json:"min_risk_reward,omitempty"`
+	RiskReward           *DecisionActionRiskRewardSummary    `json:"risk_reward,omitempty"`
+	KeyLevels            *DecisionActionKeyLevels            `json:"key_levels,omitempty"`
+	Anchors              []DecisionActionReasonAnchor        `json:"anchors,omitempty"`
+	Protection           *DecisionActionProtectionAlignment  `json:"protection,omitempty"`
+	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
+}
+
+// DecisionActionExecutionConstraints stores compact execution-relevant venue constraints.
+type DecisionActionExecutionConstraints struct {
+	TickSize             float64 `json:"tick_size,omitempty"`
+	PricePrecision       int     `json:"price_precision,omitempty"`
+	QtyStepSize          float64 `json:"qty_step_size,omitempty"`
+	QtyPrecision         int     `json:"qty_precision,omitempty"`
+	MinQty               float64 `json:"min_qty,omitempty"`
+	MinNotional          float64 `json:"min_notional,omitempty"`
+	ContractValue        float64 `json:"contract_value,omitempty"`
+	MarkPrice            float64 `json:"mark_price,omitempty"`
+	LastPrice            float64 `json:"last_price,omitempty"`
+	BestBid              float64 `json:"best_bid,omitempty"`
+	BestAsk              float64 `json:"best_ask,omitempty"`
+	SpreadBps            float64 `json:"spread_bps,omitempty"`
+	TakerFeeRate         float64 `json:"taker_fee_rate,omitempty"`
+	MakerFeeRate         float64 `json:"maker_fee_rate,omitempty"`
+	EstimatedSlippageBps float64 `json:"estimated_slippage_bps,omitempty"`
 }
 
 // DecisionActionRiskRewardSummary stores gross/net RR and pass/fail metadata.

@@ -477,6 +477,14 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64) error {
 	if d.Action == "open_short" && !(rr.Invalidation > rr.Entry && rr.FirstTarget < rr.Entry) {
 		return fmt.Errorf("entry_protection_rationale.risk_reward direction mismatch for open_short")
 	}
+
+	computedRR := rr.GrossEstimatedRR
+	riskDistance := absFloat(rr.Entry - rr.Invalidation)
+	rewardDistance := absFloat(rr.FirstTarget - rr.Entry)
+	if riskDistance > 0 && rewardDistance > 0 {
+		computedRR = rewardDistance / riskDistance
+	}
+
 	effectiveRR := rr.GrossEstimatedRR
 	if rr.NetEstimatedRR > 0 {
 		effectiveRR = rr.NetEstimatedRR
@@ -484,7 +492,72 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64) error {
 	if effectiveRR < minRR {
 		return fmt.Errorf("entry_protection_rationale.risk_reward %.2f below min %.2f", effectiveRR, minRR)
 	}
+	if rr.MinRequiredRR > 0 && absFloat(rr.MinRequiredRR-minRR) > 0.02 {
+		return fmt.Errorf("entry_protection_rationale.risk_reward min_required_rr %.2f inconsistent with strategy min %.2f", rr.MinRequiredRR, minRR)
+	}
+	if rr.Passed && effectiveRR+0.02 < minRR {
+		return fmt.Errorf("entry_protection_rationale.risk_reward passed=true inconsistent with effective rr %.2f below min %.2f", effectiveRR, minRR)
+	}
+	if !rr.Passed && effectiveRR >= minRR+0.02 {
+		return fmt.Errorf("entry_protection_rationale.risk_reward passed=false inconsistent with effective rr %.2f meeting min %.2f", effectiveRR, minRR)
+	}
+	if absFloat(rr.GrossEstimatedRR-computedRR) > 0.05 {
+		return fmt.Errorf("entry_protection_rationale.risk_reward gross_estimated_rr %.2f inconsistent with entry/invalidation/first_target %.2f", rr.GrossEstimatedRR, computedRR)
+	}
+	if err := validateProtectionPlanAlignmentSkeleton(d, rr); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateProtectionPlanAlignmentSkeleton(d Decision, rr AIRiskRewardRationale) error {
+	if d.ProtectionPlan == nil {
+		return nil
+	}
+	plan := d.ProtectionPlan
+	mode := strings.ToLower(plan.Mode)
+	if mode == "" || mode == "full" {
+		if plan.StopLossPct > 0 {
+			expectedSL := protectionPctFromPrices(d.Action, rr.Entry, rr.Invalidation)
+			if expectedSL > 0 && absFloat(plan.StopLossPct-expectedSL) > 0.05 {
+				return fmt.Errorf("protection_plan.stop_loss_pct %.2f inconsistent with rationale invalidation %.2f", plan.StopLossPct, expectedSL)
+			}
+		}
+		if plan.TakeProfitPct > 0 {
+			expectedTP := protectionPctFromPrices(d.Action, rr.Entry, rr.FirstTarget)
+			if expectedTP > 0 && absFloat(plan.TakeProfitPct-expectedTP) > 0.05 {
+				return fmt.Errorf("protection_plan.take_profit_pct %.2f inconsistent with rationale first_target %.2f", plan.TakeProfitPct, expectedTP)
+			}
+		}
+	}
+	return nil
+}
+
+func protectionPctFromPrices(action string, entry, target float64) float64 {
+	if entry <= 0 || target <= 0 {
+		return 0
+	}
+	switch action {
+	case "open_long":
+		if target == entry {
+			return 0
+		}
+		return absFloat((target-entry)/entry) * 100
+	case "open_short":
+		if target == entry {
+			return 0
+		}
+		return absFloat((entry-target)/entry) * 100
+	default:
+		return 0
+	}
+}
+
+func absFloat(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // ParseAndValidateAIDecisions parses decisions and validates them with awareness of XML reasoning blocks.

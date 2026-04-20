@@ -31,7 +31,7 @@ import {
   Globe,
   AlertTriangle,
 } from 'lucide-react'
-import type { Strategy, StrategyConfig, AIModel } from '../types'
+import type { Strategy, StrategyConfig, AIModel, StrategyControlPolicyMode } from '../types'
 import { confirmToast, notify } from '../lib/notify'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
@@ -54,6 +54,10 @@ export function buildStrategySavePayload(
   const configWithLanguage = {
     ...editingConfig,
     language,
+    strategy_control_policy: {
+      ...editingConfig.strategy_control_policy,
+      mode: editingConfig.strategy_control_policy?.mode || 'strict',
+    },
   }
 
   return {
@@ -405,6 +409,14 @@ export function StrategyStudioPage() {
     setHasChanges(true)
   }
 
+  const updateStrategyControlPolicyMode = (mode: StrategyControlPolicyMode) => {
+    if (!editingConfig) return
+    updateConfig('strategy_control_policy', {
+      ...editingConfig.strategy_control_policy,
+      mode,
+    })
+  }
+
   // Fetch prompt preview
   const fetchPromptPreview = async () => {
     if (!token || !editingConfig) return
@@ -570,12 +582,35 @@ export function StrategyStudioPage() {
       title: tr('riskControl'),
       forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
-        <RiskControlEditor
-          config={editingConfig.risk_control}
-          onChange={(riskControl) => updateConfig('risk_control', riskControl)}
-          disabled={selectedStrategy?.is_default}
-          language={language}
-        />
+        <div className="space-y-4">
+          <RiskControlEditor
+            config={editingConfig.risk_control}
+            onChange={(riskControl) => updateConfig('risk_control', riskControl)}
+            disabled={selectedStrategy?.is_default}
+            language={language}
+          />
+          <div className="pt-3 border-t border-nofx-gold/10">
+            <label className="block text-xs font-medium mb-2" style={{ color: '#EAECEF' }}>
+              {language === 'zh' ? '策略控制策略' : 'Strategy Control Policy'}
+            </label>
+            <select
+              value={editingConfig.strategy_control_policy?.mode || 'strict'}
+              onChange={(e) => updateStrategyControlPolicyMode(e.target.value as StrategyControlPolicyMode)}
+              disabled={selectedStrategy?.is_default}
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none disabled:opacity-50"
+              style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+            >
+              <option value="strict">strict</option>
+              <option value="audit_only">audit_only</option>
+              <option value="recommend_only">recommend_only</option>
+            </select>
+            <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
+              {language === 'zh'
+                ? '默认 strict；旧策略未配置时仍按 strict 保存。'
+                : 'Defaults to strict; legacy configs save as strict when unset.'}
+            </p>
+          </div>
+        </div>
       ),
     },
     {

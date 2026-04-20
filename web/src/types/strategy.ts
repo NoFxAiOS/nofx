@@ -38,6 +38,12 @@ export interface PromptSectionsConfig {
   decision_process?: string;
 }
 
+export type StrategyControlPolicyMode = 'strict' | 'audit_only' | 'recommend_only';
+
+export interface StrategyControlPolicyConfig {
+  mode?: StrategyControlPolicyMode;
+}
+
 export interface StrategyConfig {
   // Strategy type: "ai_trading" (default) or "grid_trading"
   strategy_type?: 'ai_trading' | 'grid_trading';
@@ -50,6 +56,7 @@ export interface StrategyConfig {
   risk_control: RiskControlConfig;
   protection: ProtectionConfig;
   prompt_sections?: PromptSectionsConfig;
+  strategy_control_policy?: StrategyControlPolicyConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
   grid_config?: GridStrategyConfig;
 }

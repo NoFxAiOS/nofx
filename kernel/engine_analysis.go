@@ -420,6 +420,11 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		if (fullAI && drawdownAI) || (ladderAI && drawdownAI) || (fullAI && ladderAI) {
 			return fmt.Errorf("current strategy route supports only one AI protection route at a time (full, ladder, or drawdown)")
 		}
+		if config.Protection.BreakEvenStop.Enabled && isOpen {
+			if d.ProtectionPlan == nil || d.ProtectionPlan.BreakEvenTrigger == "" || d.ProtectionPlan.BreakEvenValue <= 0 {
+				return fmt.Errorf("decision #%d: current strategy route requires break-even protection output for open actions", i+1)
+			}
+		}
 		if ladderAI && !fullAI && !drawdownAI {
 			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "ladder" {
 				return fmt.Errorf("decision #%d: current strategy route requires ladder protection_plan for open actions", i+1)

@@ -136,11 +136,15 @@ type Decision struct {
 }
 
 type AIProtectionPlan struct {
-	Mode          string                     `json:"mode,omitempty"`
-	TakeProfitPct float64                    `json:"take_profit_pct,omitempty"`
-	StopLossPct   float64                    `json:"stop_loss_pct,omitempty"`
-	LadderRules   []AIProtectionLadderRule   `json:"ladder_rules,omitempty"`
-	DrawdownRules []AIProtectionDrawdownRule `json:"drawdown_rules,omitempty"`
+	Mode             string                     `json:"mode,omitempty"`
+	TakeProfitPct    float64                    `json:"take_profit_pct,omitempty"`
+	StopLossPct      float64                    `json:"stop_loss_pct,omitempty"`
+	LadderRules      []AIProtectionLadderRule   `json:"ladder_rules,omitempty"`
+	DrawdownRules    []AIProtectionDrawdownRule `json:"drawdown_rules,omitempty"`
+	BreakEvenTrigger string                     `json:"break_even_trigger_mode,omitempty"`
+	BreakEvenValue   float64                    `json:"break_even_trigger_value,omitempty"`
+	BreakEvenOffset  float64                    `json:"break_even_offset_pct,omitempty"`
+	BreakEvenAnchor  string                     `json:"break_even_reason_anchor,omitempty"`
 }
 
 type AIProtectionDrawdownRule struct {

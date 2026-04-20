@@ -525,6 +525,19 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 						return fmt.Errorf("decision #%d: drawdown_rules[%d] poll_interval_seconds must be >= 5", i+1, j)
 					}
 				}
+			case "break_even":
+				if d.ProtectionPlan.BreakEvenTrigger == "" || d.ProtectionPlan.BreakEvenValue <= 0 {
+					return fmt.Errorf("decision #%d: break_even protection_plan requires trigger mode and positive trigger value", i+1)
+				}
+				if d.ProtectionPlan.BreakEvenTrigger != "profit_pct" && d.ProtectionPlan.BreakEvenTrigger != "r_multiple" {
+					return fmt.Errorf("decision #%d: break_even protection_plan has invalid trigger mode", i+1)
+				}
+				if d.ProtectionPlan.BreakEvenOffset < 0 {
+					return fmt.Errorf("decision #%d: break_even protection_plan offset must be >= 0", i+1)
+				}
+				if len(d.ProtectionPlan.LadderRules) > 0 || len(d.ProtectionPlan.DrawdownRules) > 0 || d.ProtectionPlan.TakeProfitPct > 0 || d.ProtectionPlan.StopLossPct > 0 {
+					return fmt.Errorf("decision #%d: break_even protection_plan must not mix ladder/drawdown/full thresholds", i+1)
+				}
 			case "":
 				return fmt.Errorf("decision #%d: protection_plan.mode cannot be empty", i+1)
 			default:

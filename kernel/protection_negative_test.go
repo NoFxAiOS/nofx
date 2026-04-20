@@ -115,6 +115,41 @@ func TestValidateDecisionFormatRejectsLadderRuleWithInvalidRatios(t *testing.T) 
 	}
 }
 
+func TestValidateDecisionFormatRejectsBreakEvenModeWithoutTrigger(t *testing.T) {
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		ProtectionPlan:  &AIProtectionPlan{Mode: "break_even"},
+	}}
+
+	if err := ValidateDecisionFormat(decisions); err == nil {
+		t.Fatal("expected break_even mode without trigger to be rejected")
+	}
+}
+
+func TestValidateDecisionFormatRejectsBreakEvenModeWithMixedFields(t *testing.T) {
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		ProtectionPlan: &AIProtectionPlan{
+			Mode:             "break_even",
+			BreakEvenTrigger: "profit_pct",
+			BreakEvenValue:   3,
+			TakeProfitPct:    8,
+		},
+	}}
+
+	if err := ValidateDecisionFormat(decisions); err == nil {
+		t.Fatal("expected break_even mode with mixed full fields to be rejected")
+	}
+}
+
 func TestValidateDecisionFormatRejectsDrawdownModeWithoutRules(t *testing.T) {
 	decisions := []Decision{{
 		Symbol:          "SOLUSDT",

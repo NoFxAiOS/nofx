@@ -27,13 +27,23 @@ func TestValidateProtectionReasoningContractRejectsMissingBreakEvenAcknowledgeme
 	}
 }
 
+func TestValidateProtectionReasoningContractRejectsBreakEvenWithoutTimeframeAndStructureAnchors(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.BreakEvenStop.Enabled = true
+
+	err := ValidateProtectionReasoningContract("break-even stop layer will be used after profit trigger", cfg)
+	if err == nil {
+		t.Fatal("expected break-even reasoning without timeframe/structure anchors to fail")
+	}
+}
+
 func TestValidateProtectionReasoningContractAcceptsAcknowledgement(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.Protection.DrawdownTakeProfit.Enabled = true
 	cfg.Protection.DrawdownTakeProfit.Rules = []store.DrawdownTakeProfitRule{{MinProfitPct: 5, MaxDrawdownPct: 30, CloseRatioPct: 100, PollIntervalSeconds: 60}}
 	cfg.Protection.BreakEvenStop.Enabled = true
 
-	reasoning := "drawdown will remain the primary profit-protection path and break-even adds an extra stop layer after profit trigger"
+	reasoning := "drawdown will remain the primary profit-protection path and break-even adds an extra stop layer after profit trigger; 15m primary timeframe with 5m support/resistance, fibonacci and volatility anchors"
 	if err := ValidateProtectionReasoningContract(reasoning, cfg); err != nil {
 		t.Fatalf("expected reasoning contract to pass, got %v", err)
 	}

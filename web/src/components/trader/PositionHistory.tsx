@@ -105,7 +105,28 @@ function formatRiskRewardLinkage(rr?: DecisionActionReviewContext['risk_reward']
   return parts
 }
 
-type EntryLinkageStatus = { label: string; tone: 'neutral' | 'warn' | 'danger'; invalidLinked: boolean; targetLinked: boolean }
+type EntryLinkageStatus = {
+  label: string
+  tone: 'neutral' | 'warn' | 'danger'
+  invalidLinked: boolean
+  targetLinked: boolean
+  invalidSource?: 'support' | 'swing_low' | 'fibonacci'
+  targetSource?: 'resistance' | 'swing_high' | 'fibonacci'
+}
+
+function pickNearestLinkSource(target: number, tolerance: number, sources: Array<{ kind: 'support' | 'resistance' | 'swing_low' | 'swing_high' | 'fibonacci'; values: number[] }>): 'support' | 'resistance' | 'swing_low' | 'swing_high' | 'fibonacci' | undefined {
+  let best: { kind: 'support' | 'resistance' | 'swing_low' | 'swing_high' | 'fibonacci'; dist: number } | null = null
+  for (const source of sources) {
+    for (const value of source.values) {
+      const dist = Math.abs(value - target)
+      if (dist > tolerance) continue
+      if (!best || dist < best.dist) {
+        best = { kind: source.kind, dist }
+      }
+    }
+  }
+  return best?.kind
+}
 
 function getEntryLinkageStatus(audit: EntryStructureAuditConfig | undefined, summary: EntryReviewSummary | undefined): EntryLinkageStatus | null {
   if (!audit?.require_invalidation_target_linkage || !summary) return null
@@ -128,9 +149,19 @@ function getEntryLinkageStatus(audit: EntryStructureAuditConfig | undefined, sum
   const targetAnchors = [...resistances, ...swingHighs, ...fibLevels]
   const invalidLinked = invalidAnchors.some((v) => Math.abs(v - invalidation) <= tol)
   const targetLinked = targetAnchors.some((v) => Math.abs(v - firstTarget) <= tol)
-  if (invalidLinked && targetLinked) return { label: 'linked', tone: 'neutral', invalidLinked, targetLinked }
-  if (invalidLinked || targetLinked) return { label: 'partial linkage', tone: 'warn', invalidLinked, targetLinked }
-  return { label: 'linkage missing', tone: 'danger', invalidLinked, targetLinked }
+  const invalidSource = pickNearestLinkSource(invalidation, tol, [
+    { kind: 'support', values: supports },
+    { kind: 'swing_low', values: swingLows },
+    { kind: 'fibonacci', values: fibLevels },
+  ]) as 'support' | 'swing_low' | 'fibonacci' | undefined
+  const targetSource = pickNearestLinkSource(firstTarget, tol, [
+    { kind: 'resistance', values: resistances },
+    { kind: 'swing_high', values: swingHighs },
+    { kind: 'fibonacci', values: fibLevels },
+  ]) as 'resistance' | 'swing_high' | 'fibonacci' | undefined
+  if (invalidLinked && targetLinked) return { label: 'linked', tone: 'neutral', invalidLinked, targetLinked, invalidSource, targetSource }
+  if (invalidLinked || targetLinked) return { label: 'partial linkage', tone: 'warn', invalidLinked, targetLinked, invalidSource, targetSource }
+  return { label: 'linkage missing', tone: 'danger', invalidLinked, targetLinked, invalidSource, targetSource }
 }
 
 export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
@@ -161,8 +192,8 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const rrLinkage = formatRiskRewardLinkage(rr)
   const entryLinkageStatus = getEntryLinkageStatus({ require_invalidation_target_linkage: true }, ctx as unknown as EntryReviewSummary | undefined)
   const entryLinkageSources = [
-    entryLinkageStatus?.invalidLinked ? 'invalid↔structure' : '',
-    entryLinkageStatus?.targetLinked ? 'target↔structure' : '',
+    entryLinkageStatus?.invalidSource ? `invalid↔${entryLinkageStatus.invalidSource}` : '',
+    entryLinkageStatus?.targetSource ? `target↔${entryLinkageStatus.targetSource}` : '',
   ].filter(Boolean)
 
   return {

@@ -438,6 +438,36 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '支撑位' : 'Support', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.support?.length ? entryLevels.support.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
                     { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
                     { label: language === 'zh' ? '结构联动' : 'Structure Linkage', value: linkageStatus || '—' },
+                    { label: language === 'zh' ? '联动来源' : 'Linkage Sources', value: (() => {
+                      if (!entryStructureAudit?.require_invalidation_target_linkage || !entryRR) return '—'
+                      const supports = (entryLevels?.support || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+                      const resistances = (entryLevels?.resistance || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+                      const swingLows = ((entryLevels as { swing_lows?: number[] } | undefined)?.swing_lows || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+                      const swingHighs = ((entryLevels as { swing_highs?: number[] } | undefined)?.swing_highs || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+                      const fib = (entryLevels as { fibonacci?: { swing_low?: number; swing_high?: number; levels?: number[] } } | undefined)?.fibonacci
+                      const fibLevels = (fib?.levels || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+                      if (fib?.swing_low) fibLevels.push(fib.swing_low)
+                      if (fib?.swing_high) fibLevels.push(fib.swing_high)
+                      if (!entryRR.entry || !entryRR.invalidation || !entryRR.first_target) return '—'
+                      const riskDist = Math.abs(entryRR.entry - entryRR.invalidation)
+                      const targetDist = Math.abs(entryRR.first_target - entryRR.entry)
+                      const tol = Math.max(0.0001, Math.min(Math.max(riskDist, targetDist) * 0.35, Math.max(entryRR.entry, entryRR.first_target, entryRR.invalidation) * 0.02))
+                      const findSource = (target: number, groups: Array<[string, number[]]>) => {
+                        let best: { name: string; dist: number } | null = null
+                        for (const [name, values] of groups) {
+                          for (const value of values) {
+                            const dist = Math.abs(value - target)
+                            if (dist > tol) continue
+                            if (!best || dist < best.dist) best = { name, dist }
+                          }
+                        }
+                        return best?.name
+                      }
+                      const invalidSource = findSource(entryRR.invalidation, [['support', supports], ['swing_low', swingLows], ['fib', fibLevels]])
+                      const targetSource = findSource(entryRR.first_target, [['resistance', resistances], ['swing_high', swingHighs], ['fib', fibLevels]])
+                      const parts = [invalidSource ? `invalid↔${invalidSource}` : '', targetSource ? `target↔${targetSource}` : ''].filter(Boolean)
+                      return parts.length > 0 ? parts.join(' · ') : '—'
+                    })() },
                     { label: language === 'zh' ? '审计开关' : 'Audit Toggles', value: getAuditToggleText(entryStructureAudit, language) },
                   ]}
                 />

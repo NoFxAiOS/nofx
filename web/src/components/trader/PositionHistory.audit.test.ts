@@ -180,7 +180,7 @@ describe('getDecisionAuditSnapshot', () => {
     expect(snap.swingLows).toEqual(['83380.00'])
     expect(snap.fibSummary).toEqual(['low 83380.00', 'high 85250.00', 'levels 83600.00 / 85400.00'])
     expect(snap.rrLinkage).toEqual(['entry 84200.00', 'invalid 83600.00', 'target 85400.00'])
-    expect(snap.entryLinkageStatus).toEqual({ label: 'linked', tone: 'neutral', invalidLinked: true, targetLinked: true })
+    expect(snap.entryLinkageStatus).toEqual({ label: 'linked', tone: 'neutral', invalidLinked: true, targetLinked: true, invalidSource: 'fibonacci', targetSource: 'fibonacci' })
     expect(snap.alignmentNotes).toEqual(['target remains above local resistance flip'])
   })
 

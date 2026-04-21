@@ -24,7 +24,7 @@ func (at *AutoTrader) runCycle() error {
 	running := at.isRunning
 	at.isRunningMutex.RUnlock()
 	if !running {
-		logger.Infof("⏹ Trader is stopped, aborting cycle #%d", at.callCount)
+		at.logInfof("⏹ Trader is stopped, aborting cycle #%d", at.callCount)
 		return nil
 	}
 
@@ -42,7 +42,7 @@ func (at *AutoTrader) runCycle() error {
 	// 1. Check if trading needs to be stopped
 	if time.Now().Before(at.stopUntil) {
 		remaining := at.stopUntil.Sub(time.Now())
-		logger.Infof("⏸ Risk control: Trading paused, remaining %.0f minutes", remaining.Minutes())
+		at.logWarnf("⏸ Risk control: Trading paused, remaining %.0f minutes", remaining.Minutes())
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Risk control paused, remaining %.0f minutes", remaining.Minutes())
 		at.saveDecision(record)
@@ -59,6 +59,7 @@ func (at *AutoTrader) runCycle() error {
 	// 4. Collect trading context
 	ctx, err := at.buildTradingContext()
 	if err != nil {
+		at.logErrorf("failed to build trading context: %v", err)
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Failed to build trading context: %v", err)
 		at.saveDecision(record)
@@ -71,7 +72,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// If no candidate coins available, log but do not error
 	if len(ctx.CandidateCoins) == 0 {
-		logger.Infof("ℹ️  No candidate coins available, skipping this cycle")
+		at.logInfof("ℹ️ No candidate coins available, skipping this cycle")
 		record.Success = true // Not an error, just no candidate coins
 		record.ExecutionLog = append(record.ExecutionLog, "No candidate coins available, cycle skipped")
 		record.AccountState = store.AccountSnapshot{
@@ -90,16 +91,16 @@ func (at *AutoTrader) runCycle() error {
 		record.CandidateCoins = append(record.CandidateCoins, coin.Symbol)
 	}
 
-	logger.Infof("📊 Account equity: %.2f USDT | Available: %.2f USDT | Positions: %d",
+	at.logInfof("📊 Account equity: %.2f USDT | Available: %.2f USDT | Positions: %d",
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
 	// 5. Use strategy engine to call AI for decision
-	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
+	at.logInfof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
 	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
 
 	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
 		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
-		logger.Infof("⏱️ AI call duration: %.2f seconds", float64(record.AIRequestDurationMs)/1000)
+		at.logInfof("⏱️ AI call duration: %.2f seconds", float64(record.AIRequestDurationMs)/1000)
 		record.ExecutionLog = append(record.ExecutionLog,
 			fmt.Sprintf("AI call duration: %d ms", record.AIRequestDurationMs))
 	}
@@ -119,7 +120,7 @@ func (at *AutoTrader) runCycle() error {
 	// Record AI charge (track cost regardless of decision outcome)
 	if aiDecision != nil && at.store != nil {
 		if chargeErr := at.store.AICharge().Record(at.id, at.aiModel, at.config.AIModel); chargeErr != nil {
-			logger.Warnf("⚠️ Failed to record AI charge: %v", chargeErr)
+			at.logWarnf("⚠️ Failed to record AI charge: %v", chargeErr)
 		}
 	}
 
@@ -132,10 +133,9 @@ func (at *AutoTrader) runCycle() error {
 		if at.consecutiveAIFailures >= 3 && !at.safeMode {
 			at.safeMode = true
 			at.safeModeReason = fmt.Sprintf("AI failed %d consecutive times: %v", at.consecutiveAIFailures, err)
-			logger.Errorf("🛡️ [%s] SAFE MODE ACTIVATED — AI failed %d times in a row. No new positions will be opened. Existing positions are protected with current stop-loss settings.",
-				at.name, at.consecutiveAIFailures)
-			logger.Errorf("🛡️ [%s] Reason: %v", at.name, err)
-			logger.Errorf("🛡️ [%s] Action: Will keep trying AI each cycle. Safe mode auto-deactivates when AI recovers.", at.name)
+			at.logErrorf("🛡️ SAFE MODE ACTIVATED — AI failed %d times in a row. No new positions will be opened. Existing positions are protected with current stop-loss settings.", at.consecutiveAIFailures)
+			at.logErrorf("🛡️ Reason: %v", err)
+			at.logErrorf("🛡️ Action: Will keep trying AI each cycle. Safe mode auto-deactivates when AI recovers.")
 		}
 
 		// Print system prompt and AI chain of thought (output even with errors for debugging)
@@ -159,7 +159,7 @@ func (at *AutoTrader) runCycle() error {
 
 		// In safe mode, don't return error — keep the loop running to retry next cycle
 		if at.safeMode {
-			logger.Warnf("🛡️ [%s] Safe mode: skipping this cycle, will retry in %v", at.name, at.config.ScanInterval)
+			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry in %v", at.config.ScanInterval)
 			return nil
 		}
 
@@ -168,11 +168,11 @@ func (at *AutoTrader) runCycle() error {
 
 	// AI succeeded — reset failure counter and deactivate safe mode
 	if at.consecutiveAIFailures > 0 {
-		logger.Infof("✅ [%s] AI recovered after %d consecutive failures", at.name, at.consecutiveAIFailures)
+		at.logInfof("✅ AI recovered after %d consecutive failures", at.consecutiveAIFailures)
 	}
 	at.consecutiveAIFailures = 0
 	if at.safeMode {
-		logger.Infof("🛡️ [%s] SAFE MODE DEACTIVATED — AI is working again. Resuming normal trading.", at.name)
+		at.logInfof("🛡️ SAFE MODE DEACTIVATED — AI is working again. Resuming normal trading.")
 		at.safeMode = false
 		at.safeModeReason = ""
 	}
@@ -219,7 +219,7 @@ func (at *AutoTrader) runCycle() error {
 	running = at.isRunning
 	at.isRunningMutex.RUnlock()
 	if !running {
-		logger.Infof("⏹ Trader stopped before decision execution, aborting cycle #%d", at.callCount)
+		at.logInfof("⏹ Trader stopped before decision execution, aborting cycle #%d", at.callCount)
 		return nil
 	}
 
@@ -228,14 +228,14 @@ func (at *AutoTrader) runCycle() error {
 		filtered := make([]kernel.Decision, 0)
 		for _, d := range sortedDecisions {
 			if d.Action == "open_long" || d.Action == "open_short" {
-				logger.Warnf("🛡️ [%s] Safe mode: BLOCKED %s %s (no new positions allowed)", at.name, d.Action, d.Symbol)
+				at.logWarnf("🛡️ Safe mode: BLOCKED %s %s (no new positions allowed)", d.Action, d.Symbol)
 				continue
 			}
 			filtered = append(filtered, d)
 		}
 		sortedDecisions = filtered
 		if len(sortedDecisions) == 0 {
-			logger.Infof("🛡️ [%s] Safe mode: all decisions were open positions, nothing to execute", at.name)
+			at.logInfof("🛡️ Safe mode: all decisions were open positions, nothing to execute")
 		}
 	}
 
@@ -246,7 +246,7 @@ func (at *AutoTrader) runCycle() error {
 		running = at.isRunning
 		at.isRunningMutex.RUnlock()
 		if !running {
-			logger.Infof("⏹ Trader stopped during decision execution, aborting remaining decisions")
+			at.logInfof("⏹ Trader stopped during decision execution, aborting remaining decisions")
 			break
 		}
 
@@ -265,7 +265,7 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
-			logger.Infof("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
+			at.logErrorf("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
 			actionRecord.Error = err.Error()
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("❌ %s %s failed: %v", d.Symbol, d.Action, err))
 		} else {
@@ -280,7 +280,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 9. Save decision record
 	if err := at.saveDecision(record); err != nil {
-		logger.Infof("⚠ Failed to save decision record: %v", err)
+		at.logWarnf("⚠ Failed to save decision record: %v", err)
 	}
 
 	return nil
@@ -417,12 +417,12 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	// 3. Use strategy engine to get candidate coins (must have strategy engine)
 	var candidateCoins []kernel.CandidateCoin
 	if at.strategyEngine == nil {
-		logger.Infof("⚠️ [%s] No strategy engine configured, skipping candidate coins", at.name)
+		at.logWarnf("⚠️ No strategy engine configured, skipping candidate coins")
 	} else {
 		coins, err := at.strategyEngine.GetCandidateCoins()
 		if err != nil {
 			// Log warning but don't fail - equity snapshot should still be saved
-			logger.Infof("⚠️ [%s] Failed to get candidate coins: %v (will use empty list)", at.name, err)
+			at.logWarnf("⚠️ Failed to get candidate coins: %v (will use empty list)", err)
 		} else {
 			candidateCoins = coins
 			logger.Infof("📋 [%s] Strategy engine fetched candidate coins: %d", at.name, len(candidateCoins))
@@ -473,7 +473,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		// Get recent 10 closed trades for AI context
 		recentTrades, err := at.store.Position().GetRecentTrades(at.id, 10)
 		if err != nil {
-			logger.Infof("⚠️ [%s] Failed to get recent trades: %v", at.name, err)
+			at.logWarnf("⚠️ Failed to get recent trades: %v", err)
 		} else {
 			logger.Infof("📊 [%s] Found %d recent closed trades for AI context", at.name, len(recentTrades))
 			for _, trade := range recentTrades {
@@ -503,11 +503,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		// Get trading statistics for AI context
 		stats, err := at.store.Position().GetFullStats(at.id)
 		if err != nil {
-			logger.Infof("⚠️ [%s] Failed to get trading stats: %v", at.name, err)
+			at.logWarnf("⚠️ Failed to get trading stats: %v", err)
 		} else if stats == nil {
-			logger.Infof("⚠️ [%s] GetFullStats returned nil", at.name)
+			at.logWarnf("⚠️ GetFullStats returned nil")
 		} else if stats.TotalTrades == 0 {
-			logger.Infof("⚠️ [%s] GetFullStats returned 0 trades (traderID=%s)", at.name, at.id)
+			at.logWarnf("⚠️ GetFullStats returned 0 trades")
 		} else {
 			ctx.TradingStats = &kernel.TradingStats{
 				TotalTrades:    stats.TotalTrades,
@@ -523,7 +523,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 				at.name, stats.TotalTrades, stats.WinRate, stats.ProfitFactor, stats.SharpeRatio, stats.MaxDrawdownPct)
 		}
 	} else {
-		logger.Infof("⚠️ [%s] Store is nil, cannot get recent trades", at.name)
+		at.logWarnf("⚠️ Store is nil, cannot get recent trades")
 	}
 
 	// 8. Get quantitative data (if enabled in strategy config)
@@ -630,15 +630,15 @@ func (at *AutoTrader) checkClaw402Balance() {
 	if at.claw402WalletAddr != "" {
 		balance, err := wallet.QueryUSDCBalance(at.claw402WalletAddr)
 		if err != nil {
-			logger.Warnf("⚠️ [%s] Failed to query USDC balance: %v", at.name, err)
+			at.logWarnf("⚠️ Failed to query USDC balance: %v", err)
 			return
 		}
 
 		if balance < 1.0 {
-			logger.Warnf("⚠️ [%s] Low USDC balance: $%.2f — AI may stop soon!", at.name, balance)
+			at.logWarnf("⚠️ Low USDC balance: $%.2f — AI may stop soon!", balance)
 		}
 		if balance <= 0 {
-			logger.Errorf("🚨 [%s] USDC balance is ZERO — AI calls will fail!", at.name)
+			at.logErrorf("🚨 USDC balance is ZERO — AI calls will fail!")
 		}
 
 		runway := float64(0)

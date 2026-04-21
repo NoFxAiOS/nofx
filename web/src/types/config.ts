@@ -3,6 +3,7 @@ export interface AIModel {
   name: string
   provider: string
   enabled: boolean
+  has_api_key?: boolean
   apiKey?: string
   customApiUrl?: string
   customModelName?: string
@@ -24,18 +25,25 @@ export interface Exchange {
   name: string                   // Display name
   type: 'cex' | 'dex'
   enabled: boolean
+  has_api_key?: boolean
+  has_secret_key?: boolean
+  has_passphrase?: boolean
   apiKey?: string
   secretKey?: string
   passphrase?: string            // OKX specific
   testnet?: boolean
   // Hyperliquid specific
   hyperliquidWalletAddr?: string
+  has_hyperliquid_secret?: boolean
   // Aster specific
   asterUser?: string
   asterSigner?: string
+  has_aster_private_key?: boolean
   asterPrivateKey?: string
   // LIGHTER specific
   lighterWalletAddr?: string
+  has_lighter_private_key?: boolean
+  has_lighter_api_key_private_key?: boolean
   lighterPrivateKey?: string
   lighterApiKeyPrivateKey?: string
   lighterApiKeyIndex?: number

@@ -49,6 +49,8 @@ type StrategyConfig struct {
 	RiskControl RiskControlConfig `json:"risk_control"`
 	// unified protection / profit-control configuration
 	Protection ProtectionConfig `json:"protection,omitempty"`
+	// structural entry contract configuration
+	EntryStructure EntryStructureConfig `json:"entry_structure,omitempty"`
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
 
@@ -58,6 +60,18 @@ type StrategyConfig struct {
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+}
+
+type EntryStructureConfig struct {
+	Enabled                   bool `json:"enabled"`
+	RequirePrimaryTimeframe   bool `json:"require_primary_timeframe"`
+	RequireAdjacentTimeframes bool `json:"require_adjacent_timeframes"`
+	RequireSupportResistance  bool `json:"require_support_resistance"`
+	RequireStructuralAnchors  bool `json:"require_structural_anchors"`
+	RequireFibonacci          bool `json:"require_fibonacci"`
+	MaxSupportLevels          int  `json:"max_support_levels,omitempty"`
+	MaxResistanceLevels       int  `json:"max_resistance_levels,omitempty"`
+	MaxAnchorCount            int  `json:"max_anchor_count,omitempty"`
 }
 
 type StrategyControlPolicyMode string
@@ -493,6 +507,17 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			MinConfidence:                75,  // Min 75% confidence (AI guided)
 		},
 		StrategyControlPolicy: StrategyControlPolicyConfig{Mode: StrategyControlPolicyModeStrict},
+		EntryStructure: EntryStructureConfig{
+			Enabled:                   true,
+			RequirePrimaryTimeframe:   true,
+			RequireAdjacentTimeframes: true,
+			RequireSupportResistance:  true,
+			RequireStructuralAnchors:  true,
+			RequireFibonacci:          false,
+			MaxSupportLevels:          3,
+			MaxResistanceLevels:       3,
+			MaxAnchorCount:            4,
+		},
 		Protection: ProtectionConfig{
 			FullTPSL: FullTPSLConfig{
 				Enabled:         false,

@@ -470,6 +470,29 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 	if d.EntryProtection == nil {
 		return fmt.Errorf("open action requires entry_protection_rationale")
 	}
+	if config != nil {
+		entryStructure := config.EntryStructure
+		if entryStructure.Enabled {
+			if entryStructure.RequirePrimaryTimeframe && strings.TrimSpace(d.EntryProtection.TimeframeContext.Primary) == "" {
+				return fmt.Errorf("entry_protection_rationale.timeframe_context.primary is required")
+			}
+			if entryStructure.RequireAdjacentTimeframes && len(d.EntryProtection.TimeframeContext.Lower) == 0 && len(d.EntryProtection.TimeframeContext.Higher) == 0 {
+				return fmt.Errorf("entry_protection_rationale.timeframe_context requires at least one adjacent timeframe")
+			}
+			if entryStructure.RequireSupportResistance && (len(d.EntryProtection.KeyLevels.Support) == 0 || len(d.EntryProtection.KeyLevels.Resistance) == 0) {
+				return fmt.Errorf("entry_protection_rationale.key_levels support/resistance are required")
+			}
+			if entryStructure.RequireStructuralAnchors && len(d.EntryProtection.Anchors) == 0 {
+				return fmt.Errorf("entry_protection_rationale.anchors is required")
+			}
+			if entryStructure.RequireFibonacci {
+				fib := d.EntryProtection.KeyLevels.Fibonacci
+				if fib == nil || fib.SwingHigh <= 0 || fib.SwingLow <= 0 || len(fib.Levels) == 0 {
+					return fmt.Errorf("entry_protection_rationale.key_levels.fibonacci with swing anchors is required")
+				}
+			}
+		}
+	}
 	rr := d.EntryProtection.RiskReward
 	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 || rr.GrossEstimatedRR <= 0 {
 		return fmt.Errorf("entry_protection_rationale.risk_reward requires positive entry, invalidation, first_target, and gross_estimated_rr")

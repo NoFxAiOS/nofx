@@ -8,19 +8,117 @@ import (
 )
 
 func validEntryProtectionForTest(action string) *AIEntryProtectionRationale {
+	base := &AIEntryProtectionRationale{
+		TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		KeyLevels: AIEntryKeyLevels{
+			Support:    []float64{95},
+			Resistance: []float64{110},
+			SwingHighs: []float64{110},
+			SwingLows:  []float64{95},
+		},
+		Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 95, Reason: "primary pullback support"}},
+	}
 	if action == "open_short" {
-		return &AIEntryProtectionRationale{
-			RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 110, FirstTarget: 80, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
-		}
+		base.KeyLevels.Support = []float64{80}
+		base.KeyLevels.Resistance = []float64{110}
+		base.KeyLevels.SwingHighs = []float64{110}
+		base.KeyLevels.SwingLows = []float64{80}
+		base.Anchors = []AIEntryProtectionAnchor{{Type: "resistance", Timeframe: "15m", Price: 110, Reason: "primary rejection"}}
+		base.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 110, FirstTarget: 80, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true}
+		return base
 	}
-	return &AIEntryProtectionRationale{
-		RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
-	}
+	base.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true}
+	return base
 }
 
 func validTighterLongEntryProtectionForTest() *AIEntryProtectionRationale {
 	return &AIEntryProtectionRationale{
+		TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		KeyLevels: AIEntryKeyLevels{
+			Support:    []float64{96},
+			Resistance: []float64{108},
+			SwingHighs: []float64{108},
+			SwingLows:  []float64{96},
+		},
+		Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 96, Reason: "trend pullback"}},
 		RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 96, FirstTarget: 108, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsMissingStructuralEntryFieldsWhenEnabled(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+	cfg.EntryStructure = store.EntryStructureConfig{
+		Enabled:                   true,
+		RequirePrimaryTimeframe:   true,
+		RequireAdjacentTimeframes: true,
+		RequireSupportResistance:  true,
+		RequireStructuralAnchors:  true,
+	}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: &AIEntryProtectionRationale{
+			RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
+		},
+	}}
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "timeframe_context.primary") {
+		t.Fatalf("expected structural entry validation error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsMissingFibonacciWhenRequired(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+	cfg.EntryStructure = store.EntryStructureConfig{
+		Enabled:          true,
+		RequireFibonacci: true,
+	}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+	}}
+	decisions[0].EntryProtection.KeyLevels.Fibonacci = nil
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "fibonacci") {
+		t.Fatalf("expected fibonacci validation error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyAllowsStructuredEntryFieldsWhenEnabled(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+	cfg.EntryStructure = store.EntryStructureConfig{
+		Enabled:                   true,
+		RequirePrimaryTimeframe:   true,
+		RequireAdjacentTimeframes: true,
+		RequireSupportResistance:  true,
+		RequireStructuralAnchors:  true,
+	}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err != nil {
+		t.Fatalf("expected structured entry rationale to pass, got %v", err)
 	}
 }
 

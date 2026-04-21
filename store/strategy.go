@@ -72,6 +72,12 @@ type EntryStructureConfig struct {
 	MaxSupportLevels          int  `json:"max_support_levels,omitempty"`
 	MaxResistanceLevels       int  `json:"max_resistance_levels,omitempty"`
 	MaxAnchorCount            int  `json:"max_anchor_count,omitempty"`
+	AuditPrimaryTimeframe     bool `json:"audit_primary_timeframe,omitempty"`
+	AuditAdjacentTimeframes   bool `json:"audit_adjacent_timeframes,omitempty"`
+	AuditSupportResistance    bool `json:"audit_support_resistance,omitempty"`
+	AuditStructuralAnchors    bool `json:"audit_structural_anchors,omitempty"`
+	AuditFibonacci            bool `json:"audit_fibonacci,omitempty"`
+	RequireInvalidationTargetLinkage bool `json:"require_invalidation_target_linkage,omitempty"`
 }
 
 type StrategyControlPolicyMode string
@@ -517,6 +523,12 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			MaxSupportLevels:          3,
 			MaxResistanceLevels:       3,
 			MaxAnchorCount:            4,
+			AuditPrimaryTimeframe:     true,
+			AuditAdjacentTimeframes:   true,
+			AuditSupportResistance:    true,
+			AuditStructuralAnchors:    true,
+			AuditFibonacci:            true,
+			RequireInvalidationTargetLinkage: true,
 		},
 		Protection: ProtectionConfig{
 			FullTPSL: FullTPSLConfig{

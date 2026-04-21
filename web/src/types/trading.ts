@@ -116,6 +116,7 @@ export interface Position {
   break_even_execution_mode?: string
   entry_decision_cycle?: number
   entry_review_summary?: EntryReviewSummary
+  entry_structure_audit?: EntryStructureAuditConfig
   protection_runtime?: ProtectionRuntime
 }
 
@@ -418,6 +419,15 @@ export interface EntryReviewSummary {
   alignment_notes?: string[]
 }
 
+export interface EntryStructureAuditConfig {
+  audit_primary_timeframe?: boolean;
+  audit_adjacent_timeframes?: boolean;
+  audit_support_resistance?: boolean;
+  audit_structural_anchors?: boolean;
+  audit_fibonacci?: boolean;
+  require_invalidation_target_linkage?: boolean;
+}
+
 export interface PositionCloseEvent {
   id: number
   position_id: number
@@ -455,6 +465,7 @@ export interface HistoricalPosition {
   entry_decision_cycle?: number
   entry_decision_review?: DecisionReviewRef
   entry_review_summary?: EntryReviewSummary
+  entry_structure_audit?: EntryStructureAuditConfig
   entry_time: string
   exit_price: number
   exit_order_id: string

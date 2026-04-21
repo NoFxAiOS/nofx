@@ -336,6 +336,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const liveBreakEvenStopPrice = Number(position.protection_runtime?.live_break_even_stop_price ?? 0)
           const breakEvenOrderDetected = Boolean(position.protection_runtime?.break_even_order_detected)
           const entryReviewSummary = position.entry_review_summary
+          const entryStructureAudit = position.entry_structure_audit
           const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
           const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
           const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[] } | undefined
@@ -401,6 +402,14 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? 'Entry / 失效 / 目标' : 'Entry / Invalidation / Target', value: entryRR ? `${entryRR.entry ?? '—'} / ${entryRR.invalidation ?? '—'} / ${entryRR.first_target ?? '—'}` : '—' },
                     { label: language === 'zh' ? '支撑位' : 'Support', value: entryLevels?.support?.length ? entryLevels.support.join(', ') : '—' },
                     { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—' },
+                    { label: language === 'zh' ? '审计开关' : 'Audit Toggles', value: entryStructureAudit ? [
+                      entryStructureAudit.audit_primary_timeframe ? 'TF' : '',
+                      entryStructureAudit.audit_adjacent_timeframes ? 'Adj' : '',
+                      entryStructureAudit.audit_support_resistance ? 'S/R' : '',
+                      entryStructureAudit.audit_structural_anchors ? 'Anchors' : '',
+                      entryStructureAudit.audit_fibonacci ? 'Fib' : '',
+                      entryStructureAudit.require_invalidation_target_linkage ? (language === 'zh' ? '失效/目标联动' : 'Inv/Target linkage') : '',
+                    ].filter(Boolean).join(' · ') || '—' : '—' },
                   ]}
                 />
 

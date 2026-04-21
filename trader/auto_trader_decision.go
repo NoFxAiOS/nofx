@@ -228,6 +228,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		protectionRuntime := at.buildPositionProtectionRuntime(symbol, side, quantity, entryPrice, openOrders)
 		entryDecisionCycle := 0
 		var entryReviewSummary map[string]interface{}
+		var entryStructureAudit map[string]interface{}
 		if at.store != nil {
 			if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, positionSideUpper); err == nil && openPos != nil {
 				entryDecisionCycle = openPos.EntryDecisionCycle
@@ -241,6 +242,21 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 						}
 						if len(entryReviewSummary) == 0 {
 							entryReviewSummary = nil
+						}
+					}
+				}
+				if traderRecord, err := at.store.Trader().GetByID(at.id); err == nil && traderRecord != nil {
+					if fullCfg, err := at.store.Trader().GetFullConfig(traderRecord.UserID, at.id); err == nil && fullCfg != nil && fullCfg.Strategy != nil {
+						if parsed, err := fullCfg.Strategy.ParseConfig(); err == nil && parsed != nil {
+							es := parsed.EntryStructure
+							entryStructureAudit = map[string]interface{}{
+								"audit_primary_timeframe":            es.AuditPrimaryTimeframe,
+								"audit_adjacent_timeframes":          es.AuditAdjacentTimeframes,
+								"audit_support_resistance":           es.AuditSupportResistance,
+								"audit_structural_anchors":           es.AuditStructuralAnchors,
+								"audit_fibonacci":                    es.AuditFibonacci,
+								"require_invalidation_target_linkage": es.RequireInvalidationTargetLinkage,
+							}
 						}
 					}
 				}
@@ -266,6 +282,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			"position_side":             positionSideUpper,
 			"entry_decision_cycle":      entryDecisionCycle,
 			"entry_review_summary":      entryReviewSummary,
+			"entry_structure_audit":     entryStructureAudit,
 		})
 	}
 

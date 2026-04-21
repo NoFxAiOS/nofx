@@ -201,6 +201,26 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 
 		// Create order record - use UTC time in milliseconds to avoid timezone issues
 		execTimeMs := trade.ExecTime.UTC().UnixMilli()
+		requestedReason := trade.OrderAction
+		if requestedReason == "close_long" || requestedReason == "close_short" {
+			tagLower := strings.ToLower(trade.Tag)
+			switch {
+			case strings.Contains(tagLower, "break_even"):
+				requestedReason = "break_even_stop"
+			case strings.Contains(tagLower, "native_trailing"):
+				requestedReason = "native_trailing"
+			case strings.Contains(tagLower, "managed_drawdown"):
+				requestedReason = "managed_drawdown"
+			case strings.Contains(tagLower, "ladder_tp"):
+				requestedReason = "ladder_tp"
+			case strings.Contains(tagLower, "ladder_sl"):
+				requestedReason = "ladder_sl"
+			case strings.Contains(tagLower, "full_tp"):
+				requestedReason = "full_tp"
+			case strings.Contains(tagLower, "full_sl"):
+				requestedReason = "full_sl"
+			}
+		}
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -211,7 +231,7 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 			Side:            side,
 			PositionSide:    positionSide,
 			Type:            trade.OrderType,
-			OrderAction:     trade.OrderAction,
+			OrderAction:     requestedReason,
 			Quantity:        trade.FillQtyBase,
 			Price:           trade.FillPrice,
 			Status:          "FILLED",
@@ -256,7 +276,7 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 		// Create/update position record using PositionBuilder
 		if err := posBuilder.ProcessTrade(
 			traderID, exchangeID, exchangeType,
-			symbol, positionSide, trade.OrderAction,
+			symbol, positionSide, requestedReason,
 			trade.FillQtyBase, trade.FillPrice, trade.Fee, 0, // No per-trade PnL from OKX
 			execTimeMs, trade.TradeID,
 		); err != nil {
@@ -266,8 +286,8 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 		}
 
 		syncedCount++
-		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f fee=%.6f action=%s",
-			trade.TradeID, trade.Symbol, side, trade.FillQtyBase, trade.FillPrice, trade.Fee, trade.OrderAction)
+		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f fee=%.6f action=%s source=%s",
+			trade.TradeID, trade.Symbol, side, trade.FillQtyBase, trade.FillPrice, trade.Fee, trade.OrderAction, requestedReason)
 	}
 
 	logger.Infof("✅ OKX order sync completed: %d new trades synced", syncedCount)

@@ -201,6 +201,9 @@ func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID s
 				reason = ord.OrderAction
 				source = ord.OrderAction
 			}
+		case strings.Contains(strings.ToLower(ord.OrderAction), "managed_drawdown"):
+			reason = "managed_drawdown"
+			source = "managed_drawdown"
 		}
 	}
 	if reason == "" {

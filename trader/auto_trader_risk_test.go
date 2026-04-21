@@ -153,7 +153,7 @@ func (f *fakeProtectionTrader) CancelTrailingStopOrdersByIDs(symbol string, orde
 
 func TestCheckPositionDrawdownSkipsDuplicateManagedPartialCloseForSameRule(t *testing.T) {
 	fake := &fakeProtectionTrader{
-		positions: []map[string]interface{}{ {
+		positions: []map[string]interface{}{{
 			"symbol":      "ADAUSDT",
 			"side":        "long",
 			"entryPrice":  100.0,
@@ -192,7 +192,7 @@ func TestCheckPositionDrawdownSkipsDuplicateManagedPartialCloseForSameRule(t *te
 
 func TestCheckPositionDrawdownAllowsNextCloseAfterPositionFingerprintChanges(t *testing.T) {
 	fake := &fakeProtectionTrader{
-		positions: []map[string]interface{}{ {
+		positions: []map[string]interface{}{{
 			"symbol":      "ADAUSDT",
 			"side":        "long",
 			"entryPrice":  100.0,
@@ -216,7 +216,7 @@ func TestCheckPositionDrawdownAllowsNextCloseAfterPositionFingerprintChanges(t *
 	}
 
 	at.checkPositionDrawdown()
-	fake.positions = []map[string]interface{}{ {
+	fake.positions = []map[string]interface{}{{
 		"symbol":      "ADAUSDT",
 		"side":        "long",
 		"entryPrice":  100.0,
@@ -264,5 +264,60 @@ func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
 	}
 	if at.getProtectionState("BTCUSDT", "long") != "native_trailing_armed" {
 		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))
+	}
+}
+
+func TestCheckPositionDrawdownActivatesRunnerAndSuppressesBreakEvenAfterPartialClose(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "TAOUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"markPrice":   101.0,
+			"positionAmt": 10.0,
+		}},
+	}
+	at := &AutoTrader{
+		exchange: "paper",
+		trader:   fake,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{
+				Protection: store.ProtectionConfig{
+					DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI, Rules: []store.DrawdownTakeProfitRule{{
+						MinProfitPct:     0.7,
+						MaxDrawdownPct:   55,
+						CloseRatioPct:    70,
+						StageName:        "lock_first_profit",
+						RunnerKeepPct:    30,
+						RunnerStopMode:   "structure",
+						RunnerStopSource: "adjacent_support_flip",
+					}}},
+					BreakEvenStop: store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 0.5},
+				},
+			},
+		},
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
+		drawdownState:         make(map[string]string),
+		drawdownRunnerState:   make(map[string]DrawdownRunnerState),
+		peakPnLCache:          map[string]float64{"TAOUSDT_long": 3.0},
+	}
+
+	at.checkPositionDrawdown()
+	if fake.closeLongCalls != 1 {
+		t.Fatalf("expected partial drawdown close, got %d", fake.closeLongCalls)
+	}
+	if fake.setStopLossCalls != 0 {
+		t.Fatalf("expected no break-even placement on unsupported paper exchange, got %d", fake.setStopLossCalls)
+	}
+	if !at.isBreakEvenSuppressedByRunner("TAOUSDT", "long") {
+		t.Fatal("expected runner to suppress subsequent break-even")
+	}
+
+	fake.positions[0]["positionAmt"] = 3.0
+	at.checkPositionDrawdown()
+	if fake.setStopLossCalls != 0 {
+		t.Fatalf("expected no break-even apply after runner activation, got %d", fake.setStopLossCalls)
 	}
 }

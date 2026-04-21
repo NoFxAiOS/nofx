@@ -13,8 +13,8 @@ type runtimeProtectionTestTrader struct{}
 func (f *runtimeProtectionTestTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
 func (f *runtimeProtectionTestTrader) GetPositions() ([]map[string]interface{}, error) {
 	return []map[string]interface{}{{
-		"symbol": "BTCUSDT",
-		"side": "long",
+		"symbol":    "BTCUSDT",
+		"side":      "long",
 		"markPrice": 104.0,
 	}}, nil
 }
@@ -31,7 +31,9 @@ func (f *runtimeProtectionTestTrader) CloseShort(symbol string, quantity float64
 	return nil, nil
 }
 func (f *runtimeProtectionTestTrader) SetLeverage(symbol string, leverage int) error { return nil }
-func (f *runtimeProtectionTestTrader) SetMarginMode(symbol string, isCrossMargin bool) error { return nil }
+func (f *runtimeProtectionTestTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
+	return nil
+}
 func (f *runtimeProtectionTestTrader) GetMarketPrice(symbol string) (float64, error) { return 0, nil }
 func (f *runtimeProtectionTestTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	return nil
@@ -152,5 +154,55 @@ func TestBuildPositionProtectionRuntimeSurfacesLadderDegradation(t *testing.T) {
 	}
 	if got := runtime["fallback_order_detected"]; got != true {
 		t.Fatalf("expected live fallback detection, got %#v", got)
+	}
+}
+
+func TestBuildPositionProtectionRuntimeSurfacesRunnerAndBreakEvenSuppression(t *testing.T) {
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   &runtimeProtectionTestTrader{},
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
+		},
+		peakPnLCache: map[string]float64{"BTCUSDT_long": 8},
+		drawdownRunnerState: map[string]DrawdownRunnerState{"BTCUSDT_long": {
+			StageName:                   "lock_first_profit",
+			RunnerKeepPct:               30,
+			RunnerStopMode:              "structure",
+			RunnerStopSource:            "adjacent_support_flip",
+			RunnerTargetMode:            "structure",
+			RunnerTargetSource:          "primary_resistance",
+			BreakEvenSuppressedByRunner: true,
+		}},
+	}
+	at.config.StrategyConfig.Protection.BreakEvenStop = store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 4, OffsetPct: 0.1}
+	at.config.StrategyConfig.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI, Rules: []store.DrawdownTakeProfitRule{{
+		MinProfitPct:       5,
+		MaxDrawdownPct:     30,
+		CloseRatioPct:      70,
+		StageName:          "lock_first_profit",
+		RunnerKeepPct:      30,
+		RunnerStopMode:     "structure",
+		RunnerStopSource:   "adjacent_support_flip",
+		RunnerTargetMode:   "structure",
+		RunnerTargetSource: "primary_resistance",
+	}}}
+
+	runtime := at.buildPositionProtectionRuntime("BTCUSDT", "long", 1, 100, nil)
+	if got := runtime["break_even_suppressed_by_runner"]; got != true {
+		t.Fatalf("expected BE suppression surfaced, got %#v", got)
+	}
+	if got := runtime["drawdown_runner_mode_active"]; got != true {
+		t.Fatalf("expected runner mode active, got %#v", got)
+	}
+	if got := runtime["drawdown_runner_stage_name"]; got != "lock_first_profit" {
+		t.Fatalf("expected runner stage name, got %#v", got)
+	}
+	if got := runtime["drawdown_runner_keep_pct"]; got != 30.0 {
+		t.Fatalf("expected runner keep pct 30, got %#v", got)
+	}
+	tiers, _ := runtime["scheduled_tiers"].([]map[string]interface{})
+	if len(tiers) != 1 || tiers[0]["stage_name"] != "lock_first_profit" {
+		t.Fatalf("expected scheduled tier stage metadata, got %#v", runtime["scheduled_tiers"])
 	}
 }

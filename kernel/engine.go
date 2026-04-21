@@ -242,6 +242,12 @@ type AIProtectionDrawdownRule struct {
 	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
 	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
 	ReasonAnchor        string  `json:"reason_anchor,omitempty"`
+	StageName           string  `json:"stage_name,omitempty"`
+	RunnerKeepPct       float64 `json:"runner_keep_pct,omitempty"`
+	RunnerStopMode      string  `json:"runner_stop_mode,omitempty"`
+	RunnerStopSource    string  `json:"runner_stop_source,omitempty"`
+	RunnerTargetMode    string  `json:"runner_target_mode,omitempty"`
+	RunnerTargetSource  string  `json:"runner_target_source,omitempty"`
 }
 
 type AIProtectionLadderRule struct {

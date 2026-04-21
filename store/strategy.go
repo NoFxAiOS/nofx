@@ -63,20 +63,20 @@ type StrategyConfig struct {
 }
 
 type EntryStructureConfig struct {
-	Enabled                   bool `json:"enabled"`
-	RequirePrimaryTimeframe   bool `json:"require_primary_timeframe"`
-	RequireAdjacentTimeframes bool `json:"require_adjacent_timeframes"`
-	RequireSupportResistance  bool `json:"require_support_resistance"`
-	RequireStructuralAnchors  bool `json:"require_structural_anchors"`
-	RequireFibonacci          bool `json:"require_fibonacci"`
-	MaxSupportLevels          int  `json:"max_support_levels,omitempty"`
-	MaxResistanceLevels       int  `json:"max_resistance_levels,omitempty"`
-	MaxAnchorCount            int  `json:"max_anchor_count,omitempty"`
-	AuditPrimaryTimeframe     bool `json:"audit_primary_timeframe,omitempty"`
-	AuditAdjacentTimeframes   bool `json:"audit_adjacent_timeframes,omitempty"`
-	AuditSupportResistance    bool `json:"audit_support_resistance,omitempty"`
-	AuditStructuralAnchors    bool `json:"audit_structural_anchors,omitempty"`
-	AuditFibonacci            bool `json:"audit_fibonacci,omitempty"`
+	Enabled                          bool `json:"enabled"`
+	RequirePrimaryTimeframe          bool `json:"require_primary_timeframe"`
+	RequireAdjacentTimeframes        bool `json:"require_adjacent_timeframes"`
+	RequireSupportResistance         bool `json:"require_support_resistance"`
+	RequireStructuralAnchors         bool `json:"require_structural_anchors"`
+	RequireFibonacci                 bool `json:"require_fibonacci"`
+	MaxSupportLevels                 int  `json:"max_support_levels,omitempty"`
+	MaxResistanceLevels              int  `json:"max_resistance_levels,omitempty"`
+	MaxAnchorCount                   int  `json:"max_anchor_count,omitempty"`
+	AuditPrimaryTimeframe            bool `json:"audit_primary_timeframe,omitempty"`
+	AuditAdjacentTimeframes          bool `json:"audit_adjacent_timeframes,omitempty"`
+	AuditSupportResistance           bool `json:"audit_support_resistance,omitempty"`
+	AuditStructuralAnchors           bool `json:"audit_structural_anchors,omitempty"`
+	AuditFibonacci                   bool `json:"audit_fibonacci,omitempty"`
 	RequireInvalidationTargetLinkage bool `json:"require_invalidation_target_linkage,omitempty"`
 }
 
@@ -546,20 +546,20 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 		},
 		StrategyControlPolicy: StrategyControlPolicyConfig{Mode: StrategyControlPolicyModeStrict},
 		EntryStructure: EntryStructureConfig{
-			Enabled:                   true,
-			RequirePrimaryTimeframe:   true,
-			RequireAdjacentTimeframes: true,
-			RequireSupportResistance:  true,
-			RequireStructuralAnchors:  true,
-			RequireFibonacci:          false,
-			MaxSupportLevels:          3,
-			MaxResistanceLevels:       3,
-			MaxAnchorCount:            4,
-			AuditPrimaryTimeframe:     true,
-			AuditAdjacentTimeframes:   true,
-			AuditSupportResistance:    true,
-			AuditStructuralAnchors:    true,
-			AuditFibonacci:            true,
+			Enabled:                          true,
+			RequirePrimaryTimeframe:          true,
+			RequireAdjacentTimeframes:        true,
+			RequireSupportResistance:         true,
+			RequireStructuralAnchors:         true,
+			RequireFibonacci:                 false,
+			MaxSupportLevels:                 3,
+			MaxResistanceLevels:              3,
+			MaxAnchorCount:                   4,
+			AuditPrimaryTimeframe:            true,
+			AuditAdjacentTimeframes:          true,
+			AuditSupportResistance:           true,
+			AuditStructuralAnchors:           true,
+			AuditFibonacci:                   true,
 			RequireInvalidationTargetLinkage: true,
 		},
 		Protection: ProtectionConfig{

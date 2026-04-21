@@ -147,18 +147,20 @@ type ProtectionOrder struct {
 // ProtectionPlan is the normalized execution representation produced from strategy config
 // (and later AI protection plans) before hitting exchange adapters.
 type ProtectionPlan struct {
-	Mode                 string
-	NeedsStopLoss        bool
-	NeedsTakeProfit      bool
-	StopLossPrice        float64
-	TakeProfitPrice      float64
-	FallbackMaxLossPrice float64
-	StopLossOrders       []ProtectionOrder
-	TakeProfitOrders     []ProtectionOrder
-	DrawdownRules        []store.DrawdownTakeProfitRule
-	BreakEvenConfig      *store.BreakEvenStopConfig
-	RequiresNativeOrders bool
-	RequiresPartialClose bool
+	Mode                        string
+	NeedsStopLoss               bool
+	NeedsTakeProfit             bool
+	StopLossPrice               float64
+	TakeProfitPrice             float64
+	FallbackMaxLossPrice        float64
+	StopLossOrders              []ProtectionOrder
+	TakeProfitOrders            []ProtectionOrder
+	DrawdownRules               []store.DrawdownTakeProfitRule
+	BreakEvenConfig             *store.BreakEvenStopConfig
+	RequiresNativeOrders        bool
+	RequiresPartialClose        bool
+	DrawdownRunnerState         *DrawdownRunnerState
+	BreakEvenSuppressedByRunner bool
 }
 
 // mergeProtectionPlans combines multiple protection plans into a single target exchange protection set.
@@ -184,6 +186,11 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 			cfg := *plan.BreakEvenConfig
 			merged.BreakEvenConfig = &cfg
 		}
+		if merged.DrawdownRunnerState == nil && plan.DrawdownRunnerState != nil {
+			state := *plan.DrawdownRunnerState
+			merged.DrawdownRunnerState = &state
+		}
+		merged.BreakEvenSuppressedByRunner = merged.BreakEvenSuppressedByRunner || plan.BreakEvenSuppressedByRunner
 		merged.RequiresNativeOrders = merged.RequiresNativeOrders || plan.RequiresNativeOrders
 		merged.RequiresPartialClose = merged.RequiresPartialClose || plan.RequiresPartialClose
 		if merged.StopLossPrice == 0 && plan.StopLossPrice > 0 {

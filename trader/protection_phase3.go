@@ -188,6 +188,12 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 				MaxDrawdownPct:      rule.MaxDrawdownPct,
 				CloseRatioPct:       rule.CloseRatioPct,
 				PollIntervalSeconds: rule.PollIntervalSeconds,
+				StageName:           rule.StageName,
+				RunnerKeepPct:       rule.RunnerKeepPct,
+				RunnerStopMode:      rule.RunnerStopMode,
+				RunnerStopSource:    rule.RunnerStopSource,
+				RunnerTargetMode:    rule.RunnerTargetMode,
+				RunnerTargetSource:  rule.RunnerTargetSource,
 			})
 		}
 		return &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules}, nil

@@ -243,6 +243,7 @@ func TestCleanupInactiveProtectionState_DoesNotCancelOrdersWhenOppositeSideStill
 		protectionState:       map[string]string{"BTCUSDT_long": "native_trailing_armed", "BTCUSDT_short": "exchange_protection_verified"},
 		breakEvenState:        map[string]string{"BTCUSDT_long": "armed", "BTCUSDT_short": "armed"},
 		breakEvenFingerprints: map[string]string{"BTCUSDT_long": "100|1", "BTCUSDT_short": "100|1"},
+		drawdownRunnerState:   map[string]DrawdownRunnerState{"BTCUSDT_long": {StageName: "runner"}, "BTCUSDT_short": {StageName: "runner"}},
 		peakPnLCache:          map[string]float64{"BTCUSDT_long": 4.2, "BTCUSDT_short": 3.1},
 	}
 
@@ -264,11 +265,58 @@ func TestCleanupInactiveProtectionState_DoesNotCancelOrdersWhenOppositeSideStill
 	if got := at.getBreakEvenState("BTCUSDT", "long"); got != "" {
 		t.Fatalf("expected inactive long break-even state cleared, got %q", got)
 	}
+	if state := at.getDrawdownRunnerState("BTCUSDT", "short"); state == nil {
+		t.Fatal("expected active short runner state to remain")
+	}
+	if state := at.getDrawdownRunnerState("BTCUSDT", "long"); state != nil {
+		t.Fatal("expected inactive long runner state cleared")
+	}
 	cache := at.GetPeakPnLCache()
 	if _, ok := cache["BTCUSDT_short"]; !ok {
 		t.Fatal("expected active short peak cache to remain")
 	}
 	if _, ok := cache["BTCUSDT_long"]; ok {
 		t.Fatal("expected inactive long peak cache cleared")
+	}
+}
+
+func TestProtectionReconciler_SkipsBreakEvenWhenRunnerSuppressesIt(t *testing.T) {
+	ft := &fakeReconcileTrader{
+		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
+			openOrders: []tradertypes.OpenOrder{},
+		},
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"positionAmt": 1.0,
+			"markPrice":   106.0,
+		}},
+	}
+
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   ft,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{
+				Protection: store.ProtectionConfig{
+					BreakEvenStop: store.BreakEvenStopConfig{
+						Enabled:      true,
+						TriggerMode:  store.BreakEvenTriggerProfitPct,
+						TriggerValue: 5,
+						OffsetPct:    0,
+					},
+				},
+			},
+		},
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
+		drawdownRunnerState:   map[string]DrawdownRunnerState{"BTCUSDT_long": {StageName: "lock_first_profit", RunnerKeepPct: 30, RunnerStopMode: "structure", BreakEvenSuppressedByRunner: true}},
+	}
+
+	at.reconcilePositionProtections()
+	if len(ft.stopLossOrders) != 0 {
+		t.Fatalf("expected no break-even stop placement when runner suppresses it, got %d", len(ft.stopLossOrders))
 	}
 }

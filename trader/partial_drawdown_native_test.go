@@ -63,3 +63,34 @@ func TestBuildManagedPartialDrawdownPlanCandidate_IgnoresFullClose(t *testing.T)
 		t.Fatal("expected nil for full-close rule")
 	}
 }
+
+func TestBuildManagedPartialDrawdownPlanCandidate_CarriesRunnerStateAndSuppressesBE(t *testing.T) {
+	rule := store.DrawdownTakeProfitRule{
+		MinProfitPct:       10,
+		MaxDrawdownPct:     20,
+		CloseRatioPct:      70,
+		StageName:          "lock_first_profit",
+		RunnerKeepPct:      30,
+		RunnerStopMode:     "structure",
+		RunnerStopSource:   "adjacent_support_flip",
+		RunnerTargetMode:   "structure",
+		RunnerTargetSource: "primary_resistance",
+	}
+
+	plan := buildManagedPartialDrawdownPlanCandidate(100, "open_long", rule)
+	if plan == nil {
+		t.Fatal("expected candidate plan")
+	}
+	if plan.DrawdownRunnerState == nil {
+		t.Fatal("expected runner state")
+	}
+	if !plan.BreakEvenSuppressedByRunner {
+		t.Fatal("expected break-even suppression by runner")
+	}
+	if plan.DrawdownRunnerState.StageName != "lock_first_profit" {
+		t.Fatalf("expected stage name carried, got %q", plan.DrawdownRunnerState.StageName)
+	}
+	if plan.DrawdownRunnerState.RunnerKeepPct != 30 {
+		t.Fatalf("expected runner keep 30, got %.2f", plan.DrawdownRunnerState.RunnerKeepPct)
+	}
+}

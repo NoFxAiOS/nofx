@@ -140,29 +140,30 @@ type AutoTrader struct {
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
-	isRunningMutex        sync.RWMutex       // Mutex to protect isRunning flag
-	startTime             time.Time          // System start time
-	callCount             int                // AI call count
-	positionFirstSeenTime map[string]int64   // Position first seen time (symbol_side -> timestamp in milliseconds)
-	stopMonitorCh         chan struct{}      // Used to stop monitoring goroutine
-	monitorWg             sync.WaitGroup     // Used to wait for monitoring goroutine to finish
-	peakPnLCache          map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
-	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
-	protectionStateMutex  sync.RWMutex       // Protects last protection reconcile state
-	protectionState       map[string]string  // symbol_side -> last known protection status
-	breakEvenStateMutex   sync.RWMutex       // Protects break-even armed state per position
-	breakEvenState        map[string]string  // symbol_side -> idle/armed
-	breakEvenFingerprints map[string]string  // symbol_side -> entry/qty fingerprint for lifecycle reset
-	breakEvenSource       map[string]string  // symbol_side -> strategy|ai_decision
-	drawdownState         map[string]string  // symbol_side -> last executed drawdown rule fingerprint
-	drawdownSource        map[string]string  // symbol_side -> strategy|ai_decision
-	lastBalanceSyncTime   time.Time          // Last balance sync time
-	userID                string             // User ID
-	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
-	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
-	consecutiveAIFailures int                // Consecutive AI call failures
-	safeMode              bool               // Safe mode: no new positions, protect existing ones
-	safeModeReason        string             // Why safe mode was activated
+	isRunningMutex        sync.RWMutex                   // Mutex to protect isRunning flag
+	startTime             time.Time                      // System start time
+	callCount             int                            // AI call count
+	positionFirstSeenTime map[string]int64               // Position first seen time (symbol_side -> timestamp in milliseconds)
+	stopMonitorCh         chan struct{}                  // Used to stop monitoring goroutine
+	monitorWg             sync.WaitGroup                 // Used to wait for monitoring goroutine to finish
+	peakPnLCache          map[string]float64             // Peak profit cache (symbol -> peak P&L percentage)
+	peakPnLCacheMutex     sync.RWMutex                   // Cache read-write lock
+	protectionStateMutex  sync.RWMutex                   // Protects last protection reconcile state
+	protectionState       map[string]string              // symbol_side -> last known protection status
+	breakEvenStateMutex   sync.RWMutex                   // Protects break-even armed state per position
+	breakEvenState        map[string]string              // symbol_side -> idle/armed
+	breakEvenFingerprints map[string]string              // symbol_side -> entry/qty fingerprint for lifecycle reset
+	breakEvenSource       map[string]string              // symbol_side -> strategy|ai_decision
+	drawdownState         map[string]string              // symbol_side -> last executed drawdown rule fingerprint
+	drawdownSource        map[string]string              // symbol_side -> strategy|ai_decision
+	drawdownRunnerState   map[string]DrawdownRunnerState // symbol_side -> active runner semantics after partial drawdown
+	lastBalanceSyncTime   time.Time                      // Last balance sync time
+	userID                string                         // User ID
+	gridState             *GridState                     // Grid trading state (only used when StrategyType == "grid_trading")
+	claw402WalletAddr     string                         // Claw402 wallet address (derived from private key at start)
+	consecutiveAIFailures int                            // Consecutive AI call failures
+	safeMode              bool                           // Safe mode: no new positions, protect existing ones
+	safeModeReason        string                         // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader
@@ -361,6 +362,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		drawdownState:         make(map[string]string),
 		breakEvenSource:       make(map[string]string),
 		drawdownSource:        make(map[string]string),
+		drawdownRunnerState:   make(map[string]DrawdownRunnerState),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil

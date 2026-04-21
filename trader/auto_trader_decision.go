@@ -250,11 +250,11 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 						if parsed, err := fullCfg.Strategy.ParseConfig(); err == nil && parsed != nil {
 							es := parsed.EntryStructure
 							entryStructureAudit = map[string]interface{}{
-								"audit_primary_timeframe":            es.AuditPrimaryTimeframe,
-								"audit_adjacent_timeframes":          es.AuditAdjacentTimeframes,
-								"audit_support_resistance":           es.AuditSupportResistance,
-								"audit_structural_anchors":           es.AuditStructuralAnchors,
-								"audit_fibonacci":                    es.AuditFibonacci,
+								"audit_primary_timeframe":             es.AuditPrimaryTimeframe,
+								"audit_adjacent_timeframes":           es.AuditAdjacentTimeframes,
+								"audit_support_resistance":            es.AuditSupportResistance,
+								"audit_structural_anchors":            es.AuditStructuralAnchors,
+								"audit_fibonacci":                     es.AuditFibonacci,
 								"require_invalidation_target_linkage": es.RequireInvalidationTargetLinkage,
 							}
 						}
@@ -651,6 +651,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	be := at.getActiveBreakEvenConfigForPlan(nil)
 	breakEvenTrigger := 0.0
 	breakEvenOffset := 0.0
+	breakEvenSuppressedByRunner := at.isBreakEvenSuppressedByRunner(symbol, side)
 	nextBreakEvenGap := 0.0
 	breakEvenSource := at.getBreakEvenConfigSource(symbol, side)
 	if be == nil {
@@ -664,9 +665,13 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			nextBreakEvenGap = 0
 		}
 	}
+	if breakEvenSuppressedByRunner {
+		nextBreakEvenGap = 0
+	}
 
 	drawdownRules := at.getActiveDrawdownRules()
 	drawdownSource := at.getDrawdownConfigSource(symbol, side)
+	runnerState := at.getDrawdownRunnerState(symbol, side)
 	armRules := at.getDrawdownArmRules(currentPnLPct, drawdownRules)
 	currentStageMinProfit := 0.0
 	currentStageRuleCount := 0
@@ -758,6 +763,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	tiers := make([]map[string]interface{}, 0)
 	if at.config.StrategyConfig != nil {
 		for idx, rule := range at.config.StrategyConfig.Protection.DrawdownTakeProfit.Rules {
+			rule = normalizeDrawdownRule(rule)
 			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
 				continue
 			}
@@ -825,9 +831,15 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			}
 			tiers = append(tiers, map[string]interface{}{
 				"index":                    idx + 1,
+				"stage_name":               rule.StageName,
 				"min_profit_pct":           rule.MinProfitPct,
 				"max_drawdown_pct":         rule.MaxDrawdownPct,
 				"close_ratio_pct":          rule.CloseRatioPct,
+				"runner_keep_pct":          rule.RunnerKeepPct,
+				"runner_stop_mode":         rule.RunnerStopMode,
+				"runner_stop_source":       rule.RunnerStopSource,
+				"runner_target_mode":       rule.RunnerTargetMode,
+				"runner_target_source":     rule.RunnerTargetSource,
 				"activation_price":         activationPrice,
 				"planned_activation_price": plannedActivationPrice,
 				"activation_source":        activationSource,
@@ -861,8 +873,46 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	fallbackActive := fallbackStopCount > 0
 
 	return map[string]interface{}{
-		"protection_state":                      at.getProtectionState(symbol, side),
-		"break_even_state":                      at.getBreakEvenState(symbol, side),
+		"protection_state":                at.getProtectionState(symbol, side),
+		"break_even_state":                at.getBreakEvenState(symbol, side),
+		"break_even_suppressed_by_runner": breakEvenSuppressedByRunner,
+		"drawdown_runner_mode_active":     runnerState != nil,
+		"drawdown_runner_stage_name": func() string {
+			if runnerState != nil {
+				return runnerState.StageName
+			}
+			return ""
+		}(),
+		"drawdown_runner_keep_pct": func() float64 {
+			if runnerState != nil {
+				return runnerState.RunnerKeepPct
+			}
+			return 0
+		}(),
+		"drawdown_runner_stop_mode": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerStopMode
+			}
+			return ""
+		}(),
+		"drawdown_runner_stop_source": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerStopSource
+			}
+			return ""
+		}(),
+		"drawdown_runner_target_mode": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerTargetMode
+			}
+			return ""
+		}(),
+		"drawdown_runner_target_source": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerTargetSource
+			}
+			return ""
+		}(),
 		"drawdown_execution_mode":               at.getDrawdownExecutionMode(symbol, side),
 		"drawdown_config_source":                drawdownSource,
 		"break_even_execution_mode":             at.getBreakEvenExecutionMode(symbol, side),

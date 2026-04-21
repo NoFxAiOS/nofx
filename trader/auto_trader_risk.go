@@ -114,14 +114,18 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		matchedBreakEven := at.getActiveBreakEvenConfig()
 		if matchedBreakEven != nil {
-			beState := at.getBreakEvenState(symbol, side)
-			if beState == "armed" || beState == "arming" {
-				logger.Infof("🟠 Break-even monitor: %s %s already %s, skipping duplicate apply", symbol, side, beState)
+			if at.isBreakEvenSuppressedByRunner(symbol, side) {
+				logger.Infof("🟠 Break-even monitor: %s %s suppressed by runner semantics, skipping mechanical BE apply", symbol, side)
 			} else {
-				if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
-					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
-				} else if currentPnLPct >= matchedBreakEven.TriggerValue {
-					at.setBreakEvenState(symbol, side, "armed")
+				beState := at.getBreakEvenState(symbol, side)
+				if beState == "armed" || beState == "arming" {
+					logger.Infof("🟠 Break-even monitor: %s %s already %s, skipping duplicate apply", symbol, side, beState)
+				} else {
+					if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
+						logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
+					} else if currentPnLPct >= matchedBreakEven.TriggerValue {
+						at.setBreakEvenState(symbol, side, "armed")
+					}
 				}
 			}
 		}
@@ -163,7 +167,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			}
 		}
 
-		matchedRule := triggeredRules[0]
+		matchedRule := normalizeDrawdownRule(triggeredRules[0])
 		ruleFingerprint := drawdownRuleFingerprint(entryPrice, quantity, matchedRule)
 		if at.getDrawdownExecutionFingerprint(symbol, side) == ruleFingerprint {
 			logger.Infof("🟠 Drawdown monitor: %s %s rule already executed (fingerprint=%s), skipping duplicate close", symbol, side, ruleFingerprint)
@@ -185,6 +189,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		logger.Infof("✅ Drawdown take-profit succeeded: %s %s", symbol, side)
 		at.setDrawdownExecutionFingerprint(symbol, side, ruleFingerprint)
 		at.setProtectionState(symbol, side, "drawdown_triggered")
+		at.setDrawdownRunnerState(symbol, side, buildDrawdownRunnerState(matchedRule))
 		if closeQty == 0 {
 			at.ClearPeakPnLCache(symbol, side)
 			at.clearBreakEvenState(symbol, side)

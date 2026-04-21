@@ -482,8 +482,43 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 			if entryStructure.RequireSupportResistance && (len(d.EntryProtection.KeyLevels.Support) == 0 || len(d.EntryProtection.KeyLevels.Resistance) == 0) {
 				return fmt.Errorf("entry_protection_rationale.key_levels support/resistance are required")
 			}
+			if entryStructure.MaxSupportLevels > 0 && len(d.EntryProtection.KeyLevels.Support) > entryStructure.MaxSupportLevels {
+				return fmt.Errorf("entry_protection_rationale.key_levels support exceeds max %d", entryStructure.MaxSupportLevels)
+			}
+			if entryStructure.MaxResistanceLevels > 0 && len(d.EntryProtection.KeyLevels.Resistance) > entryStructure.MaxResistanceLevels {
+				return fmt.Errorf("entry_protection_rationale.key_levels resistance exceeds max %d", entryStructure.MaxResistanceLevels)
+			}
 			if entryStructure.RequireStructuralAnchors && len(d.EntryProtection.Anchors) == 0 {
 				return fmt.Errorf("entry_protection_rationale.anchors is required")
+			}
+			if entryStructure.MaxAnchorCount > 0 && len(d.EntryProtection.Anchors) > entryStructure.MaxAnchorCount {
+				return fmt.Errorf("entry_protection_rationale.anchors exceeds max %d", entryStructure.MaxAnchorCount)
+			}
+			if len(d.EntryProtection.Anchors) > 0 {
+				allowedTF := map[string]struct{}{}
+				if primary := strings.TrimSpace(d.EntryProtection.TimeframeContext.Primary); primary != "" {
+					allowedTF[primary] = struct{}{}
+				}
+				for _, tf := range d.EntryProtection.TimeframeContext.Lower {
+					if tf = strings.TrimSpace(tf); tf != "" {
+						allowedTF[tf] = struct{}{}
+					}
+				}
+				for _, tf := range d.EntryProtection.TimeframeContext.Higher {
+					if tf = strings.TrimSpace(tf); tf != "" {
+						allowedTF[tf] = struct{}{}
+					}
+				}
+				for i, anchor := range d.EntryProtection.Anchors {
+					if strings.TrimSpace(anchor.Type) == "" || strings.TrimSpace(anchor.Timeframe) == "" || anchor.Price <= 0 || strings.TrimSpace(anchor.Reason) == "" {
+						return fmt.Errorf("entry_protection_rationale.anchors[%d] requires type, timeframe, price, and reason", i)
+					}
+					if len(allowedTF) > 0 {
+						if _, ok := allowedTF[anchor.Timeframe]; !ok {
+							return fmt.Errorf("entry_protection_rationale.anchors[%d] timeframe %s not in timeframe_context", i, anchor.Timeframe)
+						}
+					}
+				}
 			}
 			if entryStructure.RequireFibonacci {
 				fib := d.EntryProtection.KeyLevels.Fibonacci

@@ -97,6 +97,48 @@ func TestValidateAIDecisionsWithStrategyRejectsMissingFibonacciWhenRequired(t *t
 	}
 }
 
+func TestValidateAIDecisionsWithStrategyRejectsTooManySupportLevels(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, MaxSupportLevels: 1}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+	}}
+	decisions[0].EntryProtection.KeyLevels.Support = []float64{95, 96}
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "support exceeds max") {
+		t.Fatalf("expected support max validation error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsAnchorOutsideTimeframeContext(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, RequireStructuralAnchors: true}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+	}}
+	decisions[0].EntryProtection.Anchors = []AIEntryProtectionAnchor{{Type: "support", Timeframe: "4h", Price: 95, Reason: "wrong timeframe"}}
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "not in timeframe_context") {
+		t.Fatalf("expected anchor timeframe validation error, got %v", err)
+	}
+}
+
 func TestValidateAIDecisionsWithStrategyAllowsStructuredEntryFieldsWhenEnabled(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.RiskControl.MinRiskRewardRatio = 1.5

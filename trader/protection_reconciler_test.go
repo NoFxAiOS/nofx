@@ -137,6 +137,65 @@ func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPresent(t *testing
 	}
 }
 
+func TestDetectMissingProtectionAcceptsDegradedFullStopAndFallbackInsteadOfMissingLadderStops(t *testing.T) {
+	orders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
+	}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 98, CloseRatioPct: 50},
+			{Price: 96, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	if missingSL || missingTP {
+		t.Fatalf("expected degraded full+fallback stop ownership to satisfy protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
+func TestDetectMissingProtectionAcceptsDegradedFullTakeProfitInsteadOfMissingLadderTP(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 110}}
+	plan := &ProtectionPlan{
+		NeedsTakeProfit: true,
+		TakeProfitPrice: 110,
+		TakeProfitOrders: []ProtectionOrder{
+			{Price: 105, CloseRatioPct: 50},
+			{Price: 110, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	if missingSL || missingTP {
+		t.Fatalf("expected degraded full TP ownership to satisfy protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
+func TestProtectionReconciler_DoesNotReapplyWhenDustRemainderAlreadyHasFullStopAndFallback(t *testing.T) {
+	orders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 4780, Quantity: 0.001, ClientOrderID: "full_sl_1"},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 4750, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"},
+	}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        4780,
+		FallbackMaxLossPrice: 4750,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 4780, CloseRatioPct: 50},
+			{Price: 4776, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	if missingSL || missingTP {
+		t.Fatalf("expected degraded dust remainder stop ownership to be accepted, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
 func TestProtectionReconciler_DoesNotReapplyBreakEvenWhenAlreadyArmedAndFingerprintStable(t *testing.T) {
 	ft := &fakeReconcileTrader{
 		fakeOrderProtectionTrader: fakeOrderProtectionTrader{

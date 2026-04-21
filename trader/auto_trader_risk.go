@@ -108,6 +108,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
+		if fingerprintChanged := at.refreshDrawdownExecutionFingerprint(symbol, side, entryPrice, quantity); fingerprintChanged {
+			logger.Infof("🟠 Drawdown monitor: %s %s drawdown fingerprint changed, clearing previous execution guard", symbol, side)
+		}
+
 		matchedBreakEven := at.getActiveBreakEvenConfig()
 		if matchedBreakEven != nil {
 			beState := at.getBreakEvenState(symbol, side)
@@ -160,6 +164,11 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		matchedRule := triggeredRules[0]
+		ruleFingerprint := drawdownRuleFingerprint(entryPrice, quantity, matchedRule)
+		if at.getDrawdownExecutionFingerprint(symbol, side) == ruleFingerprint {
+			logger.Infof("🟠 Drawdown monitor: %s %s rule already executed (fingerprint=%s), skipping duplicate close", symbol, side, ruleFingerprint)
+			continue
+		}
 		closeQty := quantity * matchedRule.CloseRatioPct / 100.0
 		if closeQty <= 0 || matchedRule.CloseRatioPct >= 99.999 {
 			closeQty = 0 // exchange adapters use 0 to mean close all
@@ -174,10 +183,12 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		logger.Infof("✅ Drawdown take-profit succeeded: %s %s", symbol, side)
+		at.setDrawdownExecutionFingerprint(symbol, side, ruleFingerprint)
 		at.setProtectionState(symbol, side, "drawdown_triggered")
 		if closeQty == 0 {
 			at.ClearPeakPnLCache(symbol, side)
 			at.clearBreakEvenState(symbol, side)
+			at.clearDrawdownExecutionFingerprint(symbol, side)
 		} else {
 			at.UpdatePeakPnL(symbol, side, currentPnLPct)
 		}

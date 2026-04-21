@@ -455,6 +455,57 @@ func actionFromPositionSide(side string) string {
 	}
 }
 
+func (at *AutoTrader) setDrawdownExecutionFingerprint(symbol, side, fingerprint string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownState == nil {
+		at.drawdownState = make(map[string]string)
+	}
+	at.drawdownState[positionKey(symbol, side)] = fingerprint
+}
+
+func (at *AutoTrader) getDrawdownExecutionFingerprint(symbol, side string) string {
+	at.protectionStateMutex.RLock()
+	defer at.protectionStateMutex.RUnlock()
+	if at.drawdownState == nil {
+		return ""
+	}
+	return at.drawdownState[positionKey(symbol, side)]
+}
+
+func (at *AutoTrader) clearDrawdownExecutionFingerprint(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownState == nil {
+		return
+	}
+	delete(at.drawdownState, positionKey(symbol, side))
+}
+
+func drawdownRuleFingerprint(entryPrice, quantity float64, rule store.DrawdownTakeProfitRule) string {
+	return fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%.4f", entryPrice, quantity, rule.MinProfitPct, rule.MaxDrawdownPct, rule.CloseRatioPct)
+}
+
+func (at *AutoTrader) refreshDrawdownExecutionFingerprint(symbol, side string, entryPrice, quantity float64) bool {
+	key := positionKey(symbol, side)
+	base := fmt.Sprintf("%.8f|%.8f", entryPrice, quantity)
+
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownState == nil {
+		at.drawdownState = make(map[string]string)
+	}
+	prev, ok := at.drawdownState[key]
+	if !ok || prev == "" {
+		return false
+	}
+	if !strings.HasPrefix(prev, base+"|") && prev != base {
+		delete(at.drawdownState, key)
+		return true
+	}
+	return false
+}
+
 func (at *AutoTrader) setProtectionState(symbol, side, state string) {
 	at.protectionStateMutex.Lock()
 	defer at.protectionStateMutex.Unlock()
@@ -595,6 +646,14 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 		}
 	}
 	at.breakEvenStateMutex.Unlock()
+
+	at.protectionStateMutex.Lock()
+	for key := range at.drawdownState {
+		if _, ok := active[key]; !ok {
+			delete(at.drawdownState, key)
+		}
+	}
+	at.protectionStateMutex.Unlock()
 
 	at.peakPnLCacheMutex.Lock()
 	for key := range at.peakPnLCache {

@@ -210,10 +210,28 @@ type LadderTPSLRule struct {
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
 }
 
+type DrawdownEngineMode string
+
+const (
+	DrawdownEngineModeManual DrawdownEngineMode = "manual"
+	DrawdownEngineModeAI     DrawdownEngineMode = "ai"
+)
+
+const (
+	DrawdownBreakEvenRunnerPrimary      = "primary"
+	DrawdownBreakEvenRunnerFallbackOnly = "fallback_only"
+	DrawdownBreakEvenRunnerDisabled     = "disabled_for_runner"
+)
+
 type DrawdownTakeProfitConfig struct {
-	Enabled bool                     `json:"enabled"`
-	Mode    ProtectionMode           `json:"mode,omitempty"`
-	Rules   []DrawdownTakeProfitRule `json:"rules,omitempty"`
+	Enabled               bool                     `json:"enabled"`
+	Mode                  ProtectionMode           `json:"mode,omitempty"`
+	EngineMode            DrawdownEngineMode       `json:"engine_mode,omitempty"`
+	RunnerEnabled         bool                     `json:"runner_enabled,omitempty"`
+	MinRunnerKeepPct      float64                  `json:"min_runner_keep_pct,omitempty"`
+	MaxFirstReducePct     float64                  `json:"max_first_reduce_pct,omitempty"`
+	BreakEvenRunnerPolicy string                   `json:"break_even_runner_policy,omitempty"`
+	Rules                 []DrawdownTakeProfitRule `json:"rules,omitempty"`
 }
 
 func (c *DrawdownTakeProfitConfig) UnmarshalJSON(data []byte) error {
@@ -238,6 +256,22 @@ func (c *DrawdownTakeProfitConfig) UnmarshalJSON(data []byte) error {
 			c.Mode = ProtectionModeDisabled
 		}
 	}
+	if c.EngineMode == "" {
+		if c.Mode == ProtectionModeAI {
+			c.EngineMode = DrawdownEngineModeAI
+		} else {
+			c.EngineMode = DrawdownEngineModeManual
+		}
+	}
+	if c.MinRunnerKeepPct <= 0 {
+		c.MinRunnerKeepPct = 20
+	}
+	if c.MaxFirstReducePct <= 0 {
+		c.MaxFirstReducePct = 60
+	}
+	if c.BreakEvenRunnerPolicy == "" {
+		c.BreakEvenRunnerPolicy = DrawdownBreakEvenRunnerFallbackOnly
+		}
 
 	return nil
 }
@@ -583,7 +617,13 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 				FallbackMaxLoss:   ProtectionValueSource{Mode: ProtectionValueModeDisabled, Value: 0},
 			},
 			DrawdownTakeProfit: DrawdownTakeProfitConfig{
-				Enabled: false,
+				Enabled:               false,
+				Mode:                  ProtectionModeManual,
+				EngineMode:            DrawdownEngineModeManual,
+				RunnerEnabled:         true,
+				MinRunnerKeepPct:      20,
+				MaxFirstReducePct:     60,
+				BreakEvenRunnerPolicy: DrawdownBreakEvenRunnerFallbackOnly,
 				Rules: []DrawdownTakeProfitRule{
 					{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, PollIntervalSeconds: 60},
 				},

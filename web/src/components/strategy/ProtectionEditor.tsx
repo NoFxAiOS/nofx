@@ -46,6 +46,11 @@ export const defaultProtectionConfig: ProtectionConfig = {
   drawdown_take_profit: {
     enabled: false,
     mode: 'manual',
+    engine_mode: 'manual',
+    runner_enabled: true,
+    min_runner_keep_pct: 20,
+    max_first_reduce_pct: 60,
+    break_even_runner_policy: 'fallback_only',
     rules: [{ min_profit_pct: 5, max_drawdown_pct: 40, close_ratio_pct: 100, poll_interval_seconds: 60 }],
   },
   break_even_stop: {
@@ -88,6 +93,11 @@ export const normalizeProtectionConfig = (config?: Partial<ProtectionConfig> | n
   drawdown_take_profit: {
     ...defaultProtectionConfig.drawdown_take_profit,
     ...(config?.drawdown_take_profit || {}),
+    engine_mode: config?.drawdown_take_profit?.engine_mode || (config?.drawdown_take_profit?.mode === 'ai' ? 'ai' : 'manual'),
+    runner_enabled: config?.drawdown_take_profit?.runner_enabled ?? defaultProtectionConfig.drawdown_take_profit.runner_enabled,
+    min_runner_keep_pct: config?.drawdown_take_profit?.min_runner_keep_pct ?? defaultProtectionConfig.drawdown_take_profit.min_runner_keep_pct,
+    max_first_reduce_pct: config?.drawdown_take_profit?.max_first_reduce_pct ?? defaultProtectionConfig.drawdown_take_profit.max_first_reduce_pct,
+    break_even_runner_policy: config?.drawdown_take_profit?.break_even_runner_policy || defaultProtectionConfig.drawdown_take_profit.break_even_runner_policy,
     rules: config?.drawdown_take_profit?.rules || defaultProtectionConfig.drawdown_take_profit.rules,
   },
   break_even_stop: {
@@ -563,6 +573,35 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '模式' : 'Mode'}</label>
               <select value={config.drawdown_take_profit.mode} onChange={(e) => updateDrawdown('mode', e.target.value as DrawdownTakeProfitConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
                 {protectionModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '引擎语义' : 'Engine Semantics'}</label>
+              <select value={config.drawdown_take_profit.engine_mode || 'manual'} onChange={(e) => updateDrawdown('engine_mode', e.target.value as DrawdownTakeProfitConfig['engine_mode'])} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle}>
+                <option value="manual">{isZh ? '手动固定规则' : 'Manual fixed rules'}</option>
+                <option value="ai">{isZh ? 'AI 结构驱动' : 'AI structure-driven'}</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '启用 Runner' : 'Runner Enabled'}</label>
+                <input type="checkbox" checked={Boolean(config.drawdown_take_profit.runner_enabled)} onChange={(e) => updateDrawdown('runner_enabled', e.target.checked)} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="h-4 w-4 accent-purple-500" />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最少保留 Runner %' : 'Min Runner Keep %'}</label>
+                <input type="number" value={config.drawdown_take_profit.min_runner_keep_pct ?? 20} min={0} max={100} step={1} onChange={(e) => updateDrawdown('min_runner_keep_pct', parseFloat(e.target.value) || 0)} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '第一阶段最大减仓 %' : 'Max First Reduce %'}</label>
+                <input type="number" value={config.drawdown_take_profit.max_first_reduce_pct ?? 60} min={0} max={100} step={1} onChange={(e) => updateDrawdown('max_first_reduce_pct', parseFloat(e.target.value) || 0)} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? 'Runner 与 BE 关系' : 'Runner vs Break-even Policy'}</label>
+              <select value={config.drawdown_take_profit.break_even_runner_policy || 'fallback_only'} onChange={(e) => updateDrawdown('break_even_runner_policy', e.target.value as DrawdownTakeProfitConfig['break_even_runner_policy'])} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle}>
+                <option value="primary">{isZh ? 'BE 仍为主止损' : 'BE remains primary'}</option>
+                <option value="fallback_only">{isZh ? 'BE 只做兜底' : 'BE fallback only'}</option>
+                <option value="disabled_for_runner">{isZh ? 'Runner 下禁用 BE' : 'Disable BE for runner'}</option>
               </select>
             </div>
             {infoBlock(

@@ -120,6 +120,9 @@ export interface LadderTPSLConfig {
   rules: LadderTPSLRule[];
 }
 
+export type DrawdownEngineMode = 'manual' | 'ai';
+export type BreakEvenRunnerPolicy = 'primary' | 'fallback_only' | 'disabled_for_runner';
+
 export interface DrawdownTakeProfitRule {
   min_profit_pct: number;
   max_drawdown_pct: number;
@@ -130,11 +133,15 @@ export interface DrawdownTakeProfitRule {
 export interface DrawdownTakeProfitConfig {
   enabled: boolean;
   /**
-   * disabled: no runtime drawdown ownership.
-   * manual: rules are authored and persisted explicitly from this config.
-   * ai: rules are expected from AI output; existing manual rules are kept as editable fallback/reference data.
+   * disabled/manual/ai reflects protection ownership semantics.
+   * engine_mode decides whether drawdown behavior stays fixed-rule or structure-driven.
    */
   mode: ProtectionMode;
+  engine_mode?: DrawdownEngineMode;
+  runner_enabled?: boolean;
+  min_runner_keep_pct?: number;
+  max_first_reduce_pct?: number;
+  break_even_runner_policy?: BreakEvenRunnerPolicy;
   rules: DrawdownTakeProfitRule[];
 }
 

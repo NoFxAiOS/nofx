@@ -538,6 +538,9 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 	if d.Action == "open_short" && !(rr.Invalidation > rr.Entry && rr.FirstTarget < rr.Entry) {
 		return fmt.Errorf("entry_protection_rationale.risk_reward direction mismatch for open_short")
 	}
+	if err := validateStructuralPriceAlignment(d.Action, d.EntryProtection, config); err != nil {
+		return err
+	}
 
 	computedRR := rr.GrossEstimatedRR
 	riskDistance := absFloat(rr.Entry - rr.Invalidation)
@@ -580,6 +583,187 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 		return err
 	}
 	return nil
+}
+
+func validateStructuralPriceAlignment(action string, rationale *AIEntryProtectionRationale, config *store.StrategyConfig) error {
+	if rationale == nil {
+		return nil
+	}
+	if config == nil || !config.EntryStructure.Enabled {
+		return nil
+	}
+	rr := rationale.RiskReward
+	riskDistance := absFloat(rr.Entry - rr.Invalidation)
+	rewardDistance := absFloat(rr.FirstTarget - rr.Entry)
+	if riskDistance <= 0 || rewardDistance <= 0 {
+		return nil
+	}
+
+	if err := validateStructuralAnchorCoverage(action, rationale); err != nil {
+		return err
+	}
+	if err := validateStructuralLevelProximity(action, rationale, riskDistance, rewardDistance); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateStructuralAnchorCoverage(action string, rationale *AIEntryProtectionRationale) error {
+	if len(rationale.Anchors) == 0 {
+		return nil
+	}
+	var invalidationAnchor, targetAnchor bool
+	for _, anchor := range rationale.Anchors {
+		t := strings.ToLower(strings.TrimSpace(anchor.Type))
+		switch action {
+		case "open_long":
+			if t == "support" || t == "swing_low" || t == "fib_support" {
+				invalidationAnchor = true
+			}
+			if t == "resistance" || t == "swing_high" || t == "fib_resistance" || t == "fibonacci" {
+				targetAnchor = true
+			}
+		case "open_short":
+			if t == "resistance" || t == "swing_high" || t == "fib_resistance" {
+				invalidationAnchor = true
+			}
+			if t == "support" || t == "swing_low" || t == "fib_support" || t == "fibonacci" {
+				targetAnchor = true
+			}
+		}
+	}
+	if !invalidationAnchor {
+		return fmt.Errorf("entry_protection_rationale.anchors must include a structural invalidation anchor for %s", action)
+	}
+	if !targetAnchor {
+		return fmt.Errorf("entry_protection_rationale.anchors must include a structural first_target anchor for %s", action)
+	}
+	return nil
+}
+
+func validateStructuralLevelProximity(action string, rationale *AIEntryProtectionRationale, riskDistance, rewardDistance float64) error {
+	entry := rationale.RiskReward.Entry
+	invalidation := rationale.RiskReward.Invalidation
+	firstTarget := rationale.RiskReward.FirstTarget
+	supportTol := structuralTolerance(riskDistance, rationale.VolatilityAdjustment.ATR14Pct, entry)
+	resistanceTol := structuralTolerance(rewardDistance, rationale.VolatilityAdjustment.ATR14Pct, entry)
+	fibTol := structuralTolerance(maxFloat(riskDistance, rewardDistance), rationale.VolatilityAdjustment.ATR14Pct, entry)
+
+	supports := filterPositiveLevels(rationale.KeyLevels.Support)
+	resistances := filterPositiveLevels(rationale.KeyLevels.Resistance)
+	fibLevels := fibonacciLevels(rationale.KeyLevels.Fibonacci)
+
+	switch action {
+	case "open_long":
+		if len(supports) > 0 {
+			nearestSupport, supportGap := nearestLevel(invalidation, supports)
+			if supportGap > supportTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f too far from structural support %.4f", invalidation, nearestSupport)
+			}
+			if invalidation > nearestSupport+supportTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f must sit near/below support %.4f", invalidation, nearestSupport)
+			}
+		}
+		if len(resistances) > 0 {
+			nearestResistance, resistanceGap := nearestLevel(firstTarget, resistances)
+			if resistanceGap > resistanceTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from structural resistance %.4f", firstTarget, nearestResistance)
+			}
+		}
+		if len(fibLevels) > 0 {
+			_, fibGap := nearestLevel(firstTarget, fibLevels)
+			if len(resistances) == 0 && fibGap > fibTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from fibonacci structure", firstTarget)
+			}
+		}
+	case "open_short":
+		if len(resistances) > 0 {
+			nearestResistance, resistanceGap := nearestLevel(invalidation, resistances)
+			if resistanceGap > resistanceTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f too far from structural resistance %.4f", invalidation, nearestResistance)
+			}
+			if invalidation < nearestResistance-supportTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f must sit near/above resistance %.4f", invalidation, nearestResistance)
+			}
+		}
+		if len(supports) > 0 {
+			nearestSupport, supportGap := nearestLevel(firstTarget, supports)
+			if supportGap > supportTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from structural support %.4f", firstTarget, nearestSupport)
+			}
+		}
+		if len(fibLevels) > 0 {
+			_, fibGap := nearestLevel(firstTarget, fibLevels)
+			if len(supports) == 0 && fibGap > fibTol {
+				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from fibonacci structure", firstTarget)
+			}
+		}
+	}
+	return nil
+}
+
+func structuralTolerance(distance, atrPct, entry float64) float64 {
+	if distance <= 0 {
+		return 0
+	}
+	tol := distance * 0.35
+	if atrPct > 0 && entry > 0 {
+		atrDistance := entry * (atrPct / 100)
+		if atrDistance > tol {
+			tol = atrDistance
+		}
+	}
+	if minTol := distance * 0.10; tol < minTol {
+		tol = minTol
+	}
+	if maxTol := distance * 0.60; tol > maxTol {
+		tol = maxTol
+	}
+	return tol
+}
+
+func nearestLevel(price float64, levels []float64) (float64, float64) {
+	best := 0.0
+	bestGap := 0.0
+	for i, level := range levels {
+		gap := absFloat(price - level)
+		if i == 0 || gap < bestGap {
+			best = level
+			bestGap = gap
+		}
+	}
+	return best, bestGap
+}
+
+func filterPositiveLevels(levels []float64) []float64 {
+	out := make([]float64, 0, len(levels))
+	for _, level := range levels {
+		if level > 0 {
+			out = append(out, level)
+		}
+	}
+	return out
+}
+
+func fibonacciLevels(fib *AIEntryFibonacci) []float64 {
+	if fib == nil {
+		return nil
+	}
+	levels := filterPositiveLevels(fib.Levels)
+	if fib.SwingHigh > 0 {
+		levels = append(levels, fib.SwingHigh)
+	}
+	if fib.SwingLow > 0 {
+		levels = append(levels, fib.SwingLow)
+	}
+	return levels
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func validateProtectionPlanAlignmentSkeleton(d Decision, rr AIRiskRewardRationale, config *store.StrategyConfig) error {

@@ -357,16 +357,22 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
             if (!entryStructureAudit?.require_invalidation_target_linkage || !entryRR) return null
             const supports = (entryLevels?.support || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
             const resistances = (entryLevels?.resistance || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+            const swingLows = ((entryLevels as { swing_lows?: number[] } | undefined)?.swing_lows || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+            const swingHighs = ((entryLevels as { swing_highs?: number[] } | undefined)?.swing_highs || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+            const fib = (entryLevels as { fibonacci?: { swing_low?: number; swing_high?: number; levels?: number[] } } | undefined)?.fibonacci
+            const fibLevels = (fib?.levels || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+            if (fib?.swing_low) fibLevels.push(fib.swing_low)
+            if (fib?.swing_high) fibLevels.push(fib.swing_high)
             if (!entryRR.entry || !entryRR.invalidation || !entryRR.first_target) return language === 'zh' ? '缺失' : 'Missing'
             const riskDist = Math.abs(entryRR.entry - entryRR.invalidation)
             const targetDist = Math.abs(entryRR.first_target - entryRR.entry)
             const tol = Math.max(0.0001, Math.min(Math.max(riskDist, targetDist) * 0.35, Math.max(entryRR.entry, entryRR.first_target, entryRR.invalidation) * 0.02))
             const invalidation = entryRR.invalidation
             const firstTarget = entryRR.first_target
-            const invalidNearSupport = supports.some((v) => Math.abs(v - invalidation) <= tol)
-            const targetNearResistance = resistances.some((v) => Math.abs(v - firstTarget) <= tol)
-            if (invalidNearSupport && targetNearResistance) return language === 'zh' ? '已联动' : 'Linked'
-            if (invalidNearSupport || targetNearResistance) return language === 'zh' ? '部分联动' : 'Partial'
+            const invalidLinked = [...supports, ...swingLows, ...fibLevels].some((v) => Math.abs(v - invalidation) <= tol)
+            const targetLinked = [...resistances, ...swingHighs, ...fibLevels].some((v) => Math.abs(v - firstTarget) <= tol)
+            if (invalidLinked && targetLinked) return language === 'zh' ? '已联动' : 'Linked'
+            if (invalidLinked || targetLinked) return language === 'zh' ? '部分联动' : 'Partial'
             return language === 'zh' ? '缺失' : 'Missing'
           })()
           const plannedLadderStopCount = Number(position.protection_runtime?.planned_ladder_stop_count ?? 0)

@@ -105,23 +105,32 @@ function formatRiskRewardLinkage(rr?: DecisionActionReviewContext['risk_reward']
   return parts
 }
 
-function getEntryLinkageStatus(audit: EntryStructureAuditConfig | undefined, summary: EntryReviewSummary | undefined): { label: string; tone: 'neutral' | 'warn' | 'danger' } | null {
+type EntryLinkageStatus = { label: string; tone: 'neutral' | 'warn' | 'danger'; invalidLinked: boolean; targetLinked: boolean }
+
+function getEntryLinkageStatus(audit: EntryStructureAuditConfig | undefined, summary: EntryReviewSummary | undefined): EntryLinkageStatus | null {
   if (!audit?.require_invalidation_target_linkage || !summary) return null
   const rr = summary.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
-  const levels = summary.key_levels as { support?: number[]; resistance?: number[] } | undefined
-  if (!rr?.entry || !rr?.invalidation || !rr?.first_target) return { label: 'linkage missing', tone: 'danger' }
+  const levels = summary.key_levels as { support?: number[]; resistance?: number[]; swing_lows?: number[]; swing_highs?: number[]; fibonacci?: { swing_low?: number; swing_high?: number; levels?: number[] } } | undefined
+  if (!rr?.entry || !rr?.invalidation || !rr?.first_target) return { label: 'linkage missing', tone: 'danger', invalidLinked: false, targetLinked: false }
   const supports = (levels?.support || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
   const resistances = (levels?.resistance || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const swingLows = (levels?.swing_lows || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const swingHighs = (levels?.swing_highs || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const fibLevels = (levels?.fibonacci?.levels || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  if (levels?.fibonacci?.swing_low) fibLevels.push(levels.fibonacci.swing_low)
+  if (levels?.fibonacci?.swing_high) fibLevels.push(levels.fibonacci.swing_high)
   const riskDist = Math.abs(rr.entry - rr.invalidation)
   const targetDist = Math.abs(rr.first_target - rr.entry)
   const tol = Math.max(0.0001, Math.min(Math.max(riskDist, targetDist) * 0.35, Math.max(rr.entry, rr.first_target, rr.invalidation) * 0.02))
   const invalidation = rr.invalidation
   const firstTarget = rr.first_target
-  const invalidNearSupport = supports.some((v) => Math.abs(v - invalidation) <= tol)
-  const targetNearResistance = resistances.some((v) => Math.abs(v - firstTarget) <= tol)
-  if (invalidNearSupport && targetNearResistance) return { label: 'linked', tone: 'neutral' }
-  if (invalidNearSupport || targetNearResistance) return { label: 'partial linkage', tone: 'warn' }
-  return { label: 'linkage missing', tone: 'danger' }
+  const invalidAnchors = [...supports, ...swingLows, ...fibLevels]
+  const targetAnchors = [...resistances, ...swingHighs, ...fibLevels]
+  const invalidLinked = invalidAnchors.some((v) => Math.abs(v - invalidation) <= tol)
+  const targetLinked = targetAnchors.some((v) => Math.abs(v - firstTarget) <= tol)
+  if (invalidLinked && targetLinked) return { label: 'linked', tone: 'neutral', invalidLinked, targetLinked }
+  if (invalidLinked || targetLinked) return { label: 'partial linkage', tone: 'warn', invalidLinked, targetLinked }
+  return { label: 'linkage missing', tone: 'danger', invalidLinked, targetLinked }
 }
 
 export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
@@ -150,6 +159,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const timeframeTrail = formatTimeframeTrail(ctx)
   const fibSummary = formatFibSummary(ctx?.key_levels)
   const rrLinkage = formatRiskRewardLinkage(rr)
+  const entryLinkageStatus = getEntryLinkageStatus({ require_invalidation_target_linkage: true }, ctx as unknown as EntryReviewSummary | undefined)
 
   return {
     decision,
@@ -166,6 +176,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     swingLows: formatCompactLevelList(ctx?.key_levels?.swing_lows),
     fibSummary,
     rrLinkage,
+    entryLinkageStatus,
     timeframeTrail,
     alignmentNotes: (ctx?.alignment_notes || []).filter(Boolean).slice(0, 3),
     anchors: ctx?.anchors || [],
@@ -364,6 +375,17 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${passCls}`}>
           RR {formatCompactRr(audit.rr?.net_estimated_rr ?? audit.rr?.gross_estimated_rr)}
         </span>
+        {audit.entryLinkageStatus ? (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
+            audit.entryLinkageStatus.tone === 'danger'
+              ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+              : audit.entryLinkageStatus.tone === 'warn'
+                ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+          }`}>
+            linkage {audit.entryLinkageStatus.label}
+          </span>
+        ) : null}
         {audit.controlStatus ? (
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
             audit.controlStatus.tone === 'danger'

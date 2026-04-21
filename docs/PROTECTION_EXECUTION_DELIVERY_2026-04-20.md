@@ -239,3 +239,39 @@ go test ./...
 - 真实持仓验收
 - 保护摘要可视化
 - 运营/文档/fixture 最后一轮整理
+
+---
+
+## 2026-04-21 ADA drawdown partial-close follow-up
+
+真实持仓验收中发现 ADAUSDT LONG 曾出现“原始保护语义为部分清仓，但实盘多笔 close_long 累计整仓清掉”的异常样本。
+
+### 复盘结论
+
+- 当时 AI decision records 对 ADA 输出为 `hold`，不是 AI 主动 `close_long`。
+- 当时 protection snapshot 显示：
+  - `ladder_tp_sl.take_profit_enabled=false`
+  - `ladder_tp_sl.stop_loss_enabled=true`
+  - drawdown rules 为 70% / 85% partial close
+  - break-even enabled
+- 因此该异常不是 TP ladder 自然全清，也不是 AI close，而是 drawdown partial-close 执行链与 OKX fill sync 共同暴露的问题。
+
+### 已修复
+
+- `705037bc fix: guard drawdown partial closes against duplicate re-fire`
+  - 为 drawdown 增加 position entry/quantity + rule fingerprint guard。
+  - 同一持仓、同一剩余数量、同一 rule 已执行后，后续轮询不再重复 partial close。
+  - 仓位 fingerprint 变化后允许继续下一次合法保护评估。
+- `52219aa1 fix: preserve drawdown close source in okx sync`
+  - OKX fills-history sync 从 tag 还原 close source。
+  - 后续 close events 可保留 `managed_drawdown` / `native_trailing` / `break_even_stop` / ladder/full 等来源，不再全部扁平化为 `close_long` / `close_short`。
+
+### 验证
+
+已通过：
+
+```bash
+go test ./api ./kernel ./trader
+cd web && npm run build
+```
+

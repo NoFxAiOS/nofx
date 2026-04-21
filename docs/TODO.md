@@ -5,7 +5,7 @@
 - [~] 基于当前交付结果，进入下一轮新任务：真实持仓验收 / 保护摘要可视化 / fixture 产物取舍。
   - [x] 保护摘要可视化：运行态摘要已补齐 drawdown stage / break-even live order / trailing count / ladder planned-vs-live / degradation summary / full-fallback state。
   - [x] 保护摘要验收样例：已补 `trader/position_protection_runtime_test.go` 与 `web/src/components/trader/PositionProtectionPanel.test.tsx`，锁住 ladder→full / fallback live / partial TP degradation 展示语义。
-  - [ ] 真实持仓验收：仍需对活跃 symbol 做实盘核对（基础保护 / break-even / drawdown stage / cleanup）。
+  - [~] 真实持仓验收：已完成 ADA 异常样本回溯与修复，确认问题主因是 drawdown partial close 重复 re-fire 与 OKX sync close source 扁平化；对应修复为 `705037bc` / `52219aa1`。仍需继续对活跃 symbol 做实盘核对（基础保护 / break-even / drawdown stage / cleanup）。
   - [ ] fixture 产物取舍：`docs/fixtures/protection-test-run-last-result.json` / `docs/fixtures/protection-test-run-open-bias-fixture.json` 是否入库仍待决定。
 - protection 配置闭环补充：
   - [x] `PUT /api/strategies/:id` → `GET /api/strategies/:id` API 级回读验证已补齐，确认 Full/Ladder/fallback 深层字段不会因局部更新被冲掉

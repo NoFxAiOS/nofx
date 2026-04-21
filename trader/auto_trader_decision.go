@@ -226,6 +226,26 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		positionSideUpper := strings.ToUpper(side)
 		openOrders = at.enrichProtectionOrders(openOrders)
 		protectionRuntime := at.buildPositionProtectionRuntime(symbol, side, quantity, entryPrice, openOrders)
+		entryDecisionCycle := 0
+		var entryReviewSummary map[string]interface{}
+		if at.store != nil {
+			if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, positionSideUpper); err == nil && openPos != nil {
+				entryDecisionCycle = openPos.EntryDecisionCycle
+				if decisionStore := at.store.Decision(); decisionStore != nil {
+					if record, err := decisionStore.GetRecordByCycle(at.id, openPos.EntryDecisionCycle); err == nil && record != nil && record.ReviewContext != nil {
+						entryReviewSummary = make(map[string]interface{})
+						for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes"} {
+							if value, ok := record.ReviewContext[key]; ok {
+								entryReviewSummary[key] = value
+							}
+						}
+						if len(entryReviewSummary) == 0 {
+							entryReviewSummary = nil
+						}
+					}
+				}
+			}
+		}
 
 		result = append(result, map[string]interface{}{
 			"symbol":                    symbol,
@@ -244,6 +264,8 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
 			"protection_runtime":        protectionRuntime,
 			"position_side":             positionSideUpper,
+			"entry_decision_cycle":      entryDecisionCycle,
+			"entry_review_summary":      entryReviewSummary,
 		})
 	}
 

@@ -335,6 +335,10 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const breakEvenConfigSource = String(position.protection_runtime?.break_even_config_source || 'strategy')
           const liveBreakEvenStopPrice = Number(position.protection_runtime?.live_break_even_stop_price ?? 0)
           const breakEvenOrderDetected = Boolean(position.protection_runtime?.break_even_order_detected)
+          const entryReviewSummary = position.entry_review_summary
+          const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
+          const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
+          const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[] } | undefined
           const plannedLadderStopCount = Number(position.protection_runtime?.planned_ladder_stop_count ?? 0)
           const plannedLadderTakeProfitCount = Number(position.protection_runtime?.planned_ladder_take_profit_count ?? 0)
           const liveLadderStopCount = Number(position.protection_runtime?.live_ladder_stop_count ?? 0)
@@ -388,6 +392,18 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <ProtectionCard
+                  title={language === 'zh' ? '开仓结构摘要' : 'Entry Structure Summary'}
+                  subtitle={language === 'zh' ? '直接看这笔仓位开仓时的主/邻周期、RR 与关键价位' : 'Inspect the primary/adjacent timeframes, RR, and key levels used at entry'}
+                  rows={[
+                    { label: language === 'zh' ? '决策周期' : 'Decision Cycle', value: position.entry_decision_cycle ? String(position.entry_decision_cycle) : '—' },
+                    { label: language === 'zh' ? '周期' : 'Timeframes', value: entryTf?.primary ? `${entryTf.primary}${entryTf.lower?.length ? ` | lower ${entryTf.lower.join(', ')}` : ''}${entryTf.higher?.length ? ` | higher ${entryTf.higher.join(', ')}` : ''}` : '—' },
+                    { label: language === 'zh' ? 'Entry / 失效 / 目标' : 'Entry / Invalidation / Target', value: entryRR ? `${entryRR.entry ?? '—'} / ${entryRR.invalidation ?? '—'} / ${entryRR.first_target ?? '—'}` : '—' },
+                    { label: language === 'zh' ? '支撑位' : 'Support', value: entryLevels?.support?.length ? entryLevels.support.join(', ') : '—' },
+                    { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—' },
+                  ]}
+                />
+
                 <ProtectionCard
                   title={language === 'zh' ? '保护总览' : 'Protection Overview'}
                   subtitle={language === 'zh' ? '先看整体，再看具体委托' : 'Read the overall state first, then inspect individual orders'}

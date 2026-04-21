@@ -114,6 +114,8 @@ export interface Position {
   drawdown_execution_mode?: string
   drawdown_config_source?: string
   break_even_execution_mode?: string
+  entry_decision_cycle?: number
+  entry_review_summary?: EntryReviewSummary
   protection_runtime?: ProtectionRuntime
 }
 

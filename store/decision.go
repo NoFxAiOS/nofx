@@ -107,6 +107,7 @@ type DecisionAction struct {
 // DecisionActionReviewContext captures compact, structured rationale for a single action.
 type DecisionActionReviewContext struct {
 	PrimaryTimeframe     string                              `json:"primary_timeframe,omitempty"`
+	TimeframeContext     *DecisionActionTimeframeContext     `json:"timeframe_context,omitempty"`
 	MinRiskReward        float64                             `json:"min_risk_reward,omitempty"`
 	RiskReward           *DecisionActionRiskRewardSummary    `json:"risk_reward,omitempty"`
 	KeyLevels            *DecisionActionKeyLevels            `json:"key_levels,omitempty"`
@@ -114,6 +115,13 @@ type DecisionActionReviewContext struct {
 	Protection           *DecisionActionProtectionAlignment  `json:"protection,omitempty"`
 	Control              *DecisionActionControlOutcome       `json:"control,omitempty"`
 	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
+}
+
+// DecisionActionTimeframeContext stores compact structural timeframe evidence for entry audit.
+type DecisionActionTimeframeContext struct {
+	Primary string   `json:"primary,omitempty"`
+	Lower   []string `json:"lower,omitempty"`
+	Higher  []string `json:"higher,omitempty"`
 }
 
 // DecisionActionControlOutcome stores compact system policy outcome metadata.
@@ -166,8 +174,18 @@ type DecisionActionRiskRewardSummary struct {
 
 // DecisionActionKeyLevels stores compact key support/resistance levels for audit UI.
 type DecisionActionKeyLevels struct {
-	Support    []float64 `json:"support,omitempty"`
-	Resistance []float64 `json:"resistance,omitempty"`
+	Support    []float64                       `json:"support,omitempty"`
+	Resistance []float64                       `json:"resistance,omitempty"`
+	SwingHighs []float64                       `json:"swing_highs,omitempty"`
+	SwingLows  []float64                       `json:"swing_lows,omitempty"`
+	Fibonacci  *DecisionActionFibonacciSummary `json:"fibonacci,omitempty"`
+}
+
+// DecisionActionFibonacciSummary stores compact fibonacci structural anchors when configured.
+type DecisionActionFibonacciSummary struct {
+	SwingHigh float64   `json:"swing_high,omitempty"`
+	SwingLow  float64   `json:"swing_low,omitempty"`
+	Levels    []float64 `json:"levels,omitempty"`
 }
 
 // DecisionActionReasonAnchor stores a compact rationale anchor.

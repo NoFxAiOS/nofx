@@ -861,6 +861,7 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 		if ep.TimeframeContext.Primary != "" {
 			ctx.PrimaryTimeframe = ep.TimeframeContext.Primary
 		}
+		ctx.TimeframeContext = compactTimeframeContext(ep.TimeframeContext)
 		rr := ep.RiskReward
 		if rr.Entry > 0 || rr.Invalidation > 0 || rr.FirstTarget > 0 || rr.GrossEstimatedRR > 0 || rr.NetEstimatedRR > 0 || rr.Passed {
 			riskReward := &store.DecisionActionRiskRewardSummary{
@@ -882,15 +883,7 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 			}
 			ctx.RiskReward = riskReward
 		}
-		if len(ep.KeyLevels.Support) > 0 || len(ep.KeyLevels.Resistance) > 0 {
-			ctx.KeyLevels = &store.DecisionActionKeyLevels{
-				Support:    compactLevelList(ep.KeyLevels.Support),
-				Resistance: compactLevelList(ep.KeyLevels.Resistance),
-			}
-			if len(ctx.KeyLevels.Support) == 0 && len(ctx.KeyLevels.Resistance) == 0 {
-				ctx.KeyLevels = nil
-			}
-		}
+		ctx.KeyLevels = compactKeyLevels(ep.KeyLevels)
 		if len(ep.Anchors) > 0 {
 			ctx.Anchors = compactReasonAnchors(ep.Anchors)
 		}
@@ -937,6 +930,55 @@ func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.Decisio
 		out.FailedChecks = []string{policy.ReasonCode}
 	}
 	return out
+}
+
+func compactTimeframeContext(tf kernel.AIEntryTimeframeContext) *store.DecisionActionTimeframeContext {
+	if tf.Primary == "" && len(tf.Lower) == 0 && len(tf.Higher) == 0 {
+		return nil
+	}
+	return &store.DecisionActionTimeframeContext{
+		Primary: tf.Primary,
+		Lower:   compactStringList(tf.Lower, 3),
+		Higher:  compactStringList(tf.Higher, 3),
+	}
+}
+
+func compactStringList(values []string, limit int) []string {
+	compact := make([]string, 0, minInt(len(values), limit))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		compact = append(compact, value)
+		if len(compact) >= limit {
+			break
+		}
+	}
+	return compact
+}
+
+func compactKeyLevels(levels kernel.AIEntryKeyLevels) *store.DecisionActionKeyLevels {
+	ctx := &store.DecisionActionKeyLevels{
+		Support:    compactLevelList(levels.Support),
+		Resistance: compactLevelList(levels.Resistance),
+		SwingHighs: compactLevelList(levels.SwingHighs),
+		SwingLows:  compactLevelList(levels.SwingLows),
+	}
+	if levels.Fibonacci != nil {
+		fibLevels := compactLevelList(levels.Fibonacci.Levels)
+		if levels.Fibonacci.SwingHigh > 0 || levels.Fibonacci.SwingLow > 0 || len(fibLevels) > 0 {
+			ctx.Fibonacci = &store.DecisionActionFibonacciSummary{
+				SwingHigh: levels.Fibonacci.SwingHigh,
+				SwingLow:  levels.Fibonacci.SwingLow,
+				Levels:    fibLevels,
+			}
+		}
+	}
+	if len(ctx.Support) == 0 && len(ctx.Resistance) == 0 && len(ctx.SwingHighs) == 0 && len(ctx.SwingLows) == 0 && ctx.Fibonacci == nil {
+		return nil
+	}
+	return ctx
 }
 
 func compactLevelList(levels []float64) []float64 {

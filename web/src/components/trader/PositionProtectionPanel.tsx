@@ -184,6 +184,25 @@ function getAuditToggleText(audit: Position['entry_structure_audit'] | undefined
   return parts.length > 0 ? parts.join(' · ') : '—'
 }
 
+function nearestLevelMapping(price: number, candidates: Array<{ label: string; value: number }>) {
+  if (!price || !Number.isFinite(price) || candidates.length === 0) return null
+  let best: { label: string; value: number; diffPct: number } | null = null
+  for (const candidate of candidates) {
+    if (!candidate.value || !Number.isFinite(candidate.value)) continue
+    const diffPct = ((price - candidate.value) / candidate.value) * 100
+    if (!best || Math.abs(diffPct) < Math.abs(best.diffPct)) {
+      best = { ...candidate, diffPct }
+    }
+  }
+  return best
+}
+
+function formatLevelMapping(price: number, candidates: Array<{ label: string; value: number }>, language: Language): string {
+  const nearest = nearestLevelMapping(price, candidates)
+  if (!nearest) return '—'
+  return `${nearest.label} ${formatPrice(nearest.value)} · ${language === 'zh' ? '偏离' : 'drift'} ${formatSignedPercent(nearest.diffPct)}`
+}
+
 function ProtectionCard({
   title,
   subtitle,
@@ -406,7 +425,17 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const entryStructureAudit = position.entry_structure_audit
           const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
           const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
-          const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[] } | undefined
+          const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[]; swing_lows?: number[]; swing_highs?: number[]; fibonacci?: { swing_low?: number; swing_high?: number; levels?: number[] } } | undefined
+          const fibSummary = entryLevels?.fibonacci
+          const structureCandidates = [
+            ...(entryLevels?.support || []).map((value, idx) => ({ label: `S${idx + 1}`, value })),
+            ...(entryLevels?.resistance || []).map((value, idx) => ({ label: `R${idx + 1}`, value })),
+            ...((entryLevels?.swing_lows || []).map((value, idx) => ({ label: `swingL${idx + 1}`, value }))),
+            ...((entryLevels?.swing_highs || []).map((value, idx) => ({ label: `swingH${idx + 1}`, value }))),
+            ...((fibSummary?.levels || []).map((value, idx) => ({ label: `fib${idx + 1}`, value }))),
+            ...(entryRR?.invalidation ? [{ label: 'invalid', value: entryRR.invalidation }] : []),
+            ...(entryRR?.first_target ? [{ label: 'target', value: entryRR.first_target }] : []),
+          ]
           const linkageStatus = (() => {
             if (!entryStructureAudit?.require_invalidation_target_linkage || !entryRR) return null
             const supports = (entryLevels?.support || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
@@ -489,8 +518,11 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '决策周期' : 'Decision Cycle', value: position.entry_decision_cycle ? String(position.entry_decision_cycle) : '—' },
                     { label: language === 'zh' ? '周期' : 'Timeframes', value: entryTf?.primary ? `${entryTf.primary}${entryTf.lower?.length ? ` | lower ${entryTf.lower.join(', ')}` : ''}${entryTf.higher?.length ? ` | higher ${entryTf.higher.join(', ')}` : ''}` : '—' },
                     { label: language === 'zh' ? 'Entry / 失效 / 目标' : 'Entry / Invalidation / Target', value: entryRR ? `${entryRR.entry ?? '—'} / ${entryRR.invalidation ?? '—'} / ${entryRR.first_target ?? '—'}` : '—' },
+                    { label: language === 'zh' ? '主/邻周期' : 'Primary/Adjacent TF', value: entryTf?.primary ? `${entryTf.primary}${entryTf.lower?.length ? ` · lower ${entryTf.lower.join(', ')}` : ''}${entryTf.higher?.length ? ` · higher ${entryTf.higher.join(', ')}` : ''}` : '—' },
                     { label: language === 'zh' ? '支撑位' : 'Support', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.support?.length ? entryLevels.support.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
                     { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
+                    { label: language === 'zh' ? '摆动高/低' : 'Swing High/Low', value: `${(entryLevels?.swing_highs || []).join(', ') || '—'} / ${(entryLevels?.swing_lows || []).join(', ') || '—'}` },
+                    { label: language === 'zh' ? '斐波那契' : 'Fibonacci', value: fibSummary ? `${(fibSummary.levels || []).join(', ') || '—'}${fibSummary.swing_low ? ` | low ${fibSummary.swing_low}` : ''}${fibSummary.swing_high ? ` | high ${fibSummary.swing_high}` : ''}` : '—' },
                     { label: language === 'zh' ? '结构联动' : 'Structure Linkage', value: linkageStatus || '—' },
                     { label: language === 'zh' ? '联动来源' : 'Linkage Sources', value: (() => {
                       if (!entryStructureAudit?.require_invalidation_target_linkage || !entryRR) return '—'
@@ -541,6 +573,9 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '目标进度' : 'Target Progress', value: structureTargetProgress > 0 ? `${(structureTargetProgress * 100).toFixed(1)}%${structurePrimaryTf ? ` · ${structurePrimaryTf}` : ''}` : '—' },
                     { label: language === 'zh' ? '结构来源' : 'Structure Sources', value: structureEvidence.length > 0 ? structureEvidence.map((v) => compactSourceLabel(v.replace(/^anchor:/, ''), language)).join(' · ') : '—' },
                     { label: language === 'zh' ? '结构止损/目标' : 'Structure Stop/Target', value: structureStopSource || structureTargetSource ? `${compactSourceLabel(structureStopSource, language)} / ${compactSourceLabel(structureTargetSource, language)}` : '—' },
+                    { label: language === 'zh' ? 'Runner止损映射' : 'Runner Stop Mapping', value: runnerStopPrice > 0 ? formatLevelMapping(runnerStopPrice, structureCandidates, language) : '—' },
+                    { label: language === 'zh' ? 'Runner目标映射' : 'Runner Target Mapping', value: runnerTargetPrice > 0 ? formatLevelMapping(runnerTargetPrice, structureCandidates, language) : '—' },
+                    { label: language === 'zh' ? '最近委托结构映射' : 'Nearest Order Structure Map', value: stopRows[0]?.triggerPrice ? formatLevelMapping(stopRows[0].triggerPrice, structureCandidates, language) : (tpRows[0]?.triggerPrice ? formatLevelMapping(tpRows[0].triggerPrice, structureCandidates, language) : '—') },
                     { label: language === 'zh' ? '满足 / 触发' : 'Satisfied / Triggered', value: `${satisfiedTiers.length} / ${triggeredTiers.length}` },
                     { label: language === 'zh' ? '下一档利润门槛' : 'Next Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? 'Runner 状态' : 'Runner State', value: compactRunnerStateLabel(runnerActive, runnerStage, language) },

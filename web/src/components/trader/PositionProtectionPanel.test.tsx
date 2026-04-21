@@ -26,6 +26,25 @@ describe('PositionProtectionPanel degradation summary', () => {
       protection_state: 'exchange_protection_verified',
       break_even_state: 'idle',
       drawdown_execution_mode: 'native_partial_trailing',
+      entry_structure_audit: {
+        audit_primary_timeframe: true,
+        audit_adjacent_timeframes: true,
+        audit_support_resistance: true,
+        audit_structural_anchors: true,
+        audit_fibonacci: true,
+        require_invalidation_target_linkage: true,
+      },
+      entry_review_summary: {
+        timeframe_context: { primary: '15m', lower: ['5m'], higher: ['1h'] },
+        risk_reward: { entry: 100, invalidation: 95, first_target: 110 },
+        key_levels: {
+          support: [99, 97],
+          resistance: [110, 112],
+          swing_highs: [111],
+          swing_lows: [96],
+          fibonacci: { swing_low: 95, swing_high: 110, levels: [101, 109] },
+        },
+      },
       protection_runtime: {
         current_pnl_pct: 4,
         drawdown_peak_pnl_pct: 6,
@@ -112,6 +131,10 @@ describe('PositionProtectionPanel degradation summary', () => {
     expect(screen.getByText('92.0% · 15m')).toBeInTheDocument()
     expect(screen.getByText('primary target pullback / primary resistance')).toBeInTheDocument()
     expect(screen.getByText('first target · primary resistance · fibonacci')).toBeInTheDocument()
+    expect(screen.getByText('Runner Stop Mapping')).toBeInTheDocument()
+    expect(screen.getByText('Runner Target Mapping')).toBeInTheDocument()
+    expect(screen.getByText('Fibonacci')).toBeInTheDocument()
+    expect(screen.getByText('101, 109 | low 95 | high 110')).toBeInTheDocument()
     expect(screen.getByText('Runner Keep')).toBeInTheDocument()
     expect(screen.getByText('30.00%')).toBeInTheDocument()
     expect(screen.getByText('Runner Suppression')).toBeInTheDocument()

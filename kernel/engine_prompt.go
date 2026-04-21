@@ -154,6 +154,9 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
 	sb.WriteString("- `protection_plan`: optional structured protection output for open actions only\n")
 	sb.WriteString("- `entry_protection_rationale`: required for `open_long` / `open_short`; must include timeframe_context, risk_reward (entry/invalidation/first_target/gross_estimated_rr and preferably net_estimated_rr), and at least one structural anchor when opening\n")
+	sb.WriteString("  - Treat structural entry as a compact contract, not a verbose essay: include only the few levels/anchors needed to justify entry, invalidation, and first target\n")
+	sb.WriteString("  - When strategy `entry_structure` is enabled, you MUST provide the required structural fields (primary timeframe, adjacent timeframe, support/resistance, anchors, and fibonacci only when explicitly required) or output wait/[] instead of forcing an open\n")
+	sb.WriteString("  - Use exchange/runtime market data only to extract the necessary structure for judgment; do not dump every indicator or noisy field\n")
 	sb.WriteString("  - Use `mode=full` when one unified TP/SL plan is enough\n")
 	sb.WriteString("  - For `mode=full`, output `take_profit_pct` / `stop_loss_pct` only; do not place absolute price fields inside protection_plan\n")
 	sb.WriteString("  - Use `mode=ladder` when you want staged TP/SL with multiple ladder_rules\n")
@@ -165,6 +168,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("  - Do NOT output protection_plan for hold/wait/close actions\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 	sb.WriteString(fmt.Sprintf("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, entry_protection_rationale; risk_reward must satisfy min RR ≥ %.1f and direction sanity (long: invalidation < entry < first_target, short: invalidation > entry > first_target)\n", riskControl.MinRiskRewardRatio))
+	sb.WriteString("- Structural entry fields should be compact and purpose-driven: primary/adjacent timeframe, top support/resistance, one or a few anchors, and fibonacci only when it materially affects invalidation/target planning\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt

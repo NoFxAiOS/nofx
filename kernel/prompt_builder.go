@@ -338,6 +338,8 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
 - **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), mode=ladder with ladder_rules, or mode=drawdown with non-empty drawdown_rules.
 - **entry_protection_rationale**: Required for open_long/open_short. Must include structured timeframe/key-level/RR rationale. At minimum include ` + "`risk_reward.entry`" + `, ` + "`risk_reward.invalidation`" + `, ` + "`risk_reward.first_target`" + `, ` + "`risk_reward.gross_estimated_rr`" + `, and preferably ` + "`risk_reward.net_estimated_rr`" + ` plus structural ` + "`anchors`" + `.
+- Treat entry structure as compact evidence rather than indicator dumping: use the minimum support/resistance, timeframe, anchor, and fibonacci fields needed to justify entry/invalidation/first target.
+- If strategy entry-structure requirements demand primary timeframe / adjacent timeframes / support-resistance / anchors / fibonacci and you cannot support them from available market data, do not force an open action; return wait or [] instead.
 - **confidence**: Confidence level (0-100)
 - **reasoning**: Detailed reasoning (required, must explain decision basis)
 

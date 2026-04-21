@@ -142,6 +142,15 @@ function compactSourceLabel(value: string | undefined, language: Language): stri
   if (v === 'swing_low') return language === 'zh' ? '摆动低点' : 'swing low'
   if (v === 'fib' || v === 'fibonacci') return language === 'zh' ? '斐波那契' : 'fibonacci'
   if (v === 'fib_extension') return language === 'zh' ? '斐波延展' : 'fib extension'
+  if (v === 'extension_fibonacci') return language === 'zh' ? '斐波延展目标' : 'extension fibonacci'
+  if (v === 'extension_swing_trail') return language === 'zh' ? '延展摆动跟踪' : 'extension swing trail'
+  if (v === 'primary_target_pullback') return language === 'zh' ? '主目标回撤' : 'primary target pullback'
+  if (v === 'trend_continuation_structure') return language === 'zh' ? '趋势延续结构' : 'trend continuation structure'
+  if (v === 'first_target') return language === 'zh' ? '第一目标' : 'first target'
+  if (v === 'support_stop') return language === 'zh' ? '支撑止损' : 'support stop'
+  if (v === 'support_target') return language === 'zh' ? '支撑目标' : 'support target'
+  if (v === 'resistance_stop') return language === 'zh' ? '阻力止损' : 'resistance stop'
+  if (v === 'resistance_target') return language === 'zh' ? '阻力目标' : 'resistance target'
   if (v === 'break_even') return language === 'zh' ? '保本' : 'break-even'
   if (v === 'structure') return language === 'zh' ? '结构' : 'structure'
   return value.replace(/_/g, ' ')
@@ -366,6 +375,12 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const currentStageMinProfit = Number(position.protection_runtime?.current_drawdown_stage_min_profit_pct ?? 0)
           const currentStageRuleCount = Number(position.protection_runtime?.current_drawdown_stage_rule_count ?? 0)
           const currentDrawdownStage = String(position.protection_runtime?.current_drawdown_stage || runtimeTiers.find((tier) => tier.is_satisfied)?.drawdown_stage || '')
+          const structureStage = String(position.protection_runtime?.drawdown_structure_stage || '')
+          const structureStopSource = String(position.protection_runtime?.drawdown_structure_stop_source || '')
+          const structureTargetSource = String(position.protection_runtime?.drawdown_structure_target_source || '')
+          const structureTargetProgress = Number(position.protection_runtime?.drawdown_structure_target_progress ?? 0)
+          const structurePrimaryTf = String(position.protection_runtime?.drawdown_structure_primary_timeframe || '')
+          const structureEvidence = position.protection_runtime?.drawdown_structure_evidence || []
           const drawdownConfigSource = String(position.protection_runtime?.drawdown_config_source || 'strategy')
           const satisfiedTiers = runtimeTiers.filter((tier) => Boolean(tier.is_satisfied))
           const triggeredTiers = runtimeTiers.filter((tier) => Boolean(tier.is_triggered))
@@ -522,6 +537,10 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '回撤来源' : 'Drawdown Source', value: drawdownConfigSource },
                     { label: language === 'zh' ? '当前档位' : 'Current Stage', value: currentStageMinProfit > 0 ? `${currentStageMinProfit.toFixed(2)}% (${currentStageRuleCount})` : '—' },
                     { label: language === 'zh' ? '阶段标识' : 'Stage Label', value: currentDrawdownStage ? currentDrawdownStage.replace(/_/g, ' ') : '—' },
+                    { label: language === 'zh' ? '结构阶段' : 'Structure Stage', value: structureStage ? structureStage.replace(/_/g, ' ') : '—' },
+                    { label: language === 'zh' ? '目标进度' : 'Target Progress', value: structureTargetProgress > 0 ? `${(structureTargetProgress * 100).toFixed(1)}%${structurePrimaryTf ? ` · ${structurePrimaryTf}` : ''}` : '—' },
+                    { label: language === 'zh' ? '结构来源' : 'Structure Sources', value: structureEvidence.length > 0 ? structureEvidence.map((v) => compactSourceLabel(v.replace(/^anchor:/, ''), language)).join(' · ') : '—' },
+                    { label: language === 'zh' ? '结构止损/目标' : 'Structure Stop/Target', value: structureStopSource || structureTargetSource ? `${compactSourceLabel(structureStopSource, language)} / ${compactSourceLabel(structureTargetSource, language)}` : '—' },
                     { label: language === 'zh' ? '满足 / 触发' : 'Satisfied / Triggered', value: `${satisfiedTiers.length} / ${triggeredTiers.length}` },
                     { label: language === 'zh' ? '下一档利润门槛' : 'Next Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? 'Runner 状态' : 'Runner State', value: compactRunnerStateLabel(runnerActive, runnerStage, language) },

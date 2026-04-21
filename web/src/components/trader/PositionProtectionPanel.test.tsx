@@ -34,6 +34,12 @@ describe('PositionProtectionPanel degradation summary', () => {
         current_drawdown_stage_min_profit_pct: 3,
         current_drawdown_stage_rule_count: 1,
         current_drawdown_stage: 'post_breakout_runner',
+        drawdown_structure_stage: 'near_primary_target',
+        drawdown_structure_stop_source: 'primary_target_pullback',
+        drawdown_structure_target_source: 'primary_resistance',
+        drawdown_structure_target_progress: 0.92,
+        drawdown_structure_primary_timeframe: '15m',
+        drawdown_structure_evidence: ['first_target', 'primary_resistance', 'fibonacci'],
         runner_mode_active: true,
         runner_keep_pct: 30,
         runner_stop_mode: 'structure',
@@ -101,6 +107,11 @@ describe('PositionProtectionPanel degradation summary', () => {
     expect(screen.getByText('Fallback planned:1')).toBeInTheDocument()
     expect(screen.getByText('Stage Label')).toBeInTheDocument()
     expect(screen.getAllByText('post breakout runner').length).toBeGreaterThan(0)
+    expect(screen.getByText('Structure Stage')).toBeInTheDocument()
+    expect(screen.getByText('near primary target')).toBeInTheDocument()
+    expect(screen.getByText('92.0% · 15m')).toBeInTheDocument()
+    expect(screen.getByText('primary target pullback / primary resistance')).toBeInTheDocument()
+    expect(screen.getByText('first target · primary resistance · fibonacci')).toBeInTheDocument()
     expect(screen.getByText('Runner Keep')).toBeInTheDocument()
     expect(screen.getByText('30.00%')).toBeInTheDocument()
     expect(screen.getByText('Runner Suppression')).toBeInTheDocument()

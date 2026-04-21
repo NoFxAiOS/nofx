@@ -239,6 +239,47 @@ func hasTrendContinuationAnchor(anchors []store.DecisionActionReasonAnchor) bool
 	return false
 }
 
+func summarizeDrawdownStructureEvidence(structure *drawdownStructureContext, side string) []string {
+	if structure == nil {
+		return nil
+	}
+	evidence := make([]string, 0, 6)
+	if structure.PrimaryTimeframe != "" {
+		evidence = append(evidence, "tf:"+structure.PrimaryTimeframe)
+	}
+	if structure.FirstTarget > 0 {
+		evidence = append(evidence, "first_target")
+	}
+	if strings.EqualFold(side, "long") {
+		if len(structure.Resistance) > 0 {
+			evidence = append(evidence, "resistance")
+		}
+		if len(structure.Support) > 0 {
+			evidence = append(evidence, "support_stop")
+		}
+	} else {
+		if len(structure.Support) > 0 {
+			evidence = append(evidence, "support_target")
+		}
+		if len(structure.Resistance) > 0 {
+			evidence = append(evidence, "resistance_stop")
+		}
+	}
+	if len(structure.FibLevels) > 0 {
+		evidence = append(evidence, "fibonacci")
+	}
+	for _, anchor := range structure.Anchors {
+		if anchor.Type == "" {
+			continue
+		}
+		evidence = append(evidence, "anchor:"+strings.ToLower(strings.TrimSpace(anchor.Type)))
+		if len(evidence) >= 6 {
+			break
+		}
+	}
+	return evidence
+}
+
 // buildManagedPartialDrawdownPlanCandidate converts a partial drawdown rule into a managed
 // protection plan representation. This is NOT a native trailing order: it precomputes a fixed
 // trigger/take-profit price from the drawdown rule and places a standard TP-style protection order.

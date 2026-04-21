@@ -116,6 +116,12 @@ export interface ProtectionRuntime {
   current_drawdown_stage_min_profit_pct?: number
   current_drawdown_stage_rule_count?: number
   current_drawdown_stage?: string
+  drawdown_structure_stage?: string
+  drawdown_structure_stop_source?: string
+  drawdown_structure_target_source?: string
+  drawdown_structure_target_progress?: number
+  drawdown_structure_primary_timeframe?: string
+  drawdown_structure_evidence?: string[]
   runner_mode_active?: boolean
   runner_keep_pct?: number
   runner_stop_mode?: string

@@ -672,6 +672,10 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	drawdownRules := at.getActiveDrawdownRules()
 	drawdownSource := at.getDrawdownConfigSource(symbol, side)
 	runnerState := at.getDrawdownRunnerState(symbol, side)
+	drawdownCfg := store.DrawdownTakeProfitConfig{}
+	if at.config.StrategyConfig != nil {
+		drawdownCfg = at.config.StrategyConfig.Protection.DrawdownTakeProfit
+	}
 	armRules := at.getDrawdownArmRules(currentPnLPct, drawdownRules)
 	currentStageMinProfit := 0.0
 	currentStageRuleCount := 0
@@ -761,6 +765,24 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	}
 
 	tiers := make([]map[string]interface{}, 0)
+	structureCtx := at.buildDrawdownStructureContext(symbol, side)
+	currentStructureStage := ""
+	currentStructureStopSource := ""
+	currentStructureTargetSource := ""
+	currentStructureTargetProgress := 0.0
+	currentStructurePrimaryTf := ""
+	currentStructureEvidence := []string{}
+	if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
+		stage, stopSource, targetSource := classifyAIDrawdownStage(currentPnLPct, peakPnLPct, structureCtx, side, markPrice)
+		currentStructureStage = stage
+		currentStructureStopSource = stopSource
+		currentStructureTargetSource = targetSource
+		if structureCtx != nil {
+			currentStructureTargetProgress = structuralTargetProgress(side, structureCtx.Entry, structureCtx.FirstTarget, markPrice)
+			currentStructurePrimaryTf = structureCtx.PrimaryTimeframe
+			currentStructureEvidence = summarizeDrawdownStructureEvidence(structureCtx, side)
+		}
+	}
 	if at.config.StrategyConfig != nil {
 		for idx, rule := range at.config.StrategyConfig.Protection.DrawdownTakeProfit.Rules {
 			rule = normalizeDrawdownRule(rule)
@@ -913,7 +935,13 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			}
 			return ""
 		}(),
-		"drawdown_execution_mode":               at.getDrawdownExecutionMode(symbol, side),
+		"drawdown_structure_stage":             currentStructureStage,
+		"drawdown_structure_stop_source":       currentStructureStopSource,
+		"drawdown_structure_target_source":     currentStructureTargetSource,
+		"drawdown_structure_target_progress":   currentStructureTargetProgress,
+		"drawdown_structure_primary_timeframe": currentStructurePrimaryTf,
+		"drawdown_structure_evidence":          currentStructureEvidence,
+		"drawdown_execution_mode":              at.getDrawdownExecutionMode(symbol, side),
 		"drawdown_config_source":                drawdownSource,
 		"break_even_execution_mode":             at.getBreakEvenExecutionMode(symbol, side),
 		"current_pnl_pct":                       currentPnLPct,

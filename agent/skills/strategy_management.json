@@ -1,0 +1,42 @@
+{
+  "name": "strategy_management",
+  "kind": "management",
+  "domain": "strategy",
+  "description": "当用户想创建、查看、修改、删除、激活或复制策略模板时调用。适用于用户提到策略名称、策略配置、描述、语言、激活状态、复制新版本等管理需求。不用于排查策略未生效、策略输出异常、执行结果异常等诊断问题。",
+  "actions": {
+    "create": {
+      "description": "创建策略模板。",
+      "required_slots": ["name"],
+      "optional_slots": ["config", "description", "lang"]
+    },
+    "update": {
+      "description": "更新策略模板。",
+      "required_slots": ["target_ref"],
+      "optional_slots": ["name", "config", "description"]
+    },
+    "delete": {
+      "description": "删除策略模板。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true
+    },
+    "activate": {
+      "description": "激活策略模板。",
+      "required_slots": ["target_ref"]
+    },
+    "duplicate": {
+      "description": "复制策略模板。",
+      "required_slots": ["target_ref", "name"]
+    },
+    "query": {
+      "description": "查询策略模板。"
+    }
+  },
+  "tool_mapping": {
+    "create": "manage_strategy:create",
+    "update": "manage_strategy:update",
+    "delete": "manage_strategy:delete",
+    "activate": "manage_strategy:activate",
+    "duplicate": "manage_strategy:duplicate",
+    "query": "get_strategies"
+  }
+}

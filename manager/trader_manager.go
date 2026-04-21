@@ -11,6 +11,13 @@ import (
 	"time"
 )
 
+func traderLogTag(traderID, traderName string) string {
+	if traderName != "" {
+		return fmt.Sprintf("[trader_id=%s trader_name=%s]", traderID, traderName)
+	}
+	return fmt.Sprintf("[trader_id=%s]", traderID)
+}
+
 // CompetitionCache competition data cache
 type CompetitionCache struct {
 	data      map[string]interface{}
@@ -88,9 +95,9 @@ func (tm *TraderManager) StartAll() {
 	logger.Info("🚀 Starting all traders...")
 	for id, t := range tm.traders {
 		go func(traderID string, at *trader.AutoTrader) {
-			logger.Infof("▶️  Starting %s...", at.GetName())
+			logger.Infof("%s ▶️ Starting trader runtime", traderLogTag(traderID, at.GetName()))
 			if err := at.Run(); err != nil {
-				logger.Infof("❌ %s runtime error: %v", at.GetName(), err)
+				logger.Warnf("%s runtime error: %v", traderLogTag(traderID, at.GetName()), err)
 			}
 		}(id, t)
 	}
@@ -136,9 +143,9 @@ func (tm *TraderManager) AutoStartRunningTraders(st *store.Store) {
 	for id, t := range tm.traders {
 		if runningTraderIDs[id] {
 			go func(traderID string, at *trader.AutoTrader) {
-				logger.Infof("▶️  Auto-restoring %s...", at.GetName())
+				logger.Infof("%s ▶️ Auto-restoring trader runtime", traderLogTag(traderID, at.GetName()))
 				if err := at.Run(); err != nil {
-					logger.Infof("❌ %s runtime error: %v", at.GetName(), err)
+					logger.Warnf("%s runtime error: %v", traderLogTag(traderID, at.GetName()), err)
 				}
 			}(id, t)
 			startedCount++
@@ -487,7 +494,7 @@ func (tm *TraderManager) LoadUserTradersFromStore(st *store.Store, userID string
 		logger.Infof("📦 Loading trader %s (AI Model: %s, Exchange: %s/%s, Strategy ID: %s)", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ExchangeType, exchangeCfg.AccountName, traderCfg.StrategyID)
 		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, st)
 		if err != nil {
-			logger.Infof("❌ Failed to load trader %s: %v", traderCfg.Name, err)
+			logger.Warnf("%s failed to load trader: %v", traderLogTag(traderCfg.ID, traderCfg.Name), err)
 			// Save error for later retrieval
 			tm.loadErrors[traderCfg.ID] = err
 		} else {
@@ -592,7 +599,7 @@ func (tm *TraderManager) LoadTradersFromStore(st *store.Store) error {
 		// Add to TraderManager (ai500APIURL/oiTopAPIURL already obtained from strategy config)
 		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, st)
 		if err != nil {
-			logger.Infof("❌ Failed to add trader %s: %v", traderCfg.Name, err)
+			logger.Warnf("%s failed to add trader: %v", traderLogTag(traderCfg.ID, traderCfg.Name), err)
 			continue
 		}
 	}
@@ -727,17 +734,17 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 
 	// Auto-start if trader was running before shutdown
 	if traderCfg.IsRunning {
-		logger.Infof("🔄 Auto-starting trader '%s' (was running before shutdown)...", traderCfg.Name)
+		logger.Infof("%s 🔄 Auto-starting trader (was running before shutdown)...", traderLogTag(traderCfg.ID, traderCfg.Name))
 		go func(trader *trader.AutoTrader, traderName, traderID, userID string) {
 			if err := trader.Run(); err != nil {
-				logger.Warnf("⚠️ Trader '%s' stopped with error: %v", traderName, err)
+				logger.Warnf("%s trader stopped with error: %v", traderLogTag(traderID, traderName), err)
 				// Update database to reflect stopped state
 				if st != nil {
 					_ = st.Trader().UpdateStatus(userID, traderID, false)
 				}
 			}
 		}(at, traderCfg.Name, traderCfg.ID, traderCfg.UserID)
-		logger.Infof("✅ Trader '%s' auto-started successfully", traderCfg.Name)
+		logger.Infof("%s ✅ Trader auto-started successfully", traderLogTag(traderCfg.ID, traderCfg.Name))
 	}
 
 	return nil

@@ -539,6 +539,22 @@ export function ExchangeConfigModal({
                     </div>
                   )}
 
+                  {editingExchangeId && selectedExchange && (
+                    <div
+                      className="p-3 rounded-xl text-xs"
+                      style={{ background: 'rgba(14, 203, 129, 0.08)', border: '1px solid rgba(14, 203, 129, 0.2)', color: '#9FE8C5' }}
+                    >
+                      已保存的凭证状态：
+                      {' '}
+                      API Key {selectedExchange.has_api_key ? '已配置' : '未配置'}
+                      {' · '}
+                      Secret {selectedExchange.has_secret_key ? '已配置' : '未配置'}
+                      {(currentExchangeType === 'okx' || currentExchangeType === 'bitget' || currentExchangeType === 'kucoin')
+                        ? ` · Passphrase ${selectedExchange.has_passphrase ? '已配置' : '未配置'}`
+                        : ''}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
                       <Key className="w-4 h-4" style={{ color: '#F0B90B' }} />
@@ -548,7 +564,11 @@ export function ExchangeConfigModal({
                       type="password"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={t('enterAPIKey', language)}
+                      placeholder={
+                        editingExchangeId && selectedExchange?.has_api_key
+                          ? '已保存，如需更换请重新输入'
+                          : t('enterAPIKey', language)
+                      }
                       className="w-full px-4 py-3 rounded-xl"
                       style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                       required
@@ -564,7 +584,11 @@ export function ExchangeConfigModal({
                       type="password"
                       value={secretKey}
                       onChange={(e) => setSecretKey(e.target.value)}
-                      placeholder={t('enterSecretKey', language)}
+                      placeholder={
+                        editingExchangeId && selectedExchange?.has_secret_key
+                          ? '已保存，如需更换请重新输入'
+                          : t('enterSecretKey', language)
+                      }
                       className="w-full px-4 py-3 rounded-xl"
                       style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                       required
@@ -581,7 +605,11 @@ export function ExchangeConfigModal({
                         type="password"
                         value={passphrase}
                         onChange={(e) => setPassphrase(e.target.value)}
-                        placeholder={t('enterPassphrase', language)}
+                        placeholder={
+                          editingExchangeId && selectedExchange?.has_passphrase
+                            ? '已保存，如需更换请重新输入'
+                            : t('enterPassphrase', language)
+                        }
                         className="w-full px-4 py-3 rounded-xl"
                         style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                         required

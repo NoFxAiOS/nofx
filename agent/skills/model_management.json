@@ -1,0 +1,32 @@
+{
+  "name": "model_management",
+  "kind": "management",
+  "domain": "model",
+  "description": "当用户想创建、查看、修改或删除 AI 模型配置时调用。适用于用户提到 provider、API Key、Base URL、模型名称、启用状态等配置管理需求。不用于排查模型调用失败、接口不兼容、鉴权错误、模型不存在等诊断问题。",
+  "actions": {
+    "create": {
+      "description": "创建新的模型配置。",
+      "required_slots": ["provider"],
+      "optional_slots": ["name", "api_key", "custom_api_url", "custom_model_name", "enabled"]
+    },
+    "update": {
+      "description": "更新已有模型配置。",
+      "required_slots": ["target_ref"],
+      "optional_slots": ["api_key", "custom_api_url", "custom_model_name", "enabled"]
+    },
+    "delete": {
+      "description": "删除模型配置。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true
+    },
+    "query": {
+      "description": "查询模型配置。"
+    }
+  },
+  "tool_mapping": {
+    "create": "manage_model_config:create",
+    "update": "manage_model_config:update",
+    "delete": "manage_model_config:delete",
+    "query": "get_model_configs"
+  }
+}

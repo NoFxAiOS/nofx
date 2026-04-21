@@ -12,6 +12,8 @@ import type {
   DecisionAction,
   DecisionReviewRef,
   DecisionActionReviewContext,
+  EntryStructureAuditConfig,
+  EntryReviewSummary,
 } from '../../types'
 
 interface PositionHistoryProps {
@@ -101,6 +103,25 @@ function formatRiskRewardLinkage(rr?: DecisionActionReviewContext['risk_reward']
   if (rr.first_target) parts.push(`target ${formatPrice(rr.first_target)}`)
   if (parts.length < 2) return []
   return parts
+}
+
+function getEntryLinkageStatus(audit: EntryStructureAuditConfig | undefined, summary: EntryReviewSummary | undefined): { label: string; tone: 'neutral' | 'warn' | 'danger' } | null {
+  if (!audit?.require_invalidation_target_linkage || !summary) return null
+  const rr = summary.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
+  const levels = summary.key_levels as { support?: number[]; resistance?: number[] } | undefined
+  if (!rr?.entry || !rr?.invalidation || !rr?.first_target) return { label: 'linkage missing', tone: 'danger' }
+  const supports = (levels?.support || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const resistances = (levels?.resistance || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const riskDist = Math.abs(rr.entry - rr.invalidation)
+  const targetDist = Math.abs(rr.first_target - rr.entry)
+  const tol = Math.max(0.0001, Math.min(Math.max(riskDist, targetDist) * 0.35, Math.max(rr.entry, rr.first_target, rr.invalidation) * 0.02))
+  const invalidation = rr.invalidation
+  const firstTarget = rr.first_target
+  const invalidNearSupport = supports.some((v) => Math.abs(v - invalidation) <= tol)
+  const targetNearResistance = resistances.some((v) => Math.abs(v - firstTarget) <= tol)
+  if (invalidNearSupport && targetNearResistance) return { label: 'linked', tone: 'neutral' }
+  if (invalidNearSupport || targetNearResistance) return { label: 'partial linkage', tone: 'warn' }
+  return { label: 'linkage missing', tone: 'danger' }
 }
 
 export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
@@ -848,6 +869,7 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
   const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
   const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
   const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[] } | undefined
+  const linkageStatus = getEntryLinkageStatus(position.entry_structure_audit, position.entry_review_summary)
   const executionOrderType = position.execution_order_type || 'unknown'
 
   return (
@@ -977,6 +999,11 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                     <div>
                       Levels: S {entryLevels?.support?.join(', ') || '—'} | R {entryLevels?.resistance?.join(', ') || '—'}
                     </div>
+                    {linkageStatus && (
+                      <div>
+                        Linkage: <span style={{ color: linkageStatus.tone === 'danger' ? '#F6465D' : linkageStatus.tone === 'warn' ? '#F0B90B' : '#0ECB81' }}>{linkageStatus.label}</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="mt-2 flex flex-wrap gap-1.5">

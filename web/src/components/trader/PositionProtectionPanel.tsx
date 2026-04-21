@@ -353,6 +353,22 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
           const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
           const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[] } | undefined
+          const linkageStatus = (() => {
+            if (!entryStructureAudit?.require_invalidation_target_linkage || !entryRR) return null
+            const supports = (entryLevels?.support || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+            const resistances = (entryLevels?.resistance || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+            if (!entryRR.entry || !entryRR.invalidation || !entryRR.first_target) return language === 'zh' ? '缺失' : 'Missing'
+            const riskDist = Math.abs(entryRR.entry - entryRR.invalidation)
+            const targetDist = Math.abs(entryRR.first_target - entryRR.entry)
+            const tol = Math.max(0.0001, Math.min(Math.max(riskDist, targetDist) * 0.35, Math.max(entryRR.entry, entryRR.first_target, entryRR.invalidation) * 0.02))
+            const invalidation = entryRR.invalidation
+            const firstTarget = entryRR.first_target
+            const invalidNearSupport = supports.some((v) => Math.abs(v - invalidation) <= tol)
+            const targetNearResistance = resistances.some((v) => Math.abs(v - firstTarget) <= tol)
+            if (invalidNearSupport && targetNearResistance) return language === 'zh' ? '已联动' : 'Linked'
+            if (invalidNearSupport || targetNearResistance) return language === 'zh' ? '部分联动' : 'Partial'
+            return language === 'zh' ? '缺失' : 'Missing'
+          })()
           const plannedLadderStopCount = Number(position.protection_runtime?.planned_ladder_stop_count ?? 0)
           const plannedLadderTakeProfitCount = Number(position.protection_runtime?.planned_ladder_take_profit_count ?? 0)
           const liveLadderStopCount = Number(position.protection_runtime?.live_ladder_stop_count ?? 0)
@@ -415,6 +431,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? 'Entry / 失效 / 目标' : 'Entry / Invalidation / Target', value: entryRR ? `${entryRR.entry ?? '—'} / ${entryRR.invalidation ?? '—'} / ${entryRR.first_target ?? '—'}` : '—' },
                     { label: language === 'zh' ? '支撑位' : 'Support', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.support?.length ? entryLevels.support.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
                     { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
+                    { label: language === 'zh' ? '结构联动' : 'Structure Linkage', value: linkageStatus || '—' },
                     { label: language === 'zh' ? '审计开关' : 'Audit Toggles', value: getAuditToggleText(entryStructureAudit, language) },
                   ]}
                 />

@@ -283,7 +283,7 @@ func TestCheckPositionDrawdownActivatesRunnerAndSuppressesBreakEvenAfterPartialC
 		config: AutoTraderConfig{
 			StrategyConfig: &store.StrategyConfig{
 				Protection: store.ProtectionConfig{
-					DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI, Rules: []store.DrawdownTakeProfitRule{{
+					DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI, EngineMode: store.DrawdownEngineModeAI, RunnerEnabled: true, MinRunnerKeepPct: 20, MaxFirstReducePct: 60, BreakEvenRunnerPolicy: store.DrawdownBreakEvenRunnerFallbackOnly, Rules: []store.DrawdownTakeProfitRule{{
 						MinProfitPct:     0.7,
 						MaxDrawdownPct:   55,
 						CloseRatioPct:    70,
@@ -308,16 +308,72 @@ func TestCheckPositionDrawdownActivatesRunnerAndSuppressesBreakEvenAfterPartialC
 	if fake.closeLongCalls != 1 {
 		t.Fatalf("expected partial drawdown close, got %d", fake.closeLongCalls)
 	}
+	if len(fake.closeLongQtys) != 1 || fake.closeLongQtys[0] != 6.0 {
+		t.Fatalf("expected capped first reduce qty 6.0, got %+v", fake.closeLongQtys)
+	}
 	if fake.setStopLossCalls != 0 {
 		t.Fatalf("expected no break-even placement on unsupported paper exchange, got %d", fake.setStopLossCalls)
 	}
 	if !at.isBreakEvenSuppressedByRunner("TAOUSDT", "long") {
 		t.Fatal("expected runner to suppress subsequent break-even")
 	}
+	state := at.getDrawdownRunnerState("TAOUSDT", "long")
+	if state == nil {
+		t.Fatal("expected runner state recorded")
+	}
+	if state.StageName != "lock_first_profit" {
+		t.Fatalf("expected stage name preserved from configured rule, got %q", state.StageName)
+	}
+	if state.RunnerKeepPct != 40 {
+		t.Fatalf("expected runner keep pct 40 after cap, got %.2f", state.RunnerKeepPct)
+	}
+	if state.RunnerStopSource != "adjacent_support_flip" {
+		t.Fatalf("expected runner stop source preserved, got %q", state.RunnerStopSource)
+	}
 
-	fake.positions[0]["positionAmt"] = 3.0
+	fake.positions[0]["positionAmt"] = 4.0
 	at.checkPositionDrawdown()
 	if fake.setStopLossCalls != 0 {
 		t.Fatalf("expected no break-even apply after runner activation, got %d", fake.setStopLossCalls)
+	}
+}
+
+func TestEvaluateAIDrawdownRuleRespectsRunnerPolicyAndStageDefaults(t *testing.T) {
+	cfg := store.DrawdownTakeProfitConfig{
+		Enabled:                true,
+		Mode:                   store.ProtectionModeAI,
+		EngineMode:             store.DrawdownEngineModeAI,
+		RunnerEnabled:          true,
+		MinRunnerKeepPct:       25,
+		MaxFirstReducePct:      60,
+		BreakEvenRunnerPolicy:  store.DrawdownBreakEvenRunnerFallbackOnly,
+	}
+	rules := []store.DrawdownTakeProfitRule{{
+		MinProfitPct:   4,
+		MaxDrawdownPct: 20,
+		CloseRatioPct:  80,
+	}}
+
+	eval := evaluateAIDrawdownRule(cfg, 4.2, 6.0, 30.0, rules)
+	if eval == nil {
+		t.Fatal("expected ai drawdown evaluation")
+	}
+	if eval.Rule.StageName != "near_primary_target" {
+		t.Fatalf("expected near_primary_target stage, got %q", eval.Rule.StageName)
+	}
+	if eval.Rule.CloseRatioPct != 60 {
+		t.Fatalf("expected first reduce capped at 60, got %.2f", eval.Rule.CloseRatioPct)
+	}
+	if eval.Rule.RunnerKeepPct != 40 {
+		t.Fatalf("expected runner keep 40 after cap, got %.2f", eval.Rule.RunnerKeepPct)
+	}
+	if eval.Rule.RunnerStopMode != "structure" {
+		t.Fatalf("expected structure runner stop in fallback_only policy, got %q", eval.Rule.RunnerStopMode)
+	}
+	if eval.Rule.RunnerStopSource != "primary_target_pullback" {
+		t.Fatalf("expected default stop source for near_primary_target, got %q", eval.Rule.RunnerStopSource)
+	}
+	if eval.Rule.RunnerTargetSource != "primary_resistance" {
+		t.Fatalf("expected default target source for near_primary_target, got %q", eval.Rule.RunnerTargetSource)
 	}
 }

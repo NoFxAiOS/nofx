@@ -71,6 +71,11 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		return
 	}
 
+	drawdownCfg := store.DrawdownTakeProfitConfig{}
+	if at.config.StrategyConfig != nil {
+		drawdownCfg = at.config.StrategyConfig.Protection.DrawdownTakeProfit
+	}
+
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
 		side := pos["side"].(string)
@@ -130,6 +135,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			}
 		}
 
+		armRules := at.getDrawdownArmRules(currentPnLPct, rules)
+		if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
+			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules); eval != nil {
+				armRules = []store.DrawdownTakeProfitRule{eval.Rule}
+			}
+		}
+
 		// For exchange-native trailing protections, arm all tiers whose min-profit gate is already met.
 		// Do NOT wait for drawdown to happen first — the exchange trailing order itself is responsible
 		// for tracking the drawdown once armed.
@@ -140,7 +152,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 				continue
 			}
 			armedAny := false
-			for _, armRule := range at.getDrawdownArmRules(currentPnLPct, rules) {
+			for _, armRule := range armRules {
 				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
 					armedAny = true
 				}
@@ -151,6 +163,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		triggeredRules := at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules)
+		if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
+			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules); eval != nil {
+				triggeredRules = []store.DrawdownTakeProfitRule{eval.Rule}
+			} else {
+				triggeredRules = nil
+			}
+		}
 		if len(triggeredRules) == 0 {
 			if currentPnLPct > 0 {
 				logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",

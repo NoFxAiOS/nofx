@@ -160,7 +160,7 @@ describe('getDecisionAuditSnapshot', () => {
         fibonacci: {
           swing_low: 83380,
           swing_high: 85250,
-          levels: [84094, 84315],
+          levels: [83600, 85400],
         },
       }
       review.decisions[0].review_context.risk_reward = {
@@ -178,8 +178,9 @@ describe('getDecisionAuditSnapshot', () => {
     expect(snap.timeframeTrail).toEqual(['primary 15m', 'lower 5m', 'higher 1h'])
     expect(snap.swingHighs).toEqual(['85250.00'])
     expect(snap.swingLows).toEqual(['83380.00'])
-    expect(snap.fibSummary).toEqual(['low 83380.00', 'high 85250.00', 'levels 84094.00 / 84315.00'])
+    expect(snap.fibSummary).toEqual(['low 83380.00', 'high 85250.00', 'levels 83600.00 / 85400.00'])
     expect(snap.rrLinkage).toEqual(['entry 84200.00', 'invalid 83600.00', 'target 85400.00'])
+    expect(snap.entryLinkageStatus).toEqual({ label: 'linked', tone: 'neutral', invalidLinked: true, targetLinked: true })
     expect(snap.alignmentNotes).toEqual(['target remains above local resistance flip'])
   })
 

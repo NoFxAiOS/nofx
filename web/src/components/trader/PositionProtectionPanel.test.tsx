@@ -33,6 +33,16 @@ describe('PositionProtectionPanel degradation summary', () => {
         drawdown_config_source: 'strategy',
         current_drawdown_stage_min_profit_pct: 3,
         current_drawdown_stage_rule_count: 1,
+        current_drawdown_stage: 'post_breakout_runner',
+        runner_mode_active: true,
+        runner_keep_pct: 30,
+        runner_stop_mode: 'structure',
+        runner_stop_price: 102.5,
+        runner_stop_source: 'adjacent_support_flip',
+        runner_target_mode: 'structure',
+        runner_target_price: 109,
+        runner_target_source: 'primary_resistance',
+        break_even_suppressed_by_runner: true,
         planned_ladder_stop_count: 2,
         planned_ladder_take_profit_count: 2,
         live_ladder_stop_count: 0,
@@ -59,6 +69,14 @@ describe('PositionProtectionPanel degradation summary', () => {
             planned_quantity: 0.5,
             source: 'native',
             execution_mode: 'native_partial_trailing',
+            drawdown_stage: 'post_breakout_runner',
+            runner_mode_active: true,
+            runner_keep_pct: 30,
+            runner_stop_mode: 'structure',
+            runner_stop_source: 'adjacent_support_flip',
+            runner_target_mode: 'structure',
+            runner_target_source: 'primary_resistance',
+            break_even_suppressed_by_runner: true,
             is_satisfied: true,
             is_triggered: true,
           },
@@ -81,5 +99,13 @@ describe('PositionProtectionPanel degradation summary', () => {
     expect(screen.getByText('SL→Full · TP partial · Fallback live')).toBeInTheDocument()
     expect(screen.getByText('Full/Fallback State')).toBeInTheDocument()
     expect(screen.getByText('Fallback planned:1')).toBeInTheDocument()
+    expect(screen.getByText('Stage Label')).toBeInTheDocument()
+    expect(screen.getAllByText('post breakout runner').length).toBeGreaterThan(0)
+    expect(screen.getByText('Runner Keep')).toBeInTheDocument()
+    expect(screen.getByText('30.00%')).toBeInTheDocument()
+    expect(screen.getByText('Runner Suppression')).toBeInTheDocument()
+    expect(screen.getByText('suppressed by runner')).toBeInTheDocument()
+    expect(screen.getByText('102.50 · adjacent support flip')).toBeInTheDocument()
+    expect(screen.getByText('109.00 · primary resistance')).toBeInTheDocument()
   })
 })

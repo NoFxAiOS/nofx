@@ -671,7 +671,13 @@ function formatProtectionSummary(snapshot?: HistoricalPosition['protection_snaps
   }
   if (snapshot.drawdown && snapshot.drawdown.length > 0) {
     const first = snapshot.drawdown[0]
-    parts.push(formatProtectionBadge('Drawdown', `${first.mode || 'manual'} · ${formatProtectionSourceLabel(first.source)}`, 'drawdown'))
+    const extras = [
+      first.stage ? first.stage.replace(/_/g, ' ') : '',
+      first.runner_mode_active ? `runner ${typeof first.runner_keep_pct === 'number' ? `${first.runner_keep_pct}%` : 'on'}` : '',
+      first.break_even_suppressed_by_runner ? 'BE suppressed' : '',
+    ].filter(Boolean)
+    const detail = [first.mode || 'manual', formatProtectionSourceLabel(first.source), ...extras].join(' · ')
+    parts.push(formatProtectionBadge('Drawdown', detail, 'drawdown'))
   }
   if (snapshot.break_even?.enabled) {
     parts.push(formatProtectionBadge('Break-even', formatProtectionSourceLabel(snapshot.break_even.source), 'break_even'))

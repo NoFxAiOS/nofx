@@ -120,6 +120,33 @@ function compactExecutionMode(mode: string | undefined, language: Language): str
   return mode
 }
 
+function compactRunnerStateLabel(active: boolean, stage: string | undefined, language: Language): string {
+  if (!active && !stage) return language === 'zh' ? '未进入 runner' : 'inactive'
+  const stageLabel = stage ? stage.replace(/_/g, ' ') : (language === 'zh' ? '运行中' : 'active')
+  return active ? stageLabel : `${stageLabel} (${language === 'zh' ? '待确认' : 'pending'})`
+}
+
+function compactSourceLabel(value: string | undefined, language: Language): string {
+  if (!value) return '—'
+  const v = value.toLowerCase()
+  if (v === 'strategy') return language === 'zh' ? '策略' : 'strategy'
+  if (v === 'ai_decision') return language === 'zh' ? 'AI 决策' : 'AI'
+  if (v === 'primary_resistance') return language === 'zh' ? '主周期阻力' : 'primary resistance'
+  if (v === 'primary_support') return language === 'zh' ? '主周期支撑' : 'primary support'
+  if (v === 'adjacent_support_flip') return language === 'zh' ? '邻周期支撑翻转' : 'adjacent support flip'
+  if (v === 'adjacent_resistance_flip') return language === 'zh' ? '邻周期阻力翻转' : 'adjacent resistance flip'
+  if (v === 'support') return language === 'zh' ? '支撑' : 'support'
+  if (v === 'resistance') return language === 'zh' ? '阻力' : 'resistance'
+  if (v === 'swing') return language === 'zh' ? '摆动结构' : 'swing'
+  if (v === 'swing_high') return language === 'zh' ? '摆动高点' : 'swing high'
+  if (v === 'swing_low') return language === 'zh' ? '摆动低点' : 'swing low'
+  if (v === 'fib' || v === 'fibonacci') return language === 'zh' ? '斐波那契' : 'fibonacci'
+  if (v === 'fib_extension') return language === 'zh' ? '斐波延展' : 'fib extension'
+  if (v === 'break_even') return language === 'zh' ? '保本' : 'break-even'
+  if (v === 'structure') return language === 'zh' ? '结构' : 'structure'
+  return value.replace(/_/g, ' ')
+}
+
 function statusBadge(status: ProtectionVisualStatus, language: Language) {
   if (status === 'delegated') return { label: language === 'zh' ? '已委托' : 'Delegated', cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' }
   if (status === 'pending') return { label: language === 'zh' ? '已委托，未激活' : 'Placed, pending', cls: 'bg-amber-500/10 text-amber-300 border-amber-500/20' }
@@ -338,6 +365,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const runtimeTiers = position.protection_runtime?.scheduled_tiers || []
           const currentStageMinProfit = Number(position.protection_runtime?.current_drawdown_stage_min_profit_pct ?? 0)
           const currentStageRuleCount = Number(position.protection_runtime?.current_drawdown_stage_rule_count ?? 0)
+          const currentDrawdownStage = String(position.protection_runtime?.current_drawdown_stage || runtimeTiers.find((tier) => tier.is_satisfied)?.drawdown_stage || '')
           const drawdownConfigSource = String(position.protection_runtime?.drawdown_config_source || 'strategy')
           const satisfiedTiers = runtimeTiers.filter((tier) => Boolean(tier.is_satisfied))
           const triggeredTiers = runtimeTiers.filter((tier) => Boolean(tier.is_triggered))
@@ -348,6 +376,17 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const breakEvenConfigSource = String(position.protection_runtime?.break_even_config_source || 'strategy')
           const liveBreakEvenStopPrice = Number(position.protection_runtime?.live_break_even_stop_price ?? 0)
           const breakEvenOrderDetected = Boolean(position.protection_runtime?.break_even_order_detected)
+          const runnerState = position.protection_runtime?.runner_state
+          const runnerActive = Boolean(position.protection_runtime?.runner_mode_active ?? runnerState?.active ?? nextTier?.runner_mode_active)
+          const runnerKeepPct = Number(position.protection_runtime?.runner_keep_pct ?? runnerState?.keep_pct ?? nextTier?.runner_keep_pct ?? 0)
+          const runnerStopMode = String(position.protection_runtime?.runner_stop_mode || runnerState?.stop_mode || nextTier?.runner_stop_mode || '')
+          const runnerStopPrice = Number(position.protection_runtime?.runner_stop_price ?? runnerState?.stop_price ?? nextTier?.runner_stop_price ?? 0)
+          const runnerStopSource = String(position.protection_runtime?.runner_stop_source || runnerState?.stop_source || nextTier?.runner_stop_source || '')
+          const runnerTargetMode = String(position.protection_runtime?.runner_target_mode || runnerState?.target_mode || nextTier?.runner_target_mode || '')
+          const runnerTargetPrice = Number(position.protection_runtime?.runner_target_price ?? runnerState?.target_price ?? nextTier?.runner_target_price ?? 0)
+          const runnerTargetSource = String(position.protection_runtime?.runner_target_source || runnerState?.target_source || nextTier?.runner_target_source || '')
+          const breakEvenSuppressedByRunner = Boolean(position.protection_runtime?.break_even_suppressed_by_runner ?? runnerState?.break_even_suppressed ?? nextTier?.break_even_suppressed_by_runner)
+          const runnerStage = String(runnerState?.stage || nextTier?.drawdown_stage || currentDrawdownStage || '')
           const entryReviewSummary = position.entry_review_summary
           const entryStructureAudit = position.entry_structure_audit
           const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
@@ -482,8 +521,13 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '峰值 / 回撤' : 'Peak / Drawdown', value: `${formatSignedPercent(peakPnlPct)} / ${currentDrawdownPct.toFixed(2)}%` },
                     { label: language === 'zh' ? '回撤来源' : 'Drawdown Source', value: drawdownConfigSource },
                     { label: language === 'zh' ? '当前档位' : 'Current Stage', value: currentStageMinProfit > 0 ? `${currentStageMinProfit.toFixed(2)}% (${currentStageRuleCount})` : '—' },
+                    { label: language === 'zh' ? '阶段标识' : 'Stage Label', value: currentDrawdownStage ? currentDrawdownStage.replace(/_/g, ' ') : '—' },
                     { label: language === 'zh' ? '满足 / 触发' : 'Satisfied / Triggered', value: `${satisfiedTiers.length} / ${triggeredTiers.length}` },
                     { label: language === 'zh' ? '下一档利润门槛' : 'Next Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? 'Runner 状态' : 'Runner State', value: compactRunnerStateLabel(runnerActive, runnerStage, language) },
+                    { label: language === 'zh' ? 'Runner 保留' : 'Runner Keep', value: runnerKeepPct > 0 ? `${runnerKeepPct.toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? 'Runner 止损' : 'Runner Stop', value: runnerStopPrice > 0 ? `${formatPrice(runnerStopPrice)} · ${compactSourceLabel(runnerStopSource || runnerStopMode, language)}` : (runnerStopSource || runnerStopMode ? compactSourceLabel(runnerStopSource || runnerStopMode, language) : '—') },
+                    { label: language === 'zh' ? 'Runner 目标' : 'Runner Target', value: runnerTargetPrice > 0 ? `${formatPrice(runnerTargetPrice)} · ${compactSourceLabel(runnerTargetSource || runnerTargetMode, language)}` : (runnerTargetSource || runnerTargetMode ? compactSourceLabel(runnerTargetSource || runnerTargetMode, language) : '—') },
                     { label: language === 'zh' ? 'Trailing 实盘委托' : 'Live Trailing Orders', value: `${trailingRows.length}` },
                     { label: language === 'zh' ? 'Ladder 止损' : 'Ladder Stops', value: plannedLadderStopCount > 0 ? `${liveLadderStopCount} / ${plannedLadderStopCount}` : '—' },
                     { label: language === 'zh' ? 'Ladder 止盈' : 'Ladder Take-profits', value: plannedLadderTakeProfitCount > 0 ? `${liveLadderTakeProfitCount} / ${plannedLadderTakeProfitCount}` : '—' },
@@ -506,6 +550,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '触发阈值' : 'Trigger Threshold', value: breakEvenTriggerPct > 0 ? `${breakEvenTriggerPct.toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '距触发还差' : 'Gap to Trigger', value: breakEvenTriggerPct > 0 ? `${breakEvenGapPct.toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '保本偏移' : 'Offset', value: breakEvenTriggerPct > 0 ? `${breakEvenOffsetPct.toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? 'Runner 抑制' : 'Runner Suppression', value: breakEvenSuppressedByRunner ? (language === 'zh' ? '已抑制机械 BE' : 'suppressed by runner') : '—' },
                     { label: language === 'zh' ? '实盘挂单' : 'Live Order', value: breakEvenOrderDetected ? (language === 'zh' ? '已委托' : 'Delegated') : (breakEvenTriggerPct > 0 ? (language === 'zh' ? '未委托' : 'Not placed') : '—') },
                     { label: language === 'zh' ? '保本价' : 'Break-even Price', value: liveBreakEvenStopPrice > 0 ? `${formatPrice(liveBreakEvenStopPrice)} / ${formatSignedPercent(((liveBreakEvenStopPrice - (position.entry_price || 0)) / (position.entry_price || 1)) * 100)}` : '—' },
                     { label: language === 'zh' ? 'Full/Fallback 状态' : 'Full/Fallback State', value: [

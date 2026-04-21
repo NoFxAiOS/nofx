@@ -56,8 +56,31 @@ export interface ProtectionRuntimeTier {
   planned_quantity: number
   source: string
   execution_mode: string
+  drawdown_stage?: string
+  runner_mode_active?: boolean
+  runner_keep_pct?: number
+  runner_stop_mode?: string
+  runner_stop_price?: number
+  runner_stop_source?: string
+  runner_target_mode?: string
+  runner_target_price?: number
+  runner_target_source?: string
+  break_even_suppressed_by_runner?: boolean
   is_satisfied?: boolean
   is_triggered?: boolean
+}
+
+export interface ProtectionRuntimeRunnerState {
+  active?: boolean
+  stage?: string
+  keep_pct?: number
+  stop_mode?: string
+  stop_price?: number
+  stop_source?: string
+  target_mode?: string
+  target_price?: number
+  target_source?: string
+  break_even_suppressed?: boolean
 }
 
 export interface ProtectionRuntime {
@@ -92,6 +115,17 @@ export interface ProtectionRuntime {
   ladder_take_profit_degraded_to_full?: boolean
   current_drawdown_stage_min_profit_pct?: number
   current_drawdown_stage_rule_count?: number
+  current_drawdown_stage?: string
+  runner_mode_active?: boolean
+  runner_keep_pct?: number
+  runner_stop_mode?: string
+  runner_stop_price?: number
+  runner_stop_source?: string
+  runner_target_mode?: string
+  runner_target_price?: number
+  runner_target_source?: string
+  break_even_suppressed_by_runner?: boolean
+  runner_state?: ProtectionRuntimeRunnerState
   active_orders?: ProtectionRuntimeOrder[]
   active_trailing_orders?: ProtectionRuntimeOrder[]
   scheduled_tiers?: ProtectionRuntimeTier[]
@@ -156,6 +190,16 @@ export interface ProtectionSnapshotLadder {
 export interface ProtectionSnapshotDrawdown {
   mode?: string
   source?: string
+  stage?: string
+  runner_mode_active?: boolean
+  runner_keep_pct?: number
+  runner_stop_mode?: string
+  runner_stop_price?: number
+  runner_stop_source?: string
+  runner_target_mode?: string
+  runner_target_price?: number
+  runner_target_source?: string
+  break_even_suppressed_by_runner?: boolean
   min_profit_pct: number
   max_drawdown_pct: number
   close_ratio_pct: number
@@ -483,6 +527,7 @@ export interface HistoricalPosition {
   close_value_usdt?: number
   close_events?: PositionCloseEvent[]
   protection_snapshot?: ProtectionSnapshot
+  protection_runtime?: ProtectionRuntime
   created_at: string
   updated_at: string
 }

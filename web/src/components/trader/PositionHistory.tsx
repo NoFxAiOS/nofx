@@ -160,6 +160,10 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const fibSummary = formatFibSummary(ctx?.key_levels)
   const rrLinkage = formatRiskRewardLinkage(rr)
   const entryLinkageStatus = getEntryLinkageStatus({ require_invalidation_target_linkage: true }, ctx as unknown as EntryReviewSummary | undefined)
+  const entryLinkageSources = [
+    entryLinkageStatus?.invalidLinked ? 'invalid↔structure' : '',
+    entryLinkageStatus?.targetLinked ? 'target↔structure' : '',
+  ].filter(Boolean)
 
   return {
     decision,
@@ -177,6 +181,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     fibSummary,
     rrLinkage,
     entryLinkageStatus,
+    entryLinkageSources,
     timeframeTrail,
     alignmentNotes: (ctx?.alignment_notes || []).filter(Boolean).slice(0, 3),
     anchors: ctx?.anchors || [],
@@ -492,6 +497,12 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
               swing high {value}
             </span>
           ))}
+        </div>
+      )}
+
+      {audit.entryLinkageSources.length > 0 && (
+        <div className="text-[10px] text-nofx-text-muted">
+          Linkage sources: {audit.entryLinkageSources.join(' · ')}
         </div>
       )}
 

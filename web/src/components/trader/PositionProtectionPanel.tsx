@@ -135,6 +135,19 @@ function summarizeStatus(rows: ProtectionRow[], language: Language): string {
   return language === 'zh' ? '未委托' : 'Not placed'
 }
 
+function getAuditToggleText(audit: Position['entry_structure_audit'] | undefined, language: Language): string {
+  if (!audit) return '—'
+  const parts = [
+    audit.audit_primary_timeframe ? 'TF' : '',
+    audit.audit_adjacent_timeframes ? 'Adj' : '',
+    audit.audit_support_resistance ? 'S/R' : '',
+    audit.audit_structural_anchors ? 'Anchors' : '',
+    audit.audit_fibonacci ? 'Fib' : '',
+    audit.require_invalidation_target_linkage ? (language === 'zh' ? '失效/目标联动' : 'Inv/Target linkage') : '',
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : '—'
+}
+
 function ProtectionCard({
   title,
   subtitle,
@@ -400,16 +413,9 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '决策周期' : 'Decision Cycle', value: position.entry_decision_cycle ? String(position.entry_decision_cycle) : '—' },
                     { label: language === 'zh' ? '周期' : 'Timeframes', value: entryTf?.primary ? `${entryTf.primary}${entryTf.lower?.length ? ` | lower ${entryTf.lower.join(', ')}` : ''}${entryTf.higher?.length ? ` | higher ${entryTf.higher.join(', ')}` : ''}` : '—' },
                     { label: language === 'zh' ? 'Entry / 失效 / 目标' : 'Entry / Invalidation / Target', value: entryRR ? `${entryRR.entry ?? '—'} / ${entryRR.invalidation ?? '—'} / ${entryRR.first_target ?? '—'}` : '—' },
-                    { label: language === 'zh' ? '支撑位' : 'Support', value: entryLevels?.support?.length ? entryLevels.support.join(', ') : '—' },
-                    { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—' },
-                    { label: language === 'zh' ? '审计开关' : 'Audit Toggles', value: entryStructureAudit ? [
-                      entryStructureAudit.audit_primary_timeframe ? 'TF' : '',
-                      entryStructureAudit.audit_adjacent_timeframes ? 'Adj' : '',
-                      entryStructureAudit.audit_support_resistance ? 'S/R' : '',
-                      entryStructureAudit.audit_structural_anchors ? 'Anchors' : '',
-                      entryStructureAudit.audit_fibonacci ? 'Fib' : '',
-                      entryStructureAudit.require_invalidation_target_linkage ? (language === 'zh' ? '失效/目标联动' : 'Inv/Target linkage') : '',
-                    ].filter(Boolean).join(' · ') || '—' : '—' },
+                    { label: language === 'zh' ? '支撑位' : 'Support', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.support?.length ? entryLevels.support.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
+                    { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
+                    { label: language === 'zh' ? '审计开关' : 'Audit Toggles', value: getAuditToggleText(entryStructureAudit, language) },
                   ]}
                 />
 

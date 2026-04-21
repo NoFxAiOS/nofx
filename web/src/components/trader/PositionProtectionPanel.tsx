@@ -129,6 +129,14 @@ function compactRunnerStateLabel(active: boolean, stage: string | undefined, lan
 function compactSourceLabel(value: string | undefined, language: Language): string {
   if (!value) return '—'
   const v = value.toLowerCase()
+  if (v === 'aligned') return language === 'zh' ? '结构对齐' : 'aligned'
+  if (v === 'partially_degraded') return language === 'zh' ? '部分降级' : 'partially degraded'
+  if (v === 'degraded_to_full_fallback') return language === 'zh' ? '降级到 full/fallback' : 'degraded to full/fallback'
+  if (v === 'structure_detached') return language === 'zh' ? '结构脱钩' : 'structure detached'
+  if (v === 'unstructured') return language === 'zh' ? '未结构化' : 'unstructured'
+  if (v === 'ladder_degraded') return language === 'zh' ? '梯级降级' : 'ladder degraded'
+  if (v === 'degraded_to_full_fallback') return language === 'zh' ? '已降级到兜底' : 'degraded to fallback'
+  if (v === 'missing_structure_context') return language === 'zh' ? '缺少结构上下文' : 'missing structure context'
   if (v === 'strategy') return language === 'zh' ? '策略' : 'strategy'
   if (v === 'ai_decision') return language === 'zh' ? 'AI 决策' : 'AI'
   if (v === 'primary_resistance') return language === 'zh' ? '主周期阻力' : 'primary resistance'
@@ -400,6 +408,10 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const structureTargetProgress = Number(position.protection_runtime?.drawdown_structure_target_progress ?? 0)
           const structurePrimaryTf = String(position.protection_runtime?.drawdown_structure_primary_timeframe || '')
           const structureEvidence = position.protection_runtime?.drawdown_structure_evidence || []
+          const structureTrace = position.protection_runtime?.drawdown_structure_trace || []
+          const structureHealth = String(position.protection_runtime?.structure_protection_health || 'unstructured')
+          const structureDriftReason = String(position.protection_runtime?.structure_protection_drift_reason || '')
+          const structureDetached = Boolean(position.protection_runtime?.structure_protection_detached)
           const drawdownConfigSource = String(position.protection_runtime?.drawdown_config_source || 'strategy')
           const satisfiedTiers = runtimeTiers.filter((tier) => Boolean(tier.is_satisfied))
           const triggeredTiers = runtimeTiers.filter((tier) => Boolean(tier.is_triggered))
@@ -569,9 +581,11 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '回撤来源' : 'Drawdown Source', value: drawdownConfigSource },
                     { label: language === 'zh' ? '当前档位' : 'Current Stage', value: currentStageMinProfit > 0 ? `${currentStageMinProfit.toFixed(2)}% (${currentStageRuleCount})` : '—' },
                     { label: language === 'zh' ? '阶段标识' : 'Stage Label', value: currentDrawdownStage ? currentDrawdownStage.replace(/_/g, ' ') : '—' },
-                    { label: language === 'zh' ? '结构阶段' : 'Structure Stage', value: structureStage ? structureStage.replace(/_/g, ' ') : '—' },
+                    { label: language === 'zh' ? '结构阶段' : 'Structure Stage', value: structureStage ? `${structureStage.replace(/_/g, ' ')} · ${compactSourceLabel(structureHealth, language)}` : compactSourceLabel(structureHealth, language) },
                     { label: language === 'zh' ? '目标进度' : 'Target Progress', value: structureTargetProgress > 0 ? `${(structureTargetProgress * 100).toFixed(1)}%${structurePrimaryTf ? ` · ${structurePrimaryTf}` : ''}` : '—' },
                     { label: language === 'zh' ? '结构来源' : 'Structure Sources', value: structureEvidence.length > 0 ? structureEvidence.map((v) => compactSourceLabel(v.replace(/^anchor:/, ''), language)).join(' · ') : '—' },
+                    { label: language === 'zh' ? '偏离原因' : 'Drift Reason', value: structureDriftReason ? compactSourceLabel(structureDriftReason, language) : (structureDetached ? compactSourceLabel('structure_detached', language) : '—') },
+                    { label: language === 'zh' ? '结构执行轨迹' : 'Structure Trace', value: structureTrace.length > 0 ? structureTrace.join(' | ') : '—' },
                     { label: language === 'zh' ? '结构止损/目标' : 'Structure Stop/Target', value: structureStopSource || structureTargetSource ? `${compactSourceLabel(structureStopSource, language)} / ${compactSourceLabel(structureTargetSource, language)}` : '—' },
                     { label: language === 'zh' ? 'Runner止损映射' : 'Runner Stop Mapping', value: runnerStopPrice > 0 ? formatLevelMapping(runnerStopPrice, structureCandidates, language) : '—' },
                     { label: language === 'zh' ? 'Runner目标映射' : 'Runner Target Mapping', value: runnerTargetPrice > 0 ? formatLevelMapping(runnerTargetPrice, structureCandidates, language) : '—' },

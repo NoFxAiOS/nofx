@@ -122,6 +122,10 @@ export interface ProtectionRuntime {
   drawdown_structure_target_progress?: number
   drawdown_structure_primary_timeframe?: string
   drawdown_structure_evidence?: string[]
+  drawdown_structure_trace?: string[]
+  structure_protection_health?: string
+  structure_protection_drift_reason?: string
+  structure_protection_detached?: boolean
   runner_mode_active?: boolean
   runner_keep_pct?: number
   runner_stop_mode?: string

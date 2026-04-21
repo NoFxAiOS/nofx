@@ -59,6 +59,10 @@ describe('PositionProtectionPanel degradation summary', () => {
         drawdown_structure_target_progress: 0.92,
         drawdown_structure_primary_timeframe: '15m',
         drawdown_structure_evidence: ['first_target', 'primary_resistance', 'fibonacci'],
+        drawdown_structure_trace: ['tf=15m', 'stage=near_primary_target', 'progress=0.92', 'stop_source=primary_target_pullback', 'target_source=primary_resistance'],
+        structure_protection_health: 'partially_degraded',
+        structure_protection_drift_reason: 'ladder_degraded',
+        structure_protection_detached: false,
         runner_mode_active: true,
         runner_keep_pct: 30,
         runner_stop_mode: 'structure',
@@ -127,10 +131,13 @@ describe('PositionProtectionPanel degradation summary', () => {
     expect(screen.getByText('Stage Label')).toBeInTheDocument()
     expect(screen.getAllByText('post breakout runner').length).toBeGreaterThan(0)
     expect(screen.getByText('Structure Stage')).toBeInTheDocument()
-    expect(screen.getByText('near primary target')).toBeInTheDocument()
+    expect(screen.getByText('near primary target · partially degraded')).toBeInTheDocument()
     expect(screen.getByText('92.0% · 15m')).toBeInTheDocument()
-    expect(screen.getByText('primary target pullback / primary resistance')).toBeInTheDocument()
     expect(screen.getByText('first target · primary resistance · fibonacci')).toBeInTheDocument()
+    expect(screen.getByText('Drift Reason')).toBeInTheDocument()
+    expect(screen.getByText('ladder degraded')).toBeInTheDocument()
+    expect(screen.getByText('Structure Trace')).toBeInTheDocument()
+    expect(screen.getByText('tf=15m | stage=near_primary_target | progress=0.92 | stop_source=primary_target_pullback | target_source=primary_resistance')).toBeInTheDocument()
     expect(screen.getByText('Runner Stop Mapping')).toBeInTheDocument()
     expect(screen.getByText('Runner Target Mapping')).toBeInTheDocument()
     expect(screen.getByText('Fibonacci')).toBeInTheDocument()

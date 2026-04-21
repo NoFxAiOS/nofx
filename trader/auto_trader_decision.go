@@ -772,6 +772,10 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	currentStructureTargetProgress := 0.0
 	currentStructurePrimaryTf := ""
 	currentStructureEvidence := []string{}
+	currentStructureTrace := []string{}
+	currentStructureHealth := "unstructured"
+	currentStructureDriftReason := ""
+	currentStructureDetached := false
 	if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
 		stage, stopSource, targetSource := classifyAIDrawdownStage(currentPnLPct, peakPnLPct, structureCtx, side, markPrice)
 		currentStructureStage = stage
@@ -781,6 +785,14 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			currentStructureTargetProgress = structuralTargetProgress(side, structureCtx.Entry, structureCtx.FirstTarget, markPrice)
 			currentStructurePrimaryTf = structureCtx.PrimaryTimeframe
 			currentStructureEvidence = summarizeDrawdownStructureEvidence(structureCtx, side)
+			currentStructureTrace = append(currentStructureTrace,
+				fmt.Sprintf("tf=%s", currentStructurePrimaryTf),
+				fmt.Sprintf("stage=%s", currentStructureStage),
+				fmt.Sprintf("progress=%.2f", currentStructureTargetProgress),
+				fmt.Sprintf("stop_source=%s", currentStructureStopSource),
+				fmt.Sprintf("target_source=%s", currentStructureTargetSource),
+			)
+			currentStructureHealth = "aligned"
 		}
 	}
 	if at.config.StrategyConfig != nil {
@@ -893,6 +905,25 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	ladderDegradedToFullStop := ladderDegradedStop && fullStopCount > 0
 	ladderDegradedToFullTakeProfit := ladderDegradedTakeProfit && fullTakeProfitCount > 0
 	fallbackActive := fallbackStopCount > 0
+	if currentStructureHealth == "aligned" {
+		switch {
+		case ladderDegradedStop || ladderDegradedTakeProfit:
+			currentStructureHealth = "partially_degraded"
+			currentStructureDriftReason = "ladder_degraded"
+		case ladderDegradedToFullStop || ladderDegradedToFullTakeProfit || fallbackActive:
+			currentStructureHealth = "degraded_to_full_fallback"
+			currentStructureDriftReason = "degraded_to_full_fallback"
+		}
+	}
+	if len(currentStructureEvidence) == 0 {
+		currentStructureDetached = true
+		if currentStructureHealth == "aligned" || currentStructureHealth == "unstructured" {
+			currentStructureHealth = "structure_detached"
+			if currentStructureDriftReason == "" {
+				currentStructureDriftReason = "missing_structure_context"
+			}
+		}
+	}
 
 	return map[string]interface{}{
 		"protection_state":                at.getProtectionState(symbol, side),
@@ -941,6 +972,10 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"drawdown_structure_target_progress":   currentStructureTargetProgress,
 		"drawdown_structure_primary_timeframe": currentStructurePrimaryTf,
 		"drawdown_structure_evidence":          currentStructureEvidence,
+		"drawdown_structure_trace":             currentStructureTrace,
+		"structure_protection_health":          currentStructureHealth,
+		"structure_protection_drift_reason":    currentStructureDriftReason,
+		"structure_protection_detached":        currentStructureDetached,
 		"drawdown_execution_mode":              at.getDrawdownExecutionMode(symbol, side),
 		"drawdown_config_source":                drawdownSource,
 		"break_even_execution_mode":             at.getBreakEvenExecutionMode(symbol, side),

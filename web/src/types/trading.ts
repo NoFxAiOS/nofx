@@ -75,6 +75,21 @@ export interface ProtectionRuntime {
   break_even_config_source?: string
   live_break_even_stop_price?: number
   break_even_order_detected?: boolean
+  planned_ladder_stop_count?: number
+  planned_ladder_take_profit_count?: number
+  live_ladder_stop_count?: number
+  live_ladder_take_profit_count?: number
+  live_full_stop_count?: number
+  live_full_take_profit_count?: number
+  fallback_order_detected?: boolean
+  live_fallback_stop_count?: number
+  full_stop_planned?: boolean
+  full_take_profit_planned?: boolean
+  fallback_planned?: boolean
+  ladder_stop_degraded?: boolean
+  ladder_take_profit_degraded?: boolean
+  ladder_stop_degraded_to_full?: boolean
+  ladder_take_profit_degraded_to_full?: boolean
   current_drawdown_stage_min_profit_pct?: number
   current_drawdown_stage_rule_count?: number
   active_orders?: ProtectionRuntimeOrder[]

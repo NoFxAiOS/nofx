@@ -642,6 +642,11 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	liveTrailingCallbackRate := 0.0
 	liveBreakEvenStopPrice := 0.0
 	breakEvenOrderDetected := false
+	ladderStopCount := 0
+	ladderTakeProfitCount := 0
+	fullStopCount := 0
+	fullTakeProfitCount := 0
+	fallbackStopCount := 0
 	for _, order := range openOrders {
 		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
 			continue
@@ -675,6 +680,26 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				"status":          order.Status,
 				"client_order_id": order.ClientOrderID,
 			})
+		}
+		role := strings.ToLower(strings.TrimSpace(order.ProtectionRole))
+		clientOrderIDLower := strings.ToLower(strings.TrimSpace(order.ClientOrderID))
+		switch role {
+		case "stop_loss":
+			switch {
+			case strings.Contains(clientOrderIDLower, "fallback_maxloss"):
+				fallbackStopCount++
+			case strings.Contains(clientOrderIDLower, "ladder"):
+				ladderStopCount++
+			case strings.Contains(clientOrderIDLower, "full"):
+				fullStopCount++
+			}
+		case "take_profit":
+			switch {
+			case strings.Contains(clientOrderIDLower, "ladder"):
+				ladderTakeProfitCount++
+			case strings.Contains(clientOrderIDLower, "full"):
+				fullTakeProfitCount++
+			}
 		}
 		activeOrders = append(activeOrders, map[string]interface{}{
 			"order_id":          order.OrderID,
@@ -778,6 +803,24 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		}
 	}
 
+	plannedLadderStopCount := 0
+	plannedLadderTakeProfitCount := 0
+	fullStopPlanned := false
+	fullTakeProfitPlanned := false
+	fallbackPlanned := false
+	if configuredPlan, err := at.BuildConfiguredProtectionPlan(entryPrice, "open_"+strings.ToLower(side)); err == nil && configuredPlan != nil {
+		plannedLadderStopCount = len(configuredPlan.StopLossOrders)
+		plannedLadderTakeProfitCount = len(configuredPlan.TakeProfitOrders)
+		fullStopPlanned = configuredPlan.NeedsStopLoss && configuredPlan.StopLossPrice > 0
+		fullTakeProfitPlanned = configuredPlan.NeedsTakeProfit && configuredPlan.TakeProfitPrice > 0
+		fallbackPlanned = configuredPlan.FallbackMaxLossPrice > 0
+	}
+	ladderDegradedStop := plannedLadderStopCount > 0 && ladderStopCount < plannedLadderStopCount
+	ladderDegradedTakeProfit := plannedLadderTakeProfitCount > 0 && ladderTakeProfitCount < plannedLadderTakeProfitCount
+	ladderDegradedToFullStop := ladderDegradedStop && fullStopCount > 0
+	ladderDegradedToFullTakeProfit := ladderDegradedTakeProfit && fullTakeProfitCount > 0
+	fallbackActive := fallbackStopCount > 0
+
 	return map[string]interface{}{
 		"protection_state":                      at.getProtectionState(symbol, side),
 		"break_even_state":                      at.getBreakEvenState(symbol, side),
@@ -793,6 +836,21 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"break_even_config_source":              breakEvenSource,
 		"live_break_even_stop_price":            liveBreakEvenStopPrice,
 		"break_even_order_detected":             breakEvenOrderDetected,
+		"planned_ladder_stop_count":             plannedLadderStopCount,
+		"planned_ladder_take_profit_count":      plannedLadderTakeProfitCount,
+		"live_ladder_stop_count":                ladderStopCount,
+		"live_ladder_take_profit_count":         ladderTakeProfitCount,
+		"live_full_stop_count":                  fullStopCount,
+		"live_full_take_profit_count":           fullTakeProfitCount,
+		"fallback_order_detected":               fallbackActive,
+		"live_fallback_stop_count":              fallbackStopCount,
+		"full_stop_planned":                     fullStopPlanned,
+		"full_take_profit_planned":              fullTakeProfitPlanned,
+		"fallback_planned":                      fallbackPlanned,
+		"ladder_stop_degraded":                  ladderDegradedStop,
+		"ladder_take_profit_degraded":           ladderDegradedTakeProfit,
+		"ladder_stop_degraded_to_full":          ladderDegradedToFullStop,
+		"ladder_take_profit_degraded_to_full":   ladderDegradedToFullTakeProfit,
 		"current_drawdown_stage_min_profit_pct": currentStageMinProfit,
 		"current_drawdown_stage_rule_count":     currentStageRuleCount,
 		"active_orders":                         activeOrders,

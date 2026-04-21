@@ -335,6 +335,21 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const breakEvenConfigSource = String(position.protection_runtime?.break_even_config_source || 'strategy')
           const liveBreakEvenStopPrice = Number(position.protection_runtime?.live_break_even_stop_price ?? 0)
           const breakEvenOrderDetected = Boolean(position.protection_runtime?.break_even_order_detected)
+          const plannedLadderStopCount = Number(position.protection_runtime?.planned_ladder_stop_count ?? 0)
+          const plannedLadderTakeProfitCount = Number(position.protection_runtime?.planned_ladder_take_profit_count ?? 0)
+          const liveLadderStopCount = Number(position.protection_runtime?.live_ladder_stop_count ?? 0)
+          const liveLadderTakeProfitCount = Number(position.protection_runtime?.live_ladder_take_profit_count ?? 0)
+          const liveFullStopCount = Number(position.protection_runtime?.live_full_stop_count ?? 0)
+          const liveFullTakeProfitCount = Number(position.protection_runtime?.live_full_take_profit_count ?? 0)
+          const liveFallbackStopCount = Number(position.protection_runtime?.live_fallback_stop_count ?? 0)
+          const fallbackOrderDetected = Boolean(position.protection_runtime?.fallback_order_detected)
+          const fullStopPlanned = Boolean(position.protection_runtime?.full_stop_planned)
+          const fullTakeProfitPlanned = Boolean(position.protection_runtime?.full_take_profit_planned)
+          const fallbackPlanned = Boolean(position.protection_runtime?.fallback_planned)
+          const ladderStopDegraded = Boolean(position.protection_runtime?.ladder_stop_degraded)
+          const ladderTakeProfitDegraded = Boolean(position.protection_runtime?.ladder_take_profit_degraded)
+          const ladderStopDegradedToFull = Boolean(position.protection_runtime?.ladder_stop_degraded_to_full)
+          const ladderTakeProfitDegradedToFull = Boolean(position.protection_runtime?.ladder_take_profit_degraded_to_full)
 
           const stopRows = protectionRows.filter((r) => r.bucket === 'stop')
           const trailingRows = protectionRows.filter((r) => r.bucket === 'trailing')
@@ -386,6 +401,15 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '满足 / 触发' : 'Satisfied / Triggered', value: `${satisfiedTiers.length} / ${triggeredTiers.length}` },
                     { label: language === 'zh' ? '下一档利润门槛' : 'Next Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? 'Trailing 实盘委托' : 'Live Trailing Orders', value: `${trailingRows.length}` },
+                    { label: language === 'zh' ? 'Ladder 止损' : 'Ladder Stops', value: plannedLadderStopCount > 0 ? `${liveLadderStopCount} / ${plannedLadderStopCount}` : '—' },
+                    { label: language === 'zh' ? 'Ladder 止盈' : 'Ladder Take-profits', value: plannedLadderTakeProfitCount > 0 ? `${liveLadderTakeProfitCount} / ${plannedLadderTakeProfitCount}` : '—' },
+                    { label: language === 'zh' ? '降级摘要' : 'Degradation Summary', value: [
+                      ladderStopDegraded ? (ladderStopDegradedToFull ? (language === 'zh' ? 'SL→Full' : 'SL→Full') : (language === 'zh' ? 'SL部分降级' : 'SL partial')) : '',
+                      ladderTakeProfitDegraded ? (ladderTakeProfitDegradedToFull ? (language === 'zh' ? 'TP→Full' : 'TP→Full') : (language === 'zh' ? 'TP部分降级' : 'TP partial')) : '',
+                      fallbackOrderDetected ? (language === 'zh' ? 'Fallback已挂' : 'Fallback live') : '',
+                      fallbackPlanned && !fallbackOrderDetected ? (language === 'zh' ? 'Fallback待挂' : 'Fallback planned') : '',
+                      !ladderStopDegraded && !ladderTakeProfitDegraded && !fallbackOrderDetected ? (language === 'zh' ? '无' : 'None') : ''
+                    ].filter(Boolean).join(' · ') },
                   ]}
                 />
 
@@ -400,6 +424,11 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '保本偏移' : 'Offset', value: breakEvenTriggerPct > 0 ? `${breakEvenOffsetPct.toFixed(2)}%` : '—' },
                     { label: language === 'zh' ? '实盘挂单' : 'Live Order', value: breakEvenOrderDetected ? (language === 'zh' ? '已委托' : 'Delegated') : (breakEvenTriggerPct > 0 ? (language === 'zh' ? '未委托' : 'Not placed') : '—') },
                     { label: language === 'zh' ? '保本价' : 'Break-even Price', value: liveBreakEvenStopPrice > 0 ? `${formatPrice(liveBreakEvenStopPrice)} / ${formatSignedPercent(((liveBreakEvenStopPrice - (position.entry_price || 0)) / (position.entry_price || 1)) * 100)}` : '—' },
+                    { label: language === 'zh' ? 'Full/Fallback 状态' : 'Full/Fallback State', value: [
+                      fullStopPlanned ? `${language === 'zh' ? 'Full SL计划' : 'Full SL planned'}:${liveFullStopCount}` : '',
+                      fullTakeProfitPlanned ? `${language === 'zh' ? 'Full TP计划' : 'Full TP planned'}:${liveFullTakeProfitCount}` : '',
+                      fallbackPlanned ? `${language === 'zh' ? 'Fallback计划' : 'Fallback planned'}:${liveFallbackStopCount}` : ''
+                    ].filter(Boolean).join(' · ') || '—' },
                   ]}
                 />
 

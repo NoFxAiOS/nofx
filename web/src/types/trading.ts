@@ -408,6 +408,14 @@ export interface DecisionReviewRef {
   decisions?: DecisionAction[]
 }
 
+export interface EntryReviewSummary {
+  timeframe_context?: Record<string, unknown>
+  risk_reward?: Record<string, unknown>
+  key_levels?: Record<string, unknown>
+  anchors?: unknown[]
+  alignment_notes?: string[]
+}
+
 export interface PositionCloseEvent {
   id: number
   position_id: number
@@ -444,6 +452,7 @@ export interface HistoricalPosition {
   entry_order_id: string
   entry_decision_cycle?: number
   entry_decision_review?: DecisionReviewRef
+  entry_review_summary?: EntryReviewSummary
   entry_time: string
   exit_price: number
   exit_order_id: string

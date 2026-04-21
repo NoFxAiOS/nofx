@@ -844,6 +844,10 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
   const closeRatioPct = position.close_ratio_pct || 0
   const closeValueUsdt = position.close_value_usdt || (exitPrice * displayQty)
   const executionSource = formatExecutionSourceLabel(position.execution_source || position.close_reason || 'unknown')
+  const entryReviewSummary = position.entry_review_summary
+  const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
+  const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
+  const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[] } | undefined
   const executionOrderType = position.execution_order_type || 'unknown'
 
   return (
@@ -959,6 +963,22 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                 <div className="text-[11px] leading-5" style={{ color: '#EAECEF' }}>
                   {formatReviewContextSummary(position.exit_decision_review?.review_context || position.entry_decision_review?.review_context)}
                 </div>
+                {entryReviewSummary && (
+                  <div className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] space-y-1" style={{ color: '#EAECEF' }}>
+                    <div style={{ color: '#848E9C' }}>{'开仓结构摘要 / Entry Structure Summary'}</div>
+                    <div>
+                      TF: {entryTf?.primary || '—'}
+                      {entryTf?.lower?.length ? ` | lower ${entryTf.lower.join(', ')}` : ''}
+                      {entryTf?.higher?.length ? ` | higher ${entryTf.higher.join(', ')}` : ''}
+                    </div>
+                    <div>
+                      RR: entry {entryRR?.entry ?? '—'} / invalidation {entryRR?.invalidation ?? '—'} / target {entryRR?.first_target ?? '—'}
+                    </div>
+                    <div>
+                      Levels: S {entryLevels?.support?.join(', ') || '—'} | R {entryLevels?.resistance?.join(', ') || '—'}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {formatProtectionSummary(position.exit_decision_review?.protection_snapshot || position.entry_decision_review?.protection_snapshot).map((item, idx) => (
                     <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={item.style}>

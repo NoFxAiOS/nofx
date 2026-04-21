@@ -249,6 +249,37 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		}
 	}
 
+	buildEntryReviewSummary := func(cycle int) map[string]interface{} {
+		ref := buildDecisionReviewRef(cycle)
+		if ref == nil {
+			return nil
+		}
+		review, _ := ref["review_context"].(map[string]interface{})
+		if review == nil {
+			return nil
+		}
+		summary := map[string]interface{}{}
+		if tf, ok := review["timeframe_context"]; ok {
+			summary["timeframe_context"] = tf
+		}
+		if rr, ok := review["risk_reward"]; ok {
+			summary["risk_reward"] = rr
+		}
+		if levels, ok := review["key_levels"]; ok {
+			summary["key_levels"] = levels
+		}
+		if anchors, ok := review["anchors"]; ok {
+			summary["anchors"] = anchors
+		}
+		if notes, ok := review["alignment_notes"]; ok {
+			summary["alignment_notes"] = notes
+		}
+		if len(summary) == 0 {
+			return nil
+		}
+		return summary
+	}
+
 	// Enrich with execution metadata for frontend expandable rows.
 	enrichedPositions := make([]map[string]interface{}, 0, len(positions))
 	for _, pos := range positions {
@@ -356,6 +387,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			"entry_order_id":        pos.EntryOrderID,
 			"entry_decision_cycle":  pos.EntryDecisionCycle,
 			"entry_decision_review": buildDecisionReviewRef(pos.EntryDecisionCycle),
+			"entry_review_summary":  buildEntryReviewSummary(pos.EntryDecisionCycle),
 			"entry_time":            time.UnixMilli(pos.EntryTime).UTC().Format(time.RFC3339),
 			"exit_price":            pos.ExitPrice,
 			"exit_order_id":         pos.ExitOrderID,

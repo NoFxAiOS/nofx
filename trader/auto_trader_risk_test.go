@@ -340,13 +340,13 @@ func TestCheckPositionDrawdownActivatesRunnerAndSuppressesBreakEvenAfterPartialC
 
 func TestEvaluateAIDrawdownRuleRespectsRunnerPolicyAndStageDefaults(t *testing.T) {
 	cfg := store.DrawdownTakeProfitConfig{
-		Enabled:                true,
-		Mode:                   store.ProtectionModeAI,
-		EngineMode:             store.DrawdownEngineModeAI,
-		RunnerEnabled:          true,
-		MinRunnerKeepPct:       25,
-		MaxFirstReducePct:      60,
-		BreakEvenRunnerPolicy:  store.DrawdownBreakEvenRunnerFallbackOnly,
+		Enabled:               true,
+		Mode:                  store.ProtectionModeAI,
+		EngineMode:            store.DrawdownEngineModeAI,
+		RunnerEnabled:         true,
+		MinRunnerKeepPct:      25,
+		MaxFirstReducePct:     60,
+		BreakEvenRunnerPolicy: store.DrawdownBreakEvenRunnerFallbackOnly,
 	}
 	rules := []store.DrawdownTakeProfitRule{{
 		MinProfitPct:   4,
@@ -354,7 +354,7 @@ func TestEvaluateAIDrawdownRuleRespectsRunnerPolicyAndStageDefaults(t *testing.T
 		CloseRatioPct:  80,
 	}}
 
-	eval := evaluateAIDrawdownRule(cfg, 4.2, 6.0, 30.0, rules)
+	eval := evaluateAIDrawdownRule(cfg, 4.2, 6.0, 30.0, rules, nil, "long", 0)
 	if eval == nil {
 		t.Fatal("expected ai drawdown evaluation")
 	}
@@ -375,5 +375,48 @@ func TestEvaluateAIDrawdownRuleRespectsRunnerPolicyAndStageDefaults(t *testing.T
 	}
 	if eval.Rule.RunnerTargetSource != "primary_resistance" {
 		t.Fatalf("expected default target source for near_primary_target, got %q", eval.Rule.RunnerTargetSource)
+	}
+}
+
+func TestEvaluateAIDrawdownRuleUsesStructureContextForStageAndSources(t *testing.T) {
+	cfg := store.DrawdownTakeProfitConfig{
+		Enabled:               true,
+		Mode:                  store.ProtectionModeAI,
+		EngineMode:            store.DrawdownEngineModeAI,
+		RunnerEnabled:         true,
+		MinRunnerKeepPct:      20,
+		MaxFirstReducePct:     60,
+		BreakEvenRunnerPolicy: store.DrawdownBreakEvenRunnerFallbackOnly,
+	}
+	rules := []store.DrawdownTakeProfitRule{{
+		MinProfitPct:   4,
+		MaxDrawdownPct: 20,
+		CloseRatioPct:  70,
+	}}
+	structure := &drawdownStructureContext{
+		Entry:       100,
+		FirstTarget: 110,
+		Resistance:  []float64{110},
+		FibLevels:   []float64{111.8},
+		Anchors: []store.DecisionActionReasonAnchor{{
+			Type:      "first_target",
+			Timeframe: "15m",
+			Price:     110,
+			Reason:    "primary resistance objective",
+		}},
+	}
+
+	eval := evaluateAIDrawdownRule(cfg, 9.0, 11.0, 25.0, rules, structure, "long", 111.8)
+	if eval == nil {
+		t.Fatal("expected ai drawdown evaluation")
+	}
+	if eval.Rule.StageName != "extension_exhaustion" {
+		t.Fatalf("expected structure-driven extension_exhaustion stage, got %q", eval.Rule.StageName)
+	}
+	if eval.Rule.RunnerStopSource != "extension_swing_trail" {
+		t.Fatalf("expected extension stop source, got %q", eval.Rule.RunnerStopSource)
+	}
+	if eval.Rule.RunnerTargetSource != "extension_fibonacci" {
+		t.Fatalf("expected extension fibonacci target source, got %q", eval.Rule.RunnerTargetSource)
 	}
 }

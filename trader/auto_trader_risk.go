@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"nofx/logger"
@@ -135,9 +136,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			}
 		}
 
+		structureCtx := at.buildDrawdownStructureContext(symbol, side)
 		armRules := at.getDrawdownArmRules(currentPnLPct, rules)
 		if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
-			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules); eval != nil {
+			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules, structureCtx, side, markPrice); eval != nil {
 				armRules = []store.DrawdownTakeProfitRule{eval.Rule}
 			}
 		}
@@ -164,7 +166,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		triggeredRules := at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules)
 		if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
-			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules); eval != nil {
+			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules, structureCtx, side, markPrice); eval != nil {
 				triggeredRules = []store.DrawdownTakeProfitRule{eval.Rule}
 			} else {
 				triggeredRules = nil
@@ -240,6 +242,121 @@ func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
 		rules = append(rules, rule)
 	}
 	return rules
+}
+
+func (at *AutoTrader) buildDrawdownStructureContext(symbol, side string) *drawdownStructureContext {
+	if at.store == nil {
+		return nil
+	}
+	positionStore := at.store.Position()
+	decisionStore := at.store.Decision()
+	if positionStore == nil || decisionStore == nil {
+		return nil
+	}
+	openPos, err := positionStore.GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side))
+	if err != nil || openPos == nil || openPos.EntryDecisionCycle <= 0 {
+		return nil
+	}
+	record, err := decisionStore.GetRecordByCycle(at.id, openPos.EntryDecisionCycle)
+	if err != nil || record == nil {
+		return nil
+	}
+
+	ctx := &drawdownStructureContext{}
+	if review, ok := record.ReviewContext["timeframe_context"].(map[string]interface{}); ok {
+		ctx.PrimaryTimeframe, _ = review["primary"].(string)
+		ctx.LowerTimeframes = readStringSlice(review["lower"])
+		ctx.HigherTimeframes = readStringSlice(review["higher"])
+	}
+	if rr, ok := record.ReviewContext["risk_reward"].(map[string]interface{}); ok {
+		ctx.Entry = readFloat(rr["entry"])
+		ctx.Invalidation = readFloat(rr["invalidation"])
+		ctx.FirstTarget = readFloat(rr["first_target"])
+	}
+	if levels, ok := record.ReviewContext["key_levels"].(map[string]interface{}); ok {
+		ctx.Support = readFloatSlice(levels["support"])
+		ctx.Resistance = readFloatSlice(levels["resistance"])
+		if fib, ok := levels["fibonacci"].(map[string]interface{}); ok {
+			ctx.FibLevels = readFloatSlice(fib["levels"])
+		}
+	}
+	if anchorsRaw, ok := record.ReviewContext["anchors"].([]interface{}); ok {
+		anchors := make([]store.DecisionActionReasonAnchor, 0, len(anchorsRaw))
+		for _, raw := range anchorsRaw {
+			item, ok := raw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			anchors = append(anchors, store.DecisionActionReasonAnchor{
+				Type:      readString(item["type"]),
+				Timeframe: readString(item["timeframe"]),
+				Price:     readFloat(item["price"]),
+				Reason:    readString(item["reason"]),
+			})
+		}
+		ctx.Anchors = anchors
+	}
+	if ctx.PrimaryTimeframe == "" && len(ctx.Support) == 0 && len(ctx.Resistance) == 0 && len(ctx.FibLevels) == 0 && len(ctx.Anchors) == 0 && ctx.Entry == 0 && ctx.FirstTarget == 0 {
+		return nil
+	}
+	return ctx
+}
+
+func readString(value interface{}) string {
+	str, _ := value.(string)
+	return strings.TrimSpace(str)
+}
+
+func readStringSlice(value interface{}) []string {
+	items, ok := value.([]interface{})
+	if !ok {
+		if existing, ok := value.([]string); ok {
+			return existing
+		}
+		return nil
+	}
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+			result = append(result, strings.TrimSpace(s))
+		}
+	}
+	return result
+}
+
+func readFloat(value interface{}) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case json.Number:
+		f, _ := v.Float64()
+		return f
+	default:
+		return 0
+	}
+}
+
+func readFloatSlice(value interface{}) []float64 {
+	items, ok := value.([]interface{})
+	if !ok {
+		if existing, ok := value.([]float64); ok {
+			return existing
+		}
+		return nil
+	}
+	result := make([]float64, 0, len(items))
+	for _, item := range items {
+		if f := readFloat(item); f > 0 {
+			result = append(result, f)
+		}
+	}
+	return result
 }
 
 func (at *AutoTrader) supportsNativeTrailingStop() bool {

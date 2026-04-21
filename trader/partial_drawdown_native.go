@@ -17,6 +17,19 @@ type DrawdownRunnerState struct {
 	BreakEvenSuppressedByRunner bool
 }
 
+type drawdownStructureContext struct {
+	PrimaryTimeframe string
+	LowerTimeframes  []string
+	HigherTimeframes []string
+	Entry            float64
+	Invalidation     float64
+	FirstTarget      float64
+	Support          []float64
+	Resistance       []float64
+	FibLevels        []float64
+	Anchors          []store.DecisionActionReasonAnchor
+}
+
 func normalizeDrawdownRule(rule store.DrawdownTakeProfitRule) store.DrawdownTakeProfitRule {
 	if strings.TrimSpace(rule.StageName) == "" {
 		rule.StageName = "profit_stage"
@@ -62,7 +75,7 @@ type drawdownEvaluation struct {
 	Rule store.DrawdownTakeProfitRule
 }
 
-func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, peakPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule) *drawdownEvaluation {
+func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, peakPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule, structure *drawdownStructureContext, side string, markPrice float64) *drawdownEvaluation {
 	if len(rules) == 0 {
 		return nil
 	}
@@ -85,8 +98,9 @@ func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, p
 	}
 
 	rule := normalizeDrawdownRule(rules[bestIdx])
+	resolvedStage, stopSource, targetSource := classifyAIDrawdownStage(currentPnLPct, peakPnLPct, structure, side, markPrice)
 	if strings.TrimSpace(rule.StageName) == "" || rule.StageName == "profit_stage" {
-		rule.StageName = classifyAIDrawdownStage(currentPnLPct, peakPnLPct)
+		rule.StageName = resolvedStage
 	}
 
 	minRunnerKeep := cfg.MinRunnerKeepPct
@@ -132,49 +146,97 @@ func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, p
 	}
 
 	if strings.TrimSpace(rule.RunnerStopSource) == "" && strings.EqualFold(rule.RunnerStopMode, "structure") {
-		rule.RunnerStopSource = defaultRunnerStopSource(rule.StageName)
+		rule.RunnerStopSource = stopSource
 	}
 	if strings.TrimSpace(rule.RunnerTargetMode) == "" && rule.RunnerKeepPct > 0 {
 		rule.RunnerTargetMode = "structure"
 	}
 	if strings.TrimSpace(rule.RunnerTargetSource) == "" && rule.RunnerKeepPct > 0 {
-		rule.RunnerTargetSource = defaultRunnerTargetSource(rule.StageName)
+		rule.RunnerTargetSource = targetSource
 	}
 
 	return &drawdownEvaluation{Rule: normalizeDrawdownRule(rule)}
 }
 
-func classifyAIDrawdownStage(currentPnLPct, peakPnLPct float64) string {
+func classifyAIDrawdownStage(currentPnLPct, peakPnLPct float64, structure *drawdownStructureContext, side string, markPrice float64) (string, string, string) {
+	if structure != nil && structure.Entry > 0 && structure.FirstTarget > 0 && markPrice > 0 {
+		progress := structuralTargetProgress(side, structure.Entry, structure.FirstTarget, markPrice)
+		if progress >= 1.15 || isNearAnyLevel(markPrice, structure.FibLevels, 0.0035) {
+			return "extension_exhaustion", "extension_swing_trail", "extension_fibonacci"
+		}
+		if progress >= 0.85 || touchesPrimaryTargetZone(side, structure, markPrice) {
+			return "near_primary_target", "primary_target_pullback", "primary_resistance"
+		}
+		if hasTrendContinuationAnchor(structure.Anchors) || len(structure.Support) > 0 || len(structure.Resistance) > 0 {
+			return "trend_continuation", "adjacent_support_flip", "trend_continuation_structure"
+		}
+	}
+
 	switch {
 	case peakPnLPct >= 12 || currentPnLPct >= 10:
-		return "extension_exhaustion"
+		return "extension_exhaustion", "extension_swing_trail", "extension_fibonacci"
 	case peakPnLPct >= 5 || currentPnLPct >= 4:
-		return "near_primary_target"
+		return "near_primary_target", "primary_target_pullback", "primary_resistance"
 	default:
-		return "trend_continuation"
+		return "trend_continuation", "adjacent_support_flip", "trend_continuation_structure"
 	}
 }
 
-func defaultRunnerStopSource(stage string) string {
-	switch strings.TrimSpace(stage) {
-	case "extension_exhaustion":
-		return "extension_swing_trail"
-	case "near_primary_target":
-		return "primary_target_pullback"
-	default:
-		return "adjacent_support_flip"
+func structuralTargetProgress(side string, entry, firstTarget, markPrice float64) float64 {
+	if entry <= 0 || firstTarget <= 0 || markPrice <= 0 {
+		return 0
 	}
+	if strings.EqualFold(side, "long") {
+		denom := firstTarget - entry
+		if denom <= 0 {
+			return 0
+		}
+		return (markPrice - entry) / denom
+	}
+	denom := entry - firstTarget
+	if denom <= 0 {
+		return 0
+	}
+	return (entry - markPrice) / denom
 }
 
-func defaultRunnerTargetSource(stage string) string {
-	switch strings.TrimSpace(stage) {
-	case "extension_exhaustion":
-		return "extension_fibonacci"
-	case "near_primary_target":
-		return "primary_resistance"
-	default:
-		return "trend_continuation_structure"
+func touchesPrimaryTargetZone(side string, structure *drawdownStructureContext, markPrice float64) bool {
+	if structure == nil || markPrice <= 0 {
+		return false
 	}
+	if strings.EqualFold(side, "long") {
+		return isNearAnyLevel(markPrice, structure.Resistance, 0.004)
+	}
+	return isNearAnyLevel(markPrice, structure.Support, 0.004)
+}
+
+func isNearAnyLevel(price float64, levels []float64, tolerance float64) bool {
+	if price <= 0 || tolerance <= 0 {
+		return false
+	}
+	for _, level := range levels {
+		if level <= 0 {
+			continue
+		}
+		if math.Abs(price-level)/price <= tolerance {
+			return true
+		}
+	}
+	return false
+}
+
+func hasTrendContinuationAnchor(anchors []store.DecisionActionReasonAnchor) bool {
+	for _, anchor := range anchors {
+		typeLower := strings.ToLower(strings.TrimSpace(anchor.Type))
+		reasonLower := strings.ToLower(strings.TrimSpace(anchor.Reason))
+		if strings.Contains(typeLower, "support") || strings.Contains(typeLower, "resistance") || strings.Contains(typeLower, "target") {
+			return true
+		}
+		if strings.Contains(reasonLower, "pullback") || strings.Contains(reasonLower, "breakout") || strings.Contains(reasonLower, "continuation") || strings.Contains(reasonLower, "retest") {
+			return true
+		}
+	}
+	return false
 }
 
 // buildManagedPartialDrawdownPlanCandidate converts a partial drawdown rule into a managed

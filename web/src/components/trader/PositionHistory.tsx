@@ -53,6 +53,77 @@ function formatDate(dateStr: string): string {
   })
 }
 
+type CloseSourcePresentation = {
+  label: string
+  detail?: string
+  confidence: 'high' | 'medium' | 'low'
+  group: 'ai' | 'protection' | 'sync' | 'manual' | 'unknown'
+}
+
+function summarizeCloseSource(rawSource?: string, rawReason?: string, orderType?: string, hasDecisionCycle?: boolean, hasReview?: boolean): CloseSourcePresentation {
+  const source = String(rawSource || '').toLowerCase()
+  const reason = String(rawReason || '').toLowerCase()
+  const type = String(orderType || '').toUpperCase()
+  const merged = `${source} ${reason}`.trim()
+
+  if (merged.includes('managed_drawdown')) return { label: 'Protection · Managed drawdown', confidence: 'high', group: 'protection' }
+  if (merged.includes('native_trailing') || merged.includes('trailing')) return { label: 'Protection · Native trailing', confidence: 'high', group: 'protection' }
+  if (merged.includes('break_even')) return { label: 'Protection · Break-even stop', confidence: 'high', group: 'protection' }
+  if (merged.includes('ladder_tp')) return { label: 'Protection · Ladder TP', confidence: 'high', group: 'protection' }
+  if (merged.includes('ladder_sl')) return { label: 'Protection · Ladder SL', confidence: 'high', group: 'protection' }
+  if (merged.includes('full_tp')) return { label: 'Protection · Full TP', confidence: 'high', group: 'protection' }
+  if (merged.includes('full_sl')) return { label: 'Protection · Full SL', confidence: 'high', group: 'protection' }
+  if (merged.includes('manual')) return { label: 'Manual close', confidence: 'high', group: 'manual' }
+  if (source === 'sync') return { label: 'Exchange sync attribution', confidence: 'low', group: 'sync' }
+
+  if (merged.includes('ai_close') || merged === 'close_long' || merged === 'close_short' || merged.includes('close_long') || merged.includes('close_short') || type === 'AI_CLOSE') {
+    if (hasDecisionCycle || hasReview) {
+      return { label: 'AI proactive close', detail: 'decision-linked', confidence: 'medium', group: 'ai' }
+    }
+    return { label: 'AI/sync close attribution', detail: 'not decision-linked', confidence: 'low', group: 'sync' }
+  }
+
+  if (!source && !reason) return { label: 'Unknown close source', confidence: 'low', group: 'unknown' }
+  return { label: rawSource || rawReason || 'Unknown close source', confidence: 'low', group: 'unknown' }
+}
+
+function getCloseSourceBadgeStyle(presentation: CloseSourcePresentation) {
+  switch (presentation.group) {
+    case 'ai':
+      return { background: 'rgba(96,165,250,0.14)', color: '#60A5FA', border: '1px solid rgba(96,165,250,0.3)' }
+    case 'protection':
+      return { background: 'rgba(168,85,247,0.14)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.3)' }
+    case 'manual':
+      return { background: 'rgba(14,203,129,0.14)', color: '#0ECB81', border: '1px solid rgba(14,203,129,0.3)' }
+    case 'sync':
+      return { background: 'rgba(251,191,36,0.14)', color: '#F0B90B', border: '1px solid rgba(251,191,36,0.3)' }
+    default:
+      return { background: 'rgba(132,142,156,0.14)', color: '#AAB2BD', border: '1px solid rgba(132,142,156,0.25)' }
+  }
+}
+
+function summarizeCloseEventFlow(closeEvents: HistoricalPosition['close_events'] | undefined) {
+  const events = closeEvents || []
+  if (events.length === 0) return null
+  const sources = new Map<string, number>()
+  let linkedDecisionCount = 0
+  let totalRatio = 0
+  for (const event of events) {
+    const hasReview = Boolean(event.decision_review?.review_context)
+    const presentation = summarizeCloseSource(event.execution_source, event.close_reason, event.execution_type, Boolean(event.decision_cycle), hasReview)
+    sources.set(presentation.label, (sources.get(presentation.label) || 0) + 1)
+    if (event.decision_cycle || hasReview) linkedDecisionCount += 1
+    totalRatio += Number(event.close_ratio_pct || 0)
+  }
+  return {
+    eventCount: events.length,
+    linkedDecisionCount,
+    totalRatio,
+    sourceBreakdown: Array.from(sources.entries()).map(([label, count]) => `${label} × ${count}`),
+    isFragmentedSyncLike: events.length >= 3 && linkedDecisionCount === 0,
+  }
+}
+
 function findPrimaryOpenDecision(review?: DecisionReviewRef): DecisionAction | undefined {
   return (review?.decisions || []).find((decision) => {
     const action = String(decision.action || '').toLowerCase()
@@ -881,36 +952,6 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
   const sideColor = isLong ? '#0ECB81' : '#F6465D'
   const pnlColor = isProfitable ? '#0ECB81' : '#F6465D'
 
-  const formatExecutionSourceLabel = (value: string): string => {
-    const v = String(value || '').toLowerCase()
-    if (v === 'ai_close_long' || v === 'ai_close_short') return v
-    if (v === 'managed_drawdown') return 'Managed Drawdown'
-    if (v === 'emergency_protection_close') return 'Emergency Protection Close'
-    if (v === 'ladder_tp') return 'Ladder TP'
-    if (v === 'ladder_sl') return 'Ladder SL'
-    if (v === 'full_tp') return 'Full TP'
-    if (v === 'full_sl') return 'Full SL'
-    if (v === 'close_long' || v === 'close_short') return `AI ${v}`
-    if (v.includes('native_trailing') || v.includes('trailing')) return 'Native Trailing'
-    if (v.includes('break_even')) return 'Break-even Stop'
-    if (v.includes('take_profit') || v === 'tp') return 'Take Profit'
-    if (v.includes('stop_loss') || v === 'sl') return 'Stop Loss'
-    if (v.includes('manual')) return 'Manual'
-    if (v === 'sync') return 'Exchange Sync'
-    if (v === 'unknown' || v === '') return 'Unknown'
-    return value
-  }
-
-  const getExecutionSourceBadgeStyle = (value: string) => {
-    const v = String(value || '').toLowerCase()
-    if (v.includes('ai_close')) return { background: 'rgba(96,165,250,0.14)', color: '#60A5FA', border: '1px solid rgba(96,165,250,0.3)' }
-    if (v.includes('native_trailing')) return { background: 'rgba(168,85,247,0.14)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.3)' }
-    if (v.includes('break_even')) return { background: 'rgba(251,191,36,0.14)', color: '#F0B90B', border: '1px solid rgba(251,191,36,0.3)' }
-    if (v === 'ladder_tp' || v === 'full_tp' || v.includes('take_profit')) return { background: 'rgba(14,203,129,0.14)', color: '#0ECB81', border: '1px solid rgba(14,203,129,0.3)' }
-    if (v === 'ladder_sl' || v === 'full_sl' || v.includes('stop_loss') || v === 'managed_drawdown' || v === 'emergency_protection_close') return { background: 'rgba(246,70,93,0.14)', color: '#F6465D', border: '1px solid rgba(246,70,93,0.3)' }
-    return { background: 'rgba(132,142,156,0.14)', color: '#AAB2BD', border: '1px solid rgba(132,142,156,0.25)' }
-  }
-
 
   // Calculate holding time
   const entryTime = position.entry_time ? new Date(position.entry_time).getTime() : 0
@@ -934,7 +975,15 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
 
   const closeRatioPct = position.close_ratio_pct || 0
   const closeValueUsdt = position.close_value_usdt || (exitPrice * displayQty)
-  const executionSource = formatExecutionSourceLabel(position.execution_source || position.close_reason || 'unknown')
+  const executionSourcePresentation = summarizeCloseSource(
+    position.execution_source,
+    position.close_reason,
+    position.execution_order_type,
+    Boolean(position.exit_decision_cycle),
+    Boolean(position.exit_decision_review?.review_context)
+  )
+  const executionSource = executionSourcePresentation.label
+  const closeFlowSummary = summarizeCloseEventFlow(position.close_events)
   const entryReviewSummary = position.entry_review_summary
   const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
   const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
@@ -1029,8 +1078,20 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托来源 / Source'}</div>
-                <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(position.execution_source || position.close_reason || 'unknown')}>
+                <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getCloseSourceBadgeStyle(executionSourcePresentation)}>
                   {executionSource}
+                </div>
+                {executionSourcePresentation.detail ? (
+                  <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                    {executionSourcePresentation.detail} · confidence {executionSourcePresentation.confidence}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                    confidence {executionSourcePresentation.confidence}
+                  </div>
+                )}
+                <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                  raw: {position.execution_source || position.close_reason || 'unknown'}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {formatProtectionSummary(position.protection_snapshot).map((item, idx) => (
@@ -1043,6 +1104,16 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托类型 / Order Type'}</div>
                 <div className="font-mono" style={{ color: '#EAECEF' }}>{executionOrderType}</div>
+                {closeFlowSummary && (
+                  <div className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] space-y-1" style={{ color: '#EAECEF' }}>
+                    <div style={{ color: '#848E9C' }}>{'平仓流摘要 / Close Flow Summary'}</div>
+                    <div>{`events=${closeFlowSummary.eventCount} | linked=${closeFlowSummary.linkedDecisionCount} | ratio=${closeFlowSummary.totalRatio.toFixed(2)}%`}</div>
+                    <div>{closeFlowSummary.sourceBreakdown.join(' · ') || '—'}</div>
+                    {closeFlowSummary.isFragmentedSyncLike && (
+                      <div style={{ color: '#F0B90B' }}>{'This looks like fragmented exchange sync, not multiple independent AI decisions.'}</div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <div style={{ color: '#848E9C' }}>{'入场 / 出场决策周期'}</div>
@@ -1101,11 +1172,22 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
               <div>
                 <div className="text-xs mb-2" style={{ color: '#848E9C' }}>{'分段平仓事件 / Close Event Flow'}</div>
                 <div className="space-y-2">
-                  {position.close_events.map((event) => (
+                  {position.close_events.map((event) => {
+                    const eventPresentation = summarizeCloseSource(
+                      event.execution_source,
+                      event.close_reason,
+                      event.execution_type,
+                      Boolean(event.decision_cycle),
+                      Boolean(event.decision_review?.review_context)
+                    )
+                    return (
                     <div key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs">
                       <div>
                         <div style={{ color: '#848E9C' }}>{'原因 / Reason'}</div>
-                        <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(event.execution_source || event.close_reason)}>{formatExecutionSourceLabel(event.execution_source || event.close_reason)}</div>
+                        <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getCloseSourceBadgeStyle(eventPresentation)}>{eventPresentation.label}</div>
+                        <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                          {`raw=${event.execution_source || event.close_reason || 'unknown'} | confidence=${eventPresentation.confidence}`}
+                        </div>
                         {event.protection_status ? (
                           <div className="mt-2">
                             <span className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -1151,7 +1233,7 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                         <div className="font-mono" style={{ color: '#EAECEF' }}>{`${event.realized_pnl_delta >= 0 ? '+' : ''}${formatNumber(event.realized_pnl_delta)} / ${formatDate(event.event_time)}`}</div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             )}

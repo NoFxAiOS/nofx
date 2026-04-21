@@ -69,16 +69,33 @@ func isTrendAligned(action string, data *market.Data) bool {
 	}
 }
 
-func (at *AutoTrader) allowDecisionByRegime(decision *kernel.Decision, data *market.Data) bool {
+func (at *AutoTrader) evaluateDecisionRegimeGate(decision *kernel.Decision, data *market.Data) regimeGateResult {
+	result := regimeGateResult{Allowed: true}
 	if at == nil || at.config.StrategyConfig == nil || decision == nil {
-		return true
+		return result
 	}
 	cfg := at.config.StrategyConfig.Protection.RegimeFilter
 	if !cfg.Enabled {
-		return true
+		return result
 	}
 
 	regime := classifyProtectionRegime(data)
+	result.CurrentRegime = regime
+	result.AllowedRegimes = append([]string{}, cfg.AllowedRegimes...)
+	if at.strategyEngine != nil && at.strategyEngine.GetConfig() != nil {
+		result.PrimaryTimeframe = at.strategyEngine.GetConfig().Indicators.Klines.PrimaryTimeframe
+	}
+	if data != nil {
+		result.FundingRate = data.FundingRate
+		if data.CurrentPrice > 0 {
+			if data.IntradaySeries != nil && data.IntradaySeries.ATR14 > 0 {
+				result.ATR14Pct = data.IntradaySeries.ATR14 / data.CurrentPrice * 100
+			} else if data.LongerTermContext != nil && data.LongerTermContext.ATR14 > 0 {
+				result.ATR14Pct = data.LongerTermContext.ATR14 / data.CurrentPrice * 100
+			}
+		}
+	}
+
 	if len(cfg.AllowedRegimes) > 0 {
 		allowed := false
 		for _, item := range cfg.AllowedRegimes {
@@ -88,33 +105,45 @@ func (at *AutoTrader) allowDecisionByRegime(decision *kernel.Decision, data *mar
 			}
 		}
 		if !allowed {
-			return false
+			result.Allowed = false
+			result.ReasonCode = "regime_not_allowed"
+			result.Reason = fmt.Sprintf("regime %s not allowed (allowed=%s)", regime, strings.Join(cfg.AllowedRegimes, ","))
+			return result
 		}
 	}
 
 	if cfg.BlockHighFunding && cfg.MaxFundingRateAbs > 0 && data != nil {
 		if math.Abs(data.FundingRate) > cfg.MaxFundingRateAbs {
-			return false
+			result.Allowed = false
+			result.ReasonCode = "funding_above_max"
+			result.Reason = fmt.Sprintf("funding %.6f exceeds max %.6f", data.FundingRate, cfg.MaxFundingRateAbs)
+			return result
 		}
 	}
 
-	if cfg.BlockHighVolatility && cfg.MaxATR14Pct > 0 && data != nil && data.CurrentPrice > 0 {
-		atrPct := 0.0
-		if data.IntradaySeries != nil && data.IntradaySeries.ATR14 > 0 {
-			atrPct = data.IntradaySeries.ATR14 / data.CurrentPrice * 100
-		} else if data.LongerTermContext != nil && data.LongerTermContext.ATR14 > 0 {
-			atrPct = data.LongerTermContext.ATR14 / data.CurrentPrice * 100
-		}
-		if atrPct > cfg.MaxATR14Pct {
-			return false
+	if cfg.BlockHighVolatility && cfg.MaxATR14Pct > 0 && result.ATR14Pct > cfg.MaxATR14Pct {
+		result.Allowed = false
+		result.ReasonCode = "atr_above_max"
+		result.Reason = fmt.Sprintf("atr14_pct %.2f exceeds max %.2f", result.ATR14Pct, cfg.MaxATR14Pct)
+		return result
+	}
+
+	if cfg.RequireTrendAlignment {
+		aligned := isTrendAligned(decision.Action, data)
+		result.TrendAligned = &aligned
+		if !aligned {
+			result.Allowed = false
+			result.ReasonCode = "trend_misaligned"
+			result.Reason = fmt.Sprintf("trend alignment failed for %s under regime gate", decision.Action)
+			return result
 		}
 	}
 
-	if cfg.RequireTrendAlignment && !isTrendAligned(decision.Action, data) {
-		return false
-	}
+	return result
+}
 
-	return true
+func (at *AutoTrader) allowDecisionByRegime(decision *kernel.Decision, data *market.Data) bool {
+	return at.evaluateDecisionRegimeGate(decision, data).Allowed
 }
 
 func buildAIBreakEvenConfig(plan *kernel.AIProtectionPlan) *store.BreakEvenStopConfig {

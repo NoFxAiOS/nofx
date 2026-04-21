@@ -44,6 +44,33 @@ func (at *AutoTrader) getExecutionMarketData(symbol string) (*market.Data, error
 	return market.GetWithExchange(symbol, at.exchange)
 }
 
+func (at *AutoTrader) applyRegimeGateToActionRecord(decision *kernel.Decision, actionRecord *store.DecisionAction, gate regimeGateResult) {
+	if actionRecord == nil || gate.Allowed {
+		return
+	}
+	if actionRecord.ReviewContext == nil {
+		actionRecord.ReviewContext = buildDecisionActionReviewContext(decision, at.getMinRiskRewardRatio(), nil)
+		if actionRecord.ReviewContext == nil {
+			actionRecord.ReviewContext = &store.DecisionActionReviewContext{}
+		}
+	}
+	control := actionRecord.ReviewContext.Control
+	if control == nil {
+		control = &store.DecisionActionControlOutcome{}
+		actionRecord.ReviewContext.Control = control
+	}
+	control.Decision = "rejected"
+	control.OriginalAction = decision.Action
+	control.FinalAction = decision.Action
+	control.NoOrderPlaced = true
+	if gate.Reason != "" {
+		control.Reasons = append(control.Reasons, gate.Reason)
+	}
+	if gate.ReasonCode != "" {
+		control.FailedChecks = append(control.FailedChecks, gate.ReasonCode)
+	}
+}
+
 // executeDecisionWithRecord executes AI decision and records detailed information
 func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	switch decision.Action {
@@ -90,8 +117,10 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	if err != nil {
 		return err
 	}
-	if !at.allowDecisionByRegime(decision, marketData) {
-		return fmt.Errorf("regime filter blocked open_long for %s", decision.Symbol)
+	regimeGate := at.evaluateDecisionRegimeGate(decision, marketData)
+	if !regimeGate.Allowed {
+		at.applyRegimeGateToActionRecord(decision, actionRecord, regimeGate)
+		return fmt.Errorf("regime filter blocked open_long for %s: %s", decision.Symbol, regimeGate.Reason)
 	}
 
 	// Get balance (needed for multiple checks)
@@ -219,8 +248,10 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	if err != nil {
 		return err
 	}
-	if !at.allowDecisionByRegime(decision, marketData) {
-		return fmt.Errorf("regime filter blocked open_short for %s", decision.Symbol)
+	regimeGate := at.evaluateDecisionRegimeGate(decision, marketData)
+	if !regimeGate.Allowed {
+		at.applyRegimeGateToActionRecord(decision, actionRecord, regimeGate)
+		return fmt.Errorf("regime filter blocked open_short for %s: %s", decision.Symbol, regimeGate.Reason)
 	}
 
 	// Get balance (needed for multiple checks)

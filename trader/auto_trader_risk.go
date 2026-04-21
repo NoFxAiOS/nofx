@@ -244,6 +244,49 @@ func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
 	return rules
 }
 
+func sideToOpenAction(side string) string {
+	switch strings.ToUpper(strings.TrimSpace(side)) {
+	case "LONG":
+		return "open_long"
+	case "SHORT":
+		return "open_short"
+	default:
+		return ""
+	}
+}
+
+func findMatchedDecisionAction(record *store.DecisionRecord, symbol, action string) *store.DecisionAction {
+	if record == nil {
+		return nil
+	}
+	for i := range record.Decisions {
+		candidate := record.Decisions[i]
+		if symbol != "" && !strings.EqualFold(candidate.Symbol, symbol) {
+			continue
+		}
+		if action != "" && !strings.EqualFold(candidate.Action, action) {
+			continue
+		}
+		return &candidate
+	}
+	return nil
+}
+
+func extractDecisionReviewMap(actionReview *store.DecisionActionReviewContext) map[string]interface{} {
+	if actionReview == nil {
+		return nil
+	}
+	payload, err := json.Marshal(actionReview)
+	if err != nil {
+		return nil
+	}
+	decoded := map[string]interface{}{}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return nil
+	}
+	return decoded
+}
+
 func (at *AutoTrader) buildDrawdownStructureContext(symbol, side string) *drawdownStructureContext {
 	if at.store == nil {
 		return nil
@@ -263,24 +306,34 @@ func (at *AutoTrader) buildDrawdownStructureContext(symbol, side string) *drawdo
 	}
 
 	ctx := &drawdownStructureContext{}
-	if review, ok := record.ReviewContext["timeframe_context"].(map[string]interface{}); ok {
-		ctx.PrimaryTimeframe, _ = review["primary"].(string)
-		ctx.LowerTimeframes = readStringSlice(review["lower"])
-		ctx.HigherTimeframes = readStringSlice(review["higher"])
-	}
-	if rr, ok := record.ReviewContext["risk_reward"].(map[string]interface{}); ok {
-		ctx.Entry = readFloat(rr["entry"])
-		ctx.Invalidation = readFloat(rr["invalidation"])
-		ctx.FirstTarget = readFloat(rr["first_target"])
-	}
-	if levels, ok := record.ReviewContext["key_levels"].(map[string]interface{}); ok {
-		ctx.Support = readFloatSlice(levels["support"])
-		ctx.Resistance = readFloatSlice(levels["resistance"])
-		if fib, ok := levels["fibonacci"].(map[string]interface{}); ok {
-			ctx.FibLevels = readFloatSlice(fib["levels"])
+	candidate := findMatchedDecisionAction(record, symbol, sideToOpenAction(strings.ToUpper(side)))
+	decoded := extractDecisionReviewMap(func() *store.DecisionActionReviewContext {
+		if candidate != nil {
+			return candidate.ReviewContext
 		}
+		return nil
+	}())
+	if decoded == nil {
+		return nil
 	}
-	if anchorsRaw, ok := record.ReviewContext["anchors"].([]interface{}); ok {
+	if review, ok := decoded["timeframe_context"].(map[string]interface{}); ok {
+			ctx.PrimaryTimeframe, _ = review["primary"].(string)
+			ctx.LowerTimeframes = readStringSlice(review["lower"])
+			ctx.HigherTimeframes = readStringSlice(review["higher"])
+		}
+		if rr, ok := decoded["risk_reward"].(map[string]interface{}); ok {
+			ctx.Entry = readFloat(rr["entry"])
+			ctx.Invalidation = readFloat(rr["invalidation"])
+			ctx.FirstTarget = readFloat(rr["first_target"])
+		}
+		if levels, ok := decoded["key_levels"].(map[string]interface{}); ok {
+			ctx.Support = readFloatSlice(levels["support"])
+			ctx.Resistance = readFloatSlice(levels["resistance"])
+			if fib, ok := levels["fibonacci"].(map[string]interface{}); ok {
+				ctx.FibLevels = readFloatSlice(fib["levels"])
+			}
+		}
+	if anchorsRaw, ok := decoded["anchors"].([]interface{}); ok {
 		anchors := make([]store.DecisionActionReasonAnchor, 0, len(anchorsRaw))
 		for _, raw := range anchorsRaw {
 			item, ok := raw.(map[string]interface{})

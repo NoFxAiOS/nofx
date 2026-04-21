@@ -233,15 +233,24 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, positionSideUpper); err == nil && openPos != nil {
 				entryDecisionCycle = openPos.EntryDecisionCycle
 				if decisionStore := at.store.Decision(); decisionStore != nil {
-					if record, err := decisionStore.GetRecordByCycle(at.id, openPos.EntryDecisionCycle); err == nil && record != nil && record.ReviewContext != nil {
-						entryReviewSummary = make(map[string]interface{})
-						for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes"} {
-							if value, ok := record.ReviewContext[key]; ok {
-								entryReviewSummary[key] = value
+					if record, err := decisionStore.GetRecordByCycle(at.id, openPos.EntryDecisionCycle); err == nil && record != nil {
+						candidate := findMatchedDecisionAction(record, symbol, sideToOpenAction(positionSideUpper))
+						decoded := extractDecisionReviewMap(func() *store.DecisionActionReviewContext {
+							if candidate != nil {
+								return candidate.ReviewContext
 							}
-						}
-						if len(entryReviewSummary) == 0 {
-							entryReviewSummary = nil
+							return nil
+						}())
+						if decoded != nil {
+							entryReviewSummary = make(map[string]interface{})
+							for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes", "protection", "control", "execution_constraints"} {
+								if value, ok := decoded[key]; ok {
+									entryReviewSummary[key] = value
+								}
+							}
+							if len(entryReviewSummary) == 0 {
+								entryReviewSummary = nil
+							}
 						}
 					}
 				}

@@ -8,6 +8,18 @@ import (
 	"nofx/store"
 )
 
+type regimeGateResult struct {
+	Allowed          bool
+	Reason           string
+	ReasonCode       string
+	CurrentRegime    string
+	AllowedRegimes   []string
+	ATR14Pct         float64
+	FundingRate      float64
+	TrendAligned     *bool
+	PrimaryTimeframe string
+}
+
 // runtimePolicyResult captures the narrow, deterministic runtime policy effect
 // applied after compact execution constraints are collected.
 type runtimePolicyResult struct {
@@ -27,6 +39,7 @@ type runtimePolicyResult struct {
 	EffectiveRRSource  string
 	ConstraintsSources []string
 	Protection         *store.DecisionActionProtectionAlignment
+	RegimeGate         *regimeGateResult
 }
 
 // applyRuntimeOpenPolicy enforces the smallest system-controlled final judgment

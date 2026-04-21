@@ -463,6 +463,7 @@ export interface DecisionReviewRef {
   review_context?: Record<string, unknown>
   protection_snapshot?: ProtectionSnapshot
   decisions?: DecisionAction[]
+  matched_decision?: DecisionAction
 }
 
 export interface EntryReviewSummary {

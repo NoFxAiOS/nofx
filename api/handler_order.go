@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -231,7 +232,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		ProtectionSnapshot interface{}            `json:"protection_snapshot,omitempty"`
 	}
 
-	buildDecisionReviewRef := func(cycle int) map[string]interface{} {
+	buildDecisionReviewRef := func(cycle int, symbol string, action string) map[string]interface{} {
 		if cycle <= 0 || store.Decision() == nil {
 			return nil
 		}
@@ -239,18 +240,37 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		if err != nil || record == nil {
 			return nil
 		}
+		var matched map[string]interface{}
+		for i := range record.Decisions {
+			candidate := record.Decisions[i]
+			if symbol != "" && !strings.EqualFold(candidate.Symbol, symbol) {
+				continue
+			}
+			if action != "" && !strings.EqualFold(candidate.Action, action) {
+				continue
+			}
+			if payload, err := json.Marshal(candidate); err == nil {
+				_ = json.Unmarshal(payload, &matched)
+			}
+			break
+		}
+		reviewContext := record.ReviewContext
+		if matchedReview, ok := matched["review_context"].(map[string]interface{}); ok {
+			reviewContext = matchedReview
+		}
 		return map[string]interface{}{
 			"decision_record_id":  record.ID,
 			"cycle_number":        record.CycleNumber,
 			"timestamp":           record.Timestamp.UTC().Format(time.RFC3339),
-			"review_context":      record.ReviewContext,
+			"review_context":      reviewContext,
 			"protection_snapshot": record.ProtectionSnapshot,
 			"decisions":           record.Decisions,
+			"matched_decision":    matched,
 		}
 	}
 
-	buildEntryReviewSummary := func(cycle int) map[string]interface{} {
-		ref := buildDecisionReviewRef(cycle)
+	buildEntryReviewSummary := func(cycle int, symbol string, action string) map[string]interface{} {
+		ref := buildDecisionReviewRef(cycle, symbol, action)
 		if ref == nil {
 			return nil
 		}
@@ -360,7 +380,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 						"execution_type":     ev.ExecutionType,
 						"protection_status":  ev.ProtectionStatus,
 						"decision_cycle":     ev.DecisionCycle,
-						"decision_review":    buildDecisionReviewRef(ev.DecisionCycle),
+						"decision_review":    buildDecisionReviewRef(ev.DecisionCycle, ev.Symbol, ev.CloseReason),
 						"exchange_order_id":  ev.ExchangeOrderID,
 						"close_quantity":     ev.CloseQuantity,
 						"close_ratio_pct":    ev.CloseRatioPct,
@@ -386,13 +406,13 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			"entry_price":           pos.EntryPrice,
 			"entry_order_id":        pos.EntryOrderID,
 			"entry_decision_cycle":  pos.EntryDecisionCycle,
-			"entry_decision_review": buildDecisionReviewRef(pos.EntryDecisionCycle),
-			"entry_review_summary":  buildEntryReviewSummary(pos.EntryDecisionCycle),
+			"entry_decision_review": buildDecisionReviewRef(pos.EntryDecisionCycle, pos.Symbol, sideToOpenAction(pos.Side)),
+			"entry_review_summary":  buildEntryReviewSummary(pos.EntryDecisionCycle, pos.Symbol, sideToOpenAction(pos.Side)),
 			"entry_time":            time.UnixMilli(pos.EntryTime).UTC().Format(time.RFC3339),
 			"exit_price":            pos.ExitPrice,
 			"exit_order_id":         pos.ExitOrderID,
 			"exit_decision_cycle":   pos.ExitDecisionCycle,
-			"exit_decision_review":  buildDecisionReviewRef(pos.ExitDecisionCycle),
+			"exit_decision_review":  buildDecisionReviewRef(pos.ExitDecisionCycle, pos.Symbol, closeActionFromSide(pos.Side)),
 			"exit_time":             time.UnixMilli(pos.ExitTime).UTC().Format(time.RFC3339),
 			"realized_pnl":          pos.RealizedPnL,
 			"fee":                   pos.Fee,
@@ -405,10 +425,10 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			"close_value_usdt":      pos.ExitPrice * closedQty,
 			"close_events":          closeEvents,
 			"protection_snapshot": func() any {
-				if ref := buildDecisionReviewRef(pos.ExitDecisionCycle); ref != nil {
+				if ref := buildDecisionReviewRef(pos.ExitDecisionCycle, pos.Symbol, closeActionFromSide(pos.Side)); ref != nil {
 					return ref["protection_snapshot"]
 				}
-				if ref := buildDecisionReviewRef(pos.EntryDecisionCycle); ref != nil {
+				if ref := buildDecisionReviewRef(pos.EntryDecisionCycle, pos.Symbol, sideToOpenAction(pos.Side)); ref != nil {
 					return ref["protection_snapshot"]
 				}
 				return nil
@@ -433,6 +453,28 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		"symbol_stats":    symbolStats,
 		"direction_stats": directionStats,
 	})
+}
+
+func sideToOpenAction(side string) string {
+	switch strings.ToUpper(strings.TrimSpace(side)) {
+	case "LONG":
+		return "open_long"
+	case "SHORT":
+		return "open_short"
+	default:
+		return ""
+	}
+}
+
+func closeActionFromSide(side string) string {
+	switch strings.ToUpper(strings.TrimSpace(side)) {
+	case "LONG":
+		return "close_long"
+	case "SHORT":
+		return "close_short"
+	default:
+		return ""
+	}
 }
 
 // handleTrades Historical trades list

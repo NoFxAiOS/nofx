@@ -125,6 +125,7 @@ function summarizeCloseEventFlow(closeEvents: HistoricalPosition['close_events']
 }
 
 function findPrimaryOpenDecision(review?: DecisionReviewRef): DecisionAction | undefined {
+  if (review?.matched_decision) return review.matched_decision
   return (review?.decisions || []).find((decision) => {
     const action = String(decision.action || '').toLowerCase()
     return action === 'open_long' || action === 'open_short'
@@ -285,7 +286,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     entryLinkageStatus,
     entryLinkageSources,
     timeframeTrail,
-    alignmentNotes: (ctx?.alignment_notes || []).filter(Boolean).slice(0, 3),
+    alignmentNotes: (ctx?.alignment_notes || ctx?.protection?.notes || []).filter(Boolean).slice(0, 3),
     anchors: ctx?.anchors || [],
     executionConstraintItems,
   }

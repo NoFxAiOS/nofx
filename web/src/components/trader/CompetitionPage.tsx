@@ -28,7 +28,7 @@ export function CompetitionPage() {
 
   const handleTraderClick = async (traderId: string) => {
     try {
-      const traderConfig = await api.getTraderConfig(traderId)
+      const traderConfig = await api.getPublicTraderConfig(traderId)
       setSelectedTrader(traderConfig)
       setIsModalOpen(true)
     } catch (error) {
@@ -281,14 +281,14 @@ export function CompetitionPage() {
                       </div>
 
                       {/* Stats */}
-                      <div className="flex items-center gap-4 md:gap-6">
+                      <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap">
                         {/* Total Equity */}
-                        <div className="text-right min-w-[60px] md:min-w-[80px]">
-                          <div className="text-[10px] mb-0.5" style={{ color: '#848E9C' }}>
+                        <div className="text-right">
+                          <div className="text-xs" style={{ color: '#848E9C' }}>
                             {t('equity', language)}
                           </div>
                           <div
-                            className="text-sm md:text-base font-bold mono"
+                            className="text-xs md:text-sm font-bold mono"
                             style={{ color: '#EAECEF' }}
                           >
                             {trader.total_equity?.toFixed(2) || '0.00'}
@@ -297,11 +297,11 @@ export function CompetitionPage() {
 
                         {/* P&L */}
                         <div className="text-right min-w-[70px] md:min-w-[90px]">
-                          <div className="text-[10px] mb-0.5" style={{ color: '#848E9C' }}>
+                          <div className="text-xs" style={{ color: '#848E9C' }}>
                             {t('pnl', language)}
                           </div>
                           <div
-                            className="text-sm md:text-base font-bold mono"
+                            className="text-base md:text-lg font-bold mono"
                             style={{
                               color:
                                 (trader.total_pnl ?? 0) >= 0
@@ -313,7 +313,7 @@ export function CompetitionPage() {
                             {trader.total_pnl_pct?.toFixed(2) || '0.00'}%
                           </div>
                           <div
-                            className="text-[10px] mono"
+                            className="text-xs mono"
                             style={{ color: '#848E9C' }}
                           >
                             {(trader.total_pnl ?? 0) >= 0 ? '+' : ''}
@@ -322,17 +322,17 @@ export function CompetitionPage() {
                         </div>
 
                         {/* Positions */}
-                        <div className="text-right min-w-[40px] md:min-w-[50px]">
-                          <div className="text-[10px] mb-0.5" style={{ color: '#848E9C' }}>
+                        <div className="text-right">
+                          <div className="text-xs" style={{ color: '#848E9C' }}>
                             {t('pos', language)}
                           </div>
                           <div
-                            className="text-sm md:text-base font-bold mono"
+                            className="text-xs md:text-sm font-bold mono"
                             style={{ color: '#EAECEF' }}
                           >
                             {trader.position_count}
                           </div>
-                          <div className="text-[10px]" style={{ color: '#848E9C' }}>
+                          <div className="text-xs" style={{ color: '#848E9C' }}>
                             {trader.margin_used_pct.toFixed(1)}%
                           </div>
                         </div>

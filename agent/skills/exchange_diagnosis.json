@@ -1,0 +1,6 @@
+{
+  "name": "exchange_diagnosis",
+  "kind": "diagnosis",
+  "domain": "exchange",
+  "description": "当用户反馈交易所 API 连接失败、签名错误、timestamp 异常、权限不足、IP 白名单限制、账户不可用等问题时调用。适用于用户在手动配置或运行交易员时遇到的交易所接入故障。不用于创建、修改、删除或查询交易所配置这类管理操作。"
+}

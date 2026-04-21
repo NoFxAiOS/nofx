@@ -1,0 +1,32 @@
+{
+  "name": "exchange_management",
+  "kind": "management",
+  "domain": "exchange",
+  "description": "当用户想创建、查看、修改或删除交易所账户配置时调用。适用于用户提到交易所账户、API Key、Secret、Passphrase、测试网开关、启用状态等配置管理需求。不用于排查 invalid signature、timestamp、权限不足、白名单限制等连接或鉴权诊断问题。",
+  "actions": {
+    "create": {
+      "description": "创建新的交易所配置。",
+      "required_slots": ["exchange_type"],
+      "optional_slots": ["account_name", "api_key", "secret_key", "passphrase", "testnet"]
+    },
+    "update": {
+      "description": "更新已有交易所配置。",
+      "required_slots": ["target_ref"],
+      "optional_slots": ["account_name", "api_key", "secret_key", "passphrase", "enabled", "testnet"]
+    },
+    "delete": {
+      "description": "删除交易所配置。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true
+    },
+    "query": {
+      "description": "查询交易所配置。"
+    }
+  },
+  "tool_mapping": {
+    "create": "manage_exchange_config:create",
+    "update": "manage_exchange_config:update",
+    "delete": "manage_exchange_config:delete",
+    "query": "get_exchange_configs"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "trader_management",
+  "kind": "management",
+  "domain": "trader",
+  "description": "当用户想创建、查看、修改、删除、启动或停止交易员时调用。适用于用户提到交易员名称、绑定交易所、绑定模型、绑定策略、扫描频率、自定义提示词、运行状态等管理需求。不用于排查交易员启动失败、未下单、收益异常、仓位异常等诊断问题。",
+  "intents": [
+    "创建交易员",
+    "修改交易员",
+    "删除交易员",
+    "启动交易员",
+    "停止交易员",
+    "查询交易员"
+  ],
+  "actions": {
+    "create": {
+      "description": "创建新的交易员。",
+      "required_slots": ["name", "exchange", "model"],
+      "optional_slots": ["strategy", "auto_start"]
+    },
+    "update": {
+      "description": "更新已有交易员。",
+      "required_slots": ["target_ref"],
+      "optional_slots": ["name", "exchange", "model", "strategy", "scan_interval_minutes", "custom_prompt"]
+    },
+    "delete": {
+      "description": "删除交易员。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true
+    },
+    "start": {
+      "description": "启动交易员。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true
+    },
+    "stop": {
+      "description": "停止交易员。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true
+    },
+    "query": {
+      "description": "查询交易员列表或状态。"
+    }
+  },
+  "tool_mapping": {
+    "create": "manage_trader:create",
+    "update": "manage_trader:update",
+    "delete": "manage_trader:delete",
+    "start": "manage_trader:start",
+    "stop": "manage_trader:stop",
+    "query": "manage_trader:list"
+  }
+}

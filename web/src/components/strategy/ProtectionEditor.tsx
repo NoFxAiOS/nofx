@@ -247,11 +247,16 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     ? `执行开关：${config.ladder_tp_sl.enabled ? '已启用' : '未启用'} · 整体模式：${modeLabel(config.ladder_tp_sl.mode)} · TP侧：${config.ladder_tp_sl.take_profit_enabled ? '开启' : '关闭'} · SL侧：${config.ladder_tp_sl.stop_loss_enabled ? '开启' : '关闭'}`
     : `Execution: ${config.ladder_tp_sl.enabled ? 'enabled' : 'disabled'} · Global mode: ${modeLabel(config.ladder_tp_sl.mode)} · TP side: ${config.ladder_tp_sl.take_profit_enabled ? 'on' : 'off'} · SL side: ${config.ladder_tp_sl.stop_loss_enabled ? 'on' : 'off'}`
 
+  const drawdownStateSummary = isZh
+    ? `执行开关：${config.drawdown_take_profit.enabled ? '已启用' : '未启用'} · 模式：${modeLabel(config.drawdown_take_profit.mode)} · 规则来源：${config.drawdown_take_profit.mode === 'ai' ? 'AI 结构化输出' : config.drawdown_take_profit.mode === 'manual' ? '手动维护规则' : '未接管'} · 当前规则数：${drawdownRules.length}`
+    : `Execution: ${config.drawdown_take_profit.enabled ? 'enabled' : 'disabled'} · Mode: ${modeLabel(config.drawdown_take_profit.mode)} · Rule source: ${config.drawdown_take_profit.mode === 'ai' ? 'AI structured output' : config.drawdown_take_profit.mode === 'manual' ? 'manually maintained rules' : 'not owning TP'} · Rules: ${drawdownRules.length}`
+
   const fullModeMismatch = !config.full_tp_sl.enabled && config.full_tp_sl.mode === 'ai'
   const ladderModeMismatch = !config.ladder_tp_sl.enabled && config.ladder_tp_sl.mode === 'ai'
+  const drawdownModeMismatch = !config.drawdown_take_profit.enabled && config.drawdown_take_profit.mode === 'ai'
 
 
-  const drawdownOwnsTp = config.drawdown_take_profit.enabled && (config.drawdown_take_profit.rules || []).length > 0
+  const drawdownOwnsTp = config.drawdown_take_profit.enabled && config.drawdown_take_profit.mode !== 'disabled' && (config.drawdown_take_profit.mode === 'ai' || (config.drawdown_take_profit.rules || []).length > 0)
   const ladderTpEnabled = config.ladder_tp_sl.enabled && config.ladder_tp_sl.take_profit_enabled
   const fullTpEnabled = config.full_tp_sl.enabled && config.full_tp_sl.take_profit.mode !== 'disabled'
 
@@ -540,9 +545,23 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '启用回撤止盈' : 'Enable Drawdown TP'}</label>
               <input type="checkbox" checked={config.drawdown_take_profit.enabled} onChange={(e) => updateDrawdown('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-purple-500" />
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {statusChip(config.drawdown_take_profit.enabled, isZh ? '执行开关' : 'Execution')}
+              {statusChip(config.drawdown_take_profit.mode === 'manual', isZh ? '手动规则' : 'Manual rules')}
+              {statusChip(config.drawdown_take_profit.mode === 'ai', isZh ? 'AI 规则' : 'AI rules')}
+              {statusChip(drawdownOwnsTp, isZh ? '接管止盈侧' : 'Owns TP side')}
+            </div>
+            <div className="text-xs" style={{ color: '#848E9C' }}>{drawdownStateSummary}</div>
+            {drawdownModeMismatch && (
+              <div className="p-3 rounded-lg text-xs" style={{ background: '#11161C', border: '1px solid #2B3139', color: '#F0B90B' }}>
+                {isZh
+                  ? '注意：当前 Drawdown 模式是 AI，但“执行开关”仍关闭。页面会保留 AI 规则语义，但运行时不会启用 Drawdown 接管，直到你打开执行开关。'
+                  : 'Note: Drawdown mode is AI, but execution is still disabled. The page preserves the AI rule semantics, but runtime will not enable drawdown ownership until execution is turned on.'}
+              </div>
+            )}
             <div>
               <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '模式' : 'Mode'}</label>
-              <select value={config.drawdown_take_profit.mode || 'manual'} onChange={(e) => updateDrawdown('mode', e.target.value as DrawdownTakeProfitConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+              <select value={config.drawdown_take_profit.mode} onChange={(e) => updateDrawdown('mode', e.target.value as DrawdownTakeProfitConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
                 {protectionModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
               </select>
             </div>
@@ -552,10 +571,17 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               isZh ? '建议：把它当成主止盈链路，只保留 Full / Ladder 的止损侧。' : 'Recommendation: treat this as the main take-profit path and keep only the stop-loss side from Full / Ladder.'
             )}
             <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位说明：最小利润%、最大回撤%、平仓比例% 均按百分比表达；利润/回撤语义应基于主周期及其邻近周期分析。' : 'Units: min profit %, max drawdown %, and close ratio % are all percentages; profit-protection semantics should be analyzed against the primary timeframe and adjacent timeframes.'}</div>
+            {config.drawdown_take_profit.mode === 'ai' && (
+              <div className="p-3 rounded-lg text-xs" style={helpCardStyle}>
+                {isZh
+                  ? 'AI 模式下，这里的规则列表作为结构化占位/回退参考，实际语义是“必须由 AI 输出 drawdown 规则”，而不是由页面固定阈值直接主导。'
+                  : 'In AI mode, this rule list acts as structured placeholder/fallback reference data. The intended semantics are “AI must output drawdown rules”, not “the page-owned thresholds directly drive behavior”.'}
+              </div>
+            )}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? '回撤止盈规则' : 'Drawdown Rules'}</div>
-                <button type="button" onClick={addDrawdownRule} disabled={disabled} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-[#1E2329] border border-[#2B3139] text-[#EAECEF] hover:border-[#F0B90B]">
+                <button type="button" onClick={addDrawdownRule} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-[#1E2329] border border-[#2B3139] text-[#EAECEF] hover:border-[#F0B90B]">
                   <Plus className="w-4 h-4" />
                   {isZh ? '新增规则' : 'Add Rule'}
                 </button>
@@ -563,7 +589,9 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
 
               {drawdownRules.length === 0 && (
                 <div className="p-3 rounded-lg text-xs" style={helpCardStyle}>
-                  {isZh ? '当前还没有配置任何回撤止盈规则。请至少新增 1 条规则。' : 'No drawdown rules configured yet. Add at least one rule.'}
+                  {config.drawdown_take_profit.mode === 'ai'
+                    ? (isZh ? '当前未填写任何 drawdown 规则占位。建议至少保留 1 条结构化示例/回退规则，方便 AI 配置审阅与后续兼容。' : 'No drawdown placeholder rules are set. In AI mode, keeping at least one structured example/fallback rule is recommended for config review and future compatibility.')
+                    : (isZh ? '当前还没有配置任何回撤止盈规则。请至少新增 1 条规则。' : 'No drawdown rules configured yet. Add at least one rule.')}
                 </div>
               )}
 
@@ -571,7 +599,7 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
                 <div key={index} className="p-4 rounded-lg space-y-3" style={sectionStyle}>
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? `规则 ${index + 1}` : `Rule ${index + 1}`}</div>
-                    <button type="button" onClick={() => removeDrawdownRule(index)} disabled={disabled || drawdownRules.length <= 1} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[#F6465D] border border-[#41272B] hover:bg-[#2B1619]">
+                    <button type="button" onClick={() => removeDrawdownRule(index)} disabled={disabled || drawdownRules.length <= 1 || config.drawdown_take_profit.mode === 'disabled'} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[#F6465D] border border-[#41272B] hover:bg-[#2B1619]">
                       <Trash2 className="w-3.5 h-3.5" />
                       {isZh ? '删除' : 'Remove'}
                     </button>
@@ -579,19 +607,19 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最小利润 %' : 'Min Profit %'}</label>
-                      <input type="number" value={rule.min_profit_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { min_profit_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input type="number" value={rule.min_profit_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { min_profit_pct: parseFloat(e.target.value) || 0 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
                     </div>
                     <div>
                       <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最大回撤 %' : 'Max Drawdown %'}</label>
-                      <input type="number" value={rule.max_drawdown_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { max_drawdown_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input type="number" value={rule.max_drawdown_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { max_drawdown_pct: parseFloat(e.target.value) || 0 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
                     </div>
                     <div>
                       <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '平仓比例 %' : 'Close Ratio %'}</label>
-                      <input type="number" value={rule.close_ratio_pct} min={0} max={100} step={1} onChange={(e) => updateDrawdownRule(index, { close_ratio_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input type="number" value={rule.close_ratio_pct} min={0} max={100} step={1} onChange={(e) => updateDrawdownRule(index, { close_ratio_pct: parseFloat(e.target.value) || 0 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
                     </div>
                     <div>
                       <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '轮询秒数' : 'Poll Seconds'}</label>
-                      <input type="number" value={rule.poll_interval_seconds} min={5} step={5} onChange={(e) => updateDrawdownRule(index, { poll_interval_seconds: parseInt(e.target.value) || 60 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input type="number" value={rule.poll_interval_seconds} min={5} step={5} onChange={(e) => updateDrawdownRule(index, { poll_interval_seconds: parseInt(e.target.value) || 60 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
                     </div>
                   </div>
                 </div>

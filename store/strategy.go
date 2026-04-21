@@ -216,11 +216,43 @@ type DrawdownTakeProfitConfig struct {
 	Rules   []DrawdownTakeProfitRule `json:"rules,omitempty"`
 }
 
+func (c *DrawdownTakeProfitConfig) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		*c = DrawdownTakeProfitConfig{}
+		return nil
+	}
+
+	type alias DrawdownTakeProfitConfig
+	var decoded alias
+	if err := json.Unmarshal(trimmed, &decoded); err != nil {
+		return err
+	}
+
+	*c = DrawdownTakeProfitConfig(decoded)
+
+	if c.Mode == "" {
+		if c.Enabled {
+			c.Mode = ProtectionModeManual
+		} else {
+			c.Mode = ProtectionModeDisabled
+		}
+	}
+
+	return nil
+}
+
 type DrawdownTakeProfitRule struct {
 	MinProfitPct        float64 `json:"min_profit_pct,omitempty"`
 	MaxDrawdownPct      float64 `json:"max_drawdown_pct,omitempty"`
 	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
 	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
+	StageName           string  `json:"stage_name,omitempty"`
+	RunnerKeepPct       float64 `json:"runner_keep_pct,omitempty"`
+	RunnerStopMode      string  `json:"runner_stop_mode,omitempty"`
+	RunnerStopSource    string  `json:"runner_stop_source,omitempty"`
+	RunnerTargetMode    string  `json:"runner_target_mode,omitempty"`
+	RunnerTargetSource  string  `json:"runner_target_source,omitempty"`
 }
 
 type BreakEvenTriggerMode string

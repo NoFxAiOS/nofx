@@ -52,9 +52,18 @@ export function buildStrategySavePayload(
   editingConfig: StrategyConfig,
   language: 'zh' | 'en'
 ) {
+  const normalizedProtection = normalizeProtectionConfig(editingConfig.protection)
+
   const configWithLanguage = {
     ...editingConfig,
     language,
+    protection: {
+      ...normalizedProtection,
+      drawdown_take_profit: {
+        ...normalizedProtection.drawdown_take_profit,
+        mode: normalizedProtection.drawdown_take_profit.mode || (normalizedProtection.drawdown_take_profit.enabled ? 'manual' : 'disabled'),
+      },
+    },
     strategy_control_policy: {
       ...editingConfig.strategy_control_policy,
       mode: editingConfig.strategy_control_policy?.mode || 'strict',
@@ -433,7 +442,10 @@ export function StrategyStudioPage() {
       }>(`${API_BASE}/api/strategies/preview-prompt`, {
         method: 'POST',
         data: {
-          config: editingConfig,
+          config: {
+            ...editingConfig,
+            protection: normalizeProtectionConfig(editingConfig.protection),
+          },
           account_equity: 1000,
           prompt_variant: selectedVariant,
         },
@@ -465,7 +477,10 @@ export function StrategyStudioPage() {
       }>(`${API_BASE}/api/strategies/test-run`, {
         method: 'POST',
         data: {
-          config: editingConfig,
+          config: {
+            ...editingConfig,
+            protection: normalizeProtectionConfig(editingConfig.protection),
+          },
           prompt_variant: selectedVariant,
           ai_model_id: selectedModelId,
           run_real_ai: true,

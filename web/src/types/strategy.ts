@@ -129,7 +129,12 @@ export interface DrawdownTakeProfitRule {
 
 export interface DrawdownTakeProfitConfig {
   enabled: boolean;
-  mode?: ProtectionMode;
+  /**
+   * disabled: no runtime drawdown ownership.
+   * manual: rules are authored and persisted explicitly from this config.
+   * ai: rules are expected from AI output; existing manual rules are kept as editable fallback/reference data.
+   */
+  mode: ProtectionMode;
   rules: DrawdownTakeProfitRule[];
 }
 

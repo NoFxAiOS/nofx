@@ -177,6 +177,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
 		planOrderCount := protectionOrderCountForPlan(plan)
 		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
+		if at.isBreakEvenSuppressedByRunner(symbol, side) {
+			breakEvenArmed = false
+		}
 		unexpectedStops, unexpectedTPs := detectUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
 		logger.Infof("🔎 Protection snapshot: %s %s | %s", symbol, positionSide, at.describeProtectionSnapshot(symbol, side, openOrders, plan, breakEvenArmed, nativeTrailingArmed))
 
@@ -212,6 +215,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	be := at.getActiveBreakEvenConfigForPlan(nil)
 	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
+	if at.isBreakEvenSuppressedByRunner(symbol, side) {
+		be = nil
+	}
 	if be != nil && at.GetProtectionCapabilities().NativeStopLoss {
 		if prevBreakEvenArmed && fingerprintChanged {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even fingerprint changed, re-arming native stop", symbol, positionSide)
@@ -480,10 +486,12 @@ func (at *AutoTrader) clearDrawdownExecutionFingerprint(symbol, side string) {
 		return
 	}
 	delete(at.drawdownState, positionKey(symbol, side))
+	delete(at.drawdownRunnerState, positionKey(symbol, side))
 }
 
 func drawdownRuleFingerprint(entryPrice, quantity float64, rule store.DrawdownTakeProfitRule) string {
-	return fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%.4f", entryPrice, quantity, rule.MinProfitPct, rule.MaxDrawdownPct, rule.CloseRatioPct)
+	rule = normalizeDrawdownRule(rule)
+	return fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%.4f|%s|%.4f|%s|%s|%s|%s", entryPrice, quantity, rule.MinProfitPct, rule.MaxDrawdownPct, rule.CloseRatioPct, rule.StageName, rule.RunnerKeepPct, rule.RunnerStopMode, rule.RunnerStopSource, rule.RunnerTargetMode, rule.RunnerTargetSource)
 }
 
 func (at *AutoTrader) refreshDrawdownExecutionFingerprint(symbol, side string, entryPrice, quantity float64) bool {
@@ -506,16 +514,59 @@ func (at *AutoTrader) refreshDrawdownExecutionFingerprint(symbol, side string, e
 	return false
 }
 
-func (at *AutoTrader) setProtectionState(symbol, side, state string) {
+func (at *AutoTrader) setDrawdownRunnerState(symbol, side string, state *DrawdownRunnerState) {
+	if state == nil {
+		return
+	}
 	at.protectionStateMutex.Lock()
 	defer at.protectionStateMutex.Unlock()
-	at.protectionState[symbol+"_"+strings.ToLower(side)] = state
+	if at.drawdownRunnerState == nil {
+		at.drawdownRunnerState = make(map[string]DrawdownRunnerState)
+	}
+	at.drawdownRunnerState[positionKey(symbol, side)] = *state
+}
+
+func (at *AutoTrader) getDrawdownRunnerState(symbol, side string) *DrawdownRunnerState {
+	at.protectionStateMutex.RLock()
+	defer at.protectionStateMutex.RUnlock()
+	if at.drawdownRunnerState == nil {
+		return nil
+	}
+	state, ok := at.drawdownRunnerState[positionKey(symbol, side)]
+	if !ok {
+		return nil
+	}
+	copyState := state
+	return &copyState
+}
+
+func (at *AutoTrader) clearDrawdownRunnerState(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownRunnerState == nil {
+		return
+	}
+	delete(at.drawdownRunnerState, positionKey(symbol, side))
+}
+
+func (at *AutoTrader) isBreakEvenSuppressedByRunner(symbol, side string) bool {
+	state := at.getDrawdownRunnerState(symbol, side)
+	return state != nil && state.BreakEvenSuppressedByRunner
 }
 
 func (at *AutoTrader) getProtectionState(symbol, side string) string {
 	at.protectionStateMutex.RLock()
 	defer at.protectionStateMutex.RUnlock()
 	return at.protectionState[symbol+"_"+strings.ToLower(side)]
+}
+
+func (at *AutoTrader) setProtectionState(symbol, side, state string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.protectionState == nil {
+		at.protectionState = make(map[string]string)
+	}
+	at.protectionState[symbol+"_"+strings.ToLower(side)] = state
 }
 
 func (at *AutoTrader) setBreakEvenState(symbol, side, state string) {
@@ -646,6 +697,14 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 		}
 	}
 	at.breakEvenStateMutex.Unlock()
+
+	at.protectionStateMutex.Lock()
+	for key := range at.drawdownRunnerState {
+		if _, ok := active[key]; !ok {
+			delete(at.drawdownRunnerState, key)
+		}
+	}
+	at.protectionStateMutex.Unlock()
 
 	at.protectionStateMutex.Lock()
 	for key := range at.drawdownState {

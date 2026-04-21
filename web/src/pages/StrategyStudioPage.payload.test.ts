@@ -106,7 +106,7 @@ describe('buildStrategySavePayload', () => {
     expect(payload.config.strategy_control_policy).toEqual({ mode: 'recommend_only' })
   })
 
-  it('adds normalized entry structure config to payload', () => {
+  it('preserves drawdown dual-mode semantics and normalizes disabled mode in payload', () => {
     const editingConfig: StrategyConfig = {
       language: 'en',
       strategy_type: 'ai_trading',
@@ -116,46 +116,41 @@ describe('buildStrategySavePayload', () => {
       protection: {
         full_tp_sl: { enabled: false, mode: 'disabled', take_profit: { mode: 'disabled', value: 0 }, stop_loss: { mode: 'disabled', value: 0 }, fallback_max_loss: { mode: 'disabled', value: 0 } },
         ladder_tp_sl: { enabled: false, mode: 'disabled', take_profit_enabled: false, stop_loss_enabled: false, take_profit_price: { mode: 'disabled', value: 0 }, take_profit_size: { mode: 'disabled', value: 0 }, stop_loss_price: { mode: 'disabled', value: 0 }, stop_loss_size: { mode: 'disabled', value: 0 }, fallback_max_loss: { mode: 'disabled', value: 0 }, rules: [] },
-        drawdown_take_profit: { enabled: false, rules: [] },
+        drawdown_take_profit: {
+          enabled: true,
+          mode: 'ai',
+          rules: [{ min_profit_pct: 7, max_drawdown_pct: 35, close_ratio_pct: 80, poll_interval_seconds: 30 }],
+        },
         break_even_stop: { enabled: false, trigger_mode: 'profit_pct', trigger_value: 1, offset_pct: 0.1 },
         regime_filter: { enabled: false, allowed_regimes: ['narrow', 'standard', 'wide'], block_high_funding: false, max_funding_rate_abs: 0.01, block_high_volatility: false, max_atr14_pct: 3, require_trend_alignment: false },
-      },
-      entry_structure: {
-        enabled: true,
-        require_primary_timeframe: true,
-        require_adjacent_timeframes: true,
-        require_support_resistance: true,
-        require_structural_anchors: true,
-        require_fibonacci: true,
-        max_support_levels: 2,
-        max_resistance_levels: 2,
-        max_anchor_count: 3,
       },
     }
 
     const payload = buildStrategySavePayload({
-      name: 'Strategy 3',
+      name: 'Strategy DD',
       description: '',
       is_public: false,
       config_visible: true,
     }, editingConfig, 'en')
 
-    expect(payload.config.entry_structure).toEqual({
-      enabled: true,
-      require_primary_timeframe: true,
-      require_adjacent_timeframes: true,
-      require_support_resistance: true,
-      require_structural_anchors: true,
-      require_fibonacci: true,
-      max_support_levels: 2,
-      max_resistance_levels: 2,
-      max_anchor_count: 3,
-      audit_primary_timeframe: true,
-      audit_adjacent_timeframes: true,
-      audit_support_resistance: true,
-      audit_structural_anchors: true,
-      audit_fibonacci: true,
-      require_invalidation_target_linkage: true,
-    })
+    expect(payload.config.protection.drawdown_take_profit.mode).toBe('ai')
+    expect(payload.config.protection.drawdown_take_profit.rules).toEqual([
+      { min_profit_pct: 7, max_drawdown_pct: 35, close_ratio_pct: 80, poll_interval_seconds: 30 },
+    ])
+
+    const disabledPayload = buildStrategySavePayload({
+      name: 'Strategy DD 2',
+      description: '',
+      is_public: false,
+      config_visible: true,
+    }, {
+      ...editingConfig,
+      protection: {
+        ...editingConfig.protection,
+        drawdown_take_profit: { enabled: false, mode: 'disabled', rules: [] },
+      },
+    }, 'en')
+
+    expect(disabledPayload.config.protection.drawdown_take_profit.mode).toBe('disabled')
   })
 })

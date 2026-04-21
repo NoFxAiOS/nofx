@@ -206,6 +206,16 @@ go test ./...
      - 当前生效的保护 profile
      - ladder 是否降级
      - break-even / trailing 是否 armed
+   - 2026-04-21 更新：`PositionProtectionPanel` 已补运行态摘要字段与展示，现可直接看到：
+     - drawdown 当前档位 / satisfied / triggered / next gate
+     - break-even live order / break-even price
+     - trailing live order count
+     - ladder planned vs live count
+     - degradation summary（如 `SL→Full` / `TP partial` / `Fallback live`）
+     - full/fallback state
+   - 对应验收样例已补：
+     - `trader/position_protection_runtime_test.go`
+     - `web/src/components/trader/PositionProtectionPanel.test.tsx`
 
 3. **决定 fixture 产物是否入库**
    - 若保留，则作为正式 fixture；

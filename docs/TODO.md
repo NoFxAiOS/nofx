@@ -2,7 +2,11 @@
 
 - [x] 已明确“一次交付目标”：后续 coding 任务默认自主推进到可交付再汇报，不再把普通推进步骤、一般阻塞、模型瞬时波动反复抛回给用户。
 - [x] 在当前 `nofxmax` 主线上按一次交付模式继续：已完成对 Drawdown / Break-even / protection 真实执行层问题的一轮集中收口，并形成交付总结 `docs/PROTECTION_EXECUTION_DELIVERY_2026-04-20.md`。
-- [ ] 基于当前交付结果，进入下一轮新任务：真实持仓验收 / 保护摘要可视化 / fixture 产物取舍。
+- [~] 基于当前交付结果，进入下一轮新任务：真实持仓验收 / 保护摘要可视化 / fixture 产物取舍。
+  - [x] 保护摘要可视化：运行态摘要已补齐 drawdown stage / break-even live order / trailing count / ladder planned-vs-live / degradation summary / full-fallback state。
+  - [x] 保护摘要验收样例：已补 `trader/position_protection_runtime_test.go` 与 `web/src/components/trader/PositionProtectionPanel.test.tsx`，锁住 ladder→full / fallback live / partial TP degradation 展示语义。
+  - [ ] 真实持仓验收：仍需对活跃 symbol 做实盘核对（基础保护 / break-even / drawdown stage / cleanup）。
+  - [ ] fixture 产物取舍：`docs/fixtures/protection-test-run-last-result.json` / `docs/fixtures/protection-test-run-open-bias-fixture.json` 是否入库仍待决定。
 - protection 配置闭环补充：
   - [x] `PUT /api/strategies/:id` → `GET /api/strategies/:id` API 级回读验证已补齐，确认 Full/Ladder/fallback 深层字段不会因局部更新被冲掉
   - [x] 运行态配置来源已核清：Trader 优先读取自身 `strategy_id` 对应的 strategy；`active strategy` 只在 trader 未绑定 strategy_id 时作为 fallback

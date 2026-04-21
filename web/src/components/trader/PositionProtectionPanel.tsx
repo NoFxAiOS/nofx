@@ -385,6 +385,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     { label: language === 'zh' ? '当前档位' : 'Current Stage', value: currentStageMinProfit > 0 ? `${currentStageMinProfit.toFixed(2)}% (${currentStageRuleCount})` : '—' },
                     { label: language === 'zh' ? '满足 / 触发' : 'Satisfied / Triggered', value: `${satisfiedTiers.length} / ${triggeredTiers.length}` },
                     { label: language === 'zh' ? '下一档利润门槛' : 'Next Gate', value: nextTier ? `${Number(nextTier.min_profit_pct || 0).toFixed(2)}%` : '—' },
+                    { label: language === 'zh' ? 'Trailing 实盘委托' : 'Live Trailing Orders', value: `${trailingRows.length}` },
                   ]}
                 />
 

@@ -78,6 +78,7 @@ export interface ProtectionRuntime {
   current_drawdown_stage_min_profit_pct?: number
   current_drawdown_stage_rule_count?: number
   active_orders?: ProtectionRuntimeOrder[]
+  active_trailing_orders?: ProtectionRuntimeOrder[]
   scheduled_tiers?: ProtectionRuntimeTier[]
 }
 

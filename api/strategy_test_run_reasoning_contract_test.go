@@ -11,13 +11,17 @@ import (
 
 func TestBreakEvenRouteRequiresStructuredOutput(t *testing.T) {
 	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
 	cfg.Protection.BreakEvenStop.Enabled = true
 
-	raw := `[{"symbol":"BTCUSDT","action":"open_long","leverage":3,"position_size_usd":100,"reasoning":"15m primary timeframe, 5m support/resistance, fibonacci and volatility anchors"}]`
-	decisions, err := kernel.ParseAIDecisions(raw)
-	if err != nil {
-		t.Fatalf("parser should succeed, got %v", err)
-	}
+	decisions := []kernel.Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "15m primary timeframe, 5m support/resistance, fibonacci and volatility anchors",
+		EntryProtection: validEntryProtectionForAPITest("open_long"),
+	}}
 	validationErr := kernel.ValidateAIDecisionsWithStrategy(decisions, cfg)
 	if validationErr == nil {
 		t.Fatal("expected break-even structured output route to fail")

@@ -9,17 +9,41 @@ import (
 	"nofx/store"
 )
 
+func validEntryProtectionForAPITest(action string) *kernel.AIEntryProtectionRationale {
+	if action == "open_short" {
+		return &kernel.AIEntryProtectionRationale{
+			RiskReward: kernel.AIRiskRewardRationale{Entry: 100, Invalidation: 110, FirstTarget: 80, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
+		}
+	}
+	return &kernel.AIEntryProtectionRationale{
+		RiskReward: kernel.AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
+	}
+}
+
+func validAlignedFullProtectionPlanForAPITest() *kernel.AIProtectionPlan {
+	return &kernel.AIProtectionPlan{
+		Mode:          "full",
+		TakeProfitPct: 10,
+		StopLossPct:   5,
+	}
+}
+
 func TestRouteAwareDrawdownProtectionErrorsExposeParseErrorInEnvelope(t *testing.T) {
 	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
 	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
 	cfg.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
 	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
 
-	raw := `[{"symbol":"XRPUSDT","action":"open_long","leverage":2,"position_size_usd":100,"reasoning":"test","protection_plan":{"mode":"full","take_profit_pct":8,"stop_loss_pct":3}}]`
-	decisions, parseErr := kernel.ParseAIDecisions(raw)
-	if parseErr != nil {
-		t.Fatalf("expected parser to succeed before route-aware validation, got %v", parseErr)
-	}
+	decisions := []kernel.Decision{{
+		Symbol:          "XRPUSDT",
+		Action:          "open_long",
+		Leverage:        2,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		EntryProtection: validEntryProtectionForAPITest("open_long"),
+		ProtectionPlan:  validAlignedFullProtectionPlanForAPITest(),
+	}}
 	validationErr := kernel.ValidateAIDecisionsWithStrategy(decisions, cfg)
 	if validationErr == nil {
 		t.Fatal("expected route-aware validator to fail")
@@ -31,14 +55,19 @@ func TestRouteAwareDrawdownProtectionErrorsExposeParseErrorInEnvelope(t *testing
 
 func TestRouteAwareProtectionErrorsExposeParseErrorInEnvelope(t *testing.T) {
 	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
 	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
 	cfg.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeDisabled}
 
-	raw := `[{"symbol":"BTCUSDT","action":"open_long","leverage":3,"position_size_usd":100,"reasoning":"test","protection_plan":{"mode":"full","take_profit_pct":8,"stop_loss_pct":3}}]`
-	decisions, parseErr := kernel.ParseAIDecisions(raw)
-	if parseErr != nil {
-		t.Fatalf("expected parser to succeed before route-aware validation, got %v", parseErr)
-	}
+	decisions := []kernel.Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		EntryProtection: validEntryProtectionForAPITest("open_long"),
+		ProtectionPlan:  validAlignedFullProtectionPlanForAPITest(),
+	}}
 	validationErr := kernel.ValidateAIDecisionsWithStrategy(decisions, cfg)
 	if validationErr == nil {
 		t.Fatal("expected route-aware validator to fail")
@@ -48,7 +77,7 @@ func TestRouteAwareProtectionErrorsExposeParseErrorInEnvelope(t *testing.T) {
 	}
 
 	payload := map[string]any{
-		"ai_response":      raw,
+		"ai_response":      decisions,
 		"parsed_decisions": decisions,
 		"parse_error":      validationErr.Error(),
 	}

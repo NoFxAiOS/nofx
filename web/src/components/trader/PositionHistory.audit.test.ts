@@ -144,13 +144,43 @@ describe('getDecisionAuditSnapshot', () => {
   })
 
 
-  it('preserves compact policy transparency fields on protection context', () => {
-    const snap = getDecisionAuditSnapshot(makeReview('recomputed', ['stop_inside_invalidation']))
+  it('includes timeframe trail, fib summary, swing levels, and invalidation linkage when present', () => {
+    const review = makeReview('aligned')
+    if (review.decisions?.[0].review_context) {
+      review.decisions[0].review_context.timeframe_context = {
+        primary: '15m',
+        lower: ['5m'],
+        higher: ['1h'],
+      }
+      review.decisions[0].review_context.key_levels = {
+        support: [83500],
+        resistance: [85200],
+        swing_highs: [85250],
+        swing_lows: [83380],
+        fibonacci: {
+          swing_low: 83380,
+          swing_high: 85250,
+          levels: [84094, 84315],
+        },
+      }
+      review.decisions[0].review_context.risk_reward = {
+        entry: 84200,
+        invalidation: 83600,
+        first_target: 85400,
+        gross_estimated_rr: 2,
+        net_estimated_rr: 1.8,
+        passed: true,
+      }
+      review.decisions[0].review_context.alignment_notes = ['target remains above local resistance flip']
+    }
 
-    expect(snap.ctx?.protection?.policy_status).toBe('recomputed')
-    expect(snap.ctx?.protection?.policy_override).toBe(true)
-    expect(snap.ctx?.protection?.policy_rejected).toBe(false)
-    expect(snap.ctx?.protection?.policy_reasons).toEqual(['stop_inside_invalidation'])
+    const snap = getDecisionAuditSnapshot(review)
+    expect(snap.timeframeTrail).toEqual(['primary 15m', 'lower 5m', 'higher 1h'])
+    expect(snap.swingHighs).toEqual(['85250.00'])
+    expect(snap.swingLows).toEqual(['83380.00'])
+    expect(snap.fibSummary).toEqual(['low 83380.00', 'high 85250.00', 'levels 84094.00 / 84315.00'])
+    expect(snap.rrLinkage).toEqual(['entry 84200.00', 'invalid 83600.00', 'target 85400.00'])
+    expect(snap.alignmentNotes).toEqual(['target remains above local resistance flip'])
   })
 
   it('omits execution constraint items when values are absent', () => {

@@ -70,6 +70,39 @@ function formatCompactLevelList(levels?: number[]): string[] {
     .map((value) => formatPrice(value))
 }
 
+function formatTimeframeTrail(ctx?: DecisionActionReviewContext): string[] {
+  const directPrimary = typeof ctx?.primary_timeframe === 'string' ? ctx.primary_timeframe.trim() : ''
+  const primary = typeof ctx?.timeframe_context?.primary === 'string' ? ctx.timeframe_context.primary.trim() : directPrimary
+  const lower = (ctx?.timeframe_context?.lower || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
+  const higher = (ctx?.timeframe_context?.higher || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
+  const parts: string[] = []
+  if (primary) parts.push(`primary ${primary}`)
+  if (lower.length > 0) parts.push(`lower ${lower.join(', ')}`)
+  if (higher.length > 0) parts.push(`higher ${higher.join(', ')}`)
+  return parts
+}
+
+function formatFibSummary(keyLevels?: DecisionActionReviewContext['key_levels']): string[] {
+  const fib = keyLevels?.fibonacci
+  if (!fib) return []
+  const parts: string[] = []
+  if (fib.swing_low) parts.push(`low ${formatPrice(fib.swing_low)}`)
+  if (fib.swing_high) parts.push(`high ${formatPrice(fib.swing_high)}`)
+  const levels = formatCompactLevelList(fib.levels)
+  if (levels.length > 0) parts.push(`levels ${levels.join(' / ')}`)
+  return parts
+}
+
+function formatRiskRewardLinkage(rr?: DecisionActionReviewContext['risk_reward']): string[] {
+  if (!rr) return []
+  const parts: string[] = []
+  if (rr.entry) parts.push(`entry ${formatPrice(rr.entry)}`)
+  if (rr.invalidation) parts.push(`invalid ${formatPrice(rr.invalidation)}`)
+  if (rr.first_target) parts.push(`target ${formatPrice(rr.first_target)}`)
+  if (parts.length < 2) return []
+  return parts
+}
+
 export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const decision = findPrimaryOpenDecision(review)
   const ctx = decision?.review_context
@@ -93,6 +126,10 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     control?.no_order_placed ? { label: 'no order placed', tone: 'danger' as const } : null,
   ].filter(Boolean) as { label: string; tone?: 'warn' | 'danger' }[]
 
+  const timeframeTrail = formatTimeframeTrail(ctx)
+  const fibSummary = formatFibSummary(ctx?.key_levels)
+  const rrLinkage = formatRiskRewardLinkage(rr)
+
   return {
     decision,
     ctx,
@@ -104,6 +141,12 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     failedChecks: (control?.failed_checks || []).map((check) => formatControlCheck(check)).slice(0, 4),
     support: formatCompactLevelList(ctx?.key_levels?.support),
     resistance: formatCompactLevelList(ctx?.key_levels?.resistance),
+    swingHighs: formatCompactLevelList(ctx?.key_levels?.swing_highs),
+    swingLows: formatCompactLevelList(ctx?.key_levels?.swing_lows),
+    fibSummary,
+    rrLinkage,
+    timeframeTrail,
+    alignmentNotes: (ctx?.alignment_notes || []).filter(Boolean).slice(0, 3),
     anchors: ctx?.anchors || [],
     executionConstraintItems,
   }
@@ -272,6 +315,12 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
     !audit.rr &&
     audit.support.length === 0 &&
     audit.resistance.length === 0 &&
+    audit.swingHighs.length === 0 &&
+    audit.swingLows.length === 0 &&
+    audit.fibSummary.length === 0 &&
+    audit.rrLinkage.length === 0 &&
+    audit.timeframeTrail.length === 0 &&
+    audit.alignmentNotes.length === 0 &&
     audit.executionConstraintItems.length === 0 &&
     !policyStatus &&
     !audit.controlStatus &&
@@ -333,6 +382,16 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
         ) : null}
       </div>
 
+      {audit.timeframeTrail.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.timeframeTrail.map((item, idx) => (
+            <span key={`tf-${idx}`} className="inline-flex items-center rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+
       {audit.controlBadges.length > 0 && (
         <div className="flex flex-wrap gap-1.5 text-[10px]">
           {audit.controlBadges.map((item, idx) => (
@@ -368,7 +427,7 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
         </div>
       )}
 
-      {(audit.support.length > 0 || audit.resistance.length > 0) && (
+      {(audit.support.length > 0 || audit.resistance.length > 0 || audit.swingHighs.length > 0 || audit.swingLows.length > 0) && (
         <div className="flex flex-wrap gap-1.5 text-[10px]">
           {audit.support.map((value, idx) => (
             <span key={`s-${idx}`} className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">
@@ -380,6 +439,36 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
               R {value}
             </span>
           ))}
+          {audit.swingLows.map((value, idx) => (
+            <span key={`sl-${idx}`} className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-emerald-100">
+              swing low {value}
+            </span>
+          ))}
+          {audit.swingHighs.map((value, idx) => (
+            <span key={`sh-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/5 px-2 py-0.5 text-rose-100">
+              swing high {value}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.fibSummary.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.fibSummary.map((item, idx) => (
+            <span key={`fib-${idx}`} className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-200">
+              fib {item}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.rrLinkage.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.rrLinkage.map((item, idx) => (
+            <span key={`rr-link-${idx}`} className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-100">
+              {item}
+            </span>
+          ))}
         </div>
       )}
 
@@ -388,6 +477,16 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
           {policyReasons.map((reason, idx) => (
             <span key={`policy-${idx}`} className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-200">
               {formatProtectionPolicyReason(reason)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.alignmentNotes.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.alignmentNotes.map((note, idx) => (
+            <span key={`align-${idx}`} className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-sky-200">
+              {note}
             </span>
           ))}
         </div>

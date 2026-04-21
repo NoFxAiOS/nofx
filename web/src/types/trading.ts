@@ -200,6 +200,13 @@ export interface DecisionActionReasonAnchor {
 export interface DecisionActionKeyLevels {
   support?: number[]
   resistance?: number[]
+  swing_highs?: number[]
+  swing_lows?: number[]
+  fibonacci?: {
+    swing_high?: number
+    swing_low?: number
+    levels?: number[]
+  }
 }
 
 export interface DecisionActionRiskRewardSummary {
@@ -261,6 +268,11 @@ export interface DecisionActionControlOutcome {
 
 export interface DecisionActionReviewContext {
   primary_timeframe?: string
+  timeframe_context?: {
+    primary?: string
+    lower?: string[]
+    higher?: string[]
+  }
   min_risk_reward?: number
   risk_reward?: DecisionActionRiskRewardSummary
   key_levels?: DecisionActionKeyLevels
@@ -268,6 +280,7 @@ export interface DecisionActionReviewContext {
   protection?: DecisionActionProtectionAlignment
   control?: DecisionActionControlOutcome
   execution_constraints?: DecisionActionExecutionConstraints
+  alignment_notes?: string[]
 }
 
 export interface DecisionAction {

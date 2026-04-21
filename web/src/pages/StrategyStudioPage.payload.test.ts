@@ -150,6 +150,12 @@ describe('buildStrategySavePayload', () => {
       max_support_levels: 2,
       max_resistance_levels: 2,
       max_anchor_count: 3,
+      audit_primary_timeframe: true,
+      audit_adjacent_timeframes: true,
+      audit_support_resistance: true,
+      audit_structural_anchors: true,
+      audit_fibonacci: true,
+      require_invalidation_target_linkage: true,
     })
   })
 })

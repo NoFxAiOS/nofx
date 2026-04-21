@@ -54,6 +54,12 @@ export interface EntryStructureConfig {
   max_support_levels?: number;
   max_resistance_levels?: number;
   max_anchor_count?: number;
+  audit_primary_timeframe?: boolean;
+  audit_adjacent_timeframes?: boolean;
+  audit_support_resistance?: boolean;
+  audit_structural_anchors?: boolean;
+  audit_fibonacci?: boolean;
+  require_invalidation_target_linkage?: boolean;
 }
 
 export interface StrategyConfig {

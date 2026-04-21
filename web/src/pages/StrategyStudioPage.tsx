@@ -40,6 +40,7 @@ import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEdito
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
 import { ProtectionEditor, defaultProtectionConfig, normalizeProtectionConfig } from '../components/strategy/ProtectionEditor'
+import { EntryStructureEditor, normalizeEntryStructureConfig } from '../components/strategy/EntryStructureEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 import { getJson, sendJson } from '../lib/httpClient'
@@ -58,6 +59,7 @@ export function buildStrategySavePayload(
       ...editingConfig.strategy_control_policy,
       mode: editingConfig.strategy_control_policy?.mode || 'strict',
     },
+    entry_structure: normalizeEntryStructureConfig(editingConfig.entry_structure),
   }
 
   return {
@@ -92,6 +94,7 @@ export function StrategyStudioPage() {
     indicators: false,
     riskControl: false,
     protection: false,
+    entryStructure: false,
     promptSections: false,
     customPrompt: false,
     publishSettings: false,
@@ -623,6 +626,21 @@ export function StrategyStudioPage() {
         <ProtectionEditor
           config={normalizeProtectionConfig(editingConfig.protection)}
           onChange={(protection) => updateConfig('protection', protection)}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    {
+      key: 'entryStructure' as const,
+      icon: Target,
+      color: '#60a5fa',
+      title: language === 'zh' ? '开仓结构判断' : 'Entry Structure',
+      forStrategyType: 'ai_trading' as const,
+      content: editingConfig && (
+        <EntryStructureEditor
+          config={editingConfig.entry_structure}
+          onChange={(entryStructure) => updateConfig('entry_structure', entryStructure)}
           disabled={selectedStrategy?.is_default}
           language={language}
         />

@@ -44,6 +44,18 @@ export interface StrategyControlPolicyConfig {
   mode?: StrategyControlPolicyMode;
 }
 
+export interface EntryStructureConfig {
+  enabled: boolean;
+  require_primary_timeframe: boolean;
+  require_adjacent_timeframes: boolean;
+  require_support_resistance: boolean;
+  require_structural_anchors: boolean;
+  require_fibonacci: boolean;
+  max_support_levels?: number;
+  max_resistance_levels?: number;
+  max_anchor_count?: number;
+}
+
 export interface StrategyConfig {
   // Strategy type: "ai_trading" (default) or "grid_trading"
   strategy_type?: 'ai_trading' | 'grid_trading';
@@ -55,6 +67,7 @@ export interface StrategyConfig {
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   protection: ProtectionConfig;
+  entry_structure?: EntryStructureConfig;
   prompt_sections?: PromptSectionsConfig;
   strategy_control_policy?: StrategyControlPolicyConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')

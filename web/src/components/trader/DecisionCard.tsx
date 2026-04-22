@@ -42,12 +42,33 @@ function getConfidenceColor(confidence: number | undefined): string {
   return '#F6465D'
 }
 
+function formatControlDecisionLabel(decision?: string): { label: string; tone: 'danger' | 'warn' | 'neutral' } | null {
+  const normalized = String(decision || '').trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === 'rejected') return { label: 'rejected', tone: 'danger' }
+  if (normalized === 'downgraded_to_wait') return { label: 'downgraded to wait', tone: 'warn' }
+  if (normalized === 'accepted') return { label: 'accepted', tone: 'neutral' }
+  return { label: normalized.replace(/_/g, ' '), tone: 'neutral' }
+}
+
+function toneColors(tone: 'danger' | 'warn' | 'neutral') {
+  if (tone === 'danger') return { border: '1px solid rgba(246, 70, 93, 0.25)', bg: 'rgba(246, 70, 93, 0.12)', color: '#FCA5A5' }
+  if (tone === 'warn') return { border: '1px solid rgba(240, 185, 11, 0.25)', bg: 'rgba(240, 185, 11, 0.12)', color: '#FCD34D' }
+  return { border: '1px solid rgba(56, 189, 248, 0.25)', bg: 'rgba(56, 189, 248, 0.12)', color: '#7DD3FC' }
+}
+
 // Single Action Card Component
 function ActionCard({ action, language, onSymbolClick }: { action: DecisionAction; language: Language; onSymbolClick?: (symbol: string) => void }) {
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
   const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
   const control = action.review_context?.control
+  const controlStatus = formatControlDecisionLabel(control?.decision)
+  const review = action.review_context
+  const support = review?.key_levels?.support || []
+  const resistance = review?.key_levels?.resistance || []
+  const fibLevels = review?.key_levels?.fibonacci?.levels || []
+  const anchors = review?.anchors || []
 
   return (
     <div
@@ -197,6 +218,73 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
           <div className="text-xs line-clamp-2" style={{ color: '#848E9C' }}>
             💡 {action.reasoning}
+          </div>
+        </div>
+      )}
+
+      {/* Compact audit badges */}
+      {(controlStatus || control?.no_order_placed || (control?.failed_checks && control.failed_checks.length > 0)) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {controlStatus && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors(controlStatus.tone)}
+            >
+              {controlStatus.label}
+            </span>
+          )}
+          {control?.no_order_placed && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('danger')}
+            >
+              no order placed
+            </span>
+          )}
+          {control?.failed_checks?.slice(0, 4).map((check) => (
+            <span
+              key={check}
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('danger')}
+            >
+              failed · {check}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Compact structure summary */}
+      {(review?.timeframe_context?.primary || support.length > 0 || resistance.length > 0 || fibLevels.length > 0 || anchors.length > 0) && (
+        <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '1px solid #2B3139' }}>
+          <div className="text-[11px]" style={{ color: '#848E9C' }}>
+            structure audit
+          </div>
+          <div className="flex flex-wrap gap-1.5 text-[10px]">
+            {review?.timeframe_context?.primary && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5" style={toneColors('neutral')}>
+                tf {review.timeframe_context.primary}
+              </span>
+            )}
+            {support.slice(0, 2).map((level) => (
+              <span key={`s-${level}`} className="inline-flex items-center rounded-full px-2 py-0.5" style={{ border: '1px solid rgba(14, 203, 129, 0.25)', background: 'rgba(14, 203, 129, 0.12)', color: '#86EFAC' }}>
+                S {formatPrice(level)}
+              </span>
+            ))}
+            {resistance.slice(0, 2).map((level) => (
+              <span key={`r-${level}`} className="inline-flex items-center rounded-full px-2 py-0.5" style={{ border: '1px solid rgba(246, 70, 93, 0.25)', background: 'rgba(246, 70, 93, 0.12)', color: '#FDA4AF' }}>
+                R {formatPrice(level)}
+              </span>
+            ))}
+            {fibLevels.length > 0 && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5" style={{ border: '1px solid rgba(168, 85, 247, 0.25)', background: 'rgba(168, 85, 247, 0.12)', color: '#D8B4FE' }}>
+                fib {fibLevels.length} levels
+              </span>
+            )}
+            {anchors.length > 0 && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5" style={toneColors('neutral')}>
+                anchors {anchors.length}
+              </span>
+            )}
           </div>
         </div>
       )}

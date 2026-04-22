@@ -168,6 +168,11 @@ export function StrategyStudioPage() {
         config: {
           ...strategy.config,
           protection: normalizeProtectionConfig(strategy.config?.protection),
+          entry_structure: normalizeEntryStructureConfig(strategy.config?.entry_structure),
+          strategy_control_policy: {
+            ...strategy.config?.strategy_control_policy,
+            mode: strategy.config?.strategy_control_policy?.mode || 'strict',
+          },
         },
       }))
       setStrategies(normalizedStrategies)
@@ -219,6 +224,11 @@ export function StrategyStudioPage() {
             language: language as 'zh' | 'en',
             prompt_sections: defaultConfig.prompt_sections,
             protection: normalizeProtectionConfig(prev.protection),
+            entry_structure: normalizeEntryStructureConfig(prev.entry_structure),
+            strategy_control_policy: {
+              ...prev.strategy_control_policy,
+              mode: prev.strategy_control_policy?.mode || 'strict',
+            },
           }
         })
         setHasChanges(true)
@@ -238,6 +248,11 @@ export function StrategyStudioPage() {
         `${API_BASE}/api/strategies/default-config?lang=${language}`
       )
       defaultConfig.protection = normalizeProtectionConfig(defaultConfig.protection || defaultProtectionConfig)
+      defaultConfig.entry_structure = normalizeEntryStructureConfig(defaultConfig.entry_structure)
+      defaultConfig.strategy_control_policy = {
+        ...defaultConfig.strategy_control_policy,
+        mode: defaultConfig.strategy_control_policy?.mode || 'strict',
+      }
 
       const result = await sendJson<{ id?: string }>(`${API_BASE}/api/strategies`, {
         method: 'POST',

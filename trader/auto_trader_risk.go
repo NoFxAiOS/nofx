@@ -1021,16 +1021,37 @@ func (at *AutoTrader) closePositionBySide(symbol, side string, quantity float64)
 }
 
 func (at *AutoTrader) closePositionByReason(symbol, side string, quantity float64, closeReason string) error {
+	type taggedCloser interface {
+		CloseLongTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error)
+		CloseShortTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error)
+	}
+
 	switch strings.ToLower(side) {
 	case "long":
-		order, err := at.trader.CloseLong(symbol, quantity)
+		var (
+			order map[string]interface{}
+			err   error
+		)
+		if tagged, ok := at.trader.(taggedCloser); ok && closeReason != "" {
+			order, err = tagged.CloseLongTagged(symbol, quantity, closeReason)
+		} else {
+			order, err = at.trader.CloseLong(symbol, quantity)
+		}
 		if err != nil {
 			return err
 		}
 		logger.Infof("✅ Close long position succeeded, order ID: %v", order["orderId"])
 		at.persistCloseReasonFromOrderResult(order, closeReason)
 	case "short":
-		order, err := at.trader.CloseShort(symbol, quantity)
+		var (
+			order map[string]interface{}
+			err   error
+		)
+		if tagged, ok := at.trader.(taggedCloser); ok && closeReason != "" {
+			order, err = tagged.CloseShortTagged(symbol, quantity, closeReason)
+		} else {
+			order, err = at.trader.CloseShort(symbol, quantity)
+		}
 		if err != nil {
 			return err
 		}

@@ -166,6 +166,14 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 
 // CloseLong closes long position
 func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+	return t.closeLongWithTag(symbol, quantity, "")
+}
+
+func (t *OKXTrader) CloseLongTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
+	return t.closeLongWithTag(symbol, quantity, reasonTag)
+}
+
+func (t *OKXTrader) closeLongWithTag(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
 	// Get instrument info for contract conversion
@@ -232,7 +240,7 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		"ordType": "market",
 		"sz":      szStr,
 		"clOrdId": genOkxClOrdID(),
-		"tag":     okxTag,
+		"tag":     okxReasonTag(reasonTag),
 	}
 
 	// Only add posSide in dual mode (long_short_mode)
@@ -277,6 +285,14 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 
 // CloseShort closes short position
 func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+	return t.closeShortWithTag(symbol, quantity, "")
+}
+
+func (t *OKXTrader) CloseShortTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
+	return t.closeShortWithTag(symbol, quantity, reasonTag)
+}
+
+func (t *OKXTrader) closeShortWithTag(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
 	// Get instrument info for contract conversion
@@ -343,7 +359,7 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		"ordType": "market",
 		"sz":      szStr,
 		"clOrdId": genOkxClOrdID(),
-		"tag":     okxTag,
+		"tag":     okxReasonTag(reasonTag),
 	}
 
 	// Only add posSide in dual mode (long_short_mode)

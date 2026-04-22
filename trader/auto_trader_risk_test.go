@@ -30,6 +30,8 @@ type fakeProtectionTrader struct {
 	closeShortCalls     int
 	closeLongQtys       []float64
 	closeShortQtys      []float64
+	taggedCloseLongs    []string
+	taggedCloseShorts   []string
 }
 
 func (f *fakeProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
@@ -54,6 +56,14 @@ func (f *fakeProtectionTrader) CloseShort(symbol string, quantity float64) (map[
 	f.closeShortCalls++
 	f.closeShortQtys = append(f.closeShortQtys, quantity)
 	return map[string]interface{}{"orderId": fmt.Sprintf("close-short-%d", f.closeShortCalls)}, nil
+}
+func (f *fakeProtectionTrader) CloseLongTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
+	f.taggedCloseLongs = append(f.taggedCloseLongs, reasonTag)
+	return f.CloseLong(symbol, quantity)
+}
+func (f *fakeProtectionTrader) CloseShortTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
+	f.taggedCloseShorts = append(f.taggedCloseShorts, reasonTag)
+	return f.CloseShort(symbol, quantity)
 }
 func (f *fakeProtectionTrader) SetLeverage(symbol string, leverage int) error         { return nil }
 func (f *fakeProtectionTrader) SetMarginMode(symbol string, isCrossMargin bool) error { return nil }

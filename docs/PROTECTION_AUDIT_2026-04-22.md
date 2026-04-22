@@ -231,4 +231,7 @@ The trailing `?` markers are intentional: they indicate a reasoned inference rat
 - For historical audits, use:
   - `scripts/audit_recent_protection_events.sh`
   - `scripts/reconstruct_protection_reasons.py`
+- For post-fix live verification, use:
+  - `scripts/verify_postfix_protection_reasons.py`
+  - optional second arg for lookback hours, e.g. `scripts/verify_postfix_protection_reasons.py data/data.db 6`
 

@@ -250,7 +250,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
       )}
 
       {/* Compact audit badges */}
-      {(controlStatus || control?.no_order_placed || (control?.failed_checks && control.failed_checks.length > 0)) && (
+      {(controlStatus || control?.no_order_placed || (control?.failed_checks && control.failed_checks.length > 0) || control?.regime_current || (control?.regime_allowed && control.regime_allowed.length > 0) || control?.regime_trend_aligned !== undefined) && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {controlStatus && (
             <span
@@ -277,6 +277,47 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
               failed · {formatControlCheck(check)}
             </span>
           ))}
+          {control?.regime_current && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('warn')}
+            >
+              regime {control.regime_current}
+            </span>
+          )}
+          {control?.regime_allowed?.slice(0, 3).map((regime) => (
+            <span
+              key={`allowed-${regime}`}
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('neutral')}
+            >
+              allowed {regime}
+            </span>
+          ))}
+          {control?.regime_trend_aligned !== undefined && control?.regime_trend_aligned !== null && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors(control.regime_trend_aligned ? 'neutral' : 'danger')}
+            >
+              trend {control.regime_trend_aligned ? 'aligned' : 'misaligned'}
+            </span>
+          )}
+          {control?.regime_atr14_pct ? (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('warn')}
+            >
+              ATR {control.regime_atr14_pct.toFixed(2)}%
+            </span>
+          ) : null}
+          {control?.regime_primary_timeframe ? (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('neutral')}
+            >
+              tf {control.regime_primary_timeframe}
+            </span>
+          ) : null}
         </div>
       )}
 

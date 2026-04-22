@@ -57,6 +57,33 @@ function toneColors(tone: 'danger' | 'warn' | 'neutral') {
   return { border: '1px solid rgba(56, 189, 248, 0.25)', bg: 'rgba(56, 189, 248, 0.12)', color: '#7DD3FC' }
 }
 
+function formatControlCheck(check?: string): string {
+  switch (String(check || '').toLowerCase()) {
+    case 'runtime_rr_below_min':
+      return 'runtime RR below min'
+    case 'protection_alignment_mismatch':
+      return 'protection alignment mismatch'
+    case 'stop_inside_invalidation':
+      return 'stop above invalidation'
+    case 'target_before_first_target':
+      return 'target before first target'
+    case 'break_even_after_target':
+      return 'break-even after target'
+    case 'fallback_inside_invalidation':
+      return 'fallback above invalidation'
+    case 'regime_not_allowed':
+      return 'regime not allowed'
+    case 'funding_above_max':
+      return 'funding above max'
+    case 'atr_above_max':
+      return 'ATR above max'
+    case 'trend_misaligned':
+      return 'trend misaligned'
+    default:
+      return String(check || 'check_failed').replace(/_/g, ' ')
+  }
+}
+
 // Single Action Card Component
 function ActionCard({ action, language, onSymbolClick }: { action: DecisionAction; language: Language; onSymbolClick?: (symbol: string) => void }) {
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
@@ -247,7 +274,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
               className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
               style={toneColors('danger')}
             >
-              failed · {check}
+              failed · {formatControlCheck(check)}
             </span>
           ))}
         </div>

@@ -211,14 +211,14 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	}
 
 	// Get store
-	store := trader.GetStore()
-	if store == nil {
+	traderStore := trader.GetStore()
+	if traderStore == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
 		return
 	}
 
 	// Get closed positions
-	positions, err := store.Position().GetClosedPositions(trader.GetID(), limit)
+	positions, err := traderStore.Position().GetClosedPositions(trader.GetID(), limit)
 	if err != nil {
 		SafeInternalError(c, "Get position history", err)
 		return
@@ -233,10 +233,10 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	}
 
 	buildDecisionReviewRef := func(cycle int, symbol string, action string) map[string]interface{} {
-		if cycle <= 0 || store.Decision() == nil {
+		if cycle <= 0 || traderStore.Decision() == nil {
 			return nil
 		}
-		record, err := store.Decision().GetRecordByCycle(trader.GetID(), cycle)
+		record, err := traderStore.Decision().GetRecordByCycle(trader.GetID(), cycle)
 		if err != nil || record == nil {
 			return nil
 		}
@@ -323,7 +323,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		executionOrderType := "unknown"
 		sourceLower := strings.ToLower(executionSource)
 
-		if orderStore := store.Order(); orderStore != nil && pos.ExitOrderID != "" {
+		if orderStore := traderStore.Order(); orderStore != nil && pos.ExitOrderID != "" {
 			if ord, err := orderStore.GetOrderByExchangeID(pos.ExchangeID, pos.ExitOrderID); err == nil && ord != nil {
 				orderActionLower := strings.ToLower(ord.OrderAction)
 				orderTypeUpper := strings.ToUpper(ord.Type)
@@ -365,7 +365,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		}
 
 		closeEvents := make([]map[string]interface{}, 0)
-		if eventStore := store.PositionClose(); eventStore != nil {
+		if eventStore := traderStore.PositionClose(); eventStore != nil {
 			if events, err := eventStore.ListByPositionID(pos.ID); err == nil {
 				for _, ev := range events {
 					closeEvents = append(closeEvents, map[string]interface{}{
@@ -439,13 +439,13 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	}
 
 	// Get statistics
-	stats, _ := store.Position().GetFullStats(trader.GetID())
+	stats, _ := traderStore.Position().GetFullStats(trader.GetID())
 
 	// Get symbol stats
-	symbolStats, _ := store.Position().GetSymbolStats(trader.GetID(), 10)
+	symbolStats, _ := traderStore.Position().GetSymbolStats(trader.GetID(), 10)
 
 	// Get direction stats
-	directionStats, _ := store.Position().GetDirectionStats(trader.GetID())
+	directionStats, _ := traderStore.Position().GetDirectionStats(trader.GetID())
 
 	c.JSON(http.StatusOK, gin.H{
 		"positions":       enrichedPositions,

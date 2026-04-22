@@ -67,6 +67,13 @@ export function EntryStructureEditor({ config, onChange, disabled = false, langu
               : 'These toggles affect runtime validation: when required structure is missing, the system should return wait / [] instead of forcing an open.'}
           </div>
         </div>
+        {safe.enabled && safe.require_fibonacci && (!safe.require_support_resistance || !safe.require_structural_anchors) && (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs" style={{ color: '#FCD34D' }}>
+            {language === 'zh'
+              ? '提示：Fibonacci 单独启用时语义偏弱，建议同时启用“支撑/阻力”和“结构锚点”。'
+              : 'Hint: Fibonacci is weak in isolation. Pair it with support/resistance and structural anchors for a stronger contract.'}
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
             ['require_primary_timeframe', language === 'zh' ? '必须主周期' : 'Require primary timeframe'],

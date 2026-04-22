@@ -148,23 +148,27 @@ func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID s
 	var ord TraderOrder
 	if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, exchangeOrderID).First(&ord).Error; err == nil {
 		tagLower := strings.ToLower(ord.ClientOrderID)
+		actionLower := strings.ToLower(ord.OrderAction)
 		switch {
-		case strings.Contains(tagLower, "break_even"):
+		case strings.Contains(tagLower, "break_even") || strings.Contains(actionLower, "break_even"):
 			reason = "break_even_stop"
 			source = "break_even_stop"
-		case strings.Contains(tagLower, "native_trailing"):
+		case strings.Contains(tagLower, "native_trailing") || strings.Contains(actionLower, "native_trailing"):
 			reason = "native_trailing"
 			source = "native_trailing"
-		case strings.Contains(tagLower, "ladder_tp"):
+		case strings.Contains(tagLower, "managed_drawdown") || strings.Contains(actionLower, "managed_drawdown"):
+			reason = "managed_drawdown"
+			source = "managed_drawdown"
+		case strings.Contains(tagLower, "ladder_tp") || strings.Contains(actionLower, "ladder_tp"):
 			reason = "ladder_tp"
 			source = "ladder_tp"
-		case strings.Contains(tagLower, "ladder_sl"):
+		case strings.Contains(tagLower, "ladder_sl") || strings.Contains(actionLower, "ladder_sl"):
 			reason = "ladder_sl"
 			source = "ladder_sl"
-		case strings.Contains(tagLower, "full_tp"):
+		case strings.Contains(tagLower, "full_tp") || strings.Contains(actionLower, "full_tp"):
 			reason = "full_tp"
 			source = "full_tp"
-		case strings.Contains(tagLower, "full_sl"):
+		case strings.Contains(tagLower, "full_sl") || strings.Contains(actionLower, "full_sl") || strings.Contains(tagLower, "fallback_maxloss") || strings.Contains(actionLower, "fallback_maxloss"):
 			reason = "full_sl"
 			source = "full_sl"
 		}
@@ -196,14 +200,11 @@ func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID s
 				reason = "full_sl"
 				source = "full_sl"
 			}
-		case strings.HasPrefix(strings.ToLower(ord.OrderAction), "close_"):
+		case strings.HasPrefix(actionLower, "close_"):
 			if reason == "" || reason == "close_long" || reason == "close_short" {
 				reason = ord.OrderAction
 				source = ord.OrderAction
 			}
-		case strings.Contains(strings.ToLower(ord.OrderAction), "managed_drawdown"):
-			reason = "managed_drawdown"
-			source = "managed_drawdown"
 		}
 	}
 	if reason == "" {

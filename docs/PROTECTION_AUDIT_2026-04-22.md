@@ -202,22 +202,33 @@ A fix was applied to make reason recovery more robust by:
 - prioritizing specific protection semantics (`break_even`, `native_trailing`, `managed_drawdown`, `ladder_*`, `full_*`) before generic `close_*`
 - mapping `fallback_maxloss*` into stop-loss-side attribution
 
-## Net assessment
+## Heuristic reconstruction for incomplete historical data
 
-Given the user’s stated goal, the recent 24h behavior is acceptable and mostly healthy:
+Because older close events were already flattened to generic `close_long` / `close_short`, a reconstruction helper was added:
 
-- The system is not prematurely handing control back to AI close.
-- Protection stack is stable and visibly active.
-- Break-even and stop-loss behavior are functioning in real trades.
-- The main remaining issue is **audit attribution clarity**, not obvious protection failure.
+- `scripts/reconstruct_protection_reasons.py`
 
-## Follow-up
+This script does **not** mutate stored data. Instead it infers a best-effort protection reason from:
 
-Recommended next step:
+- linked `trader_orders.client_order_id`
+- linked `trader_orders.order_action`
+- linked `trader_orders.type`
+- price-vs-entry relationship
+- partial/full close ratio
 
-1. Add/extend tests for `deriveCloseReason()` covering:
-   - `managed_drawdown`
-   - `break_even_stop`
-   - `fallback_maxloss_sl`
-   - generic `close_long/close_short` fallback ordering
-2. Re-run future live audits and verify whether `position_close_events` now preserve richer reasons instead of flattening to `close_long` / `close_short`.
+Current reconstruction output is consistent with the manual audit:
+
+- loss-side partial exits (ADA losing long, XAU losing long, ZEC losing long) reconstruct as `ladder_sl?`
+- profitable ADA exits above the break-even trigger reconstruct as `break_even_stop?`
+- small-profit exits below BE/drawdown gates (SOL, TRUMP short, XAU short) reconstruct as `protective_profit_exit?`
+
+The trailing `?` markers are intentional: they indicate a reasoned inference rather than first-class preserved runtime attribution.
+
+## Operational note
+
+- The new attribution fix improves **future** close-event labeling.
+- It does **not** rewrite old rows automatically.
+- For historical audits, use:
+  - `scripts/audit_recent_protection_events.sh`
+  - `scripts/reconstruct_protection_reasons.py`
+

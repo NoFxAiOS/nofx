@@ -47,6 +47,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
   const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
+  const control = action.review_context?.control
 
   return (
     <div
@@ -211,6 +212,31 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           }}
         >
           ❌ {action.error}
+          {control && (
+            <div className="mt-2 space-y-1" style={{ color: '#FCD5DA' }}>
+              {control.failed_checks && control.failed_checks.length > 0 && (
+                <div>checks: {control.failed_checks.join(', ')}</div>
+              )}
+              {control.reasons && control.reasons.length > 0 && (
+                <div>reason: {control.reasons.join(' | ')}</div>
+              )}
+              {(control.regime_current || (control.regime_allowed && control.regime_allowed.length > 0)) && (
+                <div>
+                  regime: {control.regime_current || '-'}
+                  {control.regime_allowed && control.regime_allowed.length > 0 ? ` | allowed: ${control.regime_allowed.join(', ')}` : ''}
+                </div>
+              )}
+              {(control.regime_primary_timeframe || control.regime_atr14_pct || control.regime_funding_rate || control.regime_trend_aligned !== undefined) && (
+                <div>
+                  {control.regime_primary_timeframe ? `tf=${control.regime_primary_timeframe}` : ''}
+                  {control.regime_atr14_pct ? ` | atr14=${control.regime_atr14_pct.toFixed(2)}%` : ''}
+                  {control.regime_funding_rate ? ` | funding=${control.regime_funding_rate.toFixed(6)}` : ''}
+                  {control.regime_trend_aligned !== undefined && control.regime_trend_aligned !== null ? ` | trendAligned=${control.regime_trend_aligned ? 'yes' : 'no'}` : ''}
+                </div>
+              )}
+              {control.no_order_placed && <div>no order placed</div>}
+            </div>
+          )}
         </div>
       )}
     </div>

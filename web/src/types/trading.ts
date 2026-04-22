@@ -320,6 +320,12 @@ export interface DecisionActionControlOutcome {
   effective_rr?: number
   effective_rr_source?: string
   execution_constraint_sources?: string[]
+  regime_current?: string
+  regime_allowed?: string[]
+  regime_primary_timeframe?: string
+  regime_atr14_pct?: number
+  regime_funding_rate?: number
+  regime_trend_aligned?: boolean
   no_order_placed?: boolean
 }
 

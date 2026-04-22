@@ -140,6 +140,12 @@ type DecisionActionControlOutcome struct {
 	EffectiveRR                float64  `json:"effective_rr,omitempty"`
 	EffectiveRRSource          string   `json:"effective_rr_source,omitempty"`
 	ExecutionConstraintSources []string `json:"execution_constraint_sources,omitempty"`
+	RegimeCurrent              string   `json:"regime_current,omitempty"`
+	RegimeAllowed              []string `json:"regime_allowed,omitempty"`
+	RegimePrimaryTimeframe     string   `json:"regime_primary_timeframe,omitempty"`
+	RegimeATR14Pct             float64  `json:"regime_atr14_pct,omitempty"`
+	RegimeFundingRate          float64  `json:"regime_funding_rate,omitempty"`
+	RegimeTrendAligned         *bool    `json:"regime_trend_aligned,omitempty"`
 	NoOrderPlaced              bool     `json:"no_order_placed,omitempty"`
 }
 

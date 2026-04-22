@@ -69,6 +69,15 @@ func (at *AutoTrader) applyRegimeGateToActionRecord(decision *kernel.Decision, a
 	if gate.ReasonCode != "" {
 		control.FailedChecks = append(control.FailedChecks, gate.ReasonCode)
 	}
+	control.RegimeCurrent = gate.CurrentRegime
+	control.RegimeAllowed = append([]string{}, gate.AllowedRegimes...)
+	control.RegimePrimaryTimeframe = gate.PrimaryTimeframe
+	control.RegimeATR14Pct = gate.ATR14Pct
+	control.RegimeFundingRate = gate.FundingRate
+	if gate.TrendAligned != nil {
+		aligned := *gate.TrendAligned
+		control.RegimeTrendAligned = &aligned
+	}
 }
 
 // executeDecisionWithRecord executes AI decision and records detailed information

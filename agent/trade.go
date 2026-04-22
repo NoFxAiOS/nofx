@@ -194,16 +194,30 @@ func (a *Agent) executeTrade(ctx context.Context, trade *TradeAction) error {
 		return fmt.Errorf("no running trader supports trade execution")
 	}
 
+	// Sanity caps to prevent LLM hallucinations or input errors from causing damage.
+	const maxQuantity = 100000.0
+	const maxLeverage = 125
+
+	if trade.Leverage > maxLeverage {
+		return fmt.Errorf("leverage %dx exceeds maximum allowed (%dx)", trade.Leverage, maxLeverage)
+	}
+
 	switch trade.Action {
 	case "open_long":
 		if trade.Quantity <= 0 {
 			return fmt.Errorf("quantity must be > 0")
+		}
+		if trade.Quantity > maxQuantity {
+			return fmt.Errorf("quantity %.4f exceeds maximum allowed (%.0f)", trade.Quantity, maxQuantity)
 		}
 		_, err := underlyingTrader.OpenLong(trade.Symbol, trade.Quantity, trade.Leverage)
 		return err
 	case "open_short":
 		if trade.Quantity <= 0 {
 			return fmt.Errorf("quantity must be > 0")
+		}
+		if trade.Quantity > maxQuantity {
+			return fmt.Errorf("quantity %.4f exceeds maximum allowed (%.0f)", trade.Quantity, maxQuantity)
 		}
 		_, err := underlyingTrader.OpenShort(trade.Symbol, trade.Quantity, trade.Leverage)
 		return err

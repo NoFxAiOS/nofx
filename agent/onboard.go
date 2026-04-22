@@ -64,13 +64,24 @@ func (a *Agent) saveSetupState(userID int64, s *SetupState) {
 	a.store.SetSystemConfig(fmt.Sprintf("setup_step_%d", userID), s.Step)
 	setConfig(a.store, userID, "exchange", s.Exchange)
 	setConfig(a.store, userID, "exchange_id", s.ExchangeID)
-	setConfig(a.store, userID, "api_key", s.APIKey)
-	setConfig(a.store, userID, "api_secret", s.APISecret)
-	setConfig(a.store, userID, "passphrase", s.Passphrase)
+	// Store only a masked marker for secrets — full values stay in memory only.
+	// This prevents plaintext credentials from lingering in the config store
+	// if the setup flow is interrupted before clearSetupState runs.
+	if s.APIKey != "" {
+		setConfig(a.store, userID, "api_key", "****")
+	}
+	if s.APISecret != "" {
+		setConfig(a.store, userID, "api_secret", "****")
+	}
+	if s.Passphrase != "" {
+		setConfig(a.store, userID, "passphrase", "****")
+	}
 	setConfig(a.store, userID, "ai_provider", s.AIProvider)
 	setConfig(a.store, userID, "ai_model", s.AIModel)
 	setConfig(a.store, userID, "ai_model_id", s.AIModelID)
-	setConfig(a.store, userID, "ai_key", s.AIKey)
+	if s.AIKey != "" {
+		setConfig(a.store, userID, "ai_key", "****")
+	}
 	setConfig(a.store, userID, "ai_base_url", s.AIBaseURL)
 }
 

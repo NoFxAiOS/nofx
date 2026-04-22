@@ -41,6 +41,7 @@ type Sentinel struct {
 	http     *http.Client
 	logger   *slog.Logger
 	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 type pricePt struct {
@@ -76,7 +77,7 @@ func (s *Sentinel) Start() {
 	})
 }
 
-func (s *Sentinel) Stop()                            { close(s.stopCh) }
+func (s *Sentinel) Stop()                            { s.stopOnce.Do(func() { close(s.stopCh) }) }
 func (s *Sentinel) SymbolCount() int                  { s.mu.RLock(); defer s.mu.RUnlock(); return len(s.symbols) }
 func (s *Sentinel) AddSymbol(sym string)              { s.mu.Lock(); defer s.mu.Unlock(); for _, x := range s.symbols { if x == sym { return } }; s.symbols = append(s.symbols, sym) }
 func (s *Sentinel) RemoveSymbol(sym string)           { s.mu.Lock(); defer s.mu.Unlock(); for i, x := range s.symbols { if x == sym { s.symbols = append(s.symbols[:i], s.symbols[i+1:]...); return } } }

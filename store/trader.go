@@ -265,6 +265,16 @@ func (s *TraderStore) ListByExchangeID(userID, exchangeID string) ([]*Trader, er
 	return traders, nil
 }
 
+// ListByStrategyID gets traders that use a specific strategy
+func (s *TraderStore) ListByStrategyID(userID, strategyID string) ([]*Trader, error) {
+	var traders []*Trader
+	err := s.db.Where("user_id = ? AND strategy_id = ?", userID, strategyID).Find(&traders).Error
+	if err != nil {
+		return nil, err
+	}
+	return traders, nil
+}
+
 // ListByAIModelID gets traders that use a specific AI model
 func (s *TraderStore) ListByAIModelID(userID, aiModelID string) ([]*Trader, error) {
 	var traders []*Trader

@@ -11,6 +11,7 @@ import (
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
+	"nofx/trader"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -458,9 +459,49 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		ConfigVisible: req.ConfigVisible,
 	}
 
+	// Snapshot affected traders and their prior running state so strategy edits can hot-apply.
+	affectedTraders, listErr := s.store.Trader().ListByStrategyID(userID, strategyID)
+	if listErr != nil {
+		logger.Infof("[strategy.update] id=%s failed to list affected traders: %v", strategyID, listErr)
+	}
+	wasRunning := map[string]bool{}
+	for _, traderCfg := range affectedTraders {
+		if live, getErr := s.traderManager.GetTrader(traderCfg.ID); getErr == nil && live != nil {
+			if status, ok := live.GetStatus()["is_running"].(bool); ok {
+				wasRunning[traderCfg.ID] = status
+			} else {
+				wasRunning[traderCfg.ID] = traderCfg.IsRunning
+			}
+		} else {
+			wasRunning[traderCfg.ID] = traderCfg.IsRunning
+		}
+	}
+
 	if err := s.store.Strategy().Update(strategy); err != nil {
 		SafeInternalError(c, "Failed to update strategy", err)
 		return
+	}
+
+	if len(affectedTraders) > 0 {
+		for _, traderCfg := range affectedTraders {
+			s.traderManager.RemoveTrader(traderCfg.ID)
+		}
+		if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+			logger.Infof("[strategy.update] id=%s trader hot reload failed: %v", strategyID, loadErr)
+		} else {
+			for _, traderCfg := range affectedTraders {
+				if !wasRunning[traderCfg.ID] {
+					continue
+				}
+				if reloadedTrader, getErr := s.traderManager.GetTrader(traderCfg.ID); getErr == nil {
+					go func(at *trader.AutoTrader) {
+						if runErr := at.Run(); runErr != nil {
+							logger.Infof("[strategy.update] failed to restart trader %s after strategy reload: %v", at.GetID(), runErr)
+						}
+					}(reloadedTrader)
+				}
+			}
+		}
 	}
 
 	// Validate merged configuration and collect warnings

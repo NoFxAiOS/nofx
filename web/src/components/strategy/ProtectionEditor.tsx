@@ -1,4 +1,4 @@
-import { ShieldCheck, TrendingUp, TrendingDown, Layers, Activity, RotateCcw, Filter, Plus, Trash2 } from 'lucide-react'
+import { ShieldCheck, TrendingDown, Layers, Activity, RotateCcw, Filter, Plus, Trash2 } from 'lucide-react'
 import type {
   ProtectionConfig,
   FullTPSLConfig,
@@ -293,6 +293,33 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
   const ladderTpEnabled = ladderTpActive
   const fullTpEnabled = fullTpActive
 
+  const protectionLayerCards = [
+    {
+      title: isZh ? '开仓前门禁' : 'Pre-entry gate',
+      subtitle: isZh ? '决定“能不能开”' : 'Decides whether a trade may open',
+      body: isZh
+        ? 'Regime Filter + Entry Structure + Strategy Control Policy 共同决定开仓是否被允许；它们负责证据与门禁，不负责挂保护单。'
+        : 'Regime Filter + Entry Structure + Strategy Control Policy decide whether an entry is allowed. They own evidence and gating, not live protection orders.',
+      tone: '#38BDF8',
+    },
+    {
+      title: isZh ? '持仓保护委托层' : 'Live order protection layer',
+      subtitle: isZh ? '决定“开仓后先挂哪些单”' : 'Decides which exchange orders are placed after entry',
+      body: isZh
+        ? 'Full TP/SL 与 Ladder TP/SL 负责尽快把止损/止盈委托挂到交易所；当 Drawdown 接管止盈侧时，这一层通常只保留止损侧。'
+        : 'Full TP/SL and Ladder TP/SL place exchange-side protection orders quickly after entry. When Drawdown owns the TP side, this layer usually keeps only stop-loss protection.',
+      tone: '#0ECB81',
+    },
+    {
+      title: isZh ? '运行态盈利控制层' : 'Runtime profit-control layer',
+      subtitle: isZh ? '决定“盈利后怎么锁利润 / 怎么减仓”' : 'Decides how gains are locked and reduced after profit appears',
+      body: isZh
+        ? 'Drawdown Take Profit 是主盈利控制链；Break-even Stop 是附加止损层，不替代 Drawdown，也不替代长期止损。'
+        : 'Drawdown Take Profit is the primary profit-control path. Break-even Stop is an extra stop layer; it does not replace Drawdown or the long-lived stop-loss structure.',
+      tone: '#A855F7',
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #F0B90B33' }}>
@@ -316,13 +343,25 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
         </div>
       </div>
 
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-5 h-5" style={{ color: '#0ECB81' }} />
-          <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {isZh ? 'Full TP/SL（委托型保护）' : 'Full TP/SL (Order-based Protection)'}
-          </h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {protectionLayerCards.map((item) => (
+          <div key={item.title} className="p-3 rounded-lg" style={{ background: '#11161C', border: `1px solid ${item.tone}33` }}>
+            <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{item.title}</div>
+            <div className="text-[11px] mt-1" style={{ color: item.tone }}>{item.subtitle}</div>
+            <div className="text-xs mt-2" style={{ color: '#AAB2BD' }}>{item.body}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="p-3 rounded-lg" style={{ background: '#11161C', border: '1px solid #2B3139' }}>
+        <div className="text-xs" style={{ color: '#C9D1D9' }}>
+          {isZh
+            ? '建议阅读顺序：先确认开仓门禁是否清楚，再配置委托型保护，最后决定运行态盈利控制链（通常是 Drawdown 主链 + Break-even 辅助层）。'
+            : 'Recommended reading order: first confirm the pre-entry gates, then configure exchange-order protection, and finally decide the runtime profit-control path (usually Drawdown as primary + Break-even as auxiliary).'}
         </div>
+      </div>
+
+      <div>
 
         <div className="space-y-4">
           {drawdownOwnsTp && fullTpEnabled && (

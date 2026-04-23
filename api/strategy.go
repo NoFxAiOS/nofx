@@ -12,6 +12,7 @@ import (
 	_ "nofx/mcp/provider"
 	"nofx/store"
 	"nofx/trader"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -67,6 +68,43 @@ func truncateForLog(s string, max int) string {
 		return s
 	}
 	return s[:max] + "...<truncated>"
+}
+
+func inspectStrategyGatePresence(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return "empty"
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return fmt.Sprintf("invalid-json:%v", err)
+	}
+	cfg, _ := payload["config"].(map[string]any)
+	if cfg == nil {
+		cfg = payload
+	}
+	_, hasPolicy := cfg["strategy_control_policy"]
+	_, hasEntry := cfg["entry_structure"]
+	mode := "<missing>"
+	if policy, ok := cfg["strategy_control_policy"].(map[string]any); ok {
+		if v, ok := policy["mode"]; ok {
+			mode = fmt.Sprintf("%v", v)
+		}
+	}
+	entryEnabled := "<missing>"
+	if es, ok := cfg["entry_structure"].(map[string]any); ok {
+		if v, ok := es["enabled"]; ok {
+			entryEnabled = fmt.Sprintf("%v", v)
+		}
+	}
+	return fmt.Sprintf("policy=%t(mode=%s) entry_structure=%t(enabled=%s)", hasPolicy, mode, hasEntry, entryEnabled)
+}
+
+func inspectStrategyConfigPresence(cfg store.StrategyConfig) string {
+	blob, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Sprintf("marshal-error:%v", err)
+	}
+	return inspectStrategyGatePresence(string(blob))
 }
 
 func fullTakeProfitEnabledConfig(full store.FullTPSLConfig) bool {
@@ -423,13 +461,16 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	// Apply incoming config with deep object merge so nested protection fields
 	// such as ladder/full AI mode are preserved when sibling fields are omitted.
 	if len(req.Config) > 0 && string(req.Config) != "null" {
+		logger.Infof("[strategy.update] id=%s incoming config gates=%s", strategyID, inspectStrategyGatePresence(string(req.Config)))
 		logger.Infof("[strategy.update] id=%s incoming config snippet=%s", strategyID, truncateForLog(string(req.Config), 1200))
+		logger.Infof("[strategy.update] id=%s existing config gates=%s", strategyID, inspectStrategyGatePresence(existing.Config))
 		logger.Infof("[strategy.update] id=%s existing config snippet=%s", strategyID, truncateForLog(existing.Config, 1200))
 		mergedConfig, err = mergeStrategyConfig(mergedConfig, req.Config)
 		if err != nil {
 			SafeBadRequest(c, "Invalid config JSON")
 			return
 		}
+		logger.Infof("[strategy.update] id=%s merged config gates=%s", strategyID, inspectStrategyConfigPresence(mergedConfig))
 	}
 
 	// Preserve existing name/description when not supplied
@@ -447,6 +488,7 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		SafeInternalError(c, "Serialize configuration", err)
 		return
 	}
+	logger.Infof("[strategy.update] id=%s final config gates=%s", strategyID, inspectStrategyGatePresence(string(configJSON)))
 	logger.Infof("[strategy.update] id=%s merged config snippet=%s", strategyID, truncateForLog(string(configJSON), 1200))
 
 	strategy := &store.Strategy{

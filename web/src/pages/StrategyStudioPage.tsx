@@ -31,7 +31,7 @@ import {
   Globe,
   AlertTriangle,
 } from 'lucide-react'
-import type { Strategy, StrategyConfig, AIModel, StrategyControlPolicyMode } from '../types'
+import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { confirmToast, notify } from '../lib/notify'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
@@ -40,7 +40,7 @@ import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEdito
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
 import { ProtectionEditor, defaultProtectionConfig, normalizeProtectionConfig } from '../components/strategy/ProtectionEditor'
-import { EntryStructureEditor, normalizeEntryStructureConfig } from '../components/strategy/EntryStructureEditor'
+import { normalizeEntryStructureConfig } from '../components/strategy/EntryStructureEditor'
 import { PreEntryGateEditor } from '../components/strategy/PreEntryGateEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
@@ -105,7 +105,6 @@ export function StrategyStudioPage() {
     preEntryGate: false,
     riskControl: false,
     protection: false,
-    entryStructure: false,
     promptSections: false,
     customPrompt: false,
     publishSettings: false,
@@ -438,13 +437,6 @@ export function StrategyStudioPage() {
     setHasChanges(true)
   }
 
-  const updateStrategyControlPolicyMode = (mode: StrategyControlPolicyMode) => {
-    if (!editingConfig) return
-    updateConfig('strategy_control_policy', {
-      ...editingConfig.strategy_control_policy,
-      mode,
-    })
-  }
 
   // Fetch prompt preview
   const fetchPromptPreview = async () => {

@@ -139,12 +139,22 @@ type Decision struct {
 type AIEntryProtectionRationale struct {
 	TimeframeContext     AIEntryTimeframeContext     `json:"timeframe_context,omitempty"`
 	KeyLevels            AIEntryKeyLevels            `json:"key_levels,omitempty"`
+	StructuralKeyLevels  []AIStructuralKeyLevel      `json:"structural_key_levels,omitempty"`
 	VolatilityAdjustment AIEntryVolatilityAdjustment `json:"volatility_adjustment,omitempty"`
 	RiskReward           AIRiskRewardRationale       `json:"risk_reward,omitempty"`
 	ExecutionConstraints AIEntryExecutionConstraints `json:"execution_constraints,omitempty"`
 	DerivativesContext   AIEntryDerivativesContext   `json:"derivatives_context,omitempty"`
 	Anchors              []AIEntryProtectionAnchor   `json:"anchors,omitempty"`
 	AlignmentNotes       []string                    `json:"alignment_notes,omitempty"`
+}
+
+// AIStructuralKeyLevel represents a structural level that influenced protection placement
+type AIStructuralKeyLevel struct {
+	Price     float64 `json:"price"`
+	Type      string  `json:"type"`      // "support" or "resistance"
+	Timeframe string  `json:"timeframe"`
+	Source    string  `json:"source"`    // "auto_detected", "fibonacci_0.618", etc.
+	UsedFor   string  `json:"used_for"` // "tp1", "tp2", "stop_loss", "invalidation"
 }
 
 type AIEntryTimeframeContext struct {
@@ -255,6 +265,7 @@ type AIProtectionLadderRule struct {
 	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`
 	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
+	StructuralAnchor        string  `json:"structural_anchor,omitempty"`
 }
 
 // FullDecision AI's complete decision (including chain of thought)

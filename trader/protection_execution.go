@@ -48,6 +48,30 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		plan = mergeProtectionPlans(configuredPlan, decisionPlan)
 	}
 
+	// Structural fallback: if plan has no TP/SL orders, try generating from structural levels
+	if plan == nil || (len(plan.TakeProfitOrders) == 0 && !plan.NeedsTakeProfit && len(plan.StopLossOrders) == 0 && !plan.NeedsStopLoss) {
+		if mdata, err := at.getExecutionMarketData(req.Symbol); err == nil && mdata != nil {
+			isLong := req.Action == "open_long"
+			tpOrders, slOrders := generateStructuralLadderRules(req.EntryPrice, isLong, mdata)
+			if len(tpOrders) > 0 || len(slOrders) > 0 {
+				structPlan := &ProtectionPlan{
+					Mode:                 "structural_fallback",
+					RequiresNativeOrders: true,
+					RequiresPartialClose: len(tpOrders) > 1,
+					TakeProfitOrders:     tpOrders,
+					StopLossOrders:       slOrders,
+					NeedsTakeProfit:      len(tpOrders) > 0,
+					NeedsStopLoss:        len(slOrders) > 0,
+				}
+				if len(slOrders) == 1 {
+					structPlan.StopLossPrice = slOrders[0].Price
+				}
+				logger.Infof("  🏗 Using structural fallback protection: %d TP tiers, %d SL levels", len(tpOrders), len(slOrders))
+				plan = mergeProtectionPlans(plan, structPlan)
+			}
+		}
+	}
+
 	var planErr error
 	if plan != nil {
 		caps := at.GetProtectionCapabilities()

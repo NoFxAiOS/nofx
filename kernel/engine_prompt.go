@@ -114,6 +114,32 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString(fmt.Sprintf("\nFeel free to use any effective analysis method, but **confidence ≥ %d** required to open positions; avoid low-quality behaviors such as single indicators, contradictory signals, sideways consolidation, reopening immediately after closing, etc.\n\n", riskControl.MinConfidence))
 	}
 
+	// Structural analysis requirements
+	sb.WriteString("# 🏗️ Structural Analysis Requirements\n\n")
+	sb.WriteString("You now receive auto-detected support/resistance levels and Fibonacci retracements in the market data.\n\n")
+	sb.WriteString("## How to use structural data:\n\n")
+	sb.WriteString("1. **Entry positioning**: Open positions near support (long) or resistance (short), not in no-man's land\n")
+	sb.WriteString("2. **Protection planning**:\n")
+	sb.WriteString("   - Ladder TP targets should align with resistance/fib levels (for longs) or support/fib levels (for shorts)\n")
+	sb.WriteString("   - Stop losses should be placed beyond the nearest structural invalidation level\n")
+	sb.WriteString("   - Drawdown rules should reference timeframe-specific structure\n")
+	sb.WriteString("3. **Cross-validation**: Auto-detected levels are hints. Confirm them with volume, price action, and multi-timeframe alignment before relying on them\n")
+	sb.WriteString("4. **structural_key_levels in output**: When opening, include a `structural_key_levels` array in entry_protection_rationale listing the structural levels that influenced your entry/TP/SL decisions\n\n")
+	sb.WriteString("## Protection Plan Requirements (when mode = ai):\n\n")
+	sb.WriteString("### For ladder mode=ai:\n")
+	sb.WriteString("- Each ladder TP target MUST correspond to a nearby structural level (support/resistance/fibonacci)\n")
+	sb.WriteString("- Include a `structural_anchor` field in each ladder rule explaining which level it references\n")
+	sb.WriteString("- Position sizing per tier should reflect distance to the structural target and confidence\n")
+	sb.WriteString("- DO NOT use arbitrary round percentages (like 1%%, 2%%, 3%%) - use market structure\n\n")
+	sb.WriteString("### For drawdown mode=ai:\n")
+	sb.WriteString("- min_profit_pct should relate to the nearest TP structural level distance\n")
+	sb.WriteString("- max_drawdown_pct should factor in current ATR volatility\n")
+	sb.WriteString("- Include `reason_anchor` field referencing the specific structural/timeframe basis\n")
+	sb.WriteString("- Rules at different profit levels should correspond to different structural targets\n\n")
+	sb.WriteString("### For break_even mode:\n")
+	sb.WriteString("- trigger_value should consider the distance to the first structural level past entry\n")
+	sb.WriteString("- offset_pct should keep the stop just beyond the nearest support/resistance\n\n")
+
 	// 6. Decision process (editable)
 	if promptSections.DecisionProcess != "" {
 		sb.WriteString(promptSections.DecisionProcess)
@@ -169,6 +195,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 	sb.WriteString(fmt.Sprintf("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, entry_protection_rationale; risk_reward must satisfy min RR ≥ %.1f and direction sanity (long: invalidation < entry < first_target, short: invalidation > entry > first_target)\n", riskControl.MinRiskRewardRatio))
 	sb.WriteString("- Structural entry fields should be compact and purpose-driven: primary/adjacent timeframe, top support/resistance, one or a few anchors, and fibonacci only when it materially affects invalidation/target planning\n")
+	sb.WriteString("- `structural_key_levels`: structural levels that influenced protection placement decisions; each must specify price, type (support/resistance), timeframe, source, and what it was used_for (tp1/tp2/stop_loss/invalidation)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt
@@ -648,6 +675,10 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 			}
 		}
 	}
+
+	// Sentiment and structural data
+	sb.WriteString(formatSentimentDataEN(data))
+	sb.WriteString(formatStructuralLevelsEN(data))
 
 	return sb.String()
 }

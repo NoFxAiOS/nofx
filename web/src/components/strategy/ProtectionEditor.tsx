@@ -1,11 +1,10 @@
-import { ShieldCheck, TrendingDown, Layers, Activity, RotateCcw, Filter, Plus, Trash2 } from 'lucide-react'
+import { ShieldCheck, TrendingDown, Layers, Activity, RotateCcw, Plus, Trash2 } from 'lucide-react'
 import type {
   ProtectionConfig,
   FullTPSLConfig,
   LadderTPSLConfig,
   DrawdownTakeProfitConfig,
   BreakEvenStopConfig,
-  RegimeFilterConfig,
   LadderTPSLRule,
   DrawdownTakeProfitRule,
   ProtectionMode,
@@ -149,10 +148,6 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     updateSection('break_even_stop', { ...config.break_even_stop, [key]: value })
   }
 
-  const updateRegimeFilter = <K extends keyof RegimeFilterConfig>(key: K, value: RegimeFilterConfig[K]) => {
-    updateSection('regime_filter', { ...config.regime_filter, [key]: value })
-  }
-
   const drawdownRules = config.drawdown_take_profit.rules || []
   const ladderRules = config.ladder_tp_sl.rules || []
 
@@ -195,19 +190,6 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
   const removeDrawdownRule = (index: number) => {
     updateDrawdown('rules', drawdownRules.filter((_, i) => i !== index))
   }
-
-  const toggleAllowedRegime = (regime: string) => {
-    const current = config.regime_filter.allowed_regimes || []
-    const exists = current.includes(regime)
-    updateRegimeFilter('allowed_regimes', exists ? current.filter((item) => item !== regime) : [...current, regime])
-  }
-
-  const regimeOptions = [
-    { value: 'narrow', zh: '窄波动', en: 'Narrow' },
-    { value: 'standard', zh: '标准波动', en: 'Standard' },
-    { value: 'wide', zh: '宽波动', en: 'Wide' },
-    { value: 'trending', zh: '趋势强化', en: 'Trending' },
-  ]
 
   const protectionModeOptions: ProtectionMode[] = ['manual', 'ai']
   const valueModeOptions: ProtectionMode[] = ['disabled', 'manual', 'ai']
@@ -780,67 +762,6 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
         </div>
       </div>
 
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Filter className="w-5 h-5" style={{ color: '#38BDF8' }} />
-          <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {isZh ? 'Regime Filter（开仓前门禁）' : 'Regime Filter (Pre-entry Gate)'}
-          </h3>
-        </div>
-        <div className="p-4 rounded-lg space-y-3" style={sectionStyle}>
-          <div className="flex items-center justify-between">
-            <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '启用 Regime Filter' : 'Enable Regime Filter'}</label>
-            <input type="checkbox" checked={config.regime_filter.enabled} onChange={(e) => updateRegimeFilter('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-sky-500" />
-          </div>
-          {infoBlock(
-            isZh ? 'Regime Filter 不会挂交易所委托' : 'Regime Filter does not create exchange orders',
-            isZh ? '它决定“这笔交易能不能开”。只有市场状态、资金费率、波动、趋势方向满足条件时，系统才允许开仓。' : 'It decides whether a new trade is allowed before entry based on market regime and risk conditions.',
-            isZh ? '建议：把它当成开仓门禁，而不是持仓保护。' : 'Recommendation: treat it as a pre-entry gate instead of a position protection tool.'
-          )}
-
-          <div>
-            <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>{isZh ? '允许的市场状态' : 'Allowed Regimes'}</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {regimeOptions.map((option) => {
-                const active = (config.regime_filter.allowed_regimes || []).includes(option.value)
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => toggleAllowedRegime(option.value)}
-                    disabled={disabled}
-                    className="px-3 py-2 rounded text-sm border"
-                    style={{
-                      background: active ? '#1E3A5F' : '#11161C',
-                      borderColor: active ? '#38BDF8' : '#2B3139',
-                      color: active ? '#EAECEF' : '#848E9C',
-                    }}
-                  >
-                    {isZh ? option.zh : option.en}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '资金费率绝对值上限' : 'Max Funding Abs'}</label>
-              <input type="number" value={config.regime_filter.max_funding_rate_abs} min={0} step={0.001} onChange={(e) => updateRegimeFilter('max_funding_rate_abs', parseFloat(e.target.value) || 0)} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-            </div>
-            <div>
-              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? 'ATR14 波动率上限 %' : 'Max ATR14 %'}</label>
-              <input type="number" value={config.regime_filter.max_atr14_pct} min={0} step={0.1} onChange={(e) => updateRegimeFilter('max_atr14_pct', parseFloat(e.target.value) || 0)} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}><input type="checkbox" checked={config.regime_filter.block_high_funding} onChange={(e) => updateRegimeFilter('block_high_funding', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-sky-500" />{isZh ? '屏蔽高资金费率' : 'Block high funding'}</label>
-            <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}><input type="checkbox" checked={config.regime_filter.block_high_volatility} onChange={(e) => updateRegimeFilter('block_high_volatility', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-sky-500" />{isZh ? '屏蔽高波动' : 'Block high volatility'}</label>
-            <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}><input type="checkbox" checked={config.regime_filter.require_trend_alignment} onChange={(e) => updateRegimeFilter('require_trend_alignment', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-sky-500" />{isZh ? '要求趋势同向' : 'Require trend alignment'}</label>
-          </div>
-        </div>
-      </div>
-
       <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
         <div className="flex items-center gap-2 mb-2">
           <TrendingDown className="w-4 h-4" style={{ color: '#F6465D' }} />
@@ -851,7 +772,7 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
         <ul className="text-xs space-y-1 list-disc pl-4" style={{ color: '#848E9C' }}>
           <li>{isZh ? 'Full TP/SL 与 Ladder TP/SL 属于“委托型保护”，目标是在开仓后尽快挂到交易所并做校验。' : 'Full TP/SL and Ladder TP/SL are order-based protections that should be posted and verified after opening.'}</li>
           <li>{isZh ? 'Drawdown / Break-even 属于“运行态保护”，由系统在持仓期间持续监控并动态执行。' : 'Drawdown and Break-even are runtime protections enforced continuously while a position is live.'}</li>
-          <li>{isZh ? 'Regime Filter 属于“开仓前门禁”，不会直接生成委托。' : 'Regime Filter is a pre-entry gate and does not generate exchange orders by itself.'}</li>
+          <li>{isZh ? 'Regime Filter / 开仓门禁已移至独立的“Pre-Entry Gate”页面。' : 'Regime Filter / Pre-Entry Gate has moved to a dedicated section.'}</li>
           <li>{isZh ? '若交易所能力不满足要求或保护校验失败，系统应进入 fail-safe 处理，避免长期裸仓。' : 'If exchange capability is insufficient or verification fails, the system should enter fail-safe handling to avoid naked exposure.'}</li>
         </ul>
       </div>

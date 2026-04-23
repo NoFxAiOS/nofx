@@ -160,6 +160,16 @@ export interface RegimeFilterConfig {
   block_high_volatility: boolean;
   max_atr14_pct: number;
   require_trend_alignment: boolean;
+
+  // Entry confidence gate (moved from RiskControl)
+  min_confidence?: number;        // 0-100, minimum AI confidence to open
+  min_risk_reward_ratio?: number; // minimum TP/SL ratio (e.g., 3 = 1:3)
+
+  // Strategy control policy (moved from StrategyControlPolicy)
+  policy_mode?: 'strict' | 'audit_only' | 'recommend_only';
+
+  // Entry structure (embedded, moved from top-level entry_structure)
+  entry_structure?: EntryStructureConfig;
 }
 
 export interface ProtectionConfig {

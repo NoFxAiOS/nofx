@@ -285,6 +285,39 @@ export const chartTabs = {
 };
 
 // ============================================================================
+// PRE-ENTRY GATE TRANSLATIONS
+// ============================================================================
+export const preEntryGate = {
+  title: { zh: '开仓门禁', en: 'Pre-Entry Gate' },
+  gateFlow: { zh: '门禁流程：市场状态 → 结构化开仓 → AI信心 → 允许开仓', en: 'Gate Flow: Market State → Entry Structure → AI Confidence → Allow Open' },
+  marketStateGate: { zh: '市场状态门禁', en: 'Market State Gate' },
+  confidenceGate: { zh: '信心门禁', en: 'Confidence Gate' },
+  policyMode: { zh: '策略控制模式', en: 'Policy Mode' },
+  entryStructure: { zh: '开仓结构约束', en: 'Entry Structure' },
+  strict: { zh: '严格模式', en: 'Strict Mode' },
+  strictDesc: { zh: '不满足门禁条件时阻止开仓', en: 'Block opening when conditions not met' },
+  auditOnly: { zh: '审计模式', en: 'Audit Mode' },
+  auditOnlyDesc: { zh: '记录违规但不阻止开仓', en: 'Log violations but allow opening' },
+  recommendOnly: { zh: '建议模式', en: 'Recommend Mode' },
+  recommendOnlyDesc: { zh: '仅提示建议，不影响开仓', en: 'Show suggestions only' },
+  fundingRateUnit: { zh: '绝对值, 0.01 = 每8h费率1%', en: 'Absolute value, 0.01 = 1% per 8h' },
+  atrUnit: { zh: 'ATR14/价格×100, 3 = 波动率3%', en: 'ATR14/Price×100, 3 = 3% volatility' },
+  confidenceUnit: { zh: '0-100, 越高要求越严格', en: '0-100, higher = stricter' },
+  rrUnit: { zh: '例: 3 表示盈亏比至少 1:3', en: 'e.g., 3 means min 1:3 risk-reward' },
+  mutualExclusion: { zh: '互斥说明：市场状态阻止开仓时，后续门禁不再评估', en: 'Note: If Market State blocks, subsequent gates are not evaluated' },
+  hierarchy: { zh: '层级：市场状态（第一道）→ 结构化开仓（第二道）→ AI信心（第三道）', en: 'Hierarchy: Market State (1st) → Entry Structure (2nd) → AI Confidence (3rd)' },
+  allowedRegimes: { zh: '允许的市场状态', en: 'Allowed Regimes' },
+  blockHighFunding: { zh: '屏蔽高资金费率', en: 'Block high funding' },
+  blockHighVolatility: { zh: '屏蔽高波动', en: 'Block high volatility' },
+  requireTrendAlignment: { zh: '要求趋势同向', en: 'Require trend alignment' },
+  maxFundingAbs: { zh: '资金费率绝对值上限', en: 'Max Funding Rate (abs)' },
+  maxAtr14Pct: { zh: 'ATR14 波动率上限 %', en: 'Max ATR14 %' },
+  minConfidence: { zh: 'AI信心门槛', en: 'AI Confidence Threshold' },
+  minRiskReward: { zh: '最低盈亏比', en: 'Min Risk-Reward Ratio' },
+  enableRegimeFilter: { zh: '启用开仓门禁', en: 'Enable Pre-Entry Gate' },
+};
+
+// ============================================================================
 // HELPER FUNCTION
 // ============================================================================
 

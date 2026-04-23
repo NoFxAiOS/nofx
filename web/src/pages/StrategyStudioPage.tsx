@@ -41,6 +41,7 @@ import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEdi
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
 import { ProtectionEditor, defaultProtectionConfig, normalizeProtectionConfig } from '../components/strategy/ProtectionEditor'
 import { EntryStructureEditor, normalizeEntryStructureConfig } from '../components/strategy/EntryStructureEditor'
+import { PreEntryGateEditor } from '../components/strategy/PreEntryGateEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 import { getJson, sendJson } from '../lib/httpClient'
@@ -101,6 +102,7 @@ export function StrategyStudioPage() {
     gridConfig: true,
     coinSource: true,
     indicators: false,
+    preEntryGate: false,
     riskControl: false,
     protection: false,
     entryStructure: false,
@@ -615,79 +617,57 @@ export function StrategyStudioPage() {
       title: tr('riskControl'),
       forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" style={{ color: '#38BDF8' }} />
-              <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-                {language === 'zh' ? '开仓前门禁 / Entry Gates' : 'Entry Gates'}
-              </div>
-            </div>
-            <div className="text-xs leading-6" style={{ color: '#C9D1D9' }}>
-              {language === 'zh'
-                ? '这三块并不是平行开关，而是一条开仓决策链：先看 Regime Filter（环境是否允许）→ 再看开仓结构判断（这笔单的结构证据是否合格）→ 最后由策略控制策略决定不合格时是拒绝、仅审计，还是降级为 wait。'
-                : 'These are not parallel toggles. They form an entry decision chain: Regime Filter checks whether the market environment allows a trade → Entry Structure checks whether the single setup has enough structural evidence → Strategy Control Policy decides whether failed opens are rejected, only audited, or downgraded to wait.'}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="font-medium mb-1" style={{ color: '#EAECEF' }}>{language === 'zh' ? '判断层 ①：Regime Filter' : 'Gate ①: Regime Filter'}</div>
-                <div style={{ color: '#848E9C' }}>
-                  {language === 'zh'
-                    ? '判断当前市场状态、波动、资金费率、趋势方向是否适合开新仓。它不会挂单，也不负责持仓保护。'
-                    : 'Checks whether market regime, volatility, funding, and trend alignment allow a new open. It does not create orders and is not a live-position protection tool.'}
-                </div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="font-medium mb-1" style={{ color: '#EAECEF' }}>{language === 'zh' ? '判断层 ②：开仓结构判断' : 'Gate ②: Entry Structure'}</div>
-                <div style={{ color: '#848E9C' }}>
-                  {language === 'zh'
-                    ? '要求 AI 给出主周期、相邻周期、支撑阻力、结构锚点，以及失效位/目标位联动。若启用 Fibonacci，它属于更强的附加要求。'
-                    : 'Requires AI to provide timeframe context, support/resistance, structural anchors, and invalidation/target linkage. Fibonacci is a stricter optional layer on top.'}
-                </div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="font-medium mb-1" style={{ color: '#EAECEF' }}>{language === 'zh' ? '处理层：策略控制策略' : 'Handling Layer: Strategy Control Policy'}</div>
-                <div style={{ color: '#848E9C' }}>
-                  {language === 'zh'
-                    ? '它不负责判断市场或结构本身，而是决定不合格开仓如何处理：strict 直接拒绝，audit_only 只记录，recommend_only 尽量降级成 wait。'
-                    : 'It does not judge market or structure by itself. It decides how failed opens are handled: strict rejects, audit_only records, recommend_only tries to downgrade to wait.'}
-                </div>
-              </div>
-            </div>
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs" style={{ color: '#FCD34D' }}>
-              {language === 'zh'
-                ? '逻辑提示：若未启用“开仓结构判断”，下面的结构约束项都不会真正生效；若启用 Fibonacci，建议同时启用支撑/阻力与结构锚点，否则语义会偏弱。'
-                : 'Logic hint: if Entry Structure is disabled, its structural requirement toggles do not meaningfully apply. If Fibonacci is enabled, it should usually be paired with support/resistance and structural anchors.'}
-            </div>
-          </div>
-          <RiskControlEditor
-            config={editingConfig.risk_control}
-            onChange={(riskControl) => updateConfig('risk_control', riskControl)}
-            disabled={selectedStrategy?.is_default}
-            language={language}
-          />
-          <div className="pt-3 border-t border-nofx-gold/10">
-            <label className="block text-xs font-medium mb-2" style={{ color: '#EAECEF' }}>
-              {language === 'zh' ? '策略控制策略' : 'Strategy Control Policy'}
-            </label>
-            <select
-              value={editingConfig.strategy_control_policy?.mode || 'strict'}
-              onChange={(e) => updateStrategyControlPolicyMode(e.target.value as StrategyControlPolicyMode)}
-              disabled={selectedStrategy?.is_default}
-              className="w-full px-3 py-2 rounded-lg text-sm outline-none disabled:opacity-50"
-              style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-            >
-              <option value="strict">strict</option>
-              <option value="audit_only">audit_only</option>
-              <option value="recommend_only">recommend_only</option>
-            </select>
-            <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
-              {language === 'zh'
-                ? '默认 strict；旧策略未配置时仍按 strict 保存。'
-                : 'Defaults to strict; legacy configs save as strict when unset.'}
-            </p>
-          </div>
-        </div>
+        <RiskControlEditor
+          config={editingConfig.risk_control}
+          onChange={(riskControl) => updateConfig('risk_control', riskControl)}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    {
+      key: 'preEntryGate' as const,
+      icon: Shield,
+      color: '#38BDF8',
+      title: language === 'zh' ? '\u5f00\u4ed3\u95e8\u7981 / Pre-Entry Gate' : 'Pre-Entry Gate',
+      forStrategyType: 'ai_trading' as const,
+      content: editingConfig && (
+        <PreEntryGateEditor
+          config={{
+            ...normalizeProtectionConfig(editingConfig.protection).regime_filter,
+            min_confidence: normalizeProtectionConfig(editingConfig.protection).regime_filter.min_confidence ?? editingConfig.risk_control.min_confidence,
+            min_risk_reward_ratio: normalizeProtectionConfig(editingConfig.protection).regime_filter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
+            policy_mode: normalizeProtectionConfig(editingConfig.protection).regime_filter.policy_mode ?? (editingConfig.strategy_control_policy?.mode as 'strict' | 'audit_only' | 'recommend_only' | undefined) ?? 'strict',
+            entry_structure: normalizeProtectionConfig(editingConfig.protection).regime_filter.entry_structure ?? editingConfig.entry_structure,
+          }}
+          onChange={(regimeFilter) => {
+            // Sync back to protection.regime_filter
+            const currentProtection = normalizeProtectionConfig(editingConfig.protection)
+            updateConfig('protection', {
+              ...currentProtection,
+              regime_filter: regimeFilter,
+            })
+            // Also sync confidence/rr back to risk_control for backward compat
+            updateConfig('risk_control', {
+              ...editingConfig.risk_control,
+              min_confidence: regimeFilter.min_confidence ?? editingConfig.risk_control.min_confidence,
+              min_risk_reward_ratio: regimeFilter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
+            })
+            // Sync policy_mode back to strategy_control_policy
+            if (regimeFilter.policy_mode) {
+              updateConfig('strategy_control_policy', {
+                ...editingConfig.strategy_control_policy,
+                mode: regimeFilter.policy_mode,
+              })
+            }
+            // Sync entry_structure back to top-level
+            if (regimeFilter.entry_structure) {
+              updateConfig('entry_structure', regimeFilter.entry_structure)
+            }
+          }}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
       ),
     },
     {
@@ -700,21 +680,6 @@ export function StrategyStudioPage() {
         <ProtectionEditor
           config={normalizeProtectionConfig(editingConfig.protection)}
           onChange={(protection) => updateConfig('protection', protection)}
-          disabled={selectedStrategy?.is_default}
-          language={language}
-        />
-      ),
-    },
-    {
-      key: 'entryStructure' as const,
-      icon: Target,
-      color: '#60a5fa',
-      title: language === 'zh' ? '开仓结构判断' : 'Entry Structure',
-      forStrategyType: 'ai_trading' as const,
-      content: editingConfig && (
-        <EntryStructureEditor
-          config={editingConfig.entry_structure}
-          onChange={(entryStructure) => updateConfig('entry_structure', entryStructure)}
           disabled={selectedStrategy?.is_default}
           language={language}
         />

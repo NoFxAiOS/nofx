@@ -47,7 +47,7 @@ func (s *Server) handleHotCoins(c *gin.Context) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	exchange := c.DefaultQuery("exchange", "binance")
+	exchange := c.DefaultQuery("exchange", "okx")
 	excluded := parseExcluded(c.Query("excluded"))
 
 	coins, err := market.GetHotCoinsWithExchange(limit, excluded, exchange)
@@ -87,7 +87,7 @@ func (s *Server) handleOIRanking(c *gin.Context) {
 	c.JSON(http.StatusOK, HotCoinResponse{
 		Coins:     toHotCoinItems(coins),
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
-		Exchange:  "binance",
+		Exchange:  "okx",
 	})
 }
 

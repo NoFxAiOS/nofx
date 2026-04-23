@@ -306,6 +306,32 @@ func (o *OKXAPIClient) GetTakerVolume(symbol, period string) ([]TakerBuySellRati
 	return results, nil
 }
 
+// OKXSwapTicker represents a single ticker from OKX /api/v5/market/tickers
+type OKXSwapTicker struct {
+	InstID    string `json:"instId"`
+	Last      string `json:"last"`
+	Open24h   string `json:"open24h"`
+	High24h   string `json:"high24h"`
+	Low24h    string `json:"low24h"`
+	Vol24h    string `json:"vol24h"`    // contracts
+	VolCcy24h string `json:"volCcy24h"` // base currency volume
+}
+
+// GetAllSwapTickers returns all SWAP tickers from OKX in one call
+func (o *OKXAPIClient) GetAllSwapTickers() ([]OKXSwapTicker, error) {
+	data, err := o.doGet("/api/v5/market/tickers", map[string]string{
+		"instType": "SWAP",
+	})
+	if err != nil {
+		return nil, err
+	}
+	var tickers []OKXSwapTicker
+	if err := json.Unmarshal(data, &tickers); err != nil {
+		return nil, err
+	}
+	return tickers, nil
+}
+
 // convertInterval converts Binance-style interval to OKX format
 func convertInterval(interval string) string {
 	// Most intervals are the same, but OKX uses slightly different naming

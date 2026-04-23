@@ -11,7 +11,7 @@ type Tab = 'hot' | 'oi-top' | 'oi-low'
 export function MarketDataPage() {
   const { language } = useLanguage()
   const [tab, setTab] = useState<Tab>('hot')
-  const [exchange, setExchange] = useState('binance')
+  const [exchange, setExchange] = useState('okx')
   const [limit, setLimit] = useState(20)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [selectedCoin, setSelectedCoin] = useState<string | null>(null)

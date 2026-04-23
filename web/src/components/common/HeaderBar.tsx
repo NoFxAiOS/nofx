@@ -13,6 +13,7 @@ type Page =
   | 'strategy'
   | 'strategy-market'
   | 'data'
+  | 'market-data'
   | 'faq'
   | 'login'
   | 'register'
@@ -96,6 +97,7 @@ export default function HeaderBar({
               // Define all navigation tabs
               const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
                 { page: 'data', path: '/data', label: language === 'zh' ? '数据' : language === 'id' ? 'Data' : 'Data', requiresAuth: false },
+                { page: 'market-data', path: '/market-data', label: language === 'zh' ? '市场' : language === 'id' ? 'Pasar' : 'Market Data', requiresAuth: false },
                 { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : language === 'id' ? 'Pasar' : 'Market', requiresAuth: true },
                 { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
                 { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
@@ -347,6 +349,7 @@ export default function HeaderBar({
                 {(() => {
                   const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
                     { page: 'data', path: '/data', label: language === 'zh' ? '数据' : language === 'id' ? 'Data' : 'Data', requiresAuth: false },
+                    { page: 'market-data', path: '/market-data', label: language === 'zh' ? '市场' : language === 'id' ? 'Pasar' : 'Market Data', requiresAuth: false },
                     { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : language === 'id' ? 'Pasar' : 'Market', requiresAuth: true },
                     { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
                     { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },

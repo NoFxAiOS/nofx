@@ -990,6 +990,36 @@ export const translations = {
     // Data Page
     dataCenter: 'Data Center',
 
+    // Market Data Page
+    marketDataTitle: 'Market Data',
+    hotCoins: 'Hot Coins',
+    oiIncrease: 'OI Increase',
+    oiDecrease: 'OI Decrease',
+    rank: 'Rank',
+    change24h: '24h Change',
+    volume24h: '24h Volume',
+    openInterest: 'Open Interest',
+    oiChange: 'OI Change',
+    fundingRate: 'Funding',
+    compositeScore: 'Score',
+    exchangeLabel: 'Exchange',
+    autoRefresh: 'Auto Refresh',
+    coinDetail: 'Coin Detail',
+    marketSentiment: 'Market Sentiment',
+    structuralLevels: 'Structural Levels',
+    fibonacciLabel: 'Fibonacci',
+    longShortRatio: 'L/S Ratio',
+    topTraderRatio: 'Top Trader L/S',
+    takerRatio: 'Taker Buy/Sell',
+    depthImbalance: 'Depth Imbalance',
+    supportLabel: 'Support',
+    resistanceLabel: 'Resistance',
+    strengthLabel: 'Strength',
+    sourceLabel: 'Source',
+    noDataAvailable: 'No data available',
+    loadingText: 'Loading...',
+    chartComingSoon: 'Chart coming soon',
+
     // Strategy Market Page
     strategyMarket: {
       title: 'STRATEGY MARKET',
@@ -2282,6 +2312,36 @@ export const translations = {
     // Data Page
     dataCenter: '数据中心',
 
+    // Market Data Page
+    marketDataTitle: '市场数据',
+    hotCoins: '热门币种',
+    oiIncrease: 'OI 增长',
+    oiDecrease: 'OI 减少',
+    rank: '排名',
+    change24h: '24h涨跌',
+    volume24h: '24h成交额',
+    openInterest: '持仓量',
+    oiChange: 'OI变化',
+    fundingRate: '资金费率',
+    compositeScore: '综合评分',
+    exchangeLabel: '交易所',
+    autoRefresh: '自动刷新',
+    coinDetail: '币种详情',
+    marketSentiment: '市场情绪',
+    structuralLevels: '结构位',
+    fibonacciLabel: 'Fibonacci',
+    longShortRatio: '多空比',
+    topTraderRatio: '大户多空比',
+    takerRatio: '主动买卖比',
+    depthImbalance: '盘口不平衡',
+    supportLabel: '支撑',
+    resistanceLabel: '阻力',
+    strengthLabel: '强度',
+    sourceLabel: '来源',
+    noDataAvailable: '暂无数据',
+    loadingText: '加载中...',
+    chartComingSoon: '图表即将推出',
+
     // Strategy Market Page
     strategyMarket: {
       title: '策略市场',
@@ -3375,6 +3435,36 @@ export const translations = {
 
     // Data Page
     dataCenter: 'Data Center',
+
+    // Market Data Page
+    marketDataTitle: 'Market Data',
+    hotCoins: 'Hot Coins',
+    oiIncrease: 'OI Increase',
+    oiDecrease: 'OI Decrease',
+    rank: 'Rank',
+    change24h: '24h Change',
+    volume24h: '24h Volume',
+    openInterest: 'Open Interest',
+    oiChange: 'OI Change',
+    fundingRate: 'Funding',
+    compositeScore: 'Score',
+    exchangeLabel: 'Exchange',
+    autoRefresh: 'Auto Refresh',
+    coinDetail: 'Coin Detail',
+    marketSentiment: 'Market Sentiment',
+    structuralLevels: 'Structural Levels',
+    fibonacciLabel: 'Fibonacci',
+    longShortRatio: 'L/S Ratio',
+    topTraderRatio: 'Top Trader L/S',
+    takerRatio: 'Taker Buy/Sell',
+    depthImbalance: 'Depth Imbalance',
+    supportLabel: 'Support',
+    resistanceLabel: 'Resistance',
+    strengthLabel: 'Strength',
+    sourceLabel: 'Source',
+    noDataAvailable: 'No data available',
+    loadingText: 'Loading...',
+    chartComingSoon: 'Chart coming soon',
 
     // Strategy Market Page
     strategyMarket: {

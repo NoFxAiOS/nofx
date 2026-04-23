@@ -63,6 +63,11 @@ const DataPage = lazy(() =>
     default: m.DataPage,
   }))
 )
+const MarketDataPage = lazy(() =>
+  import('./pages/MarketDataPage').then((m) => ({
+    default: m.MarketDataPage,
+  }))
+)
 const LoginRequiredOverlay = lazy(() =>
   import('./components/auth/LoginRequiredOverlay').then((m) => ({
     default: m.LoginRequiredOverlay,
@@ -94,6 +99,7 @@ type Page =
   | 'strategy'
   | 'strategy-market'
   | 'data'
+  | 'market-data'
   | 'faq'
   | 'login'
   | 'register'
@@ -135,6 +141,7 @@ function App() {
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
+    if (path === '/market-data' || hash === 'market-data') return 'market-data'
     if (path === '/data' || hash === 'data') return 'data'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
@@ -155,6 +162,7 @@ function App() {
     const pathMap: Record<Page, string> = {
       'competition': '/competition',
       'strategy-market': '/strategy-market',
+      'market-data': '/market-data',
       'data': '/data',
       'traders': '/traders',
       'trader': '/dashboard',
@@ -216,6 +224,8 @@ function App() {
         setCurrentPage('strategy')
       } else if (path === '/strategy-market' || hash === 'strategy-market') {
         setCurrentPage('strategy-market')
+      } else if (path === '/market-data' || hash === 'market-data') {
+        setCurrentPage('market-data')
       } else if (path === '/data' || hash === 'data') {
         setCurrentPage('data')
       } else if (
@@ -484,11 +494,58 @@ function App() {
       </Suspense>
     )
   }
+  // Market Data page - publicly accessible
+  if (route === '/market-data') {
+    const marketDataNavigate = (page: Page) => {
+      const pathMap: Record<string, string> = {
+        'market-data': '/market-data',
+        'data': '/data',
+        'competition': '/competition',
+        'strategy-market': '/strategy-market',
+        'traders': '/traders',
+        'trader': '/dashboard',
+        'strategy': '/strategy',
+        'faq': '/faq',
+      }
+      const path = pathMap[page]
+      if (path) {
+        window.location.href = path
+      }
+    }
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <div
+          className="min-h-screen"
+          style={{ background: '#0B0E11', color: '#EAECEF' }}
+        >
+          <HeaderBar
+            isLoggedIn={!!user}
+            currentPage="market-data"
+            language={language}
+            onLanguageChange={setLanguage}
+            user={user}
+            onLogout={logout}
+            onLoginRequired={handleLoginRequired}
+            onPageChange={marketDataNavigate}
+          />
+          <main className="pt-16">
+            <MarketDataPage />
+          </main>
+          <LoginRequiredOverlay
+            isOpen={loginOverlayOpen}
+            onClose={() => setLoginOverlayOpen(false)}
+            featureName={loginOverlayFeature}
+          />
+        </div>
+      </Suspense>
+    )
+  }
   // Data page - publicly accessible with embedded dashboard
   if (route === '/data') {
     const dataPageNavigate = (page: Page) => {
       const pathMap: Record<string, string> = {
         'data': '/data',
+        'market-data': '/market-data',
         'competition': '/competition',
         'strategy-market': '/strategy-market',
         'traders': '/traders',
@@ -578,6 +635,8 @@ function App() {
               <CompetitionPage />
             ) : currentPage === 'data' ? (
               <DataPage />
+            ) : currentPage === 'market-data' ? (
+              <MarketDataPage />
             ) : currentPage === 'strategy-market' ? (
               <StrategyMarketPage />
             ) : currentPage === 'traders' ? (

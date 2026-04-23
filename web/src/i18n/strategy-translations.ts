@@ -52,6 +52,45 @@ export const coinSource = {
 };
 
 // ============================================================================
+// AI SCREENER TRANSLATIONS
+// ============================================================================
+export const aiScreener = {
+  title: { zh: 'AI 智能筛选', en: 'AI Smart Screener', es: 'Filtro Inteligente AI' },
+  ai_screener: { zh: 'AI 筛选', en: 'AI Screener', es: 'AI Filtro' },
+  desc: { zh: '系统AI定时筛选符合条件的币种，保证始终有可用交易标的', en: 'System AI periodically screens coins matching criteria, ensuring tradeable assets are always available', es: 'AI filtra monedas periódicamente' },
+  ai_screenerDesc: { zh: 'AI定时筛选符合条件的币种', en: 'AI periodically screens matching coins', es: 'AI filtra monedas periódicamente' },
+  interval: { zh: '筛选间隔', en: 'Screening Interval', es: 'Intervalo de Filtrado' },
+  maxCoins: { zh: '最大币种数', en: 'Max Coins', es: 'Máx. Monedas' },
+  volumeOiFilters: { zh: '成交量与持仓量过滤', en: 'Volume & OI Filters', es: 'Filtros de Volumen y OI' },
+  minVolume: { zh: '最低24h成交额', en: 'Min 24h Volume', es: 'Volumen Mín. 24h' },
+  minOI: { zh: '最低持仓量', en: 'Min Open Interest', es: 'OI Mínimo' },
+  priceChangeRange: { zh: '24h涨跌幅范围', en: '24h Price Change Range', es: 'Rango de Cambio 24h' },
+  sentimentPrefs: { zh: '情绪偏好', en: 'Sentiment Preferences', es: 'Preferencias de Sentimiento' },
+  preferLong: { zh: '偏好多头', en: 'Prefer Long Bias', es: 'Preferir Largo' },
+  preferShort: { zh: '偏好空头', en: 'Prefer Short Bias', es: 'Preferir Corto' },
+  preferOIGrowth: { zh: '偏好OI增长', en: 'Prefer OI Growth', es: 'Preferir Crecimiento OI' },
+  preferVolumeGrowth: { zh: '偏好成交量增长', en: 'Prefer Volume Growth', es: 'Preferir Crecimiento Volumen' },
+  sentimentNote: { zh: '这些是偏好而非硬性条件，AI会综合考虑', en: 'These are preferences, not hard filters', es: 'Son preferencias, no filtros estrictos' },
+  volatilityRange: { zh: '波动率范围', en: 'Volatility Range', es: 'Rango de Volatilidad' },
+  minAtr: { zh: '最低ATR%', en: 'Min ATR%', es: 'ATR% Mín.' },
+  maxAtr: { zh: '最高ATR%', en: 'Max ATR%', es: 'ATR% Máx.' },
+  customInstruction: { zh: 'AI自定义指令', en: 'Custom AI Instruction', es: 'Instrucción AI Personalizada' },
+  customPlaceholder: { zh: '例：关注DeFi板块，避免meme币', en: 'e.g., Focus on DeFi sector, avoid meme coins', es: 'ej., Enfocarse en DeFi, evitar meme coins' },
+  preview: { zh: '预览当前筛选结果', en: 'Preview Current Results', es: 'Vista Previa de Resultados' },
+  volumeUnit: { zh: 'USDT (5000万 = 50000000)', en: 'USDT (50M = 50000000)', es: 'USDT (50M = 50000000)' },
+  atrUnit: { zh: 'ATR14/价格×100, 1 = 1%波动', en: 'ATR14/Price×100, 1 = 1% volatility', es: 'ATR14/Precio×100, 1 = 1% volatilidad' },
+  basicSettings: { zh: '基本设置', en: 'Basic Settings', es: 'Configuración Básica' },
+  min: { zh: '最低', en: 'Min', es: 'Mín.' },
+  max: { zh: '最高', en: 'Max', es: 'Máx.' },
+  previewLoading: { zh: '加载中...', en: 'Loading...', es: 'Cargando...' },
+  previewEmpty: { zh: '无匹配结果', en: 'No matching results', es: 'Sin resultados' },
+  previewSymbol: { zh: '币种', en: 'Symbol', es: 'Símbolo' },
+  previewVolume: { zh: '24h成交额', en: '24h Volume', es: 'Volumen 24h' },
+  previewOI: { zh: '持仓量', en: 'Open Interest', es: 'Interés Abierto' },
+  previewChange: { zh: '24h涨跌', en: '24h Change', es: 'Cambio 24h' },
+};
+
+// ============================================================================
 // GRID CONFIG TRANSLATIONS (60+ keys)
 // ============================================================================
 export const gridConfig = {
@@ -331,6 +370,7 @@ export function ts(entry: { zh: string; en: string; [k: string]: string }, lang:
 
 export const zhStrategy = {
   ...Object.fromEntries(Object.entries(coinSource).map(([k, v]) => [k, v.zh])),
+  ...Object.fromEntries(Object.entries(aiScreener).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(gridConfig).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(gridRisk).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.zh])),
@@ -342,6 +382,7 @@ export const zhStrategy = {
 
 export const enStrategy = {
   ...Object.fromEntries(Object.entries(coinSource).map(([k, v]) => [k, v.en])),
+  ...Object.fromEntries(Object.entries(aiScreener).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(gridConfig).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(gridRisk).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.en])),
@@ -353,6 +394,7 @@ export const enStrategy = {
 
 export const esStrategy = {
   ...Object.fromEntries(Object.entries(coinSource).map(([k, v]) => [k, v.es])),
+  ...Object.fromEntries(Object.entries(aiScreener).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(gridConfig).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(gridRisk).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.es])),

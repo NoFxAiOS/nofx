@@ -107,6 +107,9 @@ func (s *Server) setupRoutes() {
 		// Market data (no authentication required)
 		s.route(api, "GET", "/klines", "Candlestick data (?symbol=&interval=&limit=)", s.handleKlines)
 		s.route(api, "GET", "/symbols", "Available trading symbols", s.handleSymbols)
+		s.route(api, "GET", "/market/hot-coins", "Hot coins ranking (?limit=20&exchange=binance&excluded=COIN1,COIN2)", s.handleHotCoins)
+		s.route(api, "GET", "/market/oi-ranking", "OI increase/decrease ranking (?direction=top&limit=20&excluded=COIN1,COIN2)", s.handleOIRanking)
+		s.route(api, "GET", "/market/coin-data", "Full market data for a single coin (?symbol=BTCUSDT)", s.handleCoinData)
 
 		// Public strategy market (no authentication required)
 		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)

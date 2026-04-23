@@ -209,17 +209,15 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     { value: 'trending', zh: '趋势强化', en: 'Trending' },
   ]
 
-  const protectionModeOptions: ProtectionMode[] = ['disabled', 'manual', 'ai']
+  const protectionModeOptions: ProtectionMode[] = ['manual', 'ai']
   const valueModeOptions: ProtectionMode[] = ['disabled', 'manual', 'ai']
 
-  const controlMutedStyle = (active: boolean): { opacity: number; pointerEvents: 'auto' | 'none' } => ({
-    opacity: active ? 1 : 0.5,
-    pointerEvents: active ? 'auto' : 'none',
-  })
-
+  // cardStyle only dims visually — never blocks pointer events on the card root,
+  // so the enabled checkbox (which lives at the card level) stays clickable.
+  // Individual controls use their own `disabled` prop instead.
   const cardStyle = (active = true) => ({
     ...sectionStyle,
-    ...controlMutedStyle(active),
+    opacity: active ? 1 : 0.6,
   })
 
   const compactHintStyle = { color: '#848E9C', fontSize: '11px' }

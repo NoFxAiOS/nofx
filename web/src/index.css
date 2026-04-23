@@ -460,6 +460,48 @@ html[data-low-perf='true'] .nofx-glass {
   background: rgba(30, 35, 41, 0.88) !important;
 }
 
+html[data-low-perf='true'] .animate-pulse,
+html[data-low-perf='true'] .animate-pulse-slow,
+html[data-low-perf='true'] .pulse-glow,
+html[data-low-perf='true'] .animate-scale-in,
+html[data-low-perf='true'] .animate-holo,
+html[data-low-perf='true'] .animate-marquee {
+  animation: none !important;
+}
+
+html[data-low-perf='true'] .tech-border::before,
+html[data-low-perf='true'] .tech-border::after,
+html[data-low-perf='true'] .crt-overlay,
+html[data-low-perf='true'] .holo-overlay,
+html[data-low-perf='true'] .bg-vignette {
+  display: none !important;
+}
+
+html[data-low-perf='true'] button,
+html[data-low-perf='true'] a,
+html[data-low-perf='true'] .stat-card,
+html[data-low-perf='true'] .chart-container,
+html[data-low-perf='true'] .group,
+html[data-low-perf='true'] .group\/row {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  animation-duration: 0s !important;
+}
+
+html[data-low-perf='true'] button:hover:not(:disabled),
+html[data-low-perf='true'] .stat-card:hover,
+html[data-low-perf='true'] .hover\:translate-y-\[-1px\]:hover,
+html[data-low-perf='true'] .hover\:translate-y-\[-2px\]:hover,
+html[data-low-perf='true'] .hover\:translate-x-2:hover,
+html[data-low-perf='true'] .hover\:scale-105:hover,
+html[data-low-perf='true'] .hover\:scale-110:hover,
+html[data-low-perf='true'] .hover\:scale-\[1\.01\]:hover,
+html[data-low-perf='true'] .hover\:scale-\[1\.02\]:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
 /* Premium Input Styles */
 /* Premium Input Styles */
 input,

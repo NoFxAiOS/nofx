@@ -5,6 +5,7 @@ import { t, type Language } from '../../i18n/translations'
 import { MetricTooltip } from '../common/MetricTooltip'
 import { formatPrice, formatQuantity } from '../../utils/format'
 import { formatCompactLevelList, formatTimeframeTrail, formatFibSummary, formatRiskRewardLinkage, formatAlignmentNotes } from './reviewContextSummary'
+import { CompactEntryRationaleBlock } from './CompactEntryRationaleBlock'
 import type {
   HistoricalPosition,
   TraderStats,
@@ -564,29 +565,25 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
         </div>
       )}
 
+      <CompactEntryRationaleBlock
+        language={'en'}
+        timeframeTrail={audit.timeframeTrail}
+        rrSummary={audit.rrLinkage}
+        supportSummary={audit.support}
+        resistanceSummary={audit.resistance}
+        fibLevels={audit.fibSummary.length > 0 ? audit.fibSummary.map(() => 1) : []}
+        anchors={audit.anchors}
+        alignmentNotes={audit.alignmentNotes}
+        toneColors={(tone) => {
+          if (tone === 'danger') return { border: '1px solid rgba(246, 70, 93, 0.25)', bg: 'rgba(246, 70, 93, 0.12)', color: '#FCA5A5' }
+          if (tone === 'warn') return { border: '1px solid rgba(240, 185, 11, 0.25)', bg: 'rgba(240, 185, 11, 0.12)', color: '#FCD34D' }
+          return { border: '1px solid rgba(56, 189, 248, 0.25)', bg: 'rgba(56, 189, 248, 0.12)', color: '#7DD3FC' }
+        }}
+      />
+
       {audit.entryLinkageSources.length > 0 && (
         <div className="text-[10px] text-nofx-text-muted">
           Linkage sources: {audit.entryLinkageSources.join(' · ')}
-        </div>
-      )}
-
-      {audit.fibSummary.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 text-[10px]">
-          {audit.fibSummary.map((item, idx) => (
-            <span key={`fib-${idx}`} className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-violet-200">
-              fib {item}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {audit.rrLinkage.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 text-[10px]">
-          {audit.rrLinkage.map((item, idx) => (
-            <span key={`rr-link-${idx}`} className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-100">
-              {item}
-            </span>
-          ))}
         </div>
       )}
 
@@ -595,16 +592,6 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
           {policyReasons.map((reason, idx) => (
             <span key={`policy-${idx}`} className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-200">
               {formatProtectionPolicyReason(reason)}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {audit.alignmentNotes.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 text-[10px]">
-          {audit.alignmentNotes.map((note, idx) => (
-            <span key={`align-${idx}`} className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-sky-200">
-              {note}
             </span>
           ))}
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { DecisionRecord, DecisionAction } from '../../types'
+import type { DecisionRecord, DecisionAction, DecisionActionReviewContext } from '../../types'
 import { t, type Language } from '../../i18n/translations'
 
 interface DecisionCardProps {
@@ -84,6 +84,36 @@ function formatControlCheck(check?: string): string {
   }
 }
 
+function formatTimeframeTrail(ctx?: DecisionActionReviewContext): string[] {
+  const directPrimary = typeof ctx?.primary_timeframe === 'string' ? ctx.primary_timeframe.trim() : ''
+  const primary = typeof ctx?.timeframe_context?.primary === 'string' ? ctx.timeframe_context.primary.trim() : directPrimary
+  const lower = (ctx?.timeframe_context?.lower || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
+  const higher = (ctx?.timeframe_context?.higher || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
+  const parts: string[] = []
+  if (primary) parts.push(`primary ${primary}`)
+  if (lower.length > 0) parts.push(`lower ${lower.join(', ')}`)
+  if (higher.length > 0) parts.push(`higher ${higher.join(', ')}`)
+  return parts
+}
+
+function formatCompactLevelList(levels?: number[]): string[] {
+  return (levels || [])
+    .filter((value) => typeof value === 'number' && Number.isFinite(value))
+    .slice(0, 3)
+    .map((value) => formatPrice(value))
+}
+
+function formatRiskRewardLinkage(rr?: DecisionActionReviewContext['risk_reward']): string[] {
+  if (!rr) return []
+  const parts: string[] = []
+  if (rr.entry) parts.push(`entry ${formatPrice(rr.entry)}`)
+  if (rr.invalidation) parts.push(`invalid ${formatPrice(rr.invalidation)}`)
+  if (rr.first_target) parts.push(`target ${formatPrice(rr.first_target)}`)
+  if (rr.gross_estimated_rr) parts.push(`gross ${rr.gross_estimated_rr.toFixed(2)}R`)
+  if (rr.net_estimated_rr) parts.push(`net ${rr.net_estimated_rr.toFixed(2)}R`)
+  return parts
+}
+
 // Single Action Card Component
 function ActionCard({ action, language, onSymbolClick }: { action: DecisionAction; language: Language; onSymbolClick?: (symbol: string) => void }) {
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
@@ -96,6 +126,11 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
   const resistance = review?.key_levels?.resistance || []
   const fibLevels = review?.key_levels?.fibonacci?.levels || []
   const anchors = review?.anchors || []
+  const timeframeTrail = formatTimeframeTrail(review)
+  const rrSummary = formatRiskRewardLinkage(review?.risk_reward)
+  const supportSummary = formatCompactLevelList(review?.key_levels?.support)
+  const resistanceSummary = formatCompactLevelList(review?.key_levels?.resistance)
+  const alignmentNotes = (review?.alignment_notes || review?.protection?.notes || []).filter(Boolean).slice(0, 2)
 
   return (
     <div
@@ -354,6 +389,49 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Entry rationale summary */}
+      {((timeframeTrail.length > 0) || rrSummary.length > 0 || supportSummary.length > 0 || resistanceSummary.length > 0 || anchors.length > 0 || alignmentNotes.length > 0) && (
+        <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '1px solid #2B3139' }}>
+          <div className="text-[11px]" style={{ color: '#848E9C' }}>
+            {language === 'zh' ? '开仓结构依据 / rationale' : 'entry rationale'}
+          </div>
+          {timeframeTrail.length > 0 && (
+            <div className="text-[11px]" style={{ color: '#AAB2BD' }}>
+              tf · {timeframeTrail.join(' · ')}
+            </div>
+          )}
+          {rrSummary.length > 0 && (
+            <div className="text-[11px] font-mono" style={{ color: '#C9D1D9' }}>
+              {rrSummary.join(' · ')}
+            </div>
+          )}
+          {(supportSummary.length > 0 || resistanceSummary.length > 0) && (
+            <div className="text-[11px]" style={{ color: '#AAB2BD' }}>
+              {supportSummary.length > 0 ? `S ${supportSummary.join(' / ')}` : ''}
+              {supportSummary.length > 0 && resistanceSummary.length > 0 ? ' · ' : ''}
+              {resistanceSummary.length > 0 ? `R ${resistanceSummary.join(' / ')}` : ''}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-1.5 text-[10px]">
+            {fibLevels.length > 0 && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5" style={{ border: '1px solid rgba(168, 85, 247, 0.25)', background: 'rgba(168, 85, 247, 0.12)', color: '#D8B4FE' }}>
+                fib {fibLevels.length} levels
+              </span>
+            )}
+            {anchors.slice(0, 3).map((anchor, idx) => (
+              <span key={`${anchor.type}-${anchor.timeframe}-${anchor.price}-${idx}`} className="inline-flex items-center rounded-full px-2 py-0.5" style={toneColors('neutral')}>
+                {anchor.type || 'anchor'}{anchor.timeframe ? `@${anchor.timeframe}` : ''}{anchor.price ? ` ${formatPrice(anchor.price)}` : ''}
+              </span>
+            ))}
+          </div>
+          {alignmentNotes.length > 0 && (
+            <div className="text-[11px]" style={{ color: '#848E9C' }}>
+              {alignmentNotes.join(' · ')}
+            </div>
+          )}
         </div>
       )}
 

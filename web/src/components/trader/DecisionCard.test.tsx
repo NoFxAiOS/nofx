@@ -73,7 +73,7 @@ describe('DecisionCard', () => {
     expect(screen.getAllByText(/trend misaligned/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/ATR 2.31%/i)).toBeInTheDocument()
     expect(screen.getAllByText(/tf 15m/i).length).toBeGreaterThan(0)
-    expect(screen.getByText(/fib 3 levels/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/fib 3 levels/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/anchors 1/i)).toBeInTheDocument()
   })
 })

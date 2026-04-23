@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle } from 'lucide-react'
+import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle, ChevronDown, ChevronRight, Globe } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 import { coinSource, ts } from '../../i18n/strategy-translations'
 
@@ -18,6 +18,7 @@ export function CoinSourceEditor({
 }: CoinSourceEditorProps) {
   const [newCoin, setNewCoin] = useState('')
   const [newExcludedCoin, setNewExcludedCoin] = useState('')
+  const [showLegacyNofxos, setShowLegacyNofxos] = useState(false)
 
   const sourceTypes = [
     { value: 'static', icon: List, color: '#848E9C' },
@@ -33,7 +34,7 @@ export function CoinSourceEditor({
     let totalLimit = 0
 
     if (config.use_ai500) {
-      sources.push(`AI500(${config.ai500_limit || 10})`)
+      sources.push(`${ts(coinSource.ai500, language)}(${config.ai500_limit || 10})`)
       totalLimit += config.ai500_limit || 10
     }
     if (config.use_oi_top) {
@@ -132,12 +133,12 @@ export function CoinSourceEditor({
     })
   }
 
-  // NofxOS badge component
+  // NofxOS badge component (legacy)
   const NofxOSBadge = () => (
     <span
-      className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30"
+      className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30"
     >
-      NofxOS
+      Legacy
     </span>
   )
 
@@ -173,6 +174,30 @@ export function CoinSourceEditor({
           ))}
         </div>
       </div>
+
+      {/* Exchange Source Selector */}
+      {config.source_type !== 'static' && (
+        <div className="flex items-center gap-3">
+          <Globe className="w-4 h-4 text-nofx-text-muted" />
+          <span className="text-sm text-nofx-text">{ts(coinSource.exchangeSource, language)}</span>
+          <div className="flex gap-2">
+            {(['binance', 'okx'] as const).map((ex) => (
+              <button
+                key={ex}
+                onClick={() => !disabled && onChange({ ...config, exchange_source: ex })}
+                disabled={disabled}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  (config.exchange_source || 'binance') === ex
+                    ? 'bg-nofx-gold/20 text-nofx-gold border border-nofx-gold/50'
+                    : 'bg-nofx-bg text-nofx-text-muted border border-nofx-border hover:border-nofx-gold/30'
+                }`}
+              >
+                {ex === 'binance' ? 'Binance' : 'OKX'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Static Coins - only for static mode */}
       {config.source_type === 'static' && (
@@ -284,9 +309,8 @@ export function CoinSourceEditor({
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-nofx-gold" />
               <span className="text-sm font-medium text-nofx-text">
-                AI500 {ts(coinSource.dataSourceConfig, language)}
+                {ts(coinSource.ai500, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
-              <NofxOSBadge />
             </div>
           </div>
 
@@ -326,7 +350,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {ts(coinSource.nofxosNote, language)}
+              {ts(coinSource.ai500Desc, language)}
             </p>
           </div>
         </div>
@@ -334,16 +358,13 @@ export function CoinSourceEditor({
 
       {/* OI Top Options - only for oi_top mode */}
       {config.source_type === 'oi_top' && (
-        <div
-          className="p-4 rounded-lg bg-nofx-success/5 border border-nofx-success/20"
-        >
+        <div className="p-4 rounded-lg bg-nofx-success/5 border border-nofx-success/20">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-nofx-success" />
               <span className="text-sm font-medium text-nofx-text">
                 {ts(coinSource.oiIncreaseTitle, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
-              <NofxOSBadge />
             </div>
           </div>
 
@@ -383,7 +404,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {ts(coinSource.nofxosNote, language)}
+              {ts(coinSource.oi_topDesc, language)}
             </p>
           </div>
         </div>
@@ -391,16 +412,13 @@ export function CoinSourceEditor({
 
       {/* OI Low Options - only for oi_low mode */}
       {config.source_type === 'oi_low' && (
-        <div
-          className="p-4 rounded-lg bg-nofx-danger/5 border border-nofx-danger/20"
-        >
+        <div className="p-4 rounded-lg bg-nofx-danger/5 border border-nofx-danger/20">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingDown className="w-4 h-4 text-nofx-danger" />
               <span className="text-sm font-medium text-nofx-text">
                 {ts(coinSource.oiDecreaseTitle, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
-              <NofxOSBadge />
             </div>
           </div>
 
@@ -440,7 +458,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {ts(coinSource.nofxosNote, language)}
+              {ts(coinSource.oi_lowDesc, language)}
             </p>
           </div>
         </div>
@@ -477,8 +495,7 @@ export function CoinSourceEditor({
                   onClick={(e) => e.stopPropagation()}
                 />
                 <Database className="w-4 h-4 text-nofx-gold" />
-                <span className="text-sm font-medium text-nofx-text">AI500</span>
-                <NofxOSBadge />
+                <span className="text-sm font-medium text-nofx-text">{ts(coinSource.ai500, language)}</span>
               </div>
               {config.use_ai500 && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
@@ -686,6 +703,31 @@ export function CoinSourceEditor({
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* Legacy: NofxOS (collapsed, optional) */}
+      {config.source_type !== 'static' && (
+        <div className="border border-gray-600/30 rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowLegacyNofxos(!showLegacyNofxos)}
+            className="w-full flex items-center gap-2 p-3 text-sm text-gray-400 hover:text-gray-300 transition-colors"
+          >
+            {showLegacyNofxos ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            <span>{ts(coinSource.legacyNofxos, language)}</span>
+            <NofxOSBadge />
+          </button>
+          {showLegacyNofxos && (
+            <div className="px-3 pb-3">
+              <p className="text-xs text-gray-500 mb-2">
+                {ts(coinSource.legacyNofxosDesc, language)}
+              </p>
+              <p className="text-xs text-gray-500">
+                {ts(coinSource.nofxosNote, language)}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

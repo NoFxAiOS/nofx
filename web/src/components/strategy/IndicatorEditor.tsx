@@ -1,4 +1,5 @@
-import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key } from 'lucide-react'
+import { useState } from 'react'
+import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key, ChevronDown, ChevronRight } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 import { indicator, ts } from '../../i18n/strategy-translations'
 
@@ -106,12 +107,33 @@ export function IndicatorEditor({
   // Check if any NofxOS feature is enabled
   const hasNofxosEnabled = config.enable_quant_data || config.enable_oi_ranking || config.enable_netflow_ranking || config.enable_price_ranking
   const hasApiKey = !!config.nofxos_api_key
+  const [showNofxos, setShowNofxos] = useState(false)
 
   return (
     <div className="space-y-5">
       {/* ============================================ */}
-      {/* NofxOS Data Provider - Top Configuration    */}
+      {/* NofxOS Data Provider - Legacy/Optional       */}
       {/* ============================================ */}
+      <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
+        <button
+          type="button"
+          onClick={() => setShowNofxos(!showNofxos)}
+          className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/5 transition-colors"
+        >
+          {showNofxos ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+          <Zap className="w-4 h-4 text-purple-400" />
+          <div>
+            <span className="text-sm font-medium text-gray-400">NofxOS 数据源（Legacy / 可选）</span>
+            <p className="text-[10px] text-gray-500 mt-0.5">NofxOS 数据源当前不可用，可保留配置待恢复后启用</p>
+          </div>
+          {hasApiKey && (
+            <span className="ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded-full" style={{ background: 'rgba(14, 203, 129, 0.15)', color: '#0ECB81' }}>
+              <Check className="w-3 h-3" />
+              {ts(indicator.connected, language)}
+            </span>
+          )}
+        </button>
+        {showNofxos && (
       <div
         className="rounded-lg overflow-hidden relative"
         style={{
@@ -456,6 +478,8 @@ export function IndicatorEditor({
             )}
           </div>
         </div>
+      </div>
+        )}
       </div>
 
       {/* ============================================ */}

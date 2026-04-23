@@ -208,6 +208,8 @@ export interface CoinSourceConfig {
   source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed';
   static_coins?: string[];
   excluded_coins?: string[];   // 排除的币种列表
+  // Exchange for data source (default: 'binance')
+  exchange_source?: 'binance' | 'okx';
   use_ai500: boolean;
   ai500_limit?: number;
   use_oi_top: boolean;

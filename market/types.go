@@ -17,6 +17,15 @@ type Data struct {
 	LongerTermContext *LongerTermData
 	// Multi-timeframe data (new)
 	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
+	// Market sentiment fields
+	LongShortRatio    *float64          `json:"long_short_ratio,omitempty"`
+	TopTraderRatio    *float64          `json:"top_trader_ratio,omitempty"`
+	TakerBuySellRatio *float64          `json:"taker_buy_sell_ratio,omitempty"`
+	DepthBidTotal     *float64          `json:"depth_bid_total,omitempty"`
+	DepthAskTotal     *float64          `json:"depth_ask_total,omitempty"`
+	DepthImbalance    *float64          `json:"depth_imbalance,omitempty"`
+	FibonacciLevels   *FibonacciLevels  `json:"fibonacci_levels,omitempty"`
+	StructuralLevels  []StructuralLevel `json:"structural_levels,omitempty"`
 }
 
 // KlineBar single kline bar with OHLCV data

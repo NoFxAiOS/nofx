@@ -243,7 +243,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	// Get Funding Rate
 	fundingRate, _ := getFundingRate(symbol)
 
-	return &Data{
+	data := &Data{
 		Symbol:        symbol,
 		CurrentPrice:  currentPrice,
 		PriceChange1h: priceChange1h,
@@ -254,7 +254,52 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		OpenInterest:  oiData,
 		FundingRate:   fundingRate,
 		TimeframeData: timeframeData,
-	}, nil
+	}
+
+	// Fetch sentiment data (best-effort, don't fail on errors)
+	if !isXyzAsset {
+		apiClient := NewAPIClient()
+
+		// Long/short ratio
+		if lsRatio, err := apiClient.GetLongShortRatio(symbol, "1h"); err == nil && len(lsRatio) > 0 {
+			if v, err := strconv.ParseFloat(lsRatio[0].LongShortRatio, 64); err == nil {
+				data.LongShortRatio = &v
+			}
+		}
+
+		// Top trader ratio
+		if ttRatio, err := apiClient.GetTopTraderLongShortRatio(symbol, "1h"); err == nil && len(ttRatio) > 0 {
+			if v, err := strconv.ParseFloat(ttRatio[0].LongShortRatio, 64); err == nil {
+				data.TopTraderRatio = &v
+			}
+		}
+
+		// Taker buy/sell ratio
+		if tbRatio, err := apiClient.GetTakerBuySellRatio(symbol, "1h"); err == nil && len(tbRatio) > 0 {
+			if v, err := strconv.ParseFloat(tbRatio[0].BuySellRatio, 64); err == nil {
+				data.TakerBuySellRatio = &v
+			}
+		}
+
+		// Order book depth
+		if depth, err := apiClient.GetOrderBookDepth(symbol, 20); err == nil {
+			bidTotal, askTotal := CalculateDepthTotals(depth)
+			data.DepthBidTotal = &bidTotal
+			data.DepthAskTotal = &askTotal
+			if bidTotal+askTotal > 0 {
+				imbalance := (bidTotal - askTotal) / (bidTotal + askTotal)
+				data.DepthImbalance = &imbalance
+			}
+		}
+	}
+
+	// Calculate fibonacci levels from primary timeframe
+	data.FibonacciLevels = CalculateFibonacciLevels(primaryKlines, primaryTimeframe)
+
+	// Detect structural levels from primary timeframe
+	data.StructuralLevels = DetectStructuralLevels(primaryKlines, currentPrice, primaryTimeframe)
+
+	return data, nil
 }
 
 // getOpenInterestData retrieves OI data

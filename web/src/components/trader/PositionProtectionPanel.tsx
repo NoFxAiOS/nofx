@@ -3,6 +3,7 @@ import { api } from '../../lib/api'
 import { formatPrice, formatQuantity } from '../../utils/format'
 import type { Language } from '../../i18n/translations'
 import type { OpenOrder, Position } from '../../types'
+import { formatCompactLevelList, formatTimeframeTrail, formatRiskRewardLinkage } from './reviewContextSummary'
 
 interface PositionProtectionPanelProps {
   traderId?: string
@@ -439,6 +440,17 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
           const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[]; swing_lows?: number[]; swing_highs?: number[]; fibonacci?: { swing_low?: number; swing_high?: number; levels?: number[] } } | undefined
           const fibSummary = entryLevels?.fibonacci
+          const entryReviewContext = entryReviewSummary
+            ? {
+                timeframe_context: entryTf,
+                risk_reward: entryRR,
+                key_levels: entryLevels,
+              }
+            : undefined
+          const timeframeTrail = formatTimeframeTrail(entryReviewContext as never)
+          const rrLinkage = formatRiskRewardLinkage(entryReviewContext?.risk_reward as never)
+          const supportSummary = formatCompactLevelList(entryLevels?.support)
+          const resistanceSummary = formatCompactLevelList(entryLevels?.resistance)
           const structureCandidates = [
             ...(entryLevels?.support || []).map((value, idx) => ({ label: `S${idx + 1}`, value })),
             ...(entryLevels?.resistance || []).map((value, idx) => ({ label: `R${idx + 1}`, value })),
@@ -528,11 +540,11 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   subtitle={language === 'zh' ? '直接看这笔仓位开仓时的主/邻周期、RR 与关键价位' : 'Inspect the primary/adjacent timeframes, RR, and key levels used at entry'}
                   rows={[
                     { label: language === 'zh' ? '决策周期' : 'Decision Cycle', value: position.entry_decision_cycle ? String(position.entry_decision_cycle) : '—' },
-                    { label: language === 'zh' ? '周期' : 'Timeframes', value: entryTf?.primary ? `${entryTf.primary}${entryTf.lower?.length ? ` | lower ${entryTf.lower.join(', ')}` : ''}${entryTf.higher?.length ? ` | higher ${entryTf.higher.join(', ')}` : ''}` : '—' },
-                    { label: language === 'zh' ? 'Entry / 失效 / 目标' : 'Entry / Invalidation / Target', value: entryRR ? `${entryRR.entry ?? '—'} / ${entryRR.invalidation ?? '—'} / ${entryRR.first_target ?? '—'}` : '—' },
-                    { label: language === 'zh' ? '主/邻周期' : 'Primary/Adjacent TF', value: entryTf?.primary ? `${entryTf.primary}${entryTf.lower?.length ? ` · lower ${entryTf.lower.join(', ')}` : ''}${entryTf.higher?.length ? ` · higher ${entryTf.higher.join(', ')}` : ''}` : '—' },
-                    { label: language === 'zh' ? '支撑位' : 'Support', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.support?.length ? entryLevels.support.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
-                    { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryStructureAudit?.audit_support_resistance ? (entryLevels?.resistance?.length ? entryLevels.resistance.join(', ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
+                    { label: language === 'zh' ? '周期' : 'Timeframes', value: timeframeTrail.length > 0 ? timeframeTrail.join(' · ') : '—' },
+                    { label: language === 'zh' ? 'Entry / 失效 / 目标' : 'Entry / Invalidation / Target', value: rrLinkage.length > 0 ? rrLinkage.join(' · ') : '—' },
+                    { label: language === 'zh' ? '主/邻周期' : 'Primary/Adjacent TF', value: timeframeTrail.length > 0 ? timeframeTrail.join(' · ') : '—' },
+                    { label: language === 'zh' ? '支撑位' : 'Support', value: entryStructureAudit?.audit_support_resistance ? (supportSummary.length ? supportSummary.join(' / ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
+                    { label: language === 'zh' ? '阻力位' : 'Resistance', value: entryStructureAudit?.audit_support_resistance ? (resistanceSummary.length ? resistanceSummary.join(' / ') : '—') : (language === 'zh' ? '已隐藏' : 'Hidden') },
                     { label: language === 'zh' ? '摆动高/低' : 'Swing High/Low', value: `${(entryLevels?.swing_highs || []).join(', ') || '—'} / ${(entryLevels?.swing_lows || []).join(', ') || '—'}` },
                     { label: language === 'zh' ? '斐波那契' : 'Fibonacci', value: fibSummary ? `${(fibSummary.levels || []).join(', ') || '—'}${fibSummary.swing_low ? ` | low ${fibSummary.swing_low}` : ''}${fibSummary.swing_high ? ` | high ${fibSummary.swing_high}` : ''}` : '—' },
                     { label: language === 'zh' ? '结构联动' : 'Structure Linkage', value: linkageStatus || '—' },

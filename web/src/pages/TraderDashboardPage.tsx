@@ -150,7 +150,6 @@ export function TraderDashboardPage({
     const [allowAIClose, setAllowAIClose] = useState<boolean>(true)
     const [aiDecisionMode, setAIDecisionMode] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced')
     const [savingAIControls, setSavingAIControls] = useState<boolean>(false)
-    const [showPositionHistory, setShowPositionHistory] = useState<boolean>(false)
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -907,27 +906,10 @@ export function TraderDashboardPage({
                                 <span className="text-2xl">📜</span>
                                 {t('positionHistory.title', language)}
                             </h2>
-                            <button
-                                type="button"
-                                onClick={() => setShowPositionHistory((prev) => !prev)}
-                                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent"
-                            >
-                                {showPositionHistory
-                                    ? (language === 'zh' ? '隐藏历史' : 'Hide history')
-                                    : (language === 'zh' ? '加载历史' : 'Load history')}
-                            </button>
                         </div>
-                        {showPositionHistory ? (
-                            <Suspense fallback={<SectionLoader heightClass="min-h-[420px]" />}>
-                                <PositionHistory traderId={selectedTraderId} onSymbolClick={handleSymbolClick} />
-                            </Suspense>
-                        ) : (
-                            <div className="min-h-[180px] rounded-lg border border-white/10 bg-black/20 px-4 py-6 text-sm text-nofx-text-muted flex items-center justify-center text-center">
-                                {language === 'zh'
-                                    ? '历史成交与审计明细默认按需加载，避免首屏直接拉取大批历史记录。'
-                                    : 'Position history and audit detail now load on demand to avoid pulling heavy history on initial dashboard render.'}
-                            </div>
-                        )}
+                        <Suspense fallback={<SectionLoader heightClass="min-h-[420px]" />}>
+                            <PositionHistory traderId={selectedTraderId} onSymbolClick={handleSymbolClick} />
+                        </Suspense>
                     </div>
                 )}
             </div>

@@ -18,14 +18,6 @@ import type {
   EntryReviewSummary,
 } from '../../types'
 
-const positionHistoryCache = new Map<string, {
-  positions: HistoricalPosition[]
-  stats: TraderStats | null
-  symbolStats: SymbolStats[]
-  directionStats: DirectionStats[]
-  limit: number
-}>()
-
 interface PositionHistoryProps {
   traderId: string
   onSymbolClick?: (symbol: string) => void
@@ -1224,33 +1216,14 @@ export function PositionHistory({ traderId, onSymbolClick }: PositionHistoryProp
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const requestLimit = Math.max(60, pageSize * 2)
-        const cacheKey = `${traderId}:${requestLimit}`
-        const cached = positionHistoryCache.get(cacheKey)
-        if (cached) {
-          setPositions(cached.positions)
-          setStats(cached.stats)
-          setSymbolStats(cached.symbolStats)
-          setDirectionStats(cached.directionStats)
-          setLoading(false)
-          return
-        }
-
         setLoading(true)
         setError(null)
-        const data = await api.getPositionHistory(traderId, requestLimit)
-        const next = {
-          positions: data.positions || [],
-          stats: data.stats || null,
-          symbolStats: data.symbol_stats || [],
-          directionStats: data.direction_stats || [],
-          limit: requestLimit,
-        }
-        positionHistoryCache.set(cacheKey, next)
-        setPositions(next.positions)
-        setStats(next.stats)
-        setSymbolStats(next.symbolStats)
-        setDirectionStats(next.directionStats)
+        // Fetch more data than needed to support filtering, but respect pageSize for initial load
+        const data = await api.getPositionHistory(traderId, Math.max(200, pageSize * 5))
+        setPositions(data.positions || [])
+        setStats(data.stats)
+        setSymbolStats(data.symbol_stats || [])
+        setDirectionStats(data.direction_stats || [])
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load history')
       } finally {

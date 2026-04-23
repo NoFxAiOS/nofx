@@ -70,6 +70,7 @@ const LoginRequiredOverlay = lazy(() =>
 )
 const HeaderBar = lazy(() => import('./components/common/HeaderBar'))
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
+import { PerformanceProvider } from './contexts/PerformanceContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/common/ConfirmDialog'
 import { t } from './i18n/translations'
@@ -755,11 +756,13 @@ function App() {
 export default function AppWithProviders() {
   return (
     <LanguageProvider>
-      <AuthProvider>
-        <ConfirmDialogProvider>
-          <App />
-        </ConfirmDialogProvider>
-      </AuthProvider>
+      <PerformanceProvider>
+        <AuthProvider>
+          <ConfirmDialogProvider>
+            <App />
+          </ConfirmDialogProvider>
+        </AuthProvider>
+      </PerformanceProvider>
     </LanguageProvider>
   )
 }

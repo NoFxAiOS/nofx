@@ -267,6 +267,14 @@ body {
   animation: slideIn 0.4s ease-out;
 }
 
+html[data-low-perf='true'] .animate-fade-in {
+  animation: none !important;
+}
+
+html[data-low-perf='true'] .animate-slide-in {
+  animation: none !important;
+}
+
 .animate-scale-in {
   animation: scaleIn 0.3s ease-out;
 }
@@ -275,12 +283,16 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* Glass effect - Binance header style */
 .header-bar {
   background: var(--header-bg);
   border-bottom: 1px solid var(--glass-border);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+}
+
+html[data-low-perf='true'] .header-bar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* Sonner (toast) - Binance theme overrides */
@@ -437,6 +449,15 @@ button:disabled {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+html[data-low-perf='true'] .glass,
+html[data-low-perf='true'] .glass-panel,
+html[data-low-perf='true'] .nofx-glass {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  background: rgba(30, 35, 41, 0.88) !important;
 }
 
 /* Premium Input Styles */

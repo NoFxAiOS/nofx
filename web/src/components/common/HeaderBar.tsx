@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, ChevronDown, Settings } from 'lucide-react'
 import { t, type Language } from '../../i18n/translations'
 import { OFFICIAL_LINKS } from '../../constants/branding'
+import { usePerformanceMode } from '../../contexts/PerformanceContext'
 
 type Page =
   | 'competition'
@@ -41,6 +42,7 @@ export default function HeaderBar({
   onLoginRequired,
 }: HeaderBarProps) {
   const navigate = useNavigate()
+  const { lowPerformanceMode, toggleLowPerformanceMode } = usePerformanceMode()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
@@ -177,6 +179,16 @@ export default function HeaderBar({
 
             {/* Divider */}
             <div className="h-5 w-px" style={{ background: '#2B3139' }} />
+
+            <button
+              onClick={toggleLowPerformanceMode}
+              className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${lowPerformanceMode
+                ? 'text-nofx-gold border-nofx-gold/30 bg-nofx-gold/10'
+                : 'text-nofx-text-muted border-white/10 hover:text-white hover:border-white/20'}`}
+              title={language === 'zh' ? '切换低性能模式' : 'Toggle low performance mode'}
+            >
+              {language === 'zh' ? '低性能' : 'Low Load'}
+            </button>
 
             {/* User Info and Actions */}
             {isLoggedIn && user ? (

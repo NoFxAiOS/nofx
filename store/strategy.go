@@ -379,7 +379,7 @@ type AIScreenerConfig struct {
 
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed" | "ai_screener"
+	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed" | "market_screener" | "ai_screener"
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`

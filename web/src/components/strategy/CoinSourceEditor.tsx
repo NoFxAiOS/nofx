@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle, ChevronDown, ChevronRight, Globe, Brain } from 'lucide-react'
+import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle, ChevronDown, ChevronRight, Globe, Brain, BarChart3 } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 import { coinSource, aiScreener, ts } from '../../i18n/strategy-translations'
 import { AIScreenerEditor } from './AIScreenerEditor'
@@ -28,6 +28,7 @@ export function CoinSourceEditor({
     { value: 'oi_low', icon: TrendingDown, color: '#F6465D' },
     { value: 'mixed', icon: Shuffle, color: '#60a5fa' },
     { value: 'ai_screener', icon: Brain, color: '#a78bfa' },
+    { value: 'market_screener', icon: BarChart3, color: '#34d399' },
   ] as const
 
   // Calculate mixed mode summary
@@ -151,13 +152,17 @@ export function CoinSourceEditor({
         <label className="block text-sm font-medium mb-3 text-nofx-text">
           {ts(coinSource.sourceType, language)}
         </label>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {sourceTypes.map(({ value, icon: Icon, color }) => {
             const nameEntry = value === 'ai_screener'
               ? aiScreener.ai_screener
+              : value === 'market_screener'
+              ? coinSource.market_screener
               : coinSource[value as keyof typeof coinSource]
             const descEntry = value === 'ai_screener'
               ? aiScreener.ai_screenerDesc
+              : value === 'market_screener'
+              ? coinSource.market_screenerDesc
               : coinSource[`${value}Desc` as keyof typeof coinSource]
             return (
             <button
@@ -186,7 +191,7 @@ export function CoinSourceEditor({
       </div>
 
       {/* Exchange Source Selector */}
-      {config.source_type !== 'static' && config.source_type !== 'ai_screener' && (
+      {config.source_type !== 'static' && config.source_type !== 'ai_screener' && config.source_type !== 'market_screener' && (
         <div className="flex items-center gap-3">
           <Globe className="w-4 h-4 text-nofx-text-muted" />
           <span className="text-sm text-nofx-text">{ts(coinSource.exchangeSource, language)}</span>
@@ -717,7 +722,7 @@ export function CoinSourceEditor({
       )}
 
       {/* AI Screener */}
-      {config.source_type === 'ai_screener' && (
+      {(config.source_type === 'ai_screener' || config.source_type === 'market_screener') && (
         <AIScreenerEditor
           config={config.ai_screener || {
             enabled: true,
@@ -731,7 +736,7 @@ export function CoinSourceEditor({
       )}
 
       {/* Legacy: NofxOS (collapsed, optional) */}
-      {config.source_type !== 'static' && config.source_type !== 'ai_screener' && (
+            {config.source_type !== 'static' && config.source_type !== 'ai_screener' && config.source_type !== 'market_screener' && (
         <div className="border border-gray-600/30 rounded-lg overflow-hidden">
           <button
             type="button"

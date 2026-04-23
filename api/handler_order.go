@@ -232,6 +232,22 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		ProtectionSnapshot interface{}            `json:"protection_snapshot,omitempty"`
 	}
 
+	buildEntryReviewSummaryFromDecisionReview := func(review map[string]interface{}) map[string]interface{} {
+		if review == nil {
+			return nil
+		}
+		summary := map[string]interface{}{}
+		for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes", "protection", "control", "execution_constraints"} {
+			if value, ok := review[key]; ok {
+				summary[key] = value
+			}
+		}
+		if len(summary) == 0 {
+			return nil
+		}
+		return summary
+	}
+
 	buildDecisionReviewRef := func(cycle int, symbol string, action string) map[string]interface{} {
 		if cycle <= 0 || traderStore.Decision() == nil {
 			return nil
@@ -275,29 +291,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 			return nil
 		}
 		review, _ := ref["review_context"].(map[string]interface{})
-		if review == nil {
-			return nil
-		}
-		summary := map[string]interface{}{}
-		if tf, ok := review["timeframe_context"]; ok {
-			summary["timeframe_context"] = tf
-		}
-		if rr, ok := review["risk_reward"]; ok {
-			summary["risk_reward"] = rr
-		}
-		if levels, ok := review["key_levels"]; ok {
-			summary["key_levels"] = levels
-		}
-		if anchors, ok := review["anchors"]; ok {
-			summary["anchors"] = anchors
-		}
-		if notes, ok := review["alignment_notes"]; ok {
-			summary["alignment_notes"] = notes
-		}
-		if len(summary) == 0 {
-			return nil
-		}
-		return summary
+		return buildEntryReviewSummaryFromDecisionReview(review)
 	}
 
 	// Enrich with execution metadata for frontend expandable rows.

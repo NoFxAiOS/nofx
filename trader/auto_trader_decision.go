@@ -241,17 +241,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 							}
 							return nil
 						}())
-						if decoded != nil {
-							entryReviewSummary = make(map[string]interface{})
-							for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes", "protection", "control", "execution_constraints"} {
-								if value, ok := decoded[key]; ok {
-									entryReviewSummary[key] = value
-								}
-							}
-							if len(entryReviewSummary) == 0 {
-								entryReviewSummary = nil
-							}
-						}
+						entryReviewSummary = buildEntryReviewSummaryFromDecisionReview(decoded)
 					}
 				}
 				if traderRecord, err := at.store.Trader().GetByID(at.id); err == nil && traderRecord != nil {

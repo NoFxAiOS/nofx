@@ -260,14 +260,14 @@ func findMatchedDecisionAction(record *store.DecisionRecord, symbol, action stri
 		return nil
 	}
 	for i := range record.Decisions {
-		candidate := record.Decisions[i]
+		candidate := &record.Decisions[i]
 		if symbol != "" && !strings.EqualFold(candidate.Symbol, symbol) {
 			continue
 		}
 		if action != "" && !strings.EqualFold(candidate.Action, action) {
 			continue
 		}
-		return &candidate
+		return candidate
 	}
 	return nil
 }
@@ -285,6 +285,22 @@ func extractDecisionReviewMap(actionReview *store.DecisionActionReviewContext) m
 		return nil
 	}
 	return decoded
+}
+
+func buildEntryReviewSummaryFromDecisionReview(review map[string]interface{}) map[string]interface{} {
+	if review == nil {
+		return nil
+	}
+	summary := map[string]interface{}{}
+	for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes", "protection", "control", "execution_constraints"} {
+		if value, ok := review[key]; ok {
+			summary[key] = value
+		}
+	}
+	if len(summary) == 0 {
+		return nil
+	}
+	return summary
 }
 
 func (at *AutoTrader) buildDrawdownStructureContext(symbol, side string) *drawdownStructureContext {

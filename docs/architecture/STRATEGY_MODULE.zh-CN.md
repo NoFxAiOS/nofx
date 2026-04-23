@@ -228,6 +228,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **Volume** | `EnableVolume` | 原始成交量数据 |
 | **OI** | `EnableOI` | 持仓量数据 |
 | **Funding Rate** | `EnableFundingRate` | 资金费率 |
+| **Adanos Market Sentiment** | `EnableAdanosSentiment` | 可选的社交、新闻和预测市场情绪增强 |
 
 ### 2.5 量化数据 (可选)
 
@@ -255,6 +256,26 @@ QuantData {
     }
 }
 ```
+
+### 2.6 Adanos 市场情绪 (可选)
+
+Adanos 是默认关闭的外部情绪数据源。启用 `EnableAdanosSentiment` 后，
+策略引擎会在构建 AI 提示词前为已选币种补充 Adanos 情绪数据。它不会阻塞
+交易决策：缺少凭证、HTTP 错误或空响应都会被记录并跳过。
+
+```go
+Indicators: IndicatorConfig{
+    EnableAdanosSentiment: true,
+    AdanosAPIKey:          "...", // 可选；为空时使用 ADANOS_API_KEY
+    AdanosSource:          "reddit_crypto",
+    AdanosDays:            7,
+    AdanosMaxSymbols:      10,
+}
+```
+
+支持的数据源包括 `reddit_crypto`、`reddit_stocks`、`x_stocks`、
+`news_stocks` 和 `polymarket_stocks`。Adanos API 文档：
+https://api.adanos.org/docs/。
 
 ---
 

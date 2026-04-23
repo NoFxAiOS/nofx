@@ -118,6 +118,11 @@ export interface IndicatorConfig {
   atr_periods?: number[];
   boll_periods?: number[];
   external_data_sources?: ExternalDataSource[];
+  enable_adanos_sentiment?: boolean;
+  adanos_api_key?: string;
+  adanos_source?: 'reddit_crypto' | 'reddit_stocks' | 'x_stocks' | 'news_stocks' | 'polymarket_stocks';
+  adanos_days?: number;
+  adanos_max_symbols?: number;
 
   // ========== NofxOS 数据源统一配置 ==========
   // Unified NofxOS API Key - used for all NofxOS data sources

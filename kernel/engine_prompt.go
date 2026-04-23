@@ -3,6 +3,7 @@ package kernel
 import (
 	"fmt"
 	"nofx/market"
+	"nofx/provider/adanos"
 	"nofx/provider/nofxos"
 	"nofx/store"
 	"strings"
@@ -211,6 +212,10 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder) {
 		sb.WriteString("- Funding rate\n")
 	}
 
+	if indicators.EnableAdanosSentiment {
+		sb.WriteString("- Adanos market sentiment (social/news/prediction-market buzz, direction, and trend)\n")
+	}
+
 	if len(e.config.CoinSource.StaticCoins) > 0 || e.config.CoinSource.UseAI500 || e.config.CoinSource.UseOITop {
 		sb.WriteString("- AI500 / OI_Top filter tags (if available)\n")
 	}
@@ -368,6 +373,9 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 				sb.WriteString(e.formatQuantData(quantData))
 			}
 		}
+		if sentiment := lookupAdanosSentiment(ctx, coin.Symbol); sentiment != nil {
+			sb.WriteString(e.formatAdanosSentiment(sentiment))
+		}
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
@@ -432,6 +440,9 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 			if quantData, hasQuant := ctx.QuantDataMap[pos.Symbol]; hasQuant {
 				sb.WriteString(e.formatQuantData(quantData))
 			}
+		}
+		if sentiment := lookupAdanosSentiment(ctx, pos.Symbol); sentiment != nil {
+			sb.WriteString(e.formatAdanosSentiment(sentiment))
 		}
 		sb.WriteString("\n")
 	}
@@ -748,6 +759,61 @@ func (e *StrategyEngine) formatQuantData(data *QuantData) string {
 		}
 	}
 
+	return sb.String()
+}
+
+func lookupAdanosSentiment(ctx *Context, symbol string) *adanos.Sentiment {
+	if ctx == nil || len(ctx.AdanosSentimentMap) == 0 {
+		return nil
+	}
+	normalized := market.Normalize(symbol)
+	if sentiment, ok := ctx.AdanosSentimentMap[normalized]; ok {
+		return sentiment
+	}
+	if sentiment, ok := ctx.AdanosSentimentMap[normalizeAdanosSymbol(symbol, adanos.SourceXStocks)]; ok {
+		return sentiment
+	}
+	return ctx.AdanosSentimentMap[symbol]
+}
+
+func (e *StrategyEngine) formatAdanosSentiment(data *adanos.Sentiment) string {
+	if data == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("🧭 %s Adanos Market Sentiment", data.Symbol))
+	if data.Source != "" {
+		sb.WriteString(fmt.Sprintf(" (%s)", data.Source))
+	}
+	sb.WriteString(":\n")
+
+	var fields []string
+	if data.BuzzScore != nil {
+		fields = append(fields, fmt.Sprintf("buzz_score=%.2f", *data.BuzzScore))
+	}
+	if data.SentimentScore != nil {
+		fields = append(fields, fmt.Sprintf("sentiment_score=%.3f", *data.SentimentScore))
+	}
+	if data.Mentions != nil {
+		fields = append(fields, fmt.Sprintf("mentions=%d", *data.Mentions))
+	}
+	if data.Trend != "" {
+		fields = append(fields, fmt.Sprintf("trend=%s", data.Trend))
+	}
+	if data.BullishPct != nil {
+		fields = append(fields, fmt.Sprintf("bullish_pct=%.2f", *data.BullishPct))
+	}
+	if data.BearishPct != nil {
+		fields = append(fields, fmt.Sprintf("bearish_pct=%.2f", *data.BearishPct))
+	}
+
+	if len(fields) == 0 {
+		return ""
+	}
+
+	sb.WriteString(strings.Join(fields, ", "))
+	sb.WriteString("\n\n")
 	return sb.String()
 }
 

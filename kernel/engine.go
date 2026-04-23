@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"nofx/logger"
 	"nofx/market"
+	"nofx/provider/adanos"
 	"nofx/provider/hyperliquid"
 	"nofx/provider/nofxos"
 	"nofx/security"
 	"nofx/store"
+	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -106,6 +108,7 @@ type Context struct {
 	OIRankingData      *nofxos.OIRankingData              `json:"-"` // Market-wide OI ranking data
 	NetFlowRankingData *nofxos.NetFlowRankingData         `json:"-"` // Market-wide fund flow ranking data
 	PriceRankingData   *nofxos.PriceRankingData           `json:"-"` // Market-wide price gainers/losers
+	AdanosSentimentMap map[string]*adanos.Sentiment       `json:"-"` // Optional Adanos market sentiment by symbol
 	BTCETHLeverage     int                                `json:"-"`
 	AltcoinLeverage    int                                `json:"-"`
 	Timeframes         []string                           `json:"-"`
@@ -609,6 +612,141 @@ func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
 	}
 
 	return externalData, nil
+}
+
+// FetchAdanosSentimentForContext fetches optional Adanos sentiment for symbols
+// already selected by the strategy. Missing configuration returns an empty map.
+func (e *StrategyEngine) FetchAdanosSentimentForContext(ctx *Context) map[string]*adanos.Sentiment {
+	return e.FetchAdanosSentimentBatch(collectAdanosSymbols(ctx, e.config.Indicators.AdanosSource))
+}
+
+// FetchAdanosSentimentBatch fetches Adanos compare data for up to the configured
+// symbol limit. It is intentionally best-effort and never blocks trading.
+func (e *StrategyEngine) FetchAdanosSentimentBatch(symbols []string) map[string]*adanos.Sentiment {
+	result := make(map[string]*adanos.Sentiment)
+
+	indicators := e.config.Indicators
+	if !indicators.EnableAdanosSentiment {
+		return result
+	}
+
+	apiKey := strings.TrimSpace(indicators.AdanosAPIKey)
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(os.Getenv("ADANOS_API_KEY"))
+	}
+	if apiKey == "" {
+		logger.Infof("⚠️  Adanos sentiment enabled but no API key configured; skipping")
+		return result
+	}
+
+	symbols = uniqueAdanosSymbols(symbols, indicators.AdanosSource)
+	maxSymbols := indicators.AdanosMaxSymbols
+	if maxSymbols <= 0 || maxSymbols > 10 {
+		maxSymbols = 10
+	}
+	if len(symbols) > maxSymbols {
+		symbols = symbols[:maxSymbols]
+	}
+	if len(symbols) == 0 {
+		return result
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	client := adanos.NewClient(adanos.Config{
+		BaseURL: os.Getenv("ADANOS_BASE_URL"),
+		APIKey:  apiKey,
+		Source:  indicators.AdanosSource,
+		Days:    indicators.AdanosDays,
+	})
+
+	data, err := client.Compare(ctx, symbols)
+	if err != nil {
+		logger.Infof("⚠️  Failed to fetch Adanos sentiment: %v", err)
+		return result
+	}
+
+	logger.Infof("✓ Adanos sentiment ready for %d symbols", len(data))
+	return data
+}
+
+func collectAdanosSymbols(ctx *Context, source string) []string {
+	if ctx == nil {
+		return nil
+	}
+
+	symbols := make([]string, 0, len(ctx.Positions)+len(ctx.CandidateCoins)+len(ctx.MarketDataMap))
+	for _, pos := range ctx.Positions {
+		symbols = append(symbols, pos.Symbol)
+	}
+	for _, coin := range ctx.CandidateCoins {
+		symbols = append(symbols, coin.Symbol)
+	}
+
+	marketSymbols := make([]string, 0, len(ctx.MarketDataMap))
+	for symbol := range ctx.MarketDataMap {
+		marketSymbols = append(marketSymbols, symbol)
+	}
+	sort.Strings(marketSymbols)
+	for _, symbol := range marketSymbols {
+		symbols = append(symbols, symbol)
+	}
+	return uniqueAdanosSymbols(symbols, source)
+}
+
+func uniqueAdanosSymbols(symbols []string, source string) []string {
+	seen := make(map[string]bool, len(symbols))
+	unique := make([]string, 0, len(symbols))
+	for _, symbol := range symbols {
+		normalized := normalizeAdanosSymbol(symbol, source)
+		if normalized == "" || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		unique = append(unique, normalized)
+	}
+	return unique
+}
+
+func normalizeAdanosSymbol(symbol string, source string) string {
+	symbol = strings.TrimSpace(symbol)
+	if symbol == "" {
+		return ""
+	}
+	symbol = strings.TrimPrefix(symbol, "$")
+
+	if adanos.NormalizeSource(source) == adanos.SourceRedditCrypto {
+		return normalizeAdanosCryptoSymbol(symbol)
+	}
+
+	normalized := strings.ToUpper(symbol)
+	normalized = strings.TrimPrefix(normalized, "XYZ:")
+	normalized = strings.ReplaceAll(normalized, "/", "")
+	normalized = strings.ReplaceAll(normalized, "_", "")
+	normalized = strings.ReplaceAll(normalized, "-SWAP", "")
+	normalized = strings.ReplaceAll(normalized, "-", "")
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(normalized, suffix) && len(normalized) > len(suffix) {
+			return strings.TrimSuffix(normalized, suffix)
+		}
+	}
+	return normalized
+}
+
+func normalizeAdanosCryptoSymbol(symbol string) string {
+	normalized := strings.ToUpper(symbol)
+	normalized = strings.ReplaceAll(normalized, "/", "")
+	normalized = strings.ReplaceAll(normalized, "_", "")
+	normalized = strings.ReplaceAll(normalized, "-SWAP", "")
+	normalized = strings.ReplaceAll(normalized, "-", "")
+
+	for _, suffix := range []string{"USDT", "USDC", "USD"} {
+		if strings.HasSuffix(normalized, suffix) && len(normalized) > len(suffix) {
+			return strings.TrimSuffix(normalized, suffix) + "USDT"
+		}
+	}
+	return normalized + "USDT"
 }
 
 func (e *StrategyEngine) fetchSingleExternalSource(source store.ExternalDataSource) (interface{}, error) {

@@ -206,6 +206,13 @@ type IndicatorConfig struct {
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
 
+	// Adanos market sentiment data source (optional)
+	EnableAdanosSentiment bool   `json:"enable_adanos_sentiment,omitempty"` // whether to enrich prompts with Adanos sentiment
+	AdanosAPIKey          string `json:"adanos_api_key,omitempty"`          // optional; falls back to ADANOS_API_KEY env var
+	AdanosSource          string `json:"adanos_source,omitempty"`           // reddit_crypto, reddit_stocks, x_stocks, news_stocks, polymarket_stocks
+	AdanosDays            int    `json:"adanos_days,omitempty"`             // lookback window, default 7
+	AdanosMaxSymbols      int    `json:"adanos_max_symbols,omitempty"`      // max symbols per compare request, default 10
+
 	// ========== NofxOS Unified API Configuration ==========
 	// Unified API Key for all NofxOS data sources
 	NofxOSAPIKey string `json:"nofxos_api_key,omitempty"`
@@ -340,6 +347,10 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
 			BOLLPeriods:       []int{20},
+			// Adanos market sentiment is optional and disabled by default.
+			AdanosSource:     "reddit_crypto",
+			AdanosDays:       7,
+			AdanosMaxSymbols: 10,
 			// NofxOS unified API key
 			NofxOSAPIKey: "cm_568c67eae410d912c54c",
 			// Quant data

@@ -430,3 +430,47 @@ func TestEvaluateAIDrawdownRuleUsesStructureContextForStageAndSources(t *testing
 		t.Fatalf("expected extension fibonacci target source, got %q", eval.Rule.RunnerTargetSource)
 	}
 }
+
+func TestFindMatchedDecisionActionReturnsUnderlyingSlicePointer(t *testing.T) {
+	record := &store.DecisionRecord{
+		Decisions: []store.DecisionAction{
+			{Symbol: "BTCUSDT", Action: "wait"},
+			{Symbol: "BTCUSDT", Action: "open_long", ReviewContext: &store.DecisionActionReviewContext{PrimaryTimeframe: "15m"}},
+		},
+	}
+
+	matched := findMatchedDecisionAction(record, "BTCUSDT", "open_long")
+	if matched == nil {
+		t.Fatal("expected matched action")
+	}
+	matched.ReviewContext.PrimaryTimeframe = "1h"
+	if record.Decisions[1].ReviewContext == nil || record.Decisions[1].ReviewContext.PrimaryTimeframe != "1h" {
+		t.Fatalf("expected mutation on underlying slice element, got %+v", record.Decisions[1].ReviewContext)
+	}
+}
+
+func TestBuildEntryReviewSummaryFromDecisionReviewWhitelistsFields(t *testing.T) {
+	review := map[string]interface{}{
+		"timeframe_context":     map[string]interface{}{"primary": "15m"},
+		"risk_reward":           map[string]interface{}{"entry": 100.0, "invalidation": 95.0, "first_target": 110.0},
+		"key_levels":            map[string]interface{}{"support": []interface{}{99.0}},
+		"anchors":               []interface{}{map[string]interface{}{"type": "support", "price": 99.0}},
+		"alignment_notes":       []interface{}{"target above local resistance"},
+		"control":               map[string]interface{}{"decision": "accepted"},
+		"execution_constraints": map[string]interface{}{"tick_size": 0.1},
+		"unexpected":            "drop-me",
+	}
+
+	summary := buildEntryReviewSummaryFromDecisionReview(review)
+	if summary == nil {
+		t.Fatal("expected summary")
+	}
+	if _, ok := summary["unexpected"]; ok {
+		t.Fatalf("unexpected key should be filtered out: %+v", summary)
+	}
+	for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes", "control", "execution_constraints"} {
+		if _, ok := summary[key]; !ok {
+			t.Fatalf("expected key %s in summary: %+v", key, summary)
+		}
+	}
+}

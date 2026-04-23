@@ -174,3 +174,53 @@ func TestDecisionRecordDB_ToRecordWithoutProtectionSnapshot(t *testing.T) {
 		t.Fatalf("expected nil protection snapshot, got %+v", record.ProtectionSnapshot)
 	}
 }
+
+func TestDecisionStore_GetRecordByCyclePreservesActionReviewContext(t *testing.T) {
+	db := openDecisionTestDB(t)
+	store := NewDecisionStore(db)
+	if err := store.initTables(); err != nil {
+		t.Fatalf("initTables failed: %v", err)
+	}
+
+	ts := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
+	record := &DecisionRecord{
+		TraderID:    "trader-ctx",
+		CycleNumber: 42,
+		Timestamp:   ts,
+		Decisions: []DecisionAction{
+			{
+				Action: "open_long",
+				Symbol: "BTCUSDT",
+				ReviewContext: &DecisionActionReviewContext{
+					PrimaryTimeframe: "15m",
+					RiskReward: &DecisionActionRiskRewardSummary{
+						Entry:        100,
+						Invalidation: 95,
+						FirstTarget:  110,
+						Passed:       true,
+					},
+				},
+				Timestamp: ts,
+				Success:   true,
+			},
+		},
+		Success: true,
+	}
+	if err := store.LogDecision(record); err != nil {
+		t.Fatalf("LogDecision failed: %v", err)
+	}
+
+	got, err := store.GetRecordByCycle("trader-ctx", 42)
+	if err != nil {
+		t.Fatalf("GetRecordByCycle failed: %v", err)
+	}
+	if got == nil || len(got.Decisions) != 1 || got.Decisions[0].ReviewContext == nil {
+		t.Fatalf("expected review context on action round-trip, got %+v", got)
+	}
+	if got.Decisions[0].ReviewContext.PrimaryTimeframe != "15m" {
+		t.Fatalf("unexpected primary timeframe: %+v", got.Decisions[0].ReviewContext)
+	}
+	if got.Decisions[0].ReviewContext.RiskReward == nil || got.Decisions[0].ReviewContext.RiskReward.FirstTarget != 110 {
+		t.Fatalf("unexpected risk reward: %+v", got.Decisions[0].ReviewContext)
+	}
+}

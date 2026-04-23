@@ -633,29 +633,31 @@ export function StrategyStudioPage() {
             entry_structure: normalizeProtectionConfig(editingConfig.protection).regime_filter.entry_structure ?? editingConfig.entry_structure,
           }}
           onChange={(regimeFilter) => {
-            // Sync back to protection.regime_filter
+            // Must do a single setEditingConfig to avoid stale closure overwrites
+            if (!editingConfig) return
             const currentProtection = normalizeProtectionConfig(editingConfig.protection)
-            updateConfig('protection', {
-              ...currentProtection,
-              regime_filter: regimeFilter,
+            setEditingConfig({
+              ...editingConfig,
+              protection: {
+                ...currentProtection,
+                regime_filter: regimeFilter,
+              },
+              risk_control: {
+                ...editingConfig.risk_control,
+                min_confidence: regimeFilter.min_confidence ?? editingConfig.risk_control.min_confidence,
+                min_risk_reward_ratio: regimeFilter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
+              },
+              ...(regimeFilter.policy_mode ? {
+                strategy_control_policy: {
+                  ...editingConfig.strategy_control_policy,
+                  mode: regimeFilter.policy_mode,
+                },
+              } : {}),
+              ...(regimeFilter.entry_structure ? {
+                entry_structure: regimeFilter.entry_structure,
+              } : {}),
             })
-            // Also sync confidence/rr back to risk_control for backward compat
-            updateConfig('risk_control', {
-              ...editingConfig.risk_control,
-              min_confidence: regimeFilter.min_confidence ?? editingConfig.risk_control.min_confidence,
-              min_risk_reward_ratio: regimeFilter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
-            })
-            // Sync policy_mode back to strategy_control_policy
-            if (regimeFilter.policy_mode) {
-              updateConfig('strategy_control_policy', {
-                ...editingConfig.strategy_control_policy,
-                mode: regimeFilter.policy_mode,
-              })
-            }
-            // Sync entry_structure back to top-level
-            if (regimeFilter.entry_structure) {
-              updateConfig('entry_structure', regimeFilter.entry_structure)
-            }
+            setHasChanges(true)
           }}
           disabled={selectedStrategy?.is_default}
           language={language}

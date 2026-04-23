@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { DecisionRecord, DecisionAction, DecisionActionReviewContext } from '../../types'
+import type { DecisionRecord, DecisionAction } from '../../types'
 import { t, type Language } from '../../i18n/translations'
+import { formatTimeframeTrail, formatCompactLevelList, formatRiskRewardLinkage, formatAlignmentNotes } from './reviewContextSummary'
 
 interface DecisionCardProps {
   decision: DecisionRecord
@@ -84,36 +85,6 @@ function formatControlCheck(check?: string): string {
   }
 }
 
-function formatTimeframeTrail(ctx?: DecisionActionReviewContext): string[] {
-  const directPrimary = typeof ctx?.primary_timeframe === 'string' ? ctx.primary_timeframe.trim() : ''
-  const primary = typeof ctx?.timeframe_context?.primary === 'string' ? ctx.timeframe_context.primary.trim() : directPrimary
-  const lower = (ctx?.timeframe_context?.lower || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
-  const higher = (ctx?.timeframe_context?.higher || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
-  const parts: string[] = []
-  if (primary) parts.push(`primary ${primary}`)
-  if (lower.length > 0) parts.push(`lower ${lower.join(', ')}`)
-  if (higher.length > 0) parts.push(`higher ${higher.join(', ')}`)
-  return parts
-}
-
-function formatCompactLevelList(levels?: number[]): string[] {
-  return (levels || [])
-    .filter((value) => typeof value === 'number' && Number.isFinite(value))
-    .slice(0, 3)
-    .map((value) => formatPrice(value))
-}
-
-function formatRiskRewardLinkage(rr?: DecisionActionReviewContext['risk_reward']): string[] {
-  if (!rr) return []
-  const parts: string[] = []
-  if (rr.entry) parts.push(`entry ${formatPrice(rr.entry)}`)
-  if (rr.invalidation) parts.push(`invalid ${formatPrice(rr.invalidation)}`)
-  if (rr.first_target) parts.push(`target ${formatPrice(rr.first_target)}`)
-  if (rr.gross_estimated_rr) parts.push(`gross ${rr.gross_estimated_rr.toFixed(2)}R`)
-  if (rr.net_estimated_rr) parts.push(`net ${rr.net_estimated_rr.toFixed(2)}R`)
-  return parts
-}
-
 // Single Action Card Component
 function ActionCard({ action, language, onSymbolClick }: { action: DecisionAction; language: Language; onSymbolClick?: (symbol: string) => void }) {
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
@@ -127,10 +98,10 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
   const fibLevels = review?.key_levels?.fibonacci?.levels || []
   const anchors = review?.anchors || []
   const timeframeTrail = formatTimeframeTrail(review)
-  const rrSummary = formatRiskRewardLinkage(review?.risk_reward)
+  const rrSummary = formatRiskRewardLinkage(review?.risk_reward, true)
   const supportSummary = formatCompactLevelList(review?.key_levels?.support)
   const resistanceSummary = formatCompactLevelList(review?.key_levels?.resistance)
-  const alignmentNotes = (review?.alignment_notes || review?.protection?.notes || []).filter(Boolean).slice(0, 2)
+  const alignmentNotes = formatAlignmentNotes(review, 2)
 
   return (
     <div

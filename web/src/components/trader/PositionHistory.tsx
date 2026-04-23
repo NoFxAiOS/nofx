@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext'
 import { t, type Language } from '../../i18n/translations'
 import { MetricTooltip } from '../common/MetricTooltip'
 import { formatPrice, formatQuantity } from '../../utils/format'
+import { formatCompactLevelList, formatTimeframeTrail, formatFibSummary, formatRiskRewardLinkage, formatAlignmentNotes } from './reviewContextSummary'
 import type {
   HistoricalPosition,
   TraderStats,
@@ -137,46 +138,6 @@ function formatCompactRr(value?: number | null): string {
   return `${value.toFixed(value >= 10 ? 1 : 2)}R`
 }
 
-function formatCompactLevelList(levels?: number[]): string[] {
-  return (levels || [])
-    .filter((value) => typeof value === 'number' && Number.isFinite(value))
-    .slice(0, 3)
-    .map((value) => formatPrice(value))
-}
-
-function formatTimeframeTrail(ctx?: DecisionActionReviewContext): string[] {
-  const directPrimary = typeof ctx?.primary_timeframe === 'string' ? ctx.primary_timeframe.trim() : ''
-  const primary = typeof ctx?.timeframe_context?.primary === 'string' ? ctx.timeframe_context.primary.trim() : directPrimary
-  const lower = (ctx?.timeframe_context?.lower || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
-  const higher = (ctx?.timeframe_context?.higher || []).filter((value) => typeof value === 'string' && value.trim()).slice(0, 2)
-  const parts: string[] = []
-  if (primary) parts.push(`primary ${primary}`)
-  if (lower.length > 0) parts.push(`lower ${lower.join(', ')}`)
-  if (higher.length > 0) parts.push(`higher ${higher.join(', ')}`)
-  return parts
-}
-
-function formatFibSummary(keyLevels?: DecisionActionReviewContext['key_levels']): string[] {
-  const fib = keyLevels?.fibonacci
-  if (!fib) return []
-  const parts: string[] = []
-  if (fib.swing_low) parts.push(`low ${formatPrice(fib.swing_low)}`)
-  if (fib.swing_high) parts.push(`high ${formatPrice(fib.swing_high)}`)
-  const levels = formatCompactLevelList(fib.levels)
-  if (levels.length > 0) parts.push(`levels ${levels.join(' / ')}`)
-  return parts
-}
-
-function formatRiskRewardLinkage(rr?: DecisionActionReviewContext['risk_reward']): string[] {
-  if (!rr) return []
-  const parts: string[] = []
-  if (rr.entry) parts.push(`entry ${formatPrice(rr.entry)}`)
-  if (rr.invalidation) parts.push(`invalid ${formatPrice(rr.invalidation)}`)
-  if (rr.first_target) parts.push(`target ${formatPrice(rr.first_target)}`)
-  if (parts.length < 2) return []
-  return parts
-}
-
 type EntryLinkageStatus = {
   label: string
   tone: 'neutral' | 'warn' | 'danger'
@@ -286,7 +247,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     entryLinkageStatus,
     entryLinkageSources,
     timeframeTrail,
-    alignmentNotes: (ctx?.alignment_notes || ctx?.protection?.notes || []).filter(Boolean).slice(0, 3),
+    alignmentNotes: formatAlignmentNotes(ctx, 3),
     anchors: ctx?.anchors || [],
     executionConstraintItems,
   }

@@ -556,22 +556,39 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		}
 		return e.filterExcludedCoins(candidates), nil
 
-	case "market_screener":
-		// Use market hot-coins API as candidate source
-		screenerLimit := 20
-		if coinSource.AIScreener != nil && coinSource.AIScreener.MaxCoins > 0 {
-			screenerLimit = coinSource.AIScreener.MaxCoins
+	case "market":
+		// Consume market layer output: hot coins, OI top, or OI low
+		marketLimit := coinSource.MarketLimit
+		if marketLimit <= 0 {
+			marketLimit = 20
 		}
-		coins, err := e.getMarketScreenerCoins(screenerLimit, coinSource.ExcludedCoins, coinSource.AIScreener)
-		if err != nil {
-			logger.Infof("⚠️  Market screener failed: %v, falling back to static coins", err)
+		var marketCoins []market.HotCoin
+		var marketErr error
+		switch coinSource.MarketList {
+		case "oi_top":
+			marketCoins, marketErr = market.GetOITopCoins(marketLimit, coinSource.ExcludedCoins)
+		case "oi_low":
+			marketCoins, marketErr = market.GetOILowCoins(marketLimit, coinSource.ExcludedCoins)
+		default: // "hot" or empty
+			marketCoins, marketErr = market.GetHotCoins(marketLimit, coinSource.ExcludedCoins)
+		}
+		if marketErr != nil {
+			logger.Infof("⚠️  Market source failed: %v, falling back to static coins", marketErr)
 			for _, symbol := range coinSource.StaticCoins {
 				symbol = market.Normalize(symbol)
 				candidates = append(candidates, CandidateCoin{Symbol: symbol, Sources: []string{"static"}})
 			}
 			return e.filterExcludedCoins(candidates), nil
 		}
-		return e.filterExcludedCoins(coins), nil
+		for _, coin := range marketCoins {
+			candidates = append(candidates, CandidateCoin{
+				Symbol:  coin.Symbol,
+				Sources: []string{"market"},
+				Score:   coin.HotScore,
+			})
+		}
+		logger.Infof("✅ Market source (%s): %d candidates", coinSource.MarketList, len(candidates))
+		return e.filterExcludedCoins(candidates), nil
 
 	default:
 		return nil, fmt.Errorf("unknown coin source type: %s", coinSource.SourceType)
@@ -715,48 +732,6 @@ func (e *StrategyEngine) getHyperMainCoins(limit int) ([]CandidateCoin, error) {
 		})
 	}
 	logger.Infof("✅ Loaded %d Hyperliquid main coins (hyper_main) by 24h volume", len(candidates))
-	return candidates, nil
-}
-
-// getMarketScreenerCoins uses the market hot-coins engine to produce candidates
-// with optional filtering from AIScreenerConfig
-func (e *StrategyEngine) getMarketScreenerCoins(limit int, excluded []string, cfg *store.AIScreenerConfig) ([]CandidateCoin, error) {
-	if limit <= 0 {
-		limit = 20
-	}
-
-	hotCoins, err := market.GetHotCoinsWithExchange(limit*2, excluded, "okx") // fetch extra for filtering
-	if err != nil {
-		return nil, fmt.Errorf("market screener: %w", err)
-	}
-
-	var candidates []CandidateCoin
-	for _, coin := range hotCoins {
-		if cfg != nil {
-			if cfg.MinVolume24h > 0 && coin.QuoteVolume24h < cfg.MinVolume24h {
-				continue
-			}
-			if cfg.MinOI > 0 && coin.OpenInterestUSD < cfg.MinOI {
-				continue
-			}
-			if cfg.MaxPriceChangePct > 0 && coin.PriceChangePct > cfg.MaxPriceChangePct {
-				continue
-			}
-			if cfg.MinPriceChangePct > 0 && coin.PriceChangePct < cfg.MinPriceChangePct {
-				continue
-			}
-		}
-		candidates = append(candidates, CandidateCoin{
-			Symbol:  coin.Symbol,
-			Sources: []string{"market_screener"},
-			Score:   coin.HotScore,
-		})
-		if len(candidates) >= limit {
-			break
-		}
-	}
-
-	logger.Infof("✅ Market screener: %d candidates from %d hot coins", len(candidates), len(hotCoins))
 	return candidates, nil
 }
 

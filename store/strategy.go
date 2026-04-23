@@ -359,27 +359,9 @@ type PromptSectionsConfig struct {
 	DecisionProcess string `json:"decision_process,omitempty"`
 }
 
-// AIScreenerConfig AI screener configuration
-type AIScreenerConfig struct {
-	Enabled                  bool    `json:"enabled"`
-	ScreeningIntervalMinutes int     `json:"screening_interval_minutes"`
-	MaxCoins                 int     `json:"max_coins"`
-	MinVolume24h             float64 `json:"min_volume_24h,omitempty"`
-	MinOI                    float64 `json:"min_oi,omitempty"`
-	MaxPriceChangePct        float64 `json:"max_price_change_pct,omitempty"`
-	MinPriceChangePct        float64 `json:"min_price_change_pct,omitempty"`
-	PreferLongBias           bool    `json:"prefer_long_bias,omitempty"`
-	PreferShortBias          bool    `json:"prefer_short_bias,omitempty"`
-	PreferHighOIGrowth       bool    `json:"prefer_high_oi_growth,omitempty"`
-	PreferHighVolumeGrowth   bool    `json:"prefer_high_volume_growth,omitempty"`
-	MinATRPct                float64 `json:"min_atr_pct,omitempty"`
-	MaxATRPct                float64 `json:"max_atr_pct,omitempty"`
-	CustomInstruction        string  `json:"custom_instruction,omitempty"`
-}
-
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed" | "market_screener" | "ai_screener"
+	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed" | "market"
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`
@@ -403,8 +385,9 @@ type CoinSourceConfig struct {
 	UseHyperMain bool `json:"use_hyper_main"`
 	// Hyperliquid Main maximum count (default 20)
 	HyperMainLimit int `json:"hyper_main_limit,omitempty"`
-	// AI screener config (used when source_type = "ai_screener")
-	AIScreener *AIScreenerConfig `json:"ai_screener,omitempty"`
+	// Market source config (used when source_type = "market")
+	MarketList  string `json:"market_list,omitempty"`  // "hot" | "oi_top" | "oi_low"
+	MarketLimit int    `json:"market_limit,omitempty"` // top N coins
 	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 

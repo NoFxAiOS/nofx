@@ -214,28 +214,12 @@ export interface GridStrategyConfig {
   direction_bias_ratio?: number;
 }
 
-export interface AIScreenerConfig {
-  enabled: boolean;
-  screening_interval_minutes: number;
-  max_coins: number;
-  min_volume_24h?: number;
-  min_oi?: number;
-  max_price_change_pct?: number;
-  min_price_change_pct?: number;
-  prefer_long_bias?: boolean;
-  prefer_short_bias?: boolean;
-  prefer_high_oi_growth?: boolean;
-  prefer_high_volume_growth?: boolean;
-  min_atr_pct?: number;
-  max_atr_pct?: number;
-  custom_instruction?: string;
-}
 
 export interface CoinSourceConfig {
-  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed' | 'ai_screener' | 'market_screener';
+  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed' | 'market';
   static_coins?: string[];
   excluded_coins?: string[];   // 排除的币种列表
-  // Exchange for data source (default: 'binance')
+  // Exchange for data source (default: 'okx')
   exchange_source?: 'binance' | 'okx';
   use_ai500: boolean;
   ai500_limit?: number;
@@ -243,8 +227,9 @@ export interface CoinSourceConfig {
   oi_top_limit?: number;
   use_oi_low: boolean;
   oi_low_limit?: number;
-  // AI screener config (used when source_type = "ai_screener")
-  ai_screener?: AIScreenerConfig;
+  // Market source config (used when source_type = "market")
+  market_list?: 'hot' | 'oi_top' | 'oi_low';  // which market ranking
+  market_limit?: number;  // top N coins from market
   // Note: API URLs are now built automatically using nofxos_api_key from IndicatorConfig
 }
 

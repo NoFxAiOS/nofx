@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle, ChevronDown, ChevronRight, Globe, Brain, BarChart3 } from 'lucide-react'
+import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle, ChevronDown, ChevronRight, Globe, BarChart3 } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
-import { coinSource, aiScreener, ts } from '../../i18n/strategy-translations'
-import { AIScreenerEditor } from './AIScreenerEditor'
+import { coinSource, ts } from '../../i18n/strategy-translations'
 
 interface CoinSourceEditorProps {
   config: CoinSourceConfig
@@ -27,8 +26,7 @@ export function CoinSourceEditor({
     { value: 'oi_top', icon: TrendingUp, color: '#0ECB81' },
     { value: 'oi_low', icon: TrendingDown, color: '#F6465D' },
     { value: 'mixed', icon: Shuffle, color: '#60a5fa' },
-    { value: 'ai_screener', icon: Brain, color: '#a78bfa' },
-    { value: 'market_screener', icon: BarChart3, color: '#34d399' },
+    { value: 'market', icon: BarChart3, color: '#34d399' },
   ] as const
 
   // Calculate mixed mode summary
@@ -152,18 +150,10 @@ export function CoinSourceEditor({
         <label className="block text-sm font-medium mb-3 text-nofx-text">
           {ts(coinSource.sourceType, language)}
         </label>
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {sourceTypes.map(({ value, icon: Icon, color }) => {
-            const nameEntry = value === 'ai_screener'
-              ? aiScreener.ai_screener
-              : value === 'market_screener'
-              ? coinSource.market_screener
-              : coinSource[value as keyof typeof coinSource]
-            const descEntry = value === 'ai_screener'
-              ? aiScreener.ai_screenerDesc
-              : value === 'market_screener'
-              ? coinSource.market_screenerDesc
-              : coinSource[`${value}Desc` as keyof typeof coinSource]
+            const nameEntry = coinSource[value as keyof typeof coinSource]
+            const descEntry = coinSource[`${value}Desc` as keyof typeof coinSource]
             return (
             <button
               key={value}
@@ -191,7 +181,7 @@ export function CoinSourceEditor({
       </div>
 
       {/* Exchange Source Selector */}
-      {config.source_type !== 'static' && config.source_type !== 'ai_screener' && config.source_type !== 'market_screener' && (
+      {config.source_type !== 'static' && config.source_type !== 'market' && (
         <div className="flex items-center gap-3">
           <Globe className="w-4 h-4 text-nofx-text-muted" />
           <span className="text-sm text-nofx-text">{ts(coinSource.exchangeSource, language)}</span>
@@ -721,22 +711,42 @@ export function CoinSourceEditor({
         </div>
       )}
 
-      {/* AI Screener */}
-      {(config.source_type === 'ai_screener' || config.source_type === 'market_screener') && (
-        <AIScreenerEditor
-          config={config.ai_screener || {
-            enabled: true,
-            screening_interval_minutes: 60,
-            max_coins: 10,
-          }}
-          onChange={(screenerConfig) => onChange({ ...config, ai_screener: screenerConfig })}
-          disabled={disabled}
-          language={language}
-        />
+            {/* Market source config */}
+      {config.source_type === 'market' && (
+        <div className="space-y-3">
+          <div className="text-sm font-medium text-nofx-text">{ts(coinSource.marketConfig, language)}</div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-nofx-text-muted mb-1">{ts(coinSource.marketList, language)}</label>
+              <select
+                value={config.market_list || 'hot'}
+                onChange={(e) => onChange({ ...config, market_list: e.target.value as 'hot' | 'oi_top' | 'oi_low' })}
+                disabled={disabled}
+                className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-border text-nofx-text text-sm"
+              >
+                <option value="hot">{ts(coinSource.marketListHot, language)}</option>
+                <option value="oi_top">{ts(coinSource.marketListOITop, language)}</option>
+                <option value="oi_low">{ts(coinSource.marketListOILow, language)}</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-nofx-text-muted mb-1">{ts(coinSource.marketLimit, language)}</label>
+              <input
+                type="number"
+                value={config.market_limit || 20}
+                onChange={(e) => onChange({ ...config, market_limit: parseInt(e.target.value) || 20 })}
+                min={1}
+                max={50}
+                disabled={disabled}
+                className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-border text-nofx-text text-sm"
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Legacy: NofxOS (collapsed, optional) */}
-            {config.source_type !== 'static' && config.source_type !== 'ai_screener' && config.source_type !== 'market_screener' && (
+      {config.source_type !== 'static' && config.source_type !== 'market' && (
         <div className="border border-gray-600/30 rounded-lg overflow-hidden">
           <button
             type="button"

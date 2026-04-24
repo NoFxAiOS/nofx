@@ -388,6 +388,8 @@ type CoinSourceConfig struct {
 	// Market source config (used when source_type = "market")
 	MarketList  string `json:"market_list,omitempty"`  // "hot" | "oi_top" | "oi_low"
 	MarketLimit int    `json:"market_limit,omitempty"` // top N coins
+	// Exchange for market data source (default: "okx")
+	ExchangeSource string `json:"exchange_source,omitempty"` // "binance" | "okx"
 	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 

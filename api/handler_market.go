@@ -63,21 +63,22 @@ func (s *Server) handleHotCoins(c *gin.Context) {
 	})
 }
 
-// handleOIRanking GET /api/market/oi-ranking?direction=top&limit=20&excluded=COIN1,COIN2
+// handleOIRanking GET /api/market/oi-ranking?direction=top&limit=20&exchange=okx&excluded=COIN1,COIN2
 func (s *Server) handleOIRanking(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
 	direction := c.DefaultQuery("direction", "top")
+	exchange := c.DefaultQuery("exchange", "okx")
 	excluded := parseExcluded(c.Query("excluded"))
 
 	var coins []market.HotCoin
 	var err error
 	if direction == "low" {
-		coins, err = market.GetOILowCoins(limit, excluded)
+		coins, err = market.GetOILowCoinsWithExchange(limit, excluded, exchange)
 	} else {
-		coins, err = market.GetOITopCoins(limit, excluded)
+		coins, err = market.GetOITopCoinsWithExchange(limit, excluded, exchange)
 	}
 	if err != nil {
 		SafeInternalError(c, "Get OI ranking", err)
@@ -87,7 +88,7 @@ func (s *Server) handleOIRanking(c *gin.Context) {
 	c.JSON(http.StatusOK, HotCoinResponse{
 		Coins:     toHotCoinItems(coins),
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
-		Exchange:  "okx",
+		Exchange:  exchange,
 	})
 }
 

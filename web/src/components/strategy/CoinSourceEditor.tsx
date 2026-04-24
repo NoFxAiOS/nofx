@@ -18,16 +18,22 @@ export function CoinSourceEditor({
 }: CoinSourceEditorProps) {
   const [newCoin, setNewCoin] = useState('')
   const [newExcludedCoin, setNewExcludedCoin] = useState('')
-  const [showLegacyNofxos, setShowLegacyNofxos] = useState(false)
 
   const sourceTypes = [
     { value: 'static', icon: List, color: '#848E9C' },
+    { value: 'market', icon: BarChart3, color: '#34d399' },
+  ] as const
+
+  const legacySourceTypes = [
     { value: 'ai500', icon: Database, color: '#F0B90B' },
     { value: 'oi_top', icon: TrendingUp, color: '#0ECB81' },
     { value: 'oi_low', icon: TrendingDown, color: '#F6465D' },
     { value: 'mixed', icon: Shuffle, color: '#60a5fa' },
-    { value: 'market', icon: BarChart3, color: '#34d399' },
   ] as const
+
+  const [showLegacySources, setShowLegacySources] = useState(
+    () => ['ai500', 'oi_top', 'oi_low', 'mixed'].includes(config.source_type)
+  )
 
   // Calculate mixed mode summary
   const getMixedSummary = () => {
@@ -135,13 +141,6 @@ export function CoinSourceEditor({
   }
 
   // NofxOS badge component (legacy)
-  const NofxOSBadge = () => (
-    <span
-      className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30"
-    >
-      Legacy
-    </span>
-  )
 
   return (
     <div className="space-y-6">
@@ -150,7 +149,7 @@ export function CoinSourceEditor({
         <label className="block text-sm font-medium mb-3 text-nofx-text">
           {ts(coinSource.sourceType, language)}
         </label>
-                <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
           {sourceTypes.map(({ value, icon: Icon, color }) => {
             const nameEntry = coinSource[value as keyof typeof coinSource]
             const descEntry = coinSource[`${value}Desc` as keyof typeof coinSource]
@@ -178,10 +177,48 @@ export function CoinSourceEditor({
             )
           })}
         </div>
+
+        {/* Legacy NofxOS source types (collapsed) */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowLegacySources(!showLegacySources)}
+            className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+          >
+            {showLegacySources ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            <span>NofxOS {language === 'zh' ? '数据源（旧版）' : 'Sources (Legacy)'}</span>
+          </button>
+          {showLegacySources && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+              {legacySourceTypes.map(({ value, icon: Icon, color }) => {
+                const nameEntry = coinSource[value as keyof typeof coinSource]
+                return (
+                  <button
+                    key={value}
+                    onClick={() =>
+                      !disabled &&
+                      onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
+                    }
+                    disabled={disabled}
+                    className={`p-3 rounded-lg border transition-all ${config.source_type === value
+                      ? 'ring-2 ring-nofx-gold bg-nofx-gold/10'
+                      : 'hover:bg-white/5 bg-nofx-bg opacity-60'
+                      } border-nofx-gold/20`}
+                  >
+                    <Icon className="w-5 h-5 mx-auto mb-1" style={{ color }} />
+                    <div className="text-xs font-medium text-nofx-text">
+                      {nameEntry ? ts(nameEntry, language) : value}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Exchange Source Selector */}
-      {config.source_type !== 'static' && config.source_type !== 'market' && (
+      {config.source_type !== 'static' && (
         <div className="flex items-center gap-3">
           <Globe className="w-4 h-4 text-nofx-text-muted" />
           <span className="text-sm text-nofx-text">{ts(coinSource.exchangeSource, language)}</span>
@@ -192,7 +229,7 @@ export function CoinSourceEditor({
                 onClick={() => !disabled && onChange({ ...config, exchange_source: ex })}
                 disabled={disabled}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  (config.exchange_source || 'binance') === ex
+                  (config.exchange_source || 'okx') === ex
                     ? 'bg-nofx-gold/20 text-nofx-gold border border-nofx-gold/50'
                     : 'bg-nofx-bg text-nofx-text-muted border border-nofx-border hover:border-nofx-gold/30'
                 }`}
@@ -745,30 +782,6 @@ export function CoinSourceEditor({
         </div>
       )}
 
-      {/* Legacy: NofxOS (collapsed, optional) */}
-      {config.source_type !== 'static' && config.source_type !== 'market' && (
-        <div className="border border-gray-600/30 rounded-lg overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowLegacyNofxos(!showLegacyNofxos)}
-            className="w-full flex items-center gap-2 p-3 text-sm text-gray-400 hover:text-gray-300 transition-colors"
-          >
-            {showLegacyNofxos ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            <span>{ts(coinSource.legacyNofxos, language)}</span>
-            <NofxOSBadge />
-          </button>
-          {showLegacyNofxos && (
-            <div className="px-3 pb-3">
-              <p className="text-xs text-gray-500 mb-2">
-                {ts(coinSource.legacyNofxosDesc, language)}
-              </p>
-              <p className="text-xs text-gray-500">
-                {ts(coinSource.nofxosNote, language)}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

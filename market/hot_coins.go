@@ -42,14 +42,34 @@ func GetHotCoinsWithExchange(limit int, excludedCoins []string, exchange string)
 	}
 }
 
-// GetOITopCoins returns coins ranked by OI increase
+// GetOITopCoins returns coins ranked by OI increase (defaults to OKX)
 func GetOITopCoins(limit int, excludedCoins []string) ([]HotCoin, error) {
-	return getOIRankedCoinsOKX(limit, excludedCoins, true)
+	return GetOITopCoinsWithExchange(limit, excludedCoins, "okx")
 }
 
-// GetOILowCoins returns coins ranked by OI decrease
+// GetOITopCoinsWithExchange returns coins ranked by OI increase from specified exchange
+func GetOITopCoinsWithExchange(limit int, excludedCoins []string, exchange string) ([]HotCoin, error) {
+	switch strings.ToLower(exchange) {
+	case "binance":
+		return getOIRankedCoinsBinance(limit, excludedCoins, true)
+	default:
+		return getOIRankedCoinsOKX(limit, excludedCoins, true)
+	}
+}
+
+// GetOILowCoins returns coins ranked by OI decrease (defaults to OKX)
 func GetOILowCoins(limit int, excludedCoins []string) ([]HotCoin, error) {
-	return getOIRankedCoinsOKX(limit, excludedCoins, false)
+	return GetOILowCoinsWithExchange(limit, excludedCoins, "okx")
+}
+
+// GetOILowCoinsWithExchange returns coins ranked by OI decrease from specified exchange
+func GetOILowCoinsWithExchange(limit int, excludedCoins []string, exchange string) ([]HotCoin, error) {
+	switch strings.ToLower(exchange) {
+	case "binance":
+		return getOIRankedCoinsBinance(limit, excludedCoins, false)
+	default:
+		return getOIRankedCoinsOKX(limit, excludedCoins, false)
+	}
 }
 
 // ---- OKX implementation ----
@@ -229,6 +249,72 @@ func getOIRankedCoinsOKX(limit int, excludedCoins []string, ascending bool) ([]H
 }
 
 // ---- Binance implementation (fallback, may be geo-restricted) ----
+
+func getOIRankedCoinsBinance(limit int, excludedCoins []string, ascending bool) ([]HotCoin, error) {
+	client := NewAPIClient()
+	excluded := toExcludeMap(excludedCoins)
+
+	tickers, err := client.GetAllTickers24h()
+	if err != nil {
+		return nil, err
+	}
+
+	var coins []HotCoin
+
+	for _, t := range tickers {
+		if !strings.HasSuffix(t.Symbol, "USDT") {
+			continue
+		}
+		if excluded[t.Symbol] {
+			continue
+		}
+
+		vol, _ := strconv.ParseFloat(t.QuoteVolume, 64)
+		if vol < hotCoinMinVolume*0.5 {
+			continue
+		}
+
+		chg, _ := strconv.ParseFloat(t.PriceChangePercent, 64)
+		price, _ := strconv.ParseFloat(t.WeightedAvgPrice, 64)
+
+		oiData, err := getOpenInterestData(t.Symbol)
+		if err != nil || oiData == nil || oiData.Latest == 0 {
+			continue
+		}
+		oiUSD := oiData.Latest * price
+
+		oiChange := 0.0
+		if oiUSD > 0 {
+			oiChange = vol / oiUSD * 100
+		}
+
+		coins = append(coins, HotCoin{
+			Symbol:          t.Symbol,
+			QuoteVolume24h:  vol,
+			PriceChangePct:  chg,
+			OpenInterestUSD: oiUSD,
+			HotScore:        oiChange,
+			Source:          "binance_oi_rank",
+		})
+	}
+
+	if ascending {
+		sort.Slice(coins, func(i, j int) bool {
+			return coins[i].HotScore > coins[j].HotScore
+		})
+	} else {
+		sort.Slice(coins, func(i, j int) bool {
+			return coins[i].HotScore < coins[j].HotScore
+		})
+	}
+
+	if limit > 0 && len(coins) > limit {
+		coins = coins[:limit]
+	}
+
+	logger.Infof("getOIRankedCoinsBinance: found %d coins (ascending=%v)", len(coins), ascending)
+	return coins, nil
+}
 
 func getHotCoinsBinance(limit int, excludedCoins []string) ([]HotCoin, error) {
 	client := NewAPIClient()

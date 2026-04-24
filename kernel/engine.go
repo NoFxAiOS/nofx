@@ -562,15 +562,19 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		if marketLimit <= 0 {
 			marketLimit = 20
 		}
+		exchangeSrc := coinSource.ExchangeSource
+		if exchangeSrc == "" {
+			exchangeSrc = "okx"
+		}
 		var marketCoins []market.HotCoin
 		var marketErr error
 		switch coinSource.MarketList {
 		case "oi_top":
-			marketCoins, marketErr = market.GetOITopCoins(marketLimit, coinSource.ExcludedCoins)
+			marketCoins, marketErr = market.GetOITopCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
 		case "oi_low":
-			marketCoins, marketErr = market.GetOILowCoins(marketLimit, coinSource.ExcludedCoins)
+			marketCoins, marketErr = market.GetOILowCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
 		default: // "hot" or empty
-			marketCoins, marketErr = market.GetHotCoins(marketLimit, coinSource.ExcludedCoins)
+			marketCoins, marketErr = market.GetHotCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
 		}
 		if marketErr != nil {
 			logger.Infof("⚠️  Market source failed: %v, falling back to static coins", marketErr)
@@ -741,7 +745,11 @@ func (e *StrategyEngine) getHyperMainCoins(limit int) ([]CandidateCoin, error) {
 
 // FetchMarketData fetches market data based on strategy configuration
 func (e *StrategyEngine) FetchMarketData(symbol string) (*market.Data, error) {
-	return market.Get(symbol)
+	exchangeSrc := e.config.CoinSource.ExchangeSource
+	if exchangeSrc == "" {
+		exchangeSrc = "binance" // backward compat: existing behavior defaults to binance
+	}
+	return market.GetWithExchange(symbol, exchangeSrc)
 }
 
 // FetchExternalData fetches external data sources

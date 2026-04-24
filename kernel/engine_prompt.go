@@ -136,6 +136,25 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- max_drawdown_pct should factor in current ATR volatility\n")
 	sb.WriteString("- Include `reason_anchor` field referencing the specific structural/timeframe basis\n")
 	sb.WriteString("- Rules at different profit levels should correspond to different structural targets\n\n")
+
+	// Dynamic: inject hard requirement when drawdown is actually in AI mode
+	prot := e.config.Protection
+	if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
+		sb.WriteString("### ⚠️ ACTIVE: Drawdown Take Profit is in AI mode for this strategy\n")
+		sb.WriteString("- You MUST include `protection_plan` with `mode=\"drawdown\"` and non-empty `drawdown_rules` array for every open_long/open_short decision\n")
+		sb.WriteString("- Omitting `drawdown_rules` will cause the trade to be rejected\n")
+		sb.WriteString(fmt.Sprintf("- Strategy has %d default drawdown rule(s) as reference; your AI rules should be structurally justified\n", len(prot.DrawdownTakeProfit.Rules)))
+		for i, r := range prot.DrawdownTakeProfit.Rules {
+			sb.WriteString(fmt.Sprintf("  - Default rule %d: min_profit=%.1f%%, max_drawdown=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+		}
+		sb.WriteString("\n")
+	}
+	if prot.BreakEvenStop.Enabled {
+		sb.WriteString("### ⚠️ ACTIVE: Break-even Stop is enabled for this strategy\n")
+		sb.WriteString("- You MUST include break_even_trigger_mode, break_even_trigger_value, and break_even_offset_pct in protection_plan for every open action\n")
+		sb.WriteString(fmt.Sprintf("  - Default: trigger_mode=%s, trigger_value=%.1f, offset=%.2f%%\n", prot.BreakEvenStop.TriggerMode, prot.BreakEvenStop.TriggerValue, prot.BreakEvenStop.OffsetPct))
+		sb.WriteString("\n")
+	}
 	sb.WriteString("### For break_even mode:\n")
 	sb.WriteString("- trigger_value should consider the distance to the first structural level past entry\n")
 	sb.WriteString("- offset_pct should keep the stop just beyond the nearest support/resistance\n\n")

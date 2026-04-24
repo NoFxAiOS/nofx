@@ -134,7 +134,17 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 		at.drawdownSource[positionKey(req.Symbol, strings.ToLower(req.PositionSide))] = "ai_decision"
 		at.protectionStateMutex.Unlock()
 	} else if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
-		return fmt.Errorf("drawdown protection is in AI mode but decision did not provide drawdown_rules")
+		// AI mode but AI did not provide drawdown_rules — fallback to strategy default rules
+		if len(prot.DrawdownTakeProfit.Rules) > 0 {
+			logger.Warnf("[%s] drawdown AI mode but AI did not provide drawdown_rules; falling back to strategy default rules (%d rules)",
+				req.Symbol, len(prot.DrawdownTakeProfit.Rules))
+			drawdownRules = prot.DrawdownTakeProfit.Rules
+			at.protectionStateMutex.Lock()
+			at.drawdownSource[positionKey(req.Symbol, strings.ToLower(req.PositionSide))] = "strategy_fallback"
+			at.protectionStateMutex.Unlock()
+		} else {
+			return fmt.Errorf("drawdown protection is in AI mode but decision did not provide drawdown_rules and no strategy default rules configured")
+		}
 	} else if !prot.DrawdownTakeProfit.Enabled || prot.DrawdownTakeProfit.Mode == store.ProtectionModeDisabled {
 		drawdownRules = nil
 	}

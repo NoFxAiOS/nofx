@@ -111,6 +111,14 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		return decision, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
+	// 6. Validate protection routes against strategy config (drawdown/ladder/break-even AI mode)
+	config := engine.GetConfig()
+	if decision != nil && len(decision.Decisions) > 0 {
+		if routeErr := ValidateAIDecisionsWithStrategyAndCoT(decision.Decisions, config, decision.CoTTrace); routeErr != nil {
+			return decision, fmt.Errorf("protection route validation failed: %w", routeErr)
+		}
+	}
+
 	return decision, nil
 }
 

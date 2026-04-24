@@ -752,32 +752,58 @@ export function CoinSourceEditor({
       {config.source_type === 'market' && (
         <div className="space-y-3">
           <div className="text-sm font-medium text-nofx-text">{ts(coinSource.marketConfig, language)}</div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-nofx-text-muted mb-1">{ts(coinSource.marketList, language)}</label>
-              <select
-                value={config.market_list || 'hot'}
-                onChange={(e) => onChange({ ...config, market_list: e.target.value as 'hot' | 'oi_top' | 'oi_low' })}
-                disabled={disabled}
-                className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-border text-nofx-text text-sm"
-              >
-                <option value="hot">{ts(coinSource.marketListHot, language)}</option>
-                <option value="oi_top">{ts(coinSource.marketListOITop, language)}</option>
-                <option value="oi_low">{ts(coinSource.marketListOILow, language)}</option>
-              </select>
+          <div>
+            <label className="block text-sm text-nofx-text-muted mb-2">{ts(coinSource.marketList, language)}</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'hot' as const, label: coinSource.marketListHot, icon: Zap, color: '#F0B90B' },
+                { value: 'oi_top' as const, label: coinSource.marketListOITop, icon: TrendingUp, color: '#0ECB81' },
+                { value: 'oi_low' as const, label: coinSource.marketListOILow, icon: TrendingDown, color: '#F6465D' },
+              ].map(({ value, label, icon: Icon, color }) => {
+                const lists = config.market_lists || (config.market_list ? [config.market_list] : ['hot'])
+                const isSelected = lists.includes(value)
+                return (
+                  <button
+                    key={value}
+                    onClick={() => {
+                      if (disabled) return
+                      let newLists: typeof lists
+                      if (isSelected) {
+                        newLists = lists.filter(l => l !== value)
+                        if (newLists.length === 0) return // must keep at least one
+                      } else {
+                        newLists = [...lists, value]
+                      }
+                      onChange({ ...config, market_lists: newLists, market_list: undefined })
+                    }}
+                    disabled={disabled}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-all ${
+                      isSelected
+                        ? 'ring-1 ring-nofx-gold bg-nofx-gold/10 border-nofx-gold/40'
+                        : 'hover:bg-white/5 bg-nofx-bg border-nofx-border opacity-60'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" style={{ color }} />
+                    <span className="text-nofx-text">{ts(label, language)}</span>
+                  </button>
+                )
+              })}
             </div>
-            <div>
-              <label className="block text-sm text-nofx-text-muted mb-1">{ts(coinSource.marketLimit, language)}</label>
-              <input
-                type="number"
-                value={config.market_limit || 20}
-                onChange={(e) => onChange({ ...config, market_limit: parseInt(e.target.value) || 20 })}
-                min={1}
-                max={50}
-                disabled={disabled}
-                className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-border text-nofx-text text-sm"
-              />
-            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-nofx-text-muted mb-1">{ts(coinSource.marketLimit, language)}</label>
+            <input
+              type="number"
+              value={config.market_limit || 20}
+              onChange={(e) => onChange({ ...config, market_limit: parseInt(e.target.value) || 20 })}
+              min={1}
+              max={50}
+              disabled={disabled}
+              className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-border text-nofx-text text-sm"
+            />
+            <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
+              {language === 'zh' ? '每个分类取前 N 个币种，去重后合并' : 'Top N per category, merged and deduplicated'}
+            </p>
           </div>
         </div>
       )}

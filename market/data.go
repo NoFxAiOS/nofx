@@ -110,7 +110,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	oiData, err := getOpenInterestDataExchange(symbol, exchange)
 	if err != nil {
 		// OI failure doesn't affect overall result; keep it nil so downstream can distinguish
 		// "missing OI" from a real numeric 0 and avoid accidental hard filtering.
@@ -118,7 +118,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	fundingRate, _ := getFundingRateExchange(symbol, exchange)
 
 	// Calculate intraday series data
 	intradayData := calculateIntradaySeries(klines3m)
@@ -243,15 +243,15 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
-	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	// Get OI data (exchange-aware)
+	oiData, err := getOpenInterestDataExchange(symbol, exchange)
 	if err != nil {
 		// Preserve nil to signal OI is unavailable, instead of coercing to zero.
 		oiData = nil
 	}
 
-	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	// Get Funding Rate (exchange-aware, may be overridden by sentiment block for OKX)
+	fundingRate, _ := getFundingRateExchange(symbol, exchange)
 
 	data := &Data{
 		Symbol:        symbol,
@@ -268,37 +268,72 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 
 	// Fetch sentiment data (best-effort, don't fail on errors)
 	if !isXyzAsset {
-		apiClient := NewAPIClient()
+		if exchange == "okx" {
+			okxClient := NewOKXAPIClient()
 
-		// Long/short ratio
-		if lsRatio, err := apiClient.GetLongShortRatio(symbol, "1h"); err == nil && len(lsRatio) > 0 {
-			if v, err := strconv.ParseFloat(lsRatio[0].LongShortRatio, 64); err == nil {
-				data.LongShortRatio = &v
+			// Long/short ratio
+			if lsRatio, err := okxClient.GetLongShortRatio(symbol, "1H"); err == nil && len(lsRatio) > 0 {
+				if v, err := strconv.ParseFloat(lsRatio[0].LongShortRatio, 64); err == nil {
+					data.LongShortRatio = &v
+				}
 			}
-		}
 
-		// Top trader ratio
-		if ttRatio, err := apiClient.GetTopTraderLongShortRatio(symbol, "1h"); err == nil && len(ttRatio) > 0 {
-			if v, err := strconv.ParseFloat(ttRatio[0].LongShortRatio, 64); err == nil {
-				data.TopTraderRatio = &v
+			// Taker buy/sell ratio
+			if tbRatio, err := okxClient.GetTakerVolume(symbol, "1H"); err == nil && len(tbRatio) > 0 {
+				if v, err := strconv.ParseFloat(tbRatio[0].BuySellRatio, 64); err == nil {
+					data.TakerBuySellRatio = &v
+				}
 			}
-		}
 
-		// Taker buy/sell ratio
-		if tbRatio, err := apiClient.GetTakerBuySellRatio(symbol, "1h"); err == nil && len(tbRatio) > 0 {
-			if v, err := strconv.ParseFloat(tbRatio[0].BuySellRatio, 64); err == nil {
-				data.TakerBuySellRatio = &v
+			// Order book depth
+			if depth, err := okxClient.GetOrderBookDepth(symbol, 20); err == nil {
+				bidTotal, askTotal := CalculateDepthTotals(depth)
+				data.DepthBidTotal = &bidTotal
+				data.DepthAskTotal = &askTotal
+				if bidTotal+askTotal > 0 {
+					imbalance := (bidTotal - askTotal) / (bidTotal + askTotal)
+					data.DepthImbalance = &imbalance
+				}
 			}
-		}
 
-		// Order book depth
-		if depth, err := apiClient.GetOrderBookDepth(symbol, 20); err == nil {
-			bidTotal, askTotal := CalculateDepthTotals(depth)
-			data.DepthBidTotal = &bidTotal
-			data.DepthAskTotal = &askTotal
-			if bidTotal+askTotal > 0 {
-				imbalance := (bidTotal - askTotal) / (bidTotal + askTotal)
-				data.DepthImbalance = &imbalance
+			// Funding rate
+			if fr, err := okxClient.GetFundingRate(symbol); err == nil {
+				data.FundingRate = fr
+			}
+		} else {
+			// Binance
+			apiClient := NewAPIClient()
+
+			// Long/short ratio
+			if lsRatio, err := apiClient.GetLongShortRatio(symbol, "1h"); err == nil && len(lsRatio) > 0 {
+				if v, err := strconv.ParseFloat(lsRatio[0].LongShortRatio, 64); err == nil {
+					data.LongShortRatio = &v
+				}
+			}
+
+			// Top trader ratio (Binance-only endpoint)
+			if ttRatio, err := apiClient.GetTopTraderLongShortRatio(symbol, "1h"); err == nil && len(ttRatio) > 0 {
+				if v, err := strconv.ParseFloat(ttRatio[0].LongShortRatio, 64); err == nil {
+					data.TopTraderRatio = &v
+				}
+			}
+
+			// Taker buy/sell ratio
+			if tbRatio, err := apiClient.GetTakerBuySellRatio(symbol, "1h"); err == nil && len(tbRatio) > 0 {
+				if v, err := strconv.ParseFloat(tbRatio[0].BuySellRatio, 64); err == nil {
+					data.TakerBuySellRatio = &v
+				}
+			}
+
+			// Order book depth
+			if depth, err := apiClient.GetOrderBookDepth(symbol, 20); err == nil {
+				bidTotal, askTotal := CalculateDepthTotals(depth)
+				data.DepthBidTotal = &bidTotal
+				data.DepthAskTotal = &askTotal
+				if bidTotal+askTotal > 0 {
+					imbalance := (bidTotal - askTotal) / (bidTotal + askTotal)
+					data.DepthImbalance = &imbalance
+				}
 			}
 		}
 	}
@@ -310,6 +345,28 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 	data.StructuralLevels = DetectStructuralLevels(primaryKlines, currentPrice, primaryTimeframe)
 
 	return data, nil
+}
+
+// getOpenInterestDataExchange retrieves OI data from the specified exchange
+func getOpenInterestDataExchange(symbol, exchange string) (*OIData, error) {
+	if exchange == "okx" {
+		okxClient := NewOKXAPIClient()
+		oiResult, err := okxClient.GetOpenInterest(symbol)
+		if err != nil {
+			return nil, err
+		}
+		return oiResult, nil
+	}
+	return getOpenInterestData(symbol)
+}
+
+// getFundingRateExchange retrieves funding rate from the specified exchange
+func getFundingRateExchange(symbol, exchange string) (float64, error) {
+	if exchange == "okx" {
+		okxClient := NewOKXAPIClient()
+		return okxClient.GetFundingRate(symbol)
+	}
+	return getFundingRate(symbol)
 }
 
 // getOpenInterestData retrieves OI data

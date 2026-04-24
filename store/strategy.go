@@ -386,8 +386,9 @@ type CoinSourceConfig struct {
 	// Hyperliquid Main maximum count (default 20)
 	HyperMainLimit int `json:"hyper_main_limit,omitempty"`
 	// Market source config (used when source_type = "market")
-	MarketList  string `json:"market_list,omitempty"`  // "hot" | "oi_top" | "oi_low"
-	MarketLimit int    `json:"market_limit,omitempty"` // top N coins
+	MarketList  string   `json:"market_list,omitempty"`  // deprecated: single list, kept for backward compat
+	MarketLists []string `json:"market_lists,omitempty"` // multi-select: ["hot", "oi_top", "oi_low"]
+	MarketLimit int      `json:"market_limit,omitempty"` // top N coins per list
 	// Exchange for market data source (default: "okx")
 	ExchangeSource string `json:"exchange_source,omitempty"` // "binance" | "okx"
 	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig

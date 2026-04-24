@@ -228,7 +228,8 @@ export interface CoinSourceConfig {
   use_oi_low: boolean;
   oi_low_limit?: number;
   // Market source config (used when source_type = "market")
-  market_list?: 'hot' | 'oi_top' | 'oi_low';  // which market ranking
+  market_list?: 'hot' | 'oi_top' | 'oi_low';  // deprecated: single list
+  market_lists?: ('hot' | 'oi_top' | 'oi_low')[];  // multi-select market rankings
   market_limit?: number;  // top N coins from market
   // Note: API URLs are now built automatically using nofxos_api_key from IndicatorConfig
 }

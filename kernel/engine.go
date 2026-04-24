@@ -557,7 +557,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		return e.filterExcludedCoins(candidates), nil
 
 	case "market":
-		// Consume market layer output: hot coins, OI top, or OI low
+		// Consume market layer output: hot coins, OI top, OI low (multi-select)
 		marketLimit := coinSource.MarketLimit
 		if marketLimit <= 0 {
 			marketLimit = 20
@@ -566,32 +566,59 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		if exchangeSrc == "" {
 			exchangeSrc = "okx"
 		}
-		var marketCoins []market.HotCoin
-		var marketErr error
-		switch coinSource.MarketList {
-		case "oi_top":
-			marketCoins, marketErr = market.GetOITopCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
-		case "oi_low":
-			marketCoins, marketErr = market.GetOILowCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
-		default: // "hot" or empty
-			marketCoins, marketErr = market.GetHotCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
+
+		// Resolve which lists to fetch: prefer MarketLists (multi), fallback to MarketList (single)
+		lists := coinSource.MarketLists
+		if len(lists) == 0 {
+			if coinSource.MarketList != "" {
+				lists = []string{coinSource.MarketList}
+			} else {
+				lists = []string{"hot"}
+			}
 		}
-		if marketErr != nil {
-			logger.Infof("⚠️  Market source failed: %v, falling back to static coins", marketErr)
+
+		seen := make(map[string]bool)
+		var allCoins []market.HotCoin
+		for _, list := range lists {
+			var coins []market.HotCoin
+			var err error
+			switch list {
+			case "oi_top":
+				coins, err = market.GetOITopCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
+			case "oi_low":
+				coins, err = market.GetOILowCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
+			default: // "hot"
+				coins, err = market.GetHotCoinsWithExchange(marketLimit, coinSource.ExcludedCoins, exchangeSrc)
+			}
+			if err != nil {
+				logger.Infof("⚠️  Market list %s failed: %v", list, err)
+				continue
+			}
+			for _, coin := range coins {
+				if !seen[coin.Symbol] {
+					seen[coin.Symbol] = true
+					allCoins = append(allCoins, coin)
+				}
+			}
+			logger.Infof("📊 Market list %s (%s): %d coins", list, exchangeSrc, len(coins))
+		}
+
+		if len(allCoins) == 0 {
+			logger.Infof("⚠️  All market lists failed, falling back to static coins")
 			for _, symbol := range coinSource.StaticCoins {
 				symbol = market.Normalize(symbol)
 				candidates = append(candidates, CandidateCoin{Symbol: symbol, Sources: []string{"static"}})
 			}
 			return e.filterExcludedCoins(candidates), nil
 		}
-		for _, coin := range marketCoins {
+		for _, coin := range allCoins {
 			candidates = append(candidates, CandidateCoin{
 				Symbol:  coin.Symbol,
 				Sources: []string{"market"},
 				Score:   coin.HotScore,
 			})
 		}
-		logger.Infof("✅ Market source (%s): %d candidates", coinSource.MarketList, len(candidates))
+		logger.Infof("✅ Market source (%v): %d unique candidates", lists, len(candidates))
 		return e.filterExcludedCoins(candidates), nil
 
 	default:

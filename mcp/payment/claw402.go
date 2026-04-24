@@ -63,7 +63,9 @@ var claw402ModelEndpoints = map[string]string{
 	// Anthropic
 	"claude-opus": "/api/v1/ai/anthropic/messages/opus",
 	// DeepSeek
-	"deepseek":          "/api/v1/ai/deepseek/chat",
+	"deepseek":           "/api/v1/ai/deepseek/chat",
+	"deepseek-v4-pro":    "/api/v1/ai/deepseek/chat/v4-pro",
+	"deepseek-v4-flash":  "/api/v1/ai/deepseek/chat/v4-flash",
 	"deepseek-reasoner": "/api/v1/ai/deepseek/chat/reasoner",
 	// Qwen
 	"qwen-max":   "/api/v1/ai/qwen/chat/max",

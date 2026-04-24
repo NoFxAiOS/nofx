@@ -145,7 +145,13 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 // timeframes: list of timeframes, e.g. ["5m", "15m", "1h", "4h"]
 // primaryTimeframe: primary timeframe (used for calculating current indicators), defaults to timeframes[0]
 // count: number of K-lines for each timeframe
+// Defaults to Binance exchange.
 func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*Data, error) {
+	return GetWithTimeframesExchange(symbol, timeframes, primaryTimeframe, count, "binance")
+}
+
+// GetWithTimeframesExchange is like GetWithTimeframes but allows specifying the exchange.
+func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimeframe string, count int, exchange string) (*Data, error) {
 	symbol = Normalize(symbol)
 
 	if len(timeframes) == 0 {
@@ -189,8 +195,12 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 				continue
 			}
 		} else {
-			// Use CoinAnk for regular crypto assets (default to Binance)
-			klines, err = getKlinesFromCoinAnk(symbol, tf, "binance", 200)
+			// Use CoinAnk for regular crypto assets
+			exSrc := exchange
+			if exSrc == "" {
+				exSrc = "binance"
+			}
+			klines, err = getKlinesFromCoinAnk(symbol, tf, exSrc, 200)
 			if err != nil {
 				logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
 				continue

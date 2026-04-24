@@ -1,13 +1,15 @@
 package main
 
 import (
+	"log/slog"
 	"nofx/api"
+	nofxiagent "nofx/agent"
 	"nofx/auth"
 	"nofx/config"
 	"nofx/crypto"
-	"nofx/telemetry"
 	"nofx/logger"
 	"nofx/manager"
+	"nofx/telemetry"
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
@@ -141,6 +143,14 @@ func main() {
 		}
 	}()
 
+	// Start the NOFXi web agent on top of the current dev branch services.
+	nofxiAgent := nofxiagent.New(traderManager, st, nil, slog.Default())
+	nofxiAgent.Start()
+	defer nofxiAgent.Stop()
+
+	agentWeb := nofxiagent.NewWebHandler(nofxiAgent, slog.Default())
+	server.RegisterAgentHandler(agentWeb)
+
 	// Start Telegram bot (if TELEGRAM_BOT_TOKEN is configured)
 	go telegram.Start(cfg, st, telegramReloadCh)
 
@@ -153,6 +163,13 @@ func main() {
 
 	<-quit
 	logger.Info("📴 Shutdown signal received, closing system...")
+
+	if err := server.Shutdown(); err != nil {
+		logger.Warnf("⚠️ HTTP server shutdown error: %v", err)
+	}
+	logger.Info("✅ HTTP server stopped")
+
+	// nofxiAgent.Stop() is handled by defer above
 
 	// Stop all traders
 	traderManager.StopAll()

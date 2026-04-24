@@ -16,6 +16,12 @@ export interface AIProviderConfig {
   apiName: string
 }
 
+export interface BlockrunModel {
+  id: string
+  name: string
+  desc: string
+}
+
 // Get friendly AI model display name
 export function getModelDisplayName(modelId: string): string {
   switch (modelId.toLowerCase()) {
@@ -56,6 +62,29 @@ export const CLAW402_MODELS: Claw402Model[] = [
   { id: 'grok-4.1', name: 'Grok 4.1', provider: 'xAI', desc: '$0.06/call', icon: '⚡', price: 0.06 },
   { id: 'claude-opus', name: 'Claude Opus', provider: 'Anthropic', desc: '$0.12/call', icon: '🎯', price: 0.12 },
   { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'OpenAI', desc: '$0.50/call', icon: '🧠', price: 0.50 },
+]
+
+export const BLOCKRUN_MODELS: BlockrunModel[] = [
+  {
+    id: 'gpt-5.2',
+    name: 'GPT-5.2',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'claude-opus-4-6',
+    name: 'Claude Opus 4.6',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'gemini-3.1-pro',
+    name: 'Gemini 3.1 Pro',
+    desc: 'Base wallet payment',
+  },
+  {
+    id: 'qwen3-max',
+    name: 'Qwen 3 Max',
+    desc: 'Base wallet payment',
+  },
 ]
 
 // AI Provider configuration - default models and API links

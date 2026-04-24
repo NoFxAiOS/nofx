@@ -28,7 +28,10 @@ export const dataApi = {
     return result.data!
   },
 
-  async getPositions(traderId?: string, silent?: boolean): Promise<Position[]> {
+  async getPositions(
+    traderId?: string,
+    silent?: boolean
+  ): Promise<Position[]> {
     const url = traderId
       ? `${API_BASE}/positions?trader_id=${traderId}`
       : `${API_BASE}/positions`
@@ -65,7 +68,10 @@ export const dataApi = {
     return result.data!
   },
 
-  async getStatistics(traderId?: string, silent?: boolean): Promise<Statistics> {
+  async getStatistics(
+    traderId?: string,
+    silent?: boolean
+  ): Promise<Statistics> {
     const url = traderId
       ? `${API_BASE}/statistics?trader_id=${traderId}`
       : `${API_BASE}/statistics`
@@ -74,7 +80,10 @@ export const dataApi = {
     return result.data!
   },
 
-  async getEquityHistory(traderId?: string, silent?: boolean): Promise<any[]> {
+  async getEquityHistory(
+    traderId?: string,
+    silent?: boolean
+  ): Promise<any[]> {
     const url = traderId
       ? `${API_BASE}/equity-history?trader_id=${traderId}`
       : `${API_BASE}/equity-history`
@@ -100,7 +109,7 @@ export const dataApi = {
 
   async getPublicTraderConfig(traderId: string): Promise<any> {
     const result = await httpClient.get<any>(
-      `${API_BASE}/trader/${traderId}/config`
+      `${API_BASE}/traders/${traderId}/public-config`
     )
     if (!result.success) throw new Error('Failed to fetch public trader config')
     return result.data!

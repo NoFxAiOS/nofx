@@ -1,0 +1,6 @@
+{
+  "name": "model_diagnosis",
+  "kind": "diagnosis",
+  "domain": "model",
+  "description": "当用户反馈模型配置失败、API Key 无效、Base URL 非法、模型名不匹配、调用返回错误、模型不可用等问题时调用。适用于用户在接入或测试大模型时遇到的配置与兼容性故障。不用于创建、修改、删除或查询模型配置这类管理操作。"
+}

@@ -22,6 +22,7 @@ import { FAQPage } from '../pages/FAQPage'
 import { LandingPage } from '../pages/LandingPage'
 import { BeginnerOnboardingPage } from '../pages/BeginnerOnboardingPage'
 import { DataPage } from '../pages/DataPage'
+import { AgentChatPage } from '../pages/AgentChatPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { StrategyMarketPage } from '../pages/StrategyMarketPage'
 import { StrategyStudioPage } from '../pages/StrategyStudioPage'
@@ -453,6 +454,14 @@ export function AppRoutes() {
           element={
             <AppChrome currentPage="faq" showFooter={false} wrapInMain={false}>
               <FAQPage />
+            </AppChrome>
+          }
+        />
+        <Route
+          path={ROUTES.agent}
+          element={
+            <AppChrome currentPage="agent" showFooter={false}>
+              <AgentChatPage />
             </AppChrome>
           }
         />

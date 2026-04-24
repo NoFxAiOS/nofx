@@ -30,6 +30,7 @@ type SafeModelConfig struct {
 	Name            string `json:"name"`
 	Provider        string `json:"provider"`
 	Enabled         bool   `json:"enabled"`
+	HasAPIKey       bool   `json:"has_api_key"`
 	CustomAPIURL    string `json:"customApiUrl"`    // Custom API URL (usually not sensitive)
 	CustomModelName string `json:"customModelName"` // Custom model name (not sensitive)
 	WalletAddress   string `json:"walletAddress,omitempty"`
@@ -60,14 +61,14 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	if len(models) == 0 {
 		logger.Infof("⚠️ No AI models in database, returning defaults")
 		defaultModels := []SafeModelConfig{
-			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false},
-			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false},
-			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false},
-			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false},
-			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false},
-			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false},
-			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false},
-			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false},
+			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false},
+			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false},
+			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false},
+			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false},
+			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false},
+			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false},
+			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false},
+			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -83,6 +84,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			Name:            model.Name,
 			Provider:        model.Provider,
 			Enabled:         model.Enabled,
+			HasAPIKey:       model.APIKey != "",
 			CustomAPIURL:    model.CustomAPIURL,
 			CustomModelName: model.CustomModelName,
 		}
@@ -171,7 +173,8 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		if modelData.CustomAPIURL != "" {
 			cleanURL := strings.TrimSuffix(modelData.CustomAPIURL, "#")
 			if err := security.ValidateURL(cleanURL); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid custom_api_url for model %s: %s", modelID, err.Error())})
+				logger.Warnf("Invalid custom_api_url for model %s: %v", modelID, err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid custom_api_url for model %s: URL must be a valid HTTPS endpoint", modelID)})
 				return
 			}
 		}
@@ -214,7 +217,7 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "qwen", "name": "Qwen", "provider": "qwen", "defaultModel": "qwen3-max"},
 		{"id": "openai", "name": "OpenAI", "provider": "openai", "defaultModel": "gpt-5.1"},
 		{"id": "claude", "name": "Claude", "provider": "claude", "defaultModel": "claude-opus-4-6"},
-		{"id": "gemini", "name": "Google Gemini", "provider": "gemini", "defaultModel": "gemini-3.1-pro"},
+		{"id": "gemini", "name": "Google Gemini", "provider": "gemini", "defaultModel": "gemini-3-pro-preview"},
 		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
 		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
 		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.7"},

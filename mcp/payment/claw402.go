@@ -50,7 +50,7 @@ func shortAddr(addr string) string {
 
 const (
 	DefaultClaw402URL   = "https://claw402.ai"
-	DefaultClaw402Model = "glm-5"
+	DefaultClaw402Model = "deepseek-v4-flash"
 )
 
 // claw402ModelEndpoints maps user-friendly model names to claw402 API paths.

@@ -8,6 +8,7 @@ import (
 	"nofx/mcp"
 	"nofx/store"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -490,6 +491,9 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 	if d.EntryProtection == nil {
 		return fmt.Errorf("open action requires entry_protection_rationale")
 	}
+	// Backfill key_levels from structural_key_levels/anchors when AI omits support/resistance buckets.
+	backfillEntryProtectionKeyLevels(d.EntryProtection)
+
 	if config != nil {
 		entryStructure := config.EntryStructure
 		if entryStructure.Enabled {
@@ -920,6 +924,65 @@ func ParseAndValidateAIDecisionsWithStrategy(response string, config *store.Stra
 		return decisions, err
 	}
 	return decisions, nil
+}
+
+func backfillEntryProtectionKeyLevels(ep *AIEntryProtectionRationale) {
+	if ep == nil {
+		return
+	}
+	seenSupport := map[string]struct{}{}
+	seenResistance := map[string]struct{}{}
+	for _, v := range ep.KeyLevels.Support {
+		seenSupport[fmt.Sprintf("%.8f", v)] = struct{}{}
+	}
+	for _, v := range ep.KeyLevels.Resistance {
+		seenResistance[fmt.Sprintf("%.8f", v)] = struct{}{}
+	}
+
+	// 1) structural_key_levels → support/resistance buckets
+	for _, lvl := range ep.StructuralKeyLevels {
+		if lvl.Price <= 0 {
+			continue
+		}
+		key := fmt.Sprintf("%.8f", lvl.Price)
+		switch strings.ToLower(strings.TrimSpace(lvl.Type)) {
+		case "support":
+			if _, ok := seenSupport[key]; !ok {
+				ep.KeyLevels.Support = append(ep.KeyLevels.Support, lvl.Price)
+				seenSupport[key] = struct{}{}
+			}
+		case "resistance":
+			if _, ok := seenResistance[key]; !ok {
+				ep.KeyLevels.Resistance = append(ep.KeyLevels.Resistance, lvl.Price)
+				seenResistance[key] = struct{}{}
+			}
+		}
+	}
+
+	// 2) anchors → support/resistance buckets as fallback
+	for _, a := range ep.Anchors {
+		if a.Price <= 0 {
+			continue
+		}
+		key := fmt.Sprintf("%.8f", a.Price)
+		t := strings.ToLower(strings.TrimSpace(a.Type))
+		if strings.Contains(t, "support") {
+			if _, ok := seenSupport[key]; !ok {
+				ep.KeyLevels.Support = append(ep.KeyLevels.Support, a.Price)
+				seenSupport[key] = struct{}{}
+			}
+		}
+		if strings.Contains(t, "resistance") {
+			if _, ok := seenResistance[key]; !ok {
+				ep.KeyLevels.Resistance = append(ep.KeyLevels.Resistance, a.Price)
+				seenResistance[key] = struct{}{}
+			}
+		}
+	}
+
+	// Keep support descending and resistance ascending for consistency.
+	sort.Slice(ep.KeyLevels.Support, func(i, j int) bool { return ep.KeyLevels.Support[i] > ep.KeyLevels.Support[j] })
+	sort.Slice(ep.KeyLevels.Resistance, func(i, j int) bool { return ep.KeyLevels.Resistance[i] < ep.KeyLevels.Resistance[j] })
 }
 
 func extractTopLevelJSONArray(s string) string {

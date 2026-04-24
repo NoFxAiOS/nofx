@@ -56,14 +56,47 @@ func isTrendAligned(action string, data *market.Data) bool {
 	if data == nil {
 		return true
 	}
-	trendUp := data.CurrentPrice >= data.CurrentEMA20 && data.PriceChange4h >= 0
-	trendDown := data.CurrentPrice <= data.CurrentEMA20 && data.PriceChange4h <= 0
 
+	// Multi-factor trend scoring: need at least 2 of 4 signals aligned
+	// This avoids the old problem where a single factor (e.g. 4h change slightly negative)
+	// would block an otherwise valid trend trade.
 	switch strings.ToLower(action) {
 	case "open_long":
-		return trendUp
+		score := 0
+		// Factor 1: Price above EMA20
+		if data.CurrentPrice >= data.CurrentEMA20 {
+			score++
+		}
+		// Factor 2: 4h change positive
+		if data.PriceChange4h >= 0 {
+			score++
+		}
+		// Factor 3: 1h change positive (shorter-term momentum)
+		if data.PriceChange1h >= 0 {
+			score++
+		}
+		// Factor 4: MACD positive (momentum confirmation)
+		if data.CurrentMACD > 0 {
+			score++
+		}
+		return score >= 2
+
 	case "open_short":
-		return trendDown
+		score := 0
+		if data.CurrentPrice <= data.CurrentEMA20 {
+			score++
+		}
+		if data.PriceChange4h <= 0 {
+			score++
+		}
+		if data.PriceChange1h <= 0 {
+			score++
+		}
+		if data.CurrentMACD < 0 {
+			score++
+		}
+		return score >= 2
+
 	default:
 		return true
 	}

@@ -97,7 +97,41 @@ func TestAllowDecisionByRegimePassesCloseActionsTrendCheck(t *testing.T) {
 	}
 }
 
-// --- Protection lifecycle tests ---
+func TestTrendAlignmentMultiFactorAllowsPartialSignals(t *testing.T) {
+	// Scenario: price slightly below EMA20 but 1h momentum and MACD both positive
+	// Old logic would block this; new multi-factor (score >= 2) should allow it
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"narrow", "standard", "wide", "trending"},
+		RequireTrendAlignment: true,
+	}
+
+	// Price below EMA20, 4h slightly negative, but 1h positive and MACD positive
+	decision := &kernel.Decision{Symbol: "STABLEUSDT", Action: "open_long"}
+	data := &market.Data{
+		CurrentPrice:  0.0350,
+		CurrentEMA20:  0.0352,
+		PriceChange4h: -0.3,
+		PriceChange1h: 0.5,
+		CurrentMACD:   0.0001,
+	}
+	if !at.allowDecisionByRegime(decision, data) {
+		t.Fatal("expected open_long with 2 of 4 trend factors aligned to be allowed")
+	}
+
+	// All factors misaligned should still block
+	data2 := &market.Data{
+		CurrentPrice:  0.0340,
+		CurrentEMA20:  0.0360,
+		PriceChange4h: -2.0,
+		PriceChange1h: -1.0,
+		CurrentMACD:   -0.0005,
+	}
+	if at.allowDecisionByRegime(decision, data2) {
+		t.Fatal("expected open_long with 0 of 4 trend factors to be blocked")
+	}
+}
 
 func TestFakeTraderProtectionLifecycle(t *testing.T) {
 	fake := testutil.NewFakeTrader()

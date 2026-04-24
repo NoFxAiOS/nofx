@@ -20,11 +20,12 @@ func (AICharge) TableName() string { return "ai_charges" }
 
 // modelPrices maps model ID to approximate cost per call in USD
 var modelPrices = map[string]float64{
-	"deepseek":          0.003,
-	"deepseek-reasoner": 0.005,
-	"deepseek-v4-flash": 0.003,
-	"deepseek-v4-pro":   0.01,
-	"gpt-5.4":           0.05,
+	"deepseek":           0.003,
+	"deepseek-reasoner":  0.005,
+	"deepseek-v4-flash":  0.003,
+	"deepseek-v4-pro":    0.01,
+	"gpt-5.5":            0.15,
+	"gpt-5.4":            0.05,
 	"gpt-5.4-pro":       0.50,
 	"gpt-5.3":           0.01,
 	"gpt-5-mini":        0.005,

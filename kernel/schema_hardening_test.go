@@ -5,6 +5,36 @@ import (
 	"testing"
 )
 
+func TestVolatilityAdjustmentAcceptsAliases(t *testing.T) {
+	var v AIEntryVolatilityAdjustment
+	if err := json.Unmarshal([]byte(`{"atr_pct":1.2,"bollinger_width_pct":3.4,"regime":"wide","buffer_pct":0.5}`), &v); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if v.ATR14Pct != 1.2 || v.BollWidthPct != 3.4 || v.MarketRegime != "wide" || v.WideningPct != 0.5 {
+		t.Fatalf("unexpected volatility alias mapping: %+v", v)
+	}
+}
+
+func TestExecutionConstraintsAcceptAliases(t *testing.T) {
+	var e AIEntryExecutionConstraints
+	if err := json.Unmarshal([]byte(`{"bid":100,"ask":101,"slippage_bps":8,"price_step":0.1,"quantity_step_size":0.001}`), &e); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if e.BestBid != 100 || e.BestAsk != 101 || e.EstimatedSlippageBps != 8 || e.TickSize != 0.1 || e.QtyStepSize != 0.001 {
+		t.Fatalf("unexpected execution constraint alias mapping: %+v", e)
+	}
+}
+
+func TestDerivativesContextAcceptsAliases(t *testing.T) {
+	var d AIEntryDerivativesContext
+	if err := json.Unmarshal([]byte(`{"open_interest":12345,"funding_rate":0.01,"basis_bps":12,"depth_imbalance":0.2,"bid_notional_top5":1000,"ask_notional_top5":900}`), &d); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if d.OICurrent != 12345 || d.FundingRateCurrent != 0.01 || d.MarkIndexBasisBps != 12 || d.OrderbookImbalance != 0.2 || d.Top5BidNotional != 1000 || d.Top5AskNotional != 900 {
+		t.Fatalf("unexpected derivatives alias mapping: %+v", d)
+	}
+}
+
 func TestRiskRewardAcceptsAliases(t *testing.T) {
 	var rr AIRiskRewardRationale
 	if err := json.Unmarshal([]byte(`{"entry_price":100,"invalidation_price":95,"first_target_price":110,"gross_rr":2.0,"net_rr":1.7,"min_rr":1.5}`), &rr); err != nil {

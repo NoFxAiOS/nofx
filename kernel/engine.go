@@ -244,6 +244,29 @@ type AIEntryVolatilityAdjustment struct {
 	WideningPct  float64 `json:"widening_pct,omitempty"`
 }
 
+func (v *AIEntryVolatilityAdjustment) UnmarshalJSON(data []byte) error {
+	type alias AIEntryVolatilityAdjustment
+	var aux struct {
+		alias
+		ATRPct        float64 `json:"atr_pct,omitempty"`
+		ATR14         float64 `json:"atr14,omitempty"`
+		BollingerWidth float64 `json:"bollinger_width_pct,omitempty"`
+		Regime        string  `json:"regime,omitempty"`
+		BufferPct     float64 `json:"buffer_pct,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*v = AIEntryVolatilityAdjustment(aux.alias)
+	if v.ATR14Pct <= 0 {
+		if aux.ATRPct > 0 { v.ATR14Pct = aux.ATRPct } else if aux.ATR14 > 0 { v.ATR14Pct = aux.ATR14 }
+	}
+	if v.BollWidthPct <= 0 && aux.BollingerWidth > 0 { v.BollWidthPct = aux.BollingerWidth }
+	if v.MarketRegime == "" && aux.Regime != "" { v.MarketRegime = aux.Regime }
+	if v.WideningPct <= 0 && aux.BufferPct > 0 { v.WideningPct = aux.BufferPct }
+	return nil
+}
+
 type AIRiskRewardRationale struct {
 	Entry            float64 `json:"entry,omitempty"`
 	Invalidation     float64 `json:"invalidation,omitempty"`
@@ -297,6 +320,28 @@ type AIEntryExecutionConstraints struct {
 	EstimatedSlippageBps float64 `json:"estimated_slippage_bps,omitempty"`
 }
 
+func (e *AIEntryExecutionConstraints) UnmarshalJSON(data []byte) error {
+	type alias AIEntryExecutionConstraints
+	var aux struct {
+		alias
+		Bid              float64 `json:"bid,omitempty"`
+		Ask              float64 `json:"ask,omitempty"`
+		SlippageBps      float64 `json:"slippage_bps,omitempty"`
+		PriceStep        float64 `json:"price_step,omitempty"`
+		QuantityStepSize float64 `json:"quantity_step_size,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*e = AIEntryExecutionConstraints(aux.alias)
+	if e.BestBid <= 0 && aux.Bid > 0 { e.BestBid = aux.Bid }
+	if e.BestAsk <= 0 && aux.Ask > 0 { e.BestAsk = aux.Ask }
+	if e.EstimatedSlippageBps <= 0 && aux.SlippageBps > 0 { e.EstimatedSlippageBps = aux.SlippageBps }
+	if e.TickSize <= 0 && aux.PriceStep > 0 { e.TickSize = aux.PriceStep }
+	if e.QtyStepSize <= 0 && aux.QuantityStepSize > 0 { e.QtyStepSize = aux.QuantityStepSize }
+	return nil
+}
+
 type AIEntryDerivativesContext struct {
 	OICurrent          float64 `json:"oi_current,omitempty"`
 	OIDelta5mPct       float64 `json:"oi_delta_5m_pct,omitempty"`
@@ -309,6 +354,30 @@ type AIEntryDerivativesContext struct {
 	OrderbookImbalance float64 `json:"orderbook_imbalance,omitempty"`
 	Top5BidNotional    float64 `json:"top5_bid_notional,omitempty"`
 	Top5AskNotional    float64 `json:"top5_ask_notional,omitempty"`
+}
+
+func (d *AIEntryDerivativesContext) UnmarshalJSON(data []byte) error {
+	type alias AIEntryDerivativesContext
+	var aux struct {
+		alias
+		OpenInterest      float64 `json:"open_interest,omitempty"`
+		FundingRate       float64 `json:"funding_rate,omitempty"`
+		BasisBps          float64 `json:"basis_bps,omitempty"`
+		DepthImbalance    float64 `json:"depth_imbalance,omitempty"`
+		BidNotionalTop5   float64 `json:"bid_notional_top5,omitempty"`
+		AskNotionalTop5   float64 `json:"ask_notional_top5,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*d = AIEntryDerivativesContext(aux.alias)
+	if d.OICurrent <= 0 && aux.OpenInterest > 0 { d.OICurrent = aux.OpenInterest }
+	if d.FundingRateCurrent == 0 && aux.FundingRate != 0 { d.FundingRateCurrent = aux.FundingRate }
+	if d.MarkIndexBasisBps == 0 && aux.BasisBps != 0 { d.MarkIndexBasisBps = aux.BasisBps }
+	if d.OrderbookImbalance == 0 && aux.DepthImbalance != 0 { d.OrderbookImbalance = aux.DepthImbalance }
+	if d.Top5BidNotional <= 0 && aux.BidNotionalTop5 > 0 { d.Top5BidNotional = aux.BidNotionalTop5 }
+	if d.Top5AskNotional <= 0 && aux.AskNotionalTop5 > 0 { d.Top5AskNotional = aux.AskNotionalTop5 }
+	return nil
 }
 
 type AIEntryProtectionAnchor struct {

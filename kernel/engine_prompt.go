@@ -152,10 +152,11 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- DO NOT use arbitrary round percentages (like 1%%, 2%%, 3%%) - use market structure\n\n")
 	sb.WriteString("### For drawdown mode=ai:\n")
 	sb.WriteString("- Each drawdown rule represents a profit protection stage. Design stages around structural targets:\n")
-	sb.WriteString("  - Stage 1 (conservative): min_profit_pct = distance to first structural target (e.g. nearest fib/resistance on primary TF), max_drawdown_pct = generous (allow retracement), close_ratio = small (partial protect)\n")
-	sb.WriteString("  - Stage 2+ (progressive): min_profit_pct = distance to higher TF structural targets, max_drawdown_pct = tighter, close_ratio = larger\n")
+	sb.WriteString("  - Stage 1 (conservative): min_profit_pct = distance to first structural target (e.g. nearest fib/resistance on primary TF), max_drawdown_pct = generous (allow retracement), close_ratio_pct = small (partial protect)\n")
+	sb.WriteString("  - Stage 2+ (progressive): min_profit_pct = distance to higher TF structural targets, max_drawdown_pct = tighter, close_ratio_pct = larger\n")
 	sb.WriteString("- max_drawdown_pct MUST factor in ATR volatility: if ATR14 is 0.5%%, a max_drawdown of 0.3%% will trigger on normal noise. Use at least 1-2x ATR as minimum drawdown tolerance\n")
 	sb.WriteString("- Include `reason_anchor` field referencing the specific structural level + timeframe that justifies each stage\n")
+	sb.WriteString("- Use the exact field name `close_ratio_pct` in drawdown_rules; do NOT use `close_ratio`\n")
 	sb.WriteString("- DO NOT use arbitrary round percentages — derive from actual structural distances\n\n")
 
 	// Dynamic: inject hard requirement when drawdown is actually in AI mode

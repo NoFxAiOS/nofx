@@ -262,6 +262,23 @@ type AIProtectionDrawdownRule struct {
 	RunnerTargetSource  string  `json:"runner_target_source,omitempty"`
 }
 
+// UnmarshalJSON accepts both close_ratio_pct (canonical) and close_ratio (legacy/model alias)
+func (r *AIProtectionDrawdownRule) UnmarshalJSON(data []byte) error {
+	type alias AIProtectionDrawdownRule
+	var aux struct {
+		alias
+		CloseRatio float64 `json:"close_ratio,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*r = AIProtectionDrawdownRule(aux.alias)
+	if r.CloseRatioPct <= 0 && aux.CloseRatio > 0 {
+		r.CloseRatioPct = aux.CloseRatio
+	}
+	return nil
+}
+
 type AIProtectionLadderRule struct {
 	TakeProfitPct           float64 `json:"take_profit_pct,omitempty"`
 	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`

@@ -173,10 +173,68 @@ type AIEntryKeyLevels struct {
 	Fibonacci  *AIEntryFibonacci `json:"fibonacci,omitempty"`
 }
 
+// UnmarshalJSON accepts common model aliases and normalizes them into the canonical key-level schema.
+func (k *AIEntryKeyLevels) UnmarshalJSON(data []byte) error {
+	type alias AIEntryKeyLevels
+	var aux struct {
+		alias
+		SupportLevels    []float64       `json:"support_levels,omitempty"`
+		ResistanceLevels []float64       `json:"resistance_levels,omitempty"`
+		FibLevels        []float64       `json:"fib_levels,omitempty"`
+		FibonacciLevels  []float64       `json:"fibonacci_levels,omitempty"`
+		SwingHigh        float64         `json:"swing_high,omitempty"`
+		SwingLow         float64         `json:"swing_low,omitempty"`
+		Fibonacci        *AIEntryFibonacci `json:"fibonacci,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*k = AIEntryKeyLevels(aux.alias)
+	if len(k.Support) == 0 && len(aux.SupportLevels) > 0 {
+		k.Support = aux.SupportLevels
+	}
+	if len(k.Resistance) == 0 && len(aux.ResistanceLevels) > 0 {
+		k.Resistance = aux.ResistanceLevels
+	}
+	if k.Fibonacci == nil && aux.Fibonacci != nil {
+		k.Fibonacci = aux.Fibonacci
+	}
+	if k.Fibonacci == nil && (len(aux.FibLevels) > 0 || len(aux.FibonacciLevels) > 0 || aux.SwingHigh > 0 || aux.SwingLow > 0) {
+		levels := aux.FibLevels
+		if len(levels) == 0 {
+			levels = aux.FibonacciLevels
+		}
+		k.Fibonacci = &AIEntryFibonacci{SwingHigh: aux.SwingHigh, SwingLow: aux.SwingLow, Levels: levels}
+	}
+	return nil
+}
+
 type AIEntryFibonacci struct {
 	SwingHigh float64   `json:"swing_high,omitempty"`
 	SwingLow  float64   `json:"swing_low,omitempty"`
 	Levels    []float64 `json:"levels,omitempty"`
+}
+
+// UnmarshalJSON accepts fib-level aliases commonly emitted by models.
+func (f *AIEntryFibonacci) UnmarshalJSON(data []byte) error {
+	type alias AIEntryFibonacci
+	var aux struct {
+		alias
+		FibLevels       []float64 `json:"fib_levels,omitempty"`
+		FibonacciLevels []float64 `json:"fibonacci_levels,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*f = AIEntryFibonacci(aux.alias)
+	if len(f.Levels) == 0 {
+		if len(aux.FibLevels) > 0 {
+			f.Levels = aux.FibLevels
+		} else if len(aux.FibonacciLevels) > 0 {
+			f.Levels = aux.FibonacciLevels
+		}
+	}
+	return nil
 }
 
 type AIEntryVolatilityAdjustment struct {
@@ -245,6 +303,50 @@ type AIProtectionPlan struct {
 	BreakEvenValue   float64                    `json:"break_even_trigger_value,omitempty"`
 	BreakEvenOffset  float64                    `json:"break_even_offset_pct,omitempty"`
 	BreakEvenAnchor  string                     `json:"break_even_reason_anchor,omitempty"`
+}
+
+// UnmarshalJSON accepts common break-even aliases emitted by models.
+func (p *AIProtectionPlan) UnmarshalJSON(data []byte) error {
+	type alias AIProtectionPlan
+	var aux struct {
+		alias
+		BreakevenTrigger string  `json:"breakeven_trigger,omitempty"`
+		BreakEvenValue   float64 `json:"break_even_value,omitempty"`
+		BreakevenValue   float64 `json:"breakeven_value,omitempty"`
+		BreakEvenOffset  float64 `json:"break_even_offset,omitempty"`
+		BreakevenOffset  float64 `json:"breakeven_offset_pct,omitempty"`
+		BreakEvenReason  string  `json:"break_even_reason,omitempty"`
+		BreakevenReason  string  `json:"breakeven_reason_anchor,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*p = AIProtectionPlan(aux.alias)
+	if p.BreakEvenTrigger == "" && aux.BreakevenTrigger != "" {
+		p.BreakEvenTrigger = aux.BreakevenTrigger
+	}
+	if p.BreakEvenValue <= 0 {
+		if aux.BreakEvenValue > 0 {
+			p.BreakEvenValue = aux.BreakEvenValue
+		} else if aux.BreakevenValue > 0 {
+			p.BreakEvenValue = aux.BreakevenValue
+		}
+	}
+	if p.BreakEvenOffset <= 0 {
+		if aux.BreakEvenOffset > 0 {
+			p.BreakEvenOffset = aux.BreakEvenOffset
+		} else if aux.BreakevenOffset > 0 {
+			p.BreakEvenOffset = aux.BreakevenOffset
+		}
+	}
+	if p.BreakEvenAnchor == "" {
+		if aux.BreakEvenReason != "" {
+			p.BreakEvenAnchor = aux.BreakEvenReason
+		} else if aux.BreakevenReason != "" {
+			p.BreakEvenAnchor = aux.BreakevenReason
+		}
+	}
+	return nil
 }
 
 type AIProtectionDrawdownRule struct {

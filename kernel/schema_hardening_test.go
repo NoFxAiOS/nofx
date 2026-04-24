@@ -5,6 +5,29 @@ import (
 	"testing"
 )
 
+func TestProtectionPlanAcceptsBreakevenAliases(t *testing.T) {
+	var plan AIProtectionPlan
+	if err := json.Unmarshal([]byte(`{"mode":"break_even","breakeven_trigger":"price_change_pct","breakeven_value":1.2,"breakeven_offset_pct":0.15,"breakeven_reason_anchor":"15m support flip"}`), &plan); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if plan.BreakEvenTrigger != "price_change_pct" || plan.BreakEvenValue != 1.2 || plan.BreakEvenOffset != 0.15 || plan.BreakEvenAnchor == "" {
+		t.Fatalf("unexpected mapped breakeven plan: %+v", plan)
+	}
+}
+
+func TestEntryKeyLevelsAcceptAliases(t *testing.T) {
+	var levels AIEntryKeyLevels
+	if err := json.Unmarshal([]byte(`{"support_levels":[100,99],"resistance_levels":[110],"fib_levels":[0.382,0.618],"swing_high":120,"swing_low":90}`), &levels); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if len(levels.Support) != 2 || len(levels.Resistance) != 1 {
+		t.Fatalf("expected support/resistance aliases to map, got %+v", levels)
+	}
+	if levels.Fibonacci == nil || len(levels.Fibonacci.Levels) != 2 || levels.Fibonacci.SwingHigh != 120 || levels.Fibonacci.SwingLow != 90 {
+		t.Fatalf("expected fib aliases to map, got %+v", levels.Fibonacci)
+	}
+}
+
 func TestDrawdownRuleAcceptsCloseRatioAlias(t *testing.T) {
 	var rule AIProtectionDrawdownRule
 	if err := json.Unmarshal([]byte(`{"min_profit_pct":2.5,"max_drawdown_pct":35,"close_ratio":40}`), &rule); err != nil {

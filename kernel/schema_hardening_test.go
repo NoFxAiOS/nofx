@@ -5,6 +5,26 @@ import (
 	"testing"
 )
 
+func TestRiskRewardAcceptsAliases(t *testing.T) {
+	var rr AIRiskRewardRationale
+	if err := json.Unmarshal([]byte(`{"entry_price":100,"invalidation_price":95,"first_target_price":110,"gross_rr":2.0,"net_rr":1.7,"min_rr":1.5}`), &rr); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if rr.Entry != 100 || rr.Invalidation != 95 || rr.FirstTarget != 110 || rr.GrossEstimatedRR != 2.0 || rr.NetEstimatedRR != 1.7 || rr.MinRequiredRR != 1.5 {
+		t.Fatalf("unexpected risk reward mapping: %+v", rr)
+	}
+}
+
+func TestLadderRuleAcceptsAliases(t *testing.T) {
+	var rule AIProtectionLadderRule
+	if err := json.Unmarshal([]byte(`{"tp_pct":3,"tp_close_ratio_pct":40,"sl_pct":1.5,"sl_close_ratio_pct":25}`), &rule); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if rule.TakeProfitPct != 3 || rule.TakeProfitCloseRatioPct != 40 || rule.StopLossPct != 1.5 || rule.StopLossCloseRatioPct != 25 {
+		t.Fatalf("unexpected ladder alias mapping: %+v", rule)
+	}
+}
+
 func TestProtectionPlanAcceptsBreakevenAliases(t *testing.T) {
 	var plan AIProtectionPlan
 	if err := json.Unmarshal([]byte(`{"mode":"break_even","breakeven_trigger":"price_change_pct","breakeven_value":1.2,"breakeven_offset_pct":0.15,"breakeven_reason_anchor":"15m support flip"}`), &plan); err != nil {

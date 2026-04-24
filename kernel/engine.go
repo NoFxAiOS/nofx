@@ -254,6 +254,31 @@ type AIRiskRewardRationale struct {
 	Passed           bool    `json:"passed,omitempty"`
 }
 
+// UnmarshalJSON accepts common risk-reward aliases.
+func (r *AIRiskRewardRationale) UnmarshalJSON(data []byte) error {
+	type alias AIRiskRewardRationale
+	var aux struct {
+		alias
+		EntryPrice        float64 `json:"entry_price,omitempty"`
+		InvalidationPrice float64 `json:"invalidation_price,omitempty"`
+		FirstTargetPrice  float64 `json:"first_target_price,omitempty"`
+		GrossRR           float64 `json:"gross_rr,omitempty"`
+		NetRR             float64 `json:"net_rr,omitempty"`
+		MinRR             float64 `json:"min_rr,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*r = AIRiskRewardRationale(aux.alias)
+	if r.Entry <= 0 && aux.EntryPrice > 0 { r.Entry = aux.EntryPrice }
+	if r.Invalidation <= 0 && aux.InvalidationPrice > 0 { r.Invalidation = aux.InvalidationPrice }
+	if r.FirstTarget <= 0 && aux.FirstTargetPrice > 0 { r.FirstTarget = aux.FirstTargetPrice }
+	if r.GrossEstimatedRR <= 0 && aux.GrossRR > 0 { r.GrossEstimatedRR = aux.GrossRR }
+	if r.NetEstimatedRR <= 0 && aux.NetRR > 0 { r.NetEstimatedRR = aux.NetRR }
+	if r.MinRequiredRR <= 0 && aux.MinRR > 0 { r.MinRequiredRR = aux.MinRR }
+	return nil
+}
+
 type AIEntryExecutionConstraints struct {
 	TickSize             float64 `json:"tick_size,omitempty"`
 	PricePrecision       int     `json:"price_precision,omitempty"`
@@ -387,6 +412,33 @@ type AIProtectionLadderRule struct {
 	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
 	StructuralAnchor        string  `json:"structural_anchor,omitempty"`
+}
+
+// UnmarshalJSON accepts common ladder-rule aliases such as tp/sl abbreviations.
+func (r *AIProtectionLadderRule) UnmarshalJSON(data []byte) error {
+	type alias AIProtectionLadderRule
+	var aux struct {
+		alias
+		TPPct        float64 `json:"tp_pct,omitempty"`
+		SLPct        float64 `json:"sl_pct,omitempty"`
+		TPCloseRatio float64 `json:"tp_close_ratio_pct,omitempty"`
+		SLCloseRatio float64 `json:"sl_close_ratio_pct,omitempty"`
+		TPLevel      float64 `json:"tp_level,omitempty"`
+		SLLevel      float64 `json:"sl_level,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*r = AIProtectionLadderRule(aux.alias)
+	if r.TakeProfitPct <= 0 {
+		if aux.TPPct > 0 { r.TakeProfitPct = aux.TPPct } else if aux.TPLevel > 0 { r.TakeProfitPct = aux.TPLevel }
+	}
+	if r.StopLossPct <= 0 {
+		if aux.SLPct > 0 { r.StopLossPct = aux.SLPct } else if aux.SLLevel > 0 { r.StopLossPct = aux.SLLevel }
+	}
+	if r.TakeProfitCloseRatioPct <= 0 && aux.TPCloseRatio > 0 { r.TakeProfitCloseRatioPct = aux.TPCloseRatio }
+	if r.StopLossCloseRatioPct <= 0 && aux.SLCloseRatio > 0 { r.StopLossCloseRatioPct = aux.SLCloseRatio }
+	return nil
 }
 
 // FullDecision AI's complete decision (including chain of thought)

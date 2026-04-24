@@ -43,10 +43,8 @@ export function getShortName(fullName: string): string {
 
 // Models available through Claw402 (x402 USDC payment protocol)
 export const CLAW402_MODELS: Claw402Model[] = [
-  { id: 'deepseek', name: 'DeepSeek V3', provider: 'DeepSeek', desc: '$0.003/call', icon: '🔥', price: 0.003 },
   { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'DeepSeek', desc: '$0.02/call', icon: '💥', price: 0.02 },
   { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'DeepSeek', desc: '$0.01/call', icon: '⚡', price: 0.01 },
-  { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'DeepSeek', desc: '$0.005/call', icon: '🤔', price: 0.005 },
   { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', desc: '$0.005/call', icon: '🚀', price: 0.005 },
   { id: 'qwen-turbo', name: 'Qwen Turbo', provider: 'Alibaba', desc: '$0.002/call', icon: '⚡', price: 0.002 },
   { id: 'qwen-flash', name: 'Qwen Flash', provider: 'Alibaba', desc: '$0.002/call', icon: '⚡', price: 0.002 },

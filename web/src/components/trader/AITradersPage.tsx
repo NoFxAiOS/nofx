@@ -7,7 +7,6 @@ import type {
   CreateTraderRequest,
   AIModel,
   Exchange,
-  ExchangeAccountState,
 } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -19,17 +18,13 @@ import { TelegramConfigModal } from './TelegramConfigModal'
 import { ModelConfigModal } from './ModelConfigModal'
 import { ConfigStatusGrid } from './ConfigStatusGrid'
 import { TradersList } from './TradersList'
-import { BeginnerGuideCards } from './BeginnerGuideCards'
-import { AlertTriangle, Bot, Plus, MessageCircle } from 'lucide-react'
+import {
+  Bot,
+  Plus,
+  MessageCircle,
+} from 'lucide-react'
 import { confirmToast } from '../../lib/notify'
 import { toast } from 'sonner'
-import {
-  getBeginnerWalletAddress,
-  getUserMode,
-  setBeginnerWalletAddress as persistBeginnerWalletAddress,
-} from '../../lib/onboarding'
-import type { Strategy } from '../../types'
-import { ApiError } from '../../lib/httpClient'
 
 interface AITradersPageProps {
   onTraderSelect?: (traderId: string) => void
@@ -50,288 +45,34 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [allModels, setAllModels] = useState<AIModel[]>([])
   const [allExchanges, setAllExchanges] = useState<Exchange[]>([])
   const [supportedModels, setSupportedModels] = useState<AIModel[]>([])
-  const [visibleTraderAddresses, setVisibleTraderAddresses] = useState<
-    Set<string>
-  >(new Set())
-  const [visibleExchangeAddresses, setVisibleExchangeAddresses] = useState<
-    Set<string>
-  >(new Set())
+  const [visibleTraderAddresses, setVisibleTraderAddresses] = useState<Set<string>>(new Set())
+  const [visibleExchangeAddresses, setVisibleExchangeAddresses] = useState<Set<string>>(new Set())
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [quickSetupLoading, setQuickSetupLoading] = useState(false)
-  const [beginnerWalletAddress, setBeginnerWalletAddress] = useState<
-    string | null
-  >(() => getBeginnerWalletAddress())
-  const isBeginnerMode = getUserMode() === 'beginner'
-  const getErrorMessage = (error: unknown, fallback: string) => {
-    if (error instanceof Error && error.message.trim() !== '') {
-      return error.message
-    }
-    return fallback
-  }
-  const formatActionableDescriptionByKey = (
-    errorKey: string,
-    params: Record<string, string> = {},
-    fallback: string
-  ) => {
-    const traderName = params.trader_name || params.traderName || 'this trader'
-    const modelName = params.model_name || params.modelName || 'selected model'
-    const exchangeName =
-      params.exchange_name || params.exchangeName || 'selected exchange account'
-    const reason = localizeTraderReason(
-      params.reason_key,
-      params.reason || fallback
-    )
-    const symbol = params.symbol || ''
 
-    const zh = language === 'zh'
-
-    switch (errorKey) {
-      case 'trader.create.invalid_request':
-        return zh
-          ? '提交的信息不完整，或者格式不正确。请检查后重新提交。'
-          : 'The submitted information is incomplete or invalid. Please review it and try again.'
-      case 'trader.create.invalid_btc_eth_leverage':
-        return zh
-          ? 'BTC/ETH 杠杆倍数需要在 1 到 50 倍之间。'
-          : 'BTC/ETH leverage must be between 1x and 50x.'
-      case 'trader.create.invalid_altcoin_leverage':
-        return zh
-          ? '山寨币杠杆倍数需要在 1 到 20 倍之间。'
-          : 'Altcoin leverage must be between 1x and 20x.'
-      case 'trader.create.invalid_symbol':
-        return zh
-          ? `交易对 ${symbol} 的格式不正确，目前只支持以 USDT 结尾的合约交易对。`
-          : `Trading pair ${symbol} is invalid. Only perpetual pairs ending with USDT are supported.`
-      case 'trader.create.model_not_found':
-        return zh
-          ? '还没有找到你选择的 AI 模型。请先到「设置 > 模型配置」添加并启用一个可用模型。'
-          : 'The selected AI model was not found. Please add and enable a valid model in Settings > Model Config.'
-      case 'trader.create.model_disabled':
-        return zh
-          ? `AI 模型「${modelName}」目前还没有启用。请先启用它再创建机器人。`
-          : `AI model "${modelName}" is currently disabled. Please enable it before creating a trader.`
-      case 'trader.create.model_missing_credentials':
-        return zh
-          ? `AI 模型「${modelName}」缺少 API Key 或支付凭证。请先补全模型配置。`
-          : `AI model "${modelName}" is missing API credentials or payment setup. Please complete the model configuration first.`
-      case 'trader.create.strategy_required':
-        return zh
-          ? '你还没有选择交易策略。请先选择一个策略，再继续创建机器人。'
-          : 'No trading strategy is selected yet. Please choose a strategy before creating a trader.'
-      case 'trader.create.strategy_not_found':
-        return zh
-          ? '你选择的策略不存在，或者已经被删除了。请重新选择一个可用策略。'
-          : 'The selected strategy no longer exists. Please choose another available strategy.'
-      case 'trader.create.exchange_not_found':
-        return zh
-          ? '还没有找到你选择的交易所账户。请先到「设置 > 交易所配置」添加一个可用账户。'
-          : 'The selected exchange account was not found. Please add an exchange account in Settings > Exchange Config.'
-      case 'trader.create.exchange_disabled':
-        return zh
-          ? `交易所账户「${exchangeName}」目前处于未启用状态。请先启用它。`
-          : `Exchange account "${exchangeName}" is currently disabled. Please enable it first.`
-      case 'trader.create.exchange_missing_fields':
-        return zh
-          ? `交易所账户「${exchangeName}」的配置还不完整。请先补全必填信息。`
-          : `Exchange account "${exchangeName}" is incomplete. Please fill in the required fields first.`
-      case 'trader.create.exchange_unsupported':
-        return zh
-          ? `交易所账户「${exchangeName}」当前类型暂不支持机器人创建。`
-          : `Exchange account "${exchangeName}" uses a type that is not supported for trader creation.`
-      case 'trader.create.exchange_probe_failed':
-        return zh
-          ? `交易所账户「${exchangeName}」没有通过初始化校验，原因是：${reason}`
-          : `Exchange account "${exchangeName}" failed initialization checks: ${reason}`
-      case 'trader.start.strategy_missing':
-        return zh
-          ? `机器人「${traderName}」缺少有效的交易策略配置。`
-          : `Trader "${traderName}" does not have a valid strategy configuration.`
-      case 'trader.start.model_not_found':
-        return zh
-          ? `机器人「${traderName}」关联的 AI 模型不存在。请检查模型配置。`
-          : `Trader "${traderName}" references an AI model that no longer exists. Please check the model configuration.`
-      case 'trader.start.model_disabled':
-        return zh
-          ? `机器人「${traderName}」关联的 AI 模型「${modelName}」目前还没有启用。`
-          : `Trader "${traderName}" uses AI model "${modelName}", which is currently disabled.`
-      case 'trader.start.exchange_not_found':
-        return zh
-          ? `机器人「${traderName}」关联的交易所账户不存在。请检查交易所配置。`
-          : `Trader "${traderName}" references an exchange account that no longer exists. Please check the exchange configuration.`
-      case 'trader.start.exchange_disabled':
-        return zh
-          ? `机器人「${traderName}」关联的交易所账户「${exchangeName}」目前还没有启用。`
-          : `Trader "${traderName}" uses exchange account "${exchangeName}", which is currently disabled.`
-      case 'trader.start.setup_invalid':
-      case 'trader.start.load_failed':
-        return zh
-          ? `机器人「${traderName}」暂时还不能启动，原因是：${reason}`
-          : `Trader "${traderName}" cannot be started yet because ${reason}`
-      default:
-        return fallback
-    }
-  }
-  const localizeTraderReason = (reasonKey?: string, fallback?: string) => {
-    const zh = language === 'zh'
-
-    switch (reasonKey) {
-      case 'trader.reason.strategy_config_invalid':
-        return zh
-          ? '当前策略配置内容已损坏，系统暂时无法解析'
-          : 'the current strategy configuration is corrupted and cannot be parsed'
-      case 'trader.reason.strategy_missing':
-        return zh
-          ? '当前机器人缺少有效的交易策略配置'
-          : 'the trader is missing a valid strategy configuration'
-      case 'trader.reason.private_key_invalid':
-        return zh
-          ? '私钥格式不正确，系统无法识别'
-          : 'the private key format is invalid and cannot be recognized'
-      case 'trader.reason.hyperliquid_init_failed':
-        return zh
-          ? 'Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确'
-          : 'Hyperliquid account initialization failed. Please verify the private key, main wallet address, and Agent Wallet configuration'
-      case 'trader.reason.aster_init_failed':
-        return zh
-          ? 'Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确'
-          : 'Aster account initialization failed. Please verify the Aster User, Signer, and private key'
-      case 'trader.reason.exchange_meta_unavailable':
-        return zh
-          ? '系统暂时无法从交易所读取账户元信息'
-          : 'the system could not read account metadata from the exchange'
-      case 'trader.reason.hyperliquid_agent_balance_too_high':
-        return zh
-          ? 'Hyperliquid Agent Wallet 余额过高，不符合当前安全要求'
-          : 'the Hyperliquid Agent Wallet balance is too high for the current safety requirements'
-      case 'trader.reason.exchange_account_init_failed':
-        return zh
-          ? '交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配'
-          : 'exchange account initialization failed. Please verify that the wallet address and API key match'
-      case 'trader.reason.exchange_unsupported':
-        return zh
-          ? '当前交易所类型暂不支持机器人初始化'
-          : 'the selected exchange type is not currently supported for trader initialization'
-      case 'trader.reason.exchange_balance_unavailable':
-        return zh
-          ? '系统暂时无法从交易所读取账户余额'
-          : 'the system could not read the account balance from the exchange'
-      case 'trader.reason.exchange_service_unreachable':
-        return zh
-          ? '系统暂时无法连接交易所服务'
-          : 'the system could not reach the exchange service right now'
-      default:
-        return (
-          fallback ||
-          (zh
-            ? '系统返回了一个未知错误'
-            : 'an unknown error was returned by the system')
-        )
-    }
-  }
-  const normalizeActionableDescription = (
-    error: unknown,
-    message: string,
-    title: string
-  ) => {
-    if (error instanceof ApiError && error.errorKey) {
-      return formatActionableDescriptionByKey(
-        error.errorKey,
-        error.errorParams,
-        message
-      )
-    }
-
-    const prefixes = [
-      '这次未能创建机器人：',
-      '机器人创建失败：',
-      '这次未能更新机器人：',
-      '机器人更新失败：',
-      '这次未能启动机器人：',
-      'Failed to create trader:',
-      'Failed to update trader:',
-      'Unable to create trader:',
-      'Unable to update trader:',
-      'Unable to start trader:',
-    ]
-
-    let description = message.trim()
-    if (description === title) return ''
-
-    for (const prefix of prefixes) {
-      if (description.startsWith(prefix)) {
-        description = description.slice(prefix.length).trim()
-        break
-      }
-    }
-
-    return description
-  }
-  const showActionableError = (title: string, error: unknown) => {
-    const message = getErrorMessage(error, title)
-    const description = normalizeActionableDescription(error, message, title)
-
-    if (description === '') {
-      toast.error(title)
+  const loadConfigs = async () => {
+    if (!user || !token) {
+      const models = await api.getSupportedModels()
+      setSupportedModels(models)
       return
     }
 
-    toast.error(title, {
-      description,
-    })
-  }
-  const parseBalanceUsdc = (balance?: string) => {
-    if (!balance) return null
-    const parsed = Number.parseFloat(balance)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  const getClaw402BalanceMessage = (balance: number, blocking: boolean) => {
-    if (language === 'zh') {
-      return blocking
-        ? `当前 Claw402 钱包余额为 ${balance.toFixed(6)} USDC，AI 调用无法执行。请先为这个钱包充值，再重新点击启动。`
-        : `当前 Claw402 钱包余额仅剩 ${balance.toFixed(6)} USDC，虽然还能尝试启动，但很快可能因为 AI 调用费用不足而停止。建议先补一点 USDC。`
-    }
-
-    return blocking
-      ? `Your Claw402 wallet balance is ${balance.toFixed(6)} USDC. AI calls cannot run with zero balance. Please top up this wallet before starting again.`
-      : `Your Claw402 wallet balance is only ${balance.toFixed(6)} USDC. You can still try to start, but AI calls may stop soon due to insufficient funds.`
-  }
-  const getClaw402BalanceIssue = (traderId: string) => {
-    const trader = traders?.find((item) => item.trader_id === traderId)
-    if (!trader) return null
-
-    const model =
-      allModels.find((item) => item.id === trader.ai_model) ||
-      allModels.find((item) => item.provider === trader.ai_model)
-
-    if (!model || model.provider !== 'claw402') return null
-
-    const balance = parseBalanceUsdc(model.balanceUsdc)
-    if (balance === null) return null
-    if (balance <= 0) {
-      return {
-        blocking: true,
-        title: language === 'zh' ? '启动失败' : 'Start failed',
-        description: getClaw402BalanceMessage(balance, true),
-      }
-    }
-    if (balance < 1) {
-      return {
-        blocking: false,
-        title: language === 'zh' ? 'Claw402 余额偏低' : 'Low Claw402 balance',
-        description: getClaw402BalanceMessage(balance, false),
-      }
-    }
-
-    return null
-  }
-
-  const navigateInApp = (path: string) => {
-    navigate(path)
+    const [
+      modelConfigs,
+      exchangeConfigs,
+      models,
+    ] = await Promise.all([
+      api.getModelConfigs(),
+      api.getExchangeConfigs(),
+      api.getSupportedModels(),
+    ])
+    setAllModels(modelConfigs)
+    setAllExchanges(exchangeConfigs)
+    setSupportedModels(models)
   }
 
   // Toggle wallet address visibility for a trader
   const toggleTraderAddressVisibility = (traderId: string) => {
-    setVisibleTraderAddresses((prev) => {
+    setVisibleTraderAddresses(prev => {
       const next = new Set(prev)
       if (next.has(traderId)) {
         next.delete(traderId)
@@ -344,7 +85,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   // Toggle wallet address visibility for an exchange
   const toggleExchangeAddressVisibility = (exchangeId: string) => {
-    setVisibleExchangeAddresses((prev) => {
+    setVisibleExchangeAddresses(prev => {
       const next = new Set(prev)
       if (next.has(exchangeId)) {
         next.delete(exchangeId)
@@ -366,64 +107,27 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
   }
 
-  const {
-    data: traders,
-    mutate: mutateTraders,
-    isLoading: isTradersLoading,
-  } = useSWR<TraderInfo[]>(user && token ? 'traders' : null, api.getTraders, {
-    refreshInterval: 5000,
-  })
-  const {
-    data: exchangeAccountStateData,
-    mutate: mutateExchangeAccountStates,
-    isLoading: isExchangeAccountStatesLoading,
-  } = useSWR<{ states: Record<string, ExchangeAccountState> }>(
-    user && token ? 'exchange-account-state' : null,
-    api.getExchangeAccountState,
-    {
-      refreshInterval: 30000,
-      shouldRetryOnError: false,
-    }
-  )
-  const { data: strategies } = useSWR<Strategy[]>(
-    user && token ? 'strategies' : null,
-    api.getStrategies,
-    { refreshInterval: 30000 }
+  const { data: traders, mutate: mutateTraders, isLoading: isTradersLoading } = useSWR<TraderInfo[]>(
+    user && token ? 'traders' : null,
+    api.getTraders,
+    { refreshInterval: 5000 }
   )
 
   useEffect(() => {
-    const loadConfigs = async () => {
-      if (!user || !token) {
-        try {
-          const models = await api.getSupportedModels()
-          setSupportedModels(models)
-        } catch (err) {
-          console.error('Failed to load supported configs:', err)
-        }
-        return
-      }
-
-      try {
-        const [modelConfigs, exchangeConfigs, models] = await Promise.all([
-          api.getModelConfigs(),
-          api.getExchangeConfigs(),
-          api.getSupportedModels(),
-        ])
-        setAllModels(modelConfigs)
-        const clawWalletAddress =
-          modelConfigs.find((model) => model.provider === 'claw402')
-            ?.walletAddress || null
-        if (clawWalletAddress) {
-          setBeginnerWalletAddress(clawWalletAddress)
-          persistBeginnerWalletAddress(clawWalletAddress)
-        }
-        setAllExchanges(exchangeConfigs)
-        setSupportedModels(models)
-      } catch (error) {
-        console.error('Failed to load configs:', error)
-      }
-    }
     loadConfigs()
+      .catch((error) => {
+        console.error('Failed to load configs:', error)
+      })
+  }, [user, token])
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      loadConfigs().catch((error) => {
+        console.error('Failed to refresh configs:', error)
+      })
+    }
+    window.addEventListener('agent-config-refresh', handleRefresh)
+    return () => window.removeEventListener('agent-config-refresh', handleRefresh)
   }, [user, token])
 
   const configuredModels =
@@ -443,31 +147,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }) || []
 
   const enabledModels = allModels?.filter((m) => m.enabled) || []
-  const enabledClaw402Model =
-    enabledModels.find((model) => model.provider === 'claw402') || null
-  const enabledClaw402Balance = parseBalanceUsdc(
-    enabledClaw402Model?.balanceUsdc
-  )
-  const claw402BalanceAlert =
-    enabledClaw402Model &&
-    enabledClaw402Balance !== null &&
-    enabledClaw402Balance < 1
-      ? {
-          blocking: enabledClaw402Balance <= 0,
-          title:
-            language === 'zh'
-              ? enabledClaw402Balance <= 0
-                ? 'Claw402 钱包余额为 0'
-                : 'Claw402 钱包余额偏低'
-              : enabledClaw402Balance <= 0
-                ? 'Claw402 wallet balance is zero'
-                : 'Claw402 wallet balance is low',
-          description: getClaw402BalanceMessage(
-            enabledClaw402Balance,
-            enabledClaw402Balance <= 0
-          ),
-        }
-      : null
   const enabledExchanges =
     allExchanges?.filter((e) => {
       if (!e.enabled) return false
@@ -501,8 +180,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const getExchangeUsageInfo = (exchangeId: string) => {
-    const usingTraders =
-      traders?.filter((tr) => tr.exchange_id === exchangeId) || []
+    const usingTraders = traders?.filter((tr) => tr.exchange_id === exchangeId) || []
     const runningCount = usingTraders.filter((tr) => tr.is_running).length
     const totalCount = usingTraders.length
     return { runningCount, totalCount, usingTraders }
@@ -526,19 +204,26 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleCreateTrader = async (data: CreateTraderRequest) => {
     try {
-      const createdTrader = await api.createTrader(data)
-      if (createdTrader.startup_warning) {
-        toast.success(t('aiTradersToast.created', language), {
-          description: createdTrader.startup_warning,
-        })
-      } else {
-        toast.success(t('aiTradersToast.created', language))
+      const model = allModels?.find((m) => m.id === data.ai_model_id)
+      const exchange = allExchanges?.find((e) => e.id === data.exchange_id)
+
+      if (!model?.enabled) {
+        toast.error(t('modelNotConfigured', language))
+        return
       }
+
+      if (!exchange?.enabled) {
+        toast.error(t('exchangeNotConfigured', language))
+        return
+      }
+
+      await api.createTrader(data)
+      toast.success(t('aiTradersToast.created', language))
       setShowCreateModal(false)
       await mutateTraders()
     } catch (error) {
       console.error('Failed to create trader:', error)
-      showActionableError(t('createTraderFailed', language), error)
+      toast.error(t('createTraderFailed', language))
     }
   }
 
@@ -588,7 +273,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       await mutateTraders()
     } catch (error) {
       console.error('Failed to update trader:', error)
-      showActionableError(t('updateTraderFailed', language), error)
+      toast.error(t('updateTraderFailed', language))
     }
   }
 
@@ -613,48 +298,24 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     try {
       if (running) {
         await api.stopTrader(traderId)
-        toast.success(t('aiTradersToast.stopped', language))
+      toast.success(t('aiTradersToast.stopped', language))
       } else {
-        const claw402Issue = getClaw402BalanceIssue(traderId)
-        if (claw402Issue?.blocking) {
-          toast.error(claw402Issue.title, {
-            description: claw402Issue.description,
-          })
-          return
-        }
-        if (claw402Issue && !claw402Issue.blocking) {
-          toast.warning(claw402Issue.title, {
-            description: claw402Issue.description,
-          })
-        }
         await api.startTrader(traderId)
-        toast.success(t('aiTradersToast.started', language))
+      toast.success(t('aiTradersToast.started', language))
       }
 
       await mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
-      showActionableError(
-        running
-          ? t('aiTradersToast.stopFailed', language)
-          : t('aiTradersToast.startFailed', language),
-        error
-      )
+      toast.error(t('operationFailed', language))
     }
   }
 
-  const handleToggleCompetition = async (
-    traderId: string,
-    currentShowInCompetition: boolean
-  ) => {
+  const handleToggleCompetition = async (traderId: string, currentShowInCompetition: boolean) => {
     try {
       const newValue = !currentShowInCompetition
       await api.toggleCompetition(traderId, newValue)
-      toast.success(
-        newValue
-          ? t('aiTradersToast.showInCompetition', language)
-          : t('aiTradersToast.hideInCompetition', language)
-      )
+      toast.success(newValue ? t('aiTradersToast.showInCompetition', language) : t('aiTradersToast.hideInCompetition', language))
 
       await mutateTraders()
     } catch (error) {
@@ -791,12 +452,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           allModels?.map((m) =>
             m.id === modelId
               ? {
-                  ...m,
-                  apiKey,
-                  customApiUrl: customApiUrl || '',
-                  customModelName: customModelName || '',
-                  enabled: true,
-                }
+                ...m,
+                apiKey,
+                customApiUrl: customApiUrl || '',
+                customModelName: customModelName || '',
+                enabled: true,
+              }
               : m
           ) || []
       } else {
@@ -856,7 +517,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
-      await mutateExchangeAccountStates()
 
       setShowExchangeModal(false)
       setEditingExchange(null)
@@ -912,7 +572,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         }
 
         await api.updateExchangeConfigsEncrypted(request)
-        toast.success(t('aiTradersToast.exchangeConfigUpdated', language))
+      toast.success(t('aiTradersToast.exchangeConfigUpdated', language))
       } else {
         const createRequest = {
           exchange_type: exchangeType,
@@ -933,12 +593,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         }
 
         await api.createExchangeEncrypted(createRequest)
-        toast.success(t('aiTradersToast.exchangeCreated', language))
+      toast.success(t('aiTradersToast.exchangeCreated', language))
       }
 
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
-      await mutateExchangeAccountStates()
 
       setShowExchangeModal(false)
       setEditingExchange(null)
@@ -957,40 +616,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     setEditingExchange(null)
     setShowExchangeModal(true)
   }
-
-  const handleQuickSetupClaw402 = async () => {
-    if (quickSetupLoading) return
-
-    try {
-      setQuickSetupLoading(true)
-      const result = await api.prepareBeginnerOnboarding()
-      setBeginnerWalletAddress(result.address)
-      const refreshedModels = await api.getModelConfigs()
-      setAllModels(refreshedModels)
-      toast.success(
-        language === 'zh'
-          ? 'Claw402 已默认配置为 DeepSeek'
-          : 'Claw402 is configured with DeepSeek by default'
-      )
-    } catch (error) {
-      console.error('Failed to quick setup claw402:', error)
-      toast.error(
-        language === 'zh'
-          ? '一键配置 Claw402 失败'
-          : 'Failed to quick setup Claw402'
-      )
-    } finally {
-      setQuickSetupLoading(false)
-    }
-  }
-
-  const claw402Configured = configuredModels.some(
-    (model) => model.provider === 'claw402'
-  )
-  const hasStrategies = (strategies?.length || 0) > 0
-  const hasCreatedTrader = (traders?.length || 0) > 0
-  const canCreateTrader =
-    configuredModels.length > 0 && configuredExchanges.length > 0
 
   return (
     <DeepVoidBackground className="py-8" disableAnimation>
@@ -1051,10 +676,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
             <button
               onClick={() => setShowCreateModal(true)}
-              disabled={
-                configuredModels.length === 0 ||
-                configuredExchanges.length === 0
-              }
+              disabled={configuredModels.length === 0 || configuredExchanges.length === 0}
               className="group relative px-6 py-2 rounded text-xs font-bold font-mono uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap overflow-hidden bg-nofx-gold text-black hover:bg-yellow-400 shadow-[0_0_20px_rgba(240,185,11,0.2)] hover:shadow-[0_0_30px_rgba(240,185,11,0.4)]"
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -1066,89 +688,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         </div>
 
-        {isBeginnerMode ? (
-          <BeginnerGuideCards
-            language={language}
-            claw402Ready={claw402Configured}
-            exchangeReady={configuredExchanges.length > 0}
-            strategyReady={hasStrategies}
-            traderReady={hasCreatedTrader}
-            canCreateTrader={canCreateTrader}
-            walletAddress={beginnerWalletAddress}
-            onQuickSetupClaw402={handleQuickSetupClaw402}
-            onOpenExchange={handleAddExchange}
-            onOpenStrategy={() => navigateInApp('/strategy')}
-            onCreateTrader={() => setShowCreateModal(true)}
-          />
-        ) : null}
-
-        {claw402BalanceAlert ? (
-          <div
-            className="mb-6 rounded-xl border px-4 py-4 md:px-5 md:py-4 flex flex-col md:flex-row md:items-start md:justify-between gap-3"
-            style={{
-              borderColor: claw402BalanceAlert.blocking
-                ? 'rgba(239, 68, 68, 0.55)'
-                : 'rgba(245, 158, 11, 0.45)',
-              background: claw402BalanceAlert.blocking
-                ? 'rgba(127, 29, 29, 0.22)'
-                : 'rgba(120, 53, 15, 0.18)',
-            }}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className="mt-0.5 rounded-full p-2"
-                style={{
-                  background: claw402BalanceAlert.blocking
-                    ? 'rgba(239, 68, 68, 0.16)'
-                    : 'rgba(245, 158, 11, 0.14)',
-                  color: claw402BalanceAlert.blocking ? '#F87171' : '#FBBF24',
-                }}
-              >
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-              <div>
-                <div
-                  className="text-sm font-semibold"
-                  style={{
-                    color: claw402BalanceAlert.blocking ? '#FCA5A5' : '#FDE68A',
-                  }}
-                >
-                  {claw402BalanceAlert.title}
-                </div>
-                <div
-                  className="text-sm mt-1 leading-6"
-                  style={{ color: '#D4D4D8' }}
-                >
-                  {claw402BalanceAlert.description}
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                enabledClaw402Model && handleModelClick(enabledClaw402Model.id)
-              }
-              className="px-4 py-2 rounded text-xs font-mono uppercase tracking-wider border whitespace-nowrap self-start"
-              style={{
-                borderColor: claw402BalanceAlert.blocking
-                  ? 'rgba(248, 113, 113, 0.45)'
-                  : 'rgba(251, 191, 36, 0.35)',
-                color: claw402BalanceAlert.blocking ? '#FCA5A5' : '#FDE68A',
-                background: 'rgba(0, 0, 0, 0.18)',
-              }}
-            >
-              {language === 'zh' ? '查看 AI 钱包' : 'Open AI wallet'}
-            </button>
-          </div>
-        ) : null}
-
         {/* Configuration Status Grid */}
         <ConfigStatusGrid
           configuredModels={configuredModels}
           configuredExchanges={configuredExchanges}
-          exchangeAccountStates={exchangeAccountStateData?.states}
-          isExchangeAccountStatesLoading={isExchangeAccountStatesLoading}
           visibleExchangeAddresses={visibleExchangeAddresses}
           copiedId={copiedId}
           language={language}
@@ -1173,7 +716,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           copiedId={copiedId}
           language={language}
           onTraderSelect={onTraderSelect}
-          onNavigate={navigateInApp}
+          onNavigate={(path) => navigate(path)}
           onEditTrader={handleEditTrader}
           onToggleTrader={handleToggleTrader}
           onToggleCompetition={handleToggleCompetition}

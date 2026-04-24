@@ -131,7 +131,7 @@ func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 	if userID == "" {
 		userID = "default"
 	}
-	model, err := s.firstEnabled(userID)
+	model, err := s.firstEnabledUsable(userID)
 	if err == nil {
 		return model, nil
 	}
@@ -139,14 +139,14 @@ func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 		return nil, err
 	}
 	if userID != "default" {
-		return s.firstEnabled("default")
+		return s.firstEnabledUsable("default")
 	}
 	return nil, fmt.Errorf("please configure an available AI model in the system first")
 }
 
-func (s *AIModelStore) firstEnabled(userID string) (*AIModel, error) {
+func (s *AIModelStore) firstEnabledUsable(userID string) (*AIModel, error) {
 	var model AIModel
-	err := s.db.Where("user_id = ? AND enabled = ?", userID, true).
+	err := s.db.Where("user_id = ? AND enabled = ? AND api_key != ''", userID, true).
 		Order("updated_at DESC, id ASC").
 		First(&model).Error
 	if err != nil {
@@ -302,4 +302,17 @@ func (s *AIModelStore) Create(userID, id, name, provider string, enabled bool, a
 	}
 	// Use FirstOrCreate to ignore if already exists
 	return s.db.Where("id = ?", id).FirstOrCreate(model).Error
+}
+
+// Delete removes a user-owned AI model configuration.
+func (s *AIModelStore) Delete(userID, id string) error {
+	result := s.db.Where("user_id = ? AND id = ?", userID, id).Delete(&AIModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("ai model not found: id=%s, userID=%s", id, userID)
+	}
+	logger.Infof("🗑️ Deleted AI model: id=%s, userID=%s", id, userID)
+	return nil
 }

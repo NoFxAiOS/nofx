@@ -110,6 +110,12 @@ export default function HeaderBar({
                 requiresAuth: boolean
               }[] = [
                 {
+                  page: 'agent',
+                  path: ROUTES.agent,
+                  label: 'Agent',
+                  requiresAuth: false,
+                },
+                {
                   page: 'data',
                   path: ROUTES.data,
                   label:
@@ -431,6 +437,12 @@ export default function HeaderBar({
                     label: string
                     requiresAuth: boolean
                   }[] = [
+                    {
+                      page: 'agent',
+                      path: ROUTES.agent,
+                      label: 'Agent',
+                      requiresAuth: false,
+                    },
                     {
                       page: 'data',
                       path: ROUTES.data,

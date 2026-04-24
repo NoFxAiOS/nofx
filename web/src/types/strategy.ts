@@ -247,6 +247,11 @@ export interface IndicatorConfig {
   enable_volume: boolean;
   enable_oi: boolean;
   enable_funding_rate: boolean;
+  // Exchange sentiment data toggles
+  enable_long_short_ratio?: boolean;     // long/short account ratio
+  enable_top_trader_ratio?: boolean;     // top trader L/S ratio (Binance only)
+  enable_taker_buy_sell_ratio?: boolean; // taker buy/sell volume ratio
+  enable_order_book_depth?: boolean;     // order book depth imbalance
   ema_periods?: number[];
   rsi_periods?: number[];
   atr_periods?: number[];

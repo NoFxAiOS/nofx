@@ -705,6 +705,45 @@ export function IndicatorEditor({
               </div>
             ))}
           </div>
+
+          {/* Exchange sentiment data toggles */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {[
+              { key: 'enable_long_short_ratio', label: 'longShortRatio', desc: 'longShortRatioDesc', color: '#60a5fa' },
+              { key: 'enable_top_trader_ratio', label: 'topTraderRatio', desc: 'topTraderRatioDesc', color: '#f97316', badge: 'binanceOnly' },
+              { key: 'enable_taker_buy_sell_ratio', label: 'takerBuySellRatio', desc: 'takerBuySellRatioDesc', color: '#a78bfa' },
+              { key: 'enable_order_book_depth', label: 'orderBookDepth', desc: 'orderBookDepthDesc', color: '#2dd4bf' },
+            ].map(({ key, label, desc, color, badge }) => (
+              <div
+                key={key}
+                className="p-2.5 rounded-lg transition-all"
+                style={{
+                  background: config[key as keyof IndicatorConfig] ? `${color}08` : 'transparent',
+                  border: `1px solid ${config[key as keyof IndicatorConfig] ? `${color}30` : '#2B3139'}`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator[label as keyof typeof indicator], language)}</span>
+                    {badge && (
+                      <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }}>
+                        {ts(indicator[badge as keyof typeof indicator], language)}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config[key as keyof IndicatorConfig] as boolean || false}
+                    onChange={(e) => !disabled && onChange({ ...config, [key]: e.target.checked })}
+                    disabled={disabled}
+                    className="w-4 h-4 rounded accent-yellow-500"
+                  />
+                </div>
+                <p className="text-[10px]" style={{ color: '#5E6673' }}>{ts(indicator[desc as keyof typeof indicator], language)}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

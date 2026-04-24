@@ -640,6 +640,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		},
 		Positions:      positionInfos,
 		CandidateCoins: candidateCoins,
+		Indicators:     strategyConfig.Indicators,
 	}
 
 	// 7. Add recent closed trades (if store is available)

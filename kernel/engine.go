@@ -109,6 +109,7 @@ type Context struct {
 	BTCETHLeverage     int                                `json:"-"`
 	AltcoinLeverage    int                                `json:"-"`
 	Timeframes         []string                           `json:"-"`
+	Indicators         store.IndicatorConfig              `json:"-"` // Indicator config for prompt filtering
 }
 
 // Decision AI trading decision

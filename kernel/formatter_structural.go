@@ -3,41 +3,59 @@ package kernel
 import (
 	"fmt"
 	"nofx/market"
+	"nofx/store"
 	"sort"
 	"strings"
 )
 
 // formatSentimentDataZH formats market sentiment data (Chinese)
-func formatSentimentDataZH(mdata *market.Data) string {
-	if mdata.LongShortRatio == nil && mdata.TopTraderRatio == nil && mdata.TakerBuySellRatio == nil && mdata.DepthImbalance == nil {
+func formatSentimentDataZH(mdata *market.Data, indicators ...store.IndicatorConfig) string {
+	// Determine which sentiment fields to show based on indicator config
+	showLS := true
+	showTT := true
+	showTBS := true
+	showDepth := true
+	if len(indicators) > 0 {
+		ind := indicators[0]
+		showLS = ind.EnableLongShortRatio
+		showTT = ind.EnableTopTraderRatio
+		showTBS = ind.EnableTakerBuySellRatio
+		showDepth = ind.EnableOrderBookDepth
+	}
+
+	hasData := (showLS && mdata.LongShortRatio != nil) ||
+		(showTT && mdata.TopTraderRatio != nil) ||
+		(showTBS && mdata.TakerBuySellRatio != nil) ||
+		(showDepth && mdata.DepthImbalance != nil)
+	if !hasData {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString("**市场情绪**:\n")
 
-	if mdata.LongShortRatio != nil {
+	if showLS && mdata.LongShortRatio != nil {
 		bias := "多头偏多"
 		if *mdata.LongShortRatio < 1 {
 			bias = "空头偏多"
 		}
 		sb.WriteString(fmt.Sprintf("- 多空比: %.2f (%s)\n", *mdata.LongShortRatio, bias))
 	}
-	if mdata.TopTraderRatio != nil {
+	if showTT && mdata.TopTraderRatio != nil {
 		bias := "大户偏多"
 		if *mdata.TopTraderRatio < 1 {
 			bias = "大户偏空"
 		}
 		sb.WriteString(fmt.Sprintf("- 大户多空比: %.2f (%s)\n", *mdata.TopTraderRatio, bias))
 	}
-	if mdata.TakerBuySellRatio != nil {
+	if showTBS && mdata.TakerBuySellRatio != nil {
 		bias := "买方主导"
 		if *mdata.TakerBuySellRatio < 1 {
 			bias = "卖方主导"
 		}
 		sb.WriteString(fmt.Sprintf("- 主动买卖比: %.2f (%s)\n", *mdata.TakerBuySellRatio, bias))
 	}
-	if mdata.DepthImbalance != nil {
+	if showDepth && mdata.DepthImbalance != nil {
 		bias := "买盘偏重, 支撑倾向"
 		if *mdata.DepthImbalance < 0 {
 			bias = "卖盘偏重, 压力倾向"
@@ -50,36 +68,53 @@ func formatSentimentDataZH(mdata *market.Data) string {
 }
 
 // formatSentimentDataEN formats market sentiment data (English)
-func formatSentimentDataEN(mdata *market.Data) string {
-	if mdata.LongShortRatio == nil && mdata.TopTraderRatio == nil && mdata.TakerBuySellRatio == nil && mdata.DepthImbalance == nil {
+func formatSentimentDataEN(mdata *market.Data, indicators ...store.IndicatorConfig) string {
+	// Determine which sentiment fields to show based on indicator config
+	showLS := true
+	showTT := true
+	showTBS := true
+	showDepth := true
+	if len(indicators) > 0 {
+		ind := indicators[0]
+		showLS = ind.EnableLongShortRatio
+		showTT = ind.EnableTopTraderRatio
+		showTBS = ind.EnableTakerBuySellRatio
+		showDepth = ind.EnableOrderBookDepth
+	}
+
+	hasData := (showLS && mdata.LongShortRatio != nil) ||
+		(showTT && mdata.TopTraderRatio != nil) ||
+		(showTBS && mdata.TakerBuySellRatio != nil) ||
+		(showDepth && mdata.DepthImbalance != nil)
+	if !hasData {
 		return ""
 	}
 
 	var sb strings.Builder
 	sb.WriteString("**Market Sentiment**:\n")
 
-	if mdata.LongShortRatio != nil {
+	if showLS && mdata.LongShortRatio != nil {
 		bias := "more longs"
 		if *mdata.LongShortRatio < 1 {
 			bias = "more shorts"
 		}
 		sb.WriteString(fmt.Sprintf("- Long/Short Ratio: %.2f (%s)\n", *mdata.LongShortRatio, bias))
 	}
-	if mdata.TopTraderRatio != nil {
+	if showTT && mdata.TopTraderRatio != nil {
 		bias := "top traders long-biased"
 		if *mdata.TopTraderRatio < 1 {
 			bias = "top traders short-biased"
 		}
 		sb.WriteString(fmt.Sprintf("- Top Trader L/S: %.2f (%s)\n", *mdata.TopTraderRatio, bias))
 	}
-	if mdata.TakerBuySellRatio != nil {
+	if showTBS && mdata.TakerBuySellRatio != nil {
 		bias := "buyers dominant"
 		if *mdata.TakerBuySellRatio < 1 {
 			bias = "sellers dominant"
 		}
 		sb.WriteString(fmt.Sprintf("- Taker Buy/Sell: %.2f (%s)\n", *mdata.TakerBuySellRatio, bias))
 	}
-	if mdata.DepthImbalance != nil {
+	if showDepth && mdata.DepthImbalance != nil {
 		bias := "bid-heavy, support bias"
 		if *mdata.DepthImbalance < 0 {
 			bias = "ask-heavy, resistance bias"

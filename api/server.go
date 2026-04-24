@@ -266,6 +266,10 @@ StrategyConfig fields:
   indicators.enable_volume: ALWAYS true
   indicators.enable_oi: ALWAYS true (open interest data)
   indicators.enable_funding_rate: ALWAYS true
+  indicators.enable_long_short_ratio: ALWAYS true (market long/short account ratio)
+  indicators.enable_top_trader_ratio: ALWAYS true (top trader L/S, Binance only)
+  indicators.enable_taker_buy_sell_ratio: ALWAYS true (taker buy/sell volume ratio)
+  indicators.enable_order_book_depth: ALWAYS true (bid/ask depth imbalance)
   indicators.ema_periods: [20,50] default, [9,21] for faster signals
   indicators.rsi_periods: [7,14] default
   indicators.atr_periods: [14] default

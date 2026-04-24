@@ -409,6 +409,11 @@ type IndicatorConfig struct {
 	EnableVolume      bool `json:"enable_volume"`
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
+	// Exchange sentiment data toggles
+	EnableLongShortRatio    bool `json:"enable_long_short_ratio"`    // long/short account ratio
+	EnableTopTraderRatio    bool `json:"enable_top_trader_ratio"`    // top trader long/short ratio (Binance only)
+	EnableTakerBuySellRatio bool `json:"enable_taker_buy_sell_ratio"` // taker buy/sell volume ratio
+	EnableOrderBookDepth    bool `json:"enable_order_book_depth"`    // order book depth imbalance
 	// EMA period configuration
 	EMAPeriods []int `json:"ema_periods,omitempty"` // default [20, 50]
 	// RSI period configuration
@@ -550,6 +555,11 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EnableVolume:      true,
 			EnableOI:          true,
 			EnableFundingRate: true,
+			// Exchange sentiment data
+			EnableLongShortRatio:    true,
+			EnableTopTraderRatio:    true, // Binance only
+			EnableTakerBuySellRatio: true,
+			EnableOrderBookDepth:    true,
 			EMAPeriods:        []int{20, 50},
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
@@ -830,7 +840,24 @@ func (s *Strategy) ParseConfig() (*StrategyConfig, error) {
 	if err := json.Unmarshal([]byte(s.Config), &config); err != nil {
 		return nil, fmt.Errorf("failed to parse strategy configuration: %w", err)
 	}
+	config.Indicators.FillSentimentDefaults()
 	return &config, nil
+}
+
+// FillSentimentDefaults ensures new sentiment toggle fields default to true
+// for strategies created before these fields existed (where all 4 would be false).
+func (ind *IndicatorConfig) FillSentimentDefaults() {
+	// If all 4 new sentiment fields are false but OI or funding rate is enabled,
+	// this is likely a pre-existing strategy — default them all to true.
+	if !ind.EnableLongShortRatio && !ind.EnableTopTraderRatio &&
+		!ind.EnableTakerBuySellRatio && !ind.EnableOrderBookDepth {
+		if ind.EnableOI || ind.EnableFundingRate {
+			ind.EnableLongShortRatio = true
+			ind.EnableTopTraderRatio = true
+			ind.EnableTakerBuySellRatio = true
+			ind.EnableOrderBookDepth = true
+		}
+	}
 }
 
 // SetConfig set strategy configuration

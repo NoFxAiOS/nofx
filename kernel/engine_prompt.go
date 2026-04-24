@@ -677,7 +677,7 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	}
 
 	// Sentiment and structural data
-	sb.WriteString(formatSentimentDataEN(data))
+	sb.WriteString(formatSentimentDataEN(data, indicators))
 	sb.WriteString(formatStructuralLevelsEN(data))
 
 	return sb.String()

@@ -257,7 +257,7 @@ func formatCurrentPositionsZH(ctx *Context) string {
 		if ctx.MarketDataMap != nil {
 			if mdata, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 				sb.WriteString(fmt.Sprintf("   📈 当前价格: %.4f\n", mdata.CurrentPrice))
-				sb.WriteString(formatSentimentDataZH(mdata))
+				sb.WriteString(formatSentimentDataZH(mdata, ctx.Indicators))
 				sb.WriteString(formatStructuralLevelsZH(mdata))
 			}
 		}
@@ -291,7 +291,7 @@ func formatCandidateCoinsZH(ctx *Context) string {
 		// Sentiment and structural data
 		if ctx.MarketDataMap != nil {
 			if mdata, ok := ctx.MarketDataMap[coin.Symbol]; ok {
-				sb.WriteString(formatSentimentDataZH(mdata))
+				sb.WriteString(formatSentimentDataZH(mdata, ctx.Indicators))
 				sb.WriteString(formatStructuralLevelsZH(mdata))
 			}
 		}
@@ -533,7 +533,7 @@ func formatCurrentPositionsEN(ctx *Context) string {
 		if ctx.MarketDataMap != nil {
 			if mdata, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 				sb.WriteString(fmt.Sprintf("   📈 Current Price: %.4f\n", mdata.CurrentPrice))
-				sb.WriteString(formatSentimentDataEN(mdata))
+				sb.WriteString(formatSentimentDataEN(mdata, ctx.Indicators))
 				sb.WriteString(formatStructuralLevelsEN(mdata))
 			}
 		}
@@ -565,7 +565,7 @@ func formatCandidateCoinsEN(ctx *Context) string {
 		// Sentiment and structural data
 		if ctx.MarketDataMap != nil {
 			if mdata, ok := ctx.MarketDataMap[coin.Symbol]; ok {
-				sb.WriteString(formatSentimentDataEN(mdata))
+				sb.WriteString(formatSentimentDataEN(mdata, ctx.Indicators))
 				sb.WriteString(formatStructuralLevelsEN(mdata))
 			}
 		}

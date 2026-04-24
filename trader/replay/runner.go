@@ -111,8 +111,9 @@ func RunScenario(s *Scenario) (*Result, error) {
 	}
 	marketData := &market.Data{
 		CurrentPrice:   currentPrice,
-		CurrentEMA20:   currentPrice,
+		CurrentEMA20:   baselinePrice, // EMA20 tracks the baseline, not the current price
 		PriceChange4h:  computeChangeFromBaseline(baselinePrice, currentPrice),
+		PriceChange1h:  computeChangeFromBaseline(baselinePrice, currentPrice) * 0.5, // approximate 1h as half of 4h
 		FundingRate:    latestFunding,
 		IntradaySeries: &market.IntradayData{ATR14: currentPrice * 0.01},
 	}
@@ -121,8 +122,9 @@ func RunScenario(s *Scenario) (*Result, error) {
 		if action.Price > 0 {
 			pt.SetPrice(s.Symbol, action.Price)
 			marketData.CurrentPrice = action.Price
-			marketData.CurrentEMA20 = action.Price
-			marketData.PriceChange4h = computeChangeFromBaseline(baselinePrice, action.Price)
+			change4h := computeChangeFromBaseline(baselinePrice, action.Price)
+			marketData.PriceChange4h = change4h
+			marketData.PriceChange1h = change4h * 0.5
 			marketData.IntradaySeries = &market.IntradayData{ATR14: action.Price * 0.01}
 		}
 		if shouldCheckRegimeFilter(action.Type) && s.RegimeFilter != nil && s.RegimeFilter.Enabled {
@@ -245,12 +247,22 @@ func blockedByScenarioRegimeFilter(action string, data *market.Data, cfg *Scenar
 	}
 	regime := "standard"
 	if data != nil && abs(data.PriceChange4h) >= 5 {
-		regime = "trending"
+		if data.PriceChange4h >= 0 {
+			regime = "trending_up"
+		} else {
+			regime = "trending_down"
+		}
 	}
 	if len(cfg.AllowedRegimes) > 0 {
 		allowed := false
 		for _, item := range cfg.AllowedRegimes {
 			if strings.EqualFold(item, regime) {
+				allowed = true
+				break
+			}
+			// "trending" matches trending_up and trending_down
+			if strings.EqualFold(item, "trending") &&
+				(strings.EqualFold(regime, "trending_up") || strings.EqualFold(regime, "trending_down")) {
 				allowed = true
 				break
 			}
@@ -263,11 +275,30 @@ func blockedByScenarioRegimeFilter(action string, data *market.Data, cfg *Scenar
 		return true
 	}
 	if cfg.RequireTrendAlign && data != nil {
-		if strings.EqualFold(action, "open_long") && !(data.CurrentPrice >= data.CurrentEMA20 && data.PriceChange4h >= 0) {
+		// Directional regime check: block counter-trend trades
+		if regime == "trending_up" && strings.EqualFold(action, "open_short") {
 			return true
 		}
-		if strings.EqualFold(action, "open_short") && !(data.CurrentPrice <= data.CurrentEMA20 && data.PriceChange4h <= 0) {
+		if regime == "trending_down" && strings.EqualFold(action, "open_long") {
 			return true
+		}
+		// In range regimes, block if 3+ factors oppose the direction
+		if regime == "standard" {
+			counterScore := 0
+			if strings.EqualFold(action, "open_long") {
+				if data.CurrentPrice < data.CurrentEMA20 { counterScore++ }
+				if data.PriceChange4h < 0 { counterScore++ }
+				if data.PriceChange1h < 0 { counterScore++ }
+				if data.CurrentMACD < 0 { counterScore++ }
+			} else if strings.EqualFold(action, "open_short") {
+				if data.CurrentPrice > data.CurrentEMA20 { counterScore++ }
+				if data.PriceChange4h > 0 { counterScore++ }
+				if data.PriceChange1h > 0 { counterScore++ }
+				if data.CurrentMACD > 0 { counterScore++ }
+			}
+			if counterScore >= 3 {
+				return true
+			}
 		}
 	}
 	return false

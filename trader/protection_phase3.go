@@ -45,61 +45,172 @@ func classifyProtectionRegime(data *market.Data) string {
 		}
 	}
 
+	// Directional trend detection: multi-factor scoring
+	// A directional trend needs sustained momentum, not just a single spike
+	trendScore := classifyTrendDirection(data)
+
+	// Strong directional trend (score >= 3 of 4 factors)
+	if trendScore >= 3 {
+		if data.PriceChange4h >= 0 {
+			return string(market.RegimeLevelTrendingUp)
+		}
+		return string(market.RegimeLevelTrendingDown)
+	}
+
+	// Moderate directional trend (score == 2) with significant 4h move
+	if trendScore >= 2 && math.Abs(data.PriceChange4h) >= 2 {
+		if data.PriceChange4h >= 0 {
+			return string(market.RegimeLevelTrendingUp)
+		}
+		return string(market.RegimeLevelTrendingDown)
+	}
+
+	// Extreme move — legacy "trending" (either direction, very strong)
 	if math.Abs(data.PriceChange4h) >= 5 {
-		return string(market.RegimeLevelTrending)
+		if data.PriceChange4h >= 0 {
+			return string(market.RegimeLevelTrendingUp)
+		}
+		return string(market.RegimeLevelTrendingDown)
 	}
 
 	return string(classifyRegimeLevel(bollWidth, atrPct))
 }
 
+// classifyTrendDirection scores how many directional factors align.
+// Returns the count of aligned factors (0-4). The direction is determined
+// by the majority of factors, but caller uses PriceChange4h for final direction.
+func classifyTrendDirection(data *market.Data) int {
+	if data == nil {
+		return 0
+	}
+
+	upScore := 0
+	downScore := 0
+
+	// Factor 1: Price vs EMA20
+	if data.CurrentPrice > data.CurrentEMA20 {
+		upScore++
+	} else if data.CurrentPrice < data.CurrentEMA20 {
+		downScore++
+	}
+
+	// Factor 2: 4h price change direction
+	if data.PriceChange4h > 0 {
+		upScore++
+	} else if data.PriceChange4h < 0 {
+		downScore++
+	}
+
+	// Factor 3: 1h price change direction
+	if data.PriceChange1h > 0 {
+		upScore++
+	} else if data.PriceChange1h < 0 {
+		downScore++
+	}
+
+	// Factor 4: MACD direction
+	if data.CurrentMACD > 0 {
+		upScore++
+	} else if data.CurrentMACD < 0 {
+		downScore++
+	}
+
+	// Return the higher score — represents directional alignment strength
+	if upScore >= downScore {
+		return upScore
+	}
+	return downScore
+}
+
+// isTrendAligned checks whether the action direction is compatible with the
+// current market regime. This is called when RequireTrendAlignment is enabled.
+//
+// The logic is regime-aware:
+// - trending_up: only longs allowed
+// - trending_down: only shorts allowed
+// - narrow/standard/wide: both directions allowed (range trading is valid)
+// - volatile: both directions allowed (but other filters may block)
+// - If regime is not directional, fall back to multi-factor scoring
 func isTrendAligned(action string, data *market.Data) bool {
 	if data == nil {
 		return true
 	}
 
-	// Multi-factor trend scoring: need at least 2 of 4 signals aligned
-	// This avoids the old problem where a single factor (e.g. 4h change slightly negative)
-	// would block an otherwise valid trend trade.
-	switch strings.ToLower(action) {
-	case "open_long":
-		score := 0
-		// Factor 1: Price above EMA20
-		if data.CurrentPrice >= data.CurrentEMA20 {
-			score++
-		}
-		// Factor 2: 4h change positive
-		if data.PriceChange4h >= 0 {
-			score++
-		}
-		// Factor 3: 1h change positive (shorter-term momentum)
-		if data.PriceChange1h >= 0 {
-			score++
-		}
-		// Factor 4: MACD positive (momentum confirmation)
-		if data.CurrentMACD > 0 {
-			score++
-		}
-		return score >= 2
+	regime := classifyProtectionRegime(data)
+	act := strings.ToLower(action)
 
-	case "open_short":
-		score := 0
-		if data.CurrentPrice <= data.CurrentEMA20 {
-			score++
+	switch regime {
+	case string(market.RegimeLevelTrendingUp):
+		// Uptrend: longs OK, shorts blocked
+		if act == "open_short" {
+			return false
 		}
-		if data.PriceChange4h <= 0 {
-			score++
+		return true
+
+	case string(market.RegimeLevelTrendingDown):
+		// Downtrend: shorts OK, longs blocked
+		if act == "open_long" {
+			return false
 		}
-		if data.PriceChange1h <= 0 {
-			score++
+		return true
+
+	case string(market.RegimeLevelTrending):
+		// Legacy "trending" (either direction) — use direction from 4h change
+		if act == "open_long" && data.PriceChange4h < -1 {
+			return false
 		}
-		if data.CurrentMACD < 0 {
-			score++
+		if act == "open_short" && data.PriceChange4h > 1 {
+			return false
 		}
-		return score >= 2
+		return true
+
+	case string(market.RegimeLevelNarrow), string(market.RegimeLevelStandard), string(market.RegimeLevelWide):
+		// Range regimes: both directions are valid (range trading)
+		// Only block if there's strong counter-trend evidence (3+ factors against)
+		return !isStrongCounterTrend(act, data)
 
 	default:
+		// volatile or unknown: allow
 		return true
 	}
+}
+
+// isStrongCounterTrend returns true if 3+ of 4 factors oppose the action direction.
+// Used in range regimes to block clearly counter-trend entries.
+func isStrongCounterTrend(action string, data *market.Data) bool {
+	if data == nil {
+		return false
+	}
+	counterScore := 0
+	switch action {
+	case "open_long":
+		if data.CurrentPrice < data.CurrentEMA20 {
+			counterScore++
+		}
+		if data.PriceChange4h < 0 {
+			counterScore++
+		}
+		if data.PriceChange1h < 0 {
+			counterScore++
+		}
+		if data.CurrentMACD < 0 {
+			counterScore++
+		}
+	case "open_short":
+		if data.CurrentPrice > data.CurrentEMA20 {
+			counterScore++
+		}
+		if data.PriceChange4h > 0 {
+			counterScore++
+		}
+		if data.PriceChange1h > 0 {
+			counterScore++
+		}
+		if data.CurrentMACD > 0 {
+			counterScore++
+		}
+	}
+	return counterScore >= 3
 }
 
 func (at *AutoTrader) evaluateDecisionRegimeGate(decision *kernel.Decision, data *market.Data) regimeGateResult {
@@ -133,6 +244,12 @@ func (at *AutoTrader) evaluateDecisionRegimeGate(decision *kernel.Decision, data
 		allowed := false
 		for _, item := range cfg.AllowedRegimes {
 			if strings.EqualFold(item, regime) {
+				allowed = true
+				break
+			}
+			// "trending" in config matches trending_up and trending_down
+			if strings.EqualFold(item, "trending") &&
+				(strings.EqualFold(regime, "trending_up") || strings.EqualFold(regime, "trending_down")) {
 				allowed = true
 				break
 			}

@@ -25,7 +25,10 @@ const regimeOptions = [
   { value: 'narrow', zh: '窄波动', en: 'Narrow' },
   { value: 'standard', zh: '标准波动', en: 'Standard' },
   { value: 'wide', zh: '宽波动', en: 'Wide' },
-  { value: 'trending', zh: '趋势强化', en: 'Trending' },
+  { value: 'trending', zh: '趋势（双向）', en: 'Trending (Both)' },
+  { value: 'trending_up', zh: '上涨趋势', en: 'Uptrend' },
+  { value: 'trending_down', zh: '下跌趋势', en: 'Downtrend' },
+  { value: 'volatile', zh: '极端波动', en: 'Volatile' },
 ]
 
 const policyModes: { value: StrategyControlPolicyMode; labelKey: 'strict' | 'auditOnly' | 'recommendOnly'; descKey: 'strictDesc' | 'auditOnlyDesc' | 'recommendOnlyDesc'; color: string }[] = [

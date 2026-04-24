@@ -41,10 +41,11 @@ func TestAllowDecisionByRegimeBlocksTrendMismatch(t *testing.T) {
 		RequireTrendAlignment: true,
 	}
 
+	// Strong downtrend: all 4 factors bearish → regime = trending_down, open_long blocked
 	decision := &kernel.Decision{Symbol: "BTCUSDT", Action: "open_long"}
-	data := &market.Data{CurrentPrice: 90, CurrentEMA20: 100, PriceChange4h: -2}
+	data := &market.Data{CurrentPrice: 90, CurrentEMA20: 100, PriceChange4h: -3, PriceChange1h: -2, CurrentMACD: -0.5}
 	if at.allowDecisionByRegime(decision, data) {
-		t.Fatal("expected decision to be blocked by trend alignment")
+		t.Fatal("expected open_long to be blocked in trending_down regime")
 	}
 }
 
@@ -56,8 +57,9 @@ func TestAllowDecisionByRegimeAllowsAlignedLong(t *testing.T) {
 		RequireTrendAlignment: true,
 	}
 
+	// Strong uptrend: price > EMA20, 4h positive, 1h positive → trending_up, long allowed
 	decision := &kernel.Decision{Symbol: "BTCUSDT", Action: "open_long"}
-	data := &market.Data{CurrentPrice: 105, CurrentEMA20: 100, PriceChange4h: 2}
+	data := &market.Data{CurrentPrice: 105, CurrentEMA20: 100, PriceChange4h: 2, PriceChange1h: 1, CurrentMACD: 0.3}
 	if !at.allowDecisionByRegime(decision, data) {
 		t.Fatal("expected aligned long to be allowed")
 	}
@@ -71,8 +73,9 @@ func TestAllowDecisionByRegimeAllowsAlignedShort(t *testing.T) {
 		RequireTrendAlignment: true,
 	}
 
+	// Strong downtrend: price < EMA20, 4h negative, 1h negative → trending_down, short allowed
 	decision := &kernel.Decision{Symbol: "ETHUSDT", Action: "open_short"}
-	data := &market.Data{CurrentPrice: 95, CurrentEMA20: 100, PriceChange4h: -3}
+	data := &market.Data{CurrentPrice: 95, CurrentEMA20: 100, PriceChange4h: -3, PriceChange1h: -1, CurrentMACD: -0.2}
 	if !at.allowDecisionByRegime(decision, data) {
 		t.Fatal("expected aligned short to be allowed")
 	}
@@ -90,16 +93,14 @@ func TestAllowDecisionByRegimePassesCloseActionsTrendCheck(t *testing.T) {
 	for _, action := range []string{"close_long", "close_short"} {
 		decision := &kernel.Decision{Symbol: "BTCUSDT", Action: action}
 		// Trend is misaligned for opens, but close should still pass
-		data := &market.Data{CurrentPrice: 50, CurrentEMA20: 100, PriceChange4h: -20}
+		data := &market.Data{CurrentPrice: 50, CurrentEMA20: 100, PriceChange4h: -20, PriceChange1h: -10, CurrentMACD: -5}
 		if !at.allowDecisionByRegime(decision, data) {
 			t.Fatalf("expected %s to pass trend alignment check", action)
 		}
 	}
 }
 
-func TestTrendAlignmentMultiFactorAllowsPartialSignals(t *testing.T) {
-	// Scenario: price slightly below EMA20 but 1h momentum and MACD both positive
-	// Old logic would block this; new multi-factor (score >= 2) should allow it
+func TestTrendAlignmentDirectionalRegimes(t *testing.T) {
 	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
 	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
 		Enabled:               true,
@@ -107,29 +108,61 @@ func TestTrendAlignmentMultiFactorAllowsPartialSignals(t *testing.T) {
 		RequireTrendAlignment: true,
 	}
 
-	// Price below EMA20, 4h slightly negative, but 1h positive and MACD positive
-	decision := &kernel.Decision{Symbol: "STABLEUSDT", Action: "open_long"}
-	data := &market.Data{
-		CurrentPrice:  0.0350,
-		CurrentEMA20:  0.0352,
-		PriceChange4h: -0.3,
-		PriceChange1h: 0.5,
-		CurrentMACD:   0.0001,
+	// Uptrend regime: long allowed, short blocked
+	upData := &market.Data{CurrentPrice: 110, CurrentEMA20: 100, PriceChange4h: 3, PriceChange1h: 1.5, CurrentMACD: 0.5}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, upData) {
+		t.Fatal("expected open_long allowed in trending_up")
 	}
-	if !at.allowDecisionByRegime(decision, data) {
-		t.Fatal("expected open_long with 2 of 4 trend factors aligned to be allowed")
+	if at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, upData) {
+		t.Fatal("expected open_short blocked in trending_up")
 	}
 
-	// All factors misaligned should still block
-	data2 := &market.Data{
-		CurrentPrice:  0.0340,
-		CurrentEMA20:  0.0360,
-		PriceChange4h: -2.0,
-		PriceChange1h: -1.0,
-		CurrentMACD:   -0.0005,
+	// Downtrend regime: short allowed, long blocked
+	downData := &market.Data{CurrentPrice: 90, CurrentEMA20: 100, PriceChange4h: -3, PriceChange1h: -1.5, CurrentMACD: -0.5}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, downData) {
+		t.Fatal("expected open_short allowed in trending_down")
 	}
-	if at.allowDecisionByRegime(decision, data2) {
-		t.Fatal("expected open_long with 0 of 4 trend factors to be blocked")
+	if at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, downData) {
+		t.Fatal("expected open_long blocked in trending_down")
+	}
+}
+
+func TestTrendAlignmentRangeRegimeAllowsBothDirections(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"narrow", "standard", "wide", "trending"},
+		RequireTrendAlignment: true,
+	}
+
+	// Range regime (no strong trend): both directions should be allowed
+	// Price slightly below EMA20, 4h slightly negative, but 1h positive — mixed signals = range
+	rangeData := &market.Data{CurrentPrice: 99, CurrentEMA20: 100, PriceChange4h: -0.3, PriceChange1h: 0.5, CurrentMACD: 0.0001}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, rangeData) {
+		t.Fatal("expected open_long allowed in range regime with mixed signals")
+	}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, rangeData) {
+		t.Fatal("expected open_short allowed in range regime with mixed signals")
+	}
+}
+
+func TestTrendAlignmentRangeRegimeBlocksStrongCounterTrend(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"narrow", "standard", "wide", "trending"},
+		RequireTrendAlignment: true,
+	}
+
+	// Range regime but 3 of 4 factors bearish (not enough for trending_down classification)
+	// Should block open_long as strong counter-trend
+	data := &market.Data{CurrentPrice: 98, CurrentEMA20: 100, PriceChange4h: -0.8, PriceChange1h: -0.5, CurrentMACD: -0.1}
+	if at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, data) {
+		t.Fatal("expected open_long blocked in range regime with 3+ counter-trend factors")
+	}
+	// But open_short should be fine in this scenario
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, data) {
+		t.Fatal("expected open_short allowed in range regime when factors align")
 	}
 }
 

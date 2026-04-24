@@ -218,15 +218,17 @@ type BoxData struct {
 	CurrentPrice float64 `json:"current_price"`
 }
 
-// RegimeLevel represents the ranging classification level
+// RegimeLevel represents the market regime classification
 type RegimeLevel string
 
 const (
-	RegimeLevelNarrow   RegimeLevel = "narrow"   // narrow range oscillation
-	RegimeLevelStandard RegimeLevel = "standard" // standard oscillation
-	RegimeLevelWide     RegimeLevel = "wide"     // wide range oscillation
-	RegimeLevelVolatile RegimeLevel = "volatile" // extreme volatility
-	RegimeLevelTrending RegimeLevel = "trending" // trending
+	RegimeLevelNarrow       RegimeLevel = "narrow"        // narrow range oscillation
+	RegimeLevelStandard     RegimeLevel = "standard"      // standard oscillation
+	RegimeLevelWide         RegimeLevel = "wide"          // wide range oscillation
+	RegimeLevelVolatile     RegimeLevel = "volatile"      // extreme volatility
+	RegimeLevelTrending     RegimeLevel = "trending"      // strong directional trend (legacy / either direction)
+	RegimeLevelTrendingUp   RegimeLevel = "trending_up"   // confirmed uptrend
+	RegimeLevelTrendingDown RegimeLevel = "trending_down" // confirmed downtrend
 )
 
 // BreakoutLevel represents which box level has been broken

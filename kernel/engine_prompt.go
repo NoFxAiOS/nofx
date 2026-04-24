@@ -32,6 +32,21 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("\n\n")
 	sb.WriteString("---\n\n")
 
+	// 0.1 Hard language contract — enforce decision/reasoning language
+	if lang == LangChinese {
+		sb.WriteString("## ⚠️ 输出语言硬性要求\n")
+		sb.WriteString("- 你必须用**中文**输出所有分析、reasoning、entry_protection_rationale、protection_plan 说明性字段、reason_anchor、structural_anchor、notes、alignment_notes 等文本内容\n")
+		sb.WriteString("- 决策 JSON 的字段名保持英文 schema 不变，但字段值里的自然语言解释必须是中文\n")
+		sb.WriteString("- 不要输出英文分析，不要中英混写，除非是币种、周期、字段名或技术术语缩写\n")
+		sb.WriteString("- 如果输出语言不是中文，视为不合格输出\n\n")
+	} else {
+		sb.WriteString("## ⚠️ Output Language Contract\n")
+		sb.WriteString("- You MUST use **English** for all reasoning, explanatory text, entry_protection_rationale, protection_plan explanation fields, reason_anchor, structural_anchor, notes, alignment_notes, etc.\n")
+		sb.WriteString("- Keep JSON field names in the schema unchanged, but all natural-language values inside the JSON must be English\n")
+		sb.WriteString("- Do not output Chinese analysis or mixed Chinese-English prose unless it is a symbol, timeframe, field name, or technical abbreviation\n")
+		sb.WriteString("- If the output language is not English, it is invalid\n\n")
+	}
+
 	// 1. Role definition (editable)
 	if promptSections.RoleDefinition != "" {
 		sb.WriteString(promptSections.RoleDefinition)
@@ -310,40 +325,88 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder) {
 // BuildUserPrompt builds User Prompt based on strategy configuration
 func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 	var sb strings.Builder
+	lang := e.GetLanguage()
+
+	// Hard language reminder in user prompt too (reinforces system prompt)
+	if lang == LangChinese {
+		sb.WriteString("【硬性要求】本次所有分析、解释、结构理由、保护方案说明必须使用中文；JSON 字段名保持英文，但字段值中的自然语言文本必须是中文。\n\n")
+	} else {
+		sb.WriteString("[HARD REQUIREMENT] All analysis, explanations, structural rationale, and protection-plan explanatory text must be in English. Keep JSON field names in English, but any natural-language values inside JSON must also be English.\n\n")
+	}
 
 	// System status
-	sb.WriteString(fmt.Sprintf("Time: %s | Period: #%d | Runtime: %d minutes\n\n",
-		ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
+	if lang == LangChinese {
+		sb.WriteString(fmt.Sprintf("时间: %s | 周期: #%d | 运行时长: %d 分钟\n\n",
+			ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
+	} else {
+		sb.WriteString(fmt.Sprintf("Time: %s | Period: #%d | Runtime: %d minutes\n\n",
+			ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
+	}
 
 	// BTC market
 	if btcData, hasBTC := ctx.MarketDataMap["BTCUSDT"]; hasBTC {
-		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
-			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
-			btcData.CurrentMACD, btcData.CurrentRSI7))
+		if lang == LangChinese {
+			sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
+				btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
+				btcData.CurrentMACD, btcData.CurrentRSI7))
+		} else {
+			sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
+				btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
+				btcData.CurrentMACD, btcData.CurrentRSI7))
+		}
 	}
 
 	// Account information
-	sb.WriteString(fmt.Sprintf("Account: Equity %.2f | Balance %.2f (%.1f%%) | PnL %+.2f%% | Margin %.1f%% | Positions %d\n\n",
-		ctx.Account.TotalEquity,
-		ctx.Account.AvailableBalance,
-		(ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100,
-		ctx.Account.TotalPnLPct,
-		ctx.Account.MarginUsedPct,
-		ctx.Account.PositionCount))
+	if lang == LangChinese {
+		sb.WriteString(fmt.Sprintf("账户: 权益 %.2f | 可用余额 %.2f (%.1f%%) | 盈亏 %+.2f%% | 保证金 %.1f%% | 持仓 %d\n\n",
+			ctx.Account.TotalEquity,
+			ctx.Account.AvailableBalance,
+			(ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100,
+			ctx.Account.TotalPnLPct,
+			ctx.Account.MarginUsedPct,
+			ctx.Account.PositionCount))
+	} else {
+		sb.WriteString(fmt.Sprintf("Account: Equity %.2f | Balance %.2f (%.1f%%) | PnL %+.2f%% | Margin %.1f%% | Positions %d\n\n",
+			ctx.Account.TotalEquity,
+			ctx.Account.AvailableBalance,
+			(ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100,
+			ctx.Account.TotalPnLPct,
+			ctx.Account.MarginUsedPct,
+			ctx.Account.PositionCount))
+	}
 
 	// Recently completed orders (placed before positions to ensure visibility)
 	if len(ctx.RecentOrders) > 0 {
-		sb.WriteString("## Recent Completed Trades\n")
+		if lang == LangChinese {
+			sb.WriteString("## 最近已完成交易\n")
+		} else {
+			sb.WriteString("## Recent Completed Trades\n")
+		}
 		for i, order := range ctx.RecentOrders {
 			resultStr := "Profit"
-			if order.RealizedPnL < 0 {
-				resultStr = "Loss"
+			if lang == LangChinese {
+				resultStr = "盈利"
 			}
-			sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Exit %.4f | %s: %+.2f USDT (%+.2f%%) | %s→%s (%s)\n",
-				i+1, order.Symbol, order.Side,
-				order.EntryPrice, order.ExitPrice,
-				resultStr, order.RealizedPnL, order.PnLPct,
-				order.EntryTime, order.ExitTime, order.HoldDuration))
+			if order.RealizedPnL < 0 {
+				if lang == LangChinese {
+					resultStr = "亏损"
+				} else {
+					resultStr = "Loss"
+				}
+			}
+			if lang == LangChinese {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | 开仓 %.4f 平仓 %.4f | %s: %+.2f USDT (%+.2f%%) | %s→%s (%s)\n",
+					i+1, order.Symbol, order.Side,
+					order.EntryPrice, order.ExitPrice,
+					resultStr, order.RealizedPnL, order.PnLPct,
+					order.EntryTime, order.ExitTime, order.HoldDuration))
+			} else {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Exit %.4f | %s: %+.2f USDT (%+.2f%%) | %s→%s (%s)\n",
+					i+1, order.Symbol, order.Side,
+					order.EntryPrice, order.ExitPrice,
+					resultStr, order.RealizedPnL, order.PnLPct,
+					order.EntryTime, order.ExitTime, order.HoldDuration))
+			}
 		}
 		sb.WriteString("\n")
 	}

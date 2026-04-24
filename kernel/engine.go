@@ -190,21 +190,23 @@ func (k *AIEntryKeyLevels) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*k = AIEntryKeyLevels(aux.alias)
-	if len(k.Support) == 0 && len(aux.SupportLevels) > 0 {
-		k.Support = aux.SupportLevels
-	}
-	if len(k.Resistance) == 0 && len(aux.ResistanceLevels) > 0 {
-		k.Resistance = aux.ResistanceLevels
-	}
+	k.Support = firstAliasSlice(k.Support, map[string][]float64{
+		"support_levels": aux.SupportLevels,
+	}, "key_levels.support")
+	k.Resistance = firstAliasSlice(k.Resistance, map[string][]float64{
+		"resistance_levels": aux.ResistanceLevels,
+	}, "key_levels.resistance")
 	if k.Fibonacci == nil && aux.Fibonacci != nil {
 		k.Fibonacci = aux.Fibonacci
 	}
 	if k.Fibonacci == nil && (len(aux.FibLevels) > 0 || len(aux.FibonacciLevels) > 0 || aux.SwingHigh > 0 || aux.SwingLow > 0) {
-		levels := aux.FibLevels
-		if len(levels) == 0 {
-			levels = aux.FibonacciLevels
-		}
-		k.Fibonacci = &AIEntryFibonacci{SwingHigh: aux.SwingHigh, SwingLow: aux.SwingLow, Levels: levels}
+			levels := firstAliasSlice(nil, map[string][]float64{
+			"fib_levels":       aux.FibLevels,
+			"fibonacci_levels": aux.FibonacciLevels,
+		}, "key_levels.fibonacci.levels")
+		swingHigh := firstAliasFloat(0, map[string]float64{"swing_high": aux.SwingHigh}, "key_levels.fibonacci.swing_high")
+		swingLow := firstAliasFloat(0, map[string]float64{"swing_low": aux.SwingLow}, "key_levels.fibonacci.swing_low")
+		k.Fibonacci = &AIEntryFibonacci{SwingHigh: swingHigh, SwingLow: swingLow, Levels: levels}
 	}
 	return nil
 }
@@ -227,13 +229,10 @@ func (f *AIEntryFibonacci) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*f = AIEntryFibonacci(aux.alias)
-	if len(f.Levels) == 0 {
-		if len(aux.FibLevels) > 0 {
-			f.Levels = aux.FibLevels
-		} else if len(aux.FibonacciLevels) > 0 {
-			f.Levels = aux.FibonacciLevels
-		}
-	}
+	f.Levels = firstAliasSlice(f.Levels, map[string][]float64{
+		"fib_levels":       aux.FibLevels,
+		"fibonacci_levels": aux.FibonacciLevels,
+	}, "key_levels.fibonacci.levels")
 	return nil
 }
 
@@ -258,12 +257,10 @@ func (v *AIEntryVolatilityAdjustment) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*v = AIEntryVolatilityAdjustment(aux.alias)
-	if v.ATR14Pct <= 0 {
-		if aux.ATRPct > 0 { v.ATR14Pct = aux.ATRPct } else if aux.ATR14 > 0 { v.ATR14Pct = aux.ATR14 }
-	}
-	if v.BollWidthPct <= 0 && aux.BollingerWidth > 0 { v.BollWidthPct = aux.BollingerWidth }
-	if v.MarketRegime == "" && aux.Regime != "" { v.MarketRegime = aux.Regime }
-	if v.WideningPct <= 0 && aux.BufferPct > 0 { v.WideningPct = aux.BufferPct }
+	v.ATR14Pct = firstAliasFloat(v.ATR14Pct, map[string]float64{"atr_pct": aux.ATRPct, "atr14": aux.ATR14}, "volatility_adjustment.atr14_pct")
+	v.BollWidthPct = firstAliasFloat(v.BollWidthPct, map[string]float64{"bollinger_width_pct": aux.BollingerWidth}, "volatility_adjustment.boll_width_pct")
+	v.MarketRegime = firstAliasString(v.MarketRegime, map[string]string{"regime": aux.Regime}, "volatility_adjustment.market_regime")
+	v.WideningPct = firstAliasFloat(v.WideningPct, map[string]float64{"buffer_pct": aux.BufferPct}, "volatility_adjustment.widening_pct")
 	return nil
 }
 
@@ -293,12 +290,12 @@ func (r *AIRiskRewardRationale) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*r = AIRiskRewardRationale(aux.alias)
-	if r.Entry <= 0 && aux.EntryPrice > 0 { r.Entry = aux.EntryPrice }
-	if r.Invalidation <= 0 && aux.InvalidationPrice > 0 { r.Invalidation = aux.InvalidationPrice }
-	if r.FirstTarget <= 0 && aux.FirstTargetPrice > 0 { r.FirstTarget = aux.FirstTargetPrice }
-	if r.GrossEstimatedRR <= 0 && aux.GrossRR > 0 { r.GrossEstimatedRR = aux.GrossRR }
-	if r.NetEstimatedRR <= 0 && aux.NetRR > 0 { r.NetEstimatedRR = aux.NetRR }
-	if r.MinRequiredRR <= 0 && aux.MinRR > 0 { r.MinRequiredRR = aux.MinRR }
+	r.Entry = firstAliasFloat(r.Entry, map[string]float64{"entry_price": aux.EntryPrice}, "risk_reward.entry")
+	r.Invalidation = firstAliasFloat(r.Invalidation, map[string]float64{"invalidation_price": aux.InvalidationPrice}, "risk_reward.invalidation")
+	r.FirstTarget = firstAliasFloat(r.FirstTarget, map[string]float64{"first_target_price": aux.FirstTargetPrice}, "risk_reward.first_target")
+	r.GrossEstimatedRR = firstAliasFloat(r.GrossEstimatedRR, map[string]float64{"gross_rr": aux.GrossRR}, "risk_reward.gross_estimated_rr")
+	r.NetEstimatedRR = firstAliasFloat(r.NetEstimatedRR, map[string]float64{"net_rr": aux.NetRR}, "risk_reward.net_estimated_rr")
+	r.MinRequiredRR = firstAliasFloat(r.MinRequiredRR, map[string]float64{"min_rr": aux.MinRR}, "risk_reward.min_required_rr")
 	return nil
 }
 
@@ -334,11 +331,11 @@ func (e *AIEntryExecutionConstraints) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*e = AIEntryExecutionConstraints(aux.alias)
-	if e.BestBid <= 0 && aux.Bid > 0 { e.BestBid = aux.Bid }
-	if e.BestAsk <= 0 && aux.Ask > 0 { e.BestAsk = aux.Ask }
-	if e.EstimatedSlippageBps <= 0 && aux.SlippageBps > 0 { e.EstimatedSlippageBps = aux.SlippageBps }
-	if e.TickSize <= 0 && aux.PriceStep > 0 { e.TickSize = aux.PriceStep }
-	if e.QtyStepSize <= 0 && aux.QuantityStepSize > 0 { e.QtyStepSize = aux.QuantityStepSize }
+	e.BestBid = firstAliasFloat(e.BestBid, map[string]float64{"bid": aux.Bid}, "execution_constraints.best_bid")
+	e.BestAsk = firstAliasFloat(e.BestAsk, map[string]float64{"ask": aux.Ask}, "execution_constraints.best_ask")
+	e.EstimatedSlippageBps = firstAliasFloat(e.EstimatedSlippageBps, map[string]float64{"slippage_bps": aux.SlippageBps}, "execution_constraints.estimated_slippage_bps")
+	e.TickSize = firstAliasFloat(e.TickSize, map[string]float64{"price_step": aux.PriceStep}, "execution_constraints.tick_size")
+	e.QtyStepSize = firstAliasFloat(e.QtyStepSize, map[string]float64{"quantity_step_size": aux.QuantityStepSize}, "execution_constraints.qty_step_size")
 	return nil
 }
 
@@ -371,12 +368,12 @@ func (d *AIEntryDerivativesContext) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*d = AIEntryDerivativesContext(aux.alias)
-	if d.OICurrent <= 0 && aux.OpenInterest > 0 { d.OICurrent = aux.OpenInterest }
-	if d.FundingRateCurrent == 0 && aux.FundingRate != 0 { d.FundingRateCurrent = aux.FundingRate }
-	if d.MarkIndexBasisBps == 0 && aux.BasisBps != 0 { d.MarkIndexBasisBps = aux.BasisBps }
-	if d.OrderbookImbalance == 0 && aux.DepthImbalance != 0 { d.OrderbookImbalance = aux.DepthImbalance }
-	if d.Top5BidNotional <= 0 && aux.BidNotionalTop5 > 0 { d.Top5BidNotional = aux.BidNotionalTop5 }
-	if d.Top5AskNotional <= 0 && aux.AskNotionalTop5 > 0 { d.Top5AskNotional = aux.AskNotionalTop5 }
+	d.OICurrent = firstAliasFloat(d.OICurrent, map[string]float64{"open_interest": aux.OpenInterest}, "derivatives_context.oi_current")
+	d.FundingRateCurrent = firstAliasFloat(d.FundingRateCurrent, map[string]float64{"funding_rate": aux.FundingRate}, "derivatives_context.funding_rate_current")
+	d.MarkIndexBasisBps = firstAliasFloat(d.MarkIndexBasisBps, map[string]float64{"basis_bps": aux.BasisBps}, "derivatives_context.mark_index_basis_bps")
+	d.OrderbookImbalance = firstAliasFloat(d.OrderbookImbalance, map[string]float64{"depth_imbalance": aux.DepthImbalance}, "derivatives_context.orderbook_imbalance")
+	d.Top5BidNotional = firstAliasFloat(d.Top5BidNotional, map[string]float64{"bid_notional_top5": aux.BidNotionalTop5}, "derivatives_context.top5_bid_notional")
+	d.Top5AskNotional = firstAliasFloat(d.Top5AskNotional, map[string]float64{"ask_notional_top5": aux.AskNotionalTop5}, "derivatives_context.top5_ask_notional")
 	return nil
 }
 
@@ -416,31 +413,10 @@ func (p *AIProtectionPlan) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*p = AIProtectionPlan(aux.alias)
-	_ = schemaAliases("protection_plan.break_even_trigger_mode") // registry declares accepted aliases
-	if p.BreakEvenTrigger == "" && aux.BreakevenTrigger != "" {
-		p.BreakEvenTrigger = aux.BreakevenTrigger
-	}
-	if p.BreakEvenValue <= 0 {
-		if aux.BreakEvenValue > 0 {
-			p.BreakEvenValue = aux.BreakEvenValue
-		} else if aux.BreakevenValue > 0 {
-			p.BreakEvenValue = aux.BreakevenValue
-		}
-	}
-	if p.BreakEvenOffset <= 0 {
-		if aux.BreakEvenOffset > 0 {
-			p.BreakEvenOffset = aux.BreakEvenOffset
-		} else if aux.BreakevenOffset > 0 {
-			p.BreakEvenOffset = aux.BreakevenOffset
-		}
-	}
-	if p.BreakEvenAnchor == "" {
-		if aux.BreakEvenReason != "" {
-			p.BreakEvenAnchor = aux.BreakEvenReason
-		} else if aux.BreakevenReason != "" {
-			p.BreakEvenAnchor = aux.BreakevenReason
-		}
-	}
+	p.BreakEvenTrigger = firstAliasString(p.BreakEvenTrigger, map[string]string{"breakeven_trigger": aux.BreakevenTrigger}, "protection_plan.break_even_trigger_mode")
+	p.BreakEvenValue = firstAliasFloat(p.BreakEvenValue, map[string]float64{"break_even_value": aux.BreakEvenValue, "breakeven_value": aux.BreakevenValue}, "protection_plan.break_even_trigger_value")
+	p.BreakEvenOffset = firstAliasFloat(p.BreakEvenOffset, map[string]float64{"break_even_offset": aux.BreakEvenOffset, "breakeven_offset_pct": aux.BreakevenOffset}, "protection_plan.break_even_offset_pct")
+	p.BreakEvenAnchor = firstAliasString(p.BreakEvenAnchor, map[string]string{"break_even_reason": aux.BreakEvenReason, "breakeven_reason_anchor": aux.BreakevenReason}, "protection_plan.break_even_reason_anchor")
 	return nil
 }
 
@@ -470,10 +446,7 @@ func (r *AIProtectionDrawdownRule) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*r = AIProtectionDrawdownRule(aux.alias)
-	_ = schemaAliases("drawdown_rules.close_ratio_pct") // registry declares accepted aliases
-	if r.CloseRatioPct <= 0 && aux.CloseRatio > 0 {
-		r.CloseRatioPct = aux.CloseRatio
-	}
+	r.CloseRatioPct = firstAliasFloat(r.CloseRatioPct, map[string]float64{"close_ratio": aux.CloseRatio}, "drawdown_rules.close_ratio_pct")
 	return nil
 }
 
@@ -501,14 +474,10 @@ func (r *AIProtectionLadderRule) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*r = AIProtectionLadderRule(aux.alias)
-	if r.TakeProfitPct <= 0 {
-		if aux.TPPct > 0 { r.TakeProfitPct = aux.TPPct } else if aux.TPLevel > 0 { r.TakeProfitPct = aux.TPLevel }
-	}
-	if r.StopLossPct <= 0 {
-		if aux.SLPct > 0 { r.StopLossPct = aux.SLPct } else if aux.SLLevel > 0 { r.StopLossPct = aux.SLLevel }
-	}
-	if r.TakeProfitCloseRatioPct <= 0 && aux.TPCloseRatio > 0 { r.TakeProfitCloseRatioPct = aux.TPCloseRatio }
-	if r.StopLossCloseRatioPct <= 0 && aux.SLCloseRatio > 0 { r.StopLossCloseRatioPct = aux.SLCloseRatio }
+	r.TakeProfitPct = firstAliasFloat(r.TakeProfitPct, map[string]float64{"tp_pct": aux.TPPct, "tp_level": aux.TPLevel}, "ladder_rules.take_profit_pct")
+	r.StopLossPct = firstAliasFloat(r.StopLossPct, map[string]float64{"sl_pct": aux.SLPct, "sl_level": aux.SLLevel}, "ladder_rules.stop_loss_pct")
+	r.TakeProfitCloseRatioPct = firstAliasFloat(r.TakeProfitCloseRatioPct, map[string]float64{"tp_close_ratio_pct": aux.TPCloseRatio}, "ladder_rules.take_profit_close_ratio_pct")
+	r.StopLossCloseRatioPct = firstAliasFloat(r.StopLossCloseRatioPct, map[string]float64{"sl_close_ratio_pct": aux.SLCloseRatio}, "ladder_rules.stop_loss_close_ratio_pct")
 	return nil
 }
 

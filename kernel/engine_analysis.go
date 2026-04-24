@@ -230,6 +230,8 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
+	normalizeAndRepairOpenDecisions(decisions)
+
 	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
@@ -924,6 +926,87 @@ func ParseAndValidateAIDecisionsWithStrategy(response string, config *store.Stra
 		return decisions, err
 	}
 	return decisions, nil
+}
+
+func normalizeAndRepairOpenDecisions(decisions []Decision) {
+	for i := range decisions {
+		d := &decisions[i]
+		d.Action = strings.ToLower(strings.TrimSpace(d.Action))
+		d.Symbol = strings.ToUpper(strings.TrimSpace(d.Symbol))
+		if d.Action != "open_long" && d.Action != "open_short" {
+			continue
+		}
+		if d.EntryProtection != nil {
+			normalizeEntryProtectionRationale(d.EntryProtection)
+		}
+		if d.ProtectionPlan != nil {
+			normalizeProtectionPlan(d.ProtectionPlan)
+		}
+	}
+}
+
+func normalizeEntryProtectionRationale(ep *AIEntryProtectionRationale) {
+	if ep == nil {
+		return
+	}
+	ep.TimeframeContext.Primary = strings.TrimSpace(ep.TimeframeContext.Primary)
+	for i := range ep.TimeframeContext.Lower {
+		ep.TimeframeContext.Lower[i] = strings.TrimSpace(ep.TimeframeContext.Lower[i])
+	}
+	for i := range ep.TimeframeContext.Higher {
+		ep.TimeframeContext.Higher[i] = strings.TrimSpace(ep.TimeframeContext.Higher[i])
+	}
+	for i := range ep.AlignmentNotes {
+		ep.AlignmentNotes[i] = strings.TrimSpace(ep.AlignmentNotes[i])
+	}
+	for i := range ep.Anchors {
+		ep.Anchors[i].Type = strings.TrimSpace(ep.Anchors[i].Type)
+		ep.Anchors[i].Timeframe = strings.TrimSpace(ep.Anchors[i].Timeframe)
+		ep.Anchors[i].Reason = strings.TrimSpace(ep.Anchors[i].Reason)
+	}
+	for i := range ep.StructuralKeyLevels {
+		ep.StructuralKeyLevels[i].Type = strings.ToLower(strings.TrimSpace(ep.StructuralKeyLevels[i].Type))
+		ep.StructuralKeyLevels[i].Timeframe = strings.TrimSpace(ep.StructuralKeyLevels[i].Timeframe)
+		ep.StructuralKeyLevels[i].Source = strings.TrimSpace(ep.StructuralKeyLevels[i].Source)
+		ep.StructuralKeyLevels[i].UsedFor = strings.TrimSpace(ep.StructuralKeyLevels[i].UsedFor)
+	}
+	backfillEntryProtectionKeyLevels(ep)
+	backfillStructuralKeyLevels(ep)
+}
+
+func normalizeProtectionPlan(pp *AIProtectionPlan) {
+	if pp == nil {
+		return
+	}
+	pp.Mode = strings.TrimSpace(pp.Mode)
+	pp.BreakEvenTrigger = strings.TrimSpace(pp.BreakEvenTrigger)
+	pp.BreakEvenAnchor = strings.TrimSpace(pp.BreakEvenAnchor)
+	for i := range pp.DrawdownRules {
+		pp.DrawdownRules[i].Timeframe = strings.TrimSpace(pp.DrawdownRules[i].Timeframe)
+		pp.DrawdownRules[i].ReasonAnchor = strings.TrimSpace(pp.DrawdownRules[i].ReasonAnchor)
+		pp.DrawdownRules[i].StageName = strings.TrimSpace(pp.DrawdownRules[i].StageName)
+		pp.DrawdownRules[i].RunnerStopMode = strings.TrimSpace(pp.DrawdownRules[i].RunnerStopMode)
+		pp.DrawdownRules[i].RunnerStopSource = strings.TrimSpace(pp.DrawdownRules[i].RunnerStopSource)
+		pp.DrawdownRules[i].RunnerTargetMode = strings.TrimSpace(pp.DrawdownRules[i].RunnerTargetMode)
+		pp.DrawdownRules[i].RunnerTargetSource = strings.TrimSpace(pp.DrawdownRules[i].RunnerTargetSource)
+	}
+}
+
+func backfillStructuralKeyLevels(ep *AIEntryProtectionRationale) {
+	if ep == nil || len(ep.StructuralKeyLevels) > 0 {
+		return
+	}
+	primary := strings.TrimSpace(ep.TimeframeContext.Primary)
+	for _, v := range ep.KeyLevels.Support {
+		if v > 0 {
+			ep.StructuralKeyLevels = append(ep.StructuralKeyLevels, AIStructuralKeyLevel{Price: v, Type: "support", Timeframe: primary, Source: "backfilled_key_levels", UsedFor: "reference"})
+		}
+	}
+	for _, v := range ep.KeyLevels.Resistance {
+		if v > 0 {
+			ep.StructuralKeyLevels = append(ep.StructuralKeyLevels, AIStructuralKeyLevel{Price: v, Type: "resistance", Timeframe: primary, Source: "backfilled_key_levels", UsedFor: "reference"})
+		}
+	}
 }
 
 func backfillEntryProtectionKeyLevels(ep *AIEntryProtectionRationale) {

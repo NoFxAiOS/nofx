@@ -4,11 +4,12 @@ import { Trash2, Brain, ExternalLink } from 'lucide-react'
 import type { AIModel } from '../../types'
 import type { Language } from '../../i18n/translations'
 import { t } from '../../i18n/translations'
+import { api } from '../../lib/api'
+import { getBeginnerWalletAddress } from '../../lib/onboarding'
 import { getModelIcon } from '../common/ModelIcons'
 import { ModelStepIndicator } from './ModelStepIndicator'
 import { ModelCard } from './ModelCard'
 import {
-  BLOCKRUN_MODELS,
   CLAW402_MODELS,
   AI_PROVIDER_CONFIG,
   DEFAULT_CLAW402_MODEL,
@@ -50,6 +51,8 @@ export function ModelConfigModal({
   const selectedModel =
     allModels?.find((m) => m.id === selectedModelId) ||
     configuredModels?.find((m) => m.id === selectedModelId)
+  const configuredModel =
+    configuredModels?.find((m) => m.id === selectedModelId) || null
 
   useEffect(() => {
     if (editingModelId && selectedModel) {
@@ -91,8 +94,6 @@ export function ModelConfigModal({
   const configuredIds = new Set(configuredModels?.map((m) => m.id) || [])
   const isClaw402Selected =
     selectedModel?.provider === 'claw402' || selectedModel?.id === 'claw402'
-  const isBeginnerDefaultModel =
-    isClaw402Selected && getUserMode() === 'beginner'
   const stepLabels = [
     t('modelConfig.selectModel', language),
     t(
@@ -248,6 +249,14 @@ function ModelSelectionStep({
   onSelectModel: (modelId: string) => void
   language: Language
 }) {
+  const [showOtherProviders, setShowOtherProviders] = useState(false)
+  const claw402Model =
+    availableModels.find((model) => model.provider === 'claw402') || null
+  const otherProviders = availableModels.filter(
+    (model) =>
+      model.provider !== 'claw402' && !model.provider?.startsWith('blockrun')
+  )
+
   return (
     <div className="space-y-4">
       <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
@@ -255,12 +264,11 @@ function ModelSelectionStep({
       </div>
 
       {/* Claw402 Featured Card */}
-      {availableModels.some(m => m.provider === 'claw402') && (
+      {claw402Model && (
         <button
           type="button"
           onClick={() => {
-            const claw = availableModels.find(m => m.provider === 'claw402')
-            if (claw) onSelectModel(claw.id)
+            onSelectModel(claw402Model.id)
           }}
           className="w-full p-5 rounded-xl text-left transition-all hover:scale-[1.01]"
           style={{
@@ -407,6 +415,7 @@ function ModelSelectionStep({
 function Claw402ConfigForm({
   apiKey,
   modelName,
+  configuredModel,
   editingModelId,
   onApiKeyChange,
   onModelNameChange,
@@ -416,6 +425,7 @@ function Claw402ConfigForm({
 }: {
   apiKey: string
   modelName: string
+  configuredModel: AIModel | null
   editingModelId: string | null
   onApiKeyChange: (value: string) => void
   onModelNameChange: (value: string) => void
@@ -497,7 +507,10 @@ function Claw402ConfigForm({
       .catch(() => {
         // Ignore silently: this is a best-effort fallback for showing the current wallet.
       })
-
+    return () => {
+      cancelled = true
+    }
+  }, [configuredModel?.walletAddress, localWalletAddress, serverWalletAddress])
 
   // Debounced validation when apiKey changes
   useEffect(() => {
@@ -839,7 +852,13 @@ function Claw402ConfigForm({
               type="password"
               value={apiKey}
               onChange={(e) => onApiKeyChange(e.target.value)}
-              placeholder="0x..."
+              placeholder={
+                hasExistingWallet
+                  ? language === 'zh'
+                    ? '已保存，如需更换钱包请重新输入私钥'
+                    : 'Already saved. Enter a new private key only to replace the wallet.'
+                  : '0x...'
+              }
               className="flex-1 px-4 py-3 rounded-xl font-mono text-sm"
               style={{
                 background: '#0B0E11',
@@ -850,24 +869,33 @@ function Claw402ConfigForm({
                     : '1px solid #2B3139',
                 color: '#EAECEF',
               }}
-              required
+              required={!hasExistingWallet}
             />
             {!apiKey && (
               <button
                 type="button"
                 onClick={async () => {
                   try {
-                    const res = await fetch('/api/wallet/generate', { method: 'POST' })
+                    const res = await fetch('/api/wallet/generate', {
+                      method: 'POST',
+                    })
                     const data = await res.json()
                     if (data.private_key) {
                       onApiKeyChange(data.private_key)
                       setShowNewWalletBackup(true)
                       setNewWalletKey(data.private_key)
                     }
-                  } catch { /* ignore */ }
+                  } catch {
+                    /* ignore */
+                  }
                 }}
                 className="shrink-0 px-3 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02]"
-                style={{ background: 'linear-gradient(135deg, #2563EB, #7C3AED)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                style={{
+                  background: 'linear-gradient(135deg, #2563EB, #7C3AED)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
               >
                 {language === 'zh' ? '🔑 创建钱包' : '🔑 Create Wallet'}
               </button>
@@ -876,9 +904,21 @@ function Claw402ConfigForm({
 
           {/* New wallet backup warning */}
           {showNewWalletBackup && newWalletKey && (
-            <div className="p-3 rounded-xl" style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-              <div className="text-xs font-bold mb-2" style={{ color: '#EF4444' }}>
-                🚨 {language === 'zh' ? '重要：请立即备份私钥！' : 'Important: Backup your private key NOW!'}
+            <div
+              className="p-3 rounded-xl"
+              style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}
+            >
+              <div
+                className="text-xs font-bold mb-2"
+                style={{ color: '#EF4444' }}
+              >
+                🚨{' '}
+                {language === 'zh'
+                  ? '重要：请立即备份私钥！'
+                  : 'Important: Backup your private key NOW!'}
               </div>
               <div className="text-[11px] mb-2" style={{ color: '#F87171' }}>
                 {language === 'zh'
@@ -886,7 +926,10 @@ function Claw402ConfigForm({
                   : 'This is your wallet private key. If lost, it cannot be recovered and all assets will be permanently lost. Copy and save it securely.'}
               </div>
               <div className="flex items-center gap-2 mb-2">
-                <code className="text-[10px] font-mono break-all select-all flex-1 p-2 rounded" style={{ background: '#0B0E11', color: '#F87171' }}>
+                <code
+                  className="text-[10px] font-mono break-all select-all flex-1 p-2 rounded"
+                  style={{ background: '#0B0E11', color: '#F87171' }}
+                >
                   {newWalletKey}
                 </code>
                 <button
@@ -897,15 +940,38 @@ function Claw402ConfigForm({
                     setTimeout(() => setCopiedAddr(false), 2000)
                   }}
                   className="shrink-0 text-[10px] px-2 py-1 rounded"
-                  style={{ background: 'rgba(239,68,68,0.15)', color: '#F87171', border: 'none', cursor: 'pointer' }}
+                  style={{
+                    background: 'rgba(239,68,68,0.15)',
+                    color: '#F87171',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
                 >
                   {copiedAddr ? '✅ Copied' : '📋 Copy Key'}
                 </button>
               </div>
-              <div className="text-[10px] space-y-1" style={{ color: '#848E9C' }}>
-                <div>✅ {language === 'zh' ? '建议保存到密码管理器（1Password / Bitwarden）' : 'Save to a password manager (1Password / Bitwarden)'}</div>
-                <div>✅ {language === 'zh' ? '或抄在纸上放安全的地方' : 'Or write it down and store it safely'}</div>
-                <div>❌ {language === 'zh' ? '不要截图发给别人' : 'Do NOT screenshot or share with anyone'}</div>
+              <div
+                className="text-[10px] space-y-1"
+                style={{ color: '#848E9C' }}
+              >
+                <div>
+                  ✅{' '}
+                  {language === 'zh'
+                    ? '建议保存到密码管理器（1Password / Bitwarden）'
+                    : 'Save to a password manager (1Password / Bitwarden)'}
+                </div>
+                <div>
+                  ✅{' '}
+                  {language === 'zh'
+                    ? '或抄在纸上放安全的地方'
+                    : 'Or write it down and store it safely'}
+                </div>
+                <div>
+                  ❌{' '}
+                  {language === 'zh'
+                    ? '不要截图发给别人'
+                    : 'Do NOT screenshot or share with anyone'}
+                </div>
               </div>
             </div>
           )}
@@ -1138,7 +1204,7 @@ function Claw402ConfigForm({
             )}
 
             {/* Test Connection button */}
-            {isKeyValid && !validating && (
+            {(isKeyValid || hasExistingWallet) && !validating && (
               <button
                 type="button"
                 onClick={handleTestConnection}
@@ -1223,7 +1289,7 @@ function Claw402ConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!isKeyValid}
+          disabled={!isKeyValid && !hasExistingWallet}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background:
@@ -1335,9 +1401,14 @@ function StandardProviderConfigForm({
       {editingModelId && selectedModel && 'has_api_key' in selectedModel && (
         <div
           className="p-3 rounded-xl text-xs"
-          style={{ background: 'rgba(14, 203, 129, 0.08)', border: '1px solid rgba(14, 203, 129, 0.2)', color: '#9FE8C5' }}
+          style={{
+            background: 'rgba(14, 203, 129, 0.08)',
+            border: '1px solid rgba(14, 203, 129, 0.2)',
+            color: '#9FE8C5',
+          }}
         >
-          当前模型密钥状态：{selectedModel.has_api_key ? '已配置 API Key' : '未配置 API Key'}
+          当前模型密钥状态：
+          {selectedModel.has_api_key ? '已配置 API Key' : '未配置 API Key'}
         </div>
       )}
 
@@ -1372,10 +1443,10 @@ function StandardProviderConfigForm({
             editingModelId && selectedModel.has_api_key
               ? '已保存，如需更换请重新输入'
               : selectedModel.provider === 'blockrun-base'
-              ? '0x... (EVM private key)'
-              : selectedModel.provider === 'blockrun-sol'
-              ? 'bs58 encoded key (Solana)'
-              : t('enterAPIKey', language)
+                ? '0x... (EVM private key)'
+                : selectedModel.provider === 'blockrun-sol'
+                  ? 'bs58 encoded key (Solana)'
+                  : t('enterAPIKey', language)
           }
           className="w-full px-4 py-3 rounded-xl"
           style={{
@@ -1388,80 +1459,84 @@ function StandardProviderConfigForm({
       </div>
 
       {/* Custom Base URL */}
-      <div className="space-y-2">
-        <label
-          className="flex items-center gap-2 text-sm font-semibold"
-          style={{ color: '#EAECEF' }}
-        >
-          <svg
-            className="w-4 h-4"
-            style={{ color: '#A78BFA' }}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      {!selectedModel.provider?.startsWith('blockrun') && (
+        <div className="space-y-2">
+          <label
+            className="flex items-center gap-2 text-sm font-semibold"
+            style={{ color: '#EAECEF' }}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-            />
-          </svg>
-          {t('customBaseURL', language)}
-        </label>
-        <input
-          type="url"
-          value={baseUrl}
-          onChange={(e) => onBaseUrlChange(e.target.value)}
-          placeholder={t('customBaseURLPlaceholder', language)}
-          className="w-full px-4 py-3 rounded-xl"
-          style={{
-            background: '#0B0E11',
-            border: '1px solid #2B3139',
-            color: '#EAECEF',
-          }}
-        />
-        <div className="text-xs" style={{ color: '#848E9C' }}>
-          {t('leaveBlankForDefault', language)}
+            <svg
+              className="w-4 h-4"
+              style={{ color: '#A78BFA' }}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+              />
+            </svg>
+            {t('customBaseURL', language)}
+          </label>
+          <input
+            type="url"
+            value={baseUrl}
+            onChange={(e) => onBaseUrlChange(e.target.value)}
+            placeholder={t('customBaseURLPlaceholder', language)}
+            className="w-full px-4 py-3 rounded-xl"
+            style={{
+              background: '#0B0E11',
+              border: '1px solid #2B3139',
+              color: '#EAECEF',
+            }}
+          />
+          <div className="text-xs" style={{ color: '#848E9C' }}>
+            {t('leaveBlankForDefault', language)}
+          </div>
         </div>
       )}
 
       {/* Custom Model Name */}
-      <div className="space-y-2">
-        <label
-          className="flex items-center gap-2 text-sm font-semibold"
-          style={{ color: '#EAECEF' }}
-        >
-          <svg
-            className="w-4 h-4"
-            style={{ color: '#A78BFA' }}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      {!selectedModel.provider?.startsWith('blockrun') && (
+        <div className="space-y-2">
+          <label
+            className="flex items-center gap-2 text-sm font-semibold"
+            style={{ color: '#EAECEF' }}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-            />
-          </svg>
-          {t('customModelName', language)}
-        </label>
-        <input
-          type="text"
-          value={modelName}
-          onChange={(e) => onModelNameChange(e.target.value)}
-          placeholder={t('customModelNamePlaceholder', language)}
-          className="w-full px-4 py-3 rounded-xl"
-          style={{
-            background: '#0B0E11',
-            border: '1px solid #2B3139',
-            color: '#EAECEF',
-          }}
-        />
-        <div className="text-xs" style={{ color: '#848E9C' }}>
-          {t('leaveBlankForDefaultModel', language)}
+            <svg
+              className="w-4 h-4"
+              style={{ color: '#A78BFA' }}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+              />
+            </svg>
+            {t('customModelName', language)}
+          </label>
+          <input
+            type="text"
+            value={modelName}
+            onChange={(e) => onModelNameChange(e.target.value)}
+            placeholder={t('customModelNamePlaceholder', language)}
+            className="w-full px-4 py-3 rounded-xl"
+            style={{
+              background: '#0B0E11',
+              border: '1px solid #2B3139',
+              color: '#EAECEF',
+            }}
+          />
+          <div className="text-xs" style={{ color: '#848E9C' }}>
+            {t('leaveBlankForDefaultModel', language)}
+          </div>
         </div>
       )}
 

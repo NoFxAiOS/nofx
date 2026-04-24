@@ -7,6 +7,7 @@ export interface Claw402Model {
   desc: string
   icon: string
   price: number  // USD per call
+  isNew?: boolean
 }
 
 export interface AIProviderConfig {
@@ -41,8 +42,12 @@ export function getShortName(fullName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : fullName
 }
 
+export const DEFAULT_CLAW402_MODEL = 'deepseek-v4-flash'
+
 // Models available through Claw402 (x402 USDC payment protocol)
 export const CLAW402_MODELS: Claw402Model[] = [
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'DeepSeek', desc: '$0.003/call', icon: '⚡', price: 0.003, isNew: true },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'DeepSeek', desc: '$0.01/call', icon: '🧠', price: 0.01, isNew: true },
   { id: 'deepseek', name: 'DeepSeek V3', provider: 'DeepSeek', desc: '$0.003/call', icon: '🔥', price: 0.003 },
   { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'DeepSeek', desc: '$0.005/call', icon: '🤔', price: 0.005 },
   { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', desc: '$0.005/call', icon: '🚀', price: 0.005 },
@@ -131,7 +136,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'MiniMax',
   },
   claw402: {
-    defaultModel: 'glm-5',
+    defaultModel: DEFAULT_CLAW402_MODEL,
     apiUrl: 'https://claw402.ai',
     apiName: 'Claw402',
   },

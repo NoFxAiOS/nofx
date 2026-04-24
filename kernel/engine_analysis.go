@@ -1022,6 +1022,9 @@ func backfillEntryProtectionKeyLevels(ep *AIEntryProtectionRationale) {
 		seenResistance[fmt.Sprintf("%.8f", v)] = struct{}{}
 	}
 
+	metaSupport, _ := schemaMeta("key_levels.support")
+	metaResistance, _ := schemaMeta("key_levels.resistance")
+
 	// 1) structural_key_levels → support/resistance buckets
 	for _, lvl := range ep.StructuralKeyLevels {
 		if lvl.Price <= 0 {
@@ -1030,14 +1033,18 @@ func backfillEntryProtectionKeyLevels(ep *AIEntryProtectionRationale) {
 		key := fmt.Sprintf("%.8f", lvl.Price)
 		switch strings.ToLower(strings.TrimSpace(lvl.Type)) {
 		case "support":
-			if _, ok := seenSupport[key]; !ok {
-				ep.KeyLevels.Support = append(ep.KeyLevels.Support, lvl.Price)
-				seenSupport[key] = struct{}{}
+			if metaSupport.AutoFill {
+				if _, ok := seenSupport[key]; !ok {
+					ep.KeyLevels.Support = append(ep.KeyLevels.Support, lvl.Price)
+					seenSupport[key] = struct{}{}
+				}
 			}
 		case "resistance":
-			if _, ok := seenResistance[key]; !ok {
-				ep.KeyLevels.Resistance = append(ep.KeyLevels.Resistance, lvl.Price)
-				seenResistance[key] = struct{}{}
+			if metaResistance.AutoFill {
+				if _, ok := seenResistance[key]; !ok {
+					ep.KeyLevels.Resistance = append(ep.KeyLevels.Resistance, lvl.Price)
+					seenResistance[key] = struct{}{}
+				}
 			}
 		}
 	}
@@ -1049,13 +1056,13 @@ func backfillEntryProtectionKeyLevels(ep *AIEntryProtectionRationale) {
 		}
 		key := fmt.Sprintf("%.8f", a.Price)
 		t := strings.ToLower(strings.TrimSpace(a.Type))
-		if strings.Contains(t, "support") {
+		if strings.Contains(t, "support") && metaSupport.AutoFill {
 			if _, ok := seenSupport[key]; !ok {
 				ep.KeyLevels.Support = append(ep.KeyLevels.Support, a.Price)
 				seenSupport[key] = struct{}{}
 			}
 		}
-		if strings.Contains(t, "resistance") {
+		if strings.Contains(t, "resistance") && metaResistance.AutoFill {
 			if _, ok := seenResistance[key]; !ok {
 				ep.KeyLevels.Resistance = append(ep.KeyLevels.Resistance, a.Price)
 				seenResistance[key] = struct{}{}

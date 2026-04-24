@@ -14,6 +14,10 @@ func TestSchemaRegistryContainsCoreAliases(t *testing.T) {
 	}
 	for canonical, expected := range cases {
 		got := schemaAliases(canonical)
+		meta, ok := schemaMeta(canonical)
+		if !ok || meta.Canonical != canonical {
+			t.Fatalf("expected schema meta for %s, got %+v", canonical, meta)
+		}
 		if len(got) == 0 {
 			t.Fatalf("expected aliases for %s", canonical)
 		}
@@ -29,6 +33,17 @@ func TestSchemaRegistryContainsCoreAliases(t *testing.T) {
 				t.Fatalf("expected alias %q for %s, got %#v", want, canonical, got)
 			}
 		}
+	}
+}
+
+func TestSchemaMetadataCarriesRequiredAndAutofillPolicy(t *testing.T) {
+	supportMeta, ok := schemaMeta("key_levels.support")
+	if !ok || !supportMeta.Required || !supportMeta.AutoFill || supportMeta.RepairPolicy != "alias_then_autofill" {
+		t.Fatalf("unexpected support schema metadata: %+v", supportMeta)
+	}
+	closeRatioMeta, ok := schemaMeta("drawdown_rules.close_ratio_pct")
+	if !ok || !closeRatioMeta.Required || closeRatioMeta.AutoFill || closeRatioMeta.RepairPolicy != "alias_only" {
+		t.Fatalf("unexpected close_ratio schema metadata: %+v", closeRatioMeta)
 	}
 }
 

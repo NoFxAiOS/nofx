@@ -54,6 +54,9 @@ type TimeframeSeriesData struct {
 	BOLLUpper  []float64 `json:"boll_upper"`  // Upper band
 	BOLLMiddle []float64 `json:"boll_middle"` // Middle band (SMA)
 	BOLLLower  []float64 `json:"boll_lower"`  // Lower band
+	// Structural analysis per timeframe
+	FibonacciLevels  *FibonacciLevels  `json:"fibonacci_levels,omitempty"`
+	StructuralLevels []StructuralLevel `json:"structural_levels,omitempty"`
 }
 
 // OIData Open Interest data

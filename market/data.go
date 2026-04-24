@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"nofx/logger"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -219,6 +220,12 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 
 		// Calculate series data for this timeframe (use count from config)
 		seriesData := calculateTimeframeSeries(klines, tf, count)
+
+		// Compute structural levels and fibonacci for each timeframe
+		tfCurrentPrice := klines[len(klines)-1].Close
+		seriesData.StructuralLevels = DetectStructuralLevels(klines, tfCurrentPrice, tf)
+		seriesData.FibonacciLevels = CalculateFibonacciLevels(klines, tf)
+
 		timeframeData[tf] = seriesData
 	}
 
@@ -590,6 +597,49 @@ func formatTimeframeData(sb *strings.Builder, data *TimeframeSeriesData) {
 
 	if data.ATR14 > 0 {
 		sb.WriteString(fmt.Sprintf("ATR14: %.4f\n", data.ATR14))
+	}
+
+	// Structural levels for this timeframe
+	if len(data.StructuralLevels) > 0 {
+		var supports, resistances []StructuralLevel
+		for _, l := range data.StructuralLevels {
+			if l.Type == "support" {
+				supports = append(supports, l)
+			} else {
+				resistances = append(resistances, l)
+			}
+		}
+		if len(supports) > 0 {
+			sort.Slice(supports, func(i, j int) bool { return supports[i].Price > supports[j].Price })
+			parts := make([]string, 0, len(supports))
+			for _, s := range supports {
+				parts = append(parts, fmt.Sprintf("%s (str:%d, %s)", formatPriceWithDynamicPrecision(s.Price), s.Strength, s.Source))
+			}
+			sb.WriteString(fmt.Sprintf("Support: %s\n", strings.Join(parts, " | ")))
+		}
+		if len(resistances) > 0 {
+			sort.Slice(resistances, func(i, j int) bool { return resistances[i].Price < resistances[j].Price })
+			parts := make([]string, 0, len(resistances))
+			for _, r := range resistances {
+				parts = append(parts, fmt.Sprintf("%s (str:%d, %s)", formatPriceWithDynamicPrecision(r.Price), r.Strength, r.Source))
+			}
+			sb.WriteString(fmt.Sprintf("Resistance: %s\n", strings.Join(parts, " | ")))
+		}
+	}
+
+	// Fibonacci levels for this timeframe
+	if data.FibonacciLevels != nil {
+		fib := data.FibonacciLevels
+		keys := make([]string, 0, len(fib.Levels))
+		for k := range fib.Levels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("%s:%s", k, formatPriceWithDynamicPrecision(fib.Levels[k])))
+		}
+		sb.WriteString(fmt.Sprintf("Fib (%s→%s %s): %s\n", formatPriceWithDynamicPrecision(fib.SwingLow), formatPriceWithDynamicPrecision(fib.SwingHigh), fib.Direction, strings.Join(parts, " | ")))
 	}
 
 	sb.WriteString("\n")

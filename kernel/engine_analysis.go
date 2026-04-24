@@ -469,6 +469,12 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 			if len(d.ProtectionPlan.DrawdownRules) == 0 {
 				return fmt.Errorf("decision #%d: drawdown protection_plan must contain drawdown_rules under current strategy route", i+1)
 			}
+			// Warn (log) if drawdown rules lack reason_anchor — structural anchoring is expected
+			for j, rule := range d.ProtectionPlan.DrawdownRules {
+				if strings.TrimSpace(rule.ReasonAnchor) == "" {
+					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
+				}
+			}
 		}
 	}
 	return nil

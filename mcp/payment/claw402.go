@@ -65,6 +65,8 @@ var claw402ModelEndpoints = map[string]string{
 	// DeepSeek
 	"deepseek":          "/api/v1/ai/deepseek/chat",
 	"deepseek-reasoner": "/api/v1/ai/deepseek/chat/reasoner",
+	"deepseek-v4-flash": "/api/v1/ai/deepseek/v4-flash",
+	"deepseek-v4-pro":   "/api/v1/ai/deepseek/v4-pro",
 	// Qwen
 	"qwen-max":   "/api/v1/ai/qwen/chat/max",
 	"qwen-plus":  "/api/v1/ai/qwen/chat/plus",

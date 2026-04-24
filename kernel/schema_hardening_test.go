@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+func TestSchemaRegistryContainsCoreAliases(t *testing.T) {
+	cases := map[string][]string{
+		"drawdown_rules.close_ratio_pct": {"close_ratio"},
+		"protection_plan.break_even_trigger_mode": {"breakeven_trigger"},
+		"key_levels.support": {"support_levels"},
+		"risk_reward.entry": {"entry_price"},
+	}
+	for canonical, expected := range cases {
+		got := schemaAliases(canonical)
+		if len(got) == 0 {
+			t.Fatalf("expected aliases for %s", canonical)
+		}
+		for _, want := range expected {
+			found := false
+			for _, v := range got {
+				if v == want {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("expected alias %q for %s, got %#v", want, canonical, got)
+			}
+		}
+	}
+}
+
 func TestVolatilityAdjustmentAcceptsAliases(t *testing.T) {
 	var v AIEntryVolatilityAdjustment
 	if err := json.Unmarshal([]byte(`{"atr_pct":1.2,"bollinger_width_pct":3.4,"regime":"wide","buffer_pct":0.5}`), &v); err != nil {

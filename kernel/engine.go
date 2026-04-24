@@ -416,6 +416,7 @@ func (p *AIProtectionPlan) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*p = AIProtectionPlan(aux.alias)
+	_ = schemaAliases("protection_plan.break_even_trigger_mode") // registry declares accepted aliases
 	if p.BreakEvenTrigger == "" && aux.BreakevenTrigger != "" {
 		p.BreakEvenTrigger = aux.BreakevenTrigger
 	}
@@ -469,6 +470,7 @@ func (r *AIProtectionDrawdownRule) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*r = AIProtectionDrawdownRule(aux.alias)
+	_ = schemaAliases("drawdown_rules.close_ratio_pct") // registry declares accepted aliases
 	if r.CloseRatioPct <= 0 && aux.CloseRatio > 0 {
 		r.CloseRatioPct = aux.CloseRatio
 	}

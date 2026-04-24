@@ -22,7 +22,6 @@ func (AICharge) TableName() string { return "ai_charges" }
 var modelPrices = map[string]float64{
 	"deepseek":          0.003,
 	"deepseek-reasoner": 0.005,
-	"gpt-5.5":           0.15,
 	"gpt-5.4":           0.05,
 	"gpt-5.4-pro":       0.50,
 	"gpt-5.3":           0.01,

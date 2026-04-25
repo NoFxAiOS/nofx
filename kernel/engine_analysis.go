@@ -690,11 +690,16 @@ func validateStructuralLevelProximity(action string, rationale *AIEntryProtectio
 	supports := filterPositiveLevels(rationale.KeyLevels.Support)
 	resistances := filterPositiveLevels(rationale.KeyLevels.Resistance)
 	fibLevels := fibonacciLevels(rationale.KeyLevels.Fibonacci)
+	invalidationRefs, targetRefs := structuralReferenceLevels(rationale)
 
 	switch action {
 	case "open_long":
-		if len(supports) > 0 {
-			nearestSupport, supportGap := nearestLevel(invalidation, supports)
+		longInvalidationLevels := supports
+		if len(invalidationRefs) > 0 {
+			longInvalidationLevels = invalidationRefs
+		}
+		if len(longInvalidationLevels) > 0 {
+			nearestSupport, supportGap := nearestLevel(invalidation, longInvalidationLevels)
 			if supportGap > supportTol {
 				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f too far from structural support %.4f", invalidation, nearestSupport)
 			}
@@ -702,8 +707,12 @@ func validateStructuralLevelProximity(action string, rationale *AIEntryProtectio
 				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f must sit near/below support %.4f", invalidation, nearestSupport)
 			}
 		}
-		if len(resistances) > 0 {
-			nearestResistance, resistanceGap := nearestLevel(firstTarget, resistances)
+		longTargetLevels := resistances
+		if len(targetRefs) > 0 {
+			longTargetLevels = targetRefs
+		}
+		if len(longTargetLevels) > 0 {
+			nearestResistance, resistanceGap := nearestLevel(firstTarget, longTargetLevels)
 			if resistanceGap > resistanceTol {
 				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from structural resistance %.4f", firstTarget, nearestResistance)
 			}
@@ -715,8 +724,12 @@ func validateStructuralLevelProximity(action string, rationale *AIEntryProtectio
 			}
 		}
 	case "open_short":
-		if len(resistances) > 0 {
-			nearestResistance, resistanceGap := nearestLevel(invalidation, resistances)
+		shortInvalidationLevels := resistances
+		if len(invalidationRefs) > 0 {
+			shortInvalidationLevels = invalidationRefs
+		}
+		if len(shortInvalidationLevels) > 0 {
+			nearestResistance, resistanceGap := nearestLevel(invalidation, shortInvalidationLevels)
 			if resistanceGap > resistanceTol {
 				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f too far from structural resistance %.4f", invalidation, nearestResistance)
 			}
@@ -724,8 +737,12 @@ func validateStructuralLevelProximity(action string, rationale *AIEntryProtectio
 				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f must sit near/above resistance %.4f", invalidation, nearestResistance)
 			}
 		}
-		if len(supports) > 0 {
-			nearestSupport, supportGap := nearestLevel(firstTarget, supports)
+		shortTargetLevels := supports
+		if len(targetRefs) > 0 {
+			shortTargetLevels = targetRefs
+		}
+		if len(shortTargetLevels) > 0 {
+			nearestSupport, supportGap := nearestLevel(firstTarget, shortTargetLevels)
 			if supportGap > supportTol {
 				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from structural support %.4f", firstTarget, nearestSupport)
 			}
@@ -738,6 +755,27 @@ func validateStructuralLevelProximity(action string, rationale *AIEntryProtectio
 		}
 	}
 	return nil
+}
+
+func structuralReferenceLevels(rationale *AIEntryProtectionRationale) (invalidationRefs []float64, targetRefs []float64) {
+	if rationale == nil {
+		return nil, nil
+	}
+	for _, lvl := range rationale.StructuralKeyLevels {
+		if lvl.Price <= 0 {
+			continue
+		}
+		usedFor := strings.ToLower(strings.TrimSpace(lvl.UsedFor))
+		switch usedFor {
+		case "invalidation", "stop_loss", "entry_support", "entry_resistance":
+			invalidationRefs = append(invalidationRefs, lvl.Price)
+		case "take_profit", "first_target", "tp1", "tp2", "tp1_drawdown_trigger", "tp2_drawdown_trigger", "profit_protection_stage_1", "profit_protection_stage_2", "profit_protection_stage_3", "tp2_reference", "break_even":
+			targetRefs = append(targetRefs, lvl.Price)
+		}
+	}
+	invalidationRefs = filterPositiveLevels(invalidationRefs)
+	targetRefs = filterPositiveLevels(targetRefs)
+	return invalidationRefs, targetRefs
 }
 
 func structuralTolerance(distance, atrPct, entry float64) float64 {

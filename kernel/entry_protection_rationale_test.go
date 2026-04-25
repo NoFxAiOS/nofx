@@ -151,6 +151,32 @@ func TestValidateAIDecisionsWithStrategyTrimsTooManySupportLevels(t *testing.T) 
 	}
 }
 
+func TestValidateAIDecisionsWithStrategyAllowsBufferedInvalidationAgainstStructuralStopReference(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 2.5
+	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, RequireStructuralAnchors: true, RequireInvalidationTargetLinkage: true}
+
+	decisions := []Decision{{
+		Symbol:          "CHIPUSDT",
+		Action:          "open_long",
+		Leverage:        1,
+		PositionSizeUSD: 34,
+		Reasoning:       "buffered invalidation should be accepted",
+		EntryProtection: &AIEntryProtectionRationale{
+			TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"3m"}, Higher: []string{"1h"}},
+			KeyLevels: AIEntryKeyLevels{Support: []float64{0.0709, 0.0718}, Resistance: []float64{0.0735, 0.0751, 0.0777}},
+			Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 0.0709, Reason: "invalidation anchor"}, {Type: "resistance", Timeframe: "15m", Price: 0.0777, Reason: "target anchor"}},
+			StructuralKeyLevels: []AIStructuralKeyLevel{{Price: 0.0709, Type: "support", Timeframe: "15m", Source: "swing_point", UsedFor: "invalidation"}, {Price: 0.0703, Type: "support", Timeframe: "15m", Source: "support_buffer_with_atr", UsedFor: "stop_loss"}, {Price: 0.0777, Type: "resistance", Timeframe: "15m", Source: "fibonacci", UsedFor: "take_profit"}},
+			RiskReward: AIRiskRewardRationale{Entry: 0.0719, Invalidation: 0.0703, FirstTarget: 0.0777, GrossEstimatedRR: 3.63, NetEstimatedRR: 3.42, MinRequiredRR: 2.5, Passed: true},
+		},
+	}}
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err != nil {
+		t.Fatalf("expected buffered invalidation to pass structural validation, got %v", err)
+	}
+}
+
 func TestValidateAIDecisionsWithStrategyRejectsAnchorOutsideTimeframeContext(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.RiskControl.MinRiskRewardRatio = 1.5

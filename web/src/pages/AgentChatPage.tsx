@@ -261,25 +261,6 @@ async function runAgentStream(params: {
                 ),
               storageUserId
             )
-          } else if (eventType === 'tool') {
-            patchMessagesInStore(
-              (prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: appendStep(m.steps, {
-                          id: `tool-${Date.now()}`,
-                          label: `Tool: ${data}`,
-                          status: 'running',
-                          detail: data,
-                        }),
-                        time: now(),
-                      }
-                    : m
-                ),
-              storageUserId
-            )
           } else if (eventType === 'done') {
             patchMessagesInStore(
               (prev) =>

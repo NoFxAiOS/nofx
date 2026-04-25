@@ -18,6 +18,16 @@ export function AgentStepPanel({ steps, visible }: AgentStepPanelProps) {
     return null
   }
 
+  const sanitizedSteps = steps.filter((step) => {
+    const label = step.label.trim().toLowerCase()
+    const detail = (step.detail || '').trim().toLowerCase()
+    return !(label.startsWith('tool:') || detail === 'central_brain')
+  })
+
+  if (sanitizedSteps.length === 0) {
+    return null
+  }
+
   return (
     <div
       style={{
@@ -41,7 +51,7 @@ export function AgentStepPanel({ steps, visible }: AgentStepPanelProps) {
         Live Run
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {steps.map((step) => {
+        {sanitizedSteps.map((step) => {
           const style = statusStyles[step.status]
           return (
             <div

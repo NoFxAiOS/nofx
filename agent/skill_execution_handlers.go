@@ -449,9 +449,6 @@ func applyTraderUpdateArgsToSession(session *skillSession, args traderUpdateArgs
 	if args.StrategyID != "" {
 		setField(session, "strategy_id", args.StrategyID)
 	}
-	if args.InitialBalance != nil {
-		setField(session, "initial_balance", strconv.FormatFloat(*args.InitialBalance, 'f', -1, 64))
-	}
 	if args.ScanIntervalMinutes != nil {
 		setField(session, "scan_interval_minutes", strconv.Itoa(*args.ScanIntervalMinutes))
 	}
@@ -492,11 +489,6 @@ func buildTraderUpdateArgsFromSession(session skillSession) traderUpdateArgs {
 	args.AIModelID = fieldValue(session, "ai_model_id")
 	args.ExchangeID = fieldValue(session, "exchange_id")
 	args.StrategyID = fieldValue(session, "strategy_id")
-	if value := fieldValue(session, "initial_balance"); value != "" {
-		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
-			args.InitialBalance = &parsed
-		}
-	}
 	if value := fieldValue(session, "scan_interval_minutes"); value != "" {
 		if parsed, err := strconv.Atoi(value); err == nil {
 			args.ScanIntervalMinutes = &parsed
@@ -1834,7 +1826,7 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 						selectedField = detectCatalogField(text, traderFieldCatalog)
 					}
 				}
-				if selectedField == "name" || selectedField == "initial_balance" || selectedField == "scan_interval_minutes" || selectedField == "is_cross_margin" || selectedField == "show_in_competition" {
+				if selectedField == "name" || selectedField == "scan_interval_minutes" || selectedField == "is_cross_margin" || selectedField == "show_in_competition" {
 					selectedField = ""
 				}
 				if selectedField != "" {
@@ -2027,10 +2019,6 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 					parsedArgs.ExchangeID = value
 				case "strategy_id":
 					parsedArgs.StrategyID = value
-				case "initial_balance":
-					if parsed, err := strconv.ParseFloat(value, 64); err == nil {
-						parsedArgs.InitialBalance = &parsed
-					}
 				case "scan_interval_minutes":
 					if parsed, err := strconv.Atoi(value); err == nil {
 						parsedArgs.ScanIntervalMinutes = &parsed
@@ -2135,7 +2123,7 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 					}
 					return fmt.Sprintf("还差一步：请告诉我新的%s。", displayCatalogFieldName(selectedField, lang))
 				}
-				return "你可以直接告诉我想改哪一项，比如名称、扫描频率、初始资金、杠杆，或者绑定的模型、交易所、策略。"
+				return "你可以直接告诉我想改哪一项，比如名称，或者绑定的模型、交易所、策略。若你要改策略参数、模型配置或交易所凭证，我会切到对应配置流程。"
 			}
 			if selectedField != "" {
 				if selectedField == "ai_model_id" || selectedField == "exchange_id" || selectedField == "strategy_id" {
@@ -2143,7 +2131,7 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 				}
 				return fmt.Sprintf("One more thing: tell me the new %s.", displayCatalogFieldName(selectedField, lang))
 			}
-			return "Tell me what you want to change first, for example the name, scan interval, balance, leverage, or the linked model, exchange, or strategy."
+			return "Tell me what you want to change first, for example the name or the linked model, exchange, or strategy. If you want to edit the internals of a strategy, model, or exchange, I'll switch to the right config flow."
 		}
 		args := manageTraderArgs{Action: "update", TraderID: session.TargetRef.ID, Name: newName}
 		setSkillDAGStep(&session, "execute_update")

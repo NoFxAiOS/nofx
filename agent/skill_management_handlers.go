@@ -736,10 +736,6 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 	if args.ScanIntervalMinutes != nil && *args.ScanIntervalMinutes > 0 {
 		scanInterval = *args.ScanIntervalMinutes
 	}
-	initialBalance := 0.0
-	if args.InitialBalance != nil && *args.InitialBalance > 0 {
-		initialBalance = *args.InitialBalance
-	}
 	isCrossMargin := true
 	if args.IsCrossMargin != nil {
 		isCrossMargin = *args.IsCrossMargin
@@ -761,7 +757,7 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 			fmt.Sprintf("- 模型：%s", traderCreateModelNameOrID(session)),
 			fmt.Sprintf("- 策略：%s", traderCreateStrategyNameOrID(session)),
 			fmt.Sprintf("- 扫描间隔：%d 分钟（未指定时默认 3）", scanInterval),
-			fmt.Sprintf("- 初始资金：%.2f（未指定时默认 0）", initialBalance),
+			"- 初始余额：创建时由系统自动读取绑定交易所账户净值",
 			fmt.Sprintf("- 全仓模式：%t（未指定时默认 true）", isCrossMargin),
 			fmt.Sprintf("- 竞技场显示：%t（未指定时默认 true）", showInCompetition),
 		}
@@ -792,7 +788,7 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 		fmt.Sprintf("- Model: %s", traderCreateModelNameOrID(session)),
 		fmt.Sprintf("- Strategy: %s", traderCreateStrategyNameOrID(session)),
 		fmt.Sprintf("- Scan interval: %d minutes (defaults to 3)", scanInterval),
-		fmt.Sprintf("- Initial balance: %.2f (defaults to 0)", initialBalance),
+		"- Initial balance: auto-read from the bound exchange account equity at creation time",
 		fmt.Sprintf("- Cross margin: %t (defaults to true)", isCrossMargin),
 		fmt.Sprintf("- Show in competition: %t (defaults to true)", showInCompetition),
 	}
@@ -991,6 +987,9 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 	if len(cfg.CoinSource.StaticCoins) > 0 {
 		sourceBits = append(sourceBits, "static="+strings.Join(cfg.CoinSource.StaticCoins, ","))
 	}
+	if len(cfg.CoinSource.ExcludedCoins) > 0 {
+		sourceBits = append(sourceBits, "excluded="+strings.Join(cfg.CoinSource.ExcludedCoins, ","))
+	}
 
 	timeframes := append([]string(nil), cfg.Indicators.Klines.SelectedTimeframes...)
 	if len(timeframes) == 0 {
@@ -1048,14 +1047,42 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 		customPromptPreview = string(runes[:120]) + "..."
 	}
 
+	publishStatusZh := "未发布"
+	publishStatusEn := "private"
+	if strategy.IsPublic {
+		publishStatusZh = "已发布到市场"
+		publishStatusEn = "public"
+	}
+	configVisibleZh := "隐藏"
+	configVisibleEn := "hidden"
+	if strategy.ConfigVisible {
+		configVisibleZh = "可见"
+		configVisibleEn = "visible"
+	}
+
 	if lang == "zh" {
 		lines := []string{
 			fmt.Sprintf("策略“%s”概览：", name),
 			fmt.Sprintf("- 类型：%s", defaultIfEmpty(strings.TrimSpace(cfg.StrategyType), "ai_trading")),
 			fmt.Sprintf("- 语言：%s", defaultIfEmpty(strings.TrimSpace(cfg.Language), "zh")),
+			fmt.Sprintf("- 发布设置：%s；配置%s", publishStatusZh, configVisibleZh),
 		}
 		if strings.TrimSpace(strategy.Description) != "" {
 			lines = append(lines, fmt.Sprintf("- 描述：%s", strings.TrimSpace(strategy.Description)))
+		}
+		if cfg.GridConfig != nil {
+			lines = append(lines, fmt.Sprintf("- 网格参数：交易对 %s；网格 %d；总投资 %.2f；杠杆 %d；分布 %s",
+				defaultIfEmpty(strings.TrimSpace(cfg.GridConfig.Symbol), "未设置"),
+				cfg.GridConfig.GridCount,
+				cfg.GridConfig.TotalInvestment,
+				cfg.GridConfig.Leverage,
+				defaultIfEmpty(strings.TrimSpace(cfg.GridConfig.Distribution), "未设置"),
+			))
+			if cfg.GridConfig.UseATRBounds {
+				lines = append(lines, fmt.Sprintf("- 网格边界：ATR 自动边界，倍数 %.2f", cfg.GridConfig.ATRMultiplier))
+			} else if cfg.GridConfig.UpperPrice > 0 || cfg.GridConfig.LowerPrice > 0 {
+				lines = append(lines, fmt.Sprintf("- 网格边界：上沿 %.4f，下沿 %.4f", cfg.GridConfig.UpperPrice, cfg.GridConfig.LowerPrice))
+			}
 		}
 		if len(sourceBits) > 0 {
 			lines = append(lines, "- 标的来源："+strings.Join(sourceBits, " | "))
@@ -1065,8 +1092,19 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 		}
 		lines = append(lines, fmt.Sprintf("- 仓位风险：最多持仓 %d，BTC/ETH 最大杠杆 %d，山寨最大杠杆 %d，最低置信度 %d",
 			cfg.RiskControl.MaxPositions, cfg.RiskControl.BTCETHMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage, cfg.RiskControl.MinConfidence))
+		lines = append(lines, fmt.Sprintf("- 风控阈值：最小盈亏比 %.2f；最大保证金使用率 %.2f；最小开仓金额 %.2f",
+			cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize))
 		if len(indicatorBits) > 0 {
 			lines = append(lines, "- 已启用指标："+strings.Join(indicatorBits, "、"))
+		}
+		if strings.TrimSpace(cfg.Indicators.NofxOSAPIKey) != "" || cfg.Indicators.EnableQuantData || cfg.Indicators.EnableOIRanking || cfg.Indicators.EnableNetFlowRanking || cfg.Indicators.EnablePriceRanking {
+			lines = append(lines, fmt.Sprintf("- NofxOS 数据：API Key=%t，量化数据=%t，OI 排行=%t，净流入排行=%t，价格排行=%t",
+				strings.TrimSpace(cfg.Indicators.NofxOSAPIKey) != "",
+				cfg.Indicators.EnableQuantData,
+				cfg.Indicators.EnableOIRanking,
+				cfg.Indicators.EnableNetFlowRanking,
+				cfg.Indicators.EnablePriceRanking,
+			))
 		}
 		if len(promptBits) > 0 {
 			lines = append(lines, "- Prompt 模块："+strings.Join(promptBits, "、"))
@@ -1084,9 +1122,24 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 		fmt.Sprintf("Strategy %q overview:", name),
 		fmt.Sprintf("- Type: %s", defaultIfEmpty(strings.TrimSpace(cfg.StrategyType), "ai_trading")),
 		fmt.Sprintf("- Language: %s", defaultIfEmpty(strings.TrimSpace(cfg.Language), "en")),
+		fmt.Sprintf("- Publish settings: %s; config %s", publishStatusEn, configVisibleEn),
 	}
 	if strings.TrimSpace(strategy.Description) != "" {
 		lines = append(lines, fmt.Sprintf("- Description: %s", strings.TrimSpace(strategy.Description)))
+	}
+	if cfg.GridConfig != nil {
+		lines = append(lines, fmt.Sprintf("- Grid config: symbol %s; grids %d; investment %.2f; leverage %d; distribution %s",
+			defaultIfEmpty(strings.TrimSpace(cfg.GridConfig.Symbol), "not set"),
+			cfg.GridConfig.GridCount,
+			cfg.GridConfig.TotalInvestment,
+			cfg.GridConfig.Leverage,
+			defaultIfEmpty(strings.TrimSpace(cfg.GridConfig.Distribution), "not set"),
+		))
+		if cfg.GridConfig.UseATRBounds {
+			lines = append(lines, fmt.Sprintf("- Grid bounds: ATR auto bounds with multiplier %.2f", cfg.GridConfig.ATRMultiplier))
+		} else if cfg.GridConfig.UpperPrice > 0 || cfg.GridConfig.LowerPrice > 0 {
+			lines = append(lines, fmt.Sprintf("- Grid bounds: upper %.4f, lower %.4f", cfg.GridConfig.UpperPrice, cfg.GridConfig.LowerPrice))
+		}
 	}
 	if len(sourceBits) > 0 {
 		lines = append(lines, "- Coin source: "+strings.Join(sourceBits, " | "))
@@ -1096,8 +1149,19 @@ func formatStrategyDetailResponse(lang string, strategy *store.Strategy, cfg sto
 	}
 	lines = append(lines, fmt.Sprintf("- Risk: max positions %d, BTC/ETH max leverage %d, alt max leverage %d, min confidence %d",
 		cfg.RiskControl.MaxPositions, cfg.RiskControl.BTCETHMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage, cfg.RiskControl.MinConfidence))
+	lines = append(lines, fmt.Sprintf("- Risk thresholds: min RR %.2f, max margin usage %.2f, min position size %.2f",
+		cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MaxMarginUsage, cfg.RiskControl.MinPositionSize))
 	if len(indicatorBits) > 0 {
 		lines = append(lines, "- Enabled indicators: "+strings.Join(indicatorBits, ", "))
+	}
+	if strings.TrimSpace(cfg.Indicators.NofxOSAPIKey) != "" || cfg.Indicators.EnableQuantData || cfg.Indicators.EnableOIRanking || cfg.Indicators.EnableNetFlowRanking || cfg.Indicators.EnablePriceRanking {
+		lines = append(lines, fmt.Sprintf("- NofxOS data: API key=%t, quant data=%t, OI ranking=%t, netflow ranking=%t, price ranking=%t",
+			strings.TrimSpace(cfg.Indicators.NofxOSAPIKey) != "",
+			cfg.Indicators.EnableQuantData,
+			cfg.Indicators.EnableOIRanking,
+			cfg.Indicators.EnableNetFlowRanking,
+			cfg.Indicators.EnablePriceRanking,
+		))
 	}
 	if len(promptBits) > 0 {
 		lines = append(lines, "- Prompt modules: "+strings.Join(promptBits, ", "))
@@ -1526,6 +1590,11 @@ func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, t
 	patch := buildModelUpdatePatch(text)
 	applyModelUpdatePatchToSession(&session, patch)
 	provider := fieldValue(session, "provider")
+	if provider != "" && fieldValue(session, "api_key") == "" {
+		if credential := inferModelCredentialFromText(provider, text); credential != "" {
+			setField(&session, "api_key", credential)
+		}
+	}
 	if provider != "" {
 		if fieldValue(session, "name") == "" {
 			setField(&session, "name", defaultModelConfigName(provider))
@@ -1609,6 +1678,43 @@ func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, t
 		return fmt.Sprintf("已创建模型配置：%s。", fieldValue(session, "name"))
 	}
 	return fmt.Sprintf("Created model config %s.", fieldValue(session, "name"))
+}
+
+func inferModelCredentialFromText(provider, text string) string {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	text = strings.TrimSpace(text)
+	if provider == "" || text == "" {
+		return ""
+	}
+
+	if value := extractQuotedContent(text); value != "" {
+		trimmed := strings.TrimSpace(value)
+		if credentialLooksCompatibleWithProvider(provider, trimmed) {
+			return trimmed
+		}
+	}
+
+	if credentialLooksCompatibleWithProvider(provider, text) {
+		return text
+	}
+	return ""
+}
+
+func credentialLooksCompatibleWithProvider(provider, value string) bool {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	value = strings.TrimSpace(value)
+	if provider == "" || value == "" {
+		return false
+	}
+
+	switch provider {
+	case "claw402", "blockrun-base", "blockrun-sol":
+		return hexCredentialPattern.MatchString(value)
+	case "openai":
+		return openAIAPIKeyPattern.MatchString(value)
+	default:
+		return genericAPIKeyPattern.MatchString(value) || hexCredentialPattern.MatchString(value)
+	}
 }
 
 func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang, text string, session skillSession) string {

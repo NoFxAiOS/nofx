@@ -77,19 +77,24 @@ func buildSkillDomainPrimer(lang, skillName string) string {
 			slotDisplayName("model", lang),
 			slotDisplayName("strategy", lang),
 			displayCatalogFieldName("scan_interval_minutes", lang),
-			displayCatalogFieldName("initial_balance", lang),
 		}
 		if lang == "zh" {
 			return strings.Join([]string{
 				"### 交易员配置领域约束",
-				"- 交易员创建/修改围绕名称、绑定交易所、绑定模型、绑定策略和运行参数展开。",
+				"- 交易员是装配层，负责创建、换绑策略/交易所/模型，以及启动、停止、删除、查询。",
+				"- 编辑交易员时，默认只处理绑定关系；不要顺手改策略、模型、交易所内部配置。",
+				"- 交易员初始余额由系统在创建时自动读取绑定交易所账户净值，不接受手动设置、充值或人为改余额。",
+				"- 若用户要改策略参数、模型配置或交易所凭证，应切到对应 management skill。",
 				"- 创建交易员时最关键的是：名称、交易所、模型、策略。",
 				"- 关键字段：" + strings.Join(fields, "、"),
 			}, "\n")
 		}
 		return strings.Join([]string{
 			"### Trader Config Domain Guard",
-			"- Trader create/update revolves around the trader name, bound exchange, bound model, bound strategy, and runtime settings.",
+			"- Traders are the assembly layer: create, rebind strategy/exchange/model, and control lifecycle.",
+			"- When editing a trader, default to changing bindings only; do not silently edit the internals of the strategy, model, or exchange.",
+			"- Trader initial balance is auto-read from the bound exchange account equity at creation time; do not ask the user to set, top up, or manually edit trader balance.",
+			"- If the user wants to change strategy parameters, model config, or exchange credentials, switch to the corresponding management skill.",
 			"- The key create fields are name, exchange, model, and strategy.",
 			"- Key fields: " + strings.Join(fields, ", "),
 		}, "\n")

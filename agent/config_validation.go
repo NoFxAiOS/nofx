@@ -368,21 +368,6 @@ func normalizeTraderArgsToManualLimits(lang string, args traderUpdateArgs) (trad
 			}
 		}
 	}
-	if args.InitialBalance != nil {
-		requested := *args.InitialBalance
-		normalized := requested
-		if normalized < manualTraderInitialBalance {
-			normalized = manualTraderInitialBalance
-		}
-		if normalized != requested {
-			args.InitialBalance = &normalized
-			if lang == "zh" {
-				warnings = append(warnings, fmt.Sprintf("初始资金手动面板最低是 %.2f，已从 %.2f 调整为 %.2f", manualTraderInitialBalance, requested, normalized))
-			} else {
-				warnings = append(warnings, fmt.Sprintf("initial balance has a manual minimum of %.2f, adjusted from %.2f to %.2f", manualTraderInitialBalance, requested, normalized))
-			}
-		}
-	}
 	return args, warnings
 }
 
@@ -402,6 +387,30 @@ func formatRiskControlAcceptancePrompt(lang string, warnings []string, confirmLa
 	}
 	lines := []string{
 		"Some values were outside the manual editor limits, so I normalized them first:",
+	}
+	for _, warning := range warnings {
+		lines = append(lines, "- "+warning)
+	}
+	lines = append(lines, fmt.Sprintf("Reply %q to accept these safe values, or keep refining the draft.", confirmLabel))
+	return strings.Join(lines, "\n")
+}
+
+func formatRiskControlRefusalPrompt(lang string, warnings []string, confirmLabel string) string {
+	if len(warnings) == 0 {
+		return ""
+	}
+	if lang == "zh" {
+		lines := []string{
+			"这些配置超出了手动面板允许的范围，本次不会按你给的原值直接保存：",
+		}
+		for _, warning := range warnings {
+			lines = append(lines, "- "+warning)
+		}
+		lines = append(lines, fmt.Sprintf("如果接受当前安全范围，回复“%s”；也可以继续告诉我你想怎么改。", confirmLabel))
+		return strings.Join(lines, "\n")
+	}
+	lines := []string{
+		"Some values were outside the manual editor limits, so I did not save the original request as-is:",
 	}
 	for _, warning := range warnings {
 		lines = append(lines, "- "+warning)

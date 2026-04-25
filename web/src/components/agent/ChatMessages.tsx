@@ -10,7 +10,14 @@ interface ChatMessagesProps {
 
 function hasMeaningfulExecutionSteps(steps?: AgentStep[]) {
   if (!steps || steps.length === 0) return false
-  return steps.some((step) => step.status !== 'planning')
+  return steps.some((step) => {
+    const label = step.label.trim().toLowerCase()
+    const detail = (step.detail || '').trim().toLowerCase()
+    if (label.startsWith('tool:') || detail === 'central_brain') {
+      return false
+    }
+    return step.status !== 'planning'
+  })
 }
 
 export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(

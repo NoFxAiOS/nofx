@@ -160,6 +160,7 @@ Rules:
 - Use route "replan" when the user's task is not complete yet and the planner should continue from the new skill outcome.
 - Prefer route "replan" for recoverable errors, unmet goals, missing prerequisites, or cases where another skill/tool sequence may help.
 - If you choose "complete", produce the final user-facing answer in the user's language.
+- ` + cleanUserFacingReplyInstruction + `
 
 Return JSON with this exact shape:
 {"route":"complete|replan","answer":""}`

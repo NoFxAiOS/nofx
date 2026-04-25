@@ -14,6 +14,16 @@
       "type": "string",
       "description": "策略描述，可选。"
     },
+    "is_public": {
+      "type": "bool",
+      "default": false,
+      "description": "是否发布到策略市场。"
+    },
+    "config_visible": {
+      "type": "bool",
+      "default": true,
+      "description": "发布到市场后，是否允许别人查看策略配置。"
+    },
     "lang": {
       "type": "enum",
       "values": ["zh", "en"],
@@ -25,6 +35,10 @@
       "values": ["ai_trading", "grid_trading"],
       "default": "ai_trading",
       "description": "策略类型：ai_trading（AI 量化）或 grid_trading（网格策略）。"
+    },
+    "symbol": {
+      "type": "string",
+      "description": "网格策略的交易对，例如 BTCUSDT。"
     },
     "source_type": {
       "type": "enum",
@@ -41,7 +55,7 @@
     },
     "primary_timeframe": {
       "type": "string",
-      "values": ["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"],
+      "values": ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"],
       "description": "主 K 线周期，例如 5m、15m、1h。"
     },
     "selected_timeframes": {
@@ -105,6 +119,12 @@
       "type": "float",
       "min": 0,
       "description": "网格总投入金额，grid_trading 类型专用。"
+    },
+    "leverage": {
+      "type": "int",
+      "min": 1,
+      "max": 5,
+      "description": "网格策略杠杆倍数，手动页面当前范围 1～5。"
     },
     "upper_price": {
       "type": "float",
@@ -337,6 +357,7 @@
   },
   "validation_rules": [
     "btceth_max_leverage 和 altcoin_max_leverage 范围均为 1～20，超出时自动收敛并告知用户。",
+    "grid_trading 的 leverage 需与手动页面一致，范围 1～5，超出时自动收敛并告知用户。",
     "min_confidence 范围 0～100，超出时自动收敛并告知用户。",
     "grid_trading 类型时，lower_price 必须小于 upper_price，否则提示用户修正。",
     "grid_count 最小为 2，低于 2 时提示用户修正。",
@@ -352,7 +373,7 @@
     "create": {
       "description": "创建策略模板。至少需要名称，其他配置可按需追问或按默认值补齐。",
       "required_slots": ["name"],
-      "optional_slots": ["description", "lang", "strategy_type", "source_type", "static_coins", "excluded_coins", "primary_timeframe", "selected_timeframes", "btceth_max_leverage", "altcoin_max_leverage", "max_positions", "min_confidence", "min_risk_reward_ratio", "custom_prompt", "role_definition", "trading_frequency", "entry_standards", "decision_process", "use_atr_bounds", "atr_multiplier", "enable_direction_adjust", "direction_bias_ratio", "grid_count", "total_investment", "upper_price", "lower_price", "distribution", "max_drawdown_pct", "stop_loss_pct", "daily_loss_limit_pct", "use_maker_only", "use_ai500", "ai500_limit", "use_oi_top", "oi_top_limit", "use_oi_low", "oi_low_limit", "primary_count", "enable_ema", "enable_macd", "enable_rsi", "enable_atr", "enable_boll", "enable_volume", "enable_oi", "enable_funding_rate", "ema_periods", "rsi_periods", "atr_periods", "boll_periods", "nofxos_api_key", "enable_quant_data", "enable_quant_oi", "enable_quant_netflow", "enable_oi_ranking", "oi_ranking_duration", "oi_ranking_limit", "enable_netflow_ranking", "netflow_ranking_duration", "netflow_ranking_limit", "enable_price_ranking", "price_ranking_duration", "price_ranking_limit", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"],
+      "optional_slots": ["description", "is_public", "config_visible", "lang", "strategy_type", "symbol", "source_type", "static_coins", "excluded_coins", "primary_timeframe", "selected_timeframes", "btceth_max_leverage", "altcoin_max_leverage", "max_positions", "min_confidence", "min_risk_reward_ratio", "custom_prompt", "role_definition", "trading_frequency", "entry_standards", "decision_process", "use_atr_bounds", "atr_multiplier", "enable_direction_adjust", "direction_bias_ratio", "grid_count", "total_investment", "leverage", "upper_price", "lower_price", "distribution", "max_drawdown_pct", "stop_loss_pct", "daily_loss_limit_pct", "use_maker_only", "use_ai500", "ai500_limit", "use_oi_top", "oi_top_limit", "use_oi_low", "oi_low_limit", "primary_count", "enable_ema", "enable_macd", "enable_rsi", "enable_atr", "enable_boll", "enable_volume", "enable_oi", "enable_funding_rate", "ema_periods", "rsi_periods", "atr_periods", "boll_periods", "nofxos_api_key", "enable_quant_data", "enable_quant_oi", "enable_quant_netflow", "enable_oi_ranking", "oi_ranking_duration", "oi_ranking_limit", "enable_netflow_ranking", "netflow_ranking_duration", "netflow_ranking_limit", "enable_price_ranking", "price_ranking_duration", "price_ranking_limit", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"],
       "goal": "创建一个可供 trader 绑定使用的策略模板。",
       "dynamic_rules": [
         "若用户只是要给 trader 绑定现有策略，应优先在父任务里补 strategy 槽位，而不是误开新的 create。",
@@ -366,7 +387,7 @@
     "update": {
       "description": "更新策略模板的任意可编辑字段。",
       "required_slots": ["target_ref"],
-      "optional_slots": ["name", "description", "source_type", "static_coins", "excluded_coins", "primary_timeframe", "selected_timeframes", "btceth_max_leverage", "altcoin_max_leverage", "max_positions", "min_confidence", "min_risk_reward_ratio", "custom_prompt", "role_definition", "trading_frequency", "entry_standards", "decision_process", "grid_count", "total_investment", "upper_price", "lower_price", "distribution", "use_atr_bounds", "atr_multiplier", "enable_direction_adjust", "direction_bias_ratio", "max_drawdown_pct", "stop_loss_pct", "daily_loss_limit_pct", "use_maker_only", "use_ai500", "ai500_limit", "use_oi_top", "oi_top_limit", "use_oi_low", "oi_low_limit", "primary_count", "enable_ema", "enable_macd", "enable_rsi", "enable_atr", "enable_boll", "enable_volume", "enable_oi", "enable_funding_rate", "ema_periods", "rsi_periods", "atr_periods", "boll_periods", "nofxos_api_key", "enable_quant_data", "enable_quant_oi", "enable_quant_netflow", "enable_oi_ranking", "oi_ranking_duration", "oi_ranking_limit", "enable_netflow_ranking", "netflow_ranking_duration", "netflow_ranking_limit", "enable_price_ranking", "price_ranking_duration", "price_ranking_limit", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"],
+      "optional_slots": ["name", "description", "is_public", "config_visible", "symbol", "source_type", "static_coins", "excluded_coins", "primary_timeframe", "selected_timeframes", "btceth_max_leverage", "altcoin_max_leverage", "max_positions", "min_confidence", "min_risk_reward_ratio", "custom_prompt", "role_definition", "trading_frequency", "entry_standards", "decision_process", "grid_count", "total_investment", "leverage", "upper_price", "lower_price", "distribution", "use_atr_bounds", "atr_multiplier", "enable_direction_adjust", "direction_bias_ratio", "max_drawdown_pct", "stop_loss_pct", "daily_loss_limit_pct", "use_maker_only", "use_ai500", "ai500_limit", "use_oi_top", "oi_top_limit", "use_oi_low", "oi_low_limit", "primary_count", "enable_ema", "enable_macd", "enable_rsi", "enable_atr", "enable_boll", "enable_volume", "enable_oi", "enable_funding_rate", "ema_periods", "rsi_periods", "atr_periods", "boll_periods", "nofxos_api_key", "enable_quant_data", "enable_quant_oi", "enable_quant_netflow", "enable_oi_ranking", "oi_ranking_duration", "oi_ranking_limit", "enable_netflow_ranking", "netflow_ranking_duration", "netflow_ranking_limit", "enable_price_ranking", "price_ranking_duration", "price_ranking_limit", "btceth_max_position_value_ratio", "altcoin_max_position_value_ratio", "max_margin_usage", "min_position_size"],
       "goal": "更新一个已有策略模板的指定配置，而不覆盖未提及字段。",
       "dynamic_rules": [
         "只更新用户明确提到的字段，不要覆盖未提及的字段。",

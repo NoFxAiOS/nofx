@@ -13,7 +13,6 @@ var traderFieldCatalog = []entityFieldMeta{
 	{Key: "ai_model_id", Keywords: []string{"换模型", "切换模型", "模型"}, ValueType: "entity_ref", ManualEditable: true, AgentUpdatable: true},
 	{Key: "exchange_id", Keywords: []string{"换交易所", "切换交易所", "交易所"}, ValueType: "entity_ref", ManualEditable: true, AgentUpdatable: true},
 	{Key: "strategy_id", Keywords: []string{"换策略", "切换策略", "策略"}, ValueType: "entity_ref", ManualEditable: true, AgentUpdatable: true},
-	{Key: "initial_balance", Keywords: []string{"初始资金", "初始余额", "initial balance"}, ValueType: "float", ManualEditable: true, AgentUpdatable: true},
 	{Key: "scan_interval_minutes", Keywords: []string{"扫描间隔", "扫描频率", "scan interval", "scan frequency"}, ValueType: "int", ManualEditable: true, AgentUpdatable: true},
 	{Key: "is_cross_margin", Keywords: []string{"全仓", "cross margin", "is_cross_margin"}, ValueType: "flag", ManualEditable: true, AgentUpdatable: true},
 	{Key: "show_in_competition", Keywords: []string{"竞技场显示", "显示在竞技场", "show in competition", "competition"}, ValueType: "flag", ManualEditable: true, AgentUpdatable: true},

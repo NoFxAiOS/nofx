@@ -248,7 +248,6 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 		add(&out, "strategy_id", slotDisplayName("strategy", lang)+" ID", false)
 		add(&out, "strategy_name", slotDisplayName("strategy", lang), true)
 		add(&out, "auto_start", "auto_start", false)
-		add(&out, "initial_balance", displayCatalogFieldName("initial_balance", lang), false)
 		add(&out, "scan_interval_minutes", displayCatalogFieldName("scan_interval_minutes", lang), false)
 		add(&out, "is_cross_margin", displayCatalogFieldName("is_cross_margin", lang), false)
 		add(&out, "show_in_competition", displayCatalogFieldName("show_in_competition", lang), false)
@@ -258,19 +257,7 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 			add(&out, "config_value", strategyConfigFieldDisplayName("config_value", lang), false)
 		}
 		add(&out, "name", slotDisplayName("name", lang), true)
-		for _, key := range []string{
-			"source_type", "static_coins", "excluded_coins", "use_ai500", "ai500_limit",
-			"use_oi_top", "oi_top_limit", "use_oi_low", "oi_low_limit", "max_positions",
-			"min_risk_reward_ratio", "min_confidence", "leverage", "btceth_max_leverage",
-			"altcoin_max_leverage", "primary_timeframe", "primary_count", "selected_timeframes",
-			"ema_periods", "rsi_periods", "atr_periods", "boll_periods", "enable_ema",
-			"enable_macd", "enable_rsi", "enable_atr", "enable_boll", "enable_volume",
-			"enable_oi", "enable_funding_rate", "enable_all_core_indicators", "nofxos_api_key",
-			"enable_quant_data", "enable_quant_oi", "enable_quant_netflow", "enable_oi_ranking",
-			"oi_ranking_duration", "oi_ranking_limit", "enable_netflow_ranking", "netflow_ranking_duration",
-			"netflow_ranking_limit", "enable_price_ranking", "price_ranking_duration", "price_ranking_limit",
-			"role_definition", "trading_frequency", "entry_standards", "decision_process", "custom_prompt",
-		} {
+		for _, key := range manualStrategyEditableFieldKeys() {
 			add(&out, key, strategyConfigFieldDisplayName(key, lang), false)
 		}
 	}
@@ -501,7 +488,7 @@ func (a *Agent) applyLLMExtractionToSkillSession(storeUserID string, session *sk
 				setField(session, key, value)
 			case "name", "exchange_id", "exchange_name", "model_id", "ai_model_id", "model_name", "strategy_id", "strategy_name", "auto_start":
 				setField(session, key, value)
-			case "initial_balance", "scan_interval_minutes", "is_cross_margin", "show_in_competition":
+			case "scan_interval_minutes", "is_cross_margin", "show_in_competition":
 				setField(session, key, value)
 			}
 		case "strategy_management":

@@ -1114,7 +1114,7 @@ func traderCreateFieldsFromExecutionExtraction(result executionFlowExtractionRes
 			fields["strategy_id"] = value
 		case "strategy_name":
 			fields["strategy_name"] = value
-		case "auto_start", "initial_balance", "scan_interval_minutes", "is_cross_margin", "show_in_competition":
+		case "auto_start", "scan_interval_minutes", "is_cross_margin", "show_in_competition":
 			fields[key] = value
 		}
 	}
@@ -3766,6 +3766,7 @@ func (a *Agent) generateFinalPlanResponse(ctx context.Context, userID int64, lan
 		Messages: []mcp.Message{
 			mcp.NewSystemMessage(systemPrompt),
 			mcp.NewSystemMessage("You are responding after a completed execution plan. Use the observations as the source of truth. Be concise and actionable."),
+			mcp.NewSystemMessage(cleanUserFacingReplyInstruction),
 			mcp.NewUserMessage(fmt.Sprintf("Goal: %s\nResponse instruction: %s\nObservations JSON: %s\nPersistent preferences: %s\nTask state: %s", state.Goal, instruction, string(obsJSON), a.buildPersistentPreferencesContext(userID), buildTaskStateContext(a.getTaskState(userID)))),
 		},
 		Ctx: stageCtx,

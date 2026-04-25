@@ -2,7 +2,7 @@
   "name": "trader_management",
   "kind": "management",
   "domain": "trader",
-  "description": "当用户想创建、查看、修改、删除、启动或停止交易员时调用。适用于用户提到交易员名称、绑定交易所、绑定模型、绑定策略、保证金模式、扫描频率、竞技场显示、运行状态等管理需求。不用于排查交易员启动失败、未下单、收益异常、仓位异常等诊断问题。创建交易员时必须收齐名称、交易所、模型、策略；其中交易所、模型、策略既可以直接选择用户已有可用资源，也可以在当前主流程里先新建/启用对应资源，再继续完成交易员创建。",
+  "description": "当用户想创建、查看、修改、删除、启动或停止交易员时调用。交易员是装配层，核心是名称以及绑定的交易所、模型、策略；编辑交易员默认只换绑定，不修改这些依赖对象的内部配置。若用户要改策略参数、模型配置或交易所凭证，应切到各自的 management skill。创建交易员时必须收齐名称、交易所、模型、策略；其中交易所、模型、策略既可以直接选择用户已有可用资源，也可以在当前主流程里先新建/启用对应资源，再继续完成交易员创建。不用于排查交易员启动失败、未下单、收益异常、仓位异常等诊断问题。",
   "intents": [
     "创建交易员",
     "修改交易员",
@@ -39,11 +39,6 @@
       "max": 60,
       "default": 5,
       "description": "AI 扫描决策间隔，单位分钟，手动面板可配置范围 3～60 分钟。超出范围会自动收敛到边界值并告知用户。"
-    },
-    "initial_balance": {
-      "type": "float",
-      "min": 100.0,
-      "description": "初始资金，手动面板最低 100。超出范围会自动收敛到最低值并告知用户。"
     },
     "is_cross_margin": {
       "type": "bool",
@@ -105,7 +100,7 @@
     "ai_model_id 对应的模型配置必须已启用（enabled=true）且配置完整（api_key、custom_model_name 不为空；custom_api_url 若填写必须为合法 HTTPS），否则无法创建或启动交易员。",
     "strategy_id 对应的策略模板必须存在，否则无法创建交易员。",
     "scan_interval_minutes 超出 3～60 范围时，系统自动收敛到边界值，并通过 LLM 告知用户已调整，询问是否接受。",
-    "initial_balance 低于 100 时，系统自动收敛到 100，并通过 LLM 告知用户已调整。",
+    "交易员初始余额由系统在创建时自动读取绑定交易所账户净值，不接受用户手动设置、充值或修改。",
     "启动交易员前，绑定的模型必须已启用且完整，绑定的交易所也必须已启用且通过对应交易所的完整性校验，否则拒绝启动并明确指出缺哪一项。",
     "若绑定的是 OKX 交易所，启用前必须已有 passphrase；若绑定的是 Hyperliquid，启用前必须已有 wallet_addr；若绑定的是 Aster，启用前必须已有 user、signer、private_key；若绑定的是 Lighter，启用前必须已有 wallet_addr 和 api_key_private_key。",
     "btc_eth_leverage 和 altcoin_leverage 若超出系统允许范围，应自动收敛或提示用户修正。",
@@ -117,7 +112,7 @@
     "create": {
       "description": "创建新的交易员。若缺少交易所、模型或策略，可在当前流程内先选择已有资源，或切去对应 skill 新建/启用后自动回流继续。",
       "required_slots": ["name", "exchange", "model", "strategy"],
-      "optional_slots": ["auto_start", "scan_interval_minutes", "initial_balance", "is_cross_margin", "show_in_competition", "btc_eth_leverage", "altcoin_leverage", "trading_symbols", "custom_prompt", "override_base_prompt", "system_prompt_template", "use_ai500", "use_oi_top"],
+      "optional_slots": ["auto_start", "scan_interval_minutes", "is_cross_margin", "show_in_competition", "btc_eth_leverage", "altcoin_leverage", "trading_symbols", "custom_prompt", "override_base_prompt", "system_prompt_template", "use_ai500", "use_oi_top"],
       "goal": "创建并初始化一个交易员。",
       "dynamic_rules": [
         "若用户提到的交易所、模型或策略已经存在且可用，应优先直接补入对应槽位，不要重新创建。",
@@ -125,21 +120,21 @@
         "子任务成功后，系统会恢复当前交易员草稿并继续补齐剩余槽位。",
         "scan_interval_minutes 超出 3～60 时，自动收敛并告知用户。",
         "若用户明确想覆盖杠杆、币种范围或提示词，应允许在创建阶段一并收集 btc_eth_leverage、altcoin_leverage、trading_symbols、custom_prompt、override_base_prompt、system_prompt_template、use_ai500、use_oi_top。",
+        "不要向用户收集或确认初始余额；创建时由系统自动读取绑定交易所账户净值作为初始余额。",
         "创建完成后询问用户是否立即启动（auto_start），启动前再次确认。"
       ],
       "success_output": "返回 trader_id，并给出创建结果摘要（名称、绑定的交易所/模型/策略、是否已启动）。",
       "failure_output": "用人话指出缺失依赖项，或说明当前正在进入哪个依赖子任务。"
     },
     "update": {
-      "description": "更新已有交易员的任意可编辑字段。",
+      "description": "更新已有交易员，但默认只处理改名或换绑策略、交易所、模型。",
       "required_slots": ["target_ref"],
-      "optional_slots": ["name", "exchange_id", "ai_model_id", "strategy_id", "scan_interval_minutes", "initial_balance", "is_cross_margin", "show_in_competition", "btc_eth_leverage", "altcoin_leverage", "trading_symbols", "custom_prompt", "override_base_prompt", "system_prompt_template", "use_ai500", "use_oi_top"],
-      "goal": "更新一个已有交易员的配置，但只修改用户明确要求变更的字段。",
+      "optional_slots": ["name", "exchange_id", "ai_model_id", "strategy_id"],
+      "goal": "更新一个已有交易员的名称或绑定关系，但不改动策略、模型、交易所内部配置。",
       "dynamic_rules": [
         "只更新用户明确提到的字段，不要覆盖未提及的字段。",
         "换绑交易所/模型/策略时，新的资源必须已存在且已启用，否则提示用户先启用或新建。",
-        "scan_interval_minutes 超出 3～60 时，自动收敛并告知用户。",
-        "若用户修改的是交易员级杠杆、指定币对、提示词或选币来源，也应走 update，而不是误导去改策略。"
+        "如果用户实际上是想修改策略参数、模型配置或交易所凭证，不要继续留在 trader update；应切到对应 management skill。"
       ],
       "success_output": "返回更新后的 trader_id 与简短配置摘要，明确哪些字段已经生效。",
       "failure_output": "明确指出目标交易员不存在、依赖资源不可用，或哪一个字段值仍需用户补充/修正。"

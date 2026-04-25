@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import type { AIModel, Exchange, CreateTraderRequest, ExchangeAccountStateResponse, Strategy } from '../../types'
+import type { AIModel, Exchange, CreateTraderRequest, Strategy, TraderConfigData } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
-import { toast } from 'sonner'
 import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../../lib/httpClient'
 import { NofxSelect } from '../ui/select'
@@ -22,9 +21,6 @@ const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: b
   aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
   lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
 }
-
-import type { TraderConfigData } from '../../types'
-
 // 表单内部状态类型
 interface FormState {
   trader_id?: string
@@ -35,7 +31,6 @@ interface FormState {
   is_cross_margin: boolean
   show_in_competition: boolean
   scan_interval_minutes: number
-  initial_balance?: number
 }
 
 interface TraderConfigModalProps {
@@ -69,8 +64,6 @@ export function TraderConfigModal({
   })
   const [isSaving, setIsSaving] = useState(false)
   const [strategies, setStrategies] = useState<Strategy[]>([])
-  const [isFetchingBalance, setIsFetchingBalance] = useState(false)
-  const [balanceFetchError, setBalanceFetchError] = useState<string>('')
 
   // 获取用户的策略列表
   useEffect(() => {
@@ -125,64 +118,7 @@ export function TraderConfigModal({
   }
 
   const handleExchangeChange = (exchangeId: string) => {
-    setBalanceFetchError('')
-    setFormData((prev) => {
-      if (prev.exchange_id === exchangeId) {
-        return prev
-      }
-
-      const next: FormState = { ...prev, exchange_id: exchangeId }
-
-      // Exchange balance belongs to the selected exchange, not the trader record.
-      // Clear the old baseline so we don't carry Exchange B's balance into Exchange A.
-      if (isEditMode) {
-        next.initial_balance = undefined
-      }
-
-      return next
-    })
-  }
-
-  const handleFetchCurrentBalance = async () => {
-    if (!isEditMode) {
-       setBalanceFetchError(t('fetchBalanceEditModeOnly', language))
-      return
-    }
-
-    if (!formData.exchange_id) {
-      setBalanceFetchError(t('balanceFetchFailed', language))
-      return
-    }
-
-    setIsFetchingBalance(true)
-    setBalanceFetchError('')
-
-    try {
-      const result = await httpClient.get<ExchangeAccountStateResponse>('/api/exchanges/account-state')
-
-      const selectedState = result.data?.states?.[formData.exchange_id]
-      if (result.success && selectedState?.status === 'ok') {
-        const currentBalance =
-          selectedState.total_equity ??
-          selectedState.available_balance ??
-          0
-        setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-        toast.success(t('balanceFetched', language))
-      } else {
-        setBalanceFetchError(
-          selectedState?.error_message || result.message || t('balanceFetchFailed', language)
-        )
-      }
-    } catch (error) {
-      console.error(t('balanceFetchFailed', language) + ':', error)
-      setBalanceFetchError(
-        error instanceof Error && error.message
-          ? error.message
-          : t('balanceFetchNetworkError', language)
-      )
-    } finally {
-      setIsFetchingBalance(false)
-    }
+    setFormData((prev) => ({ ...prev, exchange_id: exchangeId }))
   }
 
   const handleSave = async () => {
@@ -198,11 +134,6 @@ export function TraderConfigModal({
         is_cross_margin: formData.is_cross_margin,
         show_in_competition: formData.show_in_competition,
         scan_interval_minutes: formData.scan_interval_minutes,
-      }
-
-      // 只在编辑模式时包含initial_balance
-      if (isEditMode && formData.initial_balance !== undefined) {
-        saveData.initial_balance = formData.initial_balance
       }
 
       await onSave(saveData)
@@ -495,68 +426,26 @@ export function TraderConfigModal({
                 </p>
               </div>
 
-              {/* Initial Balance (Edit mode only) */}
-              {isEditMode && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm text-[#EAECEF]">
-                      {t('initialBalanceLabel', language)}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleFetchCurrentBalance}
-                      disabled={isFetchingBalance}
-                      className="px-3 py-1 text-xs bg-[#F0B90B] text-black rounded hover:bg-[#E1A706] transition-colors disabled:bg-[#848E9C] disabled:cursor-not-allowed"
-                    >
-                      {isFetchingBalance ? t('fetching', language) : t('fetchCurrentBalance', language)}
-                    </button>
-                  </div>
-                  <input
-                    type="number"
-                    value={formData.initial_balance || 0}
-                    onChange={(e) =>
-                      handleInputChange(
-                        'initial_balance',
-                        Number(e.target.value)
-                      )
-                    }
-                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="100"
-                    step="0.01"
-                  />
-                    <p className="text-xs text-[#848E9C] mt-1">
-                      {t('balanceUpdateHint', language)}
-                  </p>
-                  {balanceFetchError && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {balanceFetchError}
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="p-3 bg-[#1E2329] border border-[#2B3139] rounded flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4 text-[#F0B90B]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" x2="12" y1="8" y2="12" />
+                  <line x1="12" x2="12.01" y1="16" y2="16" />
+                </svg>
+                <span className="text-sm text-[#848E9C]">
+                  {t('autoFetchBalanceInfo', language)}
+                </span>
+              </div>
 
-              {/* Create mode info */}
-              {!isEditMode && (
-                <div className="p-3 bg-[#1E2329] border border-[#2B3139] rounded flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4 text-[#F0B90B]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" x2="12" y1="8" y2="12" />
-                    <line x1="12" x2="12.01" y1="16" y2="16" />
-                  </svg>
-                  <span className="text-sm text-[#848E9C]">
-                    {t('autoFetchBalanceInfo', language)}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 

@@ -439,7 +439,8 @@ func (a *Agent) generateWorkflowSummary(ctx context.Context, userID int64, lang 
 	defer cancel()
 	systemPrompt := `You are summarizing a finished workflow for NOFXi.
 Return one short user-facing summary in the user's language.
-Do not mention internal DAG, scheduler, or JSON.`
+Do not mention internal DAG, scheduler, or JSON.
+` + cleanUserFacingReplyInstruction
 	userPrompt := fmt.Sprintf("Language: %s\nOriginal request: %s\nCompleted tasks:\n- %s", lang, session.OriginalRequest, strings.Join(completed, "\n- "))
 	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
 		Messages: []mcp.Message{
@@ -716,7 +717,7 @@ func classifyContextualStrategyWorkflowTasks(text string) []WorkflowTask {
 
 func classifyContextualTraderWorkflowTasks(text string) []WorkflowTask {
 	lower := strings.ToLower(strings.TrimSpace(text))
-	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "杠杆", "提示词"})
+	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "改名", "重命名"})
 	hasStart := containsAny(lower, []string{"启动", "开始", "run", "start"})
 	hasStop := containsAny(lower, []string{"停止", "停掉", "stop", "pause"})
 	if !hasUpdate && !hasStart && !hasStop {
@@ -725,9 +726,9 @@ func classifyContextualTraderWorkflowTasks(text string) []WorkflowTask {
 	var tasks []WorkflowTask
 	if hasUpdate {
 		action := "update_bindings"
-		if containsAny(lower, []string{"扫描间隔", "杠杆", "提示词", "修改", "更新"}) &&
+		if containsAny(lower, []string{"改名", "重命名", "rename", "name"}) &&
 			!containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}) {
-			action = "update"
+			action = "update_name"
 		}
 		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: action, Request: text})
 	}
@@ -803,7 +804,7 @@ func classifyCompoundTraderWorkflowTasks(text string) []WorkflowTask {
 	}
 	lower := strings.ToLower(strings.TrimSpace(text))
 	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
-	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "杠杆", "提示词"})
+	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "改名", "重命名"})
 	hasStart := containsAny(lower, []string{"启动", "开始", "run", "start"})
 	hasStop := containsAny(lower, []string{"停止", "停掉", "stop", "pause"})
 
@@ -813,9 +814,9 @@ func classifyCompoundTraderWorkflowTasks(text string) []WorkflowTask {
 	}
 	if hasUpdate {
 		action := "update_bindings"
-		if containsAny(lower, []string{"扫描间隔", "杠杆", "提示词", "修改", "更新"}) &&
+		if containsAny(lower, []string{"改名", "重命名", "rename", "name"}) &&
 			!containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}) {
-			action = "update"
+			action = "update_name"
 		}
 		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: action, Request: text})
 	}
@@ -926,7 +927,9 @@ func classifyWorkflowTask(text string) (WorkflowTask, bool) {
 			action = "delete"
 		case containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}):
 			action = "update_bindings"
-		case containsAny(lower, []string{"修改", "更新", "改", "扫描间隔", "杠杆", "提示词"}):
+		case containsAny(lower, []string{"改名", "重命名", "rename", "名字", "名称", "name"}):
+			action = "update_name"
+		case containsAny(lower, []string{"修改", "更新", "改"}):
 			action = "update"
 		case containsAny(lower, []string{"详情", "配置", "参数", "what", "detail"}):
 			action = "query_detail"

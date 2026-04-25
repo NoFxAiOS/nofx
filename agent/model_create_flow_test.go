@@ -43,3 +43,32 @@ func TestHandleModelCreateSkillAsksProviderFirstWithClaw402Recommendation(t *tes
 		}
 	}
 }
+
+func TestHandleModelCreateSkillAcceptsBareClaw402PrivateKey(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "agent-model-create-claw402.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	session := skillSession{
+		Name:   "model_management",
+		Action: "create",
+		Phase:  "collecting",
+		Fields: map[string]string{
+			"provider":       "claw402",
+			"name":           "Claw402 (Base USDC)",
+			"custom_model_name": "deepseek",
+		},
+	}
+
+	reply := a.handleModelCreateSkill("default", 42, "zh", "0x205d759b80bae1afa31a36c4afaeec0b10378c1c55e3363bcde5a1db75c747ca", session)
+
+	if strings.Contains(reply, "还缺这些字段：钱包私钥") {
+		t.Fatalf("expected bare private key to be accepted, got: %s", reply)
+	}
+	if !strings.Contains(reply, "我先整理了一份模型配置草稿") {
+		t.Fatalf("expected draft summary after accepting private key, got: %s", reply)
+	}
+}

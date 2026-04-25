@@ -197,9 +197,9 @@ func buildSkillRoutingSummary(lang string, skillNames []string) string {
 		switch name {
 		case "trader_management":
 			if lang == "zh" {
-				parts = append(parts, "这个 skill 负责交易员本体，以及交易员绑定的模型、交易所、策略配置。")
+				parts = append(parts, "这个 skill 负责交易员本体和绑定关系；交易员编辑默认只换绑定，不改策略、模型、交易所的内部配置。")
 			} else {
-				parts = append(parts, "This skill owns the trader itself plus its bound model, exchange, and strategy.")
+				parts = append(parts, "This skill owns the trader itself and its bindings; trader edits should switch bindings, not mutate the internals of the strategy, model, or exchange.")
 			}
 		case "strategy_management":
 			if lang == "zh" {
@@ -231,9 +231,9 @@ func buildSkillDefinitionSummary(lang string, skillNames []string) string {
 		switch name {
 		case "trader_management":
 			if lang == "zh" {
-				parts = append(parts, "这个 skill 负责交易员本体，以及交易员绑定的模型、交易所、策略配置。")
+				parts = append(parts, "这个 skill 负责交易员本体和绑定关系；交易员编辑默认只换绑定，不改策略、模型、交易所的内部配置。")
 			} else {
-				parts = append(parts, "This skill owns the trader itself plus its bound model, exchange, and strategy.")
+				parts = append(parts, "This skill owns the trader itself and its bindings; trader edits should switch bindings, not mutate the internals of the strategy, model, or exchange.")
 			}
 		case "strategy_management":
 			if lang == "zh" {
@@ -269,9 +269,9 @@ func buildSkillDependencySummary(lang string, session skillSession) string {
 			return "trader_management:create requires 4 core slots: trader name, exchange, model, and strategy. The last 3 dependencies can be satisfied in two ways: choose an existing usable resource, or create/enable one inline and then resume trader creation. If the user is enabling, fixing, or creating one of those dependencies, that is still continuation of the trader creation flow, not a new peer task."
 		}
 		if lang == "zh" {
-			return "当当前对象是交易员时，配置模型、交易所、策略都属于 trader_management 的继续操作。"
+			return "当当前对象是交易员时，换绑模型、交易所、策略都属于 trader_management 的继续操作；但如果用户要改这些对象的内部配置，应切到对应 management skill。"
 		}
-		return "When the current object is a trader, configuring its model, exchange, or strategy remains inside trader_management."
+		return "When the current object is a trader, rebinding its model, exchange, or strategy remains inside trader_management; but if the user wants to change the internals of those resources, switch to the corresponding management skill."
 	default:
 		return ""
 	}
@@ -348,8 +348,10 @@ func buildSkillForbiddenSummary(lang string, skillNames []string) string {
 		case "trader_management":
 			if lang == "zh" {
 				lines = append(lines, "- trader_management 不能直接设计赚钱/不亏钱方案；那类目标应交给 planner。")
+				lines = append(lines, "- trader_management 不能让用户手动设置、充值或修改交易员余额；交易员初始余额应由系统自动读取绑定交易所净值。")
 			} else {
 				lines = append(lines, "- trader_management must not invent a profit-seeking plan; those requests belong to the planner.")
+				lines = append(lines, "- trader_management must not let the user set, top up, or manually edit trader balance; trader initial balance should be auto-read from the bound exchange equity.")
 			}
 		case "exchange_management":
 			if lang == "zh" {

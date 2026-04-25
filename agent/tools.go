@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,10 +18,27 @@ import (
 	"nofx/safe"
 	"nofx/security"
 	"nofx/store"
+	"nofx/trader"
+	"nofx/trader/aster"
+	"nofx/trader/binance"
+	"nofx/trader/bitget"
+	"nofx/trader/bybit"
+	"nofx/trader/gate"
+	hyperliquidtrader "nofx/trader/hyperliquid"
+	"nofx/trader/indodax"
+	"nofx/trader/kucoin"
+	"nofx/trader/lighter"
+	"nofx/trader/okx"
 )
 
 // cachedTools holds the static tool definitions (built once, reused per message).
 var cachedTools = buildAgentTools()
+
+var (
+	binanceFuturesAPIBaseURL    = "https://fapi.binance.com"
+	marketDataHTTPClient        = http.DefaultClient
+	traderInitialBalanceFetcher = defaultTraderInitialBalanceFetcher
+)
 
 // agentTools returns the tools available to the LLM for autonomous action.
 func agentTools() []mcp.Tool { return cachedTools }
@@ -47,6 +65,23 @@ func (a *Agent) ensureUniqueModelName(storeUserID, name, excludeID string) error
 		}
 	}
 	return nil
+}
+
+func (a *Agent) findModelByProvider(storeUserID, provider string) (*store.AIModel, error) {
+	models, err := a.store.AIModel().List(storeUserID)
+	if err != nil {
+		return nil, err
+	}
+	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
+	for _, model := range models {
+		if model == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(model.Provider)) == normalizedProvider {
+			return model, nil
+		}
+	}
+	return nil, nil
 }
 
 func (a *Agent) ensureUniqueExchangeAccountName(storeUserID, accountName, excludeID string) error {
@@ -304,7 +339,6 @@ func traderConfigFieldsSchema() map[string]any {
 		"ai_model_id":            map[string]any{"type": "string", "description": "Bound AI model id."},
 		"exchange_id":            map[string]any{"type": "string", "description": "Bound exchange id."},
 		"strategy_id":            map[string]any{"type": "string", "description": "Bound strategy id."},
-		"initial_balance":        map[string]any{"type": "number", "description": "Initial balance / bankroll."},
 		"scan_interval_minutes":  map[string]any{"type": "number", "description": "Trading scan interval in minutes."},
 		"is_cross_margin":        map[string]any{"type": "boolean", "description": "Whether cross margin is enabled."},
 		"show_in_competition":    map[string]any{"type": "boolean", "description": "Whether to show this trader in competition views."},
@@ -481,7 +515,7 @@ func buildAgentTools() []mcp.Tool {
 			Type: "function",
 			Function: mcp.FunctionDef{
 				Name:        "manage_trader",
-				Description: "List, create, update, delete, start, or stop traders. Use this when the user asks to create a trader, rename one, switch its exchange/model/strategy, tune leverage, prompts, symbol scope, scan interval, or control its running state.",
+				Description: "List, create, update, delete, start, or stop traders. Use this when the user asks to create a trader, rename one, switch its exchange/model/strategy bindings, or control its running state. If the user wants to modify the internal config of a strategy, model, or exchange, use the corresponding management tool instead.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -494,7 +528,6 @@ func buildAgentTools() []mcp.Tool {
 						"ai_model_id":            traderConfigFieldsSchema()["ai_model_id"],
 						"exchange_id":            traderConfigFieldsSchema()["exchange_id"],
 						"strategy_id":            traderConfigFieldsSchema()["strategy_id"],
-						"initial_balance":        traderConfigFieldsSchema()["initial_balance"],
 						"scan_interval_minutes":  traderConfigFieldsSchema()["scan_interval_minutes"],
 						"is_cross_margin":        traderConfigFieldsSchema()["is_cross_margin"],
 						"show_in_competition":    traderConfigFieldsSchema()["show_in_competition"],
@@ -585,6 +618,31 @@ func buildAgentTools() []mcp.Tool {
 						"symbol": map[string]any{
 							"type":        "string",
 							"description": "Trading symbol, e.g. BTCUSDT for crypto, AAPL for stocks",
+						},
+					},
+					"required": []string{"symbol"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: mcp.FunctionDef{
+				Name:        "get_market_snapshot",
+				Description: "Get a real-time crypto market snapshot for analysis. Returns current price, 24h change, high/low, volume, funding rate, open interest, and recent K-line structure in one tool call. Prefer this when the user asks to analyze a coin, assess current行情, or wants a richer market read than a single price.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"symbol": map[string]any{
+							"type":        "string",
+							"description": "Crypto trading symbol, for example BTC, ETH, BTCUSDT, or ETHUSDT.",
+						},
+						"interval": map[string]any{
+							"type":        "string",
+							"description": "Kline interval for the structure snapshot, for example 5m, 15m, 1h, or 4h. Defaults to 15m.",
+						},
+						"limit": map[string]any{
+							"type":        "number",
+							"description": "Number of recent candles to fetch for the structure snapshot. Defaults to 20 and is capped at 100.",
 						},
 					},
 					"required": []string{"symbol"},
@@ -718,6 +776,8 @@ func (a *Agent) handleToolCall(ctx context.Context, storeUserID string, userID i
 		return a.toolGetBalance()
 	case "get_market_price":
 		return a.toolGetMarketPrice(tc.Function.Arguments)
+	case "get_market_snapshot":
+		return a.toolGetMarketSnapshot(tc.Function.Arguments)
 	case "get_kline":
 		return a.toolGetKline(tc.Function.Arguments)
 	case "get_trade_history":
@@ -867,6 +927,89 @@ func safeExchangeForTool(ex *store.Exchange) safeExchangeToolConfig {
 		HasLighterPrivateKey:  ex.LighterPrivateKey != "",
 		HasLighterAPIKey:      ex.LighterAPIKeyPrivateKey != "",
 	}
+}
+
+func defaultTraderInitialBalanceFetcher(exchangeCfg *store.Exchange, userID string) (float64, bool, error) {
+	if exchangeCfg == nil {
+		return 0, false, fmt.Errorf("exchange config not found")
+	}
+	probe, err := buildTraderExchangeProbe(exchangeCfg, userID)
+	if err != nil {
+		return 0, false, err
+	}
+	balanceInfo, err := probe.GetBalance()
+	if err != nil {
+		return 0, false, err
+	}
+	return extractTraderInitialBalance(balanceInfo)
+}
+
+func buildTraderExchangeProbe(exchangeCfg *store.Exchange, userID string) (trader.Trader, error) {
+	switch exchangeCfg.ExchangeType {
+	case "binance":
+		return binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID), nil
+	case "bybit":
+		return bybit.NewBybitTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey)), nil
+	case "okx":
+		return okx.NewOKXTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), string(exchangeCfg.Passphrase)), nil
+	case "bitget":
+		return bitget.NewBitgetTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), string(exchangeCfg.Passphrase)), nil
+	case "gate":
+		return gate.NewGateTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey)), nil
+	case "kucoin":
+		return kucoin.NewKuCoinTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), string(exchangeCfg.Passphrase)), nil
+	case "indodax":
+		return indodax.NewIndodaxTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey)), nil
+	case "hyperliquid":
+		return hyperliquidtrader.NewHyperliquidTrader(
+			string(exchangeCfg.APIKey),
+			exchangeCfg.HyperliquidWalletAddr,
+			exchangeCfg.Testnet,
+			exchangeCfg.HyperliquidUnifiedAcct,
+		)
+	case "aster":
+		return aster.NewAsterTrader(
+			exchangeCfg.AsterUser,
+			exchangeCfg.AsterSigner,
+			string(exchangeCfg.AsterPrivateKey),
+		)
+	case "lighter":
+		return lighter.NewLighterTraderV2(
+			exchangeCfg.LighterWalletAddr,
+			string(exchangeCfg.LighterAPIKeyPrivateKey),
+			exchangeCfg.LighterAPIKeyIndex,
+			false,
+		)
+	default:
+		return nil, fmt.Errorf("unsupported exchange type: %s", exchangeCfg.ExchangeType)
+	}
+}
+
+func extractTraderInitialBalance(balanceInfo map[string]interface{}) (float64, bool, error) {
+	for _, key := range []string{"total_equity", "totalEquity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"} {
+		raw, ok := balanceInfo[key]
+		if !ok {
+			continue
+		}
+		switch v := raw.(type) {
+		case float64:
+			return v, true, nil
+		case float32:
+			return float64(v), true, nil
+		case int:
+			return float64(v), true, nil
+		case int64:
+			return float64(v), true, nil
+		case int32:
+			return float64(v), true, nil
+		case string:
+			parsed, err := strconv.ParseFloat(v, 64)
+			if err == nil {
+				return parsed, true, nil
+			}
+		}
+	}
+	return 0, false, fmt.Errorf("initial balance not set and unable to fetch balance from exchange")
 }
 
 func safeModelForTool(model *store.AIModel) safeModelToolConfig {
@@ -1157,7 +1300,9 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		if exchangeType == "" {
 			return `{"error":"exchange_type is required for create"}`
 		}
-		enabled := false
+		// Match the manual settings page: newly created model configs should be
+		// enabled unless the caller explicitly asks to keep them disabled.
+		enabled := true
 		if args.Enabled != nil {
 			enabled = *args.Enabled
 		}
@@ -1454,7 +1599,9 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 		if modelID == "" {
 			modelID = provider
 		}
-		enabled := false
+		// Match the manual settings page: newly created model configs should be
+		// enabled unless the caller explicitly asks to keep them disabled.
+		enabled := true
 		if args.Enabled != nil {
 			enabled = *args.Enabled
 		}
@@ -1480,7 +1627,16 @@ func (a *Agent) toolManageModelConfig(storeUserID, argsJSON string) string {
 		}).Validate(); err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err)
 		}
-		if err := a.ensureUniqueModelName(storeUserID, name, ""); err != nil {
+		existingByProvider, err := a.findModelByProvider(storeUserID, provider)
+		if err != nil {
+			return fmt.Sprintf(`{"error":"failed to inspect existing model configs: %s"}`, err)
+		}
+		excludeID := ""
+		if existingByProvider != nil {
+			modelID = existingByProvider.ID
+			excludeID = existingByProvider.ID
+		}
+		if err := a.ensureUniqueModelName(storeUserID, name, excludeID); err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err)
 		}
 		if err := a.store.AIModel().UpdateWithName(
@@ -1634,6 +1790,7 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		Lang          string         `json:"lang"`
 		IsPublic      *bool          `json:"is_public"`
 		ConfigVisible *bool          `json:"config_visible"`
+		AllowClamped  bool           `json:"allow_clamped_update"`
 		Config        map[string]any `json:"config"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
@@ -1674,6 +1831,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			before := merged
 			merged.ClampLimits()
 			warnings = store.StrategyClampWarnings(before, merged, merged.Language)
+			if len(warnings) > 0 && !args.AllowClamped {
+				return fmt.Sprintf(`{"error":"%s"}`, formatRiskControlRefusalPrompt(merged.Language, warnings, "确认应用"))
+			}
 			cfg = merged
 		}
 		configJSON, err := json.Marshal(cfg)
@@ -1750,6 +1910,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			before := merged
 			merged.ClampLimits()
 			warnings = store.StrategyClampWarnings(before, merged, merged.Language)
+			if len(warnings) > 0 && !args.AllowClamped {
+				return fmt.Sprintf(`{"error":"%s"}`, formatRiskControlRefusalPrompt(merged.Language, warnings, "确认应用"))
+			}
 			normalized, err := json.Marshal(merged)
 			if err != nil {
 				return fmt.Sprintf(`{"error":"failed to serialize strategy config: %s"}`, err)
@@ -1980,6 +2143,10 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 	if err := a.validateTraderReferences(storeUserID, args.AIModelID, args.ExchangeID, args.StrategyID); err != nil {
 		return fmt.Sprintf(`{"error":"%s"}`, err)
 	}
+	exchangeCfg, err := a.store.Exchange().GetByID(storeUserID, strings.TrimSpace(args.ExchangeID))
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to load exchange config: %s"}`, err)
+	}
 	scanInterval := 3
 	if args.ScanIntervalMinutes != nil && *args.ScanIntervalMinutes > 0 {
 		scanInterval = *args.ScanIntervalMinutes
@@ -1987,9 +2154,12 @@ func (a *Agent) toolCreateTrader(storeUserID string, args manageTraderArgs) stri
 			scanInterval = 3
 		}
 	}
-	initialBalance := 0.0
-	if args.InitialBalance != nil && *args.InitialBalance > 0 {
-		initialBalance = *args.InitialBalance
+	initialBalance, found, err := traderInitialBalanceFetcher(exchangeCfg, storeUserID)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to auto-read trader initial balance from exchange: %s"}`, err)
+	}
+	if !found {
+		return `{"error":"failed to auto-read trader initial balance from exchange"}`
 	}
 	isCrossMargin := true
 	if args.IsCrossMargin != nil {
@@ -2108,9 +2278,6 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 		CustomPrompt:         existing.CustomPrompt,
 		OverrideBasePrompt:   existing.OverrideBasePrompt,
 		SystemPromptTemplate: existing.SystemPromptTemplate,
-	}
-	if args.InitialBalance != nil && *args.InitialBalance > 0 {
-		record.InitialBalance = *args.InitialBalance
 	}
 	if args.ScanIntervalMinutes != nil && *args.ScanIntervalMinutes > 0 {
 		record.ScanIntervalMinutes = *args.ScanIntervalMinutes
@@ -2603,6 +2770,217 @@ func (a *Agent) toolGetMarketPrice(argsJSON string) string {
 	}
 
 	return fmt.Sprintf(`{"error": "could not get price for %s"}`, sym)
+}
+
+func binanceFuturesGET(path string, out any) error {
+	req, err := http.NewRequest(http.MethodGet, binanceFuturesAPIBaseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	resp, err := marketDataHTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("source returned status %d", resp.StatusCode)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func (a *Agent) toolGetMarketSnapshot(argsJSON string) string {
+	var args struct {
+		Symbol   string `json:"symbol"`
+		Interval string `json:"interval"`
+		Limit    int    `json:"limit"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err)
+	}
+
+	symbol := strings.ToUpper(strings.TrimSpace(args.Symbol))
+	if symbol == "" {
+		return `{"error":"symbol is required"}`
+	}
+	if isStockSymbol(symbol) {
+		return `{"error":"get_market_snapshot currently supports crypto symbols only"}`
+	}
+	if !strings.HasSuffix(symbol, "USDT") {
+		symbol += "USDT"
+	}
+
+	interval := strings.TrimSpace(strings.ToLower(args.Interval))
+	if interval == "" {
+		interval = "15m"
+	}
+	if !validKlineInterval(interval) {
+		return fmt.Sprintf(`{"error":"invalid interval %q"}`, interval)
+	}
+
+	limit := args.Limit
+	switch {
+	case limit <= 0:
+		limit = 20
+	case limit > 100:
+		limit = 100
+	}
+
+	var ticker24h struct {
+		Symbol             string `json:"symbol"`
+		LastPrice          string `json:"lastPrice"`
+		PriceChange        string `json:"priceChange"`
+		PriceChangePercent string `json:"priceChangePercent"`
+		HighPrice          string `json:"highPrice"`
+		LowPrice           string `json:"lowPrice"`
+		Volume             string `json:"volume"`
+		QuoteVolume        string `json:"quoteVolume"`
+		Count              int64  `json:"count"`
+	}
+	if err := binanceFuturesGET("/fapi/v1/ticker/24hr?symbol="+symbol, &ticker24h); err != nil {
+		return fmt.Sprintf(`{"error":"failed to fetch 24h ticker for %s: %s"}`, symbol, err)
+	}
+
+	var premiumIndex struct {
+		Symbol          string `json:"symbol"`
+		MarkPrice       string `json:"markPrice"`
+		IndexPrice      string `json:"indexPrice"`
+		LastFundingRate string `json:"lastFundingRate"`
+		NextFundingTime int64  `json:"nextFundingTime"`
+		Time            int64  `json:"time"`
+	}
+	if err := binanceFuturesGET("/fapi/v1/premiumIndex?symbol="+symbol, &premiumIndex); err != nil {
+		return fmt.Sprintf(`{"error":"failed to fetch funding data for %s: %s"}`, symbol, err)
+	}
+
+	var openInterest struct {
+		OpenInterest string `json:"openInterest"`
+		Symbol       string `json:"symbol"`
+		Time         int64  `json:"time"`
+	}
+	if err := binanceFuturesGET("/fapi/v1/openInterest?symbol="+symbol, &openInterest); err != nil {
+		return fmt.Sprintf(`{"error":"failed to fetch open interest for %s: %s"}`, symbol, err)
+	}
+
+	var rawKlines [][]any
+	if err := binanceFuturesGET(fmt.Sprintf("/fapi/v1/klines?symbol=%s&interval=%s&limit=%d", symbol, interval, limit), &rawKlines); err != nil {
+		return fmt.Sprintf(`{"error":"failed to fetch kline for %s: %s"}`, symbol, err)
+	}
+	if len(rawKlines) == 0 {
+		return fmt.Sprintf(`{"error":"empty kline response for %s"}`, symbol)
+	}
+
+	klines := make([]map[string]any, 0, len(rawKlines))
+	highestHigh := 0.0
+	lowestLow := 0.0
+	firstClose := 0.0
+	lastClose := 0.0
+	totalVolume := 0.0
+	for i, row := range rawKlines {
+		if len(row) < 7 {
+			continue
+		}
+		openVal := toSnapshotFloat(row[1])
+		highVal := toSnapshotFloat(row[2])
+		lowVal := toSnapshotFloat(row[3])
+		closeVal := toSnapshotFloat(row[4])
+		volumeVal := toSnapshotFloat(row[5])
+		if i == 0 {
+			firstClose = closeVal
+			highestHigh = highVal
+			lowestLow = lowVal
+		}
+		if highVal > highestHigh {
+			highestHigh = highVal
+		}
+		if lowestLow == 0 || (lowVal > 0 && lowVal < lowestLow) {
+			lowestLow = lowVal
+		}
+		lastClose = closeVal
+		totalVolume += volumeVal
+		klines = append(klines, map[string]any{
+			"open_time":  row[0],
+			"open":       openVal,
+			"high":       highVal,
+			"low":        lowVal,
+			"close":      closeVal,
+			"volume":     volumeVal,
+			"close_time": row[6],
+		})
+	}
+
+	periodChangePercent := 0.0
+	if firstClose > 0 && lastClose > 0 {
+		periodChangePercent = ((lastClose - firstClose) / firstClose) * 100
+	}
+
+	tickerLastPrice, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.LastPrice), 64)
+	tickerPriceChange, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.PriceChange), 64)
+	tickerPriceChangePercent, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.PriceChangePercent), 64)
+	tickerHighPrice, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.HighPrice), 64)
+	tickerLowPrice, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.LowPrice), 64)
+	tickerVolume, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.Volume), 64)
+	tickerQuoteVolume, _ := strconv.ParseFloat(strings.TrimSpace(ticker24h.QuoteVolume), 64)
+	markPrice, _ := strconv.ParseFloat(strings.TrimSpace(premiumIndex.MarkPrice), 64)
+	indexPrice, _ := strconv.ParseFloat(strings.TrimSpace(premiumIndex.IndexPrice), 64)
+	fundingRate, _ := strconv.ParseFloat(strings.TrimSpace(premiumIndex.LastFundingRate), 64)
+	oiValue, _ := strconv.ParseFloat(strings.TrimSpace(openInterest.OpenInterest), 64)
+
+	out, _ := json.Marshal(map[string]any{
+		"symbol": symbol,
+		"price":  tickerLastPrice,
+		"ticker_24h": map[string]any{
+			"price_change":         tickerPriceChange,
+			"price_change_percent": tickerPriceChangePercent,
+			"high_price":           tickerHighPrice,
+			"low_price":            tickerLowPrice,
+			"volume":               tickerVolume,
+			"quote_volume":         tickerQuoteVolume,
+			"trade_count":          ticker24h.Count,
+		},
+		"perp_metrics": map[string]any{
+			"mark_price":        markPrice,
+			"index_price":       indexPrice,
+			"funding_rate":      fundingRate,
+			"next_funding_time": premiumIndex.NextFundingTime,
+			"open_interest":     oiValue,
+		},
+		"kline_snapshot": map[string]any{
+			"interval":              interval,
+			"limit":                 len(klines),
+			"period_change_percent": periodChangePercent,
+			"highest_high":          highestHigh,
+			"lowest_low":            lowestLow,
+			"average_volume":        totalVolume / float64(maxInt(len(klines), 1)),
+			"recent_klines":         klines,
+		},
+	})
+	return string(out)
+}
+
+func toSnapshotFloat(value any) float64 {
+	switch v := value.(type) {
+	case string:
+		f, _ := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return f
+	case float64:
+		return v
+	case json.Number:
+		f, _ := v.Float64()
+		return f
+	default:
+		return 0
+	}
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func validKlineInterval(interval string) bool {

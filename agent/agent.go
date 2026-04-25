@@ -18,10 +18,13 @@ import (
 	"sync"
 	"time"
 
+	gethcrypto "github.com/ethereum/go-ethereum/crypto"
+
 	"nofx/manager"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
+	"nofx/wallet"
 )
 
 type Agent struct {
@@ -50,6 +53,11 @@ type Config struct {
 	AllowTradeExecution bool     `json:"allow_trade_execution"`
 	BriefTimes          []int    `json:"brief_times"`
 }
+
+var (
+	agentWalletAddressFromPrivateKey = walletAddressFromPrivateKey
+	agentQueryUSDCBalanceCached      = wallet.QueryUSDCBalanceCached
+)
 
 func DefaultConfig() *Config {
 	return &Config{
@@ -128,7 +136,9 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			a.log().Warn("failed to list AI models for store user", "store_user_id", candidateUserID, "error", err)
 			continue
 		}
-		for _, model := range models {
+		candidates := rankAgentModelCandidates(models)
+		for _, candidate := range candidates {
+			model := candidate.model
 			if model == nil || !model.Enabled || !agentModelHasUsableAPIKey(model) {
 				continue
 			}
@@ -142,6 +152,8 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 				"has_api_key", len(model.APIKey) > 0,
 				"custom_api_url", strings.TrimSpace(model.CustomAPIURL),
 				"custom_model_name", strings.TrimSpace(model.CustomModelName),
+				"prefer_model_with_balance", candidate.preferModelWithBalance,
+				"wallet_balance_usdc", candidate.balanceUSDC,
 			)
 
 			apiKey := strings.TrimSpace(string(model.APIKey))
@@ -172,6 +184,88 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 	return nil, "", false
 }
 
+type agentModelCandidate struct {
+	model                  *store.AIModel
+	preferModelWithBalance bool
+	balanceUSDC            float64
+}
+
+func rankAgentModelCandidates(models []*store.AIModel) []agentModelCandidate {
+	candidates := make([]agentModelCandidate, 0, len(models))
+	for _, model := range models {
+		if model == nil {
+			continue
+		}
+		candidate := agentModelCandidate{model: model}
+		if balance, ok := agentModelUSDCBalance(model); ok && balance > 0 {
+			candidate.preferModelWithBalance = true
+			candidate.balanceUSDC = balance
+		}
+		candidates = append(candidates, candidate)
+	}
+
+	sort.SliceStable(candidates, func(i, j int) bool {
+		left := candidates[i]
+		right := candidates[j]
+		if left.preferModelWithBalance != right.preferModelWithBalance {
+			return left.preferModelWithBalance
+		}
+		if left.balanceUSDC != right.balanceUSDC {
+			return left.balanceUSDC > right.balanceUSDC
+		}
+		leftUpdatedAt := time.Time{}
+		rightUpdatedAt := time.Time{}
+		if left.model != nil {
+			leftUpdatedAt = left.model.UpdatedAt
+		}
+		if right.model != nil {
+			rightUpdatedAt = right.model.UpdatedAt
+		}
+		if !leftUpdatedAt.Equal(rightUpdatedAt) {
+			return leftUpdatedAt.After(rightUpdatedAt)
+		}
+		leftID := ""
+		rightID := ""
+		if left.model != nil {
+			leftID = left.model.ID
+		}
+		if right.model != nil {
+			rightID = right.model.ID
+		}
+		return leftID < rightID
+	})
+
+	return candidates
+}
+
+func agentModelUSDCBalance(model *store.AIModel) (float64, bool) {
+	if model == nil || !agentProviderSupportsUSDCBalance(model.Provider) {
+		return 0, false
+	}
+	privateKey := strings.TrimSpace(string(model.APIKey))
+	if privateKey == "" {
+		return 0, false
+	}
+	walletAddress, err := agentWalletAddressFromPrivateKey(privateKey)
+	if err != nil || strings.TrimSpace(walletAddress) == "" {
+		return 0, false
+	}
+	balance, err := agentQueryUSDCBalanceCached(walletAddress)
+	if err != nil || balance <= 0 {
+		return 0, false
+	}
+	return balance, true
+}
+
+func agentProviderSupportsUSDCBalance(provider string) bool {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "claw402", "blockrun-base":
+		return true
+	default:
+		return false
+	}
+}
+
 func agentModelHasUsableAPIKey(model *store.AIModel) bool {
 	if model == nil {
 		return false
@@ -191,6 +285,23 @@ func agentModelHasUsableAPIKey(model *store.AIModel) bool {
 	}
 	envKey := envKeyByProvider[strings.ToLower(strings.TrimSpace(model.Provider))]
 	return envKey != "" && strings.TrimSpace(os.Getenv(envKey)) != ""
+}
+
+func walletAddressFromPrivateKey(privateKey string) (string, error) {
+	key := strings.TrimSpace(privateKey)
+	if !strings.HasPrefix(key, "0x") {
+		return "", fmt.Errorf("private key must start with 0x")
+	}
+	if len(key) != 66 {
+		return "", fmt.Errorf("private key must be 66 characters")
+	}
+
+	privateKeyObj, err := gethcrypto.HexToECDSA(strings.TrimPrefix(key, "0x"))
+	if err != nil {
+		return "", err
+	}
+
+	return gethcrypto.PubkeyToAddress(privateKeyObj.PublicKey).Hex(), nil
 }
 
 func resolveModelRuntimeConfig(provider, customAPIURL, customModelName, fallbackModelID string) (string, string) {
@@ -746,9 +857,28 @@ func (a *Agent) aiServiceFailure(lang string, err error) (string, error) {
 	}
 	a.logger.Error("AI service call failed", "error", reason)
 	if lang == "zh" {
-		return fmt.Sprintf("当前 AI 服务调用失败：%s\n\n这不是“未配置模型”。更可能是模型服务余额不足、接口报错或超时。请检查当前启用模型的 API 状态后再试。", reason), nil
+		return fmt.Sprintf("当前 AI 服务调用失败：%s\n\n%s", reason, aiServiceFailureGuidance("zh", reason)), nil
 	}
-	return fmt.Sprintf("The AI service call failed: %s\n\nThis is not a missing-model issue. The active model provider likely returned an error, timed out, or has insufficient balance. Please check the active model API and try again.", reason), nil
+	return fmt.Sprintf("The AI service call failed: %s\n\n%s", reason, aiServiceFailureGuidance(lang, reason)), nil
+}
+
+func aiServiceFailureGuidance(lang, reason string) string {
+	lower := strings.ToLower(strings.TrimSpace(reason))
+	looksLikeHTMLGateway := strings.Contains(lower, "invalid character '<'") ||
+		strings.Contains(lower, "unexpected character '<'") ||
+		strings.Contains(lower, "<html") ||
+		strings.Contains(lower, "<!doctype html")
+
+	if lang == "zh" {
+		if looksLikeHTMLGateway {
+			return "这不是“未配置模型”。这次更像是上游返回了 HTML 页面或网关/反代错误页，而不是标准 JSON 响应。更可能原因是模型服务地址配错、网关拦截、支付/鉴权页返回、或上游服务临时异常。请优先检查当前启用模型的 custom_api_url、反向代理/网关状态，以及对应 provider 的服务状态。"
+		}
+		return "这不是“未配置模型”。更可能是模型服务余额不足、接口报错、鉴权失败或超时。请检查当前启用模型的 API 状态后再试。"
+	}
+	if looksLikeHTMLGateway {
+		return "This is not a missing-model issue. It looks more like the upstream returned an HTML page or gateway/proxy error page instead of the expected JSON response. The likely causes are a wrong model endpoint URL, gateway interception, a payment/auth page being returned, or a temporary upstream outage. Check the active model's custom_api_url, proxy/gateway status, and the provider service health first."
+	}
+	return "This is not a missing-model issue. The active model provider more likely returned an API error, authentication failure, timeout, or insufficient-balance response. Please check the active model API and try again."
 }
 
 func (a *Agent) queryPositionsDirect(L string) (string, error) {

@@ -173,26 +173,63 @@ type AIEntryKeyLevels struct {
 	Fibonacci  *AIEntryFibonacci `json:"fibonacci,omitempty"`
 }
 
+type aiEntryKeyLevelObject struct {
+	Price     float64 `json:"price,omitempty"`
+	Timeframe string  `json:"timeframe,omitempty"`
+	Type      string  `json:"type,omitempty"`
+	Reason    string  `json:"reason,omitempty"`
+}
+
 // UnmarshalJSON accepts common model aliases and normalizes them into the canonical key-level schema.
 func (k *AIEntryKeyLevels) UnmarshalJSON(data []byte) error {
 	type alias AIEntryKeyLevels
 	var aux struct {
 		alias
-		SupportLevels    []float64       `json:"support_levels,omitempty"`
-		ResistanceLevels []float64       `json:"resistance_levels,omitempty"`
-		FibLevels        []float64       `json:"fib_levels,omitempty"`
-		FibonacciLevels  []float64       `json:"fibonacci_levels,omitempty"`
-		SwingHigh        float64         `json:"swing_high,omitempty"`
-		SwingLow         float64         `json:"swing_low,omitempty"`
-		Fibonacci        *AIEntryFibonacci `json:"fibonacci,omitempty"`
+		SupportLevels        []float64             `json:"support_levels,omitempty"`
+		ResistanceLevels     []float64             `json:"resistance_levels,omitempty"`
+		SupportLevelObjects  []aiEntryKeyLevelObject `json:"support,omitempty"`
+		ResistanceLevelObjects []aiEntryKeyLevelObject `json:"resistance,omitempty"`
+		FibLevels            []float64             `json:"fib_levels,omitempty"`
+		FibonacciLevels      []float64             `json:"fibonacci_levels,omitempty"`
+		SwingHigh            float64               `json:"swing_high,omitempty"`
+		SwingLow             float64               `json:"swing_low,omitempty"`
+		Fibonacci            *AIEntryFibonacci     `json:"fibonacci,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
+		var raw struct {
+			Support    json.RawMessage `json:"support,omitempty"`
+			Resistance json.RawMessage `json:"resistance,omitempty"`
+		}
+		if rawErr := json.Unmarshal(data, &raw); rawErr != nil {
+			return err
+		}
+		var fallback alias
+		if fallbackErr := json.Unmarshal(data, &fallback); fallbackErr != nil {
+			return err
+		}
+		*k = AIEntryKeyLevels(fallback)
+		if len(raw.Support) > 0 {
+			if vals, ok := decodeKeyLevelObjects(raw.Support); ok {
+				k.Support = vals
+			}
+		}
+		if len(raw.Resistance) > 0 {
+			if vals, ok := decodeKeyLevelObjects(raw.Resistance); ok {
+				k.Resistance = vals
+			}
+		}
+		return nil
 	}
 	*k = AIEntryKeyLevels(aux.alias)
+	if len(k.Support) == 0 && len(aux.SupportLevelObjects) > 0 {
+		k.Support = keyLevelObjectPrices(aux.SupportLevelObjects)
+	}
 	k.Support = firstAliasSlice(k.Support, map[string][]float64{
 		"support_levels": aux.SupportLevels,
 	}, "key_levels.support")
+	if len(k.Resistance) == 0 && len(aux.ResistanceLevelObjects) > 0 {
+		k.Resistance = keyLevelObjectPrices(aux.ResistanceLevelObjects)
+	}
 	k.Resistance = firstAliasSlice(k.Resistance, map[string][]float64{
 		"resistance_levels": aux.ResistanceLevels,
 	}, "key_levels.resistance")
@@ -200,7 +237,7 @@ func (k *AIEntryKeyLevels) UnmarshalJSON(data []byte) error {
 		k.Fibonacci = aux.Fibonacci
 	}
 	if k.Fibonacci == nil && (len(aux.FibLevels) > 0 || len(aux.FibonacciLevels) > 0 || aux.SwingHigh > 0 || aux.SwingLow > 0) {
-			levels := firstAliasSlice(nil, map[string][]float64{
+		levels := firstAliasSlice(nil, map[string][]float64{
 			"fib_levels":       aux.FibLevels,
 			"fibonacci_levels": aux.FibonacciLevels,
 		}, "key_levels.fibonacci.levels")
@@ -218,6 +255,24 @@ type AIEntryFibonacci struct {
 }
 
 // UnmarshalJSON accepts fib-level aliases commonly emitted by models.
+func keyLevelObjectPrices(src []aiEntryKeyLevelObject) []float64 {
+	out := make([]float64, 0, len(src))
+	for _, item := range src {
+		if item.Price > 0 {
+			out = append(out, item.Price)
+		}
+	}
+	return out
+}
+
+func decodeKeyLevelObjects(data []byte) ([]float64, bool) {
+	var objects []aiEntryKeyLevelObject
+	if err := json.Unmarshal(data, &objects); err != nil {
+		return nil, false
+	}
+	return keyLevelObjectPrices(objects), true
+}
+
 func (f *AIEntryFibonacci) UnmarshalJSON(data []byte) error {
 	type alias AIEntryFibonacci
 	var aux struct {

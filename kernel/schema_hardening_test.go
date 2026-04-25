@@ -122,6 +122,19 @@ func TestEntryKeyLevelsAcceptAliases(t *testing.T) {
 	}
 }
 
+func TestEntryKeyLevelsAcceptStructuredObjects(t *testing.T) {
+	var levels AIEntryKeyLevels
+	if err := json.Unmarshal([]byte(`{"support":[{"timeframe":"15m","price":100,"type":"fibonacci","reason":"support"},{"timeframe":"15m","price":99,"type":"swing_low","reason":"deeper support"}],"resistance":[{"timeframe":"15m","price":110,"type":"swing_high","reason":"target"}]}`), &levels); err != nil {
+		t.Fatalf("unexpected structured key_levels unmarshal error: %v", err)
+	}
+	if len(levels.Support) != 2 || levels.Support[0] != 100 || levels.Support[1] != 99 {
+		t.Fatalf("expected structured support objects to collapse into prices, got %+v", levels.Support)
+	}
+	if len(levels.Resistance) != 1 || levels.Resistance[0] != 110 {
+		t.Fatalf("expected structured resistance objects to collapse into prices, got %+v", levels.Resistance)
+	}
+}
+
 func TestDrawdownRuleAcceptsCloseRatioAlias(t *testing.T) {
 	var rule AIProtectionDrawdownRule
 	if err := json.Unmarshal([]byte(`{"min_profit_pct":2.5,"max_drawdown_pct":35,"close_ratio":40}`), &rule); err != nil {

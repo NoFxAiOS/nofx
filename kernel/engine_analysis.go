@@ -504,6 +504,9 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 	}
 	// Backfill key_levels from structural_key_levels/anchors when AI omits support/resistance buckets.
 	backfillEntryProtectionKeyLevels(d.EntryProtection)
+	if config != nil {
+		trimEntryProtectionToConfigLimits(d.EntryProtection, config.EntryStructure)
+	}
 
 	if config != nil {
 		entryStructure := config.EntryStructure
@@ -973,18 +976,6 @@ func normalizeEntryProtectionRationale(ep *AIEntryProtectionRationale) {
 		ep.Anchors[i].Timeframe = strings.TrimSpace(ep.Anchors[i].Timeframe)
 		ep.Anchors[i].Reason = strings.TrimSpace(ep.Anchors[i].Reason)
 	}
-	trimFloatSlice := func(src []float64, max int) []float64 {
-		if len(src) <= max || max <= 0 {
-			return src
-		}
-		return src[:max]
-	}
-	if len(ep.KeyLevels.Support) > 3 {
-		ep.KeyLevels.Support = trimFloatSlice(ep.KeyLevels.Support, 3)
-	}
-	if len(ep.KeyLevels.Resistance) > 3 {
-		ep.KeyLevels.Resistance = trimFloatSlice(ep.KeyLevels.Resistance, 3)
-	}
 	for i := range ep.StructuralKeyLevels {
 		ep.StructuralKeyLevels[i].Type = strings.ToLower(strings.TrimSpace(ep.StructuralKeyLevels[i].Type))
 		ep.StructuralKeyLevels[i].Timeframe = strings.TrimSpace(ep.StructuralKeyLevels[i].Timeframe)
@@ -993,6 +984,39 @@ func normalizeEntryProtectionRationale(ep *AIEntryProtectionRationale) {
 	}
 	backfillEntryProtectionKeyLevels(ep)
 	backfillStructuralKeyLevels(ep)
+}
+
+func trimEntryProtectionToConfigLimits(ep *AIEntryProtectionRationale, entryStructure store.EntryStructureConfig) {
+	if ep == nil {
+		return
+	}
+	trimFloatSlice := func(src []float64, max int) []float64 {
+		if len(src) <= max || max <= 0 {
+			return src
+		}
+		return src[:max]
+	}
+	if entryStructure.MaxSupportLevels > 0 {
+		ep.KeyLevels.Support = trimFloatSlice(ep.KeyLevels.Support, entryStructure.MaxSupportLevels)
+	}
+	if entryStructure.MaxResistanceLevels > 0 {
+		ep.KeyLevels.Resistance = trimFloatSlice(ep.KeyLevels.Resistance, entryStructure.MaxResistanceLevels)
+	}
+	if entryStructure.MaxAnchorCount > 0 && len(ep.Anchors) > entryStructure.MaxAnchorCount {
+		priority := func(anchor AIEntryProtectionAnchor) int {
+			t := strings.ToLower(strings.TrimSpace(anchor.Type))
+			switch t {
+			case "support", "resistance", "swing_low", "swing_high", "fib_support", "fib_resistance", "fibonacci", "first_target":
+				return 0
+			default:
+				return 1
+			}
+		}
+		sort.SliceStable(ep.Anchors, func(i, j int) bool {
+			return priority(ep.Anchors[i]) < priority(ep.Anchors[j])
+		})
+		ep.Anchors = ep.Anchors[:entryStructure.MaxAnchorCount]
+	}
 }
 
 func normalizeProtectionPlan(pp *AIProtectionPlan) {

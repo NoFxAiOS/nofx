@@ -119,10 +119,10 @@ func TestValidateAIDecisionsWithStrategyRejectsMissingFibonacciWhenRequired(t *t
 	}
 }
 
-func TestValidateAIDecisionsWithStrategyRejectsTooManySupportLevels(t *testing.T) {
+func TestValidateAIDecisionsWithStrategyTrimsTooManySupportLevels(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.RiskControl.MinRiskRewardRatio = 1.5
-	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, MaxSupportLevels: 1}
+	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, MaxSupportLevels: 1, MaxAnchorCount: 4, RequireStructuralAnchors: true, RequireInvalidationTargetLinkage: true}
 
 	decisions := []Decision{{
 		Symbol:          "BTCUSDT",
@@ -133,10 +133,21 @@ func TestValidateAIDecisionsWithStrategyRejectsTooManySupportLevels(t *testing.T
 		EntryProtection: validEntryProtectionForTest("open_long"),
 	}}
 	decisions[0].EntryProtection.KeyLevels.Support = []float64{95, 96}
+	decisions[0].EntryProtection.Anchors = append(decisions[0].EntryProtection.Anchors,
+		AIEntryProtectionAnchor{Type: "note", Timeframe: "15m", Price: 97, Reason: "extra noise"},
+		AIEntryProtectionAnchor{Type: "resistance", Timeframe: "15m", Price: 112, Reason: "secondary target"},
+		AIEntryProtectionAnchor{Type: "support", Timeframe: "15m", Price: 94, Reason: "secondary invalidation"},
+	)
 
 	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
-	if err == nil || !strings.Contains(err.Error(), "support exceeds max") {
-		t.Fatalf("expected support max validation error, got %v", err)
+	if err != nil {
+		t.Fatalf("expected support overflow to be trimmed, got %v", err)
+	}
+	if got := len(decisions[0].EntryProtection.KeyLevels.Support); got != 1 {
+		t.Fatalf("expected support levels to be trimmed to 1, got %d", got)
+	}
+	if got := len(decisions[0].EntryProtection.Anchors); got != 4 {
+		t.Fatalf("expected anchors to be trimmed to 4, got %d", got)
 	}
 }
 

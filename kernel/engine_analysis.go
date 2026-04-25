@@ -445,7 +445,7 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 			return fmt.Errorf("decision #%d: %w", i+1, err)
 		}
 		if (fullAI && drawdownAI) || (ladderAI && drawdownAI) || (fullAI && ladderAI) {
-			return fmt.Errorf("current strategy route supports only one AI protection route at a time (full, ladder, or drawdown)")
+			logger.Warnf("strategy has multiple AI protection routes enabled, preferring active decision route validation: full=%t ladder=%t drawdown=%t", fullAI, ladderAI, drawdownAI)
 		}
 		if config.Protection.BreakEvenStop.Enabled && isOpen {
 			if d.ProtectionPlan == nil || d.ProtectionPlan.BreakEvenTrigger == "" || d.ProtectionPlan.BreakEvenValue <= 0 {
@@ -960,9 +960,21 @@ func normalizeEntryProtectionRationale(ep *AIEntryProtectionRationale) {
 		ep.AlignmentNotes[i] = strings.TrimSpace(ep.AlignmentNotes[i])
 	}
 	for i := range ep.Anchors {
-		ep.Anchors[i].Type = strings.TrimSpace(ep.Anchors[i].Type)
+		ep.Anchors[i].Type = strings.ToLower(strings.TrimSpace(ep.Anchors[i].Type))
 		ep.Anchors[i].Timeframe = strings.TrimSpace(ep.Anchors[i].Timeframe)
 		ep.Anchors[i].Reason = strings.TrimSpace(ep.Anchors[i].Reason)
+	}
+	trimFloatSlice := func(src []float64, max int) []float64 {
+		if len(src) <= max || max <= 0 {
+			return src
+		}
+		return src[:max]
+	}
+	if len(ep.KeyLevels.Support) > 3 {
+		ep.KeyLevels.Support = trimFloatSlice(ep.KeyLevels.Support, 3)
+	}
+	if len(ep.KeyLevels.Resistance) > 3 {
+		ep.KeyLevels.Resistance = trimFloatSlice(ep.KeyLevels.Resistance, 3)
 	}
 	for i := range ep.StructuralKeyLevels {
 		ep.StructuralKeyLevels[i].Type = strings.ToLower(strings.TrimSpace(ep.StructuralKeyLevels[i].Type))
@@ -978,7 +990,7 @@ func normalizeProtectionPlan(pp *AIProtectionPlan) {
 	if pp == nil {
 		return
 	}
-	pp.Mode = strings.TrimSpace(pp.Mode)
+	pp.Mode = strings.ToLower(strings.TrimSpace(pp.Mode))
 	pp.BreakEvenTrigger = strings.TrimSpace(pp.BreakEvenTrigger)
 	pp.BreakEvenAnchor = strings.TrimSpace(pp.BreakEvenAnchor)
 	for i := range pp.DrawdownRules {

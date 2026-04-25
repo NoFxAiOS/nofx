@@ -98,10 +98,11 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("## Position Sizing Guidance\n")
 	sb.WriteString("Calculate `position_size_usd` based on your confidence and the Position Value Limits above:\n")
 	sb.WriteString("- High confidence (≥85): Use 80-100%% of max position value limit\n")
-	sb.WriteString("- Medium confidence (70-84): Use 50-80%% of max position value limit\n")
-	sb.WriteString("- Low confidence (60-69): Use 30-50%% of max position value limit\n")
+	sb.WriteString("- Medium confidence (70-84): Use 65-85%% of max position value limit\n")
+	sb.WriteString("- Low confidence (60-69): Use 50-70%% of max position value limit\n")
 	sb.WriteString(fmt.Sprintf("- Example: With equity %.0f and BTC/ETH ratio %.1fx, max is %.0f USDT\n",
 		accountEquity, btcEthPosValueRatio, accountEquity*btcEthPosValueRatio))
+	sb.WriteString("- For any open decision, `position_size_usd` should normally stay close to the executable minimum/limit band. Avoid tiny probe sizes that are likely to fail validation or venue minimums.\n")
 	sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limits!\n\n")
 
 	// 4. Trading frequency (editable)

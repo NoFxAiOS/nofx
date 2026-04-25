@@ -1,0 +1,38 @@
+{
+  "scenarios": [
+    {
+      "name": "trader_create_reports_all_missing_prereqs",
+      "desc": "空白环境下创建交易员，应一次性报告所有必填槽位和依赖缺口。",
+      "turns": [
+        {
+          "user": "帮我创建一个交易员",
+          "want_all": ["名称", "交易所", "模型", "策略", "当前还没有可用交易所配置", "当前还没有可用模型配置", "当前还没有可用策略"]
+        }
+      ]
+    },
+    {
+      "name": "strategy_update_risk_control_clamp_requires_acceptance",
+      "desc": "策略参数越界时，应先给出风控收敛说明，再等待确认应用。",
+      "setup": [
+        {
+          "tool": "manage_strategy",
+          "args": {
+            "action": "create",
+            "name": "风险策略",
+            "lang": "zh"
+          }
+        }
+      ],
+      "turns": [
+        {
+          "user": "把风险策略的杠杆改成100",
+          "want_any": ["手动面板允许的范围", "按风控范围收敛"]
+        },
+        {
+          "user": "确认应用",
+          "want_any": ["确认应用", "风控范围", "已更新策略参数"]
+        }
+      ]
+    }
+  ]
+}

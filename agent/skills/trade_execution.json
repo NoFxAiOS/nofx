@@ -1,0 +1,63 @@
+{
+  "name": "trade_execution",
+  "kind": "execution",
+  "domain": "trade",
+  "description": "当用户明确要求开仓、平仓、买入、卖出，或确认待执行的大额订单时调用。负责真实下单前的安全校验、待确认订单、确认执行与交易历史查询。",
+  "intents": [
+    "下单交易",
+    "开多开空",
+    "平仓",
+    "确认大额订单",
+    "查询交易历史"
+  ],
+  "actions": {
+    "execute": {
+      "description": "创建一笔待确认交易。不会直接成交，而是先做风险检查，再给用户确认指令。",
+      "required_slots": ["action", "symbol", "quantity"],
+      "optional_slots": ["leverage", "trader_id"],
+      "needs_confirmation": true,
+      "goal": "在真实执行前先做风险检查，并给用户一个可确认的待执行订单。",
+      "dynamic_rules": [
+        "只有当用户明确要求交易时才允许进入本动作；分析、建议、解释行情都不应触发下单。",
+        "开仓数量必须大于 0，单笔数量硬上限为 1000000，超过时直接拒绝。",
+        "会先按实时价格估算名义价值；单笔名义价值硬上限为 100000 USDT，超过时直接拒绝。",
+        "若单笔名义价值达到 5000 USDT，或达到账户权益的 25%，必须标记为大额订单，要求用户发送“确认大额 trade_xxx”后才执行。",
+        "若单笔名义价值超过账户权益的 100%，直接拒绝，不允许创建待确认订单。",
+        "加密货币订单的杠杆上限受策略 btceth_max_leverage / altcoin_max_leverage 约束，默认上限为 5x；超出时直接拒绝。",
+        "BTC/ETH 单笔最大仓位价值默认不超过 5 倍账户权益，山寨币默认不超过 1 倍账户权益；若策略里有自定义比例，以策略为准。",
+        "最小仓位价值默认 12 USDT；若策略配置了 min_position_size，以策略为准。低于最小值时直接拒绝。",
+        "创建后的待确认订单默认 5 分钟有效，超时自动失效。"
+      ],
+      "success_output": "返回 trade_id、估算仓位价值、是否触发大额确认、确认命令和 5 分钟有效期。",
+      "failure_output": "用简单清楚的话说明是哪条风控挡住了，例如数量过大、仓位太小、杠杆过高、超过权益上限。"
+    },
+    "confirm_large_order": {
+      "description": "确认一笔已创建的大额待执行订单。",
+      "required_slots": ["trade_id"],
+      "needs_confirmation": true,
+      "goal": "在用户明确确认后，执行已通过初步检查的大额订单。",
+      "dynamic_rules": [
+        "用户必须发送“确认大额 trade_xxx”或“confirm large trade_xxx”才能执行大额订单。",
+        "若订单已过期、已不存在，或 trade_id 无效，要直接说明这笔订单已经失效。",
+        "若用户只发送普通确认，但订单被标记为大额订单，必须继续要求“大额确认”，不能直接放行。"
+      ],
+      "success_output": "明确告知订单已执行，并展示方向、品种、数量。",
+      "failure_output": "明确说明订单已过期、风控未通过，或执行失败原因。"
+    },
+    "query_history": {
+      "description": "查询最近的交易历史。",
+      "optional_slots": ["limit", "trader_id"],
+      "goal": "让用户快速查看最近成交记录和交易结果。",
+      "dynamic_rules": [
+        "优先返回最近几笔最重要的交易，不要一次性给太长的开发者原始日志。",
+        "若当前没有交易记录，要直接说明当前还没有成交记录。"
+      ],
+      "success_output": "返回最近交易记录摘要，包括方向、品种、时间和结果。",
+      "failure_output": "若没有记录或查询失败，要明确告知用户。"
+    }
+  },
+  "tool_mapping": {
+    "execute": "execute_trade",
+    "query_history": "get_trade_history"
+  }
+}

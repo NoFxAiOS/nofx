@@ -11,11 +11,27 @@ import (
 func (s *Server) RegisterAgentHandler(h *agent.WebHandler) {
 	// Chat requires auth — can trigger trades and access account data
 	s.router.POST("/api/agent/chat", s.authMiddleware(), func(c *gin.Context) {
-		req := c.Request.WithContext(agent.WithStoreUserID(c.Request.Context(), c.GetString("user_id")))
+		isAdmin := c.GetString("user_id") == "admin"
+		ctx := agent.WithStoreUserID(c.Request.Context(), c.GetString("user_id"))
+		ctx = agent.WithSessionPolicy(ctx, agent.SessionPolicy{
+			Authenticated:           true,
+			IsAdmin:                 isAdmin,
+			CanExecuteTrade:         isAdmin,
+			CanViewSensitiveSecrets: false,
+		})
+		req := c.Request.WithContext(ctx)
 		h.HandleChat(c.Writer, req)
 	})
 	s.router.POST("/api/agent/chat/stream", s.authMiddleware(), func(c *gin.Context) {
-		req := c.Request.WithContext(agent.WithStoreUserID(c.Request.Context(), c.GetString("user_id")))
+		isAdmin := c.GetString("user_id") == "admin"
+		ctx := agent.WithStoreUserID(c.Request.Context(), c.GetString("user_id"))
+		ctx = agent.WithSessionPolicy(ctx, agent.SessionPolicy{
+			Authenticated:           true,
+			IsAdmin:                 isAdmin,
+			CanExecuteTrade:         isAdmin,
+			CanViewSensitiveSecrets: false,
+		})
+		req := c.Request.WithContext(ctx)
 		h.HandleChatStream(c.Writer, req)
 	})
 	// Public endpoints — read-only market data

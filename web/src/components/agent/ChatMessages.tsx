@@ -2,22 +2,7 @@ import { forwardRef } from 'react'
 import { motion } from 'framer-motion'
 import { AgentStepPanel } from './AgentStepPanel'
 import { renderMessageContent } from './MessageRenderer'
-
-interface AgentStep {
-  id: string
-  label: string
-  status: 'planning' | 'pending' | 'running' | 'completed' | 'replanned'
-  detail?: string
-}
-
-interface Message {
-  id: string
-  role: 'user' | 'bot'
-  text: string
-  time: string
-  streaming?: boolean
-  steps?: AgentStep[]
-}
+import type { AgentMessage as Message, AgentStep } from '../../types/agent'
 
 interface ChatMessagesProps {
   messages: Message[]

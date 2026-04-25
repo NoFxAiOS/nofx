@@ -2,18 +2,18 @@ package main
 
 import (
 	"log/slog"
-	"nofx/api"
 	nofxiagent "nofx/agent"
+	"nofx/api"
 	"nofx/auth"
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/logger"
 	"nofx/manager"
-	"nofx/telemetry"
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
 	"nofx/telegram"
+	"nofx/telemetry"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -121,10 +121,10 @@ func main() {
 				status = "✅ Running"
 			}
 			idShort := t.ID
-		if len(idShort) > 8 {
-			idShort = idShort[:8]
-		}
-		logger.Infof("  • %s [%s] %s - AI Model: %s, Exchange: %s",
+			if len(idShort) > 8 {
+				idShort = idShort[:8]
+			}
+			logger.Infof("  • %s [%s] %s - AI Model: %s, Exchange: %s",
 				t.Name, idShort, status, t.AIModelID, t.ExchangeID)
 		}
 	}
@@ -137,19 +137,18 @@ func main() {
 	telegramReloadCh := make(chan struct{}, 1)
 	server.SetTelegramReloadCh(telegramReloadCh)
 
+	// Start the NOFXi web agent on top of the current dev branch services.
+	nofxiAgent := nofxiagent.New(traderManager, st, nil, slog.Default())
+	agentWeb := nofxiagent.NewWebHandler(nofxiAgent, slog.Default())
+	server.RegisterAgentHandler(agentWeb)
+	nofxiAgent.Start()
+	defer nofxiAgent.Stop()
+
 	go func() {
 		if err := server.Start(); err != nil {
 			logger.Fatalf("❌ Failed to start API server: %v", err)
 		}
 	}()
-
-	// Start the NOFXi web agent on top of the current dev branch services.
-	nofxiAgent := nofxiagent.New(traderManager, st, nil, slog.Default())
-	nofxiAgent.Start()
-	defer nofxiAgent.Stop()
-
-	agentWeb := nofxiagent.NewWebHandler(nofxiAgent, slog.Default())
-	server.RegisterAgentHandler(agentWeb)
 
 	// Start Telegram bot (if TELEGRAM_BOT_TOKEN is configured)
 	go telegram.Start(cfg, st, telegramReloadCh)
@@ -169,7 +168,6 @@ func main() {
 	}
 	logger.Info("✅ HTTP server stopped")
 
-	nofxiAgent.Stop()
 	logger.Info("✅ NOFXi agent stopped")
 
 	// Stop all traders

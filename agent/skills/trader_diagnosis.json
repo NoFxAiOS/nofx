@@ -2,5 +2,23 @@
   "name": "trader_diagnosis",
   "kind": "diagnosis",
   "domain": "trader",
-  "description": "当用户反馈交易员无法启动、启动后不交易、绑定模型或交易所缺失、运行状态异常、收益或仓位表现异常时调用。适用于交易员运行过程中的排障与原因定位。不用于创建、修改、删除、启动、停止或查询交易员这类管理操作。"
+  "description": "当用户反馈交易员无法启动、启动后不交易、反复报错、绑定模型或交易所缺失、运行状态异常、收益或仓位表现异常时调用。适用于交易员运行过程中的排障与原因定位。不用于创建、修改、删除、启动、停止或查询交易员这类管理操作。",
+  "capabilities": [
+    "读取交易员当前状态、账户、持仓和最近决策记录",
+    "在用户明确指定目标交易员后，读取该交易员最近的后端日志",
+    "把错误日志、运行状态和绑定信息合并成适合新手理解的诊断结论"
+  ],
+  "dynamic_rules": [
+    "当用户问“为什么报错”“为什么不交易”“为什么停了”这类问题时，优先走诊断而不是管理类 skill。",
+    "如果已经能唯一确定目标交易员，应优先结合 get_backend_logs、持仓、状态和决策记录一起分析，而不是只看配置。",
+    "当用户表达“启动不了”“启动失败”“无法启动”“一启动就报错”“为什么启动不起来”这类启动故障时，只要目标交易员能唯一确定，就优先自动读取 get_backend_logs。",
+    "当日志中已经出现明确错误原因时，直接用人话解释原因和下一步，不要只复述原始日志。"
+  ],
+  "tool_mapping": {
+    "query_runtime_state": "get_trader_system_status",
+    "query_positions": "get_positions",
+    "query_account": "get_account_info",
+    "query_recent_decisions": "get_decisions",
+    "query_backend_logs": "get_backend_logs"
+  }
 }

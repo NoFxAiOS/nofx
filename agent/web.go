@@ -13,6 +13,14 @@ import (
 )
 
 type storeUserIDContextKey struct{}
+type sessionPolicyContextKey struct{}
+
+type SessionPolicy struct {
+	Authenticated           bool
+	IsAdmin                 bool
+	CanExecuteTrade         bool
+	CanViewSensitiveSecrets bool
+}
 
 // WithStoreUserID annotates an HTTP request context with the authenticated store user ID.
 func WithStoreUserID(ctx context.Context, storeUserID string) context.Context {
@@ -24,6 +32,17 @@ func storeUserIDFromContext(ctx context.Context) string {
 		return v
 	}
 	return "default"
+}
+
+func WithSessionPolicy(ctx context.Context, policy SessionPolicy) context.Context {
+	return context.WithValue(ctx, sessionPolicyContextKey{}, policy)
+}
+
+func sessionPolicyFromContext(ctx context.Context) SessionPolicy {
+	if v, ok := ctx.Value(sessionPolicyContextKey{}).(SessionPolicy); ok {
+		return v
+	}
+	return SessionPolicy{}
 }
 
 // validSymbolRe matches only alphanumeric trading symbols (e.g. BTCUSDT, ETH-USD).
@@ -80,7 +99,7 @@ func (w *WebHandler) HandleChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.UserID == 0 {
-		req.UserID = SessionUserIDFromKey(req.UserKey)
+		req.UserID = SessionUserIDFromKey(storeUserIDFromContext(r.Context()))
 	}
 	msg := req.Message
 	if req.Lang != "" {
@@ -93,7 +112,7 @@ func (w *WebHandler) HandleChat(rw http.ResponseWriter, r *http.Request) {
 	resp, err := w.agent.HandleMessageForStoreUser(ctx, storeUserIDFromContext(r.Context()), req.UserID, msg)
 	if err != nil {
 		w.logger.Error("agent HandleMessage failed", "error", err, "user_id", req.UserID)
-		writeJSON(rw, 500, map[string]string{"error": "Failed to process message. Please try again."})
+		writeJSON(rw, 500, map[string]string{"error": "I ran into a problem while handling that message. Please try again."})
 		return
 	}
 	writeJSON(rw, 200, map[string]string{"response": resp})
@@ -122,7 +141,7 @@ func (w *WebHandler) HandleChatStream(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.UserID == 0 {
-		req.UserID = SessionUserIDFromKey(req.UserKey)
+		req.UserID = SessionUserIDFromKey(storeUserIDFromContext(r.Context()))
 	}
 	msg := req.Message
 	if req.Lang != "" {
@@ -150,7 +169,7 @@ func (w *WebHandler) HandleChatStream(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		w.logger.Error("agent HandleMessageStream failed", "error", err, "user_id", req.UserID)
-		writeSSE(rw, flusher, "error", "Failed to process message. Please try again.")
+		writeSSE(rw, flusher, "error", "I ran into a problem while handling that message. Please try again.")
 		return
 	}
 	// Send final done event with complete response

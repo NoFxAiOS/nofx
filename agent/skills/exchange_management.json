@@ -3,30 +3,205 @@
   "kind": "management",
   "domain": "exchange",
   "description": "当用户想创建、查看、修改或删除交易所账户配置时调用。适用于用户提到交易所账户、API Key、Secret、Passphrase、测试网开关、启用状态等配置管理需求。不用于排查 invalid signature、timestamp、权限不足、白名单限制等连接或鉴权诊断问题。",
+  "field_constraints": {
+    "exchange_type": {
+      "type": "enum",
+      "required": true,
+      "values": ["binance", "bybit", "okx", "bitget", "gate", "kucoin", "hyperliquid", "aster", "lighter", "indodax"],
+      "aliases": {"币安": "binance", "欧易": "okx", "必安": "binance", "bitget": "bitget", "bitget futures": "bitget", "bitget合约": "bitget", "库币": "kucoin", "gate.io": "gate", "hyper": "hyperliquid", "印尼站": "indodax"},
+      "description": "交易所类型，必填，决定后续需要哪些凭证字段。"
+    },
+    "account_name": {
+      "type": "string",
+      "max_length": 50,
+      "description": "账户显示名称，可选，用于区分同一交易所的多个账户。"
+    },
+    "api_key": {
+      "type": "credential",
+      "pattern": "^[A-Za-z0-9_\\-]{8,}$",
+      "description": "交易所 API Key，至少 8 位字母数字。"
+    },
+    "secret_key": {
+      "type": "credential",
+      "pattern": "^([A-Za-z0-9_\\-]{8,}|(0x)?[A-Fa-f0-9]{16,})$",
+      "description": "交易所 Secret Key，至少 8 位字母数字，或十六进制格式。"
+    },
+    "passphrase": {
+      "type": "credential",
+      "required_for": ["okx"],
+      "description": "OKX 专用 Passphrase，OKX 账户启用前必须填写，其他交易所不需要。"
+    },
+    "testnet": {
+      "type": "bool",
+      "default": false,
+      "description": "是否使用测试网（沙盒环境），默认 false（主网）。"
+    },
+    "enabled": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用该交易所配置。启用前必须通过凭证完整性校验。"
+    },
+    "hyperliquid_wallet_addr": {
+      "type": "credential",
+      "required_for": ["hyperliquid"],
+      "description": "Hyperliquid 主钱包地址，Hyperliquid 账户启用前必须填写。"
+    },
+    "hyperliquid_unified_account": {
+      "type": "bool",
+      "default": false,
+      "required_for": ["hyperliquid"],
+      "description": "是否启用 Hyperliquid unified account 模式。"
+    },
+    "aster_user": {
+      "type": "credential",
+      "required_for": ["aster"],
+      "description": "Aster 用户地址，Aster 账户启用前必须填写。"
+    },
+    "aster_signer": {
+      "type": "credential",
+      "required_for": ["aster"],
+      "description": "Aster Signer 地址，Aster 账户启用前必须填写。"
+    },
+    "aster_private_key": {
+      "type": "credential",
+      "required_for": ["aster"],
+      "description": "Aster 私钥，Aster 账户启用前必须填写。"
+    },
+    "lighter_wallet_addr": {
+      "type": "credential",
+      "required_for": ["lighter"],
+      "description": "Lighter 钱包地址，Lighter 账户启用前必须填写。"
+    },
+    "lighter_private_key": {
+      "type": "credential",
+      "required_for": ["lighter"],
+      "description": "Lighter 私钥，某些 Lighter 账户模式下启用前必须填写。"
+    },
+    "lighter_api_key_private_key": {
+      "type": "credential",
+      "required_for": ["lighter"],
+      "description": "Lighter API Key 私钥，Lighter 账户启用前必须填写。"
+    },
+    "lighter_api_key_index": {
+      "type": "int",
+      "min": 0,
+      "max": 255,
+      "required_for": ["lighter"],
+      "description": "Lighter API Key Index，范围 0～255，超出范围自动收敛并告知用户。"
+    }
+  },
+  "validation_rules": [
+    "api_key 格式：至少 8 位字母数字，不符合时提示用户重新输入完整 Key。",
+    "secret_key 格式：至少 8 位字母数字，或十六进制格式，不符合时提示用户重新输入。",
+    "OKX 账户启用前必须填写 passphrase，否则拒绝启用并提示补填。",
+    "Bitget/KuCoin 页面流程里也需要 passphrase，缺失时应明确提示补填。",
+    "Hyperliquid 创建/更新时应与手动页面保持一致：至少收集 api_key + hyperliquid_wallet_addr。",
+    "Hyperliquid 账户启用前必须填写 hyperliquid_wallet_addr。",
+    "若用户使用 Hyperliquid unified account 模式，应明确记录 hyperliquid_unified_account 开关状态。",
+    "Aster 账户启用前必须填写 aster_user、aster_signer、aster_private_key 三个字段。",
+    "Aster 账户启用前必须填写 aster_user、aster_signer、aster_private_key 三个字段，任一缺失都不能启用。",
+    "Lighter 账户启用前必须填写 lighter_wallet_addr + lighter_api_key_private_key；若当前账户模式还依赖 lighter_private_key，也要先补齐后再启用。",
+    "lighter_api_key_index 超出 0～255 时自动收敛到边界值并告知用户。",
+    "删除操作不可逆，必须先向用户确认再执行。"
+  ],
+  "per_exchange_required_fields": {
+    "binance":      ["api_key", "secret_key"],
+    "okx":          ["api_key", "secret_key", "passphrase"],
+    "bybit":        ["api_key", "secret_key"],
+    "bitget":       ["api_key", "secret_key", "passphrase"],
+    "gate":         ["api_key", "secret_key"],
+    "kucoin":       ["api_key", "secret_key", "passphrase"],
+    "indodax":      ["api_key", "secret_key"],
+    "hyperliquid":  ["api_key", "hyperliquid_wallet_addr"],
+    "aster":        ["aster_user", "aster_signer", "aster_private_key"],
+    "lighter":      ["lighter_wallet_addr", "lighter_api_key_private_key"]
+  },
   "actions": {
     "create": {
-      "description": "创建新的交易所配置。",
-      "required_slots": ["exchange_type"],
-      "optional_slots": ["account_name", "api_key", "secret_key", "passphrase", "testnet"]
+      "description": "创建新的交易所配置。根据 exchange_type 决定需要收集哪些凭证字段。",
+      "required_slots": ["exchange_type", "account_name"],
+      "optional_slots": ["account_name", "api_key", "secret_key", "passphrase", "testnet", "hyperliquid_wallet_addr", "hyperliquid_unified_account", "aster_user", "aster_signer", "aster_private_key", "lighter_wallet_addr", "lighter_private_key", "lighter_api_key_private_key", "lighter_api_key_index"],
+      "goal": "创建一个可供 trader 绑定使用的交易所配置。",
+      "dynamic_rules": [
+        "确认 exchange_type 后，根据 per_exchange_required_fields 决定需要追问哪些凭证字段。",
+        "Binance/Bybit/Gate/Indodax 需要 API Key + Secret；OKX/Bitget/KuCoin 还必须追问 passphrase；Hyperliquid 必须追问 api_key + 钱包地址，并允许记录 unified account 开关；Aster 必须追问 user/signer/private_key；Lighter 必须追问钱包地址和 api_key_private_key。",
+        "凭证字段格式不符时，用人话告知用户正确格式，不要静默丢弃。",
+        "若当前父任务只是缺一个可用交易所，本动作完成后应允许父任务恢复并消费新的 exchange_id。",
+        "若请求只是在启用已有交易所，不应误走 create，应改走 update_status。"
+      ],
+      "success_output": "返回新 exchange_id 和创建后的交易所配置摘要（类型、账户名、是否启用）。",
+      "failure_output": "明确指出缺失的必填字段或非法凭证格式，禁止返回含糊的成功信息。"
     },
     "update": {
-      "description": "更新已有交易所配置。",
+      "description": "更新已有交易所配置的任意可编辑字段。",
       "required_slots": ["target_ref"],
-      "optional_slots": ["account_name", "api_key", "secret_key", "passphrase", "enabled", "testnet"]
+      "optional_slots": ["account_name", "api_key", "secret_key", "passphrase", "enabled", "testnet", "hyperliquid_wallet_addr", "hyperliquid_unified_account", "aster_user", "aster_signer", "aster_private_key", "lighter_wallet_addr", "lighter_private_key", "lighter_api_key_private_key", "lighter_api_key_index"],
+      "goal": "更新一个已有交易所配置的指定字段，而不影响未提及字段。",
+      "dynamic_rules": [
+        "只更新用户明确提到的字段，不要覆盖未提及的字段。",
+        "更新凭证字段时，格式不符则提示用户重新输入。"
+      ],
+      "success_output": "返回 exchange_id 和更新后的交易所配置摘要。",
+      "failure_output": "明确指出目标交易所不存在、凭证格式非法，或仍缺哪个字段。"
+    },
+    "update_name": {
+      "description": "修改交易所配置中的账户显示名称字段。",
+      "required_slots": ["target_ref", "account_name"],
+      "goal": "修改交易所配置中的账户显示名称，而不影响其他字段。",
+      "dynamic_rules": [
+        "若用户同时提到其他字段，应优先走更通用的 update。"
+      ],
+      "success_output": "返回 exchange_id，并明确告知交易所配置已更新。",
+      "failure_output": "明确指出目标交易所不存在，或新的账户名称仍缺失。"
+    },
+    "update_status": {
+      "description": "修改交易所配置中的启用开关。启用前系统会校验凭证完整性。",
+      "required_slots": ["target_ref", "enabled"],
+      "goal": "修改交易所配置中的启用状态字段。",
+      "dynamic_rules": [
+        "启用前根据 exchange_type 校验必填凭证是否齐全，不齐全则提示用户补填后再启用。"
+      ],
+      "success_output": "返回 exchange_id，并明确告知交易所配置已更新。",
+      "failure_output": "明确指出目标交易所不存在、缺少必填凭证，或当前状态切换失败。"
     },
     "delete": {
-      "description": "删除交易所配置。",
+      "description": "删除交易所配置，不可逆操作，必须确认。",
       "required_slots": ["target_ref"],
-      "needs_confirmation": true
+      "needs_confirmation": true,
+      "goal": "删除一个交易所配置。",
+      "dynamic_rules": [
+        "必须在确认后执行，并明确提醒删除不可逆。"
+      ],
+      "success_output": "返回删除成功结果，并明确告知该交易所配置已被移除。",
+      "failure_output": "明确指出缺少确认、目标交易所不存在，或删除失败原因。"
     },
-    "query": {
-      "description": "查询交易所配置。"
+    "query_list": {
+      "description": "查询所有交易所配置列表，包含类型、账户名、启用状态。",
+      "goal": "列出当前用户可用的交易所配置，便于后续绑定或选择。",
+      "dynamic_rules": [
+        "优先返回类型、账户名、启用状态，不返回敏感凭证明文。"
+      ],
+      "success_output": "返回交易所配置列表摘要。",
+      "failure_output": "若列表为空，应明确告知当前没有交易所配置。"
+    },
+    "query_detail": {
+      "description": "查询某个交易所配置的详细信息。",
+      "required_slots": ["target_ref"],
+      "goal": "读取一个交易所配置的详细信息和当前状态。",
+      "dynamic_rules": [
+        "详情返回中只能暴露凭证存在性，不得返回凭证明文。"
+      ],
+      "success_output": "返回目标交易所配置的详细摘要。",
+      "failure_output": "明确指出目标交易所不存在，或当前引用已经失效。"
     }
   },
   "tool_mapping": {
     "create": "manage_exchange_config:create",
     "update": "manage_exchange_config:update",
+    "update_name": "manage_exchange_config:update",
+    "update_status": "manage_exchange_config:update",
     "delete": "manage_exchange_config:delete",
-    "query": "get_exchange_configs"
+    "query_list": "get_exchange_configs",
+    "query_detail": "get_exchange_configs"
   }
 }

@@ -1,9 +1,4 @@
-interface AgentStep {
-  id: string
-  label: string
-  status: 'planning' | 'pending' | 'running' | 'completed' | 'replanned'
-  detail?: string
-}
+import type { AgentStep } from '../../types/agent'
 
 interface AgentStepPanelProps {
   steps?: AgentStep[]

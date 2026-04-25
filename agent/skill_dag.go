@@ -55,6 +55,33 @@ func buildSkillDAGRegistry() map[string]SkillDAG {
 		},
 		{
 			SkillName: "trader_management",
+			Action:    "configure_strategy",
+			Steps: []SkillDAGStep{
+				{ID: "resolve_target", Kind: "resolve_target", RequiredFields: []string{"target_ref"}, Next: []string{"collect_bindings"}},
+				{ID: "collect_bindings", Kind: "collect_slot", RequiredFields: []string{"binding_update"}, OptionalFields: []string{"strategy_id"}, Next: []string{"execute_update"}},
+				{ID: "execute_update", Kind: "execute", RequiredFields: []string{"target_ref", "binding_update", "strategy_id"}, Terminal: true},
+			},
+		},
+		{
+			SkillName: "trader_management",
+			Action:    "configure_exchange",
+			Steps: []SkillDAGStep{
+				{ID: "resolve_target", Kind: "resolve_target", RequiredFields: []string{"target_ref"}, Next: []string{"collect_bindings"}},
+				{ID: "collect_bindings", Kind: "collect_slot", RequiredFields: []string{"binding_update"}, OptionalFields: []string{"exchange_id"}, Next: []string{"execute_update"}},
+				{ID: "execute_update", Kind: "execute", RequiredFields: []string{"target_ref", "binding_update", "exchange_id"}, Terminal: true},
+			},
+		},
+		{
+			SkillName: "trader_management",
+			Action:    "configure_model",
+			Steps: []SkillDAGStep{
+				{ID: "resolve_target", Kind: "resolve_target", RequiredFields: []string{"target_ref"}, Next: []string{"collect_bindings"}},
+				{ID: "collect_bindings", Kind: "collect_slot", RequiredFields: []string{"binding_update"}, OptionalFields: []string{"ai_model_id"}, Next: []string{"execute_update"}},
+				{ID: "execute_update", Kind: "execute", RequiredFields: []string{"target_ref", "binding_update", "ai_model_id"}, Terminal: true},
+			},
+		},
+		{
+			SkillName: "trader_management",
 			Action:    "start",
 			Steps: []SkillDAGStep{
 				{ID: "resolve_target", Kind: "resolve_target", RequiredFields: []string{"target_ref"}, Next: []string{"await_confirmation"}},
@@ -274,4 +301,3 @@ func listSkillDAGs() []SkillDAG {
 	}
 	return out
 }
-

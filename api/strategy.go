@@ -182,6 +182,8 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 		defaultCfg := store.GetDefaultStrategyConfig(lang)
 		req.Config = &defaultCfg
 	}
+	beforeClamp := *req.Config
+	req.Config.ClampLimits()
 
 	// Serialize configuration
 	configJSON, err := json.Marshal(req.Config)
@@ -207,6 +209,7 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 
 	// Validate configuration and collect warnings
 	warnings := validateStrategyConfig(req.Config)
+	warnings = append(warnings, store.StrategyClampWarnings(beforeClamp, *req.Config, req.Config.Language)...)
 
 	response := gin.H{
 		"id":      strategy.ID,
@@ -263,14 +266,21 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		mergedConfig = store.StrategyConfig{}
 	}
 
-	// Apply incoming config on top: top-level sections present in the request overwrite
-	// their corresponding existing section; absent sections remain unchanged.
+	// Apply incoming config on top while preserving nested fields that were not sent.
 	if len(req.Config) > 0 && string(req.Config) != "null" {
-		if err := json.Unmarshal(req.Config, &mergedConfig); err != nil {
+		var patch map[string]any
+		if err := json.Unmarshal(req.Config, &patch); err != nil {
+			SafeBadRequest(c, "Invalid config JSON")
+			return
+		}
+		mergedConfig, err = store.MergeStrategyConfig(mergedConfig, patch)
+		if err != nil {
 			SafeBadRequest(c, "Invalid config JSON")
 			return
 		}
 	}
+	beforeClamp := mergedConfig
+	mergedConfig.ClampLimits()
 
 	// Preserve existing name/description when not supplied
 	name := req.Name
@@ -324,6 +334,7 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 
 	// Validate merged configuration and collect warnings
 	warnings := validateStrategyConfig(&mergedConfig)
+	warnings = append(warnings, store.StrategyClampWarnings(beforeClamp, mergedConfig, mergedConfig.Language)...)
 
 	response := gin.H{"message": "Strategy updated successfully"}
 	if len(warnings) > 0 {

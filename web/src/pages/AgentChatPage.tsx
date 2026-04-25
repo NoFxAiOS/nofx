@@ -21,9 +21,8 @@ import { ChatInput, type ChatInputHandle } from '../components/agent/ChatInput'
 import { UserPreferencesPanel } from '../components/agent/UserPreferencesPanel'
 import {
   useAgentChatStore,
-  type AgentMessage as Message,
-  type AgentStep,
 } from '../stores/agentChatStore'
+import type { AgentMessage as Message, AgentStep } from '../types/agent'
 import {
   chatStorageKey,
   clearAgentMessages,
@@ -35,8 +34,345 @@ import {
 } from '../lib/agentChatStorage'
 
 let msgIdCounter = 0
+let activeStreamAbortController: AbortController | null = null
+let activeStreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null
+
 function nextId() {
   return `msg-${Date.now()}-${++msgIdCounter}`
+}
+
+function cleanupActiveAgentStream() {
+  activeStreamAbortController?.abort()
+  activeStreamAbortController = null
+  void activeStreamReader?.cancel().catch(() => {
+    // Ignore stream cancellation races during teardown.
+  })
+  activeStreamReader = null
+}
+
+function persistMessagesSnapshotForUser(userId?: string) {
+  const { hydrated, messages } = useAgentChatStore.getState()
+  if (!hydrated) return
+  const persistable = prepareAgentMessagesForPersistence(messages).slice(-100)
+  persistAgentMessages(window.localStorage, userId, persistable)
+}
+
+function replaceMessagesInStore(nextMessages: Message[], userId?: string) {
+  useAgentChatStore.getState().setMessages(nextMessages)
+  persistMessagesSnapshotForUser(userId)
+}
+
+function patchMessagesInStore(
+  updater: (prev: Message[]) => Message[],
+  userId?: string
+) {
+  const nextMessages = updater(useAgentChatStore.getState().messages)
+  useAgentChatStore.getState().updateMessages(() => nextMessages)
+  persistMessagesSnapshotForUser(userId)
+}
+
+async function runAgentStream(params: {
+  text: string
+  token?: string | null
+  language: string
+  storageUserId?: string
+  onDone?: () => void
+}) {
+  const { text, token, language, storageUserId, onDone } = params
+  if (!text || useAgentChatStore.getState().loading) return
+
+  const time = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  const userMsg: Message = { id: nextId(), role: 'user', text, time }
+  const botId = nextId()
+  const nextConversation: Message[] = [
+    userMsg,
+    {
+      id: botId,
+      role: 'bot',
+      text: '',
+      time: '',
+      streaming: true,
+    },
+  ]
+
+  replaceMessagesInStore(
+    text.trim() === '/clear'
+      ? nextConversation
+      : [...useAgentChatStore.getState().messages, ...nextConversation],
+    storageUserId
+  )
+  useAgentChatStore.getState().setLoading(true)
+
+  if (text.trim() === '/clear') {
+    try {
+      clearAgentMessages(window.localStorage, storageUserId)
+    } catch {
+      // Ignore storage cleanup failure.
+    }
+  }
+
+  let controller: AbortController | null = null
+  try {
+    activeStreamAbortController?.abort()
+    controller = new AbortController()
+    activeStreamAbortController = controller
+
+    const res = await fetch('/api/agent/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message: text, lang: language }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.error || `Server error (${res.status})`)
+    }
+
+    const reader = res.body?.getReader()
+    const decoder = new TextDecoder()
+    if (!reader) throw new Error('No response body')
+    activeStreamReader = reader
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        void reader.cancel().catch(() => {
+          // Ignore double-cancel races.
+        })
+      },
+      { once: true }
+    )
+
+    let buffer = ''
+    let finalText = ''
+    let stepCounter = 0
+    const now = () =>
+      new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    const mergeStreamText = (current: string, incoming: string) => {
+      if (!incoming) return current
+      if (!current) return incoming
+      if (incoming === current) return current
+      if (incoming.startsWith(current)) return incoming
+      if (current.startsWith(incoming)) return current
+      return current + incoming
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      let eventType = ''
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim()
+        } else if (line.startsWith('data: ') && eventType) {
+          const rawData = line.slice(6)
+          let data: string
+          try {
+            data = JSON.parse(rawData)
+          } catch {
+            eventType = ''
+            continue
+          }
+          if (eventType === 'delta') {
+            finalText = mergeStreamText(finalText, data)
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? { ...m, text: finalText, time: now() }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'plan') {
+            const parsedSteps = parsePlanSteps(data)
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: parsedSteps.length > 0 ? parsedSteps : m.steps,
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'step_start') {
+            stepCounter += 1
+            const nextStep = parseStepEvent(data, stepCounter)
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: appendStep(m.steps, nextStep),
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'step_complete') {
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: markLatestRunningCompleted(m.steps, data),
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'replan') {
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: appendStep(m.steps, {
+                          id: `replan-${Date.now()}`,
+                          label: data,
+                          status: 'replanned',
+                          detail: data,
+                        }),
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'tool') {
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: appendStep(m.steps, {
+                          id: `tool-${Date.now()}`,
+                          label: `Tool: ${data}`,
+                          status: 'running',
+                          detail: data,
+                        }),
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'done') {
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        text: finalText || m.text || data,
+                        time: now(),
+                        streaming: false,
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'error') {
+            throw new Error(data)
+          }
+          eventType = ''
+        }
+      }
+    }
+
+    patchMessagesInStore(
+      (prev) =>
+        prev.map((m) =>
+          m.id === botId && m.streaming
+            ? {
+                ...m,
+                text: finalText || m.text || 'No response',
+                streaming: false,
+                time: now(),
+              }
+            : m
+        ),
+      storageUserId
+    )
+    window.dispatchEvent(new CustomEvent('agent-preferences-refresh'))
+    window.dispatchEvent(new CustomEvent('agent-config-refresh'))
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      patchMessagesInStore(
+        (prev) =>
+          prev.map((m) =>
+            m.id === botId
+              ? {
+                  ...m,
+                  streaming: false,
+                  time:
+                    m.time ||
+                    new Date().toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                }
+              : m
+          ),
+        storageUserId
+      )
+    } else {
+      patchMessagesInStore(
+        (prev) =>
+          prev.map((m) =>
+            m.id === botId
+              ? {
+                  ...m,
+                  text: '⚠️ Error: ' + e.message,
+                  time: new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  streaming: false,
+                }
+              : m
+          ),
+        storageUserId
+      )
+    }
+  }
+
+  if (controller && activeStreamAbortController === controller) {
+    activeStreamAbortController = null
+  }
+  if (activeStreamReader) {
+    try {
+      activeStreamReader.releaseLock()
+    } catch {
+      // Ignore lock-release races when the stream is already closed.
+    }
+    activeStreamReader = null
+  }
+  useAgentChatStore.getState().setLoading(false)
+  onDone?.()
 }
 
 function appendStep(
@@ -63,7 +399,9 @@ function parsePlanSteps(data: string): AgentStep[] {
 }
 
 function parseStepEvent(data: string, fallbackIndex: number): AgentStep {
-  const match = data.match(/Step\s+(\d+)\/(\d+):\s+(.+)$/i) || data.match(/步骤\s+(\d+)\/(\d+):\s+(.+)$/)
+  const match =
+    data.match(/Step\s+(\d+)\/(\d+):\s+(.+)$/i) ||
+    data.match(/步骤\s+(\d+)\/(\d+):\s+(.+)$/)
   if (match) {
     const id = `action-${match[1]}`
     return {
@@ -81,7 +419,10 @@ function parseStepEvent(data: string, fallbackIndex: number): AgentStep {
   }
 }
 
-function markLatestRunningCompleted(existing: AgentStep[] | undefined, detail: string): AgentStep[] {
+function markLatestRunningCompleted(
+  existing: AgentStep[] | undefined,
+  detail: string
+): AgentStep[] {
   const prev = existing ?? []
   for (let i = prev.length - 1; i >= 0; i--) {
     if (prev[i].status === 'running') {
@@ -96,20 +437,18 @@ function markLatestRunningCompleted(existing: AgentStep[] | undefined, detail: s
 export function AgentChatPage() {
   const { language } = useLanguage()
   const { token, user } = useAuth()
-  const [storageUserId, setStorageUserId] = useState<string | undefined>(() => getStoredAuthUserId())
+  const [storageUserId, setStorageUserId] = useState<string | undefined>(() =>
+    getStoredAuthUserId()
+  )
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024)
   const storageKey = chatStorageKey(user?.id || storageUserId)
   const messages = useAgentChatStore((state) => state.messages)
   const loading = useAgentChatStore((state) => state.loading)
   const historyHydrated = useAgentChatStore((state) => state.hydrated)
   const activeUserId = useAgentChatStore((state) => state.activeUserId)
-  const setMessages = useAgentChatStore((state) => state.setMessages)
-  const updateMessages = useAgentChatStore((state) => state.updateMessages)
-  const setLoading = useAgentChatStore((state) => state.setLoading)
   const resetForUser = useAgentChatStore((state) => state.resetForUser)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputHandle>(null)
-  const abortRef = useRef<AbortController | null>(null)
 
   // Sidebar section collapse state
   const [sections, setSections] = useState({
@@ -145,38 +484,30 @@ export function AgentChatPage() {
       nextUserId,
       loadAgentMessages<Message>(window.localStorage, nextUserId).messages
     )
-  }, [activeUserId, historyHydrated, resetForUser, storageKey, storageUserId, user?.id])
+  }, [
+    activeUserId,
+    historyHydrated,
+    resetForUser,
+    storageKey,
+    storageUserId,
+    user?.id,
+  ])
 
   // Persist chat history locally so page navigation does not wipe the conversation.
   useEffect(() => {
     if (!historyHydrated) return
     try {
-      const persistable = prepareAgentMessagesForPersistence(messages).slice(-100)
-      persistAgentMessages(window.localStorage, user?.id || storageUserId, persistable)
+      const persistable =
+        prepareAgentMessagesForPersistence(messages).slice(-100)
+      persistAgentMessages(
+        window.localStorage,
+        user?.id || storageUserId,
+        persistable
+      )
     } catch {
       // Ignore storage failures and keep the chat usable.
     }
   }, [historyHydrated, messages, storageKey, storageUserId, user?.id])
-
-  const persistMessagesSnapshot = (nextMessages: Message[]) => {
-    const persistable = prepareAgentMessagesForPersistence(nextMessages).slice(-100)
-    persistAgentMessages(window.localStorage, user?.id || storageUserId, persistable)
-  }
-
-  const replaceMessages = (nextMessages: Message[]) => {
-    setMessages(nextMessages)
-    if (historyHydrated) {
-      persistMessagesSnapshot(nextMessages)
-    }
-  }
-
-  const patchMessages = (updater: (prev: Message[]) => Message[]) => {
-    const nextMessages = updater(useAgentChatStore.getState().messages)
-    updateMessages(() => nextMessages)
-    if (useAgentChatStore.getState().hydrated) {
-      persistMessagesSnapshot(nextMessages)
-    }
-  }
 
   // Responsive sidebar
   useEffect(() => {
@@ -185,6 +516,12 @@ export function AgentChatPage() {
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    const handlePageHide = () => cleanupActiveAgentStream()
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
   }, [])
 
   // Escape to close sidebar on mobile
@@ -199,253 +536,33 @@ export function AgentChatPage() {
   }, [])
 
   const send = async (text: string) => {
-    if (!text || loading) return
-    const time = new Date().toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
+    await runAgentStream({
+      text,
+      token,
+      language,
+      storageUserId: user?.id || storageUserId,
+      onDone: () => chatInputRef.current?.focus(),
     })
-    const userMsg: Message = { id: nextId(), role: 'user', text, time }
-    const botId = nextId()
-    const nextConversation: Message[] = [
-      userMsg,
-      {
-        id: botId,
-        role: 'bot',
-        text: '',
-        time: '',
-        streaming: true,
-      },
-    ]
-    replaceMessages(
-      text.trim() === '/clear'
-        ? nextConversation
-        : [...useAgentChatStore.getState().messages, ...nextConversation]
-    )
-    setLoading(true)
-
-    if (text.trim() === '/clear') {
-      try {
-        clearAgentMessages(window.localStorage, user?.id || storageUserId)
-      } catch {
-        // Ignore storage cleanup failure.
-      }
-    }
-
-    try {
-      // Abort any in-flight request
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
-
-      const res = await fetch('/api/agent/chat/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message: text, lang: language, user_key: user?.id }),
-        signal: controller.signal,
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.error || `Server error (${res.status})`)
-      }
-
-      // Real SSE streaming
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      if (!reader) throw new Error('No response body')
-
-      let buffer = ''
-      let finalText = ''
-      let stepCounter = 0
-      const now = () =>
-        new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-        let eventType = ''
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim()
-          } else if (line.startsWith('data: ') && eventType) {
-            const rawData = line.slice(6)
-            let data: string
-            try {
-              data = JSON.parse(rawData)
-            } catch {
-              // Ignore malformed SSE data lines
-              eventType = ''
-              continue
-            }
-            if (eventType === 'delta') {
-              // data is the accumulated text so far
-              finalText = data
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? { ...m, text: data, time: now() }
-                    : m
-                )
-              )
-            } else if (eventType === 'plan') {
-              const parsedSteps = parsePlanSteps(data)
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: parsedSteps.length > 0 ? parsedSteps : m.steps,
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'step_start') {
-              stepCounter += 1
-              const nextStep = parseStepEvent(data, stepCounter)
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: appendStep(m.steps, nextStep),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'step_complete') {
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: markLatestRunningCompleted(m.steps, data),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'replan') {
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: appendStep(m.steps, {
-                          id: `replan-${Date.now()}`,
-                          label: data,
-                          status: 'replanned',
-                          detail: data,
-                        }),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (
-              eventType === 'tool'
-            ) {
-              // Show tool being called as a status indicator
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: appendStep(m.steps, {
-                          id: `tool-${Date.now()}`,
-                          label: `Tool: ${data}`,
-                          status: 'running',
-                          detail: data,
-                        }),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'done') {
-              finalText = data
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? { ...m, text: data, time: now(), streaming: false }
-                    : m
-                )
-              )
-            } else if (eventType === 'error') {
-              throw new Error(data)
-            }
-            eventType = ''
-          }
-        }
-      }
-
-      // If stream ended without a "done" event, mark as done
-      patchMessages((prev) =>
-        prev.map((m) =>
-          m.id === botId && m.streaming
-            ? {
-                ...m,
-                text: finalText || m.text || 'No response',
-                streaming: false,
-                time: now(),
-              }
-            : m
-        )
-      )
-      window.dispatchEvent(new CustomEvent('agent-preferences-refresh'))
-      window.dispatchEvent(new CustomEvent('agent-config-refresh'))
-    } catch (e: any) {
-      if (e.name === 'AbortError') {
-        // Request was cancelled (e.g. user sent a new message), clean up silently
-        patchMessages((prev) => prev.filter((m) => m.id !== botId))
-      } else {
-        patchMessages((prev) =>
-          prev.map((m) =>
-            m.id === botId
-              ? {
-                  ...m,
-                  text: '⚠️ Error: ' + e.message,
-                  time: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                  streaming: false,
-                }
-              : m
-          )
-        )
-      }
-    }
-    setLoading(false)
-    chatInputRef.current?.focus()
   }
 
-  const quickActions = language === 'zh'
-    ? [
-        { label: '💼 持仓', cmd: '/positions' },
-        { label: '💰 余额', cmd: '/balance' },
-        { label: '📋 Traders', cmd: '/traders' },
-        { label: '🧹 清除记忆', cmd: '/clear' },
-        { label: '❓ 帮助', cmd: '/help' },
-      ]
-    : [
-        { label: '💼 Positions', cmd: '/positions' },
-        { label: '💰 Balance', cmd: '/balance' },
-        { label: '📋 Traders', cmd: '/traders' },
-        { label: '🧹 Clear', cmd: '/clear' },
-        { label: '❓ Help', cmd: '/help' },
-      ]
+  const quickActions =
+    language === 'zh'
+      ? [
+          { label: '💼 持仓', cmd: '/positions' },
+          { label: '💰 余额', cmd: '/balance' },
+          { label: '📋 Traders', cmd: '/traders' },
+          { label: '📊 系统状态', cmd: '/status' },
+          { label: '🧹 清除记忆', cmd: '/clear' },
+          { label: '❓ 帮助', cmd: '/help' },
+        ]
+      : [
+          { label: '💼 Positions', cmd: '/positions' },
+          { label: '💰 Balance', cmd: '/balance' },
+          { label: '📋 Traders', cmd: '/traders' },
+          { label: '📊 Status', cmd: '/status' },
+          { label: '🧹 Clear', cmd: '/clear' },
+          { label: '❓ Help', cmd: '/help' },
+        ]
 
   const sidebarSections = [
     {
@@ -548,8 +665,12 @@ export function AgentChatPage() {
               transition: 'color 0.2s',
             }}
             title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#8a8aa0' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = '#4c4c62' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#8a8aa0'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#4c4c62'
+            }}
           >
             {sidebarOpen ? (
               <PanelRightClose size={18} />
@@ -648,7 +769,8 @@ export function AgentChatPage() {
                       fontFamily: 'inherit',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                      e.currentTarget.style.background =
+                        'rgba(255,255,255,0.03)'
                       e.currentTarget.style.color = '#a0a0b0'
                     }}
                     onMouseLeave={(e) => {
@@ -658,7 +780,12 @@ export function AgentChatPage() {
                   >
                     {section.icon}
                     <span>{section.title}</span>
-                    <span style={{ marginLeft: 'auto', transition: 'transform 0.2s' }}>
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        transition: 'transform 0.2s',
+                      }}
+                    >
                       {sections[section.key] ? (
                         <ChevronDown size={14} />
                       ) : (
@@ -675,9 +802,7 @@ export function AgentChatPage() {
                         transition={{ duration: 0.15 }}
                         style={{ overflow: 'hidden', padding: '0 4px' }}
                       >
-                        <div style={{ paddingTop: 4 }}>
-                          {section.component}
-                        </div>
+                        <div style={{ paddingTop: 4 }}>{section.component}</div>
                       </motion.div>
                     )}
                   </AnimatePresence>

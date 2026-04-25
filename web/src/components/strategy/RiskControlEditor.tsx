@@ -38,7 +38,7 @@ export function RiskControlEditor({
         <div className="grid grid-cols-1 gap-4 mb-4">
           <div
             className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+            style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
               {ts(riskControl.maxPositions, language)}
@@ -46,22 +46,14 @@ export function RiskControlEditor({
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
               {ts(riskControl.maxPositionsDesc, language)}
             </p>
-            <input
-              type="number"
-              value={config.max_positions ?? 3}
-              onChange={(e) =>
-                updateField('max_positions', parseInt(e.target.value) || 3)
-              }
-              disabled={disabled}
-              min={1}
-              max={3}
-              className="w-32 px-3 py-2 rounded"
-              style={{
-                background: '#1E2329',
-                border: '1px solid #2B3139',
-                color: '#EAECEF',
-              }}
-            />
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-lg" style={{ color: '#0ECB81' }}>
+                {config.max_positions ?? 3}
+              </span>
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                System enforced
+              </span>
+            </div>
           </div>
         </div>
 
@@ -156,23 +148,14 @@ export function RiskControlEditor({
               {ts(riskControl.btcEthPositionValueRatioDesc, language)}
             </p>
             <div className="flex items-center gap-2">
-              <input
-                type="range"
-                value={config.btc_eth_max_position_value_ratio ?? 5}
-                onChange={(e) =>
-                  updateField('btc_eth_max_position_value_ratio', parseFloat(e.target.value))
-                }
-                disabled={disabled}
-                min={0.5}
-                max={10}
-                step={0.5}
-                className="flex-1 accent-green-500"
-              />
               <span
                 className="w-12 text-center font-mono"
                 style={{ color: '#0ECB81' }}
               >
                 {config.btc_eth_max_position_value_ratio ?? 5}x
+              </span>
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                System enforced
               </span>
             </div>
           </div>
@@ -188,23 +171,14 @@ export function RiskControlEditor({
               {ts(riskControl.altcoinPositionValueRatioDesc, language)}
             </p>
             <div className="flex items-center gap-2">
-              <input
-                type="range"
-                value={config.altcoin_max_position_value_ratio ?? 1}
-                onChange={(e) =>
-                  updateField('altcoin_max_position_value_ratio', parseFloat(e.target.value))
-                }
-                disabled={disabled}
-                min={0.5}
-                max={10}
-                step={0.5}
-                className="flex-1 accent-green-500"
-              />
               <span
                 className="w-12 text-center font-mono"
                 style={{ color: '#0ECB81' }}
               >
                 {config.altcoin_max_position_value_ratio ?? 1}x
+              </span>
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                System enforced
               </span>
             </div>
           </div>
@@ -264,19 +238,11 @@ export function RiskControlEditor({
               {ts(riskControl.maxMarginUsageDesc, language)}
             </p>
             <div className="flex items-center gap-2">
-              <input
-                type="range"
-                value={(config.max_margin_usage ?? 0.9) * 100}
-                onChange={(e) =>
-                  updateField('max_margin_usage', parseInt(e.target.value) / 100)
-                }
-                disabled={disabled}
-                min={10}
-                max={100}
-                className="flex-1 accent-green-500"
-              />
               <span className="w-12 text-center font-mono" style={{ color: '#0ECB81' }}>
                 {Math.round((config.max_margin_usage ?? 0.9) * 100)}%
+              </span>
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                System enforced
               </span>
             </div>
           </div>
@@ -295,7 +261,7 @@ export function RiskControlEditor({
         <div className="grid grid-cols-2 gap-4">
           <div
             className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+            style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
               {ts(riskControl.minPositionSize, language)}
@@ -303,25 +269,15 @@ export function RiskControlEditor({
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
               {ts(riskControl.minPositionSizeDesc, language)}
             </p>
-            <div className="flex items-center">
-              <input
-                type="number"
-                value={config.min_position_size ?? 12}
-                onChange={(e) =>
-                  updateField('min_position_size', parseFloat(e.target.value) || 12)
-                }
-                disabled={disabled}
-                min={10}
-                max={1000}
-                className="w-24 px-3 py-2 rounded"
-                style={{
-                  background: '#1E2329',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
-              />
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-lg" style={{ color: '#0ECB81' }}>
+                {config.min_position_size ?? 12}
+              </span>
               <span className="ml-2" style={{ color: '#848E9C' }}>
                 USDT
+              </span>
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                System enforced
               </span>
             </div>
           </div>

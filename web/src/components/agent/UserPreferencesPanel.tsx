@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { httpClient, ApiError } from '../../lib/httpClient'
 
 interface Preference {
   id: string
@@ -27,12 +28,11 @@ export function UserPreferencesPanel({ token, language }: Props) {
 
     setLoading(true)
     try {
-      const res = await fetch('/api/agent/preferences', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) throw new Error('Failed to load preferences')
-      const data = await res.json()
-      setPreferences(Array.isArray(data.preferences) ? data.preferences : [])
+      const resp = await httpClient.get<{ preferences: Preference[] }>(
+        '/api/agent/preferences'
+      )
+      const prefs = resp.data?.preferences
+      setPreferences(Array.isArray(prefs) ? prefs : [])
       setError(null)
     } catch {
       setError(language === 'zh' ? '加载偏好失败' : 'Failed to load')
@@ -70,21 +70,19 @@ export function UserPreferencesPanel({ token, language }: Props) {
 
     setSaving(true)
     try {
-      const res = await fetch('/api/agent/preferences', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ text }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'save failed')
-      setPreferences(Array.isArray(data.preferences) ? data.preferences : [])
+      const resp = await httpClient.post<{ preferences: Preference[] }>(
+        '/api/agent/preferences',
+        { text }
+      )
+      const prefs = resp.data?.preferences
+      setPreferences(Array.isArray(prefs) ? prefs : [])
       setDraft('')
       setError(null)
-    } catch {
-      setError(language === 'zh' ? '保存偏好失败' : 'Failed to save')
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : ''
+      setError(
+        message || (language === 'zh' ? '保存偏好失败' : 'Failed to save')
+      )
     } finally {
       setSaving(false)
     }
@@ -94,13 +92,11 @@ export function UserPreferencesPanel({ token, language }: Props) {
     if (!token || saving) return
     setSaving(true)
     try {
-      const res = await fetch(`/api/agent/preferences/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'delete failed')
-      setPreferences(Array.isArray(data.preferences) ? data.preferences : [])
+      const resp = await httpClient.delete<{ preferences: Preference[] }>(
+        `/api/agent/preferences/${encodeURIComponent(id)}`
+      )
+      const prefs = resp.data?.preferences
+      setPreferences(Array.isArray(prefs) ? prefs : [])
       setError(null)
     } catch {
       setError(language === 'zh' ? '删除偏好失败' : 'Failed to delete')
@@ -123,7 +119,14 @@ export function UserPreferencesPanel({ token, language }: Props) {
         <div style={{ color: '#d7d7e0', fontSize: 12, fontWeight: 600 }}>
           {language === 'zh' ? '长期偏好' : 'Persistent Preferences'}
         </div>
-        <div style={{ color: '#77778d', fontSize: 11, lineHeight: 1.5, marginTop: 4 }}>
+        <div
+          style={{
+            color: '#77778d',
+            fontSize: 11,
+            lineHeight: 1.5,
+            marginTop: 4,
+          }}
+        >
           {language === 'zh'
             ? '把长期偏好固定下来，比如“默认用中文回答”或“优先关注 BTC 和 ETH”。'
             : 'Pin durable preferences the agent should keep in mind, like answering in Chinese or focusing on BTC and ETH.'}
@@ -138,7 +141,11 @@ export function UserPreferencesPanel({ token, language }: Props) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') void addPreference()
           }}
-          placeholder={language === 'zh' ? '例如：默认用中文回答，优先关注 BTC、ETH' : 'Example: Answer in Chinese and focus on BTC, ETH'}
+          placeholder={
+            language === 'zh'
+              ? '例如：默认用中文回答，优先关注 BTC、ETH'
+              : 'Example: Answer in Chinese and focus on BTC, ETH'
+          }
           style={{
             flex: 1,
             background: 'rgba(255,255,255,0.03)',
@@ -154,7 +161,10 @@ export function UserPreferencesPanel({ token, language }: Props) {
           onClick={() => void addPreference()}
           disabled={!draft.trim() || saving}
           style={{
-            background: draft.trim() && !saving ? 'rgba(240,185,11,0.12)' : 'rgba(255,255,255,0.04)',
+            background:
+              draft.trim() && !saving
+                ? 'rgba(240,185,11,0.12)'
+                : 'rgba(255,255,255,0.04)',
             color: draft.trim() && !saving ? '#F0B90B' : '#6d6d82',
             border: '1px solid rgba(240,185,11,0.14)',
             borderRadius: 8,
@@ -168,7 +178,9 @@ export function UserPreferencesPanel({ token, language }: Props) {
       </div>
 
       {error && (
-        <div style={{ color: '#f08a8a', fontSize: 11, marginBottom: 8 }}>{error}</div>
+        <div style={{ color: '#f08a8a', fontSize: 11, marginBottom: 8 }}>
+          {error}
+        </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -196,7 +208,14 @@ export function UserPreferencesPanel({ token, language }: Props) {
                 border: '1px solid rgba(255,255,255,0.04)',
               }}
             >
-              <div style={{ flex: 1, color: '#d7d7e0', fontSize: 12, lineHeight: 1.5 }}>
+              <div
+                style={{
+                  flex: 1,
+                  color: '#d7d7e0',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
                 {pref.text}
               </div>
               <button

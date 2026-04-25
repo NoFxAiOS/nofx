@@ -17,6 +17,19 @@ const (
 	MaxTimeframes     = 4
 	MinKlineCount     = 10
 	MaxKlineCount     = 30
+	MinLeverage       = 1
+	MaxBTCETHLeverage = 20
+	MaxAltLeverage    = 20
+	MinPositionRatio  = 0.5
+	MaxPositionRatio  = 10.0
+	MinRiskReward     = 1.0
+	MaxRiskReward     = 10.0
+	MinMarginUsage    = 0.1
+	MaxMarginUsage    = 1.0
+	MinPositionSize   = 10.0
+	MaxPositionSize   = 1000.0
+	MinConfidence     = 50
+	MaxConfidence     = 100
 )
 
 // ClampLimits enforces product-level limits on strategy config to prevent token overflow.
@@ -54,10 +67,143 @@ func (c *StrategyConfig) ClampLimits() {
 	}
 
 	// Clamp max positions
+	if c.RiskControl.MaxPositions < 1 {
+		c.RiskControl.MaxPositions = 1
+	}
 	if c.RiskControl.MaxPositions > MaxPositions {
 		c.RiskControl.MaxPositions = MaxPositions
 	}
 
+	// Clamp leverage limits to the same bounds as the manual config UI.
+	if c.RiskControl.BTCETHMaxLeverage < MinLeverage {
+		c.RiskControl.BTCETHMaxLeverage = MinLeverage
+	}
+	if c.RiskControl.BTCETHMaxLeverage > MaxBTCETHLeverage {
+		c.RiskControl.BTCETHMaxLeverage = MaxBTCETHLeverage
+	}
+	if c.RiskControl.AltcoinMaxLeverage < MinLeverage {
+		c.RiskControl.AltcoinMaxLeverage = MinLeverage
+	}
+	if c.RiskControl.AltcoinMaxLeverage > MaxAltLeverage {
+		c.RiskControl.AltcoinMaxLeverage = MaxAltLeverage
+	}
+
+	// Clamp position value ratio limits.
+	if c.RiskControl.BTCETHMaxPositionValueRatio < MinPositionRatio {
+		c.RiskControl.BTCETHMaxPositionValueRatio = MinPositionRatio
+	}
+	if c.RiskControl.BTCETHMaxPositionValueRatio > MaxPositionRatio {
+		c.RiskControl.BTCETHMaxPositionValueRatio = MaxPositionRatio
+	}
+	if c.RiskControl.AltcoinMaxPositionValueRatio < MinPositionRatio {
+		c.RiskControl.AltcoinMaxPositionValueRatio = MinPositionRatio
+	}
+	if c.RiskControl.AltcoinMaxPositionValueRatio > MaxPositionRatio {
+		c.RiskControl.AltcoinMaxPositionValueRatio = MaxPositionRatio
+	}
+
+	// Clamp risk parameters and entry requirements.
+	if c.RiskControl.MinRiskRewardRatio < MinRiskReward {
+		c.RiskControl.MinRiskRewardRatio = MinRiskReward
+	}
+	if c.RiskControl.MinRiskRewardRatio > MaxRiskReward {
+		c.RiskControl.MinRiskRewardRatio = MaxRiskReward
+	}
+	if c.RiskControl.MaxMarginUsage < MinMarginUsage {
+		c.RiskControl.MaxMarginUsage = MinMarginUsage
+	}
+	if c.RiskControl.MaxMarginUsage > MaxMarginUsage {
+		c.RiskControl.MaxMarginUsage = MaxMarginUsage
+	}
+	if c.RiskControl.MinPositionSize < MinPositionSize {
+		c.RiskControl.MinPositionSize = MinPositionSize
+	}
+	if c.RiskControl.MinPositionSize > MaxPositionSize {
+		c.RiskControl.MinPositionSize = MaxPositionSize
+	}
+	if c.RiskControl.MinConfidence < MinConfidence {
+		c.RiskControl.MinConfidence = MinConfidence
+	}
+	if c.RiskControl.MinConfidence > MaxConfidence {
+		c.RiskControl.MinConfidence = MaxConfidence
+	}
+}
+
+// MergeStrategyConfig applies a partial JSON-style patch onto a full strategy config.
+// Nested objects are merged recursively so omitted fields keep their previous values.
+func MergeStrategyConfig(base StrategyConfig, patch map[string]any) (StrategyConfig, error) {
+	baseJSON, err := json.Marshal(base)
+	if err != nil {
+		return StrategyConfig{}, err
+	}
+
+	var mergedMap map[string]any
+	if err := json.Unmarshal(baseJSON, &mergedMap); err != nil {
+		return StrategyConfig{}, err
+	}
+
+	mergeJSONMaps(mergedMap, patch)
+
+	mergedJSON, err := json.Marshal(mergedMap)
+	if err != nil {
+		return StrategyConfig{}, err
+	}
+
+	var merged StrategyConfig
+	if err := json.Unmarshal(mergedJSON, &merged); err != nil {
+		return StrategyConfig{}, err
+	}
+	return merged, nil
+}
+
+func mergeJSONMaps(dst, src map[string]any) {
+	for key, srcVal := range src {
+		srcMap, srcIsMap := srcVal.(map[string]any)
+		dstMap, dstIsMap := dst[key].(map[string]any)
+		if srcIsMap && dstIsMap {
+			mergeJSONMaps(dstMap, srcMap)
+			continue
+		}
+		dst[key] = srcVal
+	}
+}
+
+func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
+	if lang != "zh" {
+		lang = "en"
+	}
+	warnings := make([]string, 0, 8)
+	appendInt := func(labelZH, labelEN string, from, to int) {
+		if from == to {
+			return
+		}
+		if lang == "zh" {
+			warnings = append(warnings, fmt.Sprintf("%s 已从 %d 调整为 %d", labelZH, from, to))
+			return
+		}
+		warnings = append(warnings, fmt.Sprintf("%s adjusted from %d to %d", labelEN, from, to))
+	}
+	appendFloat := func(labelZH, labelEN string, from, to float64) {
+		if from == to {
+			return
+		}
+		if lang == "zh" {
+			warnings = append(warnings, fmt.Sprintf("%s 已从 %.2f 调整为 %.2f", labelZH, from, to))
+			return
+		}
+		warnings = append(warnings, fmt.Sprintf("%s adjusted from %.2f to %.2f", labelEN, from, to))
+	}
+
+	appendInt("最大持仓数", "max_positions", before.RiskControl.MaxPositions, after.RiskControl.MaxPositions)
+	appendInt("BTC/ETH 最大杠杆", "btc_eth_max_leverage", before.RiskControl.BTCETHMaxLeverage, after.RiskControl.BTCETHMaxLeverage)
+	appendInt("山寨币最大杠杆", "altcoin_max_leverage", before.RiskControl.AltcoinMaxLeverage, after.RiskControl.AltcoinMaxLeverage)
+	appendFloat("BTC/ETH 最大仓位价值倍数", "btc_eth_max_position_value_ratio", before.RiskControl.BTCETHMaxPositionValueRatio, after.RiskControl.BTCETHMaxPositionValueRatio)
+	appendFloat("山寨币最大仓位价值倍数", "altcoin_max_position_value_ratio", before.RiskControl.AltcoinMaxPositionValueRatio, after.RiskControl.AltcoinMaxPositionValueRatio)
+	appendFloat("最小盈亏比", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
+	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
+	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
+	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
+	return warnings
 }
 
 // StrategyStore strategy storage

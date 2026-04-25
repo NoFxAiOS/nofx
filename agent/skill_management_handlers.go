@@ -1,10 +1,12 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"nofx/store"
@@ -13,137 +15,49 @@ import (
 var urlPattern = regexp.MustCompile(`https://[^\s"'<>]+`)
 
 func detectTraderManagementIntent(text string) bool {
+	return false
+}
+
+func hasExplicitCreateIntentForDomain(text, domain string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
+	if lower == "" || !hasExplicitManagementDomainCue(text, domain) {
 		return false
 	}
-	return containsAny(lower, []string{"交易员", "trader", "agent"}) &&
-		containsAny(lower, []string{"修改", "编辑", "更新", "改", "改一下", "删除", "删了", "启动", "停止", "查看", "查询", "列出", "rename", "update", "delete", "start", "stop", "list", "show"})
+	return containsAny(lower, []string{"创建", "新建", "创一个", "创个", "建一个", "create", "new"})
 }
 
 func detectExchangeManagementIntent(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return false
-	}
-	return containsAny(lower, []string{"交易所", "exchange", "okx", "binance", "bybit", "gate", "kucoin", "hyperliquid"}) &&
-		containsAny(lower, []string{"创建", "新建", "修改", "编辑", "更新", "改", "改一下", "删除", "删了", "查询", "查看", "列出", "启用", "禁用", "改名", "rename", "create", "update", "delete", "list", "show", "enable", "disable"})
+	return false
 }
 
 func detectModelManagementIntent(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return false
-	}
-	return containsAny(lower, []string{"模型", "model", "provider", "deepseek", "openai", "claude", "gemini", "qwen", "kimi", "grok", "minimax"}) &&
-		containsAny(lower, []string{"创建", "新建", "修改", "编辑", "更新", "改", "改一下", "删除", "删了", "查询", "查看", "列出", "启用", "禁用", "改名", "rename", "create", "update", "delete", "list", "show", "enable", "disable"})
+	return false
 }
 
 func detectStrategyManagementIntent(text string) bool {
+	return false
+}
+
+func hasExplicitDiagnosisIntentForDomain(text, domain string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
+	if lower == "" || !hasExplicitManagementDomainCue(text, domain) {
 		return false
 	}
-	if wantsDefaultStrategyConfig(text) {
-		return true
-	}
-	return containsAny(lower, []string{"策略", "strategy"}) &&
-		containsAny(lower, []string{"创建", "新建", "修改", "编辑", "更新", "改", "改一下", "改成", "改为", "删除", "删了", "查询", "查看", "列出", "激活", "复制", "参数", "配置", "详情", "详细", "prompt", "提示词", "什么样", "怎么样", "create", "update", "delete", "list", "show", "activate", "duplicate", "detail", "details", "config", "configuration", "parameter", "prompt", "what kind"})
-}
-
-func detectTraderDiagnosisSkill(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	return containsAny(lower, []string{"交易员", "trader"}) &&
-		containsAny(lower, []string{"启动失败", "不交易", "没开仓", "无法启动", "异常", "失败", "diagnose", "error", "not trading"})
-}
-
-func detectStrategyDiagnosisSkill(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	return containsAny(lower, []string{"策略", "strategy", "prompt"}) &&
-		containsAny(lower, []string{"不生效", "没生效", "异常", "失败", "不一致", "失效", "diagnose", "error"})
-}
-
-func detectManagementAction(text string, domain string) string {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return ""
-	}
-	hasUpdateVerb := containsAny(lower, []string{"修改", "编辑", "更新", "改", "rename", "update", "切换", "换成", "换到"})
-	switch {
-	case containsAny(lower, []string{"删除", "删掉", "删了", "remove", "delete"}):
-		return "delete"
-	case containsAny(lower, []string{"启动", "开始", "run", "start"}) && domain == "trader":
-		return "start"
-	case containsAny(lower, []string{"停止", "停掉", "stop", "pause"}) && domain == "trader":
-		return "stop"
-	case containsAny(lower, []string{"激活", "activate"}) && domain == "strategy":
-		return "activate"
-	case containsAny(lower, []string{"复制", "duplicate"}) && domain == "strategy":
-		return "duplicate"
-	case containsAny(lower, []string{"改名", "重命名", "rename"}):
-		return "update_name"
-	case domain == "trader" && containsAny(lower, []string{"换模型", "换交易所", "换策略", "绑定", "切换模型", "切换交易所", "切换策略"}):
-		return "update_bindings"
-	case (domain == "exchange" || domain == "model") && containsAny(lower, []string{"启用", "禁用", "enable", "disable"}):
-		return "update_status"
-	case domain == "model" && hasUpdateVerb && containsAny(lower, []string{"url", "endpoint", "地址", "接口"}):
-		return "update_endpoint"
-	case domain == "strategy" && hasUpdateVerb && containsAny(lower, []string{"prompt", "提示词"}):
-		return "update_prompt"
-	case domain == "strategy" && hasUpdateVerb && containsAny(lower, []string{
-		"参数", "配置", "config", "configuration", "parameter",
-		"最大持仓", "最小置信度", "最低置信度", "主周期", "多周期", "时间框架",
-		"btc/eth杠杆", "btc eth杠杆", "山寨币杠杆",
-		"核心指标", "ema", "macd", "rsi", "atr", "boll", "bollinger", "布林",
-	}):
-		return "update_config"
-	case containsAny(lower, []string{"修改", "编辑", "更新", "改", "rename", "update"}):
-		return "update"
-	case domain == "trader" && containsAny(lower, []string{"运行中的", "在跑", "running"}):
-		return "query_running"
-	case !containsAny(lower, []string{"创建", "新建", "create", "new"}) &&
-		containsAny(lower, []string{"详情", "详细", "prompt", "提示词", "什么样", "怎么样", "detail", "details", "what kind"}):
-		return "query_detail"
-	case containsAny(lower, []string{"查询", "查看", "列出", "list", "show", "有哪些"}):
-		return "query_list"
-	case containsAny(lower, []string{"创建", "新建", "加一个", "create", "new"}):
-		return "create"
+	switch strings.TrimSpace(domain) {
+	case "trader":
+		return containsAny(lower, []string{"启动失败", "不交易", "没开仓", "无法启动", "诊断", "报错", "错误", "diagnose", "not trading"})
+	case "strategy":
+		return containsAny(lower, []string{"不生效", "没生效", "失效", "不一致", "诊断", "报错", "错误", "diagnose"})
+	case "model":
+		return containsAny(lower, []string{"api key", "base url", "custom_api_url", "模型配置失败", "模型不可用", "ai unavailable", "无效", "报错", "错误", "失败", "不可用", "invalid", "error", "failed", "诊断", "diagnose"})
+	case "exchange":
+		return containsAny(lower, []string{"invalid signature", "timestamp", "ip not allowed", "permission denied", "签名错误", "签名失败", "时间戳", "白名单", "权限不足", "交易所 api 报错", "交易所连接不上", "报错", "错误", "失败", "诊断", "diagnose"})
 	default:
-		return ""
+		return false
 	}
 }
 
-func exchangeTypeFromText(text string) string {
-	lower := strings.ToLower(text)
-	candidates := []string{"binance", "okx", "bybit", "gate", "kucoin", "hyperliquid", "aster", "lighter"}
-	for _, candidate := range candidates {
-		if strings.Contains(lower, candidate) {
-			return candidate
-		}
-	}
-	switch {
-	case strings.Contains(text, "币安"):
-		return "binance"
-	case strings.Contains(text, "欧易"):
-		return "okx"
-	case strings.Contains(text, "库币"):
-		return "kucoin"
-	default:
-		return ""
-	}
-}
-
-func providerFromText(text string) string {
-	lower := strings.ToLower(text)
-	candidates := []string{"openai", "deepseek", "claude", "gemini", "qwen", "kimi", "grok", "minimax"}
-	for _, candidate := range candidates {
-		if strings.Contains(lower, candidate) {
-			return candidate
-		}
-	}
-	if strings.Contains(text, "通义") {
-		return "qwen"
-	}
+func inferExplicitManagementAction(text string, domain string) string {
 	return ""
 }
 
@@ -151,34 +65,106 @@ func extractURL(text string) string {
 	return strings.TrimSpace(urlPattern.FindString(text))
 }
 
-func extractPostKeywordName(text string, keywords []string) string {
-	trimmed := strings.TrimSpace(text)
-	for _, keyword := range keywords {
-		if idx := strings.Index(trimmed, keyword); idx >= 0 {
-			name := strings.TrimSpace(trimmed[idx+len(keyword):])
-			name = strings.Trim(name, "“”\"'：: ")
-			if name != "" && len([]rune(name)) <= 50 {
-				return name
+func setField(session *skillSession, key, value string) {
+	ensureSkillFields(session)
+	key = normalizeFieldKey(session, key)
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	if session != nil && session.Name == "trader_management" && key == "name" {
+		value = normalizeTraderDraftName(value)
+		if value == "" {
+			return
+		}
+	}
+	session.Fields[key] = value
+	syncTraderCreateSlotMirror(session)
+}
+
+func fieldValue(session skillSession, key string) string {
+	key = normalizeFieldKey(&session, key)
+	if session.Fields != nil {
+		if value := strings.TrimSpace(session.Fields[key]); value != "" {
+			return value
+		}
+	}
+	if session.Name == "trader_management" && session.Slots != nil {
+		switch key {
+		case "name":
+			return strings.TrimSpace(session.Slots.Name)
+		case "exchange_id":
+			return strings.TrimSpace(session.Slots.ExchangeID)
+		case "exchange_name":
+			return strings.TrimSpace(session.Slots.ExchangeName)
+		case "model_id":
+			return strings.TrimSpace(session.Slots.ModelID)
+		case "model_name":
+			return strings.TrimSpace(session.Slots.ModelName)
+		case "strategy_id":
+			return strings.TrimSpace(session.Slots.StrategyID)
+		case "strategy_name":
+			return strings.TrimSpace(session.Slots.StrategyName)
+		case "auto_start":
+			if session.Slots.AutoStart != nil {
+				if *session.Slots.AutoStart {
+					return "true"
+				}
+				return "false"
 			}
 		}
 	}
 	return ""
 }
 
-func setField(session *skillSession, key, value string) {
-	ensureSkillFields(session)
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return
+func normalizeFieldKey(session *skillSession, key string) string {
+	key = strings.TrimSpace(key)
+	if session == nil || session.Name != "trader_management" {
+		return key
 	}
-	session.Fields[key] = value
+	switch key {
+	case "ai_model_id":
+		return "model_id"
+	default:
+		return key
+	}
 }
 
-func fieldValue(session skillSession, key string) string {
-	if session.Fields == nil {
-		return ""
+func syncTraderCreateSlotMirror(session *skillSession) {
+	if session == nil || session.Name != "trader_management" {
+		return
 	}
-	return strings.TrimSpace(session.Fields[key])
+	if session.Slots == nil {
+		session.Slots = &createTraderSkillSlots{}
+	}
+	if session.Fields == nil {
+		return
+	}
+	if value := strings.TrimSpace(session.Fields["name"]); value != "" {
+		session.Slots.Name = value
+	}
+	if value := strings.TrimSpace(session.Fields["exchange_id"]); value != "" {
+		session.Slots.ExchangeID = value
+	}
+	if value := strings.TrimSpace(session.Fields["exchange_name"]); value != "" {
+		session.Slots.ExchangeName = value
+	}
+	if value := strings.TrimSpace(session.Fields["model_id"]); value != "" {
+		session.Slots.ModelID = value
+	}
+	if value := strings.TrimSpace(session.Fields["model_name"]); value != "" {
+		session.Slots.ModelName = value
+	}
+	if value := strings.TrimSpace(session.Fields["strategy_id"]); value != "" {
+		session.Slots.StrategyID = value
+	}
+	if value := strings.TrimSpace(session.Fields["strategy_name"]); value != "" {
+		session.Slots.StrategyName = value
+	}
+	if value := strings.TrimSpace(session.Fields["auto_start"]); value != "" {
+		b := strings.EqualFold(value, "true")
+		session.Slots.AutoStart = &b
+	}
 }
 
 func textMeansAllTargets(text string) bool {
@@ -187,7 +173,8 @@ func textMeansAllTargets(text string) bool {
 		return false
 	}
 	return containsAny(lower, []string{
-		"全部", "所有", "全都", "全部策略", "所有策略",
+		"全部", "所有", "全都", "全部策略", "所有策略", "全部删除", "全部删掉", "全部删了",
+		"全删", "全删了", "都删", "都删了", "全清", "全清掉",
 		"all", "all strategies", "every strategy",
 	})
 }
@@ -197,34 +184,211 @@ func supportsBulkTargetSelection(skillName, action string) bool {
 }
 
 func resolveTargetFromText(text string, options []traderSkillOption, existing *EntityReference) *EntityReference {
-	if existing != nil && (existing.ID != "" || existing.Name != "") {
-		return existing
+	return resolveTargetSelection(text, options, existing).Ref
+}
+
+func hasStrictOptionMention(text string, options []traderSkillOption) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
 	}
-	if match := pickMentionedOption(text, options); match != nil {
-		return &EntityReference{ID: match.ID, Name: match.Name}
+	for _, option := range options {
+		name := strings.ToLower(strings.TrimSpace(option.Name))
+		if name != "" && strings.Contains(lower, name) {
+			return true
+		}
+		id := strings.ToLower(strings.TrimSpace(option.ID))
+		if id != "" && strings.Contains(lower, id) {
+			return true
+		}
 	}
-	if choice := choosePreferredOption(options); choice != nil {
-		return &EntityReference{ID: choice.ID, Name: choice.Name}
+	return false
+}
+
+func shouldUsePatchFallbackForTargetedUpdate(text string, options []traderSkillOption, existing *EntityReference) bool {
+	if existing != nil && strings.TrimSpace(existing.ID) != "" {
+		return true
 	}
-	return nil
+	if hasStrictOptionMention(text, options) {
+		return true
+	}
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if containsAny(lower, []string{"这个", "当前", "该", "this", "current"}) {
+		return true
+	}
+	return len(options) == 1
+}
+
+func isSimpleEntityMutationAction(action string) bool {
+	switch strings.TrimSpace(action) {
+	case "update", "update_name", "update_status", "update_endpoint", "update_bindings",
+		"configure_strategy", "configure_exchange", "configure_model",
+		"update_prompt", "update_config", "activate", "duplicate":
+		return true
+	default:
+		return false
+	}
+}
+
+func hasExplicitManagementDomainCue(text, domain string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	switch strings.TrimSpace(domain) {
+	case "trader":
+		return containsAny(lower, []string{"交易员", "trader", "agent"})
+	case "exchange":
+		return containsAny(lower, []string{"交易所", "exchange", "okx", "binance", "bybit", "gate", "kucoin", "hyperliquid"})
+	case "model":
+		return containsAny(lower, []string{"模型", "model"})
+	case "strategy":
+		return containsAny(lower, []string{"策略", "strategy"})
+	default:
+		return false
+	}
+}
+
+func ensureLiveTargetReference(session *skillSession, options []traderSkillOption) bool {
+	if session == nil || session.TargetRef == nil {
+		return true
+	}
+	match := findOptionByIDOrName(options, defaultIfEmpty(session.TargetRef.ID, session.TargetRef.Name))
+	if match == nil {
+		session.TargetRef = nil
+		return false
+	}
+	session.TargetRef.ID = match.ID
+	session.TargetRef.Name = defaultIfEmpty(match.Name, session.TargetRef.Name)
+	return true
+}
+
+func (a *Agent) buildSimpleEntityConversationResources(storeUserID string, session skillSession, options []traderSkillOption) map[string]any {
+	missing := missingFieldKeysForSkillSession(session)
+	resources := map[string]any{}
+	for _, field := range missing {
+		switch strings.TrimSpace(field) {
+		case "target_ref":
+			if len(options) > 0 {
+				resources["targets"] = options
+			}
+		case "exchange_name", "exchange_id", "exchange":
+			resources["exchanges"] = a.loadExchangeOptions(storeUserID)
+		case "model_name", "model_id", "ai_model_id", "model":
+			resources["models"] = a.loadEnabledModelOptions(storeUserID)
+		case "strategy_name", "strategy_id", "strategy":
+			resources["strategies"] = a.loadStrategyOptions(storeUserID)
+		}
+	}
+	return resources
+}
+
+func applySkillConversationResultToSession(session *skillSession, result skillConversationResult) {
+	if session == nil {
+		return
+	}
+	ensureSkillFields(session)
+	mergeFieldSet := func(values map[string]string, source string) {
+		for key, value := range values {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			switch key {
+			case "target_ref_id":
+				if session.TargetRef == nil {
+					session.TargetRef = &EntityReference{}
+				}
+				session.TargetRef.ID = value
+				if source != "" {
+					session.TargetRef.Source = source
+				}
+			case "target_ref_name":
+				if session.TargetRef == nil {
+					session.TargetRef = &EntityReference{}
+				}
+				session.TargetRef.Name = value
+				if source != "" {
+					session.TargetRef.Source = source
+				}
+			default:
+				setField(session, key, value)
+			}
+		}
+	}
+	mergeFieldSet(result.Extracted, "llm_conversation")
+	mergeFieldSet(result.DraftGeneratedFields, "llm_generated_draft")
+	if result.RequiresConfirmationBeforeApply {
+		setField(session, "_requires_generated_confirmation", "true")
+	} else if fieldValue(*session, "_requires_generated_confirmation") != "" {
+		delete(session.Fields, "_requires_generated_confirmation")
+	}
+	if session.TargetRef != nil && session.TargetRef.Source == "" {
+		session.TargetRef.Source = "llm_conversation"
+	}
+}
+
+func shouldUseLLMConversationForSimpleEntity(skillName, action string) bool {
+	switch skillName {
+	case "trader_management":
+		switch action {
+		case "update", "update_name", "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
+			return true
+		}
+	case "exchange_management":
+		switch action {
+		case "update", "update_name", "update_status":
+			return true
+		}
+	case "model_management":
+		switch action {
+		case "update", "update_name", "update_status", "update_endpoint":
+			return true
+		}
+	case "strategy_management":
+		switch action {
+		case "update", "update_name", "update_prompt", "update_config", "activate", "duplicate":
+			return true
+		}
+	}
+	switch action {
+	case "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *Agent) inferredCurrentReferenceForSkill(userID int64, skillName string) *EntityReference {
+	refs := a.semanticCurrentReferences(userID)
+	if refs == nil {
+		return nil
+	}
+	switch skillName {
+	case "trader_management":
+		return normalizeEntityReference(refs.Trader)
+	case "exchange_management":
+		return normalizeEntityReference(refs.Exchange)
+	case "model_management":
+		return normalizeEntityReference(refs.Model)
+	case "strategy_management":
+		return normalizeEntityReference(refs.Strategy)
+	default:
+		return nil
+	}
 }
 
 func (a *Agent) handleTraderManagementSkill(storeUserID string, userID int64, lang, text string, session skillSession) (string, bool) {
-	action := detectManagementAction(text, "trader")
-	if session.Name == "trader_management" && session.Action != "" {
-		action = session.Action
-	}
-	if action == "" || action == "create" {
+	if session.Name != "trader_management" || session.Action == "" {
 		return "", false
 	}
+	action := session.Action
 	if action == "query_running" {
 		answer := formatReadFastPathResponse(lang, "list_traders", a.toolListTraders(storeUserID))
 		return applyTraderQueryFilter(lang, answer, a.toolListTraders(storeUserID), "running_only"), true
 	}
 	if action == "query_detail" {
-		options := a.loadTraderOptions(storeUserID)
-		target := resolveTargetFromText(text, options, session.TargetRef)
-		if detail, ok := a.describeTrader(storeUserID, lang, target); ok {
+		if detail, ok := a.describeTrader(storeUserID, lang, session.TargetRef); ok {
 			return detail, true
 		}
 		return formatReadFastPathResponse(lang, "list_traders", a.toolListTraders(storeUserID)), true
@@ -233,20 +397,16 @@ func (a *Agent) handleTraderManagementSkill(storeUserID string, userID int64, la
 }
 
 func (a *Agent) handleExchangeManagementSkill(storeUserID string, userID int64, lang, text string, session skillSession) (string, bool) {
-	action := detectManagementAction(text, "exchange")
-	if session.Name == "exchange_management" && session.Action != "" {
-		action = session.Action
-	}
-	if action == "" {
+	if session.Name != "exchange_management" || session.Action == "" {
 		return "", false
 	}
+	action := session.Action
 	options := a.loadExchangeOptions(storeUserID)
 	switch action {
 	case "query_list":
 		return formatReadFastPathResponse(lang, "get_exchange_configs", a.toolGetExchangeConfigs(storeUserID)), true
 	case "query_detail":
-		target := resolveTargetFromText(text, options, session.TargetRef)
-		if detail, ok := a.describeExchange(storeUserID, lang, target); ok {
+		if detail, ok := a.describeExchange(storeUserID, lang, session.TargetRef); ok {
 			return detail, true
 		}
 		return formatReadFastPathResponse(lang, "get_exchange_configs", a.toolGetExchangeConfigs(storeUserID)), true
@@ -258,20 +418,16 @@ func (a *Agent) handleExchangeManagementSkill(storeUserID string, userID int64, 
 }
 
 func (a *Agent) handleModelManagementSkill(storeUserID string, userID int64, lang, text string, session skillSession) (string, bool) {
-	action := detectManagementAction(text, "model")
-	if session.Name == "model_management" && session.Action != "" {
-		action = session.Action
-	}
-	if action == "" {
+	if session.Name != "model_management" || session.Action == "" {
 		return "", false
 	}
+	action := session.Action
 	options := a.loadEnabledModelOptions(storeUserID)
 	switch action {
 	case "query_list":
 		return formatReadFastPathResponse(lang, "get_model_configs", a.toolGetModelConfigs(storeUserID)), true
 	case "query_detail":
-		target := resolveTargetFromText(text, options, session.TargetRef)
-		if detail, ok := a.describeModel(storeUserID, lang, target); ok {
+		if detail, ok := a.describeModel(storeUserID, lang, session.TargetRef); ok {
 			return detail, true
 		}
 		return formatReadFastPathResponse(lang, "get_model_configs", a.toolGetModelConfigs(storeUserID)), true
@@ -283,24 +439,14 @@ func (a *Agent) handleModelManagementSkill(storeUserID string, userID int64, lan
 }
 
 func (a *Agent) handleStrategyManagementSkill(storeUserID string, userID int64, lang, text string, session skillSession) (string, bool) {
-	action := detectManagementAction(text, "strategy")
-	if session.Name == "strategy_management" && session.Action != "" {
-		action = session.Action
-	}
-	if action == "" && wantsStrategyDetails(text) {
-		action = "query_detail"
-	}
-	if action == "" {
+	if session.Name != "strategy_management" || session.Action == "" {
 		return "", false
 	}
+	action := session.Action
 	options := a.loadStrategyOptions(storeUserID)
 	switch action {
 	case "query_detail":
-		if wantsDefaultStrategyConfig(text) {
-			return a.describeDefaultStrategyConfig(lang), true
-		}
-		target := resolveTargetFromText(text, options, session.TargetRef)
-		if detail, ok := a.describeStrategy(storeUserID, lang, target); ok {
+		if detail, ok := a.describeStrategy(storeUserID, lang, session.TargetRef); ok {
 			return detail, true
 		}
 		return formatReadFastPathResponse(lang, "get_strategies", a.toolGetStrategies(storeUserID)), true
@@ -313,15 +459,464 @@ func (a *Agent) handleStrategyManagementSkill(storeUserID string, userID int64, 
 	}
 }
 
-func wantsStrategyDetails(text string) bool {
+const strategyCreateDraftConfigField = "strategy_create_draft_config"
+
+func applyStrategyCreateIntentToConfig(cfg *store.StrategyConfig, text, lang string) []string {
+	return nil
+}
+
+func marshalStrategyCreateDraft(cfg store.StrategyConfig) string {
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
+func unmarshalStrategyCreateDraft(raw, lang string) store.StrategyConfig {
+	cfg := store.GetDefaultStrategyConfig(lang)
+	if strings.TrimSpace(raw) == "" {
+		return cfg
+	}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return store.GetDefaultStrategyConfig(lang)
+	}
+	return cfg
+}
+
+func strategyCreateConfirmationReply(text string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
 	if lower == "" {
 		return false
 	}
+	return isYesReply(text) || lower == "确认创建" || lower == "创建吧" || lower == "就按这个创建" || lower == "按这个创建" || lower == "确认应用" || lower == "应用" || lower == "就按这个应用"
+}
+
+func formatStrategyCreateDraftSummary(lang, name string, changedFields, warnings []string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		if lang == "zh" {
+			name = "未命名策略"
+		} else {
+			name = "unnamed strategy"
+		}
+	}
+	if lang == "zh" {
+		lines := []string{
+			fmt.Sprintf("我先把策略草稿整理成了“%s”。", name),
+		}
+		if len(changedFields) > 0 {
+			lines = append(lines, "我已经识别到这些配置意图：")
+			for _, field := range changedFields {
+				lines = append(lines, "- "+field)
+			}
+		}
+		if len(warnings) > 0 {
+			lines = append(lines, "其中有些参数超出了当前安全范围，我先拦下来了：")
+			for _, warning := range warnings {
+				lines = append(lines, "- "+warning)
+			}
+			lines = append(lines, "你可以继续告诉我其他字段怎么设计；如果接受当前安全范围，也可以直接回复“确认创建”。")
+			return strings.Join(lines, "\n")
+		}
+		lines = append(lines, "你可以继续补充其他字段，比如选币来源、最大持仓、置信度、盈亏比、多周期；如果现在就创建，直接回复“确认创建”。")
+		return strings.Join(lines, "\n")
+	}
+
+	lines := []string{
+		fmt.Sprintf("I turned that into a draft strategy named %q.", name),
+	}
+	if len(changedFields) > 0 {
+		lines = append(lines, "Recognized fields:")
+		for _, field := range changedFields {
+			lines = append(lines, "- "+field)
+		}
+	}
+	if len(warnings) > 0 {
+		lines = append(lines, "Some values exceeded the current safety limits, so I stopped before creating it:")
+		for _, warning := range warnings {
+			lines = append(lines, "- "+warning)
+		}
+		lines = append(lines, "You can keep refining the draft, or reply 'confirm' to create it with the safe adjusted values.")
+		return strings.Join(lines, "\n")
+	}
+	lines = append(lines, "You can keep refining the draft, or reply 'confirm' to create it now.")
+	return strings.Join(lines, "\n")
+}
+
+func createConfirmationReply(text string) bool {
+	return strategyCreateConfirmationReply(text)
+}
+
+func formatMissingFieldList(lang string, fields []string) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	if lang == "zh" {
+		return strings.Join(fields, "、")
+	}
+	return strings.Join(fields, ", ")
+}
+
+func availableModelProvidersMessage(lang string) string {
+	return modelProviderChoicePrompt(lang)
+}
+
+func inferCreateDisplayName(text string) string {
+	clean := func(value string) string {
+		value = strings.TrimSpace(value)
+		value = strings.Trim(value, "“”\"'：: ，,。.;；")
+		for _, sep := range []string{"，", ",", "。", "；", ";", "\n"} {
+			if idx := strings.Index(value, sep); idx >= 0 {
+				value = strings.TrimSpace(value[:idx])
+			}
+		}
+		for _, marker := range []string{" 交易所", " 模型", " 策略", " exchange", " model", " strategy"} {
+			if idx := strings.Index(value, marker); idx >= 0 {
+				value = strings.TrimSpace(value[:idx])
+			}
+		}
+		for _, suffix := range []string{"的交易员", "的模型", "的策略", "的交易所", "这个交易员", "这个模型", "这个策略", "这个交易所"} {
+			if strings.HasSuffix(value, suffix) {
+				value = strings.TrimSpace(strings.TrimSuffix(value, suffix))
+			}
+		}
+		return strings.TrimSpace(value)
+	}
+	if value := extractDelimitedSegmentAfterKeywords(text, []string{"名称叫", "名字叫", "配置名", "叫", "名为", "名称", "名字是", "called"}); value != "" {
+		return clean(value)
+	}
+	if value := extractQuotedContent(text); value != "" && !containsAny(strings.ToLower(text), []string{"api key", "apikey", "api_key", "secret", "passphrase"}) {
+		return clean(value)
+	}
+	return ""
+}
+
+func formatModelCreateDraftSummary(lang string, session skillSession) string {
+	providerID := fieldValue(session, "provider")
+	name := defaultIfEmpty(fieldValue(session, "name"), defaultIfEmpty(defaultModelConfigName(providerID), "未命名模型"))
+	provider := defaultIfEmpty(providerID, "未选择")
+	modelName := defaultIfEmpty(fieldValue(session, "custom_model_name"), defaultIfEmpty(defaultModelNameForProvider(providerID), "未设置"))
+	apiURL := defaultIfEmpty(fieldValue(session, "custom_api_url"), "默认官方地址")
+	if lang != "zh" {
+		apiURL = defaultIfEmpty(fieldValue(session, "custom_api_url"), "provider default endpoint")
+	}
+	enabled := fieldValue(session, "enabled") == "true"
+	if lang == "zh" {
+		lines := []string{
+			fmt.Sprintf("我先整理了一份模型配置草稿“%s”。", name),
+			fmt.Sprintf("- Provider：%s", provider),
+			fmt.Sprintf("- 配置名称：%s", name),
+			fmt.Sprintf("- 模型名称：%s", modelName),
+			fmt.Sprintf("- 接口地址：%s", apiURL),
+			fmt.Sprintf("- 启用状态：%t（未指定时默认 false）", enabled),
+			modelProviderDetailedGuidance(lang, providerID),
+			"如果这些字段没问题，直接回复“确认创建”；也可以继续补充或修改任意字段。",
+		}
+		return strings.Join(lines, "\n")
+	}
+	lines := []string{
+		fmt.Sprintf("I prepared a draft model config %q.", name),
+		fmt.Sprintf("- Provider: %s", provider),
+		fmt.Sprintf("- Config name: %s", name),
+		fmt.Sprintf("- Model name: %s", modelName),
+		fmt.Sprintf("- API URL: %s", apiURL),
+		fmt.Sprintf("- Enabled: %t (defaults to false if omitted)", enabled),
+		modelProviderDetailedGuidance(lang, providerID),
+		"Reply 'confirm' to create it, or keep refining any field.",
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatExchangeCreateDraftSummary(lang string, session skillSession) string {
+	exType := defaultIfEmpty(fieldValue(session, "exchange_type"), "未选择")
+	accountName := defaultIfEmpty(fieldValue(session, "account_name"), "未命名账户")
+	enabled := fieldValue(session, "enabled") == "true"
+	testnet := fieldValue(session, "testnet") == "true"
+	if lang == "zh" {
+		lines := []string{
+			fmt.Sprintf("我先整理了一份交易所配置草稿“%s”。", accountName),
+			fmt.Sprintf("- 交易所：%s", exType),
+			fmt.Sprintf("- 账户名：%s", accountName),
+			fmt.Sprintf("- 启用状态：%t（未指定时默认 false）", enabled),
+			fmt.Sprintf("- 测试网：%t（未指定时默认 false）", testnet),
+		}
+		switch exType {
+		case "binance", "bybit", "gate", "indodax":
+			lines = append(lines,
+				fmt.Sprintf("- 已提供 API Key：%t", fieldValue(session, "api_key") != ""),
+				fmt.Sprintf("- 已提供 Secret：%t", fieldValue(session, "secret_key") != ""),
+			)
+		case "okx", "bitget", "kucoin":
+			lines = append(lines,
+				fmt.Sprintf("- 已提供 API Key：%t", fieldValue(session, "api_key") != ""),
+				fmt.Sprintf("- 已提供 Secret：%t", fieldValue(session, "secret_key") != ""),
+				fmt.Sprintf("- 已提供 Passphrase：%t", fieldValue(session, "passphrase") != ""),
+			)
+		case "hyperliquid":
+			lines = append(lines,
+				fmt.Sprintf("- 已提供 API Key：%t", fieldValue(session, "api_key") != ""),
+				fmt.Sprintf("- Hyperliquid 钱包地址：%s", defaultIfEmpty(fieldValue(session, "hyperliquid_wallet_addr"), "未设置")),
+			)
+		case "aster":
+			lines = append(lines,
+				fmt.Sprintf("- Aster User：%s", defaultIfEmpty(fieldValue(session, "aster_user"), "未设置")),
+				fmt.Sprintf("- Aster Signer：%s", defaultIfEmpty(fieldValue(session, "aster_signer"), "未设置")),
+				fmt.Sprintf("- 已提供 Aster 私钥：%t", fieldValue(session, "aster_private_key") != ""),
+			)
+		case "lighter":
+			lines = append(lines,
+				fmt.Sprintf("- Lighter 钱包地址：%s", defaultIfEmpty(fieldValue(session, "lighter_wallet_addr"), "未设置")),
+				fmt.Sprintf("- 已提供 Lighter API Key 私钥：%t", fieldValue(session, "lighter_api_key_private_key") != ""),
+			)
+			if value := fieldValue(session, "lighter_api_key_index"); value != "" {
+				lines = append(lines, fmt.Sprintf("- Lighter API Key Index：%s", value))
+			}
+		default:
+			lines = append(lines,
+				fmt.Sprintf("- 已提供 API Key：%t", fieldValue(session, "api_key") != ""),
+				fmt.Sprintf("- 已提供 Secret：%t", fieldValue(session, "secret_key") != ""),
+			)
+		}
+		lines = append(lines, "如果这些字段没问题，直接回复“确认创建”；也可以继续补充或修改任意字段。")
+		return strings.Join(lines, "\n")
+	}
+	lines := []string{
+		fmt.Sprintf("I prepared a draft exchange config %q.", accountName),
+		fmt.Sprintf("- Exchange: %s", exType),
+		fmt.Sprintf("- Account name: %s", accountName),
+		fmt.Sprintf("- Enabled: %t (defaults to false if omitted)", enabled),
+		fmt.Sprintf("- Testnet: %t (defaults to false if omitted)", testnet),
+	}
+	switch exType {
+	case "binance", "bybit", "gate", "indodax":
+		lines = append(lines,
+			fmt.Sprintf("- API key provided: %t", fieldValue(session, "api_key") != ""),
+			fmt.Sprintf("- Secret provided: %t", fieldValue(session, "secret_key") != ""),
+		)
+	case "okx", "bitget", "kucoin":
+		lines = append(lines,
+			fmt.Sprintf("- API key provided: %t", fieldValue(session, "api_key") != ""),
+			fmt.Sprintf("- Secret provided: %t", fieldValue(session, "secret_key") != ""),
+			fmt.Sprintf("- Passphrase provided: %t", fieldValue(session, "passphrase") != ""),
+		)
+	case "hyperliquid":
+		lines = append(lines,
+			fmt.Sprintf("- API key provided: %t", fieldValue(session, "api_key") != ""),
+			fmt.Sprintf("- Hyperliquid wallet address: %s", defaultIfEmpty(fieldValue(session, "hyperliquid_wallet_addr"), "not set")),
+		)
+	case "aster":
+		lines = append(lines,
+			fmt.Sprintf("- Aster user: %s", defaultIfEmpty(fieldValue(session, "aster_user"), "not set")),
+			fmt.Sprintf("- Aster signer: %s", defaultIfEmpty(fieldValue(session, "aster_signer"), "not set")),
+			fmt.Sprintf("- Aster private key provided: %t", fieldValue(session, "aster_private_key") != ""),
+		)
+	case "lighter":
+		lines = append(lines,
+			fmt.Sprintf("- Lighter wallet address: %s", defaultIfEmpty(fieldValue(session, "lighter_wallet_addr"), "not set")),
+			fmt.Sprintf("- Lighter API key private key provided: %t", fieldValue(session, "lighter_api_key_private_key") != ""),
+		)
+		if value := fieldValue(session, "lighter_api_key_index"); value != "" {
+			lines = append(lines, fmt.Sprintf("- Lighter API key index: %s", value))
+		}
+	default:
+		lines = append(lines,
+			fmt.Sprintf("- API key provided: %t", fieldValue(session, "api_key") != ""),
+			fmt.Sprintf("- Secret provided: %t", fieldValue(session, "secret_key") != ""),
+		)
+	}
+	lines = append(lines, "Reply 'confirm' to create it, or keep refining any field.")
+	return strings.Join(lines, "\n")
+}
+
+func formatTraderCreateDraftSummary(lang string, session skillSession) string {
+	args := buildTraderUpdateArgsFromSession(session)
+	args, warnings := normalizeTraderArgsToManualLimits(lang, args)
+	scanInterval := 3
+	if args.ScanIntervalMinutes != nil && *args.ScanIntervalMinutes > 0 {
+		scanInterval = *args.ScanIntervalMinutes
+	}
+	initialBalance := 0.0
+	if args.InitialBalance != nil && *args.InitialBalance > 0 {
+		initialBalance = *args.InitialBalance
+	}
+	isCrossMargin := true
+	if args.IsCrossMargin != nil {
+		isCrossMargin = *args.IsCrossMargin
+	}
+	showInCompetition := true
+	if args.ShowInCompetition != nil {
+		showInCompetition = *args.ShowInCompetition
+	}
+	autoStart := fieldValue(session, "auto_start") == "true"
+	name := defaultIfEmpty(fieldValue(session, "name"), "未命名交易员")
+	if lang != "zh" {
+		name = defaultIfEmpty(fieldValue(session, "name"), "unnamed trader")
+	}
+	if lang == "zh" {
+		lines := []string{
+			fmt.Sprintf("我先整理了一份交易员草稿“%s”。", name),
+			fmt.Sprintf("- 名称：%s", name),
+			fmt.Sprintf("- 交易所：%s", traderCreateExchangeNameOrID(session)),
+			fmt.Sprintf("- 模型：%s", traderCreateModelNameOrID(session)),
+			fmt.Sprintf("- 策略：%s", traderCreateStrategyNameOrID(session)),
+			fmt.Sprintf("- 扫描间隔：%d 分钟（未指定时默认 3）", scanInterval),
+			fmt.Sprintf("- 初始资金：%.2f（未指定时默认 0）", initialBalance),
+			fmt.Sprintf("- 全仓模式：%t（未指定时默认 true）", isCrossMargin),
+			fmt.Sprintf("- 竞技场显示：%t（未指定时默认 true）", showInCompetition),
+		}
+		if autoStart {
+			lines = append(lines, "- 创建后立即启动：true")
+			if len(warnings) > 0 {
+				lines = append(lines, "这些字段里有超出手动面板范围的值，我已经先按风控范围收敛：")
+				for _, warning := range warnings {
+					lines = append(lines, "- "+warning)
+				}
+			}
+			lines = append(lines, "如果这些字段没问题，直接回复“确认创建并启动”；也可以继续补充或修改任意字段。")
+		} else {
+			if len(warnings) > 0 {
+				lines = append(lines, "这些字段里有超出手动面板范围的值，我已经先按风控范围收敛：")
+				for _, warning := range warnings {
+					lines = append(lines, "- "+warning)
+				}
+			}
+			lines = append(lines, "如果这些字段没问题，直接回复“确认创建”；也可以继续补充或修改任意字段。")
+		}
+		return strings.Join(lines, "\n")
+	}
+	lines := []string{
+		fmt.Sprintf("I prepared a draft trader %q.", name),
+		fmt.Sprintf("- Name: %s", name),
+		fmt.Sprintf("- Exchange: %s", traderCreateExchangeNameOrID(session)),
+		fmt.Sprintf("- Model: %s", traderCreateModelNameOrID(session)),
+		fmt.Sprintf("- Strategy: %s", traderCreateStrategyNameOrID(session)),
+		fmt.Sprintf("- Scan interval: %d minutes (defaults to 3)", scanInterval),
+		fmt.Sprintf("- Initial balance: %.2f (defaults to 0)", initialBalance),
+		fmt.Sprintf("- Cross margin: %t (defaults to true)", isCrossMargin),
+		fmt.Sprintf("- Show in competition: %t (defaults to true)", showInCompetition),
+	}
+	if autoStart {
+		lines = append(lines, "- Start immediately after creation: true")
+		if len(warnings) > 0 {
+			lines = append(lines, "Some values exceeded the manual editor limits, so I normalized them first:")
+			for _, warning := range warnings {
+				lines = append(lines, "- "+warning)
+			}
+		}
+		lines = append(lines, "Reply 'confirm' to create and start it, or keep refining any field.")
+	} else {
+		if len(warnings) > 0 {
+			lines = append(lines, "Some values exceeded the manual editor limits, so I normalized them first:")
+			for _, warning := range warnings {
+				lines = append(lines, "- "+warning)
+			}
+		}
+		lines = append(lines, "Reply 'confirm' to create it, or keep refining any field.")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (a *Agent) continueStrategyCreateDraft(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if answer, ok := a.answerSkillSessionExplanation(storeUserID, lang, session, text); ok {
+		a.saveSkillSession(userID, session)
+		return answer
+	}
+	name := fieldValue(session, "name")
+	if actionRequiresSlot("strategy_management", "create", "name") && strings.TrimSpace(name) == "" {
+		setSkillDAGStep(&session, "resolve_name")
+		a.saveSkillSession(userID, session)
+		if lang == "zh" {
+			return "要创建策略，我还需要策略名。你可以直接说：创建一个叫“趋势策略A”的策略。"
+		}
+		return "One more thing: give this strategy a name."
+	}
+
+	cfg := unmarshalStrategyCreateDraft(fieldValue(session, strategyCreateDraftConfigField), lang)
+	changedFields := applyStrategyCreateIntentToConfig(&cfg, text, lang)
+	if fieldValue(session, strategyCreateDraftConfigField) == "" && len(changedFields) == 0 {
+		cfg = store.GetDefaultStrategyConfig(lang)
+	}
+	beforeClamp := cfg
+	cfg.ClampLimits()
+	warnings := store.StrategyClampWarnings(beforeClamp, cfg, cfg.Language)
+
+	setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
+	setSkillDAGStep(&session, "await_create_confirmation")
+	session.Phase = "draft_create"
+
+	if strategyCreateConfirmationReply(text) {
+		args := map[string]any{
+			"action": "create",
+			"name":   name,
+			"lang":   defaultIfEmpty(lang, "zh"),
+		}
+		rawCfg, _ := json.Marshal(cfg)
+		var configMap map[string]any
+		if err := json.Unmarshal(rawCfg, &configMap); err == nil && len(configMap) > 0 {
+			args["config"] = configMap
+		}
+		raw, _ := json.Marshal(args)
+		resp := a.toolManageStrategy(storeUserID, string(raw))
+		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
+			a.saveSkillSession(userID, session)
+			if lang == "zh" {
+				return "创建策略失败：" + errMsg
+			}
+			return "That create request did not go through: " + errMsg
+		}
+		a.clearSkillSession(userID)
+		if lang == "zh" {
+			return fmt.Sprintf("已按当前草稿创建策略“%s”。后续如果还想继续细化参数，直接告诉我就行。", name)
+		}
+		return fmt.Sprintf("Created strategy %q from the current draft.", name)
+	}
+
+	a.saveSkillSession(userID, session)
+	return formatStrategyCreateDraftSummary(lang, name, changedFields, warnings)
+}
+
+func hasExplicitStrategyDetailIntent(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if !hasExplicitManagementDomainCue(text, "strategy") {
+		return false
+	}
 	return containsAny(lower, []string{
-		"什么样", "怎么样", "详情", "详细", "参数", "配置", "prompt", "提示词",
-		"what kind", "details", "detail", "config", "configuration", "parameter", "prompt",
+		"什么样", "怎么样", "详情", "详细", "prompt", "提示词",
+		"哪个策略", "哪一个策略", "你改的是哪个策略", "你把哪个策略",
+		"what kind", "details", "detail", "prompt", "which strategy",
 	})
+}
+
+func shouldPreferStrategyQueryDetail(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if !containsAny(lower, []string{"?", "？", "哪个", "哪一个", "哪条", "which"}) {
+		return false
+	}
+	return containsAny(lower, []string{"策略", "strategy"})
+}
+
+func shouldExplainStrategyRuntimeBoundary(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if !containsAny(lower, []string{"策略", "strategy"}) {
+		return false
+	}
+	if !containsAny(lower, []string{"启动", "运行", "run", "start", "deploy"}) {
+		return false
+	}
+	if containsAny(lower, []string{"交易员", "trader", "机器人", "bot"}) {
+		return false
+	}
+	return true
 }
 
 func wantsDefaultStrategyConfig(text string) bool {
@@ -580,12 +1175,74 @@ func (a *Agent) describeExchange(storeUserID, lang string, target *EntityReferen
 		}
 		exchange = &payload.ExchangeConfigs[0]
 	}
-	if lang == "zh" {
-		return fmt.Sprintf("交易所配置“%s”详情：\n- 交易所：%s\n- 已启用：%t\n- API Key：%t\n- Secret：%t\n- Passphrase：%t\n- Testnet：%t",
-			defaultIfEmpty(exchange.AccountName, exchange.ID), exchange.ExchangeType, exchange.Enabled, exchange.HasAPIKey, exchange.HasSecretKey, exchange.HasPassphrase, exchange.Testnet), true
+	name := defaultIfEmpty(exchange.AccountName, exchange.ID)
+	credentialLinesZh := make([]string, 0, 8)
+	credentialLinesEn := make([]string, 0, 8)
+	addCredentialLine := func(labelZh, labelEn string, present bool) {
+		credentialLinesZh = append(credentialLinesZh, fmt.Sprintf("- %s：%t", labelZh, present))
+		credentialLinesEn = append(credentialLinesEn, fmt.Sprintf("- %s: %t", labelEn, present))
 	}
-	return fmt.Sprintf("Exchange config %q details:\n- Exchange: %s\n- Enabled: %t\n- API key present: %t\n- Secret present: %t\n- Passphrase present: %t\n- Testnet: %t",
-		defaultIfEmpty(exchange.AccountName, exchange.ID), exchange.ExchangeType, exchange.Enabled, exchange.HasAPIKey, exchange.HasSecretKey, exchange.HasPassphrase, exchange.Testnet), true
+	switch exchange.ExchangeType {
+	case "binance", "bybit", "gate", "indodax":
+		addCredentialLine("API Key", "API key present", exchange.HasAPIKey)
+		addCredentialLine("Secret", "Secret present", exchange.HasSecretKey)
+	case "okx", "bitget", "kucoin":
+		addCredentialLine("API Key", "API key present", exchange.HasAPIKey)
+		addCredentialLine("Secret", "Secret present", exchange.HasSecretKey)
+		addCredentialLine("Passphrase", "Passphrase present", exchange.HasPassphrase)
+	case "hyperliquid":
+		addCredentialLine("API Key", "API key present", exchange.HasAPIKey)
+		credentialLinesZh = append(credentialLinesZh, fmt.Sprintf("- Hyperliquid 钱包地址：%s", defaultIfEmpty(exchange.HyperliquidWalletAddr, "未设置")))
+		credentialLinesEn = append(credentialLinesEn, fmt.Sprintf("- Hyperliquid wallet address: %s", defaultIfEmpty(exchange.HyperliquidWalletAddr, "not set")))
+	case "aster":
+		credentialLinesZh = append(credentialLinesZh,
+			fmt.Sprintf("- Aster User：%s", defaultIfEmpty(exchange.AsterUser, "未设置")),
+			fmt.Sprintf("- Aster Signer：%s", defaultIfEmpty(exchange.AsterSigner, "未设置")),
+			fmt.Sprintf("- Aster 私钥：%t", exchange.HasAsterPrivateKey),
+		)
+		credentialLinesEn = append(credentialLinesEn,
+			fmt.Sprintf("- Aster user: %s", defaultIfEmpty(exchange.AsterUser, "not set")),
+			fmt.Sprintf("- Aster signer: %s", defaultIfEmpty(exchange.AsterSigner, "not set")),
+			fmt.Sprintf("- Aster private key present: %t", exchange.HasAsterPrivateKey),
+		)
+	case "lighter":
+		credentialLinesZh = append(credentialLinesZh,
+			fmt.Sprintf("- Lighter 钱包地址：%s", defaultIfEmpty(exchange.LighterWalletAddr, "未设置")),
+			fmt.Sprintf("- Lighter API Key 私钥：%t", exchange.HasLighterAPIKey),
+			fmt.Sprintf("- Lighter API Key Index：%d", exchange.LighterAPIKeyIndex),
+		)
+		credentialLinesEn = append(credentialLinesEn,
+			fmt.Sprintf("- Lighter wallet address: %s", defaultIfEmpty(exchange.LighterWalletAddr, "not set")),
+			fmt.Sprintf("- Lighter API key private key present: %t", exchange.HasLighterAPIKey),
+			fmt.Sprintf("- Lighter API key index: %d", exchange.LighterAPIKeyIndex),
+		)
+	default:
+		addCredentialLine("API Key", "API key present", exchange.HasAPIKey)
+		addCredentialLine("Secret", "Secret present", exchange.HasSecretKey)
+		if exchange.HasPassphrase {
+			addCredentialLine("Passphrase", "Passphrase present", true)
+		}
+	}
+	if lang == "zh" {
+		lines := []string{
+			fmt.Sprintf("交易所配置“%s”详情：", name),
+			fmt.Sprintf("- 交易所：%s", exchange.ExchangeType),
+			fmt.Sprintf("- 账户名：%s", name),
+			fmt.Sprintf("- 已启用：%t", exchange.Enabled),
+			fmt.Sprintf("- Testnet：%t", exchange.Testnet),
+		}
+		lines = append(lines, credentialLinesZh...)
+		return strings.Join(lines, "\n"), true
+	}
+	lines := []string{
+		fmt.Sprintf("Exchange config %q details:", name),
+		fmt.Sprintf("- Exchange: %s", exchange.ExchangeType),
+		fmt.Sprintf("- Account name: %s", name),
+		fmt.Sprintf("- Enabled: %t", exchange.Enabled),
+		fmt.Sprintf("- Testnet: %t", exchange.Testnet),
+	}
+	lines = append(lines, credentialLinesEn...)
+	return strings.Join(lines, "\n"), true
 }
 
 func (a *Agent) describeModel(storeUserID, lang string, target *EntityReference) (string, bool) {
@@ -665,9 +1322,45 @@ func (a *Agent) loadTraderOptions(storeUserID string) []traderSkillOption {
 	if err != nil {
 		return nil
 	}
+	exchangeNames := map[string]string{}
+	if exchanges, err := a.store.Exchange().List(storeUserID); err == nil {
+		for _, exchange := range exchanges {
+			name := strings.TrimSpace(exchange.AccountName)
+			if name == "" {
+				name = strings.TrimSpace(exchange.ExchangeType)
+			}
+			if name != "" {
+				exchangeNames[exchange.ID] = name
+			}
+		}
+	}
+	modelNames := map[string]string{}
+	if models, err := a.store.AIModel().List(storeUserID); err == nil {
+		for _, model := range models {
+			name := strings.TrimSpace(model.Name)
+			if name == "" {
+				name = strings.TrimSpace(model.CustomModelName)
+			}
+			if name != "" {
+				modelNames[model.ID] = name
+			}
+		}
+	}
 	out := make([]traderSkillOption, 0, len(traders))
 	for _, trader := range traders {
-		out = append(out, traderSkillOption{ID: trader.ID, Name: trader.Name, Enabled: trader.IsRunning})
+		hints := make([]string, 0, 2)
+		if exchangeName := strings.TrimSpace(exchangeNames[trader.ExchangeID]); exchangeName != "" {
+			hints = append(hints, "交易所 "+exchangeName)
+		}
+		if modelName := strings.TrimSpace(modelNames[trader.AIModelID]); modelName != "" {
+			hints = append(hints, "模型 "+modelName)
+		}
+		out = append(out, traderSkillOption{
+			ID:      trader.ID,
+			Name:    trader.Name,
+			Enabled: trader.IsRunning,
+			Hint:    strings.Join(hints, "，"),
+		})
 	}
 	return out
 }
@@ -686,30 +1379,104 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 		}
 		return "Cancelled the current exchange creation flow."
 	}
-	if v := exchangeTypeFromText(text); fieldValue(session, "exchange_type") == "" && v != "" {
-		setField(&session, "exchange_type", v)
+	if result := a.extractSkillSessionFieldsWithLLM(context.Background(), userID, lang, text, session); result.Intent == "continue" {
+		a.applyLLMExtractionToSkillSession(storeUserID, &session, result, lang, text)
 	}
-	if v := extractTraderName(text); fieldValue(session, "account_name") == "" && v != "" {
+	if v := inferCreateDisplayName(text); fieldValue(session, "account_name") == "" && v != "" {
 		setField(&session, "account_name", v)
 	}
+	patch := buildExchangeUpdatePatch(text)
+	patch, warnings := normalizeExchangePatchToManualLimits(lang, patch)
+	applyExchangeUpdatePatchToSession(&session, patch)
 	exType := fieldValue(session, "exchange_type")
+	accountName := fieldValue(session, "account_name")
+	missing := make([]string, 0, 6)
 	if actionRequiresSlot("exchange_management", "create", "exchange_type") && exType == "" {
+		missing = append(missing, slotDisplayName("exchange_type", lang))
+	}
+	if accountName == "" {
+		missing = append(missing, displayCatalogFieldName("account_name", lang))
+	}
+	if fieldValue(session, "api_key") == "" {
+		missing = append(missing, displayCatalogFieldName("api_key", lang))
+	}
+	if fieldValue(session, "secret_key") == "" {
+		missing = append(missing, displayCatalogFieldName("secret_key", lang))
+	}
+	switch exType {
+	case "okx":
+		if fieldValue(session, "passphrase") == "" {
+			missing = append(missing, displayCatalogFieldName("passphrase", lang))
+		}
+	case "hyperliquid":
+		if fieldValue(session, "hyperliquid_wallet_addr") == "" {
+			missing = append(missing, "Hyperliquid Wallet")
+		}
+	}
+	if len(missing) > 0 {
 		setSkillDAGStep(&session, "resolve_exchange_type")
 		a.saveSkillSession(userID, session)
 		if lang == "zh" {
-			return "要创建交易所配置，我还需要：" + slotDisplayName("exchange_type", lang) + "。例如：OKX、Binance、Bybit。"
+			reply := "要创建交易所配置，还缺这些字段：" + formatMissingFieldList(lang, missing) + "。"
+			if exType == "" {
+				reply += "\n例如：OKX、Binance、Bybit。"
+			}
+			return reply
 		}
-		return "To create an exchange config, tell me which exchange to use, for example OKX, Binance, or Bybit."
+		return "One more thing: please tell me these details: " + formatMissingFieldList(lang, missing) + "."
 	}
-	accountName := fieldValue(session, "account_name")
-	if accountName == "" {
-		accountName = "Default"
+	validator := exchangeConfigValidator{
+		exchangeType:            exType,
+		enabled:                 fieldValue(session, "enabled") == "true",
+		apiKey:                  fieldValue(session, "api_key"),
+		secretKey:               fieldValue(session, "secret_key"),
+		passphrase:              fieldValue(session, "passphrase"),
+		hyperliquidWalletAddr:   fieldValue(session, "hyperliquid_wallet_addr"),
+		asterUser:               fieldValue(session, "aster_user"),
+		asterSigner:             fieldValue(session, "aster_signer"),
+		asterPrivateKey:         fieldValue(session, "aster_private_key"),
+		lighterWalletAddr:       fieldValue(session, "lighter_wallet_addr"),
+		lighterAPIKeyPrivateKey: fieldValue(session, "lighter_api_key_private_key"),
+	}
+	if err := validator.Validate(); err != nil {
+		a.saveSkillSession(userID, session)
+		return formatValidationFeedback(lang, "exchange", err)
+	}
+	if !createConfirmationReply(text) {
+		session.Phase = "await_create_confirmation"
+		setSkillDAGStep(&session, "await_create_confirmation")
+		a.saveSkillSession(userID, session)
+		reply := formatExchangeCreateDraftSummary(lang, session)
+		if len(warnings) > 0 {
+			if lang == "zh" {
+				reply += "\n这些字段里有超出手动面板范围的值，我已经先按风控范围收敛：\n- " + strings.Join(warnings, "\n- ")
+			} else {
+				reply += "\nSome values exceeded the manual editor limits, so I normalized them first:\n- " + strings.Join(warnings, "\n- ")
+			}
+		}
+		return reply
 	}
 	setSkillDAGStep(&session, "execute_create")
 	args := map[string]any{
 		"action":        "create",
 		"exchange_type": exType,
 		"account_name":  accountName,
+	}
+	for _, field := range []string{"api_key", "secret_key", "passphrase", "hyperliquid_wallet_addr", "aster_user", "aster_signer", "aster_private_key", "lighter_wallet_addr", "lighter_api_key_private_key"} {
+		if value := fieldValue(session, field); value != "" {
+			args[field] = value
+		}
+	}
+	if value := fieldValue(session, "enabled"); value != "" {
+		args["enabled"] = value == "true"
+	}
+	if value := fieldValue(session, "testnet"); value != "" {
+		args["testnet"] = value == "true"
+	}
+	if value := fieldValue(session, "lighter_api_key_index"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			args["lighter_api_key_index"] = parsed
+		}
 	}
 	raw, _ := json.Marshal(args)
 	resp := a.toolManageExchangeConfig(storeUserID, string(raw))
@@ -718,13 +1485,22 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 		if lang == "zh" {
 			return "创建交易所配置失败：" + errMsg
 		}
-		return "Failed to create exchange config: " + errMsg
+		return "That create request did not go through: " + errMsg
 	}
 	a.clearSkillSession(userID)
+	a.rememberReferencesFromToolResult(userID, "manage_exchange_config", resp)
 	if lang == "zh" {
-		return fmt.Sprintf("已创建交易所配置：%s（%s）。如需继续补 API Key、Secret 或 Passphrase，可以直接继续说。", accountName, exType)
+		reply := fmt.Sprintf("已创建交易所配置：%s（%s）。", accountName, exType)
+		if len(warnings) > 0 {
+			reply += "\n\n已按手动面板范围自动调整：\n- " + strings.Join(warnings, "\n- ")
+		}
+		return reply
 	}
-	return fmt.Sprintf("Created exchange config %s (%s). You can continue by adding API key, secret, or passphrase.", accountName, exType)
+	reply := fmt.Sprintf("Created exchange config %s (%s).", accountName, exType)
+	if len(warnings) > 0 {
+		reply += "\n\nAdjusted to stay within the manual editor limits:\n- " + strings.Join(warnings, "\n- ")
+	}
+	return reply
 }
 
 func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, text string, session skillSession) string {
@@ -741,31 +1517,82 @@ func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, t
 		}
 		return "Cancelled the current model creation flow."
 	}
-	if v := providerFromText(text); fieldValue(session, "provider") == "" && v != "" {
-		setField(&session, "provider", v)
+	if result := a.extractSkillSessionFieldsWithLLM(context.Background(), userID, lang, text, session); result.Intent == "continue" {
+		a.applyLLMExtractionToSkillSession(storeUserID, &session, result, lang, text)
 	}
-	if v := extractTraderName(text); fieldValue(session, "name") == "" && v != "" {
+	if v := inferCreateDisplayName(text); fieldValue(session, "name") == "" && v != "" {
 		setField(&session, "name", v)
 	}
-	if v := extractURL(text); fieldValue(session, "custom_api_url") == "" && v != "" {
-		setField(&session, "custom_api_url", v)
-	}
+	patch := buildModelUpdatePatch(text)
+	applyModelUpdatePatchToSession(&session, patch)
 	provider := fieldValue(session, "provider")
-	if actionRequiresSlot("model_management", "create", "provider") && provider == "" {
+	if provider != "" {
+		if fieldValue(session, "name") == "" {
+			setField(&session, "name", defaultModelConfigName(provider))
+		}
+		if modelProviderSupportsCustomModel(provider) && fieldValue(session, "custom_model_name") == "" {
+			if defaultModel := defaultModelNameForProvider(provider); defaultModel != "" {
+				setField(&session, "custom_model_name", defaultModel)
+			}
+		}
+		if !modelProviderSupportsCustomAPIURL(provider) {
+			setField(&session, "custom_api_url", "")
+		}
+	}
+	missing := make([]string, 0, 4)
+	providerMissing := actionRequiresSlot("model_management", "create", "provider") && provider == ""
+	if providerMissing {
+		missing = append(missing, slotDisplayName("provider", lang))
+	}
+	if !providerMissing && fieldValue(session, "api_key") == "" {
+		missing = append(missing, modelProviderCredentialLabel(lang, provider))
+	}
+	if len(missing) > 0 {
 		setSkillDAGStep(&session, "resolve_provider")
 		a.saveSkillSession(userID, session)
 		if lang == "zh" {
-			return "要创建模型配置，我还需要：" + slotDisplayName("provider", lang) + "，例如：OpenAI、DeepSeek、Claude、Gemini。"
+			reply := "要创建模型配置，还缺这些字段：" + formatMissingFieldList(lang, missing) + "。"
+			if provider == "" {
+				reply += "\n" + availableModelProvidersMessage(lang)
+			} else {
+				reply += "\n" + modelProviderDetailedGuidance(lang, provider)
+			}
+			return reply
 		}
-		return "To create a model config, I need the provider first, for example OpenAI, DeepSeek, Claude, or Gemini."
+		reply := "One more thing: please tell me these details: " + formatMissingFieldList(lang, missing) + "."
+		if provider != "" {
+			reply += "\n" + modelProviderDetailedGuidance(lang, provider)
+		}
+		return reply
+	}
+	validator := modelConfigValidator{
+		provider:        provider,
+		enabled:         fieldValue(session, "enabled") == "true",
+		apiKey:          fieldValue(session, "api_key"),
+		customAPIURL:    fieldValue(session, "custom_api_url"),
+		customModelName: fieldValue(session, "custom_model_name"),
+	}
+	if err := validator.Validate(); err != nil {
+		a.saveSkillSession(userID, session)
+		return formatValidationFeedback(lang, "model", err)
+	}
+	if !createConfirmationReply(text) {
+		session.Phase = "await_create_confirmation"
+		setSkillDAGStep(&session, "await_create_confirmation")
+		a.saveSkillSession(userID, session)
+		return formatModelCreateDraftSummary(lang, session)
 	}
 	setSkillDAGStep(&session, "execute_create")
 	args := map[string]any{
 		"action":            "create",
 		"provider":          provider,
-		"name":              defaultIfEmpty(fieldValue(session, "name"), provider),
+		"name":              fieldValue(session, "name"),
+		"api_key":           fieldValue(session, "api_key"),
 		"custom_api_url":    fieldValue(session, "custom_api_url"),
 		"custom_model_name": fieldValue(session, "custom_model_name"),
+	}
+	if value := fieldValue(session, "enabled"); value != "" {
+		args["enabled"] = value == "true"
 	}
 	raw, _ := json.Marshal(args)
 	resp := a.toolManageModelConfig(storeUserID, string(raw))
@@ -774,13 +1601,14 @@ func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, t
 		if lang == "zh" {
 			return "创建模型配置失败：" + errMsg
 		}
-		return "Failed to create model config: " + errMsg
+		return "That create request did not go through: " + errMsg
 	}
 	a.clearSkillSession(userID)
+	a.rememberReferencesFromToolResult(userID, "manage_model_config", resp)
 	if lang == "zh" {
-		return fmt.Sprintf("已创建模型配置：%s。你后续还可以继续补 API Key、URL 或模型名。", provider)
+		return fmt.Sprintf("已创建模型配置：%s。", fieldValue(session, "name"))
 	}
-	return fmt.Sprintf("Created model config for %s. You can continue by adding API key, URL, or model name.", provider)
+	return fmt.Sprintf("Created model config %s.", fieldValue(session, "name"))
 }
 
 func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang, text string, session skillSession) string {
@@ -797,15 +1625,13 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		}
 		return "Cancelled the current strategy creation flow."
 	}
+	if result := a.extractSkillSessionFieldsWithLLM(context.Background(), userID, lang, text, session); result.Intent == "continue" {
+		a.applyLLMExtractionToSkillSession(storeUserID, &session, result, lang, text)
+	}
 	name := fieldValue(session, "name")
-	if name == "" {
-		name = extractTraderName(text)
-		if name == "" {
-			name = extractPostKeywordName(text, []string{"叫", "名为", "策略叫", "strategy called"})
-		}
-		if name != "" {
-			setField(&session, "name", name)
-		}
+	hasDescriptiveDraftIntent := session.Phase == "draft_create"
+	if hasDescriptiveDraftIntent {
+		return a.continueStrategyCreateDraft(storeUserID, userID, lang, text, session)
 	}
 	if actionRequiresSlot("strategy_management", "create", "name") && name == "" {
 		setSkillDAGStep(&session, "resolve_name")
@@ -824,9 +1650,10 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		if lang == "zh" {
 			return "创建策略失败：" + errMsg
 		}
-		return "Failed to create strategy: " + errMsg
+		return "That create request did not go through: " + errMsg
 	}
 	a.clearSkillSession(userID)
+	a.rememberReferencesFromToolResult(userID, "manage_strategy", resp)
 	if lang == "zh" {
 		return fmt.Sprintf("已创建策略“%s”。默认配置已就绪，你后续可以继续让我帮你改细节。", name)
 	}
@@ -834,28 +1661,36 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 }
 
 func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, text string, session skillSession, skillName, action string, options []traderSkillOption) (string, bool) {
-	if isCancelSkillReply(text) {
-		a.clearSkillSession(userID)
-		if lang == "zh" {
-			return "已取消当前流程。", true
-		}
-		return "Cancelled the current flow.", true
-	}
 	if session.Name == "" {
 		session = skillSession{Name: skillName, Action: action, Phase: "collecting"}
 	}
 	if session.Name != skillName || session.Action != action {
 		return "", false
 	}
+	if shouldUseLLMConversationForSimpleEntity(skillName, action) {
+		result := a.llmSkillConversationDriver(context.Background(), storeUserID, userID, lang, text, session, a.buildSimpleEntityConversationResources(storeUserID, session, options))
+		if result.Cancel {
+			a.clearSkillSession(userID)
+			if lang == "zh" {
+				return "已取消当前流程。", true
+			}
+			return "Cancelled the current flow.", true
+		}
+		if result.UserRejectedFlow {
+			return a.rerouteRejectedSkillFlow(context.Background(), storeUserID, userID, lang, text)
+		}
+		applySkillConversationResultToSession(&session, result)
+		if !result.Ready && result.Question != "" {
+			a.saveSkillSession(userID, session)
+			return result.Question, true
+		}
+	}
 
 	if dag, ok := getSkillDAG(skillName, action); ok && len(dag.Steps) > 0 {
 		currentStep, _ := currentSkillDAGStep(session)
 		if currentStep.ID == "resolve_target" {
-			if supportsBulkTargetSelection(skillName, action) && textMeansAllTargets(text) {
-				setField(&session, "bulk_scope", "all")
-				advanceSkillDAGStep(&session, currentStep.ID)
-			} else {
-				session.TargetRef = resolveTargetFromText(text, options, session.TargetRef)
+			if session.TargetRef == nil {
+				session.TargetRef = a.inferredCurrentReferenceForSkill(userID, skillName)
 			}
 			if session.TargetRef == nil {
 				if !(supportsBulkTargetSelection(skillName, action) && fieldValue(session, "bulk_scope") == "all") {
@@ -873,7 +1708,7 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 						}
 						return reply, true
 					}
-					reply := "This step needs a target object first. Tell me which one to operate on."
+					reply := "One more thing: tell me which one you want me to work on."
 					if optionList != "" {
 						reply += "\n" + optionList
 					}
@@ -885,10 +1720,8 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 			}
 		}
 	} else {
-		if supportsBulkTargetSelection(skillName, action) && textMeansAllTargets(text) {
-			setField(&session, "bulk_scope", "all")
-		} else {
-			session.TargetRef = resolveTargetFromText(text, options, session.TargetRef)
+		if session.TargetRef == nil {
+			session.TargetRef = a.inferredCurrentReferenceForSkill(userID, skillName)
 		}
 		if session.TargetRef == nil && fieldValue(session, "bulk_scope") != "all" && action != "query" && action != "query_list" && action != "query_detail" && action != "query_running" {
 			a.saveSkillSession(userID, session)
@@ -900,7 +1733,26 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 				}
 				return reply, true
 			}
-			reply := "I still need you to specify which object to operate on."
+			reply := "One more thing: tell me which one you want to work on."
+			if label != "" {
+				reply += "\n" + label
+			}
+			return reply, true
+		}
+	}
+
+	if session.TargetRef != nil && action != "create" && action != "query_list" && action != "query_running" {
+		if !ensureLiveTargetReference(&session, options) {
+			a.saveSkillSession(userID, session)
+			label := formatOptionList("可选对象：", options)
+			if lang == "zh" {
+				reply := "我刚检查了一下，刚才记住的对象已经不存在或已失效了。请重新告诉我要操作哪一个对象。"
+				if label != "" {
+					reply += "\n" + label
+				}
+				return reply, true
+			}
+			reply := "The object remembered from earlier no longer exists. Please tell me which object to operate on now."
 			if label != "" {
 				reply += "\n" + label
 			}
@@ -920,6 +1772,30 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 	default:
 		return "", false
 	}
+}
+
+func (a *Agent) askLLMAmbiguousTargetQuestion(storeUserID string, userID int64, lang, text string, session skillSession, skillName, action string, allOptions, ambiguous []traderSkillOption) string {
+	if a.aiClient != nil {
+		ambiguousSession := session
+		ambiguousSession.Name = skillName
+		ambiguousSession.Action = action
+		ambiguousSession.TargetRef = nil
+		setSkillDAGStep(&ambiguousSession, "resolve_target")
+
+		resources := a.buildSimpleEntityConversationResources(storeUserID, ambiguousSession, allOptions)
+		if resources == nil {
+			resources = map[string]any{}
+		}
+		resources["targets"] = ambiguous
+		resources["target_conflict"] = ambiguous
+
+		result := a.llmSkillConversationDriver(context.Background(), storeUserID, userID, lang, text, ambiguousSession, resources)
+		if question := strings.TrimSpace(result.Question); question != "" {
+			a.saveSkillSession(userID, ambiguousSession)
+			return question
+		}
+	}
+	return formatAmbiguousTargetPrompt(lang, ambiguous)
 }
 
 func defaultIfEmpty(value, fallback string) string {

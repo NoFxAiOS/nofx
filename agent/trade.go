@@ -5,22 +5,50 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
+	"nofx/store"
 	"strings"
 	"sync"
 	"time"
 )
 
+const (
+	tradeAbsoluteMaxQuantity        = 1_000_000.0
+	tradeLargeOrderNotionalUSDT     = 5_000.0
+	tradeHardMaxOrderNotionalUSDT   = 100_000.0
+	tradeLargeOrderEquityRatio      = 0.25
+	tradeHardMaxOrderEquityRatio    = 1.00
+	tradeLargeOrderConfirmCommandZH = "确认大额 %s"
+	tradeLargeOrderConfirmCommandEN = "confirm large %s"
+)
+
+type tradeSelectedTrader interface {
+	GetStrategyConfig() *store.StrategyConfig
+	GetAccountInfo() (map[string]interface{}, error)
+}
+
+type tradeUnderlyingTrader interface {
+	OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
+	OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
+	CloseLong(symbol string, quantity float64) (map[string]interface{}, error)
+	CloseShort(symbol string, quantity float64) (map[string]interface{}, error)
+	GetMarketPrice(symbol string) (float64, error)
+}
+
 // TradeAction represents a parsed trade intent from the LLM or user.
 type TradeAction struct {
-	ID        string  `json:"id"`
-	Action    string  `json:"action"`    // "open_long", "open_short", "close_long", "close_short"
-	Symbol    string  `json:"symbol"`    // e.g. "BTCUSDT"
-	Quantity  float64 `json:"quantity"`  // amount
-	Leverage  int     `json:"leverage"`  // leverage multiplier
-	TraderID  string  `json:"trader_id"` // which trader to use
-	Status    string  `json:"status"`    // "pending", "confirmed", "executed", "failed", "expired"
-	CreatedAt int64   `json:"created_at"`
-	Error     string  `json:"error,omitempty"`
+	ID                             string  `json:"id"`
+	Action                         string  `json:"action"`    // "open_long", "open_short", "close_long", "close_short"
+	Symbol                         string  `json:"symbol"`    // e.g. "BTCUSDT"
+	Quantity                       float64 `json:"quantity"`  // amount
+	Leverage                       int     `json:"leverage"`  // leverage multiplier
+	TraderID                       string  `json:"trader_id"` // which trader to use
+	Status                         string  `json:"status"`    // "pending", "confirmed", "executed", "failed", "expired"
+	CreatedAt                      int64   `json:"created_at"`
+	EstimatedPrice                 float64 `json:"estimated_price,omitempty"`
+	EstimatedNotional              float64 `json:"estimated_notional,omitempty"`
+	RequiresLargeOrderConfirmation bool    `json:"requires_large_order_confirmation,omitempty"`
+	Error                          string  `json:"error,omitempty"`
 }
 
 // pendingTrades stores pending trade confirmations.
@@ -149,49 +177,12 @@ func (a *Agent) executeTrade(ctx context.Context, trade *TradeAction) error {
 		return fmt.Errorf("no trader manager available")
 	}
 
-	traders := a.traderManager.GetAllTraders()
-	if len(traders) == 0 {
-		return fmt.Errorf("no traders configured")
+	wantStock, selectedTrader, underlyingTrader, err := a.resolveTradeExecutionContext(trade)
+	if err != nil {
+		return err
 	}
-
-	// Determine if this is a stock trade to route to the right exchange
-	wantStock := isStockSymbol(trade.Symbol)
-
-	// Find a running trader's underlying exchange interface
-	var underlyingTrader interface {
-		OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
-		OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
-		CloseLong(symbol string, quantity float64) (map[string]interface{}, error)
-		CloseShort(symbol string, quantity float64) (map[string]interface{}, error)
-	}
-
-	for _, t := range traders {
-		s := t.GetStatus()
-		running, _ := s["is_running"].(bool)
-		if running {
-			ut := t.GetUnderlyingTrader()
-			if ut == nil {
-				continue
-			}
-			// Route stock symbols to alpaca traders, crypto to others
-			exchange := t.GetExchange()
-			isAlpaca := exchange == "alpaca"
-			if wantStock && !isAlpaca {
-				continue // Skip non-stock traders for stock symbols
-			}
-			if !wantStock && isAlpaca {
-				continue // Skip stock traders for crypto symbols
-			}
-			underlyingTrader = ut
-			break
-		}
-	}
-
-	if underlyingTrader == nil {
-		if wantStock {
-			return fmt.Errorf("no running stock trader (Alpaca) found — configure one to trade stocks")
-		}
-		return fmt.Errorf("no running trader supports trade execution")
+	if err := validateTradeAction(trade, wantStock, selectedTrader, underlyingTrader); err != nil {
+		return err
 	}
 
 	switch trade.Action {
@@ -216,6 +207,172 @@ func (a *Agent) executeTrade(ctx context.Context, trade *TradeAction) error {
 	default:
 		return fmt.Errorf("unknown action: %s", trade.Action)
 	}
+}
+
+func (a *Agent) resolveTradeExecutionContext(trade *TradeAction) (bool, tradeSelectedTrader, tradeUnderlyingTrader, error) {
+	if a.traderManager == nil {
+		return false, nil, nil, fmt.Errorf("no trader manager available")
+	}
+	traders := a.traderManager.GetAllTraders()
+	if len(traders) == 0 {
+		return false, nil, nil, fmt.Errorf("no traders configured")
+	}
+
+	wantStock := isStockSymbol(trade.Symbol)
+	for _, t := range traders {
+		s := t.GetStatus()
+		running, _ := s["is_running"].(bool)
+		if !running {
+			continue
+		}
+		ut := t.GetUnderlyingTrader()
+		if ut == nil {
+			continue
+		}
+		exchange := t.GetExchange()
+		isAlpaca := exchange == "alpaca"
+		if wantStock && !isAlpaca {
+			continue
+		}
+		if !wantStock && isAlpaca {
+			continue
+		}
+		return wantStock, t, ut, nil
+	}
+
+	if wantStock {
+		return true, nil, nil, fmt.Errorf("no running stock trader (Alpaca) found — configure one to trade stocks")
+	}
+	return false, nil, nil, fmt.Errorf("no running trader supports trade execution")
+}
+
+func validateTradeAction(
+	trade *TradeAction,
+	wantStock bool,
+	selectedTrader tradeSelectedTrader,
+	underlyingTrader tradeUnderlyingTrader,
+) error {
+	if trade == nil {
+		return fmt.Errorf("trade is required")
+	}
+	if math.IsNaN(trade.Quantity) || math.IsInf(trade.Quantity, 0) {
+		return fmt.Errorf("quantity must be a finite number")
+	}
+	if !strings.HasPrefix(trade.Action, "open_") {
+		return nil
+	}
+	if trade.Quantity <= 0 {
+		return fmt.Errorf("quantity must be > 0")
+	}
+	if trade.Quantity > tradeAbsoluteMaxQuantity {
+		return fmt.Errorf("quantity %.4f exceeds hard sanity cap %.0f", trade.Quantity, tradeAbsoluteMaxQuantity)
+	}
+
+	price, err := underlyingTrader.GetMarketPrice(trade.Symbol)
+	if err != nil {
+		return fmt.Errorf("failed to fetch market price for %s: %w", trade.Symbol, err)
+	}
+	if price <= 0 {
+		return fmt.Errorf("invalid market price for %s", trade.Symbol)
+	}
+	positionValue := trade.Quantity * price
+	trade.EstimatedPrice = price
+	trade.EstimatedNotional = positionValue
+
+	if positionValue > tradeHardMaxOrderNotionalUSDT {
+		return fmt.Errorf("position value %.2f exceeds hard safety cap %.2f USDT", positionValue, tradeHardMaxOrderNotionalUSDT)
+	}
+
+	var equity float64
+	if selectedTrader != nil {
+		accountInfo, err := selectedTrader.GetAccountInfo()
+		if err != nil {
+			return fmt.Errorf("failed to load trader account info: %w", err)
+		}
+		equity = toFloat(accountInfo["total_equity"])
+		if equity <= 0 {
+			equity = toFloat(accountInfo["totalEquity"])
+		}
+		if equity <= 0 {
+			return fmt.Errorf("invalid trader equity for risk validation")
+		}
+		if positionValue > equity*tradeHardMaxOrderEquityRatio {
+			return fmt.Errorf(
+				"position value %.2f USDT exceeds hard safety cap %.2f USDT (equity %.2f x %.2f)",
+				positionValue,
+				equity*tradeHardMaxOrderEquityRatio,
+				equity,
+				tradeHardMaxOrderEquityRatio,
+			)
+		}
+		if positionValue >= equity*tradeLargeOrderEquityRatio {
+			trade.RequiresLargeOrderConfirmation = true
+		}
+	}
+	if positionValue >= tradeLargeOrderNotionalUSDT {
+		trade.RequiresLargeOrderConfirmation = true
+	}
+
+	if wantStock {
+		if trade.Leverage < 0 {
+			return fmt.Errorf("leverage must be >= 0")
+		}
+		return nil
+	}
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	if selectedTrader != nil && selectedTrader.GetStrategyConfig() != nil {
+		cfg = *selectedTrader.GetStrategyConfig()
+	}
+	riskControl := cfg.RiskControl
+
+	maxLeverage := riskControl.AltcoinMaxLeverage
+	maxPositionValueRatio := riskControl.AltcoinMaxPositionValueRatio
+	if isBTCETHSymbol(trade.Symbol) {
+		maxLeverage = riskControl.BTCETHMaxLeverage
+		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
+	}
+	if maxLeverage <= 0 {
+		maxLeverage = 5
+	}
+	if trade.Leverage <= 0 {
+		return fmt.Errorf("leverage must be > 0")
+	}
+	if trade.Leverage > maxLeverage {
+		return fmt.Errorf("leverage exceeds configured limit (%dx > %dx)", trade.Leverage, maxLeverage)
+	}
+
+	minPositionSize := riskControl.MinPositionSize
+	if minPositionSize <= 0 {
+		minPositionSize = 12
+	}
+	if positionValue < minPositionSize {
+		return fmt.Errorf("position value %.2f USDT is below configured minimum %.2f USDT", positionValue, minPositionSize)
+	}
+
+	if maxPositionValueRatio <= 0 {
+		if isBTCETHSymbol(trade.Symbol) {
+			maxPositionValueRatio = 5.0
+		} else {
+			maxPositionValueRatio = 1.0
+		}
+	}
+	maxPositionValue := equity * maxPositionValueRatio
+	if positionValue > maxPositionValue {
+		return fmt.Errorf(
+			"position value %.2f USDT exceeds configured limit %.2f USDT (equity %.2f x %.2f)",
+			positionValue,
+			maxPositionValue,
+			equity,
+			maxPositionValueRatio,
+		)
+	}
+	return nil
+}
+
+func isBTCETHSymbol(symbol string) bool {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
 }
 
 // formatTradeConfirmation creates a confirmation message for a pending trade.
@@ -246,6 +403,13 @@ func formatTradeConfirmation(trade *TradeAction, lang string) string {
 		if trade.Leverage > 0 {
 			msg += fmt.Sprintf("杠杆: %dx\n", trade.Leverage)
 		}
+		if trade.EstimatedNotional > 0 {
+			msg += fmt.Sprintf("估算仓位价值: %.2f USDT\n", trade.EstimatedNotional)
+		}
+		if trade.RequiresLargeOrderConfirmation {
+			msg += fmt.Sprintf("\n⚠️ 该订单已触发大额风控，请发送 `"+tradeLargeOrderConfirmCommandZH+"` 执行交易，或忽略取消。", trade.ID)
+			return msg
+		}
 		msg += fmt.Sprintf("\n发送 `确认 %s` 执行交易，或忽略取消。", trade.ID)
 		return msg
 	}
@@ -259,6 +423,13 @@ func formatTradeConfirmation(trade *TradeAction, lang string) string {
 	if trade.Leverage > 0 {
 		msg += fmt.Sprintf("Leverage: %dx\n", trade.Leverage)
 	}
+	if trade.EstimatedNotional > 0 {
+		msg += fmt.Sprintf("Estimated notional: %.2f USDT\n", trade.EstimatedNotional)
+	}
+	if trade.RequiresLargeOrderConfirmation {
+		msg += fmt.Sprintf("\n⚠️ This order triggered high-risk protection. Send `"+tradeLargeOrderConfirmCommandEN+"` to execute, or ignore to cancel.", trade.ID)
+		return msg
+	}
 	msg += fmt.Sprintf("\nSend `confirm %s` to execute, or ignore to cancel.", trade.ID)
 	return msg
 }
@@ -268,7 +439,14 @@ func (a *Agent) handleTradeConfirmation(ctx context.Context, userID int64, text,
 	upper := strings.ToUpper(strings.TrimSpace(text))
 
 	var tradeID string
-	if strings.HasPrefix(upper, "确认 ") || strings.HasPrefix(upper, "CONFIRM ") {
+	largeConfirm := false
+	if strings.HasPrefix(upper, "确认大额 ") || strings.HasPrefix(upper, "CONFIRM LARGE ") {
+		largeConfirm = true
+		parts := strings.Fields(text)
+		if len(parts) >= 2 {
+			tradeID = parts[len(parts)-1]
+		}
+	} else if strings.HasPrefix(upper, "确认 ") || strings.HasPrefix(upper, "CONFIRM ") {
 		parts := strings.Fields(text)
 		if len(parts) >= 2 {
 			tradeID = parts[1]
@@ -289,6 +467,12 @@ func (a *Agent) handleTradeConfirmation(ctx context.Context, userID int64, text,
 			return "❌ 交易已过期或不存在。", true
 		}
 		return "❌ Trade expired or not found.", true
+	}
+	if trade.RequiresLargeOrderConfirmation && !largeConfirm {
+		if lang == "zh" {
+			return fmt.Sprintf("⚠️ 这是一笔大额订单，请发送 `"+tradeLargeOrderConfirmCommandZH+"` 继续执行。", trade.ID), true
+		}
+		return fmt.Sprintf("⚠️ This is a high-risk order. Send `"+tradeLargeOrderConfirmCommandEN+"` to continue.", trade.ID), true
 	}
 
 	a.pending.Remove(tradeID)

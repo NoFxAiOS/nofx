@@ -39,6 +39,10 @@ func (s *Server) handleCreateAgentPreference(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text required"})
 		return
 	}
+	if len([]rune(strings.TrimSpace(req.Text))) > 500 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "text too long"})
+		return
+	}
 
 	created, err := agent.NewPersistentPreference(req.Text)
 	if err != nil {

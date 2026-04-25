@@ -3,30 +3,146 @@
   "kind": "management",
   "domain": "model",
   "description": "当用户想创建、查看、修改或删除 AI 模型配置时调用。适用于用户提到 provider、API Key、Base URL、模型名称、启用状态等配置管理需求。不用于排查模型调用失败、接口不兼容、鉴权错误、模型不存在等诊断问题。",
+  "field_constraints": {
+    "provider": {
+      "type": "enum",
+      "required": true,
+      "values": ["openai", "deepseek", "claude", "gemini", "qwen", "kimi", "grok", "minimax", "claw402", "blockrun-base", "blockrun-sol"],
+      "description": "模型提供商，必填。决定默认模型、凭证类型以及可选配置项。"
+    },
+    "name": {
+      "type": "string",
+      "max_length": 50,
+      "description": "模型配置显示名称，可选，用于区分同一 provider 的多个配置。"
+    },
+    "api_key": {
+      "type": "credential",
+      "description": "模型凭证。普通 provider 使用 API Key；claw402 和 blockrun 使用钱包私钥。启用前必须填写。"
+    },
+    "custom_api_url": {
+      "type": "url",
+      "must_be_https": true,
+      "description": "自定义 API Base URL，必须是合法的 HTTPS 地址。普通 provider 可留空走默认地址；claw402 / blockrun 不需要。"
+    },
+    "custom_model_name": {
+      "type": "string",
+      "description": "实际调用的模型 ID，例如 gpt-5.1、deepseek-chat。若 provider 有默认模型，可留空走默认值。"
+    },
+    "enabled": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用该模型配置。启用前必须填写 provider 对应的凭证；若 provider 没有默认模型，还需要 custom_model_name。"
+    }
+  },
+  "validation_rules": [
+    "provider 必须是支持列表之一：openai、deepseek、claude、gemini、qwen、kimi、grok、minimax、claw402、blockrun-base、blockrun-sol。",
+    "OpenAI 的 api_key 格式校验：必须以 sk- 开头，不符合时提示用户检查 Key 是否完整。",
+    "custom_api_url 若填写，必须是合法 HTTPS 地址，系统拒绝 HTTP 地址，提示用户改用 HTTPS。",
+    "启用（enabled=true）前必须填写 provider 对应的凭证；如果 custom_model_name 留空，则系统应先尝试使用 provider 默认模型。",
+    "启用（enabled=true）前，custom_api_url 若填写必须是合法 HTTPS 地址；不允许用 HTTP 地址硬启用。",
+    "删除操作不可逆，必须先向用户确认再执行。"
+  ],
   "actions": {
     "create": {
       "description": "创建新的模型配置。",
       "required_slots": ["provider"],
-      "optional_slots": ["name", "api_key", "custom_api_url", "custom_model_name", "enabled"]
+      "optional_slots": ["name", "api_key", "custom_api_url", "custom_model_name", "enabled"],
+      "goal": "创建一个可供 trader 绑定使用的模型配置。",
+      "dynamic_rules": [
+        "确认 provider 后，先说明该 provider 的默认模型和凭证类型，再按 provider 特性补充追问。",
+        "普通 provider（openai、deepseek、claude 等）通常需要 api_key；custom_api_url 和 custom_model_name 可留空走默认值。",
+        "claw402 需要钱包私钥，不需要 custom_api_url；custom_model_name 留空时默认 deepseek。",
+        "blockrun-base 和 blockrun-sol 需要钱包私钥，不需要 custom_api_url；custom_model_name 留空时默认 auto。",
+        "若用户提供了 custom_api_url，校验是否为合法 HTTPS 地址，不合法则提示修正。",
+        "OpenAI 的 api_key 不以 sk- 开头时，提示用户检查 Key 格式。",
+        "若用户要在父任务里使用现有模型，应优先选择当前已启用模型，而不是误开新的 create。",
+        "若当前父任务只是缺一个可用模型，本动作完成后应允许父任务恢复并消费新的 model_id。"
+      ],
+      "success_output": "返回 model_id 和创建后的模型配置摘要（provider、名称、是否启用）。",
+      "failure_output": "明确指出缺失字段、非法 endpoint 或不支持的 provider，禁止只说泛化失败。"
     },
     "update": {
-      "description": "更新已有模型配置。",
+      "description": "更新已有模型配置的任意可编辑字段。",
       "required_slots": ["target_ref"],
-      "optional_slots": ["api_key", "custom_api_url", "custom_model_name", "enabled"]
+      "optional_slots": ["name", "api_key", "custom_api_url", "custom_model_name", "enabled"],
+      "goal": "更新一个已有模型配置的指定字段，而不覆盖未提及字段。",
+      "dynamic_rules": [
+        "只更新用户明确提到的字段，不要覆盖未提及的字段。",
+        "更新 custom_api_url 时校验 HTTPS 格式。",
+        "更新 api_key 时对 OpenAI 校验 sk- 前缀。"
+      ],
+      "success_output": "返回 model_id 和更新后的模型配置摘要。",
+      "failure_output": "明确指出目标模型不存在、provider/endpoint 非法，或仍缺哪个关键字段。"
+    },
+    "update_status": {
+      "description": "启用或禁用模型配置。启用前系统会校验 api_key 和 custom_model_name 是否已填写。",
+      "required_slots": ["target_ref", "enabled"],
+      "goal": "切换模型配置的启用状态。",
+      "dynamic_rules": [
+        "启用前必须确保 api_key 和 custom_model_name 已经齐全；若 provider 有特殊规则，也要在提示中体现。"
+      ],
+      "success_output": "返回 model_id，并明确告知该模型已启用或已禁用。",
+      "failure_output": "明确指出目标模型不存在、缺少启用前必填项，或当前状态切换失败。"
+    },
+    "update_endpoint": {
+      "description": "仅修改模型的 custom_api_url。",
+      "required_slots": ["target_ref", "custom_api_url"],
+      "goal": "仅更新模型配置的 custom_api_url。",
+      "dynamic_rules": [
+        "custom_api_url 必须是合法 HTTPS 地址；若不合法，先让用户修正而不是继续执行。"
+      ],
+      "success_output": "返回 model_id，并明确告知新的接口地址。",
+      "failure_output": "明确指出目标模型不存在，或接口地址仍不合法。"
+    },
+    "update_name": {
+      "description": "仅修改模型配置的 custom_model_name（实际调用的模型 ID）。",
+      "required_slots": ["target_ref", "custom_model_name"],
+      "goal": "仅更新模型配置的实际调用模型 ID。",
+      "dynamic_rules": [
+        "若用户其实是在改显示名称或 provider，应转去更通用的 update，而不是误用本动作。"
+      ],
+      "success_output": "返回 model_id，并明确告知新的 custom_model_name。",
+      "failure_output": "明确指出目标模型不存在，或新的模型 ID 仍未收齐。"
     },
     "delete": {
-      "description": "删除模型配置。",
+      "description": "删除模型配置，不可逆操作，必须确认。",
       "required_slots": ["target_ref"],
-      "needs_confirmation": true
+      "needs_confirmation": true,
+      "goal": "删除一个模型配置。",
+      "dynamic_rules": [
+        "必须在确认后执行，并明确提醒删除不可逆。"
+      ],
+      "success_output": "返回删除成功结果，并明确告知该模型配置已被移除。",
+      "failure_output": "明确指出缺少确认、目标模型不存在，或删除失败原因。"
     },
-    "query": {
-      "description": "查询模型配置。"
+    "query_list": {
+      "description": "查询所有模型配置列表，包含 provider、名称、启用状态。",
+      "goal": "列出当前用户可见的模型配置，便于后续选择或绑定。",
+      "dynamic_rules": [
+        "优先返回 provider、名称、启用状态，不返回 API Key 明文。"
+      ],
+      "success_output": "返回模型配置列表摘要。",
+      "failure_output": "若列表为空，应明确告知当前没有模型配置。"
+    },
+    "query_detail": {
+      "description": "查询某个模型配置的详细信息。",
+      "required_slots": ["target_ref"],
+      "goal": "读取一个模型配置的详细信息。",
+      "dynamic_rules": [
+        "详情返回中只能暴露 API Key 是否存在，不得返回明文凭证。"
+      ],
+      "success_output": "返回目标模型配置的详细摘要。",
+      "failure_output": "明确指出目标模型不存在，或当前引用已经失效。"
     }
   },
   "tool_mapping": {
     "create": "manage_model_config:create",
     "update": "manage_model_config:update",
+    "update_status": "manage_model_config:update",
+    "update_endpoint": "manage_model_config:update",
+    "update_name": "manage_model_config:update",
     "delete": "manage_model_config:delete",
-    "query": "get_model_configs"
+    "query_list": "get_model_configs",
+    "query_detail": "get_model_configs"
   }
 }

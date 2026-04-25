@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { httpClient } from '../../lib/httpClient'
 // icons reserved for future use
 
 interface TickerData {
@@ -25,8 +26,11 @@ export function MarketTicker() {
   const fetchTickers = async () => {
     try {
       // Batch fetch: single API call for all symbols
-      const res = await fetch(`/api/agent/tickers?symbols=${SYMBOLS.join(',')}`)
-      const data = await res.json()
+      const res = await httpClient.request<TickerData[]>(
+        `/api/agent/tickers?symbols=${SYMBOLS.join(',')}`,
+        { silent: true }
+      )
+      const data = res.data
       const map: Record<string, TickerData> = {}
       if (Array.isArray(data)) {
         data.forEach((r: TickerData) => {
@@ -49,7 +53,11 @@ export function MarketTicker() {
 
   const formatPrice = (price: string) => {
     const n = parseFloat(price)
-    if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    if (n >= 1000)
+      return n.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
     if (n >= 1) return n.toFixed(2)
     return n.toFixed(4)
   }
@@ -76,13 +84,15 @@ export function MarketTicker() {
               height: 56,
             }}
           >
-            <div style={{
-              width: '60%',
-              height: 10,
-              background: 'rgba(255,255,255,0.04)',
-              borderRadius: 4,
-              animation: 'pulse 1.5s infinite',
-            }} />
+            <div
+              style={{
+                width: '60%',
+                height: 10,
+                background: 'rgba(255,255,255,0.04)',
+                borderRadius: 4,
+                animation: 'pulse 1.5s infinite',
+              }}
+            />
           </div>
         ))}
         <style>{`
@@ -104,7 +114,11 @@ export function MarketTicker() {
         const isUp = pct > 0
         const isDown = pct < 0
         const color = isUp ? '#00e5a0' : isDown ? '#F6465D' : '#6c6c82'
-        const bgColor = isUp ? 'rgba(0,229,160,0.06)' : isDown ? 'rgba(246,70,93,0.06)' : 'rgba(108,108,130,0.06)'
+        const bgColor = isUp
+          ? 'rgba(0,229,160,0.06)'
+          : isDown
+            ? 'rgba(246,70,93,0.06)'
+            : 'rgba(108,108,130,0.06)'
         const label = sym.replace('USDT', '')
         const icon = SYMBOL_ICONS[label] || label[0]
 
@@ -149,7 +163,14 @@ export function MarketTicker() {
                 {icon}
               </div>
               <div>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#e0e0ec', letterSpacing: '-0.01em' }}>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: '#e0e0ec',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
                   {label}
                 </div>
                 <div style={{ fontSize: 10, color: '#4c4c62' }}>
@@ -158,16 +179,27 @@ export function MarketTicker() {
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#e0e0ec', fontFamily: '"IBM Plex Mono", monospace', letterSpacing: '-0.02em' }}>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: '#e0e0ec',
+                  fontFamily: '"IBM Plex Mono", monospace',
+                  letterSpacing: '-0.02em',
+                }}
+              >
                 ${formatPrice(t.lastPrice)}
               </div>
-              <div style={{
-                fontSize: 10.5,
-                fontWeight: 600,
-                color,
-                fontFamily: '"IBM Plex Mono", monospace',
-              }}>
-                {isUp ? '+' : ''}{pct.toFixed(2)}%
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color,
+                  fontFamily: '"IBM Plex Mono", monospace',
+                }}
+              >
+                {isUp ? '+' : ''}
+                {pct.toFixed(2)}%
               </div>
             </div>
           </div>

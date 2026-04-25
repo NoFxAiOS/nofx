@@ -161,10 +161,14 @@ func supportedWorkflowSkill(skill, action string) bool {
 	if _, ok := getSkillDAG(skill, action); ok {
 		return true
 	}
+	if def, ok := getSkillDefinition(skill); ok {
+		if _, ok := def.Actions[action]; ok {
+			return true
+		}
+	}
 	switch skill {
 	case "trader_management", "strategy_management", "model_management", "exchange_management":
-		switch action {
-		case "create", "query_list", "query_detail", "query_running", "activate":
+		if action == "query_running" {
 			return true
 		}
 	}
@@ -189,21 +193,54 @@ func (a *Agent) tryWorkflowIntent(ctx context.Context, storeUserID string, userI
 	return a.handleWorkflowSession(ctx, storeUserID, userID, lang, text, session, onEvent)
 }
 
+func (a *Agent) executeWorkflowDecomposition(ctx context.Context, storeUserID string, userID int64, lang, text string, decomposition workflowDecomposition, onEvent func(event, data string)) (string, bool, error) {
+	if len(decomposition.Tasks) <= 1 {
+		return "", false, nil
+	}
+	session := WorkflowSession{
+		UserID:          userID,
+		OriginalRequest: text,
+		Tasks:           decomposition.Tasks,
+	}
+	a.saveWorkflowSession(userID, session)
+	return a.handleWorkflowSession(ctx, storeUserID, userID, lang, text, session, onEvent)
+}
+
 func (a *Agent) handleWorkflowSession(ctx context.Context, storeUserID string, userID int64, lang, text string, session WorkflowSession, onEvent func(event, data string)) (string, bool, error) {
 	if isExplicitFlowAbort(text) {
 		a.clearSkillSession(userID)
 		a.clearWorkflowSession(userID)
-		if lang == "zh" {
-			return "已取消当前任务流。", true, nil
-		}
-		return "Cancelled the current workflow.", true, nil
+		return a.maybeOfferParentTaskAfterCancel(userID, lang), true, nil
 	}
 
 	if activeSkill := a.getSkillSession(userID); strings.TrimSpace(activeSkill.Name) != "" {
-		answer, handled := a.tryHardSkill(ctx, storeUserID, userID, lang, text, onEvent)
+		decision, extraction := a.resolveSkillSessionTurn(ctx, userID, lang, text, activeSkill)
+		switch decision.Intent {
+		case "cancel":
+			a.clearSkillSession(userID)
+			a.clearWorkflowSession(userID)
+			return a.maybeOfferParentTaskAfterCancel(userID, lang), true, nil
+		case "instant_reply":
+			return a.replyToActiveFlowInstantReply(ctx, userID, lang, text, onEvent), true, nil
+		case "resume_snapshot", "start_new":
+			if shouldSuspendInterruptedTask(text) || decision.Intent == "resume_snapshot" {
+				answer, handled, err := a.handoffFromActiveFlow(ctx, storeUserID, userID, lang, text, decision.TargetSnapshotID, onEvent)
+				return answer, handled, err
+			}
+			a.clearSkillSession(userID)
+			a.clearWorkflowSession(userID)
+			return "", false, nil
+		case "continue_active":
+			if extraction.Intent == "continue" {
+				a.applyLLMExtractionToSkillSession(storeUserID, &activeSkill, extraction, lang, text)
+				a.saveSkillSession(userID, activeSkill)
+			}
+		}
+		answer, handled := a.executeAtomicSkillTask(storeUserID, userID, lang, text, activeSkill.Name, activeSkill.Action, onEvent)
 		if !handled {
 			return "", false, nil
 		}
+		a.recordSkillInteraction(userID, text, answer)
 		session = a.getWorkflowSession(userID)
 		if hasActiveWorkflowSession(session) && strings.TrimSpace(a.getSkillSession(userID).Name) == "" {
 			session = markCurrentWorkflowTask(session, workflowTaskCompleted, "")
@@ -221,7 +258,76 @@ func (a *Agent) handleWorkflowSession(ctx context.Context, storeUserID string, u
 		return answer, true, nil
 	}
 
+	if decision := a.classifyWorkflowSessionInput(ctx, userID, lang, session, text); decision.Intent != "" && decision.Intent != "continue_active" {
+		switch decision.Intent {
+		case "cancel":
+			a.clearWorkflowSession(userID)
+			return a.maybeOfferParentTaskAfterCancel(userID, lang), true, nil
+		case "instant_reply":
+			return a.replyToActiveFlowInstantReply(ctx, userID, lang, text, onEvent), true, nil
+		case "resume_snapshot", "start_new":
+			if shouldSuspendInterruptedTask(text) || decision.Intent == "resume_snapshot" {
+				answer, handled, err := a.handoffFromActiveFlow(ctx, storeUserID, userID, lang, text, decision.TargetSnapshotID, onEvent)
+				return answer, handled, err
+			}
+			a.clearWorkflowSession(userID)
+			return "", false, nil
+		}
+	}
+
 	return a.maybeAdvanceWorkflow(ctx, storeUserID, userID, lang, session, onEvent)
+}
+
+func (a *Agent) classifyWorkflowSessionInput(ctx context.Context, userID int64, lang string, session WorkflowSession, text string) unifiedFlowDecision {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return unifiedFlowDecision{Intent: "continue_active"}
+	}
+	if isExplicitFlowAbort(text) {
+		return unifiedFlowDecision{Intent: "cancel"}
+	}
+	if isInstantDirectReplyText(text) {
+		return unifiedFlowDecision{Intent: "instant_reply"}
+	}
+	if a == nil || a.aiClient == nil {
+		if looksLikeNewTopLevelIntent(text) && !strings.EqualFold(text, strings.TrimSpace(session.OriginalRequest)) {
+			return unifiedFlowDecision{Intent: "start_new"}
+		}
+		return unifiedFlowDecision{Intent: "continue_active"}
+	}
+	currentTask, _, _ := nextRunnableWorkflowTask(session)
+	recentConversationCtx := a.buildRecentConversationContext(userID, text)
+	flowContext := fmt.Sprintf(
+		"Workflow original request: %s\nCurrent runnable task: %s / %s / %s\nWorkflow tasks JSON: %s",
+		session.OriginalRequest,
+		currentTask.Skill,
+		currentTask.Action,
+		currentTask.Request,
+		mustMarshalJSON(session.Tasks),
+	)
+	state := a.getExecutionState(userID)
+	systemPrompt, userPrompt := buildActiveFlowClassifierPrompt(
+		lang,
+		"workflow_session",
+		flowContext,
+		text,
+		recentConversationCtx,
+		state.CurrentReferences,
+		a.SnapshotManager(userID).List(),
+	)
+	stageCtx, cancel := withPlannerStageTimeout(ctx, directReplyTimeout)
+	defer cancel()
+	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
+		Messages: []mcp.Message{
+			mcp.NewSystemMessage(systemPrompt),
+			mcp.NewUserMessage(userPrompt),
+		},
+		Ctx: stageCtx,
+	})
+	if err != nil {
+		return unifiedFlowDecision{}
+	}
+	return unifiedFlowDecisionFromIntent(parseActiveFlowIntentDecision(raw), "")
 }
 
 func (a *Agent) maybeAdvanceWorkflow(ctx context.Context, storeUserID string, userID int64, lang string, session WorkflowSession, onEvent func(event, data string)) (string, bool, error) {
@@ -238,7 +344,7 @@ func (a *Agent) maybeAdvanceWorkflow(ctx context.Context, storeUserID string, us
 		}
 		if onEvent != nil {
 			onEvent(StreamEventPlan, summary)
-			onEvent(StreamEventDelta, summary)
+			emitStreamText(onEvent, summary)
 		}
 		return summary, true, nil
 	}
@@ -253,13 +359,14 @@ func (a *Agent) maybeAdvanceWorkflow(ctx context.Context, storeUserID string, us
 		onEvent(StreamEventTool, "workflow:"+task.Skill+":"+task.Action)
 	}
 
-	answer, handled := a.tryHardSkill(ctx, storeUserID, userID, lang, task.Request, onEvent)
+	answer, handled := a.executeAtomicSkillTask(storeUserID, userID, lang, task.Request, task.Skill, task.Action, onEvent)
 	if !handled {
 		session.Tasks[index].Status = workflowTaskFailed
 		session.Tasks[index].Error = "task_not_handled"
 		a.saveWorkflowSession(userID, session)
 		return "", false, nil
 	}
+	a.recordSkillInteraction(userID, task.Request, answer)
 
 	if strings.TrimSpace(a.getSkillSession(userID).Name) == "" {
 		session = a.getWorkflowSession(userID)
@@ -374,24 +481,88 @@ func looksLikeMultiTaskIntent(text string) bool {
 			count++
 		}
 	}
-	return count > 0
+	if count > 0 {
+		return true
+	}
+	if looksLikeCompoundStrategyIntent(text) || looksLikeCompoundTraderIntent(text) ||
+		looksLikeCompoundModelIntent(text) || looksLikeCompoundExchangeIntent(text) {
+		return true
+	}
+	return false
+}
+
+func looksLikeCompoundStrategyIntent(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if !hasExplicitManagementDomainCue(text, "strategy") {
+		return false
+	}
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "加一个", "create", "new"})
+	hasConfigUpdate := containsAny(lower, []string{"修改", "更新", "参数", "配置", "prompt", "提示词", "改成", "改为"})
+	hasLifecycle := containsAny(lower, []string{"激活", "activate", "复制", "duplicate", "删除", "删了", "删掉", "delete"})
+	hasMetaUpdate := containsAny(lower, []string{"发布", "公开", "可见", "描述", "改成", "改为"})
+	return (hasCreate && (hasConfigUpdate || hasLifecycle || hasMetaUpdate)) ||
+		(hasConfigUpdate && hasLifecycle)
+}
+
+func looksLikeCompoundTraderIntent(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if !(hasExplicitManagementDomainCue(text, "trader") || hasExplicitCreateIntentForDomain(text, "trader")) {
+		return false
+	}
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
+	hasBindingsOrConfig := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "杠杆", "提示词"})
+	hasLifecycle := containsAny(lower, []string{"启动", "开始", "start", "停止", "stop"})
+	return (hasCreate && (hasBindingsOrConfig || hasLifecycle)) ||
+		(hasBindingsOrConfig && hasLifecycle)
+}
+
+func looksLikeCompoundModelIntent(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if !hasExplicitManagementDomainCue(text, "model") {
+		return false
+	}
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
+	hasConfig := containsAny(lower, []string{"修改", "更新", "改", "接口地址", "模型名", "启用", "禁用", "api key"})
+	hasLifecycle := containsAny(lower, []string{"启用", "禁用", "enable", "disable", "删除", "删了", "删掉", "delete"})
+	return (hasCreate && (hasConfig || hasLifecycle)) || (hasConfig && hasLifecycle)
+}
+
+func looksLikeCompoundExchangeIntent(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if !hasExplicitManagementDomainCue(text, "exchange") {
+		return false
+	}
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
+	hasConfig := containsAny(lower, []string{"修改", "更新", "改", "账户名", "api key", "secret", "passphrase", "钱包", "启用", "禁用"})
+	hasLifecycle := containsAny(lower, []string{"启用", "禁用", "enable", "disable", "删除", "删了", "删掉", "delete"})
+	return (hasCreate && (hasConfig || hasLifecycle)) || (hasConfig && hasLifecycle)
 }
 
 func (a *Agent) decomposeWorkflowIntentWithLLM(ctx context.Context, userID int64, lang, text string) (workflowDecomposition, error) {
 	stageCtx, cancel := withPlannerStageTimeout(ctx, directReplyTimeout)
 	defer cancel()
-	systemPrompt := `You decompose one NOFXi user request into a small task graph.
+	systemPrompt := `You decompose one NOFXi user request into a small task graph for execution.
 Return JSON only. No markdown.
 Only use these skills: trader_management, strategy_management, model_management, exchange_management.
 Only use one atomic action per task.
+You are the action decomposition layer. Split complex requests into atomic management steps and decide dependencies.
 Each task must include:
 - id
 - skill
 - action
 - request
 - depends_on (array, may be empty)
-If the request is effectively a single task, return one task only.`
+Rules:
+- Prefer atomic actions such as create, update_name, update_bindings, configure_strategy, configure_exchange, configure_model, update_status, update_endpoint, update_config, update_prompt, activate, duplicate, start, stop, delete, query_list, query_detail.
+- If one request contains create plus follow-up edits in the same skill, split them into multiple tasks.
+- If later tasks need an entity created earlier, make the dependency explicit in depends_on.
+- Keep each request user-readable and self-contained enough for a single skill handler to execute.
+- Do not merge two actions into one task.
+- If the request is effectively a single task, return one task only.`
 	userPrompt := fmt.Sprintf("Language: %s\nUser request: %s", lang, text)
+	if skillContext := buildManagementSkillRoutingContext(lang); skillContext != "" {
+		userPrompt += "\n\n" + skillContext
+	}
 	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
 		Messages: []mcp.Message{
 			mcp.NewSystemMessage(systemPrompt),
@@ -451,19 +622,267 @@ func normalizeWorkflowDecomposition(out workflowDecomposition) workflowDecomposi
 func (a *Agent) decomposeWorkflowIntentFallback(text string) workflowDecomposition {
 	segments := splitWorkflowSegments(text)
 	tasks := make([]WorkflowTask, 0, len(segments))
-	for i, segment := range segments {
-		task, ok := classifyWorkflowTask(segment)
-		if !ok {
-			continue
-		}
-		task.ID = fmt.Sprintf("task_%d", i+1)
-		task.Status = workflowTaskPending
+	nextID := 1
+	for _, segment := range segments {
+		prevSkill := ""
 		if len(tasks) > 0 {
-			task.DependsOn = []string{tasks[len(tasks)-1].ID}
+			prevSkill = tasks[len(tasks)-1].Skill
 		}
-		tasks = append(tasks, task)
+		compound := classifyCompoundWorkflowTasksWithContext(segment, prevSkill)
+		if len(compound) == 0 {
+			task, ok := classifyWorkflowTaskWithContext(segment, prevSkill)
+			if !ok {
+				continue
+			}
+			compound = []WorkflowTask{task}
+		}
+		for i := range compound {
+			compound[i].ID = fmt.Sprintf("task_%d", nextID)
+			compound[i].Status = workflowTaskPending
+			if len(tasks) > 0 && len(compound[i].DependsOn) == 0 {
+				compound[i].DependsOn = []string{tasks[len(tasks)-1].ID}
+			}
+			if i > 0 {
+				compound[i].DependsOn = []string{compound[i-1].ID}
+			}
+			tasks = append(tasks, compound[i])
+			nextID++
+		}
 	}
 	return workflowDecomposition{Tasks: tasks}
+}
+
+func classifyCompoundWorkflowTasksWithContext(text, previousSkill string) []WorkflowTask {
+	if tasks := classifyCompoundWorkflowTasks(text); len(tasks) > 1 {
+		return tasks
+	}
+	switch strings.TrimSpace(previousSkill) {
+	case "strategy_management":
+		return classifyContextualStrategyWorkflowTasks(text)
+	case "trader_management":
+		return classifyContextualTraderWorkflowTasks(text)
+	}
+	return nil
+}
+
+func classifyCompoundWorkflowTasks(text string) []WorkflowTask {
+	segment := strings.TrimSpace(text)
+	if segment == "" {
+		return nil
+	}
+
+	if tasks := classifyCompoundStrategyWorkflowTasks(segment); len(tasks) > 1 {
+		return tasks
+	}
+	if tasks := classifyCompoundTraderWorkflowTasks(segment); len(tasks) > 1 {
+		return tasks
+	}
+	if tasks := classifyCompoundModelWorkflowTasks(segment); len(tasks) > 1 {
+		return tasks
+	}
+	if tasks := classifyCompoundExchangeWorkflowTasks(segment); len(tasks) > 1 {
+		return tasks
+	}
+	return nil
+}
+
+func classifyContextualStrategyWorkflowTasks(text string) []WorkflowTask {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	hasConfig := containsAny(lower, []string{"修改", "更新", "参数", "配置", "prompt", "提示词", "改成", "改为"})
+	hasActivate := containsAny(lower, []string{"激活", "activate"})
+	hasDuplicate := containsAny(lower, []string{"复制", "duplicate"})
+	if !hasConfig && !hasActivate && !hasDuplicate {
+		return nil
+	}
+	var tasks []WorkflowTask
+	if hasConfig {
+		action := "update_config"
+		if containsAny(lower, []string{"prompt", "提示词"}) {
+			action = "update_prompt"
+		}
+		tasks = append(tasks, WorkflowTask{Skill: "strategy_management", Action: action, Request: text})
+	}
+	if hasActivate {
+		tasks = append(tasks, WorkflowTask{Skill: "strategy_management", Action: "activate", Request: text})
+	}
+	if hasDuplicate {
+		tasks = append(tasks, WorkflowTask{Skill: "strategy_management", Action: "duplicate", Request: text})
+	}
+	if len(tasks) == 0 {
+		return nil
+	}
+	return tasks
+}
+
+func classifyContextualTraderWorkflowTasks(text string) []WorkflowTask {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "杠杆", "提示词"})
+	hasStart := containsAny(lower, []string{"启动", "开始", "run", "start"})
+	hasStop := containsAny(lower, []string{"停止", "停掉", "stop", "pause"})
+	if !hasUpdate && !hasStart && !hasStop {
+		return nil
+	}
+	var tasks []WorkflowTask
+	if hasUpdate {
+		action := "update_bindings"
+		if containsAny(lower, []string{"扫描间隔", "杠杆", "提示词", "修改", "更新"}) &&
+			!containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}) {
+			action = "update"
+		}
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: action, Request: text})
+	}
+	if hasStart {
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "start", Request: text})
+	}
+	if hasStop {
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "stop", Request: text})
+	}
+	if len(tasks) == 0 {
+		return nil
+	}
+	return tasks
+}
+
+func classifyWorkflowTaskWithContext(text, previousSkill string) (WorkflowTask, bool) {
+	if task, ok := classifyWorkflowTask(text); ok {
+		return task, true
+	}
+	switch strings.TrimSpace(previousSkill) {
+	case "strategy_management":
+		if tasks := classifyContextualStrategyWorkflowTasks(text); len(tasks) > 0 {
+			return tasks[0], true
+		}
+	case "trader_management":
+		if tasks := classifyContextualTraderWorkflowTasks(text); len(tasks) > 0 {
+			return tasks[0], true
+		}
+	}
+	return WorkflowTask{}, false
+}
+
+func classifyCompoundStrategyWorkflowTasks(text string) []WorkflowTask {
+	if !hasExplicitManagementDomainCue(text, "strategy") {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(text))
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "加一个", "create", "new"})
+	hasConfig := containsAny(lower, []string{"修改", "更新", "参数", "配置", "prompt", "提示词", "改成", "改为"})
+	hasActivate := containsAny(lower, []string{"激活", "activate"})
+	hasDuplicate := containsAny(lower, []string{"复制", "duplicate"})
+
+	if !hasCreate && !hasConfig && !hasActivate && !hasDuplicate {
+		return nil
+	}
+
+	var tasks []WorkflowTask
+	if hasCreate {
+		tasks = append(tasks, WorkflowTask{Skill: "strategy_management", Action: "create", Request: text})
+	}
+	if hasConfig {
+		action := "update_config"
+		if containsAny(lower, []string{"prompt", "提示词"}) {
+			action = "update_prompt"
+		}
+		tasks = append(tasks, WorkflowTask{Skill: "strategy_management", Action: action, Request: text})
+	}
+	if hasActivate {
+		tasks = append(tasks, WorkflowTask{Skill: "strategy_management", Action: "activate", Request: text})
+	}
+	if hasDuplicate {
+		tasks = append(tasks, WorkflowTask{Skill: "strategy_management", Action: "duplicate", Request: text})
+	}
+	if len(tasks) <= 1 {
+		return nil
+	}
+	return tasks
+}
+
+func classifyCompoundTraderWorkflowTasks(text string) []WorkflowTask {
+	if !(hasExplicitManagementDomainCue(text, "trader") || hasExplicitCreateIntentForDomain(text, "trader")) {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(text))
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
+	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "杠杆", "提示词"})
+	hasStart := containsAny(lower, []string{"启动", "开始", "run", "start"})
+	hasStop := containsAny(lower, []string{"停止", "停掉", "stop", "pause"})
+
+	var tasks []WorkflowTask
+	if hasCreate {
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "create", Request: text})
+	}
+	if hasUpdate {
+		action := "update_bindings"
+		if containsAny(lower, []string{"扫描间隔", "杠杆", "提示词", "修改", "更新"}) &&
+			!containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}) {
+			action = "update"
+		}
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: action, Request: text})
+	}
+	if hasStart {
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "start", Request: text})
+	}
+	if hasStop {
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "stop", Request: text})
+	}
+	if len(tasks) <= 1 {
+		return nil
+	}
+	return tasks
+}
+
+func classifyCompoundModelWorkflowTasks(text string) []WorkflowTask {
+	if !hasExplicitManagementDomainCue(text, "model") {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(text))
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
+	hasConfig := containsAny(lower, []string{"修改", "更新", "改", "接口地址", "模型名", "api key"})
+	hasStatus := containsAny(lower, []string{"启用", "禁用", "enable", "disable"})
+
+	var tasks []WorkflowTask
+	if hasCreate {
+		tasks = append(tasks, WorkflowTask{Skill: "model_management", Action: "create", Request: text})
+	}
+	if hasConfig {
+		action := "update_endpoint"
+		if extractModelNameValue(text) != "" || extractCredentialValue(text, []string{"api key", "apikey", "api_key"}) != "" {
+			action = "update_endpoint"
+		}
+		tasks = append(tasks, WorkflowTask{Skill: "model_management", Action: action, Request: text})
+	}
+	if hasStatus {
+		tasks = append(tasks, WorkflowTask{Skill: "model_management", Action: "update_status", Request: text})
+	}
+	if len(tasks) <= 1 {
+		return nil
+	}
+	return tasks
+}
+
+func classifyCompoundExchangeWorkflowTasks(text string) []WorkflowTask {
+	if !hasExplicitManagementDomainCue(text, "exchange") {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(text))
+	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
+	hasConfig := containsAny(lower, []string{"修改", "更新", "改", "账户名", "api key", "secret", "passphrase", "钱包"})
+	hasStatus := containsAny(lower, []string{"启用", "禁用", "enable", "disable"})
+
+	var tasks []WorkflowTask
+	if hasCreate {
+		tasks = append(tasks, WorkflowTask{Skill: "exchange_management", Action: "create", Request: text})
+	}
+	if hasConfig {
+		tasks = append(tasks, WorkflowTask{Skill: "exchange_management", Action: "update_name", Request: text})
+	}
+	if hasStatus {
+		tasks = append(tasks, WorkflowTask{Skill: "exchange_management", Action: "update_status", Request: text})
+	}
+	if len(tasks) <= 1 {
+		return nil
+	}
+	return tasks
 }
 
 func splitWorkflowSegments(text string) []string {
@@ -490,27 +909,94 @@ func classifyWorkflowTask(text string) (WorkflowTask, bool) {
 	if segment == "" {
 		return WorkflowTask{}, false
 	}
+	lower := strings.ToLower(segment)
 	switch {
-	case detectCreateTraderSkill(segment):
+	case hasExplicitCreateIntentForDomain(segment, "trader"):
 		return WorkflowTask{Skill: "trader_management", Action: "create", Request: segment}, true
-	case detectTraderManagementIntent(segment):
-		action := normalizeAtomicSkillAction("trader_management", detectManagementAction(segment, "trader"))
+	case hasExplicitManagementDomainCue(segment, "trader"):
+		action := ""
+		switch {
+		case containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"}):
+			action = "create"
+		case containsAny(lower, []string{"启动", "开始", "run", "start"}):
+			action = "start"
+		case containsAny(lower, []string{"停止", "停掉", "stop", "pause"}):
+			action = "stop"
+		case containsAny(lower, []string{"删除", "删了", "删掉", "delete"}):
+			action = "delete"
+		case containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}):
+			action = "update_bindings"
+		case containsAny(lower, []string{"修改", "更新", "改", "扫描间隔", "杠杆", "提示词"}):
+			action = "update"
+		case containsAny(lower, []string{"详情", "配置", "参数", "what", "detail"}):
+			action = "query_detail"
+		case containsAny(lower, []string{"列表", "全部", "哪些", "list"}):
+			action = "query_list"
+		}
 		if supportedWorkflowSkill("trader_management", action) {
 			return WorkflowTask{Skill: "trader_management", Action: action, Request: segment}, true
 		}
-	case detectExchangeManagementIntent(segment):
-		action := normalizeAtomicSkillAction("exchange_management", detectManagementAction(segment, "exchange"))
+	case hasExplicitManagementDomainCue(segment, "exchange"):
+		action := ""
+		switch {
+		case containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"}):
+			action = "create"
+		case containsAny(lower, []string{"启用", "enable", "禁用", "disable"}):
+			action = "update_status"
+		case containsAny(lower, []string{"删除", "删了", "删掉", "delete"}):
+			action = "delete"
+		case containsAny(lower, []string{"修改", "更新", "改", "账户名", "api key", "secret", "passphrase", "钱包"}):
+			action = "update"
+		case containsAny(lower, []string{"详情", "配置", "参数", "what", "detail"}):
+			action = "query_detail"
+		case containsAny(lower, []string{"列表", "全部", "哪些", "list"}):
+			action = "query_list"
+		}
 		if supportedWorkflowSkill("exchange_management", action) {
 			return WorkflowTask{Skill: "exchange_management", Action: action, Request: segment}, true
 		}
-	case detectModelManagementIntent(segment):
-		action := normalizeAtomicSkillAction("model_management", detectManagementAction(segment, "model"))
+	case hasExplicitManagementDomainCue(segment, "model"):
+		action := ""
+		switch {
+		case containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"}):
+			action = "create"
+		case containsAny(lower, []string{"启用", "enable", "禁用", "disable"}):
+			action = "update_status"
+		case containsAny(lower, []string{"删除", "删了", "删掉", "delete"}):
+			action = "delete"
+		case containsAny(lower, []string{"接口地址", "endpoint", "url"}):
+			action = "update_endpoint"
+		case containsAny(lower, []string{"修改", "更新", "改", "模型名", "api key"}):
+			action = "update"
+		case containsAny(lower, []string{"详情", "配置", "参数", "what", "detail"}):
+			action = "query_detail"
+		case containsAny(lower, []string{"列表", "全部", "哪些", "list"}):
+			action = "query_list"
+		}
 		if supportedWorkflowSkill("model_management", action) {
 			return WorkflowTask{Skill: "model_management", Action: action, Request: segment}, true
 		}
-	case detectStrategyManagementIntent(segment):
-		action := normalizeAtomicSkillAction("strategy_management", detectManagementAction(segment, "strategy"))
-		if action == "" && wantsStrategyDetails(segment) {
+	case hasExplicitManagementDomainCue(segment, "strategy"):
+		action := ""
+		switch {
+		case containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"}):
+			action = "create"
+		case containsAny(lower, []string{"激活", "activate"}):
+			action = "activate"
+		case containsAny(lower, []string{"复制", "duplicate"}):
+			action = "duplicate"
+		case containsAny(lower, []string{"删除", "删了", "删掉", "delete"}):
+			action = "delete"
+		case containsAny(lower, []string{"prompt", "提示词"}):
+			action = "update_prompt"
+		case containsAny(lower, []string{"修改", "更新", "改", "参数", "配置"}):
+			action = "update_config"
+		case containsAny(lower, []string{"详情", "配置", "参数", "what", "detail"}) || hasExplicitStrategyDetailIntent(segment):
+			action = "query_detail"
+		case containsAny(lower, []string{"列表", "全部", "哪些", "list"}):
+			action = "query_list"
+		}
+		if action == "" && hasExplicitStrategyDetailIntent(segment) {
 			action = "query_detail"
 		}
 		if supportedWorkflowSkill("strategy_management", action) {

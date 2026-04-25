@@ -2,7 +2,7 @@
   "name": "trader_management",
   "kind": "management",
   "domain": "trader",
-  "description": "当用户想创建、查看、修改、删除、启动或停止交易员时调用。适用于用户提到交易员名称、绑定交易所、绑定模型、绑定策略、扫描频率、自定义提示词、运行状态等管理需求。不用于排查交易员启动失败、未下单、收益异常、仓位异常等诊断问题。",
+  "description": "当用户想创建、查看、修改、删除、启动或停止交易员时调用。适用于用户提到交易员名称、绑定交易所、绑定模型、绑定策略、保证金模式、扫描频率、竞技场显示、运行状态等管理需求。不用于排查交易员启动失败、未下单、收益异常、仓位异常等诊断问题。创建交易员时必须收齐名称、交易所、模型、策略；其中交易所、模型、策略既可以直接选择用户已有可用资源，也可以在当前主流程里先新建/启用对应资源，再继续完成交易员创建。",
   "intents": [
     "创建交易员",
     "修改交易员",
@@ -11,42 +11,266 @@
     "停止交易员",
     "查询交易员"
   ],
+  "field_constraints": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "max_length": 50,
+      "description": "交易员名称，用于识别和管理，最多 50 个字符。"
+    },
+    "exchange_id": {
+      "type": "entity_ref",
+      "required": true,
+      "description": "绑定的交易所配置 ID，必须是已存在且已启用的交易所配置。"
+    },
+    "ai_model_id": {
+      "type": "entity_ref",
+      "required": true,
+      "description": "绑定的 AI 模型配置 ID，必须是已存在且已启用的模型配置。"
+    },
+    "strategy_id": {
+      "type": "entity_ref",
+      "required": true,
+      "description": "绑定的策略模板 ID，必须是已存在的策略模板。"
+    },
+    "scan_interval_minutes": {
+      "type": "int",
+      "min": 3,
+      "max": 60,
+      "default": 5,
+      "description": "AI 扫描决策间隔，单位分钟，手动面板可配置范围 3～60 分钟。超出范围会自动收敛到边界值并告知用户。"
+    },
+    "initial_balance": {
+      "type": "float",
+      "min": 100.0,
+      "description": "初始资金，手动面板最低 100。超出范围会自动收敛到最低值并告知用户。"
+    },
+    "is_cross_margin": {
+      "type": "bool",
+      "default": true,
+      "description": "保证金模式。true = 全仓（cross margin），false = 逐仓（isolated margin）。"
+    },
+    "show_in_competition": {
+      "type": "bool",
+      "default": true,
+      "description": "是否在竞技场中显示该交易员的成绩。"
+    },
+    "btc_eth_leverage": {
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "description": "交易员级别的 BTC/ETH 杠杆覆盖值，手动面板上限 20。"
+    },
+    "altcoin_leverage": {
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "description": "交易员级别的山寨币杠杆覆盖值，手动面板上限 20。"
+    },
+    "trading_symbols": {
+      "type": "string",
+      "description": "指定交易币对，通常为逗号分隔，例如 BTCUSDT,ETHUSDT。"
+    },
+    "custom_prompt": {
+      "type": "string",
+      "description": "交易员级别附加提示词，用于覆盖或补充默认策略提示。"
+    },
+    "override_base_prompt": {
+      "type": "bool",
+      "default": false,
+      "description": "是否完全覆盖系统默认提示词。"
+    },
+    "system_prompt_template": {
+      "type": "string",
+      "description": "系统提示词模板名称，例如 default。"
+    },
+    "use_ai500": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 AI500 作为交易员级别候选币来源。"
+    },
+    "use_oi_top": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 OI Top 作为交易员级别候选币来源。"
+    },
+    "auto_start": {
+      "type": "bool",
+      "default": false,
+      "description": "创建后是否立即启动交易员。启动前系统会校验绑定的交易所、模型、策略均可用。"
+    }
+  },
+  "validation_rules": [
+    "exchange_id 对应的交易所配置必须已启用（enabled=true），否则无法创建或启动交易员。",
+    "ai_model_id 对应的模型配置必须已启用（enabled=true）且配置完整（api_key、custom_model_name 不为空；custom_api_url 若填写必须为合法 HTTPS），否则无法创建或启动交易员。",
+    "strategy_id 对应的策略模板必须存在，否则无法创建交易员。",
+    "scan_interval_minutes 超出 3～60 范围时，系统自动收敛到边界值，并通过 LLM 告知用户已调整，询问是否接受。",
+    "initial_balance 低于 100 时，系统自动收敛到 100，并通过 LLM 告知用户已调整。",
+    "启动交易员前，绑定的模型必须已启用且完整，绑定的交易所也必须已启用且通过对应交易所的完整性校验，否则拒绝启动并明确指出缺哪一项。",
+    "若绑定的是 OKX 交易所，启用前必须已有 passphrase；若绑定的是 Hyperliquid，启用前必须已有 wallet_addr；若绑定的是 Aster，启用前必须已有 user、signer、private_key；若绑定的是 Lighter，启用前必须已有 wallet_addr 和 api_key_private_key。",
+    "btc_eth_leverage 和 altcoin_leverage 若超出系统允许范围，应自动收敛或提示用户修正。",
+    "trading_symbols 若填写，应保持为可识别的交易对列表格式。",
+    "启动（start）和停止（stop）操作属于高风险操作，必须先向用户确认再执行。",
+    "删除（delete）操作不可逆，必须先向用户确认再执行。"
+  ],
   "actions": {
     "create": {
-      "description": "创建新的交易员。",
-      "required_slots": ["name", "exchange", "model"],
-      "optional_slots": ["strategy", "auto_start"]
+      "description": "创建新的交易员。若缺少交易所、模型或策略，可在当前流程内先选择已有资源，或切去对应 skill 新建/启用后自动回流继续。",
+      "required_slots": ["name", "exchange", "model", "strategy"],
+      "optional_slots": ["auto_start", "scan_interval_minutes", "initial_balance", "is_cross_margin", "show_in_competition", "btc_eth_leverage", "altcoin_leverage", "trading_symbols", "custom_prompt", "override_base_prompt", "system_prompt_template", "use_ai500", "use_oi_top"],
+      "goal": "创建并初始化一个交易员。",
+      "dynamic_rules": [
+        "若用户提到的交易所、模型或策略已经存在且可用，应优先直接补入对应槽位，不要重新创建。",
+        "若依赖资源不存在、被禁用，或用户明确要求新建或启用，禁止直接报缺字段；应切去对应 management:create 或 management:update_status 子任务。",
+        "子任务成功后，系统会恢复当前交易员草稿并继续补齐剩余槽位。",
+        "scan_interval_minutes 超出 3～60 时，自动收敛并告知用户。",
+        "若用户明确想覆盖杠杆、币种范围或提示词，应允许在创建阶段一并收集 btc_eth_leverage、altcoin_leverage、trading_symbols、custom_prompt、override_base_prompt、system_prompt_template、use_ai500、use_oi_top。",
+        "创建完成后询问用户是否立即启动（auto_start），启动前再次确认。"
+      ],
+      "success_output": "返回 trader_id，并给出创建结果摘要（名称、绑定的交易所/模型/策略、是否已启动）。",
+      "failure_output": "用人话指出缺失依赖项，或说明当前正在进入哪个依赖子任务。"
     },
     "update": {
-      "description": "更新已有交易员。",
+      "description": "更新已有交易员的任意可编辑字段。",
       "required_slots": ["target_ref"],
-      "optional_slots": ["name", "exchange", "model", "strategy", "scan_interval_minutes", "custom_prompt"]
+      "optional_slots": ["name", "exchange_id", "ai_model_id", "strategy_id", "scan_interval_minutes", "initial_balance", "is_cross_margin", "show_in_competition", "btc_eth_leverage", "altcoin_leverage", "trading_symbols", "custom_prompt", "override_base_prompt", "system_prompt_template", "use_ai500", "use_oi_top"],
+      "goal": "更新一个已有交易员的配置，但只修改用户明确要求变更的字段。",
+      "dynamic_rules": [
+        "只更新用户明确提到的字段，不要覆盖未提及的字段。",
+        "换绑交易所/模型/策略时，新的资源必须已存在且已启用，否则提示用户先启用或新建。",
+        "scan_interval_minutes 超出 3～60 时，自动收敛并告知用户。",
+        "若用户修改的是交易员级杠杆、指定币对、提示词或选币来源，也应走 update，而不是误导去改策略。"
+      ],
+      "success_output": "返回更新后的 trader_id 与简短配置摘要，明确哪些字段已经生效。",
+      "failure_output": "明确指出目标交易员不存在、依赖资源不可用，或哪一个字段值仍需用户补充/修正。"
     },
-    "delete": {
-      "description": "删除交易员。",
+    "update_name": {
+      "description": "仅修改交易员名称。",
+      "required_slots": ["target_ref", "name"],
+      "goal": "把指定交易员改成新的名称，不影响其他配置。",
+      "dynamic_rules": [
+        "若当前输入里同时包含别的配置字段，应优先转去更通用的 update，而不是只改名。"
+      ],
+      "success_output": "返回 trader_id，并明确告知新的交易员名称。",
+      "failure_output": "明确指出目标交易员不存在，或新的名称仍未收齐。"
+    },
+    "update_bindings": {
+      "description": "修改交易员绑定的交易所、模型或策略（可同时修改多个）。",
       "required_slots": ["target_ref"],
-      "needs_confirmation": true
+      "optional_slots": ["exchange_id", "ai_model_id", "strategy_id"],
+      "goal": "调整交易员绑定的依赖资源，而不改动无关配置。",
+      "dynamic_rules": [
+        "新绑定的资源必须已存在且已启用，否则提示用户先启用或新建。"
+      ],
+      "success_output": "返回 trader_id，并明确展示新的模型/交易所/策略绑定结果。",
+      "failure_output": "明确指出缺少哪个绑定目标，或当前依赖资源为什么不可直接绑定。"
+    },
+    "configure_strategy": {
+      "description": "仅修改交易员绑定的策略。",
+      "required_slots": ["target_ref", "strategy_id"],
+      "goal": "为指定交易员换绑一个策略模板。",
+      "dynamic_rules": [
+        "若用户提到的是不存在的策略，应优先澄清或引导创建，而不是静默失败。"
+      ],
+      "success_output": "返回 trader_id，并明确告知当前生效的 strategy_id/策略名称。",
+      "failure_output": "明确指出目标交易员或策略不存在，或策略仍需用户澄清。"
+    },
+    "configure_exchange": {
+      "description": "仅修改交易员绑定的交易所。",
+      "required_slots": ["target_ref", "exchange_id"],
+      "goal": "为指定交易员换绑一个交易所配置。",
+      "dynamic_rules": [
+        "新的交易所配置必须已启用且可用，否则提示用户先启用或补齐凭证。"
+      ],
+      "success_output": "返回 trader_id，并明确告知当前生效的 exchange_id/交易所名称。",
+      "failure_output": "明确指出目标交易员或交易所不存在，或交易所当前不可用。"
+    },
+    "configure_model": {
+      "description": "仅修改交易员绑定的 AI 模型。",
+      "required_slots": ["target_ref", "ai_model_id"],
+      "goal": "为指定交易员换绑一个 AI 模型配置。",
+      "dynamic_rules": [
+        "新的模型配置必须已启用且可调用，否则提示用户先启用或补齐模型配置。"
+      ],
+      "success_output": "返回 trader_id，并明确告知当前生效的 ai_model_id/模型名称。",
+      "failure_output": "明确指出目标交易员或模型不存在，或模型当前不可用。"
     },
     "start": {
-      "description": "启动交易员。",
+      "description": "启动交易员，使其开始自动交易。高风险操作，必须确认。",
       "required_slots": ["target_ref"],
-      "needs_confirmation": true
+      "needs_confirmation": true,
+      "goal": "让一个已配置好的交易员进入运行状态。",
+      "dynamic_rules": [
+        "启动前系统会自动校验绑定的交易所、模型、策略是否均可用。",
+        "若校验失败，用人话告知用户具体哪个依赖不可用，并引导修复。"
+      ],
+      "success_output": "返回 trader_id，并明确告知交易员已开始运行。",
+      "failure_output": "明确指出缺少确认、依赖资源不可用，或启动未通过校验。"
     },
     "stop": {
-      "description": "停止交易员。",
+      "description": "停止交易员，使其停止自动交易。高风险操作，必须确认。",
       "required_slots": ["target_ref"],
-      "needs_confirmation": true
+      "needs_confirmation": true,
+      "goal": "让一个运行中的交易员停止自动交易。",
+      "dynamic_rules": [
+        "若交易员当前并未运行，也应给用户清晰说明，而不是假装停止成功。"
+      ],
+      "success_output": "返回 trader_id，并明确告知交易员已停止。",
+      "failure_output": "明确指出缺少确认、目标交易员不存在，或当前状态无法停止。"
     },
-    "query": {
-      "description": "查询交易员列表或状态。"
+    "delete": {
+      "description": "删除交易员，不可逆操作，必须确认。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true,
+      "goal": "删除一个交易员及其运行入口。",
+      "dynamic_rules": [
+        "必须在确认后执行，并明确提醒该操作不可逆。"
+      ],
+      "success_output": "返回删除成功结果，并明确告知该交易员已被移除。",
+      "failure_output": "明确指出缺少确认、目标交易员不存在，或删除失败原因。"
+    },
+    "query_list": {
+      "description": "查询所有交易员列表，包含名称、运行状态、绑定信息。",
+      "goal": "列出当前用户可见的交易员，并给出足够的摘要用于后续选择。",
+      "dynamic_rules": [
+        "优先返回名称、运行状态、绑定的模型/交易所/策略，不要冗余展开全部详情。"
+      ],
+      "success_output": "返回交易员列表摘要，便于用户继续指定目标对象。",
+      "failure_output": "若列表为空，应明确告知当前没有交易员，而不是返回模糊空结果。"
+    },
+    "query_running": {
+      "description": "查询当前运行中的交易员列表。",
+      "goal": "仅列出处于运行状态的交易员。",
+      "dynamic_rules": [
+        "若当前没有运行中的交易员，应明确告知为空。"
+      ],
+      "success_output": "返回当前运行中的交易员列表摘要。",
+      "failure_output": "若没有运行中的交易员，应明确返回空列表说明。"
+    },
+    "query_detail": {
+      "description": "查询某个交易员的详细配置，包括绑定的交易所、模型、策略、扫描间隔、保证金模式等。",
+      "required_slots": ["target_ref"],
+      "goal": "读取一个交易员的详细配置和当前绑定信息。",
+      "dynamic_rules": [
+        "若目标对象有歧义，应先澄清再读取详情。"
+      ],
+      "success_output": "返回目标交易员的详细配置摘要。",
+      "failure_output": "明确指出目标交易员不存在，或当前引用需要重新指定。"
     }
   },
   "tool_mapping": {
     "create": "manage_trader:create",
     "update": "manage_trader:update",
-    "delete": "manage_trader:delete",
+    "update_name": "manage_trader:update",
+    "update_bindings": "manage_trader:update",
+    "configure_strategy": "manage_trader:update",
+    "configure_exchange": "manage_trader:update",
+    "configure_model": "manage_trader:update",
     "start": "manage_trader:start",
     "stop": "manage_trader:stop",
-    "query": "manage_trader:list"
+    "delete": "manage_trader:delete",
+    "query_list": "manage_trader:list",
+    "query_running": "manage_trader:list",
+    "query_detail": "manage_trader:list"
   }
 }

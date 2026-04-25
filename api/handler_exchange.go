@@ -8,6 +8,7 @@ import (
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/logger"
+	"nofx/store"
 
 	"github.com/gin-gonic/gin"
 )
@@ -96,9 +97,12 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	logger.Infof("✅ Found %d exchange configs", len(exchanges))
 
 	// Convert to safe response structure, remove sensitive information
-	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
-	for i, exchange := range exchanges {
-		safeExchanges[i] = SafeExchangeConfig{
+	safeExchanges := make([]SafeExchangeConfig, 0, len(exchanges))
+	for _, exchange := range exchanges {
+		if !store.IsVisibleExchange(exchange) {
+			continue
+		}
+		safeExchanges = append(safeExchanges, SafeExchangeConfig{
 			ID:                    exchange.ID,
 			ExchangeType:          exchange.ExchangeType,
 			AccountName:           exchange.AccountName,
@@ -110,7 +114,7 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 			AsterUser:             exchange.AsterUser,
 			AsterSigner:           exchange.AsterSigner,
 			LighterWalletAddr:     exchange.LighterWalletAddr,
-		}
+		})
 	}
 
 	c.JSON(http.StatusOK, safeExchanges)

@@ -179,6 +179,14 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("### ⚠️ ACTIVE: Drawdown Take Profit is in AI mode for this strategy\n")
 		sb.WriteString("- You MUST include `protection_plan` with `mode=\"drawdown\"` and non-empty `drawdown_rules` array for every open_long/open_short decision\n")
 		sb.WriteString("- Omitting `drawdown_rules` will cause the trade to be rejected\n")
+		if prot.LadderTPSL.Enabled && prot.LadderTPSL.Mode == store.ProtectionModeAI {
+			sb.WriteString("- Combined ownership mode is active: drawdown AI owns profit-taking / profit-protection, while ladder AI remains strategy-level stop-loss protection only\n")
+			sb.WriteString("- In this combined mode, DO NOT output `mode=ladder` or embed `ladder_rules` inside the AI decision. Output only drawdown ownership fields and let strategy-level ladder stops merge at execution time\n")
+		}
+		if prot.FullTPSL.Enabled && prot.FullTPSL.Mode == store.ProtectionModeAI {
+			sb.WriteString("- Combined ownership mode is active: drawdown AI owns profit-taking / profit-protection, while full AI remains strategy-level stop-loss / fallback stop protection\n")
+			sb.WriteString("- In this combined mode, DO NOT output `mode=full` in the AI decision. Output only drawdown ownership fields and let strategy-level full stop protection merge at execution time\n")
+		}
 		sb.WriteString(fmt.Sprintf("- Strategy has %d default drawdown rule(s) as reference; your AI rules should be structurally justified\n", len(prot.DrawdownTakeProfit.Rules)))
 		for i, r := range prot.DrawdownTakeProfit.Rules {
 			sb.WriteString(fmt.Sprintf("  - Default rule %d: min_profit=%.1f%%, max_drawdown=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))

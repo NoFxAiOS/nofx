@@ -179,10 +179,11 @@ func TestValidateAIDecisionsWithStrategyRejectsMissingDrawdownProtectionPlan(t *
 	}
 }
 
-func TestValidateAIDecisionsWithStrategyRejectsMultipleAIProtectionRoutes(t *testing.T) {
+func TestValidateAIDecisionsWithStrategyAllowsDrawdownPlusFullOwnershipSplit(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
 	cfg.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.BreakEvenStop = store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 3, OffsetPct: 0.1}
 
 	decisions := []Decision{{
 		Symbol:          "BTCUSDT",
@@ -190,10 +191,68 @@ func TestValidateAIDecisionsWithStrategyRejectsMultipleAIProtectionRoutes(t *tes
 		Leverage:        3,
 		PositionSizeUSD: 100,
 		Reasoning:       "test",
-		ProtectionPlan:  &AIProtectionPlan{Mode: "drawdown", DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100}}},
+		EntryProtection: &AIEntryProtectionRationale{
+			TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"3m"}, Higher: []string{"1h"}},
+			KeyLevels: AIEntryKeyLevels{Support: []float64{95}, Resistance: []float64{110}},
+			Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 95, Reason: "invalidation"}, {Type: "resistance", Timeframe: "15m", Price: 110, Reason: "target"}},
+			RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2, NetEstimatedRR: 2, MinRequiredRR: 1.5, Passed: true},
+		},
+		ProtectionPlan: &AIProtectionPlan{Mode: "drawdown", DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, ReasonAnchor: "target"}}, BreakEvenTrigger: "profit_pct", BreakEvenValue: 3, BreakEvenOffset: 0.1},
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err != nil {
+		t.Fatalf("expected drawdown+full ownership split to pass, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyAllowsDrawdownPlusLadderOwnershipSplit(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.BreakEvenStop = store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 3, OffsetPct: 0.1}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		EntryProtection: &AIEntryProtectionRationale{
+			TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"3m"}, Higher: []string{"1h"}},
+			KeyLevels: AIEntryKeyLevels{Support: []float64{95}, Resistance: []float64{110}},
+			Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 95, Reason: "invalidation"}, {Type: "resistance", Timeframe: "15m", Price: 110, Reason: "target"}},
+			RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2, NetEstimatedRR: 2, MinRequiredRR: 1.5, Passed: true},
+		},
+		ProtectionPlan: &AIProtectionPlan{Mode: "drawdown", DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, ReasonAnchor: "target"}}, BreakEvenTrigger: "profit_pct", BreakEvenValue: 3, BreakEvenOffset: 0.1},
+	}}
+
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err != nil {
+		t.Fatalf("expected drawdown+ladder ownership split to pass, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyRejectsEmbeddedLadderWhenDrawdownOwnsProfitTaking(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	cfg.Protection.BreakEvenStop = store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 3, OffsetPct: 0.1}
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 100,
+		Reasoning:       "test",
+		EntryProtection: &AIEntryProtectionRationale{
+			TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"3m"}, Higher: []string{"1h"}},
+			KeyLevels: AIEntryKeyLevels{Support: []float64{95}, Resistance: []float64{110}},
+			Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 95, Reason: "invalidation"}, {Type: "resistance", Timeframe: "15m", Price: 110, Reason: "target"}},
+			RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2, NetEstimatedRR: 2, MinRequiredRR: 1.5, Passed: true},
+		},
+		ProtectionPlan: &AIProtectionPlan{Mode: "drawdown", LadderRules: []AIProtectionLadderRule{{TakeProfitPct: 2, TakeProfitCloseRatioPct: 50, StopLossPct: 1, StopLossCloseRatioPct: 50}}, DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, ReasonAnchor: "target"}}, BreakEvenTrigger: "profit_pct", BreakEvenValue: 3, BreakEvenOffset: 0.1},
 	}}
 
 	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err == nil {
-		t.Fatal("expected multiple ai protection routes to be rejected")
+		t.Fatal("expected embedded ladder rules to be rejected when drawdown owns profit-taking")
 	}
 }

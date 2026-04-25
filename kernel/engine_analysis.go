@@ -445,39 +445,48 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 			return fmt.Errorf("decision #%d: %w", i+1, err)
 		}
 		if (fullAI && drawdownAI) || (ladderAI && drawdownAI) || (fullAI && ladderAI) {
-			logger.Warnf("strategy has multiple AI protection routes enabled, preferring active decision route validation: full=%t ladder=%t drawdown=%t", fullAI, ladderAI, drawdownAI)
+			logger.Warnf("strategy has multiple AI protection routes enabled, validating by ownership: full=%t ladder=%t drawdown=%t", fullAI, ladderAI, drawdownAI)
 		}
 		if config.Protection.BreakEvenStop.Enabled && isOpen {
 			if d.ProtectionPlan == nil || d.ProtectionPlan.BreakEvenTrigger == "" || d.ProtectionPlan.BreakEvenValue <= 0 {
 				return fmt.Errorf("decision #%d: current strategy route requires break-even protection output for open actions", i+1)
 			}
 		}
-		if ladderAI && !fullAI && !drawdownAI {
-			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "ladder" {
+		planMode := ""
+		if d.ProtectionPlan != nil {
+			planMode = strings.ToLower(strings.TrimSpace(d.ProtectionPlan.Mode))
+		}
+		if ladderAI && !drawdownAI && !fullAI {
+			if d.ProtectionPlan == nil || planMode != "ladder" {
 				return fmt.Errorf("decision #%d: current strategy route requires ladder protection_plan for open actions", i+1)
 			}
 			if n := len(d.ProtectionPlan.LadderRules); n < 2 || n > 3 {
 				return fmt.Errorf("decision #%d: ladder protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
 			}
 		}
-		if fullAI && !ladderAI && !drawdownAI {
-			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "full" {
+		if fullAI && !drawdownAI && !ladderAI {
+			if d.ProtectionPlan == nil || planMode != "full" {
 				return fmt.Errorf("decision #%d: current strategy route requires full protection_plan for open actions", i+1)
 			}
 		}
-		if drawdownAI && !fullAI && !ladderAI {
-			if d.ProtectionPlan == nil || d.ProtectionPlan.Mode != "drawdown" {
+		if drawdownAI {
+			if d.ProtectionPlan == nil || planMode != "drawdown" {
 				return fmt.Errorf("decision #%d: current strategy route requires drawdown protection_plan for open actions", i+1)
 			}
 			if len(d.ProtectionPlan.DrawdownRules) == 0 {
 				return fmt.Errorf("decision #%d: drawdown protection_plan must contain drawdown_rules under current strategy route", i+1)
 			}
-			// Warn (log) if drawdown rules lack reason_anchor — structural anchoring is expected
 			for j, rule := range d.ProtectionPlan.DrawdownRules {
 				if strings.TrimSpace(rule.ReasonAnchor) == "" {
 					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
 				}
 			}
+			if len(d.ProtectionPlan.LadderRules) > 0 || planMode == "ladder" {
+				return fmt.Errorf("decision #%d: drawdown AI route owns profit-taking; do not embed ladder protection_plan in the same AI decision", i+1)
+			}
+		}
+		if ladderAI && drawdownAI {
+			logger.Infof("decision #%d: validating combined AI protection ownership, drawdown owns TP and ladder remains strategy-level stop protection", i+1)
 		}
 	}
 	return nil

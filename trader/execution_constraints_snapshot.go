@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"math"
 	"strings"
 
 	"nofx/kernel"
@@ -205,4 +206,58 @@ func mergeExecutionConstraints(decision *kernel.Decision, snap *ExecutionConstra
 		return !executionConstraintsEmpty(decision.EntryProtection.ExecutionConstraints)
 	}
 	return false
+}
+
+func (s *ExecutionConstraintsSnapshot) ReferencePrice() float64 {
+	if s == nil {
+		return 0
+	}
+	for _, v := range []float64{s.LastPrice, s.MarkPrice, s.BestAsk, s.BestBid} {
+		if isFinitePositive(v) {
+			return v
+		}
+	}
+	return 0
+}
+
+func (s *ExecutionConstraintsSnapshot) ExecutableMinPositionUSD(defaultMin float64) float64 {
+	minPos := defaultMin
+	if minPos <= 0 {
+		minPos = 12
+	}
+	if s == nil {
+		return minPos
+	}
+	derived := 0.0
+	price := s.ReferencePrice()
+	if s.MinNotional > 0 {
+		derived = s.MinNotional
+	}
+	if s.MinQty > 0 && price > 0 {
+		qtyNotional := s.MinQty * price
+		if s.ContractValue > 0 {
+			qtyNotional *= s.ContractValue
+		}
+		if qtyNotional > derived {
+			derived = qtyNotional
+		}
+	}
+	if derived <= 0 {
+		return minPos
+	}
+	buffered := derived * 1.05
+	if s.QtyStepSize > 0 && price > 0 {
+		stepNotional := s.QtyStepSize * price
+		if s.ContractValue > 0 {
+			stepNotional *= s.ContractValue
+		}
+		if stepNotional > 0 {
+			steps := math.Ceil(buffered / stepNotional)
+			buffered = steps * stepNotional
+		}
+	}
+	if buffered > minPos {
+		return buffered
+	}
+	return minPos
 }

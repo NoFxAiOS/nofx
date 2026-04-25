@@ -1196,7 +1196,7 @@ func (at *AutoTrader) enforcePositionValueRatio(positionSizeUSD float64, equity 
 }
 
 // enforceMinPositionSize checks minimum position size (CODE ENFORCED)
-func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
+func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64, symbol ...string) error {
 	if at.config.StrategyConfig == nil {
 		return nil
 	}
@@ -1205,9 +1205,14 @@ func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
 	if minSize <= 0 {
 		minSize = 12 // Default: 12 USDT
 	}
+	if len(symbol) > 0 && strings.TrimSpace(symbol[0]) != "" {
+		if snap := at.collectExecutionConstraintsSnapshot(symbol[0]); snap != nil {
+			minSize = snap.ExecutableMinPositionUSD(minSize)
+		}
+	}
 
 	if positionSizeUSD < minSize {
-		return fmt.Errorf("❌ [RISK CONTROL] Position %.2f USDT below minimum (%.2f USDT)", positionSizeUSD, minSize)
+		return fmt.Errorf("❌ [RISK CONTROL] Position %.2f USDT below minimum executable size (%.2f USDT)", positionSizeUSD, minSize)
 	}
 	return nil
 }

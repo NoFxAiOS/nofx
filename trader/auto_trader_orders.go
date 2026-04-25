@@ -175,7 +175,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	}
 
 	// [CODE ENFORCED] Minimum position size check
-	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
+	if err := at.enforceMinPositionSize(decision.PositionSizeUSD, decision.Symbol); err != nil {
 		return err
 	}
 
@@ -306,7 +306,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	}
 
 	// [CODE ENFORCED] Minimum position size check
-	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
+	if err := at.enforceMinPositionSize(decision.PositionSizeUSD, decision.Symbol); err != nil {
 		return err
 	}
 

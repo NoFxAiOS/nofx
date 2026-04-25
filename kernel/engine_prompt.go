@@ -86,7 +86,20 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("- Position Value Limit (BTC/ETH): max %.0f USDT (= equity %.0f × %.1fx)\n",
 		accountEquity*btcEthPosValueRatio, accountEquity, btcEthPosValueRatio))
 	sb.WriteString(fmt.Sprintf("- Max Margin Usage: ≤%.0f%%\n", riskControl.MaxMarginUsage*100))
-	sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT\n\n", riskControl.MinPositionSize))
+	minExecutablePositionSize := riskControl.MinPositionSize
+	if minExecutablePositionSize <= 0 {
+		minExecutablePositionSize = 12
+	}
+	btcEthExecutableMin := minExecutablePositionSize
+	if accountEquity > 0 {
+		if adaptiveMin := accountEquity * 0.9; adaptiveMin > 0 && adaptiveMin < btcEthExecutableMin {
+			btcEthExecutableMin = adaptiveMin
+		}
+	}
+	if btcEthExecutableMin < 5 {
+		btcEthExecutableMin = 5
+	}
+	sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT (BTC/ETH on small accounts may use the executable floor around %.0f USDT)\n\n", minExecutablePositionSize, btcEthExecutableMin))
 
 	sb.WriteString("## AI GUIDED (Recommended, you should follow):\n")
 	sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
@@ -102,7 +115,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- Low confidence (60-69): Use 50-70%% of max position value limit\n")
 	sb.WriteString(fmt.Sprintf("- Example: With equity %.0f and BTC/ETH ratio %.1fx, max is %.0f USDT\n",
 		accountEquity, btcEthPosValueRatio, accountEquity*btcEthPosValueRatio))
-	sb.WriteString("- For any open decision, `position_size_usd` should normally stay close to the executable minimum/limit band. Avoid tiny probe sizes that are likely to fail validation or venue minimums.\n")
+	sb.WriteString(fmt.Sprintf("- For any open decision, `position_size_usd` must stay above the executable floor. On this account, BTC/ETH opens should generally not be below about %.0f USDT unless venue constraints explicitly allow it. Avoid tiny probe sizes that are likely to fail validation or venue minimums.\n", btcEthExecutableMin))
 	sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limits!\n\n")
 
 	// 4. Trading frequency (editable)

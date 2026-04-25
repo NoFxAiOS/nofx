@@ -55,16 +55,40 @@ export function buildStrategySavePayload(
 ) {
   const normalizedProtection = normalizeProtectionConfig(editingConfig.protection)
 
+  const protection = {
+    ...normalizedProtection,
+    drawdown_take_profit: {
+      ...normalizedProtection.drawdown_take_profit,
+      mode: normalizedProtection.drawdown_take_profit.mode || (normalizedProtection.drawdown_take_profit.enabled ? 'manual' : 'disabled'),
+    },
+  }
+
+  const activeAiRoute = protection.drawdown_take_profit.enabled && protection.drawdown_take_profit.mode === 'ai'
+    ? 'drawdown'
+    : protection.ladder_tp_sl.enabled && protection.ladder_tp_sl.mode === 'ai'
+      ? 'ladder'
+      : protection.full_tp_sl.enabled && protection.full_tp_sl.mode === 'ai'
+        ? 'full'
+        : null
+
+  if (activeAiRoute !== 'full' && protection.full_tp_sl.mode === 'ai') {
+    protection.full_tp_sl.mode = 'manual'
+  }
+  if (activeAiRoute !== 'ladder' && protection.ladder_tp_sl.mode === 'ai') {
+    protection.ladder_tp_sl.mode = 'manual'
+  }
+  if (activeAiRoute !== 'drawdown' && protection.drawdown_take_profit.mode === 'ai') {
+    protection.drawdown_take_profit.mode = 'manual'
+    protection.drawdown_take_profit.engine_mode = 'manual'
+  }
+  if (activeAiRoute === 'drawdown') {
+    protection.drawdown_take_profit.engine_mode = 'ai'
+  }
+
   const configWithLanguage = {
     ...editingConfig,
     language,
-    protection: {
-      ...normalizedProtection,
-      drawdown_take_profit: {
-        ...normalizedProtection.drawdown_take_profit,
-        mode: normalizedProtection.drawdown_take_profit.mode || (normalizedProtection.drawdown_take_profit.enabled ? 'manual' : 'disabled'),
-      },
-    },
+    protection,
     strategy_control_policy: {
       ...editingConfig.strategy_control_policy,
       mode: editingConfig.strategy_control_policy?.mode || 'strict',

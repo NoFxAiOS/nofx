@@ -22,6 +22,7 @@ import (
 func mergeStrategyConfig(existing store.StrategyConfig, incoming json.RawMessage) (store.StrategyConfig, error) {
 	merged := existing
 	if len(incoming) == 0 || string(incoming) == "null" {
+		normalizeExclusiveAIProtectionModes(&merged)
 		return merged, nil
 	}
 
@@ -47,7 +48,30 @@ func mergeStrategyConfig(existing store.StrategyConfig, incoming json.RawMessage
 	if err := json.Unmarshal(blob, &merged); err != nil {
 		return store.StrategyConfig{}, err
 	}
+	normalizeExclusiveAIProtectionModes(&merged)
 	return merged, nil
+}
+
+func normalizeExclusiveAIProtectionModes(cfg *store.StrategyConfig) {
+	if cfg == nil {
+		return
+	}
+	prot := &cfg.Protection
+	if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
+		if prot.FullTPSL.Mode == store.ProtectionModeAI {
+			prot.FullTPSL.Mode = store.ProtectionModeManual
+		}
+		if prot.LadderTPSL.Mode == store.ProtectionModeAI {
+			prot.LadderTPSL.Mode = store.ProtectionModeManual
+		}
+		if prot.DrawdownTakeProfit.EngineMode == "" {
+			prot.DrawdownTakeProfit.EngineMode = store.DrawdownEngineModeAI
+		}
+		return
+	}
+	if prot.DrawdownTakeProfit.Mode != store.ProtectionModeAI && prot.DrawdownTakeProfit.EngineMode == store.DrawdownEngineModeAI {
+		prot.DrawdownTakeProfit.EngineMode = store.DrawdownEngineModeManual
+	}
 }
 
 func deepMergeMap(dst, src map[string]any) {

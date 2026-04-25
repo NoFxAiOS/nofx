@@ -295,6 +295,24 @@ func TestStrategyConfigMergePreservesFullFallbackWhenUpdatingLadderOnly(t *testi
 	}
 }
 
+func TestStrategyConfigMergeNormalizesExclusiveAIProtectionModesToDrawdown(t *testing.T) {
+	existing := store.GetDefaultStrategyConfig("zh")
+	existing.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	existing.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
+	existing.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI, EngineMode: store.DrawdownEngineModeAI}
+
+	merged, err := mergeStrategyConfig(existing, []byte(`{"protection":{"drawdown_take_profit":{"enabled":true,"mode":"ai","engine_mode":"ai"}}}`))
+	if err != nil {
+		t.Fatalf("merge drawdown-priority partial failed: %v", err)
+	}
+	if merged.Protection.DrawdownTakeProfit.Mode != store.ProtectionModeAI {
+		t.Fatalf("expected drawdown to remain ai, got %+v", merged.Protection.DrawdownTakeProfit)
+	}
+	if merged.Protection.FullTPSL.Mode == store.ProtectionModeAI || merged.Protection.LadderTPSL.Mode == store.ProtectionModeAI {
+		t.Fatalf("expected stale full/ladder ai modes to be normalized, got full=%+v ladder=%+v", merged.Protection.FullTPSL, merged.Protection.LadderTPSL)
+	}
+}
+
 func TestStrategyConfigMergePreservesLadderWhenUpdatingFullFallbackOnly(t *testing.T) {
 	existing := store.GetDefaultStrategyConfig("zh")
 	existing.Protection.FullTPSL = store.FullTPSLConfig{

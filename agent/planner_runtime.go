@@ -468,9 +468,7 @@ func (a *Agent) tryReadFastPath(storeUserID string, userID int64, lang, text str
 	if req == nil {
 		return "", false
 	}
-	if a.history == nil {
-		a.history = newChatHistory(100)
-	}
+	a.ensureHistory()
 
 	a.history.Add(userID, "user", text)
 	raw := a.executeReadFastPath(storeUserID, userID, req)
@@ -758,6 +756,10 @@ func (a *Agent) thinkAndAct(ctx context.Context, storeUserID string, userID int6
 	if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, nil); ok {
 		return answer, nil
 	}
+	// Check setup flow before falling back to noAI — handles "开始配置", "setup", etc.
+	if reply, handled := a.handleSetupFlowForStoreUser(storeUserID, userID, text, lang); handled {
+		return reply, nil
+	}
 	if a.aiClient == nil {
 		return a.noAIFallback(lang, text)
 	}
@@ -786,6 +788,13 @@ func (a *Agent) thinkAndActStream(ctx context.Context, storeUserID string, userI
 	}
 	if answer, ok := a.tryHardSkill(ctx, storeUserID, userID, lang, text, onEvent); ok {
 		return answer, nil
+	}
+	// Check setup flow before falling back to noAI — handles "开始配置", "setup", etc.
+	if reply, handled := a.handleSetupFlowForStoreUser(storeUserID, userID, text, lang); handled {
+		if onEvent != nil {
+			onEvent(StreamEventDelta, reply)
+		}
+		return reply, nil
 	}
 	if a.aiClient == nil {
 		return a.noAIFallback(lang, text)
@@ -1256,9 +1265,7 @@ Return JSON with this exact shape:
 		return "", false
 	}
 
-	if a.history == nil {
-		a.history = newChatHistory(100)
-	}
+	a.ensureHistory()
 	a.history.Add(userID, "user", text)
 	a.history.Add(userID, "assistant", answer)
 	a.maybeUpdateTaskStateIncrementally(ctx, userID)
@@ -1297,6 +1304,7 @@ func normalizeDirectReplyDecision(decision directReplyDecision) directReplyDecis
 }
 
 func (a *Agent) runPlannedAgent(ctx context.Context, storeUserID string, userID int64, lang, text string, onEvent func(event, data string)) (string, error) {
+	a.ensureHistory()
 	a.history.Add(userID, "user", text)
 	if onEvent != nil {
 		onEvent(StreamEventPlanning, a.planningStatusText(lang))
@@ -1797,7 +1805,9 @@ func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int6
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			})
 			referencesChanged = updateCurrentReferencesFromToolResult(state, step.ToolName, result)
-			_ = referencesChanged
+			if referencesChanged {
+				a.log().Info("tool step updated references", "tool", step.ToolName, "session", state.SessionID)
+			}
 		case planStepTypeReason:
 			reasonStartedAt := time.Now()
 			reasoning, err := a.executeReasonStep(ctx, userID, lang, state.Goal, *state, *step)
@@ -1807,7 +1817,9 @@ func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int6
 				step.Error = err.Error()
 				state.Status = executionStatusFailed
 				state.LastError = err.Error()
-				_ = a.saveExecutionState(*state)
+				if saveErr := a.saveExecutionState(*state); saveErr != nil {
+					a.log().Warn("failed to save execution state after reason step error", "error", saveErr)
+				}
 				return "", err
 			}
 			step.Status = planStepStatusCompleted

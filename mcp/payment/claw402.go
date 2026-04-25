@@ -225,18 +225,34 @@ func (c *Claw402Client) signPayment(paymentHeaderB64 string) (string, error) {
 
 // ── Format overrides for Anthropic endpoints ─────────────────────────────────
 
+// stripMaxTokens removes per-call max_tokens caps from a body destined for
+// claw402. The gateway already enforces a per-route default/floor/cap
+// (see providers/*.yaml token_default_max_out / token_min_max_out /
+// token_max_out_cap). Sending a small max_tokens here on a thinking model
+// (Kimi K2.5, DeepSeek R1/V4) caused reasoning tokens to consume the entire
+// budget and left `delta.content` empty, surfacing as "no content received".
+// upto settles on real usage, so removing the cap costs nothing extra.
+func stripMaxTokens(body map[string]any) map[string]any {
+	if body == nil {
+		return body
+	}
+	delete(body, "max_tokens")
+	delete(body, "max_completion_tokens")
+	return body
+}
+
 func (c *Claw402Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildMCPRequestBody(systemPrompt, userPrompt)
 	}
-	return c.Client.BuildMCPRequestBody(systemPrompt, userPrompt)
+	return stripMaxTokens(c.Client.BuildMCPRequestBody(systemPrompt, userPrompt))
 }
 
 func (c *Claw402Client) BuildRequestBodyFromRequest(req *mcp.Request) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildRequestBodyFromRequest(req)
 	}
-	return c.Client.BuildRequestBodyFromRequest(req)
+	return stripMaxTokens(c.Client.BuildRequestBodyFromRequest(req))
 }
 
 func (c *Claw402Client) ParseMCPResponse(body []byte) (string, error) {

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"nofx/mcp"
 	"nofx/store"
 )
 
@@ -380,7 +379,9 @@ func TestLoadAIClientFromStoreUserUsesUserSpecificEnabledModel(t *testing.T) {
 		t.Fatalf("unexpected model name: %s", modelName)
 	}
 
-	if _, ok := client.(*mcp.Client); !ok {
-		t.Fatalf("expected *mcp.Client, got %T", client)
+	// After the provider registry refactor, registered providers (like openai)
+	// return their own AIClient implementation, not *mcp.Client.
+	if client == nil {
+		t.Fatal("expected non-nil AI client from provider registry")
 	}
 }

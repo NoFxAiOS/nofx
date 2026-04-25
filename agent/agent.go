@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"nofx/manager"
@@ -34,6 +35,7 @@ type Agent struct {
 	history       *chatHistory
 	pending       *pendingTrades
 	stopCh        chan struct{} // signals background goroutines to stop
+	stopOnce      sync.Once
 	NotifyFunc    func(userID int64, text string) error
 }
 
@@ -61,6 +63,12 @@ func New(tm *manager.TraderManager, st *store.Store, cfg *Config, logger *slog.L
 }
 
 func (a *Agent) SetAIClient(c mcp.AIClient) { a.aiClient = c }
+
+func (a *Agent) ensureHistory() {
+	if a.history == nil {
+		a.history = newChatHistory(100)
+	}
+}
 
 func (a *Agent) log() *slog.Logger {
 	if a != nil && a.logger != nil {
@@ -121,7 +129,19 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 	apiKey := string(model.APIKey)
 	customAPIURL := strings.TrimSpace(model.CustomAPIURL)
 	modelName := strings.TrimSpace(model.CustomModelName)
-	customAPIURL, modelName = resolveModelRuntimeConfig(model.Provider, customAPIURL, modelName, model.ID)
+	provider := strings.ToLower(strings.TrimSpace(model.Provider))
+
+	// Use the provider registry for providers like claw402 that have their own
+	// client implementation (x402 payment, custom auth, etc.).
+	if client := mcp.NewAIClientByProvider(provider); client != nil {
+		if modelName == "" {
+			modelName = model.ID
+		}
+		client.SetAPIKey(apiKey, customAPIURL, modelName)
+		return client, modelName, true
+	}
+
+	customAPIURL, modelName = resolveModelRuntimeConfig(provider, customAPIURL, modelName, model.ID)
 	if apiKey == "" || customAPIURL == "" {
 		a.log().Warn(
 			"enabled AI model is incomplete",
@@ -201,12 +221,7 @@ func (a *Agent) Start() {
 
 func (a *Agent) Stop() {
 	// Signal all background goroutines (e.g. chat-history-cleanup) to exit.
-	select {
-	case <-a.stopCh:
-		// Already closed
-	default:
-		close(a.stopCh)
-	}
+	a.stopOnce.Do(func() { close(a.stopCh) })
 	if a.sentinel != nil {
 		a.sentinel.Stop()
 	}
@@ -689,7 +704,11 @@ func (a *Agent) queryPositionsDirect(L string) (string, error) {
 			if pnl < 0 {
 				e = "🔴"
 			}
-			sb.WriteString(fmt.Sprintf("%s *%s* %s — $%.2f | Trader: %s\n", e, p["symbol"], p["side"], pnl, id[:8]))
+			tid := id
+			if len(tid) > 8 {
+				tid = tid[:8]
+			}
+			sb.WriteString(fmt.Sprintf("%s *%s* %s — $%.2f | Trader: %s\n", e, p["symbol"], p["side"], pnl, tid))
 		}
 	}
 	if !hasAny {

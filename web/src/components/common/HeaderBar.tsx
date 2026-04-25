@@ -108,12 +108,16 @@ export default function HeaderBar({
                 path: string
                 label: string
                 requiresAuth: boolean
+                badge?: string
+                hidden?: boolean
               }[] = [
                 {
                   page: 'agent',
                   path: ROUTES.agent,
                   label: 'Agent',
                   requiresAuth: false,
+                  badge: 'Beta',
+                  hidden: true,
                 },
                 {
                   page: 'data',
@@ -182,7 +186,7 @@ export default function HeaderBar({
                 navigateInApp(tab.path)
               }
 
-              return navTabs.map((tab) => (
+              return navTabs.filter((tab) => !tab.hidden).map((tab) => (
                 <button
                   key={tab.page}
                   onClick={() => handleNavClick(tab)}
@@ -193,6 +197,11 @@ export default function HeaderBar({
                     <span className="absolute inset-0 rounded-lg bg-nofx-gold/15 -z-10" />
                   )}
                   {tab.label}
+                  {tab.badge && (
+                    <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-nofx-gold/20 text-nofx-gold font-semibold uppercase align-top relative -top-1">
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
               ))
             })()}
@@ -436,12 +445,16 @@ export default function HeaderBar({
                     path: string
                     label: string
                     requiresAuth: boolean
+                    badge?: string
+                    hidden?: boolean
                   }[] = [
                     {
                       page: 'agent',
                       path: ROUTES.agent,
                       label: 'Agent',
                       requiresAuth: false,
+                      badge: 'Beta',
+                      hidden: true,
                     },
                     {
                       page: 'data',
@@ -510,7 +523,7 @@ export default function HeaderBar({
                     setMobileMenuOpen(false)
                   }
 
-                  return navTabs.map((tab, i) => (
+                  return navTabs.filter((tab) => !tab.hidden).map((tab, i) => (
                     <motion.button
                       key={tab.page}
                       initial={{ x: -20, opacity: 0 }}
@@ -527,6 +540,11 @@ export default function HeaderBar({
                         />
                       )}
                       {tab.label}
+                      {tab.badge && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-nofx-gold/20 text-nofx-gold font-semibold uppercase align-middle relative -top-1">
+                          {tab.badge}
+                        </span>
+                      )}
                       {tab.requiresAuth && !isLoggedIn && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-800 text-zinc-500 font-normal tracking-wide uppercase align-middle relative -top-1">
                           LOGIN_REQ

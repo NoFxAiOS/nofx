@@ -9,12 +9,13 @@ func TestIsDirectSetupCommand(t *testing.T) {
 	}{
 		{text: "setup", want: true},
 		{text: "/setup", want: true},
-		{text: "开始配置", want: false},
+		{text: "开始配置", want: true},
+		{text: "配置", want: true},
+		{text: "开始设置", want: true},
 		{text: "/开始配置", want: false},
 		{text: "创建全新的配置，杠杆你定", want: false},
 		{text: "帮我配置一个 deepseek 模型", want: false},
 		{text: "绑定交易所 okx", want: false},
-		{text: "配置", want: false},
 	}
 
 	for _, tc := range cases {

@@ -661,9 +661,7 @@ func (a *Agent) tryHardSkill(ctx context.Context, storeUserID string, userID int
 }
 
 func (a *Agent) recordSkillInteraction(userID int64, userText, answer string) {
-	if a.history == nil {
-		a.history = newChatHistory(100)
-	}
+	a.ensureHistory()
 	a.history.Add(userID, "user", userText)
 	a.history.Add(userID, "assistant", answer)
 }

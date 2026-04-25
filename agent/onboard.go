@@ -87,7 +87,9 @@ func (a *Agent) saveSetupState(userID int64, s *SetupState) {
 
 func (a *Agent) clearSetupState(userID int64) {
 	for _, k := range []string{"step", "exchange", "exchange_id", "api_key", "api_secret", "passphrase", "ai_provider", "ai_model", "ai_model_id", "ai_key", "ai_base_url"} {
-		a.store.SetSystemConfig(fmt.Sprintf("setup_%s_%d", k, userID), "")
+		if err := a.store.SetSystemConfig(fmt.Sprintf("setup_%s_%d", k, userID), ""); err != nil {
+			a.log().Warn("clearSetupState: failed to clear key", "key", k, "error", err)
+		}
 	}
 }
 
@@ -224,7 +226,7 @@ func isDirectSetupCommand(text string) bool {
 		return false
 	}
 	switch text {
-	case "setup", "/setup":
+	case "setup", "/setup", "开始配置", "配置", "开始设置":
 		return true
 	default:
 		return false
@@ -500,9 +502,7 @@ func (a *Agent) saveSetupAIModel(storeUserID string, state *SetupState) (string,
 		return "", err
 	}
 
-	if modelID == state.AIProvider {
-		modelID = fmt.Sprintf("%s_%s", storeUserID, state.AIProvider)
-	}
+	modelID = fmt.Sprintf("%s_%s", storeUserID, state.AIProvider)
 	return modelID, nil
 }
 

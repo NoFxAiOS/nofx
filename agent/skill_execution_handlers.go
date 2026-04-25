@@ -677,8 +677,8 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 		if apiKey := extractCredentialValue(text, []string{"api key", "apikey", "api_key"}); apiKey != "" {
 			setField(&session, "api_key", apiKey)
 		}
-		if modelName := extractPostKeywordName(text, []string{"model name", "模型名", "模型名称", "改成"}); modelName != "" {
-			setField(&session, "custom_model_name", modelName)
+		if modelName := extractPostKeywordName(text, []string{"model name", "模型名", "模型名称", "改成", "改为", "修改为", "换成", "换到", "切换为", "切换到", "change to", "switch to"}); modelName != "" {
+			setField(&session, "custom_model_name", normalizeModelName(modelName))
 		}
 		if value := fieldValue(session, "custom_api_url"); value != "" {
 			payload["custom_api_url"] = value
@@ -747,6 +747,59 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 	default:
 		return ""
 	}
+}
+
+// normalizeModelName maps common user-friendly model aliases to the canonical
+// names used by claw402 and other providers (e.g. "claude opus4.6" → "claude-opus").
+func normalizeModelName(name string) string {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	aliases := map[string]string{
+		// Claude
+		"claude opus":     "claude-opus",
+		"claude opus4.6":  "claude-opus",
+		"claude opus 4.6": "claude-opus",
+		"claude-opus-4-6": "claude-opus",
+		"claude sonnet":     "claude-sonnet",
+		"claude sonnet4.6":  "claude-sonnet",
+		"claude sonnet 4.6": "claude-sonnet",
+		"claude haiku":      "claude-haiku",
+		// GPT
+		"gpt5.4":      "gpt-5.4",
+		"gpt 5.4":     "gpt-5.4",
+		"gpt5.4pro":   "gpt-5.4-pro",
+		"gpt 5.4pro":  "gpt-5.4-pro",
+		"gpt 5.4 pro": "gpt-5.4-pro",
+		"gpt5 mini":   "gpt-5-mini",
+		"gpt 5 mini":  "gpt-5-mini",
+		"gpt5.3":      "gpt-5.3",
+		"gpt 5.3":     "gpt-5.3",
+		// DeepSeek
+		"deepseek reasoner": "deepseek-reasoner",
+		"deepseek chat":     "deepseek-chat",
+		// Qwen (通义千问)
+		"qwen max":   "qwen-max",
+		"qwen plus":  "qwen-plus",
+		"qwen turbo": "qwen-turbo",
+		"qwen flash": "qwen-flash",
+		"通义千问":       "qwen-max",
+		// Gemini
+		"gemini 3.1 pro": "gemini-3.1-pro",
+		"gemini 3.1pro":  "gemini-3.1-pro",
+		// Kimi
+		"kimi k2.5": "kimi-k2.5",
+		// GLM (智谱清言)
+		"glm5":        "glm-5",
+		"glm 5":       "glm-5",
+		"glm5 turbo":  "glm-5-turbo",
+		"glm 5 turbo": "glm-5-turbo",
+		"glm5-turbo":  "glm-5-turbo",
+		"智谱清言":        "glm-5",
+	}
+	if canonical, ok := aliases[lower]; ok {
+		return canonical
+	}
+	// Replace spaces with hyphens as a general fallback
+	return strings.ReplaceAll(strings.TrimSpace(name), " ", "-")
 }
 
 func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {

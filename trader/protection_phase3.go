@@ -182,6 +182,14 @@ func isStrongCounterTrend(action string, data *market.Data) bool {
 		return false
 	}
 	counterScore := 0
+	atrPct := 0.0
+	if data.CurrentPrice > 0 {
+		if data.IntradaySeries != nil && data.IntradaySeries.ATR14 > 0 {
+			atrPct = data.IntradaySeries.ATR14 / data.CurrentPrice * 100
+		} else if data.LongerTermContext != nil && data.LongerTermContext.ATR14 > 0 {
+			atrPct = data.LongerTermContext.ATR14 / data.CurrentPrice * 100
+		}
+	}
 	switch action {
 	case "open_long":
 		if data.CurrentPrice < data.CurrentEMA20 {
@@ -196,6 +204,11 @@ func isStrongCounterTrend(action string, data *market.Data) bool {
 		if data.CurrentMACD < 0 {
 			counterScore++
 		}
+		// Allow shallow-retest / support-bounce longs in range regimes unless the setup
+		// is extremely counter-trend and momentum remains broadly negative.
+		if counterScore == 3 && atrPct > 0 && atrPct <= 1.2 && data.PriceChange1h > -1.2 {
+			return false
+		}
 	case "open_short":
 		if data.CurrentPrice > data.CurrentEMA20 {
 			counterScore++
@@ -209,8 +222,11 @@ func isStrongCounterTrend(action string, data *market.Data) bool {
 		if data.CurrentMACD > 0 {
 			counterScore++
 		}
+		if counterScore == 3 && atrPct > 0 && atrPct <= 1.2 && data.PriceChange1h < 1.2 {
+			return false
+		}
 	}
-	return counterScore >= 3
+	return counterScore >= 4
 }
 
 func (at *AutoTrader) evaluateDecisionRegimeGate(decision *kernel.Decision, data *market.Data) regimeGateResult {

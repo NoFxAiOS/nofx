@@ -3,6 +3,8 @@ package kernel
 import (
 	"encoding/json"
 	"testing"
+
+	"nofx/store"
 )
 
 func TestSchemaRegistryContainsCoreAliases(t *testing.T) {
@@ -175,6 +177,24 @@ func TestNormalizeAndRepairOpenDecisionBackfillsStructuralKeyLevels(t *testing.T
 	}
 	if ep.StructuralKeyLevels[0].Timeframe != "15m" {
 		t.Fatalf("expected trimmed primary timeframe 15m, got %q", ep.StructuralKeyLevels[0].Timeframe)
+	}
+}
+
+func TestNormalizeAndRepairOpenDecisionKeepsKeyLevelsWithinConfigCapsAfterBackfill(t *testing.T) {
+	ep := &AIEntryProtectionRationale{
+		TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		KeyLevels: AIEntryKeyLevels{
+			Support:    []float64{100, 99, 98},
+			Resistance: []float64{110, 111, 112, 113},
+		},
+		Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 100, Reason: "invalidation"}, {Type: "resistance", Timeframe: "1h", Price: 113, Reason: "first target"}},
+		RiskReward: AIRiskRewardRationale{Entry: 105, Invalidation: 100, FirstTarget: 113, GrossEstimatedRR: 1.6, NetEstimatedRR: 1.5, MinRequiredRR: 1.5, Passed: true},
+	}
+	decisions := []Decision{{Symbol: "ZECUSDT", Action: "open_long", EntryProtection: ep}}
+	normalizeAndRepairOpenDecisions(decisions)
+	trimEntryProtectionToConfigLimits(decisions[0].EntryProtection, store.EntryStructureConfig{Enabled: true, MaxSupportLevels: 3, MaxResistanceLevels: 3})
+	if got := len(decisions[0].EntryProtection.KeyLevels.Resistance); got != 3 {
+		t.Fatalf("expected resistance levels trimmed to 3 after repair, got %d", got)
 	}
 }
 

@@ -930,6 +930,14 @@ func ParseAndValidateAIDecisionsWithStrategy(response string, config *store.Stra
 	if err != nil {
 		return nil, err
 	}
+	normalizeAndRepairOpenDecisions(decisions)
+	if config != nil {
+		for i := range decisions {
+			if decisions[i].EntryProtection != nil {
+				trimEntryProtectionToConfigLimits(decisions[i].EntryProtection, config.EntryStructure)
+			}
+		}
+	}
 	cot := extractCoTTrace(response)
 	if err := ValidateAIDecisionsWithStrategyAndCoT(decisions, config, cot); err != nil {
 		return decisions, err

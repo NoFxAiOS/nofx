@@ -605,8 +605,8 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 	if effectiveRR < minRR {
 		return fmt.Errorf("entry_protection_rationale.risk_reward %.2f below min %.2f", effectiveRR, minRR)
 	}
-	if rr.MinRequiredRR > 0 && absFloat(rr.MinRequiredRR-minRR) > 0.02 {
-		return fmt.Errorf("entry_protection_rationale.risk_reward min_required_rr %.2f inconsistent with strategy min %.2f", rr.MinRequiredRR, minRR)
+	if rr.MinRequiredRR > 0 && rr.MinRequiredRR+0.02 < minRR {
+		return fmt.Errorf("entry_protection_rationale.risk_reward min_required_rr %.2f below strategy min %.2f", rr.MinRequiredRR, minRR)
 	}
 	if rr.Passed && effectiveRR+0.02 < minRR {
 		return fmt.Errorf("entry_protection_rationale.risk_reward passed=true inconsistent with effective rr %.2f below min %.2f", effectiveRR, minRR)
@@ -767,7 +767,7 @@ func structuralReferenceLevels(rationale *AIEntryProtectionRationale) (invalidat
 		}
 		usedFor := strings.ToLower(strings.TrimSpace(lvl.UsedFor))
 		switch usedFor {
-		case "invalidation", "stop_loss", "entry_support", "entry_resistance":
+		case "invalidation", "stop_loss", "entry_support", "entry_resistance", "entry":
 			invalidationRefs = append(invalidationRefs, lvl.Price)
 		case "take_profit", "first_target", "tp1", "tp2", "tp1_drawdown_trigger", "tp2_drawdown_trigger", "profit_protection_stage_1", "profit_protection_stage_2", "profit_protection_stage_3", "tp2_reference", "break_even":
 			targetRefs = append(targetRefs, lvl.Price)

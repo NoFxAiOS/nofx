@@ -464,7 +464,27 @@ func TestValidateAIDecisionsWithStrategyRejectsGrossRRMismatch(t *testing.T) {
 	}
 }
 
-func TestValidateAIDecisionsWithStrategyRejectsMinRequiredRRMismatch(t *testing.T) {
+func TestValidateAIDecisionsWithStrategyRejectsMinRequiredRRBelowStrategyMin(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.RiskControl.MinRiskRewardRatio = 1.5
+
+	decisions := []Decision{{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        3,
+		PositionSizeUSD: 500,
+		Reasoning:       "setup looks good",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+	}}
+	decisions[0].EntryProtection.RiskReward.MinRequiredRR = 1.2
+
+	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
+	if err == nil || !strings.Contains(err.Error(), "min_required_rr") {
+		t.Fatalf("expected min_required_rr below-strategy-min error, got %v", err)
+	}
+}
+
+func TestValidateAIDecisionsWithStrategyAllowsMoreConservativeMinRequiredRR(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.RiskControl.MinRiskRewardRatio = 1.5
 
@@ -478,9 +498,8 @@ func TestValidateAIDecisionsWithStrategyRejectsMinRequiredRRMismatch(t *testing.
 	}}
 	decisions[0].EntryProtection.RiskReward.MinRequiredRR = 2.0
 
-	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
-	if err == nil || !strings.Contains(err.Error(), "min_required_rr") {
-		t.Fatalf("expected min_required_rr mismatch error, got %v", err)
+	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err != nil {
+		t.Fatalf("expected conservative min_required_rr to pass, got %v", err)
 	}
 }
 

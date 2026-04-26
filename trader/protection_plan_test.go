@@ -451,7 +451,7 @@ func TestBuildConfiguredProtectionPlanDrawdownSuppressesStaticTPAndLadderOwnsSto
 		t.Fatal("expected plan")
 	}
 	if len(plan.StopLossOrders) != 1 || !almostEqual(plan.StopLossOrders[0].Price, 98) {
-		t.Fatalf("expected ladder stop to own stop side, got %+v", plan)
+		t.Fatalf("expected ladder stop to own stop side in configured plan, got %+v", plan)
 	}
 	if len(plan.TakeProfitOrders) != 0 || plan.NeedsTakeProfit || plan.TakeProfitPrice != 0 {
 		t.Fatalf("expected drawdown to suppress static TP side, got %+v", plan)

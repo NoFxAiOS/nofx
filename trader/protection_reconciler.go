@@ -163,6 +163,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		plan.TakeProfitPrice = 0
 		plan.TakeProfitOrders = nil
 	}
+	if plan != nil {
+		collapseLadderStopsToTightestFullStop(plan, actionFromPositionSide(side))
+	}
 	if drawdownEnabled {
 		hasGenericTP := false
 		for _, order := range openOrders {

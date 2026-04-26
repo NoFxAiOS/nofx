@@ -27,6 +27,7 @@ type ProtectionRow = {
   bucket: OrderBucket
   visualStatus: ProtectionVisualStatus
   label: string
+  source: string
 }
 
 // ── Helper functions (unchanged) ──────────────────────────────────────
@@ -73,6 +74,18 @@ function getOrderLabel(bucket: OrderBucket, language: Language): string {
   }
 }
 
+function getOrderSourceLabel(order: OpenOrder, language: Language): string {
+  const id = String(order.client_order_id || '').toLowerCase()
+  if (id.includes('fallback_maxloss')) return language === 'zh' ? '兜底止损' : 'Fallback SL'
+  if (id.includes('full_sl')) return language === 'zh' ? '全仓止损' : 'Full SL'
+  if (id.includes('full_tp')) return language === 'zh' ? '全仓止盈' : 'Full TP'
+  if (id.includes('ladder_sl')) return language === 'zh' ? 'Ladder 止损' : 'Ladder SL'
+  if (id.includes('ladder_tp')) return language === 'zh' ? 'Ladder 止盈' : 'Ladder TP'
+  if (id.includes('break_even') || id.includes('breakeven')) return language === 'zh' ? '保本止损' : 'Break-even SL'
+  if (id.includes('drawdown') || id.includes('trailing')) return language === 'zh' ? 'Drawdown / trailing' : 'Drawdown / trailing'
+  return ''
+}
+
 function buildProtectionRows(position: Position, orders: OpenOrder[], language: Language) {
   const positionQty = position.quantity || 0
   const entryPrice = position.entry_price || 0
@@ -89,6 +102,7 @@ function buildProtectionRows(position: Position, orders: OpenOrder[], language: 
       closeRatioPct, valueUsdt, deltaPct, bucket,
       visualStatus: getVisualStatus(order, bucket, triggerPrice, 0),
       label: getOrderLabel(bucket, language),
+      source: getOrderSourceLabel(order, language),
     }
   })
 }
@@ -405,6 +419,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                           <tr key={`${row.orderId}-${row.type}-${row.triggerPrice}`} className="border-b border-white/5">
                             <td className="py-1.5 pr-3 text-nofx-text-main">
                               {row.label}
+                              {row.source ? <span className="text-cyan-300 ml-1">· {row.source}</span> : null}
                               {row.closeRatioPct > 0 && row.closeRatioPct < 100 ? <span className="text-nofx-text-muted ml-1">({row.closeRatioPct.toFixed(0)}%)</span> : null}
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono text-nofx-text-main">

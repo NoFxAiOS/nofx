@@ -619,13 +619,82 @@ func (at *AutoTrader) enrichProtectionOrders(openOrders []OpenOrder) []OpenOrder
 	return enriched
 }
 
+func (at *AutoTrader) enrichProtectionOrdersWithPlan(symbol string, openOrders []OpenOrder) []OpenOrder {
+	openOrders = at.enrichProtectionOrders(openOrders)
+	if at == nil || at.config.StrategyConfig == nil || len(openOrders) == 0 {
+		return openOrders
+	}
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return openOrders
+	}
+	for _, pos := range positions {
+		posSymbol, _ := pos["symbol"].(string)
+		if !strings.EqualFold(posSymbol, symbol) {
+			continue
+		}
+		side, _ := pos["side"].(string)
+		entryPrice, _ := pos["entryPrice"].(float64)
+		quantity, _ := pos["positionAmt"].(float64)
+		if side == "" || entryPrice <= 0 || quantity == 0 {
+			continue
+		}
+		plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
+		if err != nil || plan == nil {
+			continue
+		}
+		collapseLadderStopsToTightestFullStop(plan, actionFromPositionSide(side))
+		positionSide := strings.ToUpper(side)
+		for i := range openOrders {
+			if openOrders[i].PositionSide != "" && !strings.EqualFold(openOrders[i].PositionSide, positionSide) {
+				continue
+			}
+			if openOrders[i].ClientOrderID == "" {
+				openOrders[i].ClientOrderID = inferProtectionClientOrderID(openOrders[i], positionSide, plan)
+			}
+		}
+	}
+	return openOrders
+}
+
+func inferProtectionClientOrderID(order OpenOrder, positionSide string, plan *ProtectionPlan) string {
+	price := order.StopPrice
+	if price <= 0 {
+		price = order.Price
+	}
+	if looksLikeStopLoss(order) {
+		if plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder([]OpenOrder{order}, positionSide, false, plan.FallbackMaxLossPrice) {
+			return "fallback_maxloss_sl"
+		}
+		if plan.NeedsStopLoss && plan.StopLossPrice > 0 && approximatelyEqualPrice(price, plan.StopLossPrice) {
+			return "full_sl"
+		}
+		for _, target := range plan.StopLossOrders {
+			if approximatelyEqualPrice(price, target.Price) {
+				return "ladder_sl"
+			}
+		}
+	}
+	if looksLikeTakeProfit(order) {
+		if plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 && approximatelyEqualPrice(price, plan.TakeProfitPrice) {
+			return "full_tp"
+		}
+		for _, target := range plan.TakeProfitOrders {
+			if approximatelyEqualPrice(price, target.Price) {
+				return "ladder_tp"
+			}
+		}
+	}
+	return ""
+}
+
 // GetOpenOrders returns open orders (pending SL/TP) from exchange
 func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	orders, err := at.trader.GetOpenOrders(symbol)
 	if err != nil {
 		return nil, err
 	}
-	return at.enrichProtectionOrders(orders), nil
+	return at.enrichProtectionOrdersWithPlan(symbol, orders), nil
 }
 
 func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quantity, entryPrice float64, openOrders []OpenOrder) map[string]interface{} {
@@ -965,17 +1034,17 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			}
 			return ""
 		}(),
-		"drawdown_structure_stage":             currentStructureStage,
-		"drawdown_structure_stop_source":       currentStructureStopSource,
-		"drawdown_structure_target_source":     currentStructureTargetSource,
-		"drawdown_structure_target_progress":   currentStructureTargetProgress,
-		"drawdown_structure_primary_timeframe": currentStructurePrimaryTf,
-		"drawdown_structure_evidence":          currentStructureEvidence,
-		"drawdown_structure_trace":             currentStructureTrace,
-		"structure_protection_health":          currentStructureHealth,
-		"structure_protection_drift_reason":    currentStructureDriftReason,
-		"structure_protection_detached":        currentStructureDetached,
-		"drawdown_execution_mode":              at.getDrawdownExecutionMode(symbol, side),
+		"drawdown_structure_stage":              currentStructureStage,
+		"drawdown_structure_stop_source":        currentStructureStopSource,
+		"drawdown_structure_target_source":      currentStructureTargetSource,
+		"drawdown_structure_target_progress":    currentStructureTargetProgress,
+		"drawdown_structure_primary_timeframe":  currentStructurePrimaryTf,
+		"drawdown_structure_evidence":           currentStructureEvidence,
+		"drawdown_structure_trace":              currentStructureTrace,
+		"structure_protection_health":           currentStructureHealth,
+		"structure_protection_drift_reason":     currentStructureDriftReason,
+		"structure_protection_detached":         currentStructureDetached,
+		"drawdown_execution_mode":               at.getDrawdownExecutionMode(symbol, side),
 		"drawdown_config_source":                drawdownSource,
 		"break_even_execution_mode":             at.getBreakEvenExecutionMode(symbol, side),
 		"current_pnl_pct":                       currentPnLPct,

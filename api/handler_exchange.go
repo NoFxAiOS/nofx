@@ -31,11 +31,39 @@ type SafeExchangeConfig struct {
 	Name                  string `json:"name"`          // Display name
 	Type                  string `json:"type"`          // "cex" or "dex"
 	Enabled               bool   `json:"enabled"`
+	HasAPIKey             bool   `json:"has_api_key"`
+	HasSecretKey          bool   `json:"has_secret_key"`
+	HasPassphrase         bool   `json:"has_passphrase"`
 	Testnet               bool   `json:"testnet,omitempty"`
 	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid wallet address (not sensitive)
+	HasAsterPrivateKey    bool   `json:"has_aster_private_key"`
 	AsterUser             string `json:"asterUser"`             // Aster username (not sensitive)
 	AsterSigner           string `json:"asterSigner"`           // Aster signer (not sensitive)
 	LighterWalletAddr     string `json:"lighterWalletAddr"`     // LIGHTER wallet address (not sensitive)
+	HasLighterPrivateKey  bool   `json:"has_lighter_private_key"`
+	HasLighterAPIKey      bool   `json:"has_lighter_api_key_private_key"`
+}
+
+func safeExchangeConfigFromStore(exchange *store.Exchange) SafeExchangeConfig {
+	return SafeExchangeConfig{
+		ID:                    exchange.ID,
+		ExchangeType:          exchange.ExchangeType,
+		AccountName:           exchange.AccountName,
+		Name:                  exchange.Name,
+		Type:                  exchange.Type,
+		Enabled:               exchange.Enabled,
+		HasAPIKey:             exchange.APIKey != "",
+		HasSecretKey:          exchange.SecretKey != "",
+		HasPassphrase:         exchange.Passphrase != "",
+		Testnet:               exchange.Testnet,
+		HyperliquidWalletAddr: exchange.HyperliquidWalletAddr,
+		HasAsterPrivateKey:    exchange.AsterPrivateKey != "",
+		AsterUser:             exchange.AsterUser,
+		AsterSigner:           exchange.AsterSigner,
+		LighterWalletAddr:     exchange.LighterWalletAddr,
+		HasLighterPrivateKey:  exchange.LighterPrivateKey != "",
+		HasLighterAPIKey:      exchange.LighterAPIKeyPrivateKey != "",
+	}
 }
 
 type UpdateExchangeConfigRequest struct {
@@ -102,19 +130,7 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 		if !store.IsVisibleExchange(exchange) {
 			continue
 		}
-		safeExchanges = append(safeExchanges, SafeExchangeConfig{
-			ID:                    exchange.ID,
-			ExchangeType:          exchange.ExchangeType,
-			AccountName:           exchange.AccountName,
-			Name:                  exchange.Name,
-			Type:                  exchange.Type,
-			Enabled:               exchange.Enabled,
-			Testnet:               exchange.Testnet,
-			HyperliquidWalletAddr: exchange.HyperliquidWalletAddr,
-			AsterUser:             exchange.AsterUser,
-			AsterSigner:           exchange.AsterSigner,
-			LighterWalletAddr:     exchange.LighterWalletAddr,
-		})
+		safeExchanges = append(safeExchanges, safeExchangeConfigFromStore(exchange))
 	}
 
 	c.JSON(http.StatusOK, safeExchanges)

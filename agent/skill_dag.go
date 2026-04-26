@@ -37,15 +37,6 @@ func buildSkillDAGRegistry() map[string]SkillDAG {
 		},
 		{
 			SkillName: "trader_management",
-			Action:    "update_name",
-			Steps: []SkillDAGStep{
-				{ID: "resolve_target", Kind: "resolve_target", RequiredFields: []string{"target_ref"}, Next: []string{"collect_name"}},
-				{ID: "collect_name", Kind: "collect_slot", RequiredFields: []string{"name"}, Next: []string{"execute_update"}},
-				{ID: "execute_update", Kind: "execute", RequiredFields: []string{"target_ref", "name"}, Terminal: true},
-			},
-		},
-		{
-			SkillName: "trader_management",
 			Action:    "update_bindings",
 			Steps: []SkillDAGStep{
 				{ID: "resolve_target", Kind: "resolve_target", RequiredFields: []string{"target_ref"}, Next: []string{"collect_bindings"}},

@@ -511,7 +511,7 @@ func looksLikeCompoundTraderIntent(text string) bool {
 		return false
 	}
 	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
-	hasBindingsOrConfig := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "杠杆", "提示词"})
+	hasBindingsOrConfig := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "全仓", "逐仓", "竞技场"})
 	hasLifecycle := containsAny(lower, []string{"启动", "开始", "start", "停止", "stop"})
 	return (hasCreate && (hasBindingsOrConfig || hasLifecycle)) ||
 		(hasBindingsOrConfig && hasLifecycle)
@@ -554,7 +554,7 @@ Each task must include:
 - request
 - depends_on (array, may be empty)
 Rules:
-- Prefer atomic actions such as create, update_name, update_bindings, configure_strategy, configure_exchange, configure_model, update_status, update_endpoint, update_config, update_prompt, activate, duplicate, start, stop, delete, query_list, query_detail.
+- Prefer atomic actions such as create, update_bindings, configure_strategy, configure_exchange, configure_model, update_status, update_endpoint, update_config, update_prompt, activate, duplicate, start, stop, delete, query_list, query_detail.
 - If one request contains create plus follow-up edits in the same skill, split them into multiple tasks.
 - If later tasks need an entity created earlier, make the dependency explicit in depends_on.
 - Keep each request user-readable and self-contained enough for a single skill handler to execute.
@@ -717,7 +717,7 @@ func classifyContextualStrategyWorkflowTasks(text string) []WorkflowTask {
 
 func classifyContextualTraderWorkflowTasks(text string) []WorkflowTask {
 	lower := strings.ToLower(strings.TrimSpace(text))
-	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "改名", "重命名"})
+	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "全仓", "逐仓", "竞技场"})
 	hasStart := containsAny(lower, []string{"启动", "开始", "run", "start"})
 	hasStop := containsAny(lower, []string{"停止", "停掉", "stop", "pause"})
 	if !hasUpdate && !hasStart && !hasStop {
@@ -725,12 +725,7 @@ func classifyContextualTraderWorkflowTasks(text string) []WorkflowTask {
 	}
 	var tasks []WorkflowTask
 	if hasUpdate {
-		action := "update_bindings"
-		if containsAny(lower, []string{"改名", "重命名", "rename", "name"}) &&
-			!containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}) {
-			action = "update_name"
-		}
-		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: action, Request: text})
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "update_bindings", Request: text})
 	}
 	if hasStart {
 		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "start", Request: text})
@@ -804,7 +799,7 @@ func classifyCompoundTraderWorkflowTasks(text string) []WorkflowTask {
 	}
 	lower := strings.ToLower(strings.TrimSpace(text))
 	hasCreate := containsAny(lower, []string{"创建", "新建", "创一个", "创个", "create", "new"})
-	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "改名", "重命名"})
+	hasUpdate := containsAny(lower, []string{"修改", "更新", "换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "全仓", "逐仓", "竞技场"})
 	hasStart := containsAny(lower, []string{"启动", "开始", "run", "start"})
 	hasStop := containsAny(lower, []string{"停止", "停掉", "stop", "pause"})
 
@@ -813,12 +808,7 @@ func classifyCompoundTraderWorkflowTasks(text string) []WorkflowTask {
 		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "create", Request: text})
 	}
 	if hasUpdate {
-		action := "update_bindings"
-		if containsAny(lower, []string{"改名", "重命名", "rename", "name"}) &&
-			!containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}) {
-			action = "update_name"
-		}
-		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: action, Request: text})
+		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "update_bindings", Request: text})
 	}
 	if hasStart {
 		tasks = append(tasks, WorkflowTask{Skill: "trader_management", Action: "start", Request: text})
@@ -847,9 +837,6 @@ func classifyCompoundModelWorkflowTasks(text string) []WorkflowTask {
 	}
 	if hasConfig {
 		action := "update_endpoint"
-		if extractModelNameValue(text) != "" || extractCredentialValue(text, []string{"api key", "apikey", "api_key"}) != "" {
-			action = "update_endpoint"
-		}
 		tasks = append(tasks, WorkflowTask{Skill: "model_management", Action: action, Request: text})
 	}
 	if hasStatus {
@@ -925,12 +912,10 @@ func classifyWorkflowTask(text string) (WorkflowTask, bool) {
 			action = "stop"
 		case containsAny(lower, []string{"删除", "删了", "删掉", "delete"}):
 			action = "delete"
-		case containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略"}):
+		case containsAny(lower, []string{"换模型", "换交易所", "换策略", "切换模型", "切换交易所", "切换策略", "扫描间隔", "全仓", "逐仓", "竞技场"}):
 			action = "update_bindings"
-		case containsAny(lower, []string{"改名", "重命名", "rename", "名字", "名称", "name"}):
-			action = "update_name"
 		case containsAny(lower, []string{"修改", "更新", "改"}):
-			action = "update"
+			action = "update_bindings"
 		case containsAny(lower, []string{"详情", "配置", "参数", "what", "detail"}):
 			action = "query_detail"
 		case containsAny(lower, []string{"列表", "全部", "哪些", "list"}):

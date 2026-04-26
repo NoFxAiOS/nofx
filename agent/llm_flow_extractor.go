@@ -45,7 +45,13 @@ Rules:
 - Prefer "continue" only when the message clearly contributes to the current flow.
 - Set target_snapshot_id only when the user is clearly referring to one suspended snapshot from Suspended snapshots JSON.
 - For greetings, thanks, and casual chat, use "instant_reply".
-- Consider Current references JSON and Suspended snapshots JSON when resolving vague references like "那个", "刚才那个", or "前面那个".`
+- Consider Current references JSON and Suspended snapshots JSON when resolving vague references like "那个", "刚才那个", or "前面那个".
+- Treat this as semantic slot filling, not keyword copying.
+- Users will often speak in natural language, shorthand, colloquial labels, translated labels, or mild misspellings instead of exact schema keys.
+- Your job is to decide which allowed canonical field each value belongs to based on the active flow, field descriptions, current missing fields, and conversation context.
+- Never require the user to say the exact internal field key.
+- In task.fields, always emit the canonical field keys from Allowed field spec JSON, never aliases, paraphrases, or user wording.
+- If the user clearly supplied a value for one allowed field, normalize it to that canonical key before returning JSON.`
 
 	sections := []string{
 		fmt.Sprintf("Language: %s", lang),
@@ -99,6 +105,11 @@ func (a *Agent) extractSkillSessionFieldsWithLLM(ctx context.Context, userID int
 - This is the structured continuation input for an active NOFXi task flow.
 - For "continue", return exactly one task for the active skill/action and place extracted field values in task.fields.
 - Only extract fields from the allowed field spec list.
+- Treat Allowed field spec JSON as the canonical output schema.
+- If a user-provided value does not fit one of those canonical keys, omit it; never create another key.
+- Use field descriptions plus current missing fields to infer the best canonical destination field for each user-provided value.
+- When the user supplies a credential, endpoint, name, toggle, or config value in natural language, map it to the most plausible allowed canonical field instead of echoing the user's label.
+- Do not return near-match keys, guessed aliases, or raw user labels as JSON keys.
 - Do not invent values that were not supported by the user message or strong context.
 - If the user explicitly says "you choose one for me", you may leave that field empty and explain it in reason.
 - If the active skill dependency summary says the current flow depends on other resource configs, treat dependency repair as continuation of the active flow instead of a new peer task.
@@ -122,7 +133,7 @@ Return JSON with this shape:
 	if err != nil {
 		return llmFlowExtractionResult{}
 	}
-	return parseLLMFlowExtractionResult(raw)
+	return filterLLMFlowExtractionFields(parseLLMFlowExtractionResult(raw), fieldSpecs)
 }
 
 func parseLLMFlowExtractionResult(raw string) llmFlowExtractionResult {
@@ -191,6 +202,44 @@ func parseRawFlowExtractionEnvelope(raw string) (llmFlowExtractionResult, bool) 
 	return out, out.Intent != ""
 }
 
+func filterLLMFlowExtractionFields(result llmFlowExtractionResult, specs []llmFlowFieldSpec) llmFlowExtractionResult {
+	if len(specs) == 0 {
+		result.Fields = nil
+		for i := range result.Tasks {
+			result.Tasks[i].Fields = nil
+		}
+		return result
+	}
+	allowed := make(map[string]struct{}, len(specs))
+	for _, spec := range specs {
+		key := strings.TrimSpace(spec.Key)
+		if key != "" {
+			allowed[key] = struct{}{}
+		}
+	}
+	filter := func(fields map[string]string) map[string]string {
+		if len(fields) == 0 {
+			return fields
+		}
+		clean := make(map[string]string, len(fields))
+		for key, value := range fields {
+			if _, ok := allowed[key]; !ok {
+				continue
+			}
+			clean[key] = value
+		}
+		if len(clean) == 0 {
+			return nil
+		}
+		return clean
+	}
+	result.Fields = filter(result.Fields)
+	for i := range result.Tasks {
+		result.Tasks[i].Fields = filter(result.Tasks[i].Fields)
+	}
+	return result
+}
+
 func skillSessionExtractionContext(session skillSession, lang string) (string, []llmFlowFieldSpec, map[string]string, []string) {
 	currentStep, _ := currentSkillDAGStep(session)
 	fieldSpecs := allowedFieldSpecsForSkillSession(session, lang)
@@ -205,6 +254,13 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 		*out = append(*out, llmFlowFieldSpec{Key: key, Description: description, Required: required})
 	}
 	out := make([]llmFlowFieldSpec, 0, 24)
+	if actionRequiresSlot(session.Name, session.Action, "target_ref") {
+		add(&out, "target_ref_id", slotDisplayName("target_ref", lang)+" ID", true)
+		add(&out, "target_ref_name", slotDisplayName("target_ref", lang), true)
+	}
+	if supportsBulkTargetSelection(session.Name, session.Action) {
+		add(&out, "bulk_scope", "bulk deletion scope, use all only when the user clearly requested all targets", false)
+	}
 	switch session.Name {
 	case "model_management":
 		required := map[string]bool{"provider": true}
@@ -470,6 +526,26 @@ func (a *Agent) applyLLMExtractionToSkillSession(storeUserID string, session *sk
 	for key, value := range task.Fields {
 		value = strings.TrimSpace(value)
 		if value == "" {
+			continue
+		}
+		switch key {
+		case "target_ref_id":
+			if session.TargetRef == nil {
+				session.TargetRef = &EntityReference{}
+			}
+			session.TargetRef.ID = value
+			if session.TargetRef.Source == "" {
+				session.TargetRef.Source = "llm_extraction"
+			}
+			continue
+		case "target_ref_name":
+			if session.TargetRef == nil {
+				session.TargetRef = &EntityReference{}
+			}
+			session.TargetRef.Name = value
+			if session.TargetRef.Source == "" {
+				session.TargetRef.Source = "llm_extraction"
+			}
 			continue
 		}
 		switch session.Name {

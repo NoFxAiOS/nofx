@@ -82,32 +82,56 @@ func (a *Agent) tryLLMIntentRoute(ctx context.Context, storeUserID string, userI
 		return answer, true, err
 	}
 
+	interruptedActiveContext := false
 	if a.hasAnyActiveContext(userID) {
 		a.clearPendingProposalSession(userID)
-		return a.handoffFromActiveFlow(ctx, storeUserID, userID, lang, text, decision.TargetSnapshotID, onEvent)
+		if a.suspendAndTryRestoreSuspendedTask(userID, lang, text, decision.TargetSnapshotID) {
+			return a.tryStatePriorityPath(ctx, storeUserID, userID, lang, text, onEvent)
+		}
+		interruptedActiveContext = true
 	}
 
 	switch decision.Route {
 	case "workflow":
 		a.clearPendingProposalSession(userID)
 		answer, handled, execErr := a.executeWorkflowDecomposition(ctx, storeUserID, userID, lang, text, workflowDecomposition{Tasks: decision.Tasks}, onEvent)
+		if interruptedActiveContext {
+			answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
+		}
 		return answer, handled, execErr
 	case "skill":
 		a.clearPendingProposalSession(userID)
-		return a.executeRoutedAtomicSkill(ctx, storeUserID, userID, lang, text, decision, onEvent)
+		answer, handled, execErr := a.executeRoutedAtomicSkill(ctx, storeUserID, userID, lang, text, decision, onEvent)
+		if interruptedActiveContext {
+			answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
+		}
+		return answer, handled, execErr
 	case "planner":
 		a.clearPendingProposalSession(userID)
-		answer, execErr := a.runPlannedAgent(ctx, storeUserID, userID, lang, text, onEvent)
+		answer, execErr := a.runPlannedAgentWithContextMode(ctx, storeUserID, userID, lang, text, plannerContextModeFromRouteDecision(decision), onEvent)
+		if interruptedActiveContext {
+			answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
+		}
 		return answer, true, execErr
 	default:
 		if decision.NeedPlannerHelp || decision.Track == "planning_track" {
 			a.clearPendingProposalSession(userID)
-			answer, execErr := a.runPlannedAgent(ctx, storeUserID, userID, lang, text, onEvent)
+			answer, execErr := a.runPlannedAgentWithContextMode(ctx, storeUserID, userID, lang, text, plannerContextModeFromRouteDecision(decision), onEvent)
+			if interruptedActiveContext {
+				answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
+			}
 			return answer, true, execErr
 		}
 	}
 
 	return "", false, nil
+}
+
+func plannerContextModeFromRouteDecision(decision llmSkillRouteDecision) string {
+	if decision.ContextSwitch {
+		return "fresh_context"
+	}
+	return ""
 }
 
 func (a *Agent) executeRoutedAtomicSkill(ctx context.Context, storeUserID string, userID int64, lang, text string, decision llmSkillRouteDecision, onEvent func(event, data string)) (string, bool, error) {
@@ -346,6 +370,7 @@ Rules:
 - If the request is broad, ambiguous, or creative, you may choose route "planner".
 - If a single management or diagnosis skill can handle it directly, prefer route "skill".
 - If multiple dependent steps are needed, prefer route "workflow".
+- Set context_switch=true when the user is opening a new topic/task and prior current references or suspended snapshots should not be used to fill business fields. Set context_switch=false when the user intentionally relies on previous context.
 - Do not hallucinate snapshot ids; only use those disclosed in Suspended snapshots JSON.
 
 Return JSON with this exact shape:
@@ -361,16 +386,20 @@ Rules:
 - Read the previous assistant reply carefully. The user's short answer may be replying to that exact proposal or question.
 - If Active flow summary includes a pending hint or waiting question, short replies like "1", "2", "A", "B", "确认", "需要", or "好的" usually mean the user is continuing that flow unless they clearly switch tasks.
 - Prefer "continue_active" when the user is plausibly answering the current active flow.
+- If the user asks a read-only management query while an active flow is open, output intent "start_new", route "skill", and the matching query action. For example, "现有策略有哪些" means strategy_management/query_list and must use the strategy query tool, not a freeform answer.
+- If the user starts a multi-step, multi-domain, batch, or condition-based management request while an active flow is open, output intent "start_new", route "workflow", and fill tasks exactly like the normal top-level router. Do not squeeze a complex new request into only the first skill/action.
 - If the user clearly corrects the entity/domain, you must output "start_new", not "continue_active".
 - Examples of forced switch: "不是交易员，是策略", "不是这个", "换个任务", "I mean the strategy, not the trader".
 - If the user refers to a suspended task and one snapshot clearly matches, use "resume_snapshot".
 - If the user cancels the current task, use "cancel".
 - If the user only greets, thanks, chats, or asks for explanation without changing state, use "instant_reply".
 - Short greetings or acknowledgements like "你好", "hi", "hello", "谢谢", "收到", "好的" should default to "instant_reply" unless they clearly contain task data.
+- If intent=start_new, keep the same business routing semantics as the normal router: use route "skill" for one atomic management action, route "workflow" for multiple dependent or independent management actions, and route "planner" for broad or ambiguous work.
 - You may set target_skill when intent=start_new and the next task is clear.
+- Do not hallucinate snapshot ids; only use those disclosed in Suspended snapshots JSON.
 
 Return JSON with this exact shape:
-{"intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","target_snapshot_id":"","target_skill":"","extracted_fields":{},"need_planner_help":false,"reason":"","confidence":0.0}`)
+{"intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","target_snapshot_id":"","route":"skill|workflow|planner","track":"fast_track|planning_track","skill":"","action":"","target_skill":"","filter":"","tasks":[],"context_switch":false,"extracted_fields":{},"need_planner_help":false,"reason":"","confidence":0.0}`)
 	}
 
 	userPrompt := fmt.Sprintf("Language: %s\nUser message: %s\n\nPrevious assistant reply:\n%s\n\nManagement skill summary:\n%s\n\nManagement domain primer:\n%s\n\nCurrent reference summary:\n%s\n\nActive flow summary:\n%s\n\nSuspended snapshots JSON:\n%s\n\nRecent conversation:\n%s\n",

@@ -57,10 +57,6 @@ func parseFlagValue(text string, keywords []string) (bool, bool) {
 	return false, false
 }
 
-func extractCredentialValue(text string, keywords []string) string {
-	return ""
-}
-
 func parseScanIntervalMinutes(text string) (int, bool) {
 	return 0, false
 }
@@ -305,22 +301,6 @@ func parseLooseTextValue(text string) string {
 	return ""
 }
 
-func parseModelFieldValue(text, field string) (string, bool) {
-	return "", false
-}
-
-func parseExchangeFieldValue(text, field string) (string, bool) {
-	return "", false
-}
-
-func (a *Agent) parseTraderFieldValue(storeUserID, text, field string) (string, bool) {
-	return "", false
-}
-
-func detectCatalogFieldPatches(text string, catalog []entityFieldMeta, overrides map[string]string) []entityFieldPatch {
-	return nil
-}
-
 func entityFieldExplicitlyMentioned(text string, keywords []string) bool {
 	if len(keywords) == 0 {
 		return false
@@ -328,54 +308,18 @@ func entityFieldExplicitlyMentioned(text string, keywords []string) bool {
 	return containsAny(strings.ToLower(text), keywords)
 }
 
-func hasTraderUpdatePatch(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return false
-	}
-	return len(detectTraderUpdatePatches(nil, "", text)) > 0
-}
-
-func hasModelUpdatePatch(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return false
-	}
-	return len(detectModelUpdatePatches(text)) > 0
-}
-
-func hasExchangeUpdatePatch(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return false
-	}
-	return len(detectExchangeUpdatePatches(text)) > 0
-}
-
 type traderUpdateArgs struct {
-	AIModelID            string
-	ExchangeID           string
-	StrategyID           string
-	InitialBalance       *float64
-	ScanIntervalMinutes  *int
-	IsCrossMargin        *bool
-	ShowInCompetition    *bool
-	BTCETHLeverage       *int
-	AltcoinLeverage      *int
-	TradingSymbols       string
-	CustomPrompt         string
-	OverrideBasePrompt   *bool
-	SystemPromptTemplate string
-	UseAI500             *bool
-	UseOITop             *bool
+	AIModelID           string
+	ExchangeID          string
+	StrategyID          string
+	ScanIntervalMinutes *int
+	IsCrossMargin       *bool
+	ShowInCompetition   *bool
 }
 
 func (a traderUpdateArgs) hasAny() bool {
-	return a.AIModelID != "" || a.ExchangeID != "" || a.StrategyID != "" || a.InitialBalance != nil ||
-		a.ScanIntervalMinutes != nil || a.IsCrossMargin != nil || a.ShowInCompetition != nil ||
-		a.BTCETHLeverage != nil || a.AltcoinLeverage != nil || a.TradingSymbols != "" ||
-		a.CustomPrompt != "" || a.OverrideBasePrompt != nil || a.SystemPromptTemplate != "" ||
-		a.UseAI500 != nil || a.UseOITop != nil
+	return a.AIModelID != "" || a.ExchangeID != "" || a.StrategyID != "" ||
+		a.ScanIntervalMinutes != nil || a.IsCrossMargin != nil || a.ShowInCompetition != nil
 }
 
 func parseStandaloneTraderUpdateArgs(text string) traderUpdateArgs {
@@ -392,9 +336,6 @@ func mergeTraderUpdateArgs(base, patch traderUpdateArgs) traderUpdateArgs {
 	if patch.StrategyID != "" {
 		base.StrategyID = patch.StrategyID
 	}
-	if patch.InitialBalance != nil {
-		base.InitialBalance = patch.InitialBalance
-	}
 	if patch.ScanIntervalMinutes != nil {
 		base.ScanIntervalMinutes = patch.ScanIntervalMinutes
 	}
@@ -404,39 +345,7 @@ func mergeTraderUpdateArgs(base, patch traderUpdateArgs) traderUpdateArgs {
 	if patch.ShowInCompetition != nil {
 		base.ShowInCompetition = patch.ShowInCompetition
 	}
-	if patch.BTCETHLeverage != nil {
-		base.BTCETHLeverage = patch.BTCETHLeverage
-	}
-	if patch.AltcoinLeverage != nil {
-		base.AltcoinLeverage = patch.AltcoinLeverage
-	}
-	if patch.TradingSymbols != "" {
-		base.TradingSymbols = patch.TradingSymbols
-	}
-	if patch.CustomPrompt != "" {
-		base.CustomPrompt = patch.CustomPrompt
-	}
-	if patch.OverrideBasePrompt != nil {
-		base.OverrideBasePrompt = patch.OverrideBasePrompt
-	}
-	if patch.SystemPromptTemplate != "" {
-		base.SystemPromptTemplate = patch.SystemPromptTemplate
-	}
-	if patch.UseAI500 != nil {
-		base.UseAI500 = patch.UseAI500
-	}
-	if patch.UseOITop != nil {
-		base.UseOITop = patch.UseOITop
-	}
 	return base
-}
-
-func buildTraderUpdateArgs(a *Agent, storeUserID string, text string) traderUpdateArgs {
-	return traderUpdateArgs{}
-}
-
-func detectTraderUpdatePatches(a *Agent, storeUserID, text string) []entityFieldPatch {
-	return nil
 }
 
 func applyTraderUpdateArgsToSession(session *skillSession, args traderUpdateArgs) {
@@ -458,30 +367,6 @@ func applyTraderUpdateArgsToSession(session *skillSession, args traderUpdateArgs
 	if args.ShowInCompetition != nil {
 		setField(session, "show_in_competition", strconv.FormatBool(*args.ShowInCompetition))
 	}
-	if args.BTCETHLeverage != nil {
-		setField(session, "btc_eth_leverage", strconv.Itoa(*args.BTCETHLeverage))
-	}
-	if args.AltcoinLeverage != nil {
-		setField(session, "altcoin_leverage", strconv.Itoa(*args.AltcoinLeverage))
-	}
-	if args.TradingSymbols != "" {
-		setField(session, "trading_symbols", args.TradingSymbols)
-	}
-	if args.CustomPrompt != "" {
-		setField(session, "custom_prompt", args.CustomPrompt)
-	}
-	if args.OverrideBasePrompt != nil {
-		setField(session, "override_base_prompt", strconv.FormatBool(*args.OverrideBasePrompt))
-	}
-	if args.SystemPromptTemplate != "" {
-		setField(session, "system_prompt_template", args.SystemPromptTemplate)
-	}
-	if args.UseAI500 != nil {
-		setField(session, "use_ai500", strconv.FormatBool(*args.UseAI500))
-	}
-	if args.UseOITop != nil {
-		setField(session, "use_oi_top", strconv.FormatBool(*args.UseOITop))
-	}
 }
 
 func buildTraderUpdateArgsFromSession(session skillSession) traderUpdateArgs {
@@ -502,31 +387,6 @@ func buildTraderUpdateArgsFromSession(session skillSession) traderUpdateArgs {
 		parsed := value == "true"
 		args.ShowInCompetition = &parsed
 	}
-	if value := fieldValue(session, "btc_eth_leverage"); value != "" {
-		if parsed, err := strconv.Atoi(value); err == nil {
-			args.BTCETHLeverage = &parsed
-		}
-	}
-	if value := fieldValue(session, "altcoin_leverage"); value != "" {
-		if parsed, err := strconv.Atoi(value); err == nil {
-			args.AltcoinLeverage = &parsed
-		}
-	}
-	args.TradingSymbols = fieldValue(session, "trading_symbols")
-	args.CustomPrompt = fieldValue(session, "custom_prompt")
-	if value := fieldValue(session, "override_base_prompt"); value != "" {
-		parsed := value == "true"
-		args.OverrideBasePrompt = &parsed
-	}
-	args.SystemPromptTemplate = fieldValue(session, "system_prompt_template")
-	if value := fieldValue(session, "use_ai500"); value != "" {
-		parsed := value == "true"
-		args.UseAI500 = &parsed
-	}
-	if value := fieldValue(session, "use_oi_top"); value != "" {
-		parsed := value == "true"
-		args.UseOITop = &parsed
-	}
 	return args
 }
 
@@ -539,14 +399,6 @@ type modelUpdatePatch struct {
 
 func (p modelUpdatePatch) hasAny() bool {
 	return p.Enabled != nil || p.APIKey != "" || p.CustomAPIURL != "" || p.CustomModelName != ""
-}
-
-func buildModelUpdatePatch(text string) modelUpdatePatch {
-	return modelUpdatePatch{}
-}
-
-func detectModelUpdatePatches(text string) []entityFieldPatch {
-	return nil
 }
 
 func applyModelUpdatePatchToSession(session *skillSession, patch modelUpdatePatch) {
@@ -613,14 +465,6 @@ func (p exchangeUpdatePatch) hasAny() bool {
 		p.Passphrase != "" || p.Testnet != nil || p.HyperliquidWalletAddr != "" || p.AsterUser != "" ||
 		p.AsterSigner != "" || p.AsterPrivateKey != "" || p.LighterWalletAddr != "" ||
 		p.LighterAPIKeyPrivateKey != "" || p.LighterAPIKeyIndex != nil
-}
-
-func buildExchangeUpdatePatch(text string) exchangeUpdatePatch {
-	return exchangeUpdatePatch{}
-}
-
-func detectExchangeUpdatePatches(text string) []entityFieldPatch {
-	return nil
 }
 
 func applyExchangeUpdatePatchToSession(session *skillSession, patch exchangeUpdatePatch) {
@@ -1624,8 +1468,6 @@ func strategyFieldKeywords(field string) []string {
 		return []string{"山寨币仓位价值倍数", "altcoin position value"}
 	case "max_margin_usage":
 		return []string{"最大保证金使用率", "max margin usage"}
-	case "min_position_size":
-		return []string{"最小开仓金额", "min position size"}
 	default:
 		return nil
 	}
@@ -1689,8 +1531,6 @@ func strategyFieldExplicitlyMentioned(text, field string) bool {
 			keywords = []string{"山寨币仓位价值倍数", "altcoin position value"}
 		case "max_margin_usage":
 			keywords = []string{"最大保证金使用率", "max margin usage"}
-		case "min_position_size":
-			keywords = []string{"最小开仓金额", "min position size"}
 		case "primary_timeframe":
 			keywords = []string{"主周期", "主时间周期", "primary timeframe"}
 		case "primary_count":
@@ -1760,6 +1600,9 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 		if fieldValue(session, skillDAGStepField) == "" {
 			setSkillDAGStep(&session, "await_confirmation")
 		}
+		if session.Action == "delete" && fieldValue(session, "bulk_scope") == "all" {
+			return a.executeBulkTraderDelete(storeUserID, userID, lang, text, session)
+		}
 		if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
 			a.saveSkillSession(userID, session)
 			return msg
@@ -1791,7 +1634,7 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 			return fmt.Sprintf("已完成交易员操作：%s。", session.Action)
 		}
 		return fmt.Sprintf("Completed trader action: %s.", session.Action)
-	case "update", "update_name", "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
+	case "update", "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
 		if session.Action == "update_bindings" || session.Action == "configure_strategy" || session.Action == "configure_exchange" || session.Action == "configure_model" {
 			if fieldValue(session, skillDAGStepField) == "" {
 				setSkillDAGStep(&session, "collect_bindings")
@@ -1994,68 +1837,13 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 			setSkillDAGStep(&session, "collect_name")
 		}
 		parsedArgs := buildTraderUpdateArgsFromSession(session)
-		if !parsedArgs.hasAny() {
-			parsedArgs = buildTraderUpdateArgs(a, storeUserID, text)
-		}
 		selectedField := fieldValue(session, "update_field")
-		selectedFieldJustChosen := false
 		if selectedField == "" {
-			if session.Action == "update_name" {
-				selectedField = "name"
-			} else if !parsedArgs.hasAny() {
+			if !parsedArgs.hasAny() {
 				selectedField = detectCatalogField(text, traderFieldCatalog)
 			}
 			if selectedField != "" {
 				setField(&session, "update_field", selectedField)
-				selectedFieldJustChosen = true
-			}
-		}
-		if !parsedArgs.hasAny() && selectedField != "" && !(selectedFieldJustChosen && looksLikeBareFieldSelection(text, traderFieldKeywords(selectedField))) {
-			if value, ok := a.parseTraderFieldValue(storeUserID, text, selectedField); ok {
-				switch selectedField {
-				case "ai_model_id":
-					parsedArgs.AIModelID = value
-				case "exchange_id":
-					parsedArgs.ExchangeID = value
-				case "strategy_id":
-					parsedArgs.StrategyID = value
-				case "scan_interval_minutes":
-					if parsed, err := strconv.Atoi(value); err == nil {
-						parsedArgs.ScanIntervalMinutes = &parsed
-					}
-				case "is_cross_margin":
-					parsed := value == "true"
-					parsedArgs.IsCrossMargin = &parsed
-				case "show_in_competition":
-					parsed := value == "true"
-					parsedArgs.ShowInCompetition = &parsed
-				case "btc_eth_leverage":
-					if parsed, err := strconv.Atoi(value); err == nil {
-						parsedArgs.BTCETHLeverage = &parsed
-					}
-				case "altcoin_leverage":
-					if parsed, err := strconv.Atoi(value); err == nil {
-						parsedArgs.AltcoinLeverage = &parsed
-					}
-				case "trading_symbols":
-					parsedArgs.TradingSymbols = value
-				case "custom_prompt":
-					parsedArgs.CustomPrompt = value
-				case "override_base_prompt":
-					parsed := value == "true"
-					parsedArgs.OverrideBasePrompt = &parsed
-				case "system_prompt_template":
-					parsedArgs.SystemPromptTemplate = value
-				case "use_ai500":
-					parsed := value == "true"
-					parsedArgs.UseAI500 = &parsed
-				case "use_oi_top":
-					parsed := value == "true"
-					parsedArgs.UseOITop = &parsed
-				}
-				if selectedField == "name" {
-					setField(&session, "name", value)
-				}
 			}
 		}
 		applyTraderUpdateArgsToSession(&session, parsedArgs)
@@ -2064,23 +1852,14 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 			normalizedArgs, warnings := normalizeTraderArgsToManualLimits(lang, parsedArgs)
 			applyTraderUpdateArgsToSession(&session, normalizedArgs)
 			args := manageTraderArgs{
-				Action:               "update",
-				TraderID:             session.TargetRef.ID,
-				AIModelID:            normalizedArgs.AIModelID,
-				ExchangeID:           normalizedArgs.ExchangeID,
-				StrategyID:           normalizedArgs.StrategyID,
-				InitialBalance:       normalizedArgs.InitialBalance,
-				ScanIntervalMinutes:  normalizedArgs.ScanIntervalMinutes,
-				IsCrossMargin:        normalizedArgs.IsCrossMargin,
-				ShowInCompetition:    normalizedArgs.ShowInCompetition,
-				BTCETHLeverage:       normalizedArgs.BTCETHLeverage,
-				AltcoinLeverage:      normalizedArgs.AltcoinLeverage,
-				TradingSymbols:       normalizedArgs.TradingSymbols,
-				CustomPrompt:         normalizedArgs.CustomPrompt,
-				OverrideBasePrompt:   normalizedArgs.OverrideBasePrompt,
-				SystemPromptTemplate: normalizedArgs.SystemPromptTemplate,
-				UseAI500:             normalizedArgs.UseAI500,
-				UseOITop:             normalizedArgs.UseOITop,
+				Action:              "update",
+				TraderID:            session.TargetRef.ID,
+				AIModelID:           normalizedArgs.AIModelID,
+				ExchangeID:          normalizedArgs.ExchangeID,
+				StrategyID:          normalizedArgs.StrategyID,
+				ScanIntervalMinutes: normalizedArgs.ScanIntervalMinutes,
+				IsCrossMargin:       normalizedArgs.IsCrossMargin,
+				ShowInCompetition:   normalizedArgs.ShowInCompetition,
 			}
 			setSkillDAGStep(&session, "execute_update")
 			resp := a.toolUpdateTrader(storeUserID, args)
@@ -2104,52 +1883,132 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 			}
 			return reply
 		}
-		newName := ""
-		if newName != "" {
-			setField(&session, "name", newName)
+		if selectedField != "" {
+			setSkillDAGStep(&session, "collect_field_value")
+		} else {
+			setSkillDAGStep(&session, "collect_name")
 		}
-		newName = fieldValue(session, "name")
-		if newName == "" {
-			if selectedField != "" {
-				setSkillDAGStep(&session, "collect_field_value")
-			} else {
-				setSkillDAGStep(&session, "collect_name")
-			}
-			a.saveSkillSession(userID, session)
-			if lang == "zh" {
-				if selectedField != "" {
-					if selectedField == "ai_model_id" || selectedField == "exchange_id" || selectedField == "strategy_id" {
-						return fmt.Sprintf("还差一步：请告诉我你想换成哪个%s。", displayCatalogFieldName(selectedField, lang))
-					}
-					return fmt.Sprintf("还差一步：请告诉我新的%s。", displayCatalogFieldName(selectedField, lang))
-				}
-				return "你可以直接告诉我想改哪一项，比如名称，或者绑定的模型、交易所、策略。若你要改策略参数、模型配置或交易所凭证，我会切到对应配置流程。"
-			}
+		a.saveSkillSession(userID, session)
+		if lang == "zh" {
 			if selectedField != "" {
 				if selectedField == "ai_model_id" || selectedField == "exchange_id" || selectedField == "strategy_id" {
-					return fmt.Sprintf("One more thing: tell me which %s you want to use.", displayCatalogFieldName(selectedField, lang))
+					return fmt.Sprintf("还差一步：请告诉我你想换成哪个%s。", displayCatalogFieldName(selectedField, lang))
 				}
-				return fmt.Sprintf("One more thing: tell me the new %s.", displayCatalogFieldName(selectedField, lang))
+				return fmt.Sprintf("还差一步：请告诉我新的%s。", displayCatalogFieldName(selectedField, lang))
 			}
-			return "Tell me what you want to change first, for example the name or the linked model, exchange, or strategy. If you want to edit the internals of a strategy, model, or exchange, I'll switch to the right config flow."
+			return "你可以直接告诉我想改哪一项，比如绑定的模型、交易所、策略，或者扫描间隔、保证金模式、是否展示到竞技场。若你要改策略参数、模型配置或交易所凭证，我会切到对应配置流程。"
 		}
-		args := manageTraderArgs{Action: "update", TraderID: session.TargetRef.ID, Name: newName}
-		setSkillDAGStep(&session, "execute_update")
-		resp := a.toolUpdateTrader(storeUserID, args)
-		a.clearSkillSession(userID)
-		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
-			if lang == "zh" {
-				return "这次没改成功：" + errMsg
+		if selectedField != "" {
+			if selectedField == "ai_model_id" || selectedField == "exchange_id" || selectedField == "strategy_id" {
+				return fmt.Sprintf("One more thing: tell me which %s you want to use.", displayCatalogFieldName(selectedField, lang))
 			}
-			return "That change did not go through: " + errMsg
+			return fmt.Sprintf("One more thing: tell me the new %s.", displayCatalogFieldName(selectedField, lang))
 		}
-		if lang == "zh" {
-			return fmt.Sprintf("已将交易员改名为“%s”。", newName)
-		}
-		return fmt.Sprintf("Renamed trader to %q.", newName)
+		return "Tell me what you want to change first, for example the linked model, exchange, strategy, scan interval, margin mode, or competition visibility. If you want to edit the internals of a strategy, model, or exchange, I'll switch to the right config flow."
 	default:
 		return ""
 	}
+}
+
+func (a *Agent) executeBulkTraderDelete(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if a == nil || a.store == nil {
+		if lang == "zh" {
+			return "我这边暂时无法读取交易员列表。"
+		}
+		return "I cannot load the trader list right now."
+	}
+	traders, err := a.store.Trader().List(storeUserID)
+	if err != nil {
+		if lang == "zh" {
+			return "我这边暂时没读到交易员列表：" + err.Error()
+		}
+		return "I could not load the trader list just now: " + err.Error()
+	}
+	if len(traders) == 0 {
+		a.clearSkillSession(userID)
+		if lang == "zh" {
+			return "当前没有可删除的交易员。"
+		}
+		return "There are no traders to delete."
+	}
+
+	deletable := make([]*store.Trader, 0, len(traders))
+	runningNames := make([]string, 0)
+	for _, trader := range traders {
+		if trader == nil {
+			continue
+		}
+		isRunning := trader.IsRunning
+		if a.traderManager != nil {
+			if memTrader, err := a.traderManager.GetTrader(trader.ID); err == nil {
+				if running, ok := memTrader.GetStatus()["is_running"].(bool); ok {
+					isRunning = running
+				}
+			}
+		}
+		if isRunning {
+			runningNames = append(runningNames, defaultIfEmpty(trader.Name, trader.ID))
+			continue
+		}
+		deletable = append(deletable, trader)
+	}
+
+	if len(deletable) == 0 {
+		a.clearSkillSession(userID)
+		if lang == "zh" {
+			return "当前所有交易员都还在运行中，删除前需要先停止：" + strings.Join(runningNames, "、")
+		}
+		return "All traders are still running. Stop them before deleting: " + strings.Join(runningNames, ", ")
+	}
+
+	targetLabel := fmt.Sprintf("全部已停止交易员（共 %d 个）", len(deletable))
+	if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, targetLabel); waiting {
+		a.saveSkillSession(userID, session)
+		return msg
+	}
+	if msg, waiting := awaitingConfirmationButNotApproved(lang, session, text); waiting {
+		a.saveSkillSession(userID, session)
+		return msg
+	}
+
+	setSkillDAGStep(&session, "execute_delete")
+	deletedNames := make([]string, 0, len(deletable))
+	failedNames := make([]string, 0)
+	for _, trader := range deletable {
+		resp := a.toolDeleteTrader(storeUserID, trader.ID)
+		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
+			failedNames = append(failedNames, fmt.Sprintf("%s（%s）", defaultIfEmpty(trader.Name, trader.ID), errMsg))
+			continue
+		}
+		deletedNames = append(deletedNames, defaultIfEmpty(trader.Name, trader.ID))
+	}
+	a.clearSkillSession(userID)
+
+	if lang == "zh" {
+		parts := []string{fmt.Sprintf("批量删除交易员已完成：成功删除 %d 个。", len(deletedNames))}
+		if len(runningNames) > 0 {
+			parts = append(parts, "这些交易员仍在运行，已跳过，删除前需要先停止："+strings.Join(runningNames, "、"))
+		}
+		if len(failedNames) > 0 {
+			parts = append(parts, "这些没删成功："+strings.Join(failedNames, "；"))
+		}
+		if len(deletedNames) > 0 {
+			parts = append(parts, "已删除："+strings.Join(deletedNames, "、"))
+		}
+		return strings.Join(parts, "\n")
+	}
+
+	parts := []string{fmt.Sprintf("Bulk trader deletion finished: deleted %d trader(s).", len(deletedNames))}
+	if len(runningNames) > 0 {
+		parts = append(parts, "Skipped running traders; stop them before deleting: "+strings.Join(runningNames, ", "))
+	}
+	if len(failedNames) > 0 {
+		parts = append(parts, "These did not delete successfully: "+strings.Join(failedNames, "; "))
+	}
+	if len(deletedNames) > 0 {
+		parts = append(parts, "Deleted: "+strings.Join(deletedNames, ", "))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
@@ -2811,10 +2670,18 @@ func (a *Agent) executeStrategyConfigUpdate(storeUserID string, userID int64, la
 	}
 
 	if fieldValue(session, "config_field") == "" && fieldValue(session, "config_value") == "" {
+		if strings.Contains(strings.ToLower(text), "min position size") || strings.Contains(strings.ToLower(text), "最小开仓金额") {
+			a.clearSkillSession(userID)
+			return strategyLockedFieldError(lang, "min_position_size")
+		}
 		patches := detectStrategyConfigPatches(text)
 		if len(patches) > 1 {
 			changed := make([]string, 0, len(patches))
 			for _, patch := range patches {
+				if patch.Field == "min_position_size" {
+					a.clearSkillSession(userID)
+					return strategyLockedFieldError(lang, "min_position_size")
+				}
 				if err := applyStrategyConfigPatch(&cfg, patch.Field, patch.Value); err != nil {
 					a.saveSkillSession(userID, session)
 					if lang == "zh" {
@@ -2849,6 +2716,10 @@ func (a *Agent) executeStrategyConfigUpdate(storeUserID string, userID int64, la
 	if field == "" {
 		field = detectStrategyConfigField(text)
 		if field != "" {
+			if field == "min_position_size" {
+				a.clearSkillSession(userID)
+				return strategyLockedFieldError(lang, field)
+			}
 			setField(&session, "config_field", field)
 			if currentStep.ID == "resolve_config_field" {
 				advanceSkillDAGStep(&session, currentStep.ID)

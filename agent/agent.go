@@ -868,15 +868,32 @@ func aiServiceFailureGuidance(lang, reason string) string {
 		strings.Contains(lower, "unexpected character '<'") ||
 		strings.Contains(lower, "<html") ||
 		strings.Contains(lower, "<!doctype html")
+	looksLikeUpstreamEmptyOutput := strings.Contains(lower, "upstream_empty_output") ||
+		(strings.Contains(lower, "empty output") && strings.Contains(lower, "rate_limit_error"))
+	looksLikeRateLimit := strings.Contains(lower, "status 429") ||
+		strings.Contains(lower, "rate limit") ||
+		strings.Contains(lower, "rate_limit_error")
 
 	if lang == "zh" {
 		if looksLikeHTMLGateway {
 			return "这不是“未配置模型”。这次更像是上游返回了 HTML 页面或网关/反代错误页，而不是标准 JSON 响应。更可能原因是模型服务地址配错、网关拦截、支付/鉴权页返回、或上游服务临时异常。请优先检查当前启用模型的 custom_api_url、反向代理/网关状态，以及对应 provider 的服务状态。"
 		}
+		if looksLikeUpstreamEmptyOutput {
+			return "这不是“未配置模型”。这次更像是上游模型没有返回有效内容，当前 provider 把它包装成了 429 / rate_limit_error。更可能原因是上游临时限流、服务拥塞、模型空响应，或 provider 网关没有拿到有效结果；不应优先归因成“余额不足”。请先重试一次；如果持续出现，再检查当前启用模型的 provider 状态、限流配额、网关日志，或先切换到另一个可用模型。"
+		}
+		if looksLikeRateLimit {
+			return "这不是“未配置模型”。这次更像是当前模型 provider 触发了限流或网关节流。更可能原因是并发过高、调用频率超限、provider 临时拥塞，或上游配额限制。请先稍后重试；如果持续出现，再检查当前启用模型的 provider 配额、限流策略和网关状态。"
+		}
 		return "这不是“未配置模型”。更可能是模型服务余额不足、接口报错、鉴权失败或超时。请检查当前启用模型的 API 状态后再试。"
 	}
 	if looksLikeHTMLGateway {
 		return "This is not a missing-model issue. It looks more like the upstream returned an HTML page or gateway/proxy error page instead of the expected JSON response. The likely causes are a wrong model endpoint URL, gateway interception, a payment/auth page being returned, or a temporary upstream outage. Check the active model's custom_api_url, proxy/gateway status, and the provider service health first."
+	}
+	if looksLikeUpstreamEmptyOutput {
+		return "This is not a missing-model issue. The upstream model appears to have returned no usable output, and the provider wrapped it as a 429 / rate_limit_error. The more likely causes are temporary throttling, upstream congestion, an empty model response, or a gateway that did not receive a valid result. Do not treat this as an insufficient-balance issue first. Retry once, then check the active provider status, rate limits, gateway logs, or switch to another model."
+	}
+	if looksLikeRateLimit {
+		return "This is not a missing-model issue. The active model provider more likely hit rate limiting or gateway throttling. Check the provider quota, rate-limit policy, and gateway status, then retry."
 	}
 	return "This is not a missing-model issue. The active model provider more likely returned an API error, authentication failure, timeout, or insufficient-balance response. Please check the active model API and try again."
 }

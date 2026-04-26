@@ -47,8 +47,8 @@ func normalizeAtomicSkillAction(skill, action string) string {
 		case "query_binding":
 			return "query_detail"
 		case "update":
-			return "update_name"
-		case "update_name", "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
+			return "update_bindings"
+		case "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
 			return action
 		}
 	case "exchange_management":

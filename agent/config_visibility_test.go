@@ -87,6 +87,58 @@ func TestToolManageModelConfigCreateReusesExistingProviderRecord(t *testing.T) {
 	}
 }
 
+func TestToolManageExchangeConfigCreateDefaultsToEnabledLikeManualPage(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "exchange-create-enabled.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	resp := a.toolManageExchangeConfig("default", `{"action":"create","exchange_type":"binance","account_name":"Binance Main","api_key":"api-test-123456","secret_key":"secret-test-123456"}`)
+	if strings.Contains(resp, `"error"`) {
+		t.Fatalf("expected create to succeed, got: %s", resp)
+	}
+
+	exchanges, err := st.Exchange().List("default")
+	if err != nil {
+		t.Fatalf("list exchanges: %v", err)
+	}
+	if len(exchanges) != 1 || exchanges[0] == nil {
+		t.Fatalf("expected one created exchange, got %#v", exchanges)
+	}
+	if !exchanges[0].Enabled {
+		t.Fatalf("expected agent-created exchange to default to enabled so it matches manual creation")
+	}
+}
+
+func TestToolManageExchangeConfigUpdateAutoEnablesWhenConfigBecomesComplete(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "exchange-update-auto-enable.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	exchangeID, err := st.Exchange().Create("default", "okx", "OKX Main", false, "api-test-123456", "secret-test-123456", "", false, "", false, "", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatalf("seed incomplete exchange: %v", err)
+	}
+
+	resp := a.toolManageExchangeConfig("default", `{"action":"update","exchange_id":"`+exchangeID+`","passphrase":"passphrase-123456"}`)
+	if strings.Contains(resp, `"error"`) {
+		t.Fatalf("expected update to succeed, got: %s", resp)
+	}
+
+	updated, err := st.Exchange().GetByID("default", exchangeID)
+	if err != nil {
+		t.Fatalf("reload exchange: %v", err)
+	}
+	if !updated.Enabled {
+		t.Fatalf("expected completed exchange config to auto-enable after update")
+	}
+}
+
 func TestToolGetModelConfigsHidesIncompleteRows(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "visibility-list.db")
 	st, err := store.New(dbPath)
@@ -152,6 +204,50 @@ func TestToolManageStrategyUpdateRejectsOutOfRangeLeverageBeforeSave(t *testing.
 	}
 	if parsed.RiskControl.BTCETHMaxLeverage != 5 || parsed.RiskControl.AltcoinMaxLeverage != 5 {
 		t.Fatalf("expected stored leverage to remain unchanged at safe defaults, got btc_eth=%d alt=%d", parsed.RiskControl.BTCETHMaxLeverage, parsed.RiskControl.AltcoinMaxLeverage)
+	}
+}
+
+func TestToolManageStrategyRejectsFixedMinPositionSizeUpdates(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-fixed-min-position.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	strategy := &store.Strategy{
+		ID:            "strategy-fixed-min-position",
+		UserID:        "default",
+		Name:          "固定最小开仓策略",
+		Description:   "test",
+		IsPublic:      false,
+		ConfigVisible: true,
+		Config:        string(rawCfg),
+	}
+	if err := st.Strategy().Create(strategy); err != nil {
+		t.Fatalf("create strategy: %v", err)
+	}
+
+	resp := a.toolManageStrategy("default", `{"action":"update","strategy_id":"strategy-fixed-min-position","config":{"risk_control":{"min_position_size":20}}}`)
+	if !strings.Contains(resp, "固定值 12 USDT") {
+		t.Fatalf("expected fixed min position size rejection, got: %s", resp)
+	}
+
+	updated, err := st.Strategy().Get("default", strategy.ID)
+	if err != nil {
+		t.Fatalf("reload strategy: %v", err)
+	}
+	parsed, err := updated.ParseConfig()
+	if err != nil {
+		t.Fatalf("parse updated strategy config: %v", err)
+	}
+	if parsed.RiskControl.MinPositionSize != 12 {
+		t.Fatalf("expected stored min position size to remain fixed at 12, got %v", parsed.RiskControl.MinPositionSize)
 	}
 }
 
@@ -246,9 +342,12 @@ func TestSkillVisibleFieldSummaryForStrategyCoversManualPageFields(t *testing.T)
 			t.Fatalf("expected field label %q in summary, got: %s", expected, summary)
 		}
 	}
+	if strings.Contains(summary, "最小开仓金额") {
+		t.Fatalf("strategy field summary should not expose fixed min position size editing: %s", summary)
+	}
 }
 
-func TestSkillVisibleFieldSummaryForTraderExcludesManualBalanceEditing(t *testing.T) {
+func TestSkillVisibleFieldSummaryForTraderMatchesManualPanelFields(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "trader-field-summary.db")
 	st, err := store.New(dbPath)
 	if err != nil {
@@ -257,13 +356,118 @@ func TestSkillVisibleFieldSummaryForTraderExcludesManualBalanceEditing(t *testin
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
 	summary := a.skillVisibleFieldSummary("default", "zh", "trader_management", "update")
-	for _, expected := range []string{"名称", "交易所", "模型", "策略", "扫描间隔"} {
+	for _, expected := range []string{"交易所", "模型", "策略", "扫描间隔", "全仓模式", "竞技场显示"} {
 		if !strings.Contains(summary, expected) {
 			t.Fatalf("expected trader field label %q in summary, got: %s", expected, summary)
 		}
 	}
-	if strings.Contains(summary, "初始资金") || strings.Contains(summary, "初始余额") {
-		t.Fatalf("trader field summary should not expose manual balance editing: %s", summary)
+	for _, unexpected := range []string{"名称", "初始资金", "初始余额", "杠杆", "交易对", "Prompt", "AI500", "OI Top"} {
+		if strings.Contains(summary, unexpected) {
+			t.Fatalf("trader field summary should stay within manual panel fields, got: %s", summary)
+		}
+	}
+}
+
+func TestToolUpdateTraderRejectsRenameOutsideManualPanel(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "trader-update-reject-rename.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+		t.Fatalf("seed model: %v", err)
+	}
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, "", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatalf("seed exchange: %v", err)
+	}
+	cfg := store.GetDefaultStrategyConfig("zh")
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	if err := st.Strategy().Create(&store.Strategy{
+		ID:            "strategy-trader-rename",
+		UserID:        "default",
+		Name:          "Rename Strategy",
+		Description:   "test",
+		IsPublic:      false,
+		ConfigVisible: true,
+		Config:        string(rawCfg),
+	}); err != nil {
+		t.Fatalf("seed strategy: %v", err)
+	}
+	if err := st.Trader().Create(&store.Trader{
+		ID:                  "trader-rename",
+		UserID:              "default",
+		Name:                "原交易员",
+		AIModelID:           "default_deepseek",
+		ExchangeID:          exchangeID,
+		StrategyID:          "strategy-trader-rename",
+		InitialBalance:      1000,
+		ScanIntervalMinutes: 5,
+		IsCrossMargin:       true,
+		ShowInCompetition:   true,
+	}); err != nil {
+		t.Fatalf("seed trader: %v", err)
+	}
+
+	resp := a.toolManageTrader("default", `{"action":"update","trader_id":"trader-rename","name":"新名字"}`)
+	if !strings.Contains(resp, "trader rename is not supported here") {
+		t.Fatalf("expected rename rejection, got: %s", resp)
+	}
+}
+
+func TestToolCreateTraderResponseHidesLegacyTraderTuningFields(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "trader-create-response-shape.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
+		t.Fatalf("seed model: %v", err)
+	}
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, "", "", "", "", "", "", 0)
+	if err != nil {
+		t.Fatalf("seed exchange: %v", err)
+	}
+	cfg := store.GetDefaultStrategyConfig("zh")
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	if err := st.Strategy().Create(&store.Strategy{
+		ID:            "strategy-trader-shape",
+		UserID:        "default",
+		Name:          "Shape Strategy",
+		Description:   "test",
+		IsPublic:      false,
+		ConfigVisible: true,
+		Config:        string(rawCfg),
+	}); err != nil {
+		t.Fatalf("seed strategy: %v", err)
+	}
+
+	originalFetcher := traderInitialBalanceFetcher
+	traderInitialBalanceFetcher = func(exchangeCfg *store.Exchange, userID string) (float64, bool, error) {
+		return 88.5, true, nil
+	}
+	defer func() {
+		traderInitialBalanceFetcher = originalFetcher
+	}()
+
+	resp := a.toolManageTrader("default", `{"action":"create","name":"形状测试","ai_model_id":"default_deepseek","exchange_id":"`+exchangeID+`","strategy_id":"strategy-trader-shape"}`)
+	if strings.Contains(resp, `"error"`) {
+		t.Fatalf("expected trader create to succeed, got: %s", resp)
+	}
+	for _, blocked := range []string{"btc_eth_leverage", "altcoin_leverage", "trading_symbols", "custom_prompt", "system_prompt_template"} {
+		if strings.Contains(resp, blocked) {
+			t.Fatalf("expected trader create response to hide legacy tuning field %q, got: %s", blocked, resp)
+		}
 	}
 }
 

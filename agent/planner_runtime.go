@@ -2582,8 +2582,7 @@ Return JSON with this exact shape:
 	}
 	a.history.Add(userID, "user", text)
 	a.history.Add(userID, "assistant", answer)
-	a.maybeUpdateTaskStateIncrementally(ctx, userID)
-	a.maybeCompressHistory(ctx, userID)
+	a.runPostResponseMaintenanceAsync(userID)
 	if onEvent != nil {
 		emitStreamText(onEvent, answer)
 	}
@@ -2735,13 +2734,17 @@ func (a *Agent) tryRecoverFromInternalAgentJSON(ctx context.Context, storeUserID
 }
 
 func (a *Agent) runPlannedAgent(ctx context.Context, storeUserID string, userID int64, lang, text string, onEvent func(event, data string)) (string, error) {
+	return a.runPlannedAgentWithContextMode(ctx, storeUserID, userID, lang, text, "", onEvent)
+}
+
+func (a *Agent) runPlannedAgentWithContextMode(ctx context.Context, storeUserID string, userID int64, lang, text string, contextMode string, onEvent func(event, data string)) (string, error) {
 	a.history.Add(userID, "user", text)
 	if onEvent != nil {
 		onEvent(StreamEventPlanning, a.planningStatusText(lang))
 	}
 
 	requestStartedAt := time.Now()
-	state, err := a.prepareExecutionState(ctx, storeUserID, userID, lang, text)
+	state, err := a.prepareExecutionState(ctx, storeUserID, userID, lang, text, contextMode)
 	if err != nil {
 		a.logPlannerTiming("", userID, "prepare_execution_state", requestStartedAt, err)
 		if isPlannerTimeoutError(err) {
@@ -2777,13 +2780,29 @@ func (a *Agent) runPlannedAgent(ctx context.Context, storeUserID string, userID 
 	}
 
 	a.history.Add(userID, "assistant", answer)
-	a.maybeUpdateTaskStateIncrementally(ctx, userID)
-	a.maybeCompressHistory(ctx, userID)
+	a.runPostResponseMaintenanceAsync(userID)
 	a.logPlannerTiming(state.SessionID, userID, "run_planned_agent_total", requestStartedAt, nil)
 	return answer, nil
 }
 
-func (a *Agent) prepareExecutionState(ctx context.Context, storeUserID string, userID int64, lang, text string) (ExecutionState, error) {
+func (a *Agent) runPostResponseMaintenanceAsync(userID int64) {
+	if a == nil || a.aiClient == nil || a.history == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				a.log().Warn("post-response maintenance panicked", "user_id", userID, "panic", r)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		a.maybeUpdateTaskStateIncrementally(ctx, userID)
+		a.maybeCompressHistory(ctx, userID)
+	}()
+}
+
+func (a *Agent) prepareExecutionState(ctx context.Context, storeUserID string, userID int64, lang, text, contextMode string) (ExecutionState, error) {
 	existing := a.getExecutionState(userID)
 	if shouldResetExecutionStateForNewAttempt(text, existing) {
 		a.clearExecutionState(userID)
@@ -2817,9 +2836,15 @@ func (a *Agent) prepareExecutionState(ctx context.Context, storeUserID string, u
 	}
 
 	state := newExecutionState(userID, text)
-	if mem := a.getReferenceMemory(userID); mem.CurrentReferences != nil {
-		state.CurrentReferences = mem.CurrentReferences
-		state.ReferenceHistory = mem.ReferenceHistory
+	mem := a.getReferenceMemory(userID)
+	switch strings.TrimSpace(contextMode) {
+	case "fresh_context":
+		a.SnapshotManager(userID).Clear()
+	default:
+		if mem.CurrentReferences != nil {
+			state.CurrentReferences = mem.CurrentReferences
+			state.ReferenceHistory = mem.ReferenceHistory
+		}
 	}
 	a.refreshCurrentReferencesForUserText(storeUserID, text, &state)
 	state = a.refreshStateForDynamicRequests(storeUserID, text, state)

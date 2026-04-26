@@ -12,7 +12,7 @@ import (
 // brainDecision is the routing contract between the first-pass LLM and the executor.
 type brainDecision struct {
 	ThoughtProcess string         `json:"thought_process"`
-	ActionType     string         `json:"action_type"` // CONTINUE_TASK | NEW_TASK | EXPLAIN_KNOWLEDGE | CANCEL_TASK
+	ActionType     string         `json:"action_type"`            // CONTINUE_TASK | NEW_TASK | EXPLAIN_KNOWLEDGE | CANCEL_TASK
 	TargetSkill    string         `json:"target_skill,omitempty"` // "skill_name:action" for NEW_TASK
 	ExtractedData  map[string]any `json:"extracted_data,omitempty"`
 	ReplyToUser    string         `json:"reply_to_user"`
@@ -90,6 +90,7 @@ Rules:
 - Domain guard: if the user says "模型", "AI 模型", or "model" and asks to create or configure one, you must route to model_management, not exchange_management.
 - Domain guard: for model_management, the field "provider" means the AI model vendor such as OpenAI, DeepSeek, Claude, Gemini, Qwen, Kimi, Grok, Minimax, claw402, blockrun-base, or blockrun-sol. It never means an exchange like Binance, OKX, Bybit, CFD, forex, or metals.
 - extracted_data should include any concrete facts from the user's message.
+- When an active session exposes allowed_field_spec_json, extracted_data must use only those canonical keys. Never output aliases, translated labels, or raw user wording as keys.
 - If the user clearly means a bulk destructive operation like "删除所有策略" or "全部删除策略", put the intent signal into extracted_data too. Example: {"bulk_scope":"all"}.
 - reply_to_user should be concise and in the user's language.
 - For NEW_TASK, target_skill format must be "skill_name:action", for example "strategy_management:create".
@@ -129,6 +130,11 @@ func buildBrainUserPrompt(lang, text, previousAssistantReply, recentHistory, cur
 			sb.WriteString("missing_required_fields:\n")
 			sb.WriteString(missing)
 			sb.WriteString("\n")
+		}
+		fieldSpecs := allowedFieldSpecsForSkillSession(activeToLegacySkillSession(activeSession), lang)
+		if len(fieldSpecs) > 0 {
+			fieldSpecsJSON, _ := json.Marshal(fieldSpecs)
+			sb.WriteString(fmt.Sprintf("allowed_field_spec_json: %s\n", fieldSpecsJSON))
 		}
 	} else {
 		sb.WriteString("none\n")
@@ -234,6 +240,7 @@ func (a *Agent) executeBrainDecision(ctx context.Context, storeUserID string, us
 		}
 		session := newActiveSkillSession(userID, skill, action)
 		session.Goal = strings.TrimSpace(text)
+		d.ExtractedData = filterExtractedDataForActiveSession(session, d.ExtractedData, lang)
 		mergeExtractedData(&session, d.ExtractedData)
 		return a.driveActiveSession(ctx, storeUserID, userID, lang, text, session, onEvent)
 
@@ -241,6 +248,7 @@ func (a *Agent) executeBrainDecision(ctx context.Context, storeUserID string, us
 		if !hasActive {
 			return "", false, nil
 		}
+		d.ExtractedData = filterExtractedDataForActiveSession(activeSession, d.ExtractedData, lang)
 		mergeExtractedData(&activeSession, d.ExtractedData)
 		return a.driveActiveSession(ctx, storeUserID, userID, lang, text, activeSession, onEvent)
 
@@ -366,6 +374,8 @@ func (a *Agent) planActiveSessionStep(ctx context.Context, storeUserID string, u
 	resourcesJSON, _ := json.Marshal(resources)
 	collectedJSON, _ := json.Marshal(session.CollectedFields)
 	missingSummary := formatConversationMissingFields(lang, missingRequiredFieldsForBrain(session))
+	fieldSpecs := allowedFieldSpecsForSkillSession(legacy, lang)
+	fieldSpecsJSON, _ := json.Marshal(fieldSpecs)
 	localHistory := formatActiveSessionLocalHistory(session.LocalHistory)
 	if localHistory == "" {
 		localHistory = "(empty)"
@@ -391,6 +401,9 @@ Current missing field summary:
 Relevant disclosed resources:
 %s
 
+Allowed field spec JSON:
+%s
+
 Domain knowledge:
 %s
 
@@ -406,6 +419,8 @@ Rules:
 - If the user refers to a specific object from disclosed targets, set target_ref_id and target_ref_name when you can resolve it.
 - If there are multiple targets and the user did not disambiguate, ask a natural question with the available names.
 - If the current user message answers a missing field directly, extract it and continue.
+- extracted_data must use only canonical keys from Allowed field spec JSON. Never output aliases, translated labels, or raw user wording as keys.
+- If a user-provided value does not fit one of those canonical keys, omit it; never create another key.
 - If this task is already done and the best next step is just to tell the user the result, choose "finish_task".
 - If the user aborts the task, choose "cancel_task".
 
@@ -417,6 +432,7 @@ Return JSON with this exact shape:
 		defaultIfEmpty(string(collectedJSON), "{}"),
 		missingSummary,
 		defaultIfEmpty(string(resourcesJSON), "{}"),
+		defaultIfEmpty(string(fieldSpecsJSON), "[]"),
 		defaultIfEmpty(domainPrimer, "(none)"),
 	))
 	userPrompt := fmt.Sprintf("Language: %s\nCurrent user message: %s\n\nPrevious assistant reply:\n%s\n\nActive task local history:\n%s\n", lang, text, defaultIfEmpty(previousAssistantReply, "(empty)"), localHistory)
@@ -434,7 +450,12 @@ Return JSON with this exact shape:
 	if err != nil {
 		return activeSessionStepDecision{}, false
 	}
-	return parseActiveSessionStepDecision(raw)
+	decision, ok := parseActiveSessionStepDecision(raw)
+	if !ok {
+		return activeSessionStepDecision{}, false
+	}
+	decision.ExtractedData = filterExtractedDataForActiveSession(session, decision.ExtractedData, lang)
+	return decision, true
 }
 
 func (a *Agent) executeActiveSkillSession(storeUserID string, userID int64, lang, text string, session ActiveSkillSession) (skillOutcome, ActiveSkillSession, bool, bool) {
@@ -660,6 +681,38 @@ func mergeExtractedData(s *ActiveSkillSession, data map[string]any) {
 		}
 		s.CollectedFields[k] = v
 	}
+}
+
+func filterExtractedDataForActiveSession(session ActiveSkillSession, data map[string]any, lang string) map[string]any {
+	if len(data) == 0 {
+		return data
+	}
+	specs := allowedFieldSpecsForSkillSession(activeToLegacySkillSession(session), lang)
+	if len(specs) == 0 {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(specs))
+	for _, spec := range specs {
+		key := strings.TrimSpace(spec.Key)
+		if key != "" {
+			allowed[key] = struct{}{}
+		}
+	}
+	out := make(map[string]any, len(data))
+	for key, value := range data {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := allowed[key]; !ok {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func emitBrainReply(onEvent func(event, data string), reply string) {

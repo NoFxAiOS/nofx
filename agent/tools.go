@@ -224,7 +224,6 @@ func strategyConfigSchema() map[string]any {
 					"btc_eth_max_position_value_ratio": map[string]any{"type": "number"},
 					"altcoin_max_position_value_ratio": map[string]any{"type": "number"},
 					"max_margin_usage":                 map[string]any{"type": "number"},
-					"min_position_size":                map[string]any{"type": "number"},
 					"min_risk_reward_ratio":            map[string]any{"type": "number"},
 					"min_confidence":                   map[string]any{"type": "number"},
 				},
@@ -335,21 +334,13 @@ func traderConfigFieldsSchema() map[string]any {
 			"type":        "string",
 			"description": "Required for update, delete, start, and stop.",
 		},
-		"name":                   map[string]any{"type": "string", "description": "Trader display name."},
-		"ai_model_id":            map[string]any{"type": "string", "description": "Bound AI model id."},
-		"exchange_id":            map[string]any{"type": "string", "description": "Bound exchange id."},
-		"strategy_id":            map[string]any{"type": "string", "description": "Bound strategy id."},
-		"scan_interval_minutes":  map[string]any{"type": "number", "description": "Trading scan interval in minutes."},
-		"is_cross_margin":        map[string]any{"type": "boolean", "description": "Whether cross margin is enabled."},
-		"show_in_competition":    map[string]any{"type": "boolean", "description": "Whether to show this trader in competition views."},
-		"btc_eth_leverage":       map[string]any{"type": "number", "description": "BTC/ETH leverage override."},
-		"altcoin_leverage":       map[string]any{"type": "number", "description": "Altcoin leverage override."},
-		"trading_symbols":        map[string]any{"type": "string", "description": "Comma-separated symbol list such as BTCUSDT,ETHUSDT."},
-		"custom_prompt":          map[string]any{"type": "string", "description": "Additional trader custom prompt."},
-		"override_base_prompt":   map[string]any{"type": "boolean", "description": "Whether to override the base system prompt."},
-		"system_prompt_template": map[string]any{"type": "string", "description": "Prompt template preset such as default."},
-		"use_ai500":              map[string]any{"type": "boolean", "description": "Whether to use AI500 candidate sourcing."},
-		"use_oi_top":             map[string]any{"type": "boolean", "description": "Whether to use OI Top candidate sourcing."},
+		"name":                  map[string]any{"type": "string", "description": "Trader display name. Required for create."},
+		"ai_model_id":           map[string]any{"type": "string", "description": "Bound AI model id."},
+		"exchange_id":           map[string]any{"type": "string", "description": "Bound exchange id."},
+		"strategy_id":           map[string]any{"type": "string", "description": "Bound strategy id."},
+		"scan_interval_minutes": map[string]any{"type": "number", "description": "Trading scan interval in minutes."},
+		"is_cross_margin":       map[string]any{"type": "boolean", "description": "Whether cross margin is enabled."},
+		"show_in_competition":   map[string]any{"type": "boolean", "description": "Whether to show this trader in competition views."},
 	}
 }
 
@@ -515,7 +506,7 @@ func buildAgentTools() []mcp.Tool {
 			Type: "function",
 			Function: mcp.FunctionDef{
 				Name:        "manage_trader",
-				Description: "List, create, update, delete, start, or stop traders. Use this when the user asks to create a trader, rename one, switch its exchange/model/strategy bindings, or control its running state. If the user wants to modify the internal config of a strategy, model, or exchange, use the corresponding management tool instead.",
+				Description: "List, create, update, delete, start, or stop traders. Trader edits are limited to exchange/model/strategy bindings, scan interval, margin mode, and competition visibility so they match the manual trader panel. If the user wants to modify the internal config of a strategy, model, or exchange, use the corresponding management tool instead.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -523,22 +514,14 @@ func buildAgentTools() []mcp.Tool {
 							"type": "string",
 							"enum": []string{"list", "create", "update", "delete", "start", "stop"},
 						},
-						"trader_id":              traderConfigFieldsSchema()["trader_id"],
-						"name":                   traderConfigFieldsSchema()["name"],
-						"ai_model_id":            traderConfigFieldsSchema()["ai_model_id"],
-						"exchange_id":            traderConfigFieldsSchema()["exchange_id"],
-						"strategy_id":            traderConfigFieldsSchema()["strategy_id"],
-						"scan_interval_minutes":  traderConfigFieldsSchema()["scan_interval_minutes"],
-						"is_cross_margin":        traderConfigFieldsSchema()["is_cross_margin"],
-						"show_in_competition":    traderConfigFieldsSchema()["show_in_competition"],
-						"btc_eth_leverage":       traderConfigFieldsSchema()["btc_eth_leverage"],
-						"altcoin_leverage":       traderConfigFieldsSchema()["altcoin_leverage"],
-						"trading_symbols":        traderConfigFieldsSchema()["trading_symbols"],
-						"custom_prompt":          traderConfigFieldsSchema()["custom_prompt"],
-						"override_base_prompt":   traderConfigFieldsSchema()["override_base_prompt"],
-						"system_prompt_template": traderConfigFieldsSchema()["system_prompt_template"],
-						"use_ai500":              traderConfigFieldsSchema()["use_ai500"],
-						"use_oi_top":             traderConfigFieldsSchema()["use_oi_top"],
+						"trader_id":             traderConfigFieldsSchema()["trader_id"],
+						"name":                  traderConfigFieldsSchema()["name"],
+						"ai_model_id":           traderConfigFieldsSchema()["ai_model_id"],
+						"exchange_id":           traderConfigFieldsSchema()["exchange_id"],
+						"strategy_id":           traderConfigFieldsSchema()["strategy_id"],
+						"scan_interval_minutes": traderConfigFieldsSchema()["scan_interval_minutes"],
+						"is_cross_margin":       traderConfigFieldsSchema()["is_cross_margin"],
+						"show_in_competition":   traderConfigFieldsSchema()["show_in_competition"],
 					},
 					"required": []string{"action"},
 				},
@@ -825,21 +808,16 @@ type safeModelToolConfig struct {
 }
 
 type safeTraderToolConfig struct {
-	ID                   string  `json:"id"`
-	Name                 string  `json:"name"`
-	AIModelID            string  `json:"ai_model_id"`
-	ExchangeID           string  `json:"exchange_id"`
-	StrategyID           string  `json:"strategy_id,omitempty"`
-	InitialBalance       float64 `json:"initial_balance"`
-	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
-	IsRunning            bool    `json:"is_running"`
-	IsCrossMargin        bool    `json:"is_cross_margin"`
-	ShowInCompetition    bool    `json:"show_in_competition"`
-	BTCETHLeverage       int     `json:"btc_eth_leverage,omitempty"`
-	AltcoinLeverage      int     `json:"altcoin_leverage,omitempty"`
-	TradingSymbols       string  `json:"trading_symbols,omitempty"`
-	CustomPrompt         string  `json:"custom_prompt,omitempty"`
-	SystemPromptTemplate string  `json:"system_prompt_template,omitempty"`
+	ID                  string  `json:"id"`
+	Name                string  `json:"name"`
+	AIModelID           string  `json:"ai_model_id"`
+	ExchangeID          string  `json:"exchange_id"`
+	StrategyID          string  `json:"strategy_id,omitempty"`
+	InitialBalance      float64 `json:"initial_balance"`
+	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
+	IsRunning           bool    `json:"is_running"`
+	IsCrossMargin       bool    `json:"is_cross_margin"`
+	ShowInCompetition   bool    `json:"show_in_competition"`
 }
 
 type safeStrategyToolConfig struct {
@@ -886,24 +864,15 @@ func stripSensitiveToolFields(value any) any {
 }
 
 type manageTraderArgs struct {
-	Action               string   `json:"action"`
-	TraderID             string   `json:"trader_id"`
-	Name                 string   `json:"name"`
-	AIModelID            string   `json:"ai_model_id"`
-	ExchangeID           string   `json:"exchange_id"`
-	StrategyID           string   `json:"strategy_id"`
-	InitialBalance       *float64 `json:"initial_balance"`
-	ScanIntervalMinutes  *int     `json:"scan_interval_minutes"`
-	IsCrossMargin        *bool    `json:"is_cross_margin"`
-	ShowInCompetition    *bool    `json:"show_in_competition"`
-	BTCETHLeverage       *int     `json:"btc_eth_leverage"`
-	AltcoinLeverage      *int     `json:"altcoin_leverage"`
-	TradingSymbols       string   `json:"trading_symbols"`
-	CustomPrompt         string   `json:"custom_prompt"`
-	OverrideBasePrompt   *bool    `json:"override_base_prompt"`
-	SystemPromptTemplate string   `json:"system_prompt_template"`
-	UseAI500             *bool    `json:"use_ai500"`
-	UseOITop             *bool    `json:"use_oi_top"`
+	Action              string `json:"action"`
+	TraderID            string `json:"trader_id"`
+	Name                string `json:"name"`
+	AIModelID           string `json:"ai_model_id"`
+	ExchangeID          string `json:"exchange_id"`
+	StrategyID          string `json:"strategy_id"`
+	ScanIntervalMinutes *int   `json:"scan_interval_minutes"`
+	IsCrossMargin       *bool  `json:"is_cross_margin"`
+	ShowInCompetition   *bool  `json:"show_in_competition"`
 }
 
 func safeExchangeForTool(ex *store.Exchange) safeExchangeToolConfig {
@@ -1034,21 +1003,16 @@ func modelConfigUsable(provider, modelID, apiKey, customAPIURL, customModelName 
 
 func safeTraderForTool(trader *store.Trader, isRunning bool) safeTraderToolConfig {
 	return safeTraderToolConfig{
-		ID:                   trader.ID,
-		Name:                 trader.Name,
-		AIModelID:            trader.AIModelID,
-		ExchangeID:           trader.ExchangeID,
-		StrategyID:           trader.StrategyID,
-		InitialBalance:       trader.InitialBalance,
-		ScanIntervalMinutes:  trader.ScanIntervalMinutes,
-		IsRunning:            isRunning,
-		IsCrossMargin:        trader.IsCrossMargin,
-		ShowInCompetition:    trader.ShowInCompetition,
-		BTCETHLeverage:       trader.BTCETHLeverage,
-		AltcoinLeverage:      trader.AltcoinLeverage,
-		TradingSymbols:       trader.TradingSymbols,
-		CustomPrompt:         trader.CustomPrompt,
-		SystemPromptTemplate: trader.SystemPromptTemplate,
+		ID:                  trader.ID,
+		Name:                trader.Name,
+		AIModelID:           trader.AIModelID,
+		ExchangeID:          trader.ExchangeID,
+		StrategyID:          trader.StrategyID,
+		InitialBalance:      trader.InitialBalance,
+		ScanIntervalMinutes: trader.ScanIntervalMinutes,
+		IsRunning:           isRunning,
+		IsCrossMargin:       trader.IsCrossMargin,
+		ShowInCompetition:   trader.ShowInCompetition,
 	}
 }
 
@@ -1455,9 +1419,9 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		if trimmed := strings.TrimSpace(args.LighterAPIKeyPrivateKey); trimmed != "" {
 			effectiveLighterAPIKeyPrivateKey = trimmed
 		}
-		if err := (exchangeConfigValidator{
+		validator := exchangeConfigValidator{
 			exchangeType:            existing.ExchangeType,
-			enabled:                 enabled,
+			enabled:                 true,
 			apiKey:                  effectiveAPIKey,
 			secretKey:               effectiveSecretKey,
 			passphrase:              effectivePassphrase,
@@ -1468,7 +1432,14 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 			lighterWalletAddr:       lighterWallet,
 			lighterPrivateKey:       effectiveLighterPrivateKey,
 			lighterAPIKeyPrivateKey: effectiveLighterAPIKeyPrivateKey,
-		}).Validate(); err != nil {
+		}
+		if args.Enabled == nil {
+			if err := validator.Validate(); err == nil {
+				enabled = true
+			}
+		}
+		validator.enabled = enabled
+		if err := validator.Validate(); err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err)
 		}
 		if err := a.store.Exchange().Update(
@@ -1817,6 +1788,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if name == "" {
 			return `{"error":"name is required for create"}`
 		}
+		if lockedField, ok := strategyConfigContainsLockedField(args.Config); ok {
+			return fmt.Sprintf(`{"error":"%s"}`, strategyLockedFieldError("zh", lockedField))
+		}
 		if err := a.ensureUniqueStrategyName(storeUserID, name, ""); err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err)
 		}
@@ -1865,6 +1839,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		strategyID := strings.TrimSpace(args.StrategyID)
 		if strategyID == "" {
 			return `{"error":"strategy_id is required for update"}`
+		}
+		if lockedField, ok := strategyConfigContainsLockedField(args.Config); ok {
+			return fmt.Sprintf(`{"error":"%s"}`, strategyLockedFieldError("zh", lockedField))
 		}
 		existing, err := a.store.Strategy().Get(storeUserID, strategyID)
 		if err != nil {
@@ -2234,14 +2211,8 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 	if existing == nil {
 		return `{"error":"trader not found"}`
 	}
-	name := existing.Name
-	if trimmed := strings.TrimSpace(args.Name); trimmed != "" {
-		name = trimmed
-	}
-	if !sameEntityName(name, existing.Name) {
-		if err := a.ensureUniqueTraderName(storeUserID, name, existing.ID); err != nil {
-			return fmt.Sprintf(`{"error":"%s"}`, err)
-		}
+	if trimmed := strings.TrimSpace(args.Name); trimmed != "" && !sameEntityName(trimmed, existing.Name) {
+		return `{"error":"trader rename is not supported here; only bindings, scan interval, margin mode, and competition visibility can be edited"}`
 	}
 	aiModelID := existing.AIModelID
 	if trimmed := strings.TrimSpace(args.AIModelID); trimmed != "" {
@@ -2261,7 +2232,7 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 	record := &store.Trader{
 		ID:                   existing.ID,
 		UserID:               storeUserID,
-		Name:                 name,
+		Name:                 existing.Name,
 		AIModelID:            aiModelID,
 		ExchangeID:           exchangeID,
 		StrategyID:           strategyID,
@@ -2291,30 +2262,6 @@ func (a *Agent) toolUpdateTrader(storeUserID string, args manageTraderArgs) stri
 	if args.ShowInCompetition != nil {
 		record.ShowInCompetition = *args.ShowInCompetition
 	}
-	if args.BTCETHLeverage != nil && *args.BTCETHLeverage > 0 {
-		record.BTCETHLeverage = *args.BTCETHLeverage
-	}
-	if args.AltcoinLeverage != nil && *args.AltcoinLeverage > 0 {
-		record.AltcoinLeverage = *args.AltcoinLeverage
-	}
-	if trimmed := strings.TrimSpace(args.TradingSymbols); trimmed != "" {
-		record.TradingSymbols = trimmed
-	}
-	if trimmed := strings.TrimSpace(args.CustomPrompt); trimmed != "" {
-		record.CustomPrompt = trimmed
-	}
-	if args.OverrideBasePrompt != nil {
-		record.OverrideBasePrompt = *args.OverrideBasePrompt
-	}
-	if trimmed := strings.TrimSpace(args.SystemPromptTemplate); trimmed != "" {
-		record.SystemPromptTemplate = trimmed
-	}
-	if args.UseAI500 != nil {
-		record.UseAI500 = *args.UseAI500
-	}
-	if args.UseOITop != nil {
-		record.UseOITop = *args.UseOITop
-	}
 	if err := a.store.Trader().Update(record); err != nil {
 		return fmt.Sprintf(`{"error":"failed to update trader: %s"}`, err)
 	}
@@ -2334,13 +2281,27 @@ func (a *Agent) toolDeleteTrader(storeUserID, traderID string) string {
 	if traderID == "" {
 		return `{"error":"trader_id is required for delete"}`
 	}
+	if a.traderManager != nil {
+		if trader, err := a.traderManager.GetTrader(traderID); err == nil {
+			if running, ok := trader.GetStatus()["is_running"].(bool); ok && running {
+				return `{"error":"trader is running; stop it before deleting"}`
+			}
+		}
+	}
+	if record, err := a.store.Trader().GetFullConfig(storeUserID, traderID); err == nil && record != nil && record.Trader != nil && record.Trader.IsRunning {
+		return `{"error":"trader is running; stop it before deleting"}`
+	}
+	if traders, err := a.store.Trader().List(storeUserID); err == nil {
+		for _, trader := range traders {
+			if trader != nil && trader.ID == traderID && trader.IsRunning {
+				return `{"error":"trader is running; stop it before deleting"}`
+			}
+		}
+	}
 	if err := a.store.Trader().Delete(storeUserID, traderID); err != nil {
 		return fmt.Sprintf(`{"error":"failed to delete trader: %s"}`, err)
 	}
 	if a.traderManager != nil {
-		if trader, err := a.traderManager.GetTrader(traderID); err == nil {
-			trader.Stop()
-		}
 		a.traderManager.RemoveTrader(traderID)
 	}
 	result, _ := json.Marshal(map[string]any{
@@ -2981,6 +2942,36 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func strategyLockedFieldError(lang, field string) string {
+	switch strings.TrimSpace(field) {
+	case "min_position_size":
+		if lang == "zh" {
+			return "最小开仓金额是系统固定值 12 USDT，手动面板里也是 System enforced，Agent 不能修改。"
+		}
+		return "The minimum position size is a fixed system value of 12 USDT. It is System enforced in the manual panel and cannot be changed by the agent."
+	default:
+		if lang == "zh" {
+			return "这个字段是系统固定项，Agent 不能修改。"
+		}
+		return "This field is system enforced and cannot be changed by the agent."
+	}
+}
+
+func strategyConfigContainsLockedField(config map[string]any) (string, bool) {
+	if len(config) == 0 {
+		return "", false
+	}
+	if _, ok := config["min_position_size"]; ok {
+		return "min_position_size", true
+	}
+	if risk, ok := config["risk_control"].(map[string]any); ok {
+		if _, ok := risk["min_position_size"]; ok {
+			return "min_position_size", true
+		}
+	}
+	return "", false
 }
 
 func validKlineInterval(interval string) bool {

@@ -237,10 +237,9 @@ func (a *Agent) skillVisibleFieldSummary(storeUserID, lang, skillName, action st
 			add(displayCatalogFieldName(field, lang))
 		}
 	case "trader_management":
-		add(slotDisplayName("name", lang))
-		add(slotDisplayName("exchange", lang))
-		add(slotDisplayName("model", lang))
-		add(slotDisplayName("strategy", lang))
+		if strings.TrimSpace(action) == "create" {
+			add(slotDisplayName("name", lang))
+		}
 		for _, field := range manualTraderEditableFieldKeys() {
 			add(displayCatalogFieldName(field, lang))
 		}

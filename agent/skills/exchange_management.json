@@ -38,8 +38,8 @@
     },
     "enabled": {
       "type": "bool",
-      "default": false,
-      "description": "是否启用该交易所配置。启用前必须通过凭证完整性校验。"
+      "default": true,
+      "description": "是否启用该交易所配置。只要必要字段齐全并配置成功，就默认启用。"
     },
     "hyperliquid_wallet_addr": {
       "type": "credential",

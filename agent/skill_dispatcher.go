@@ -275,13 +275,15 @@ func (a *Agent) loadEnabledModelOptions(storeUserID string) []traderSkillOption 
 	}
 	out := make([]traderSkillOption, 0, len(models))
 	for _, model := range models {
-		parts := cleanStringList([]string{
-			strings.TrimSpace(model.Name),
+		name := strings.TrimSpace(model.Name)
+		if name == "" {
+			name = strings.TrimSpace(model.ID)
+		}
+		hint := strings.Join(cleanStringList([]string{
 			strings.TrimSpace(model.CustomModelName),
 			strings.TrimSpace(model.Provider),
-		})
-		name := strings.Join(parts, " ")
-		out = append(out, traderSkillOption{ID: model.ID, Name: name, Enabled: model.Enabled})
+		}), " / ")
+		out = append(out, traderSkillOption{ID: model.ID, Name: name, Hint: hint, Enabled: model.Enabled})
 	}
 	return out
 }
@@ -554,34 +556,25 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 			return formatValidationFeedback(lang, "trader", err), true
 		}
 	}
+	if missing := missingFieldKeysForSkillSession(session); len(missing) > 0 {
+		session.Phase = "collecting"
+		a.saveSkillSession(userID, session)
+		return a.buildTraderCreateMissingPrompt(storeUserID, lang, session, a.buildTraderCreateConversationResources(storeUserID, session)), true
+	}
 	if !result.Ready && result.Question == "" {
-		if missing := missingFieldKeysForSkillSession(session); len(missing) > 0 {
-			session.Phase = "collecting"
-			a.saveSkillSession(userID, session)
-			return a.buildTraderCreateMissingPrompt(storeUserID, lang, session, a.buildTraderCreateConversationResources(storeUserID, session)), true
-		}
 		result.Ready = true
 	}
 
 	if !result.Ready {
 		session.Phase = "collecting"
 		a.saveSkillSession(userID, session)
-		if result.Question != "" {
-			return result.Question, true
-		}
 		return "", false
 	}
 
 	if stillMissing := missingFieldKeysForSkillSession(session); len(stillMissing) > 0 {
 		session.Phase = "collecting"
 		a.saveSkillSession(userID, session)
-		if result.Question != "" {
-			return result.Question, true
-		}
-		if lang == "zh" {
-			return "我理解了你的意思，但创建交易员还缺这些信息：" + strings.Join(renderSkillMissingLabels(lang, stillMissing), "、") + "。", true
-		}
-		return "I understand the intent, but creating the trader still needs: " + strings.Join(renderSkillMissingLabels(lang, stillMissing), ", ") + ".", true
+		return a.buildTraderCreateMissingPrompt(storeUserID, lang, session, a.buildTraderCreateConversationResources(storeUserID, session)), true
 	}
 
 	if fieldValue(session, "auto_start") == "true" {
@@ -679,11 +672,18 @@ func (a *Agent) buildTraderCreateMissingPrompt(storeUserID, lang string, session
 	missing := missingFieldKeysForSkillSession(session)
 	missingLabels := strings.Join(renderSkillMissingLabels(lang, missing), "、")
 	prereqs := make([]string, 0, 3)
+	optionLines := make([]string, 0, 3)
 	if exchanges, _ := availableResources["exchanges"].([]traderSkillOption); len(exchanges) == 0 && containsString(missing, "exchange_name") {
 		if lang == "zh" {
 			prereqs = append(prereqs, "当前还没有可用交易所配置")
 		} else {
 			prereqs = append(prereqs, "there is no exchange config yet")
+		}
+	} else if containsString(missing, "exchange_name") {
+		if list := formatOptionList("现有交易所：", exchanges); lang == "zh" && list != "" {
+			optionLines = append(optionLines, list)
+		} else if list := formatOptionList("Available exchanges:", exchanges); lang != "zh" && list != "" {
+			optionLines = append(optionLines, list)
 		}
 	}
 	if models, _ := availableResources["models"].([]traderSkillOption); len(models) == 0 && containsString(missing, "model_name") {
@@ -692,6 +692,12 @@ func (a *Agent) buildTraderCreateMissingPrompt(storeUserID, lang string, session
 		} else {
 			prereqs = append(prereqs, "there is no model config yet")
 		}
+	} else if containsString(missing, "model_name") {
+		if list := formatOptionList("现有模型：", models); lang == "zh" && list != "" {
+			optionLines = append(optionLines, list)
+		} else if list := formatOptionList("Available models:", models); lang != "zh" && list != "" {
+			optionLines = append(optionLines, list)
+		}
 	}
 	if strategies, _ := availableResources["strategies"].([]traderSkillOption); len(strategies) == 0 && containsString(missing, "strategy_name") {
 		if lang == "zh" {
@@ -699,17 +705,29 @@ func (a *Agent) buildTraderCreateMissingPrompt(storeUserID, lang string, session
 		} else {
 			prereqs = append(prereqs, "there is no strategy yet")
 		}
+	} else if containsString(missing, "strategy_name") {
+		if list := formatOptionList("现有策略：", strategies); lang == "zh" && list != "" {
+			optionLines = append(optionLines, list)
+		} else if list := formatOptionList("Available strategies:", strategies); lang != "zh" && list != "" {
+			optionLines = append(optionLines, list)
+		}
 	}
 	if lang == "zh" {
-		reply := "还缺这些信息：" + missingLabels + "。"
+		reply := "新建交易员还缺这些槽位：" + missingLabels + "。"
 		if len(prereqs) > 0 {
 			reply += "\n" + strings.Join(prereqs, "；") + "。"
 		}
+		if len(optionLines) > 0 {
+			reply += "\n" + strings.Join(optionLines, "\n")
+		}
 		return reply
 	}
-	reply := "Still missing: " + strings.Join(renderSkillMissingLabels(lang, missing), ", ") + "."
+	reply := "Creating the trader still needs these slots: " + strings.Join(renderSkillMissingLabels(lang, missing), ", ") + "."
 	if len(prereqs) > 0 {
 		reply += "\n" + strings.Join(prereqs, "; ") + "."
+	}
+	if len(optionLines) > 0 {
+		reply += "\n" + strings.Join(optionLines, "\n")
 	}
 	return reply
 }
@@ -738,23 +756,14 @@ func (a *Agent) executeCreateTraderSkill(storeUserID string, userID int64, lang 
 	a.hydrateCreateTraderSlotReferences(storeUserID, &session)
 	normalizedArgs, _ := normalizeTraderArgsToManualLimits(lang, buildTraderUpdateArgsFromSession(session))
 	args := manageTraderArgs{
-		Action:               "create",
-		Name:                 fieldValue(session, "name"),
-		AIModelID:            fieldValue(session, "model_id"),
-		ExchangeID:           fieldValue(session, "exchange_id"),
-		StrategyID:           fieldValue(session, "strategy_id"),
-		InitialBalance:       normalizedArgs.InitialBalance,
-		ScanIntervalMinutes:  normalizedArgs.ScanIntervalMinutes,
-		IsCrossMargin:        normalizedArgs.IsCrossMargin,
-		ShowInCompetition:    normalizedArgs.ShowInCompetition,
-		BTCETHLeverage:       normalizedArgs.BTCETHLeverage,
-		AltcoinLeverage:      normalizedArgs.AltcoinLeverage,
-		TradingSymbols:       normalizedArgs.TradingSymbols,
-		CustomPrompt:         normalizedArgs.CustomPrompt,
-		OverrideBasePrompt:   normalizedArgs.OverrideBasePrompt,
-		SystemPromptTemplate: normalizedArgs.SystemPromptTemplate,
-		UseAI500:             normalizedArgs.UseAI500,
-		UseOITop:             normalizedArgs.UseOITop,
+		Action:              "create",
+		Name:                fieldValue(session, "name"),
+		AIModelID:           fieldValue(session, "model_id"),
+		ExchangeID:          fieldValue(session, "exchange_id"),
+		StrategyID:          fieldValue(session, "strategy_id"),
+		ScanIntervalMinutes: normalizedArgs.ScanIntervalMinutes,
+		IsCrossMargin:       normalizedArgs.IsCrossMargin,
+		ShowInCompetition:   normalizedArgs.ShowInCompetition,
 	}
 	createRaw := a.toolCreateTrader(storeUserID, args)
 	if errMsg := parseSkillError(createRaw); errMsg != "" && strings.Contains(createRaw, `"error"`) {
@@ -1009,6 +1018,15 @@ func (a *Agent) hydrateCreateTraderSlotReferences(storeUserID string, session *s
 			setField(session, "exchange_id", opt.ID)
 		}
 	}
+	if fieldValue(*session, "exchange_id") != "" {
+		options := a.loadExchangeOptions(storeUserID)
+		if opt := findOptionByIDOrName(options, fieldValue(*session, "exchange_id")); opt != nil {
+			setField(session, "exchange_id", opt.ID)
+			if fieldValue(*session, "exchange_name") == "" {
+				setField(session, "exchange_name", opt.Name)
+			}
+		}
+	}
 	if fieldValue(*session, "model_id") == "" && fieldValue(*session, "model_name") != "" {
 		options := a.loadEnabledModelOptions(storeUserID)
 		if opt := findOptionByIDOrName(options, fieldValue(*session, "model_name")); opt != nil {
@@ -1017,12 +1035,30 @@ func (a *Agent) hydrateCreateTraderSlotReferences(storeUserID string, session *s
 			setField(session, "model_id", opt.ID)
 		}
 	}
+	if fieldValue(*session, "model_id") != "" {
+		options := a.loadEnabledModelOptions(storeUserID)
+		if opt := findOptionByIDOrName(options, fieldValue(*session, "model_id")); opt != nil {
+			setField(session, "model_id", opt.ID)
+			if fieldValue(*session, "model_name") == "" {
+				setField(session, "model_name", opt.Name)
+			}
+		}
+	}
 	if fieldValue(*session, "strategy_id") == "" && fieldValue(*session, "strategy_name") != "" {
 		options := a.loadStrategyOptions(storeUserID)
 		if opt := findOptionByIDOrName(options, fieldValue(*session, "strategy_name")); opt != nil {
 			setField(session, "strategy_id", opt.ID)
 		} else if opt := findUniqueContainingOption(options, fieldValue(*session, "strategy_name")); opt != nil {
 			setField(session, "strategy_id", opt.ID)
+		}
+	}
+	if fieldValue(*session, "strategy_id") != "" {
+		options := a.loadStrategyOptions(storeUserID)
+		if opt := findOptionByIDOrName(options, fieldValue(*session, "strategy_id")); opt != nil {
+			setField(session, "strategy_id", opt.ID)
+			if fieldValue(*session, "strategy_name") == "" {
+				setField(session, "strategy_name", opt.Name)
+			}
 		}
 	}
 }
@@ -1085,9 +1121,23 @@ func resolveTargetSelection(text string, options []traderSkillOption, existing *
 	if existing != nil && strings.TrimSpace(existing.ID) != "" {
 		for _, opt := range options {
 			if opt.ID == existing.ID {
-				return targetResolution{Ref: existing}
+				return targetResolution{Ref: &EntityReference{ID: opt.ID, Name: defaultIfEmpty(opt.Name, existing.Name), Source: existing.Source}}
 			}
 		}
+	}
+	if existing != nil && strings.TrimSpace(existing.Name) != "" {
+		if opt := findOptionByIDOrName(options, existing.Name); opt != nil {
+			return targetResolution{Ref: &EntityReference{ID: opt.ID, Name: opt.Name, Source: existing.Source}}
+		}
+		if opt := findUniqueContainingOption(options, existing.Name); opt != nil {
+			return targetResolution{Ref: &EntityReference{ID: opt.ID, Name: opt.Name, Source: existing.Source}}
+		}
+	}
+	if opt := findOptionByIDOrName(options, text); opt != nil {
+		return targetResolution{Ref: &EntityReference{ID: opt.ID, Name: opt.Name, Source: "user_mention"}}
+	}
+	if opt := findUniqueContainingOption(options, text); opt != nil {
+		return targetResolution{Ref: &EntityReference{ID: opt.ID, Name: opt.Name, Source: "user_mention"}}
 	}
 	if len(options) == 1 {
 		return targetResolution{Ref: &EntityReference{ID: options[0].ID, Name: options[0].Name}}

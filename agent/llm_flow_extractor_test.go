@@ -1,42 +1,28 @@
 package agent
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestSanitizeLLMExtractionForSkillSessionDoesNotInventModelProvider(t *testing.T) {
-	session := skillSession{Name: "model_management", Action: "create"}
-	result := llmFlowExtractionResult{
-		Intent: "continue",
-		Tasks: []llmFlowExtractionTask{{
-			Skill:  "model_management",
-			Action: "create",
-			Fields: map[string]string{
-				"provider": "claw402",
-			},
-		}},
-	}
+func TestBuildActiveFlowExtractionPromptRequiresCanonicalFieldOutput(t *testing.T) {
+	systemPrompt, _ := buildActiveFlowExtractionPrompt(
+		"zh",
+		"skill_session",
+		"Active flow type: skill_session\nSkill: exchange_management\nAction: create",
+		"secret是abc123456",
+		"",
+		nil,
+		nil,
+		nil,
+	)
 
-	sanitized := sanitizeLLMExtractionForSkillSession("新建一个模型", session, result)
-	if got := sanitized.Tasks[0].Fields["provider"]; got != "" {
-		t.Fatalf("expected provider guess to be stripped, got %q", got)
-	}
-}
-
-func TestSanitizeLLMExtractionForSkillSessionKeepsExplicitModelProvider(t *testing.T) {
-	session := skillSession{Name: "model_management", Action: "create"}
-	result := llmFlowExtractionResult{
-		Intent: "continue",
-		Tasks: []llmFlowExtractionTask{{
-			Skill:  "model_management",
-			Action: "create",
-			Fields: map[string]string{
-				"provider": "claw402",
-			},
-		}},
-	}
-
-	sanitized := sanitizeLLMExtractionForSkillSession("新建一个 claw402 模型", session, result)
-	if got := sanitized.Tasks[0].Fields["provider"]; got != "claw402" {
-		t.Fatalf("expected explicit provider to remain, got %q", got)
+	for _, want := range []string{
+		"Treat this as semantic slot filling, not keyword copying.",
+		"always emit the canonical field keys from Allowed field spec JSON",
+	} {
+		if !strings.Contains(systemPrompt, want) {
+			t.Fatalf("expected system prompt to contain %q, got:\n%s", want, systemPrompt)
+		}
 	}
 }
-

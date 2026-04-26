@@ -9,21 +9,12 @@ type entityFieldMeta struct {
 }
 
 var traderFieldCatalog = []entityFieldMeta{
-	{Key: "name", Keywords: []string{"改名", "重命名", "rename", "名字"}, ValueType: "name", ManualEditable: true, AgentUpdatable: true},
 	{Key: "ai_model_id", Keywords: []string{"换模型", "切换模型", "模型"}, ValueType: "entity_ref", ManualEditable: true, AgentUpdatable: true},
 	{Key: "exchange_id", Keywords: []string{"换交易所", "切换交易所", "交易所"}, ValueType: "entity_ref", ManualEditable: true, AgentUpdatable: true},
 	{Key: "strategy_id", Keywords: []string{"换策略", "切换策略", "策略"}, ValueType: "entity_ref", ManualEditable: true, AgentUpdatable: true},
 	{Key: "scan_interval_minutes", Keywords: []string{"扫描间隔", "扫描频率", "scan interval", "scan frequency"}, ValueType: "int", ManualEditable: true, AgentUpdatable: true},
 	{Key: "is_cross_margin", Keywords: []string{"全仓", "cross margin", "is_cross_margin"}, ValueType: "flag", ManualEditable: true, AgentUpdatable: true},
 	{Key: "show_in_competition", Keywords: []string{"竞技场显示", "显示在竞技场", "show in competition", "competition"}, ValueType: "flag", ManualEditable: true, AgentUpdatable: true},
-	{Key: "btc_eth_leverage", Keywords: []string{"btc/eth杠杆", "主流币杠杆", "btc eth leverage"}, ValueType: "int", ManualEditable: true, AgentUpdatable: true},
-	{Key: "altcoin_leverage", Keywords: []string{"山寨币杠杆", "altcoin leverage", "alts leverage"}, ValueType: "int", ManualEditable: true, AgentUpdatable: true},
-	{Key: "trading_symbols", Keywords: []string{"交易对", "symbols", "币种"}, ValueType: "text", ManualEditable: true, AgentUpdatable: true},
-	{Key: "custom_prompt", Keywords: []string{"自定义prompt", "custom prompt", "提示词"}, ValueType: "text", ManualEditable: true, AgentUpdatable: true},
-	{Key: "override_base_prompt", Keywords: []string{"覆盖基础提示词", "override base prompt"}, ValueType: "flag", ManualEditable: true, AgentUpdatable: true},
-	{Key: "system_prompt_template", Keywords: []string{"提示词模板", "system prompt template", "prompt template"}, ValueType: "text", ManualEditable: true, AgentUpdatable: true},
-	{Key: "use_ai500", Keywords: []string{"ai500"}, ValueType: "flag", ManualEditable: true, AgentUpdatable: true},
-	{Key: "use_oi_top", Keywords: []string{"oi top", "持仓量增长"}, ValueType: "flag", ManualEditable: true, AgentUpdatable: true},
 }
 
 var modelFieldCatalog = []entityFieldMeta{

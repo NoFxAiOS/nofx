@@ -180,7 +180,12 @@ func textMeansAllTargets(text string) bool {
 }
 
 func supportsBulkTargetSelection(skillName, action string) bool {
-	return skillName == "strategy_management" && action == "delete"
+	switch skillName {
+	case "strategy_management", "trader_management":
+		return action == "delete"
+	default:
+		return false
+	}
 }
 
 func resolveTargetFromText(text string, options []traderSkillOption, existing *EntityReference) *EntityReference {
@@ -253,7 +258,18 @@ func ensureLiveTargetReference(session *skillSession, options []traderSkillOptio
 	if session == nil || session.TargetRef == nil {
 		return true
 	}
-	match := findOptionByIDOrName(options, defaultIfEmpty(session.TargetRef.ID, session.TargetRef.Name))
+	var match *traderSkillOption
+	if id := strings.TrimSpace(session.TargetRef.ID); id != "" {
+		match = findOptionByIDOrName(options, id)
+	}
+	if match == nil {
+		if name := strings.TrimSpace(session.TargetRef.Name); name != "" {
+			match = findOptionByIDOrName(options, name)
+			if match == nil {
+				match = findUniqueContainingOption(options, name)
+			}
+		}
+	}
 	if match == nil {
 		session.TargetRef = nil
 		return false
@@ -601,7 +617,7 @@ func formatModelCreateDraftSummary(lang string, session skillSession) string {
 	if lang != "zh" {
 		apiURL = defaultIfEmpty(fieldValue(session, "custom_api_url"), "provider default endpoint")
 	}
-	enabled := fieldValue(session, "enabled") == "true"
+	enabled := fieldValue(session, "enabled") != "false"
 	if lang == "zh" {
 		lines := []string{
 			fmt.Sprintf("我先整理了一份模型配置草稿“%s”。", name),
@@ -609,7 +625,7 @@ func formatModelCreateDraftSummary(lang string, session skillSession) string {
 			fmt.Sprintf("- 配置名称：%s", name),
 			fmt.Sprintf("- 模型名称：%s", modelName),
 			fmt.Sprintf("- 接口地址：%s", apiURL),
-			fmt.Sprintf("- 启用状态：%t（未指定时默认 false）", enabled),
+			fmt.Sprintf("- 启用状态：%t（未指定时默认 true）", enabled),
 			modelProviderDetailedGuidance(lang, providerID),
 			"如果这些字段没问题，直接回复“确认创建”；也可以继续补充或修改任意字段。",
 		}
@@ -621,7 +637,7 @@ func formatModelCreateDraftSummary(lang string, session skillSession) string {
 		fmt.Sprintf("- Config name: %s", name),
 		fmt.Sprintf("- Model name: %s", modelName),
 		fmt.Sprintf("- API URL: %s", apiURL),
-		fmt.Sprintf("- Enabled: %t (defaults to false if omitted)", enabled),
+		fmt.Sprintf("- Enabled: %t (defaults to true if omitted)", enabled),
 		modelProviderDetailedGuidance(lang, providerID),
 		"Reply 'confirm' to create it, or keep refining any field.",
 	}
@@ -631,14 +647,14 @@ func formatModelCreateDraftSummary(lang string, session skillSession) string {
 func formatExchangeCreateDraftSummary(lang string, session skillSession) string {
 	exType := defaultIfEmpty(fieldValue(session, "exchange_type"), "未选择")
 	accountName := defaultIfEmpty(fieldValue(session, "account_name"), "未命名账户")
-	enabled := fieldValue(session, "enabled") == "true"
+	enabled := fieldValue(session, "enabled") != "false"
 	testnet := fieldValue(session, "testnet") == "true"
 	if lang == "zh" {
 		lines := []string{
 			fmt.Sprintf("我先整理了一份交易所配置草稿“%s”。", accountName),
 			fmt.Sprintf("- 交易所：%s", exType),
 			fmt.Sprintf("- 账户名：%s", accountName),
-			fmt.Sprintf("- 启用状态：%t（未指定时默认 false）", enabled),
+			fmt.Sprintf("- 启用状态：%t（未指定时默认 true）", enabled),
 			fmt.Sprintf("- 测试网：%t（未指定时默认 false）", testnet),
 		}
 		switch exType {
@@ -685,7 +701,7 @@ func formatExchangeCreateDraftSummary(lang string, session skillSession) string 
 		fmt.Sprintf("I prepared a draft exchange config %q.", accountName),
 		fmt.Sprintf("- Exchange: %s", exType),
 		fmt.Sprintf("- Account name: %s", accountName),
-		fmt.Sprintf("- Enabled: %t (defaults to false if omitted)", enabled),
+		fmt.Sprintf("- Enabled: %t (defaults to true if omitted)", enabled),
 		fmt.Sprintf("- Testnet: %t (defaults to false if omitted)", testnet),
 	}
 	switch exType {
@@ -1449,9 +1465,6 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 	if v := inferCreateDisplayName(text); fieldValue(session, "account_name") == "" && v != "" {
 		setField(&session, "account_name", v)
 	}
-	patch := buildExchangeUpdatePatch(text)
-	patch, warnings := normalizeExchangePatchToManualLimits(lang, patch)
-	applyExchangeUpdatePatchToSession(&session, patch)
 	exType := fieldValue(session, "exchange_type")
 	accountName := fieldValue(session, "account_name")
 	missing := make([]string, 0, 6)
@@ -1510,15 +1523,7 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 		session.Phase = "await_create_confirmation"
 		setSkillDAGStep(&session, "await_create_confirmation")
 		a.saveSkillSession(userID, session)
-		reply := formatExchangeCreateDraftSummary(lang, session)
-		if len(warnings) > 0 {
-			if lang == "zh" {
-				reply += "\n这些字段里有超出手动面板范围的值，我已经先按风控范围收敛：\n- " + strings.Join(warnings, "\n- ")
-			} else {
-				reply += "\nSome values exceeded the manual editor limits, so I normalized them first:\n- " + strings.Join(warnings, "\n- ")
-			}
-		}
-		return reply
+		return formatExchangeCreateDraftSummary(lang, session)
 	}
 	setSkillDAGStep(&session, "execute_create")
 	args := map[string]any{
@@ -1554,17 +1559,9 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 	a.clearSkillSession(userID)
 	a.rememberReferencesFromToolResult(userID, "manage_exchange_config", resp)
 	if lang == "zh" {
-		reply := fmt.Sprintf("已创建交易所配置：%s（%s）。", accountName, exType)
-		if len(warnings) > 0 {
-			reply += "\n\n已按手动面板范围自动调整：\n- " + strings.Join(warnings, "\n- ")
-		}
-		return reply
+		return fmt.Sprintf("已创建交易所配置：%s（%s）。", accountName, exType)
 	}
-	reply := fmt.Sprintf("Created exchange config %s (%s).", accountName, exType)
-	if len(warnings) > 0 {
-		reply += "\n\nAdjusted to stay within the manual editor limits:\n- " + strings.Join(warnings, "\n- ")
-	}
-	return reply
+	return fmt.Sprintf("Created exchange config %s (%s).", accountName, exType)
 }
 
 func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, text string, session skillSession) string {
@@ -1587,8 +1584,6 @@ func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, t
 	if v := inferCreateDisplayName(text); fieldValue(session, "name") == "" && v != "" {
 		setField(&session, "name", v)
 	}
-	patch := buildModelUpdatePatch(text)
-	applyModelUpdatePatchToSession(&session, patch)
 	provider := fieldValue(session, "provider")
 	if provider != "" && fieldValue(session, "api_key") == "" {
 		if credential := inferModelCredentialFromText(provider, text); credential != "" {
@@ -1791,10 +1786,17 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 			return result.Question, true
 		}
 	}
+	if supportsBulkTargetSelection(skillName, action) && textMeansAllTargets(text) {
+		setField(&session, "bulk_scope", "all")
+		session.TargetRef = nil
+	}
 
 	if dag, ok := getSkillDAG(skillName, action); ok && len(dag.Steps) > 0 {
 		currentStep, _ := currentSkillDAGStep(session)
 		if currentStep.ID == "resolve_target" {
+			if resolved := resolveTargetSelection(text, options, session.TargetRef); resolved.Ref != nil {
+				session.TargetRef = resolved.Ref
+			}
 			if session.TargetRef == nil {
 				session.TargetRef = a.inferredCurrentReferenceForSkill(userID, skillName)
 			}
@@ -1826,6 +1828,9 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 			}
 		}
 	} else {
+		if resolved := resolveTargetSelection(text, options, session.TargetRef); resolved.Ref != nil {
+			session.TargetRef = resolved.Ref
+		}
 		if session.TargetRef == nil {
 			session.TargetRef = a.inferredCurrentReferenceForSkill(userID, skillName)
 		}

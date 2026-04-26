@@ -242,6 +242,8 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- Optional reliability fields for every decision: `regime` (trend_up|trend_down|range|squeeze|chop|news_risk|no_trade), `setup_type` (trend_pullback|range_edge|breakout_retest|none), and `quality_score` with total/trend_alignment/structure_location/sr_fib_quality/derivatives_context/trigger_quality/net_rr. These fields are currently audit/shadow fields, but strong opens should include them.\n")
+	sb.WriteString("- Default to `wait` unless the setup is one of trend_pullback, range_edge, or breakout_retest with clear multi-timeframe alignment and acceptable derivatives/crowding context.\n")
 	sb.WriteString("- `protection_plan`: optional structured protection output for open actions only\n")
 	sb.WriteString("- `entry_protection_rationale`: required for `open_long` / `open_short`; must include timeframe_context, risk_reward (entry/invalidation/first_target/gross_estimated_rr and preferably net_estimated_rr), and at least one structural anchor when opening\n")
 	sb.WriteString("  - Treat structural entry as a compact contract, not a verbose essay: include only the few levels/anchors needed to justify entry, invalidation, and first target\n")

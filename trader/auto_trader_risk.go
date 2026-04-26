@@ -13,6 +13,38 @@ import (
 // startDrawdownMonitor 启动运行态回撤监控协程。
 // 这条链路属于持仓后的风险保护，和开仓前的 AI 决策风控不同，
 // 它的职责是在仓位已存在时继续兜底处理利润回撤与异常退出。
+const (
+	minNativeDrawdownCallbackRatio = 0.003 // 0.3% price callback; OKX minimum 0.1% is too tight for strategy-level drawdown
+)
+
+type nativeDrawdownCallbackAdjustment struct {
+	CallbackRatio float64
+	Adjusted      bool
+	Reason        string
+}
+
+func adjustNativeDrawdownCallbackRatio(entryPrice float64, side string, rule store.DrawdownTakeProfitRule, callbackRatio float64) (nativeDrawdownCallbackAdjustment, error) {
+	adjustment := nativeDrawdownCallbackAdjustment{CallbackRatio: callbackRatio}
+	activationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+	if entryPrice <= 0 || activationPrice <= 0 || callbackRatio <= 0 {
+		return adjustment, fmt.Errorf("invalid drawdown callback inputs")
+	}
+	if callbackRatio >= minNativeDrawdownCallbackRatio {
+		return adjustment, nil
+	}
+	// A native trailing callback must not be so tight that ordinary noise closes the
+	// position. Raise it to a strategy-safe floor only when the activation profit
+	// has enough room to keep the trailing stop on the profitable side of entry.
+	maxProfitableCallback := math.Abs(activationPrice-entryPrice) / activationPrice
+	if minNativeDrawdownCallbackRatio >= maxProfitableCallback {
+		return adjustment, fmt.Errorf("drawdown profit space %.6f cannot support safe callback floor %.6f", maxProfitableCallback, minNativeDrawdownCallbackRatio)
+	}
+	adjustment.CallbackRatio = minNativeDrawdownCallbackRatio
+	adjustment.Adjusted = true
+	adjustment.Reason = "callback_below_noise_floor"
+	return adjustment, nil
+}
+
 func (at *AutoTrader) startDrawdownMonitor() {
 	at.monitorWg.Add(1)
 	go func() {
@@ -333,22 +365,22 @@ func (at *AutoTrader) buildDrawdownStructureContext(symbol, side string) *drawdo
 		return nil
 	}
 	if review, ok := decoded["timeframe_context"].(map[string]interface{}); ok {
-			ctx.PrimaryTimeframe, _ = review["primary"].(string)
-			ctx.LowerTimeframes = readStringSlice(review["lower"])
-			ctx.HigherTimeframes = readStringSlice(review["higher"])
+		ctx.PrimaryTimeframe, _ = review["primary"].(string)
+		ctx.LowerTimeframes = readStringSlice(review["lower"])
+		ctx.HigherTimeframes = readStringSlice(review["higher"])
+	}
+	if rr, ok := decoded["risk_reward"].(map[string]interface{}); ok {
+		ctx.Entry = readFloat(rr["entry"])
+		ctx.Invalidation = readFloat(rr["invalidation"])
+		ctx.FirstTarget = readFloat(rr["first_target"])
+	}
+	if levels, ok := decoded["key_levels"].(map[string]interface{}); ok {
+		ctx.Support = readFloatSlice(levels["support"])
+		ctx.Resistance = readFloatSlice(levels["resistance"])
+		if fib, ok := levels["fibonacci"].(map[string]interface{}); ok {
+			ctx.FibLevels = readFloatSlice(fib["levels"])
 		}
-		if rr, ok := decoded["risk_reward"].(map[string]interface{}); ok {
-			ctx.Entry = readFloat(rr["entry"])
-			ctx.Invalidation = readFloat(rr["invalidation"])
-			ctx.FirstTarget = readFloat(rr["first_target"])
-		}
-		if levels, ok := decoded["key_levels"].(map[string]interface{}); ok {
-			ctx.Support = readFloatSlice(levels["support"])
-			ctx.Resistance = readFloatSlice(levels["resistance"])
-			if fib, ok := levels["fibonacci"].(map[string]interface{}); ok {
-				ctx.FibLevels = readFloatSlice(fib["levels"])
-			}
-		}
+	}
 	if anchorsRaw, ok := decoded["anchors"].([]interface{}); ok {
 		anchors := make([]store.DecisionActionReasonAnchor, 0, len(anchorsRaw))
 		for _, raw := range anchorsRaw {
@@ -568,7 +600,18 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 
-	logger.Infof("🎯 Trailing activation resolved: %s %s | activation=%.6f planned=%.6f callbackRatio=%.6f", symbol, side, activationPrice, plannedActivationPrice, priceBasedCallbackRatio)
+	logger.Infof("🎯 Trailing activation resolved: %s %s | activation=%.6f planned=%.6f callbackRatio=%.6f rule=minProfit=%.4f maxDrawdown=%.4f close=%.2f%% stage=%s",
+		symbol, side, activationPrice, plannedActivationPrice, priceBasedCallbackRatio, rule.MinProfitPct, rule.MaxDrawdownPct, rule.CloseRatioPct, rule.StageName)
+	callbackAdjustment, err := adjustNativeDrawdownCallbackRatio(entryPrice, side, rule, priceBasedCallbackRatio)
+	if err != nil {
+		logger.Warnf("❌ Native trailing drawdown rejected by safety policy (%s %s): %v", symbol, side, err)
+		return false
+	}
+	if callbackAdjustment.Adjusted {
+		logger.Warnf("🛠 Native trailing drawdown callback adjusted (%s %s): %.6f -> %.6f reason=%s",
+			symbol, side, priceBasedCallbackRatio, callbackAdjustment.CallbackRatio, callbackAdjustment.Reason)
+		priceBasedCallbackRatio = callbackAdjustment.CallbackRatio
+	}
 
 	positionSide := strings.ToUpper(side)
 	positionAction := "open_" + strings.ToLower(side)

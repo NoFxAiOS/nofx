@@ -2,6 +2,7 @@ package trader
 
 import (
 	"fmt"
+	"math"
 	"nofx/store"
 	tradertypes "nofx/trader/types"
 	"strings"
@@ -242,7 +243,7 @@ func TestCheckPositionDrawdownAllowsNextCloseAfterPositionFingerprintChanges(t *
 	}
 }
 
-func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
+func TestApplyNativeTrailingDrawdownAdjustsNoiseCallbackForBinance(t *testing.T) {
 	fake := &fakeProtectionTrader{}
 	at := &AutoTrader{
 		exchange: "binance",
@@ -261,6 +262,35 @@ func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
 
 	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
 	if !ok {
+		t.Fatal("expected noise-level callback to be adjusted when profit space supports the floor")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected 1 trailing call, got %d", fake.trailingCalls)
+	}
+	if math.Abs(fake.trailingCallback-0.3) > 0.0001 {
+		t.Fatalf("expected callback floor 0.3 percent for binance, got %.4f", fake.trailingCallback)
+	}
+}
+
+func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
+	fake := &fakeProtectionTrader{}
+	at := &AutoTrader{
+		exchange: "binance",
+		trader:   fake,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
+		},
+		protectionState: make(map[string]string),
+	}
+
+	rule := store.DrawdownTakeProfitRule{
+		MinProfitPct:   5,
+		MaxDrawdownPct: 40,
+		CloseRatioPct:  100,
+	}
+
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
+	if !ok {
 		t.Fatal("expected native trailing drawdown to be applied")
 	}
 	if fake.trailingCalls != 1 {
@@ -269,8 +299,8 @@ func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
 	if fake.trailingActivation <= 100 {
 		t.Fatalf("expected activation above entry for long, got %.4f", fake.trailingActivation)
 	}
-	if fake.trailingCallback != 0.1 {
-		t.Fatalf("expected callback rate 0.1, got %.4f", fake.trailingCallback)
+	if math.Abs(fake.trailingCallback-1.9048) > 0.0001 {
+		t.Fatalf("expected callback rate about 1.9048, got %.4f", fake.trailingCallback)
 	}
 	if at.getProtectionState("BTCUSDT", "long") != "native_trailing_armed" {
 		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))

@@ -153,6 +153,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	if err != nil {
 		return result, fmt.Errorf("build configured plan: %w", err)
 	}
+	protectionConfigured := at.hasConfiguredProtectionOwner()
 
 	// Drawdown/native trailing owns the profit-taking side. If drawdown profit-control is enabled,
 	// proactively remove old generic TP orders for the active position while keeping SL orders intact.
@@ -182,6 +183,10 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				openOrders, _ = at.trader.GetOpenOrders(symbol)
 			}
 		}
+	}
+
+	if plan == nil {
+		result = reconcileResultForUnmaterializedPlan(openOrders, positionSide, protectionConfigured)
 	}
 
 	if plan != nil {

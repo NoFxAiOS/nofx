@@ -59,6 +59,13 @@ func resolveFallbackMaxLoss(full store.FullTPSLConfig) (pricePct float64, ok boo
 	return full.FallbackMaxLoss.Value, true
 }
 
+func resolveLadderFallbackMaxLoss(ladder store.LadderTPSLConfig) (pricePct float64, ok bool) {
+	if !ladder.Enabled || ladder.Mode == store.ProtectionModeDisabled || ladder.FallbackMaxLoss.Mode != store.ProtectionValueModeManual || ladder.FallbackMaxLoss.Value <= 0 {
+		return 0, false
+	}
+	return ladder.FallbackMaxLoss.Value, true
+}
+
 func enabledManualLadderTakeProfit(ladder store.LadderTPSLConfig) bool {
 	return ladder.Enabled && ladder.Mode == store.ProtectionModeManual && ladder.TakeProfitEnabled && !isDisabledValue(ladder.TakeProfitPrice) && !isDisabledValue(ladder.TakeProfitSize)
 }
@@ -429,9 +436,18 @@ func buildManualLadderProtectionPlan(entryPrice float64, action string, ladder s
 		}
 	}
 
+	if fallbackPct, ok := resolveLadderFallbackMaxLoss(ladder); ok {
+		move := fallbackPct / 100.0
+		if isLong {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 - move))
+		} else {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 + move))
+		}
+	}
+
 	plan.NeedsStopLoss = len(plan.StopLossOrders) > 0
 	plan.NeedsTakeProfit = len(plan.TakeProfitOrders) > 0
-	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit {
+	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit && plan.FallbackMaxLossPrice == 0 {
 		return nil, nil
 	}
 

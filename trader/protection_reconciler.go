@@ -210,7 +210,17 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), cleaning and re-applying",
 				symbol, positionSide, unexpectedStops, unexpectedTPs, planOrderCount)
 			at.cancelProtectionOrdersForCleanup(symbol)
-			// Re-apply clean protection plan.
+			cleanOrders, cleanErr := at.trader.GetOpenOrders(symbol)
+			if cleanErr != nil {
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return result, fmt.Errorf("verify cleanup open orders: %w", cleanErr)
+			}
+			remainingUnexpectedStops, remainingUnexpectedTPs := detectUnexpectedProtectionOrders(cleanOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+			if remainingUnexpectedStops > 0 || remainingUnexpectedTPs > 0 {
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return result, fmt.Errorf("cleanup incomplete: unexpected exchange protection orders remain (unexpectedSL=%d unexpectedTP=%d), refusing to stack new protection", remainingUnexpectedStops, remainingUnexpectedTPs)
+			}
+			// Re-apply clean protection plan only after cleanup is visible on exchange.
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				at.setReconcileCooldown(positionKey(symbol, side))
 				return result, fmt.Errorf("cleanup re-apply protection plan: %w", err)

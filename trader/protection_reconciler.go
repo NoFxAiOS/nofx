@@ -41,6 +41,11 @@ func (at *AutoTrader) startProtectionReconciler() {
 	}()
 }
 
+type protectionReconcileResult struct {
+	ExchangeVerified bool
+	Summary          string
+}
+
 func (at *AutoTrader) reconcilePositionProtections() {
 	if at == nil || at.trader == nil || at.config.StrategyConfig == nil {
 		return
@@ -78,17 +83,22 @@ func (at *AutoTrader) reconcilePositionProtections() {
 			continue
 		}
 
-		if err := at.reconcileProtectionForPosition(symbol, side, quantity, entryPrice); err != nil {
+		result, err := at.reconcileProtectionForPosition(symbol, side, quantity, entryPrice)
+		if err != nil {
 			logger.Infof("❌ Protection reconciler: %s %s reconcile failed: %v", symbol, side, err)
 			at.setProtectionState(symbol, side, "reconcile_failed: "+err.Error())
 			continue
 		}
 
-		currentState := at.getProtectionState(symbol, side)
-		if currentState == "" {
+		if result.ExchangeVerified {
 			at.setProtectionState(symbol, side, "exchange_protection_verified")
+			logger.Infof("✅ Protection reconciler: %s %s exchange protection verified", symbol, side)
+		} else {
+			if result.Summary == "" {
+				result.Summary = "no exchange protection ownership verified"
+			}
+			logger.Warnf("⚠️ Protection reconciler: %s %s exchange protection not verified: %s", symbol, side, result.Summary)
 		}
-		logger.Infof("✅ Protection reconciler: %s %s exchange protection verified", symbol, side)
 	}
 
 	at.cleanupInactiveProtectionState(active)
@@ -126,12 +136,13 @@ func (at *AutoTrader) describeProtectionSnapshot(symbol, side string, openOrders
 	return strings.Join(parts, " | ")
 }
 
-func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quantity, entryPrice float64) error {
+func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quantity, entryPrice float64) (protectionReconcileResult, error) {
+	result := protectionReconcileResult{}
 	positionSide := strings.ToUpper(side)
 	currentProtectionState := at.getProtectionState(symbol, side)
 	openOrders, err := at.trader.GetOpenOrders(symbol)
 	if err != nil {
-		return fmt.Errorf("get open orders: %w", err)
+		return result, fmt.Errorf("get open orders: %w", err)
 	}
 
 	// If native trailing drawdown is already armed, generic take-profit plans should not be
@@ -140,7 +151,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 	plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
 	if err != nil {
-		return fmt.Errorf("build configured plan: %w", err)
+		return result, fmt.Errorf("build configured plan: %w", err)
 	}
 
 	// Drawdown/native trailing owns the profit-taking side. If drawdown profit-control is enabled,
@@ -185,7 +196,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		logger.Infof("🧭 Protection ownership: %s %s | state=%s verified=%t stopOwner=%s profitOwner=%s missingSL=%t missingTP=%t unexpectedSL=%d unexpectedTP=%d reasons=%s",
 			symbol, positionSide, ownership.State, ownership.Verified, ownership.StopOwner, ownership.ProfitOwner, ownership.MissingStop, ownership.MissingProfit, ownership.UnexpectedStops, ownership.UnexpectedProfits, strings.Join(ownership.Reasons, "; "))
 		if ownership.State == "unprotected" && ownership.Verified {
-			return fmt.Errorf("invalid protection ownership invariant: unprotected but verified")
+			return result, fmt.Errorf("invalid protection ownership invariant: unprotected but verified")
 		}
 
 		// Detect duplicate/stale orders by explicit order-role mismatch, not only coarse order counts.
@@ -197,21 +208,27 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			// Re-apply clean protection plan.
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				at.setReconcileCooldown(positionKey(symbol, side))
-				return fmt.Errorf("cleanup re-apply protection plan: %w", err)
+				return result, fmt.Errorf("cleanup re-apply protection plan: %w", err)
 			}
 			at.setReconcileCooldown(positionKey(symbol, side))
-			return nil
+			result.ExchangeVerified = true
+			result.Summary = "re-applied after cleanup"
+			return result, nil
 		}
 
 		if missingSL || missingTP {
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				at.setReconcileCooldown(positionKey(symbol, side))
-				return fmt.Errorf("re-apply manual protection plan: %w", err)
+				return result, fmt.Errorf("re-apply manual protection plan: %w", err)
 			}
 			at.setReconcileCooldown(positionKey(symbol, side))
-			return nil
+			result.ExchangeVerified = true
+			result.Summary = "re-applied missing protection"
+			return result, nil
 		}
+		result.ExchangeVerified = ownership.Verified
+		result.Summary = strings.Join(ownership.Reasons, "; ")
 	}
 
 	markPrice, _ := at.getPositionMarkPrice(symbol, side)
@@ -227,7 +244,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		if prevBreakEvenArmed && fingerprintChanged {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even fingerprint changed, re-arming native stop", symbol, positionSide)
 			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
-				return fmt.Errorf("re-arm break-even native stop: %w", err)
+				return result, fmt.Errorf("re-arm break-even native stop: %w", err)
 			}
 			at.setBreakEvenState(symbol, side, "armed")
 		} else if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
@@ -237,7 +254,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			at.setBreakEvenState(symbol, side, "arming")
 			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
 				at.setBreakEvenState(symbol, side, "pending")
-				return fmt.Errorf("apply break-even native stop: %w", err)
+				return result, fmt.Errorf("apply break-even native stop: %w", err)
 			}
 			at.setBreakEvenState(symbol, side, "armed")
 		}
@@ -268,7 +285,10 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
-	return nil
+	if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed") {
+		result.Summary = "dynamic protection owner armed; exchange static ownership not fully verified"
+	}
+	return result, nil
 }
 
 func (at *AutoTrader) getPositionMarkPrice(symbol, side string) (float64, bool) {

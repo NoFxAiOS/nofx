@@ -394,6 +394,49 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		return &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules}, nil
 	}
 
+	if mode == "combined" {
+		if len(plan.LadderRules) == 0 || len(plan.DrawdownRules) == 0 {
+			return nil, nil
+		}
+		parts := make([]*ProtectionPlan, 0, 2)
+		if len(plan.LadderRules) > 0 {
+			ladderRules := make([]store.LadderTPSLRule, 0, len(plan.LadderRules))
+			for _, rule := range plan.LadderRules {
+				ladderRules = append(ladderRules, store.LadderTPSLRule{
+					TakeProfitPct:           rule.TakeProfitPct,
+					TakeProfitCloseRatioPct: rule.TakeProfitCloseRatioPct,
+					StopLossPct:             rule.StopLossPct,
+					StopLossCloseRatioPct:   rule.StopLossCloseRatioPct,
+				})
+			}
+			ladder := store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI, TakeProfitEnabled: true, StopLossEnabled: true, Rules: ladderRules}
+			if p, err := buildAILadderProtectionPlan(entryPrice, action, ladder); err != nil {
+				return nil, err
+			} else if p != nil {
+				parts = append(parts, p)
+			}
+		}
+		if len(plan.DrawdownRules) > 0 {
+			rules := make([]store.DrawdownTakeProfitRule, 0, len(plan.DrawdownRules))
+			for _, rule := range plan.DrawdownRules {
+				rules = append(rules, store.DrawdownTakeProfitRule{
+					MinProfitPct:        rule.MinProfitPct,
+					MaxDrawdownPct:      rule.MaxDrawdownPct,
+					CloseRatioPct:       rule.CloseRatioPct,
+					PollIntervalSeconds: rule.PollIntervalSeconds,
+					StageName:           rule.StageName,
+					RunnerKeepPct:       rule.RunnerKeepPct,
+					RunnerStopMode:      rule.RunnerStopMode,
+					RunnerStopSource:    rule.RunnerStopSource,
+					RunnerTargetMode:    rule.RunnerTargetMode,
+					RunnerTargetSource:  rule.RunnerTargetSource,
+				})
+			}
+			parts = append(parts, &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules})
+		}
+		return mergeProtectionPlans(parts...), nil
+	}
+
 	return nil, nil
 }
 

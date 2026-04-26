@@ -456,6 +456,28 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		if d.ProtectionPlan != nil {
 			planMode = strings.ToLower(strings.TrimSpace(d.ProtectionPlan.Mode))
 		}
+		if drawdownAI && ladderAI {
+			if d.ProtectionPlan == nil || planMode != "combined" {
+				return fmt.Errorf("decision #%d: current strategy route requires combined protection_plan with ladder_rules and drawdown_rules for open actions", i+1)
+			}
+			if n := len(d.ProtectionPlan.LadderRules); n < 2 || n > 3 {
+				return fmt.Errorf("decision #%d: combined protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
+			}
+			if len(d.ProtectionPlan.DrawdownRules) == 0 {
+				return fmt.Errorf("decision #%d: combined protection_plan must contain drawdown_rules under current strategy route", i+1)
+			}
+			for j, rule := range d.ProtectionPlan.LadderRules {
+				if strings.TrimSpace(rule.StructuralAnchor) == "" {
+					logger.Warnf("decision #%d ladder_rule[%d]: missing structural_anchor (structural justification expected)", i+1, j)
+				}
+			}
+			for j, rule := range d.ProtectionPlan.DrawdownRules {
+				if strings.TrimSpace(rule.ReasonAnchor) == "" {
+					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
+				}
+			}
+			continue
+		}
 		if ladderAI && !drawdownAI && !fullAI {
 			if d.ProtectionPlan == nil || planMode != "ladder" {
 				return fmt.Errorf("decision #%d: current strategy route requires ladder protection_plan for open actions", i+1)
@@ -481,12 +503,6 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
 				}
 			}
-			if len(d.ProtectionPlan.LadderRules) > 0 || planMode == "ladder" {
-				return fmt.Errorf("decision #%d: drawdown AI route owns profit-taking; do not embed ladder protection_plan in the same AI decision", i+1)
-			}
-		}
-		if ladderAI && drawdownAI {
-			logger.Infof("decision #%d: validating combined AI protection ownership, drawdown owns TP and ladder remains strategy-level stop protection", i+1)
 		}
 	}
 	return nil

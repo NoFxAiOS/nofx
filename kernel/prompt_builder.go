@@ -565,6 +565,44 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 						return fmt.Errorf("decision #%d: drawdown_rules[%d] poll_interval_seconds must be >= 5", i+1, j)
 					}
 				}
+			case "combined":
+				if len(d.ProtectionPlan.LadderRules) == 0 || len(d.ProtectionPlan.DrawdownRules) == 0 {
+					return fmt.Errorf("decision #%d: combined protection_plan requires both ladder_rules and drawdown_rules", i+1)
+				}
+				if d.ProtectionPlan.TakeProfitPct > 0 || d.ProtectionPlan.StopLossPct > 0 {
+					return fmt.Errorf("decision #%d: combined protection_plan must not include full take_profit_pct/stop_loss_pct", i+1)
+				}
+				for j, rule := range d.ProtectionPlan.LadderRules {
+					if rule.TakeProfitPct <= 0 && rule.StopLossPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct or stop_loss_pct", i+1, j)
+					}
+					if rule.TakeProfitCloseRatioPct < 0 || rule.TakeProfitCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid take_profit_close_ratio_pct", i+1, j)
+					}
+					if rule.StopLossCloseRatioPct < 0 || rule.StopLossCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid stop_loss_close_ratio_pct", i+1, j)
+					}
+					if rule.TakeProfitPct > 0 && rule.TakeProfitCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] take_profit_pct requires positive take_profit_close_ratio_pct", i+1, j)
+					}
+					if rule.StopLossPct > 0 && rule.StopLossCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] stop_loss_pct requires positive stop_loss_close_ratio_pct", i+1, j)
+					}
+				}
+				for j, rule := range d.ProtectionPlan.DrawdownRules {
+					if rule.MinProfitPct <= 0 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] requires positive min_profit_pct", i+1, j)
+					}
+					if rule.MaxDrawdownPct <= 0 || rule.MaxDrawdownPct > 100 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] has invalid max_drawdown_pct", i+1, j)
+					}
+					if rule.CloseRatioPct <= 0 || rule.CloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] has invalid close_ratio_pct", i+1, j)
+					}
+					if rule.PollIntervalSeconds > 0 && rule.PollIntervalSeconds < 5 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] poll_interval_seconds must be >= 5", i+1, j)
+					}
+				}
 			case "break_even":
 				if d.ProtectionPlan.BreakEvenTrigger == "" || d.ProtectionPlan.BreakEvenValue <= 0 {
 					return fmt.Errorf("decision #%d: break_even protection_plan requires trigger mode and positive trigger value", i+1)

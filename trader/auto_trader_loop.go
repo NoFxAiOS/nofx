@@ -430,7 +430,7 @@ func (at *AutoTrader) runCycle() error {
 
 		if actionRecord.ReviewContext != nil {
 			actionRecord.ReviewContext.Control = buildRuntimePolicyControlOutcome(policy)
-			actionRecord.ReviewContext.QualityGate = buildShadowQualityGate(&d)
+			actionRecord.ReviewContext.QualityGate = evaluateShadowQualityGate(&d, ctx.MarketDataMap[d.Symbol], at.getMinRiskRewardRatio(), at.getMinConfidence())
 		}
 
 		if policy.Blocked {
@@ -453,6 +453,7 @@ func (at *AutoTrader) runCycle() error {
 
 		record.Decisions = append(record.Decisions, actionRecord)
 	}
+	attachQualityGateReviewSummary(record)
 
 	// 9. Save decision record
 	if err := at.saveDecision(record); err != nil {
@@ -831,6 +832,15 @@ func (at *AutoTrader) checkClaw402Balance() {
 func (at *AutoTrader) getMinRiskRewardRatio() float64 {
 	if at != nil && at.config.StrategyConfig != nil {
 		if v := at.config.StrategyConfig.RiskControl.MinRiskRewardRatio; v > 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+func (at *AutoTrader) getMinConfidence() int {
+	if at != nil && at.config.StrategyConfig != nil {
+		if v := at.config.StrategyConfig.RiskControl.MinConfidence; v > 0 {
 			return v
 		}
 	}

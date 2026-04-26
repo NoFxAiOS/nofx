@@ -181,7 +181,12 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			breakEvenArmed = false
 		}
 		unexpectedStops, unexpectedTPs := detectUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
-		logger.Infof("🔎 Protection snapshot: %s %s | %s", symbol, positionSide, at.describeProtectionSnapshot(symbol, side, openOrders, plan, breakEvenArmed, nativeTrailingArmed))
+		ownership := evaluateProtectionOwnership(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+		logger.Infof("🧭 Protection ownership: %s %s | state=%s verified=%t stopOwner=%s profitOwner=%s missingSL=%t missingTP=%t unexpectedSL=%d unexpectedTP=%d reasons=%s",
+			symbol, positionSide, ownership.State, ownership.Verified, ownership.StopOwner, ownership.ProfitOwner, ownership.MissingStop, ownership.MissingProfit, ownership.UnexpectedStops, ownership.UnexpectedProfits, strings.Join(ownership.Reasons, "; "))
+		if ownership.State == "unprotected" && ownership.Verified {
+			return fmt.Errorf("invalid protection ownership invariant: unprotected but verified")
+		}
 
 		// Detect duplicate/stale orders by explicit order-role mismatch, not only coarse order counts.
 		// This keeps valid break-even / trailing orders while removing old ladder/fallback debris.

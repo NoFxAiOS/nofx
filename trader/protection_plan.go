@@ -112,8 +112,14 @@ func resolveLadderStopLossRule(rule store.LadderTPSLRule, ladder store.LadderTPS
 	case store.ProtectionValueModeManual:
 		pricePct = rule.StopLossPct
 	case store.ProtectionValueModeAI:
-		if aiRule != nil {
+		if aiRule != nil && aiRule.StopLossPct > 0 {
 			pricePct = aiRule.StopLossPct
+		} else if ladder.Mode == store.ProtectionModeManual {
+			// Existing-position reconciliation must not leave stops unmaterialized
+			// just because the opening AI rationale is gone after restart. In manual
+			// ladder mode, configured rule values are the deterministic fallback for
+			// held-position stop ownership.
+			pricePct = rule.StopLossPct
 		}
 	}
 
@@ -121,8 +127,10 @@ func resolveLadderStopLossRule(rule store.LadderTPSLRule, ladder store.LadderTPS
 	case store.ProtectionValueModeManual:
 		closeRatioPct = rule.StopLossCloseRatioPct
 	case store.ProtectionValueModeAI:
-		if aiRule != nil {
+		if aiRule != nil && aiRule.StopLossCloseRatioPct > 0 {
 			closeRatioPct = aiRule.StopLossCloseRatioPct
+		} else if ladder.Mode == store.ProtectionModeManual {
+			closeRatioPct = rule.StopLossCloseRatioPct
 		}
 	}
 
@@ -236,7 +244,8 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 	}
 
 	protection := at.config.StrategyConfig.Protection
-	drawdownEnabled := protection.DrawdownTakeProfit.Enabled && len(protection.DrawdownTakeProfit.Rules) > 0
+	ownerPolicy := evaluateProtectionOwnerPolicy(protection)
+	drawdownEnabled := ownerPolicy.UseDrawdownTP && len(protection.DrawdownTakeProfit.Rules) > 0
 
 	// Build ladder plan first so we know which directions it covers.
 	var ladderPlan *ProtectionPlan

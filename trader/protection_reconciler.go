@@ -252,6 +252,17 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				}
 			}
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
+				if missingSL && plan.FallbackMaxLossPrice > 0 {
+					logger.Warnf("🛟 Protection reconciler: %s %s primary stop re-apply failed, restoring fallback max-loss stop %.6f: %v", symbol, positionSide, plan.FallbackMaxLossPrice, err)
+					if fallbackErr := at.placeAndVerifyFallbackMaxLoss(symbol, positionSide, quantity, plan.FallbackMaxLossPrice); fallbackErr == nil {
+						at.setReconcileCooldown(positionKey(symbol, side))
+						result.ExchangeVerified = true
+						result.Summary = "fallback restored after primary stop re-apply failure"
+						return result, nil
+					} else {
+						logger.Warnf("🛟 Protection reconciler: %s %s fallback restore also failed: %v", symbol, positionSide, fallbackErr)
+					}
+				}
 				at.setReconcileCooldown(positionKey(symbol, side))
 				return result, fmt.Errorf("re-apply manual protection plan: %w", err)
 			}

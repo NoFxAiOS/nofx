@@ -238,6 +238,23 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 		if missingSL || missingTP {
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
+			if missingSL && plan.NeedsStopLoss && plan.StopLossPrice > 0 && plan.FallbackMaxLossPrice > 0 {
+				if markPrice, ok := at.getPositionMarkPrice(symbol, side); ok && !isExecutableHeldStopPrice(side, plan.StopLossPrice, markPrice) {
+					logger.Warnf("🛟 Protection reconciler: %s %s primary stop %.6f is non-executable against mark %.6f; keeping/restoring fallback %.6f",
+						symbol, positionSide, plan.StopLossPrice, markPrice, plan.FallbackMaxLossPrice)
+					if hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice) {
+						result.ExchangeVerified = true
+						result.Summary = "fallback retained: primary stop non-executable"
+						return result, nil
+					}
+					if fallbackErr := at.placeAndVerifyFallbackMaxLoss(symbol, positionSide, quantity, plan.FallbackMaxLossPrice); fallbackErr == nil {
+						at.setReconcileCooldown(positionKey(symbol, side))
+						result.ExchangeVerified = true
+						result.Summary = "fallback restored: primary stop non-executable"
+						return result, nil
+					}
+				}
+			}
 			if missingSL && hasAnyProtectionOrder(openOrders, positionSide, false) {
 				logger.Infof("🧹 Protection reconciler: %s %s upgrading stop ownership; clearing existing stop orders before re-apply", symbol, positionSide)
 				at.cancelProtectionOrdersForCleanup(symbol)
@@ -333,6 +350,20 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		result.Summary = "dynamic protection owner armed; exchange static ownership not fully verified"
 	}
 	return result, nil
+}
+
+func isExecutableHeldStopPrice(side string, stopPrice, markPrice float64) bool {
+	if stopPrice <= 0 || markPrice <= 0 {
+		return true
+	}
+	switch strings.ToLower(side) {
+	case "short":
+		return stopPrice > markPrice
+	case "long":
+		return stopPrice < markPrice
+	default:
+		return true
+	}
 }
 
 func (at *AutoTrader) getPositionMarkPrice(symbol, side string) (float64, bool) {

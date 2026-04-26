@@ -193,6 +193,21 @@ func TestProtectionReconciler_DoesNotReapplyWhenDustRemainderAlreadyHasFullStopA
 	}
 }
 
+func TestIsExecutableHeldStopPrice(t *testing.T) {
+	if isExecutableHeldStopPrice("short", 2.5709, 2.60) {
+		t.Fatal("expected short stop below current mark to be non-executable")
+	}
+	if !isExecutableHeldStopPrice("short", 2.6754, 2.60) {
+		t.Fatal("expected short stop above current mark to be executable")
+	}
+	if isExecutableHeldStopPrice("long", 105, 100) {
+		t.Fatal("expected long stop above current mark to be non-executable")
+	}
+	if !isExecutableHeldStopPrice("long", 95, 100) {
+		t.Fatal("expected long stop below current mark to be executable")
+	}
+}
+
 func TestProtectionReconciler_DoesNotReapplyBreakEvenWhenAlreadyArmedAndFingerprintStable(t *testing.T) {
 	ft := &fakeReconcileTrader{
 		fakeOrderProtectionTrader: fakeOrderProtectionTrader{

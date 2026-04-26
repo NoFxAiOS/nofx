@@ -13,28 +13,12 @@ import (
 
 var urlPattern = regexp.MustCompile(`https://[^\s"'<>]+`)
 
-func detectTraderManagementIntent(text string) bool {
-	return false
-}
-
 func hasExplicitCreateIntentForDomain(text, domain string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
 	if lower == "" || !hasExplicitManagementDomainCue(text, domain) {
 		return false
 	}
 	return containsAny(lower, []string{"创建", "新建", "创一个", "创个", "建一个", "create", "new"})
-}
-
-func detectExchangeManagementIntent(text string) bool {
-	return false
-}
-
-func detectModelManagementIntent(text string) bool {
-	return false
-}
-
-func detectStrategyManagementIntent(text string) bool {
-	return false
 }
 
 func hasExplicitDiagnosisIntentForDomain(text, domain string) bool {
@@ -54,10 +38,6 @@ func hasExplicitDiagnosisIntentForDomain(text, domain string) bool {
 	default:
 		return false
 	}
-}
-
-func inferExplicitManagementAction(text string, domain string) string {
-	return ""
 }
 
 func extractURL(text string) string {
@@ -209,20 +189,6 @@ func hasStrictOptionMention(text string, options []traderSkillOption) bool {
 	return false
 }
 
-func shouldUsePatchFallbackForTargetedUpdate(text string, options []traderSkillOption, existing *EntityReference) bool {
-	if existing != nil && strings.TrimSpace(existing.ID) != "" {
-		return true
-	}
-	if hasStrictOptionMention(text, options) {
-		return true
-	}
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if containsAny(lower, []string{"这个", "当前", "该", "this", "current"}) {
-		return true
-	}
-	return len(options) == 1
-}
-
 func isSimpleEntityMutationAction(action string) bool {
 	switch strings.TrimSpace(action) {
 	case "update", "update_name", "update_status", "update_endpoint", "update_bindings",
@@ -296,82 +262,6 @@ func (a *Agent) buildSimpleEntityConversationResources(storeUserID string, sessi
 		}
 	}
 	return resources
-}
-
-func applySkillConversationResultToSession(session *skillSession, result skillConversationResult) {
-	if session == nil {
-		return
-	}
-	ensureSkillFields(session)
-	mergeFieldSet := func(values map[string]string, source string) {
-		for key, value := range values {
-			value = strings.TrimSpace(value)
-			if value == "" {
-				continue
-			}
-			switch key {
-			case "target_ref_id":
-				if session.TargetRef == nil {
-					session.TargetRef = &EntityReference{}
-				}
-				session.TargetRef.ID = value
-				if source != "" {
-					session.TargetRef.Source = source
-				}
-			case "target_ref_name":
-				if session.TargetRef == nil {
-					session.TargetRef = &EntityReference{}
-				}
-				session.TargetRef.Name = value
-				if source != "" {
-					session.TargetRef.Source = source
-				}
-			default:
-				setField(session, key, value)
-			}
-		}
-	}
-	mergeFieldSet(result.Extracted, "llm_conversation")
-	mergeFieldSet(result.DraftGeneratedFields, "llm_generated_draft")
-	if result.RequiresConfirmationBeforeApply {
-		setField(session, "_requires_generated_confirmation", "true")
-	} else if fieldValue(*session, "_requires_generated_confirmation") != "" {
-		delete(session.Fields, "_requires_generated_confirmation")
-	}
-	if session.TargetRef != nil && session.TargetRef.Source == "" {
-		session.TargetRef.Source = "llm_conversation"
-	}
-}
-
-func shouldUseLLMConversationForSimpleEntity(skillName, action string) bool {
-	switch skillName {
-	case "trader_management":
-		switch action {
-		case "update", "update_name", "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
-			return true
-		}
-	case "exchange_management":
-		switch action {
-		case "update", "update_name", "update_status":
-			return true
-		}
-	case "model_management":
-		switch action {
-		case "update", "update_name", "update_status", "update_endpoint":
-			return true
-		}
-	case "strategy_management":
-		switch action {
-		case "update", "update_name", "update_prompt", "update_config", "activate", "duplicate":
-			return true
-		}
-	}
-	switch action {
-	case "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
-		return true
-	default:
-		return false
-	}
 }
 
 func (a *Agent) inferredCurrentReferenceForSkill(userID int64, skillName string) *EntityReference {
@@ -475,6 +365,7 @@ func (a *Agent) handleStrategyManagementSkill(storeUserID string, userID int64, 
 }
 
 const strategyCreateDraftConfigField = "strategy_create_draft_config"
+const strategyCreateConfigPatchField = "config_patch"
 
 func applyStrategyCreateIntentToConfig(cfg *store.StrategyConfig, text, lang string) []string {
 	return nil
@@ -497,6 +388,25 @@ func unmarshalStrategyCreateDraft(raw, lang string) store.StrategyConfig {
 		return store.GetDefaultStrategyConfig(lang)
 	}
 	return cfg
+}
+
+func strategyCreateConfigFromSession(session skillSession, lang string) (store.StrategyConfig, map[string]any, []string, error) {
+	cfg := unmarshalStrategyCreateDraft(fieldValue(session, strategyCreateDraftConfigField), lang)
+	patchRaw := strings.TrimSpace(fieldValue(session, strategyCreateConfigPatchField))
+	var patch map[string]any
+	if patchRaw != "" {
+		if err := json.Unmarshal([]byte(patchRaw), &patch); err != nil {
+			return cfg, nil, nil, fmt.Errorf("策略配置 patch 不是合法 JSON：%w", err)
+		}
+		merged, err := store.MergeStrategyConfig(cfg, patch)
+		if err != nil {
+			return cfg, nil, nil, fmt.Errorf("策略配置 patch 无法应用：%w", err)
+		}
+		cfg = merged
+	}
+	beforeClamp := cfg
+	cfg.ClampLimits()
+	return cfg, patch, store.StrategyClampWarnings(beforeClamp, cfg, cfg.Language), nil
 }
 
 func strategyCreateConfirmationReply(text string) bool {
@@ -1721,8 +1631,25 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		}
 		return "To create a strategy, I need a strategy name. You can say: create a strategy called 'Trend A'."
 	}
+	_, patch, warnings, cfgErr := strategyCreateConfigFromSession(session, lang)
+	if cfgErr != nil {
+		a.saveSkillSession(userID, session)
+		if lang == "zh" {
+			return "创建策略失败：" + cfgErr.Error()
+		}
+		return "That strategy config could not be prepared: " + cfgErr.Error()
+	}
+
 	setSkillDAGStep(&session, "execute_create")
-	args := map[string]any{"action": "create", "name": name, "lang": "zh"}
+	args := map[string]any{
+		"action":               "create",
+		"name":                 name,
+		"lang":                 defaultIfEmpty(lang, "zh"),
+		"allow_clamped_update": true,
+	}
+	if len(patch) > 0 {
+		args["config"] = patch
+	}
 	raw, _ := json.Marshal(args)
 	resp := a.toolManageStrategy(storeUserID, string(raw))
 	if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
@@ -1735,9 +1662,17 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 	a.clearSkillSession(userID)
 	a.rememberReferencesFromToolResult(userID, "manage_strategy", resp)
 	if lang == "zh" {
-		return fmt.Sprintf("已创建策略“%s”。默认配置已就绪，你后续可以继续让我帮你改细节。", name)
+		reply := fmt.Sprintf("已创建策略“%s”，并已按你的需求生成配置。", name)
+		if len(warnings) > 0 {
+			reply += "\n有些值超出安全范围，系统已自动收敛：\n- " + strings.Join(warnings, "\n- ")
+		}
+		return reply
 	}
-	return fmt.Sprintf("Created strategy %q with the default configuration.", name)
+	reply := fmt.Sprintf("Created strategy %q with a config generated from your requirements.", name)
+	if len(warnings) > 0 {
+		reply += "\nSome values were clamped to product safety limits:\n- " + strings.Join(warnings, "\n- ")
+	}
+	return reply
 }
 
 func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, text string, session skillSession, skillName, action string, options []traderSkillOption) (string, bool) {

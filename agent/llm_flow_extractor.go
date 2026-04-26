@@ -1,13 +1,10 @@
 package agent
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
-
-	"nofx/mcp"
 )
 
 type llmFlowExtractionTask struct {
@@ -63,77 +60,6 @@ Rules:
 	sections = append(sections, extraSections...)
 	sections = append(sections, fmt.Sprintf("User message: %s", text), fmt.Sprintf("Recent conversation:\n%s", recentConversationCtx))
 	return systemPrompt, strings.Join(sections, "\n")
-}
-
-func (a *Agent) extractSkillSessionFieldsWithLLM(ctx context.Context, userID int64, lang, text string, session skillSession) llmFlowExtractionResult {
-	if a == nil || a.aiClient == nil {
-		return llmFlowExtractionResult{}
-	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return llmFlowExtractionResult{}
-	}
-
-	flowSummary, fieldSpecs, currentValues, missingFields := skillSessionExtractionContext(session, lang)
-	recentConversationCtx := a.buildRecentConversationContext(userID, text)
-	state := a.getExecutionState(userID)
-	currentRefs := state.CurrentReferences
-	if currentRefs == nil {
-		currentRefs = a.semanticCurrentReferences(userID)
-	}
-	skillContext := buildCurrentSkillExecutionContext(lang, session)
-	systemPrompt, userPrompt := buildActiveFlowExtractionPrompt(
-		lang,
-		"skill_session",
-		flowSummary,
-		text,
-		recentConversationCtx,
-		currentRefs,
-		a.SnapshotManager(userID).List(),
-		[]string{
-			skillContext,
-			fmt.Sprintf("Allowed field spec JSON: %s", mustMarshalJSON(fieldSpecs)),
-			fmt.Sprintf("Current flow field values JSON: %s", mustMarshalJSON(currentValues)),
-			fmt.Sprintf("Current missing fields JSON: %s", mustMarshalJSON(missingFields)),
-		},
-	)
-	waitingHint := ""
-	if len(missingFields) > 0 {
-		waitingHint = fmt.Sprintf("\n- The flow is currently waiting for the user to provide: [%s]. Before deciding \"switch\", first check whether the user message can fill any of these fields — even without an explicit prefix or keyword.", strings.Join(missingFields, ", "))
-	}
-	systemPrompt += `
-- This is the structured continuation input for an active NOFXi task flow.
-- For "continue", return exactly one task for the active skill/action and place extracted field values in task.fields.
-- Only extract fields from the allowed field spec list.
-- Treat Allowed field spec JSON as the canonical output schema.
-- If a user-provided value does not fit one of those canonical keys, omit it; never create another key.
-- Use field descriptions plus current missing fields to infer the best canonical destination field for each user-provided value.
-- When the user supplies a credential, endpoint, name, toggle, or config value in natural language, map it to the most plausible allowed canonical field instead of echoing the user's label.
-- Do not return near-match keys, guessed aliases, or raw user labels as JSON keys.
-- Do not invent values that were not supported by the user message or strong context.
-- If the user explicitly says "you choose one for me", you may leave that field empty and explain it in reason.
-- If the active skill dependency summary says the current flow depends on other resource configs, treat dependency repair as continuation of the active flow instead of a new peer task.
-- When the user clearly wants to create a new dependency resource (e.g. "选（2）", "新建策略", "创建交易所"), set inline_sub_intent="create_sub_resource".
-- When the user clearly wants to edit/update an existing dependency resource (e.g. "编辑策略", "改一下模型"), set inline_sub_intent="edit_sub_resource".
-- For "switch", you may return tasks for the new request if they are clear enough.
-- If no field can be safely extracted for the current flow, return "switch" or "instant_reply", not fake fields.` + waitingHint + `
-
-Return JSON with this shape:
-{"intent":"continue|switch|cancel|instant_reply","target_snapshot_id":"","inline_sub_intent":"","tasks":[{"skill":"","action":"","fields":{}}],"reason":""}`
-
-	stageCtx, cancel := withPlannerStageTimeout(ctx, directReplyTimeout)
-	defer cancel()
-	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
-		Messages: []mcp.Message{
-			mcp.NewSystemMessage(systemPrompt),
-			mcp.NewUserMessage(userPrompt),
-		},
-		Ctx: stageCtx,
-	})
-	if err != nil {
-		return llmFlowExtractionResult{}
-	}
-	return filterLLMFlowExtractionFields(parseLLMFlowExtractionResult(raw), fieldSpecs)
 }
 
 func parseLLMFlowExtractionResult(raw string) llmFlowExtractionResult {
@@ -240,6 +166,23 @@ func filterLLMFlowExtractionFields(result llmFlowExtractionResult, specs []llmFl
 	return result
 }
 
+func formatConversationMissingFields(lang string, missingFields []string) string {
+	if len(missingFields) == 0 {
+		if lang == "zh" {
+			return "当前没有缺失槽位。"
+		}
+		return "There are currently no missing slots."
+	}
+	display := make([]string, 0, len(missingFields))
+	for _, field := range missingFields {
+		display = append(display, slotDisplayName(field, lang))
+	}
+	if lang == "zh" {
+		return "当前仍缺这些槽位：" + strings.Join(display, "、")
+	}
+	return "Current missing slots: " + strings.Join(display, ", ")
+}
+
 func skillSessionExtractionContext(session skillSession, lang string) (string, []llmFlowFieldSpec, map[string]string, []string) {
 	currentStep, _ := currentSkillDAGStep(session)
 	fieldSpecs := allowedFieldSpecsForSkillSession(session, lang)
@@ -308,6 +251,13 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 		add(&out, "is_cross_margin", displayCatalogFieldName("is_cross_margin", lang), false)
 		add(&out, "show_in_competition", displayCatalogFieldName("show_in_competition", lang), false)
 	case "strategy_management":
+		if session.Action == "create" || session.Action == "update_config" {
+			add(&out, "config_patch", "Partial StrategyConfig JSON patch inferred from the user's strategy intent. Use this for strategy requirements such as target coins, trend style, short/long bias, indicators, risk, timeframes, and prompt sections.", false)
+		}
+		if session.Action == "update_prompt" {
+			add(&out, "prompt", "Full strategy prompt text to write into the strategy custom prompt.", false)
+			add(&out, "custom_prompt", strategyConfigFieldDisplayName("custom_prompt", lang), false)
+		}
 		if session.Action == "update_config" {
 			add(&out, "config_field", strategyConfigFieldDisplayName("config_field", lang), false)
 			add(&out, "config_value", strategyConfigFieldDisplayName("config_value", lang), false)
@@ -403,17 +353,17 @@ func missingFieldKeysForSkillSession(session skillSession) []string {
 			if session.Action == "update_bindings" || session.Action == "configure_strategy" || session.Action == "configure_exchange" || session.Action == "configure_model" {
 				switch session.Action {
 				case "configure_strategy":
-					if fieldValue(session, "strategy_id") == "" && fieldValue(session, "strategy_name") == "" {
+					if fieldValue(session, "strategy_id") == "" {
 						missing = append(missing, "strategy_name")
 					}
 					break
 				case "configure_exchange":
-					if fieldValue(session, "exchange_id") == "" && fieldValue(session, "exchange_name") == "" {
+					if fieldValue(session, "exchange_id") == "" {
 						missing = append(missing, "exchange_name")
 					}
 					break
 				case "configure_model":
-					if fieldValue(session, "model_id") == "" && fieldValue(session, "model_name") == "" {
+					if fieldValue(session, "model_id") == "" {
 						missing = append(missing, "model_name")
 					}
 					break
@@ -434,13 +384,13 @@ func missingFieldKeysForSkillSession(session skillSession) []string {
 			if fieldValue(session, "name") == "" {
 				missing = append(missing, "name")
 			}
-			if fieldValue(session, "exchange_id") == "" && fieldValue(session, "exchange_name") == "" {
+			if fieldValue(session, "exchange_id") == "" {
 				missing = append(missing, "exchange_name")
 			}
-			if fieldValue(session, "model_id") == "" && fieldValue(session, "model_name") == "" {
+			if fieldValue(session, "model_id") == "" {
 				missing = append(missing, "model_name")
 			}
-			if fieldValue(session, "strategy_id") == "" && fieldValue(session, "strategy_name") == "" {
+			if fieldValue(session, "strategy_id") == "" {
 				missing = append(missing, "strategy_name")
 			}
 		}
@@ -449,16 +399,29 @@ func missingFieldKeysForSkillSession(session skillSession) []string {
 			missing = append(missing, "target_ref")
 		}
 		switch session.Action {
+		case "update_name":
+			if fieldValue(session, "name") == "" {
+				missing = append(missing, "name")
+			}
+		case "update_prompt":
+			if fieldValue(session, "prompt") == "" && fieldValue(session, "custom_prompt") == "" {
+				missing = append(missing, "prompt")
+			}
 		case "update_config":
+			if fieldValue(session, "config_patch") != "" {
+				break
+			}
 			if fieldValue(session, "config_field") == "" {
 				missing = append(missing, "config_field")
 			} else if fieldValue(session, "config_value") == "" {
 				missing = append(missing, "config_value")
 			}
-		default:
+		case "create":
 			if fieldValue(session, "name") == "" {
 				missing = append(missing, "name")
 			}
+		default:
+			missing = append(missing, "update_field")
 		}
 	}
 	sort.Strings(missing)

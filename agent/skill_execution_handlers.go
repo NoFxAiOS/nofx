@@ -41,56 +41,6 @@ func clearGeneratedDraftConfirmation(session *skillSession, keys ...string) {
 	}
 }
 
-func parseStandaloneInteger(text string) (int, bool) {
-	return 0, false
-}
-
-func parseStandaloneFloat(text string) (float64, bool) {
-	return 0, false
-}
-
-func parseEnabledValue(text string) (bool, bool) {
-	return false, false
-}
-
-func parseFlagValue(text string, keywords []string) (bool, bool) {
-	return false, false
-}
-
-func parseScanIntervalMinutes(text string) (int, bool) {
-	return 0, false
-}
-
-type entityFieldPatch struct {
-	Field string
-	Value string
-}
-
-func entityFieldPatchesFromCatalog(catalog []entityFieldMeta, values map[string]string) []entityFieldPatch {
-	patches := make([]entityFieldPatch, 0, len(values))
-	for _, meta := range catalog {
-		value := strings.TrimSpace(values[meta.Key])
-		if value == "" {
-			continue
-		}
-		patches = append(patches, entityFieldPatch{Field: meta.Key, Value: value})
-	}
-	return patches
-}
-
-func fieldMetaByKey(catalog []entityFieldMeta, key string) (entityFieldMeta, bool) {
-	for _, meta := range catalog {
-		if meta.Key == key {
-			return meta, true
-		}
-	}
-	return entityFieldMeta{}, false
-}
-
-func parseFieldValueFromMeta(text string, meta entityFieldMeta) (string, bool) {
-	return "", false
-}
-
 func detectCatalogField(text string, catalog []entityFieldMeta) string {
 	lower := strings.ToLower(strings.TrimSpace(text))
 	if lower == "" {
@@ -118,31 +68,6 @@ func detectCatalogField(text string, catalog []entityFieldMeta) string {
 		}
 	}
 	return bestKey
-}
-
-func looksLikeBareFieldSelection(text string, keywords []string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return false
-	}
-	trimNoise := func(s string) string {
-		s = strings.TrimSpace(s)
-		for _, prefix := range []string{"改", "改一下", "改下", "修改", "更新", "设置", "设成", "设为", "change", "update", "set"} {
-			s = strings.TrimSpace(strings.TrimPrefix(s, prefix))
-		}
-		for _, suffix := range []string{"呢", "吧", "呀", "一下", "这个", "字段", "配置"} {
-			s = strings.TrimSpace(strings.TrimSuffix(s, suffix))
-		}
-		return strings.Trim(s, "“”\"'：:，,。.;；")
-	}
-	normalizedText := trimNoise(lower)
-	for _, keyword := range keywords {
-		normalizedKeyword := trimNoise(strings.ToLower(keyword))
-		if normalizedKeyword != "" && normalizedText == normalizedKeyword {
-			return true
-		}
-	}
-	return false
 }
 
 func displayCatalogFieldName(field, lang string) string {
@@ -1178,21 +1103,6 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		return fmt.Errorf("unsupported strategy config field: %s", field)
 	}
 	return nil
-}
-
-func extractLabeledFloat(text string, labels []string) (float64, bool) {
-	lower := strings.ToLower(text)
-	for _, label := range labels {
-		idx := strings.Index(lower, strings.ToLower(label))
-		if idx < 0 {
-			continue
-		}
-		sub := text[idx+len(label):]
-		if value, ok := parseStandaloneFloat(sub); ok {
-			return value, true
-		}
-	}
-	return 0, false
 }
 
 func parseSourceTypeValue(text string) string {
@@ -2503,7 +2413,7 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 			return "已删除策略。"
 		}
 		return "Deleted strategy."
-	case "update", "update_name", "update_config", "update_prompt":
+	case "update_name", "update_config", "update_prompt":
 		if session.Action == "update_prompt" {
 			return a.executeStrategyPromptUpdate(storeUserID, userID, lang, text, session)
 		}
@@ -2542,6 +2452,12 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 			return fmt.Sprintf("已将策略改名为“%s”。", newName)
 		}
 		return fmt.Sprintf("Renamed strategy to %q.", newName)
+	case "update":
+		a.clearSkillSession(userID)
+		if lang == "zh" {
+			return "我需要先明确你要改策略的哪一部分：名称、提示词，还是策略参数。"
+		}
+		return "I need to know which part of the strategy to update: name, prompt, or config."
 	default:
 		return ""
 	}
@@ -2645,6 +2561,37 @@ func (a *Agent) executeStrategyConfigUpdate(storeUserID string, userID int64, la
 			return "我这边暂时没读到这份策略：" + err.Error()
 		}
 		return "I could not load that strategy just now: " + err.Error()
+	}
+
+	if patchRaw := strings.TrimSpace(fieldValue(session, strategyCreateConfigPatchField)); patchRaw != "" {
+		var patch map[string]any
+		if err := json.Unmarshal([]byte(patchRaw), &patch); err != nil {
+			setSkillDAGStep(&session, "resolve_config_field")
+			a.saveSkillSession(userID, session)
+			if lang == "zh" {
+				return "策略配置 patch 不是合法 JSON：" + err.Error()
+			}
+			return "The strategy config patch is not valid JSON: " + err.Error()
+		}
+		merged, err := store.MergeStrategyConfig(cfg, patch)
+		if err != nil {
+			setSkillDAGStep(&session, "resolve_config_field")
+			a.saveSkillSession(userID, session)
+			if lang == "zh" {
+				return "策略配置 patch 无法应用：" + err.Error()
+			}
+			return "The strategy config patch could not be applied: " + err.Error()
+		}
+		beforeClamp := merged
+		merged.ClampLimits()
+		msgZH := "已更新策略配置。"
+		msgEN := "Updated strategy config."
+		setSkillDAGStep(&session, "apply_field_update")
+		if warnings := store.StrategyClampWarnings(beforeClamp, merged, lang); len(warnings) > 0 {
+			return a.deferStrategyRiskControlledUpdate(userID, lang, &session, merged, warnings, msgZH, msgEN)
+		}
+		setSkillDAGStep(&session, "execute_update")
+		return a.persistStrategyConfigUpdate(storeUserID, userID, lang, strategy, merged, msgZH, msgEN)
 	}
 
 	if generatedDraftRequiresConfirmation(session) && fieldValue(session, "config_field") == "" && fieldValue(session, "config_value") == "" {

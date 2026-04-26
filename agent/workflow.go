@@ -175,37 +175,6 @@ func supportedWorkflowSkill(skill, action string) bool {
 	return false
 }
 
-func (a *Agent) tryWorkflowIntent(ctx context.Context, storeUserID string, userID int64, lang, text string, onEvent func(event, data string)) (string, bool, error) {
-	if session := a.getWorkflowSession(userID); hasActiveWorkflowSession(session) {
-		return a.handleWorkflowSession(ctx, storeUserID, userID, lang, text, session, onEvent)
-	}
-
-	decomposition, err := a.decomposeWorkflowIntent(ctx, userID, lang, text)
-	if err != nil || len(decomposition.Tasks) <= 1 {
-		return "", false, err
-	}
-	session := WorkflowSession{
-		UserID:          userID,
-		OriginalRequest: text,
-		Tasks:           decomposition.Tasks,
-	}
-	a.saveWorkflowSession(userID, session)
-	return a.handleWorkflowSession(ctx, storeUserID, userID, lang, text, session, onEvent)
-}
-
-func (a *Agent) executeWorkflowDecomposition(ctx context.Context, storeUserID string, userID int64, lang, text string, decomposition workflowDecomposition, onEvent func(event, data string)) (string, bool, error) {
-	if len(decomposition.Tasks) <= 1 {
-		return "", false, nil
-	}
-	session := WorkflowSession{
-		UserID:          userID,
-		OriginalRequest: text,
-		Tasks:           decomposition.Tasks,
-	}
-	a.saveWorkflowSession(userID, session)
-	return a.handleWorkflowSession(ctx, storeUserID, userID, lang, text, session, onEvent)
-}
-
 func (a *Agent) handleWorkflowSession(ctx context.Context, storeUserID string, userID int64, lang, text string, session WorkflowSession, onEvent func(event, data string)) (string, bool, error) {
 	if isExplicitFlowAbort(text) {
 		a.clearSkillSession(userID)

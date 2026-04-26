@@ -92,6 +92,7 @@ Rules:
 - extracted_data should include any concrete facts from the user's message.
 - When an active session exposes allowed_field_spec_json, extracted_data must use only those canonical keys. Never output aliases, translated labels, or raw user wording as keys.
 - If the user clearly means a bulk destructive operation like "删除所有策略" or "全部删除策略", put the intent signal into extracted_data too. Example: {"bulk_scope":"all"}.
+- For strategy changes, do not use the generic "strategy_management:update" action. Use "strategy_management:update_name" for renaming, "strategy_management:update_prompt" for prompt changes, or "strategy_management:update_config" for parameter/config changes. For strategy_management:update_config, extracted_data may include a StrategyConfig-shaped "config_patch".
 - reply_to_user should be concise and in the user's language.
 - For NEW_TASK, target_skill format must be "skill_name:action", for example "strategy_management:create".
 
@@ -417,6 +418,8 @@ Rules:
 - Ask naturally. Do not say raw slot names like target_ref unless the user explicitly asks for internal details.
 - If the user clearly means a bulk destructive operation like "删除所有策略", "全部删除策略", "all strategies", set extracted_data to {"bulk_scope":"all"} and choose "execute_skill". Do not ask for target_ref.
 - If the user refers to a specific object from disclosed targets, set target_ref_id and target_ref_name when you can resolve it.
+- For trader bindings, exchange/model/strategy must resolve to an ID from Relevant disclosed resources before execution. Never invent a resource name or use a generic venue type like Binance/OKX as the bound exchange unless it appears as an actual disclosed resource.
+- For strategy_management:create or strategy_management:update_config, when the user describes strategy intent, output config_patch as a partial StrategyConfig JSON object instead of leaving the default template unchanged. Example: "BTC趋势做空" should set coin_source to static BTCUSDT and add prompt/risk/entry rules for BTC trend-following short bias.
 - If there are multiple targets and the user did not disambiguate, ask a natural question with the available names.
 - If the current user message answers a missing field directly, extract it and continue.
 - extracted_data must use only canonical keys from Allowed field spec JSON. Never output aliases, translated labels, or raw user wording as keys.
@@ -531,7 +534,7 @@ func activeToLegacySkillSession(s ActiveSkillSession) skillSession {
 		Fields: make(map[string]string),
 	}
 	for k, v := range s.CollectedFields {
-		str := strings.TrimSpace(fmt.Sprint(v))
+		str := activeFieldString(v)
 		if str == "" || str == "<nil>" {
 			continue
 		}
@@ -557,6 +560,23 @@ func activeToLegacySkillSession(s ActiveSkillSession) skillSession {
 		}
 	}
 	return legacy
+}
+
+func activeFieldString(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	case map[string]any, []any, map[string]string, []string:
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(raw))
+	default:
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
 }
 
 func activeSessionFromLegacy(base ActiveSkillSession, legacy skillSession) ActiveSkillSession {

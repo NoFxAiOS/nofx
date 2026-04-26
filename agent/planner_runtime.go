@@ -895,6 +895,9 @@ func (a *Agent) hasActiveSkillSession(userID int64) bool {
 }
 
 func (a *Agent) hasAnyActiveContext(userID int64) bool {
+	if _, ok := a.getActiveSkillSession(userID); ok {
+		return true
+	}
 	if a.hasActiveSkillSession(userID) {
 		return true
 	}
@@ -1285,6 +1288,9 @@ func (a *Agent) replyToActiveFlowInstantReply(ctx context.Context, userID int64,
 
 func (a *Agent) handoffFromActiveFlow(ctx context.Context, storeUserID string, userID int64, lang, text, targetSnapshotID string, onEvent func(event, data string)) (string, bool, error) {
 	if a.suspendAndTryRestoreSuspendedTask(userID, lang, text, targetSnapshotID) {
+		if a.aiClient != nil {
+			return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
+		}
 		return a.tryStatePriorityPath(ctx, storeUserID, userID, lang, text, onEvent)
 	}
 	if answer, ok, err := a.tryLLMIntentRoute(ctx, storeUserID, userID, lang, text, onEvent); ok || err != nil {
@@ -2451,15 +2457,13 @@ func isExplicitFlowAbort(text string) bool {
 func belongsToSkillDomain(skillName, text string) bool {
 	switch strings.TrimSpace(skillName) {
 	case "trader_management":
-		return hasExplicitCreateIntentForDomain(text, "trader") || detectTraderManagementIntent(text) || hasExplicitDiagnosisIntentForDomain(text, "trader")
+		return hasExplicitCreateIntentForDomain(text, "trader") || hasExplicitDiagnosisIntentForDomain(text, "trader")
 	case "strategy_management":
-		return detectStrategyManagementIntent(text) || hasExplicitDiagnosisIntentForDomain(text, "strategy")
+		return hasExplicitDiagnosisIntentForDomain(text, "strategy")
 	case "model_management":
-		return detectModelManagementIntent(text) ||
-			hasExplicitDiagnosisIntentForDomain(text, "model")
+		return hasExplicitDiagnosisIntentForDomain(text, "model")
 	case "exchange_management":
-		return detectExchangeManagementIntent(text) ||
-			hasExplicitDiagnosisIntentForDomain(text, "exchange")
+		return hasExplicitDiagnosisIntentForDomain(text, "exchange")
 	default:
 		return false
 	}
@@ -2474,10 +2478,6 @@ func looksLikeNewTopLevelIntent(text string) bool {
 		return true
 	}
 	if hasExplicitCreateIntentForDomain(text, "trader") ||
-		detectTraderManagementIntent(text) ||
-		detectExchangeManagementIntent(text) ||
-		detectModelManagementIntent(text) ||
-		detectStrategyManagementIntent(text) ||
 		hasExplicitDiagnosisIntentForDomain(text, "trader") ||
 		hasExplicitDiagnosisIntentForDomain(text, "exchange") ||
 		hasExplicitDiagnosisIntentForDomain(text, "model") ||

@@ -371,12 +371,116 @@ func TestBuildTraderCreateMissingPromptListsAllMissingSlots(t *testing.T) {
 	}
 }
 
-func TestPlannerContextModeFollowsRouterContextSwitch(t *testing.T) {
-	if got := plannerContextModeFromRouteDecision(llmSkillRouteDecision{ContextSwitch: true}); got != "fresh_context" {
-		t.Fatalf("expected fresh context mode, got %q", got)
+func TestTraderCreateRequiresResolvedResourceIDs(t *testing.T) {
+	session := skillSession{
+		Name:   "trader_management",
+		Action: "create",
+		Fields: map[string]string{
+			"name":          "凯茵",
+			"exchange_name": "Binance",
+			"model_name":    "deepseek",
+			"strategy_name": "BTC趋势做空",
+		},
 	}
-	if got := plannerContextModeFromRouteDecision(llmSkillRouteDecision{}); got != "" {
-		t.Fatalf("expected default context mode, got %q", got)
+
+	missing := missingFieldKeysForSkillSession(session)
+	for _, want := range []string{"exchange_name", "model_name", "strategy_name"} {
+		if !containsString(missing, want) {
+			t.Fatalf("expected unresolved %s to remain missing, got %v", want, missing)
+		}
+	}
+
+	active := ActiveSkillSession{
+		SkillName:  "trader_management",
+		ActionName: "create",
+		CollectedFields: map[string]any{
+			"name":          "凯茵",
+			"exchange_name": "Binance",
+			"model_name":    "deepseek",
+			"strategy_name": "BTC趋势做空",
+		},
+	}
+	activeMissing := missingRequiredFields(active)
+	for _, want := range []string{"exchange", "model", "strategy"} {
+		if !containsString(activeMissing, want) {
+			t.Fatalf("expected unresolved active slot %s to remain missing, got %v", want, activeMissing)
+		}
+	}
+}
+
+func TestStrategyCreateUsesConfigPatch(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-create-config-patch.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	patch := map[string]any{
+		"coin_source": map[string]any{
+			"source_type":  "static",
+			"static_coins": []any{"BTCUSDT"},
+			"use_ai500":    false,
+			"use_oi_low":   true,
+			"oi_low_limit": 1,
+		},
+		"risk_control": map[string]any{
+			"max_positions":  1,
+			"min_confidence": 80,
+		},
+		"prompt_sections": map[string]any{
+			"entry_standards": "只在 BTC 下跌趋势确认时考虑做空，禁止把做多作为主方向。",
+		},
+		"custom_prompt": "BTC 趋势做空策略：仅关注 BTCUSDT，趋势向下且反弹受阻时才考虑开空。",
+	}
+	rawPatch, _ := json.Marshal(patch)
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "create",
+		Fields: map[string]string{
+			"name":                         "BTC趋势做空",
+			strategyCreateConfigPatchField: string(rawPatch),
+		},
+	}
+
+	reply := a.handleStrategyCreateSkill("default", 1, "zh", "BTC趋势做空", session)
+	if !strings.Contains(reply, "已创建策略") {
+		t.Fatalf("expected created reply, got: %s", reply)
+	}
+
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	var created *store.Strategy
+	for _, strategy := range strategies {
+		if strategy.Name == "BTC趋势做空" {
+			created = strategy
+			break
+		}
+	}
+	if created == nil {
+		t.Fatalf("expected strategy to be created")
+	}
+
+	var cfg store.StrategyConfig
+	if err := json.Unmarshal([]byte(created.Config), &cfg); err != nil {
+		t.Fatalf("unmarshal config: %v", err)
+	}
+	if cfg.CoinSource.SourceType != "static" || len(cfg.CoinSource.StaticCoins) != 1 || cfg.CoinSource.StaticCoins[0] != "BTCUSDT" {
+		t.Fatalf("expected BTC static coin source, got %+v", cfg.CoinSource)
+	}
+	if cfg.CoinSource.UseAI500 {
+		t.Fatalf("expected AI500 disabled for explicit BTC strategy")
+	}
+	if !cfg.CoinSource.UseOILow {
+		t.Fatalf("expected OI low enabled for short-biased strategy")
+	}
+	if cfg.RiskControl.MaxPositions != 1 || cfg.RiskControl.MinConfidence != 80 {
+		t.Fatalf("expected risk patch to apply, got %+v", cfg.RiskControl)
+	}
+	if !strings.Contains(cfg.CustomPrompt, "BTC 趋势做空") || !strings.Contains(cfg.PromptSections.EntryStandards, "做空") {
+		t.Fatalf("expected prompt patch to apply, got custom=%q entry=%q", cfg.CustomPrompt, cfg.PromptSections.EntryStandards)
 	}
 }
 

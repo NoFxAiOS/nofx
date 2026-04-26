@@ -366,50 +366,6 @@ func (a *Agent) tryHardSkill(ctx context.Context, storeUserID string, userID int
 			return answer, true
 		}
 	}
-	if detectTraderManagementIntent(text) {
-		answer, handled := a.handleTraderManagementSkill(storeUserID, userID, lang, text, emptySession)
-		if handled {
-			a.recordSkillInteraction(userID, text, answer)
-			if onEvent != nil {
-				onEvent(StreamEventTool, "hard_skill:trader_management")
-				emitStreamText(onEvent, answer)
-			}
-			return answer, true
-		}
-	}
-	if detectExchangeManagementIntent(text) {
-		answer, handled := a.handleExchangeManagementSkill(storeUserID, userID, lang, text, emptySession)
-		if handled {
-			a.recordSkillInteraction(userID, text, answer)
-			if onEvent != nil {
-				onEvent(StreamEventTool, "hard_skill:exchange_management")
-				emitStreamText(onEvent, answer)
-			}
-			return answer, true
-		}
-	}
-	if detectModelManagementIntent(text) {
-		answer, handled := a.handleModelManagementSkill(storeUserID, userID, lang, text, emptySession)
-		if handled {
-			a.recordSkillInteraction(userID, text, answer)
-			if onEvent != nil {
-				onEvent(StreamEventTool, "hard_skill:model_management")
-				emitStreamText(onEvent, answer)
-			}
-			return answer, true
-		}
-	}
-	if detectStrategyManagementIntent(text) {
-		answer, handled := a.handleStrategyManagementSkill(storeUserID, userID, lang, text, emptySession)
-		if handled {
-			a.recordSkillInteraction(userID, text, answer)
-			if onEvent != nil {
-				onEvent(StreamEventTool, "hard_skill:strategy_management")
-				emitStreamText(onEvent, answer)
-			}
-			return answer, true
-		}
-	}
 	if hasExplicitDiagnosisIntentForDomain(text, "model") {
 		answer := a.handleModelDiagnosisSkill(storeUserID, lang, text)
 		a.recordSkillInteraction(userID, text, answer)
@@ -600,31 +556,6 @@ func renderSkillMissingLabels(lang string, missing []string) []string {
 		out = append(out, slotDisplayName(field, lang))
 	}
 	return out
-}
-
-func (a *Agent) fallbackTraderCreateConversation(storeUserID, lang, text string, session skillSession, availableResources map[string]any) skillConversationResult {
-	result := skillConversationResult{Extracted: map[string]string{}}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		result.Question = a.buildTraderCreateMissingPrompt(storeUserID, lang, session, availableResources)
-		return result
-	}
-	if isCancelSkillReply(text) {
-		result.Cancel = true
-		return result
-	}
-	probe := session
-	for k, v := range result.Extracted {
-		setField(&probe, k, v)
-	}
-	a.hydrateCreateTraderSlotReferences(storeUserID, &probe)
-	if missing := missingFieldKeysForSkillSession(probe); len(missing) > 0 {
-		result.Question = a.buildTraderCreateMissingPrompt(storeUserID, lang, probe, a.buildTraderCreateConversationResources(storeUserID, probe))
-		return result
-	}
-	result.Ready = true
-	result.Question = formatTraderCreateDraftSummary(lang, probe)
-	return result
 }
 
 func (a *Agent) buildTraderCreateMissingPrompt(storeUserID, lang string, session skillSession, availableResources map[string]any) string {

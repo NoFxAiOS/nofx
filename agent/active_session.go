@@ -10,16 +10,16 @@ import (
 // ActiveSkillSession is the minimal session for the central brain architecture.
 // It replaces the old skillSession + ExecutionState combo for management skill flows.
 type ActiveSkillSession struct {
-	SessionID       string            `json:"session_id"`
-	UserID          int64             `json:"user_id"`
-	SkillName       string            `json:"skill_name"`
-	ActionName      string            `json:"action_name"`
-	LegacyPhase     string            `json:"legacy_phase,omitempty"`
-	Goal            string            `json:"goal,omitempty"`
-	PendingHint     *PendingHint      `json:"pending_hint,omitempty"`
-	CollectedFields map[string]any    `json:"collected_fields,omitempty"`
-	LocalHistory    []chatMessage     `json:"local_history,omitempty"`
-	UpdatedAt       string            `json:"updated_at"`
+	SessionID       string         `json:"session_id"`
+	UserID          int64          `json:"user_id"`
+	SkillName       string         `json:"skill_name"`
+	ActionName      string         `json:"action_name"`
+	LegacyPhase     string         `json:"legacy_phase,omitempty"`
+	Goal            string         `json:"goal,omitempty"`
+	PendingHint     *PendingHint   `json:"pending_hint,omitempty"`
+	CollectedFields map[string]any `json:"collected_fields,omitempty"`
+	LocalHistory    []chatMessage  `json:"local_history,omitempty"`
+	UpdatedAt       string         `json:"updated_at"`
 }
 
 type PendingHint struct {
@@ -207,6 +207,19 @@ func activeSessionHasField(s ActiveSkillSession, slot string) bool {
 			}
 		}
 		return false
+	case "exchange":
+		value, ok := s.CollectedFields["exchange_id"]
+		return ok && strings.TrimSpace(fmt.Sprint(value)) != ""
+	case "model":
+		for _, key := range []string{"model_id", "ai_model_id"} {
+			if value, ok := s.CollectedFields[key]; ok && strings.TrimSpace(fmt.Sprint(value)) != "" {
+				return true
+			}
+		}
+		return false
+	case "strategy":
+		value, ok := s.CollectedFields["strategy_id"]
+		return ok && strings.TrimSpace(fmt.Sprint(value)) != ""
 	default:
 		value, ok := s.CollectedFields[slot]
 		return ok && strings.TrimSpace(fmt.Sprint(value)) != ""

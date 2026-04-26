@@ -10,20 +10,10 @@ import (
 )
 
 type llmSkillRouteDecision struct {
-	Intent           string         `json:"intent,omitempty"`
-	TargetSnapshotID string         `json:"target_snapshot_id,omitempty"`
-	TargetSkill      string         `json:"target_skill,omitempty"`
-	ExtractedFields  map[string]any `json:"extracted_fields,omitempty"`
-	NeedPlannerHelp  bool           `json:"need_planner_help,omitempty"`
-	Route            string         `json:"route"`
-	Track            string         `json:"track,omitempty"`
-	Skill            string         `json:"skill,omitempty"`
-	Action           string         `json:"action,omitempty"`
-	Filter           string         `json:"filter,omitempty"`
-	InlineSubIntent  string         `json:"inline_sub_intent,omitempty"`
-	Tasks            []WorkflowTask `json:"tasks,omitempty"`
-	ContextSwitch    bool           `json:"context_switch,omitempty"`
-	Confidence       float64        `json:"confidence,omitempty"`
+	Intent           string  `json:"intent,omitempty"`
+	TargetSnapshotID string  `json:"target_snapshot_id,omitempty"`
+	ContextSwitch    bool    `json:"context_switch,omitempty"`
+	Confidence       float64 `json:"confidence,omitempty"`
 }
 
 func (a *Agent) tryLLMIntentRoute(ctx context.Context, storeUserID string, userID int64, lang, text string, onEvent func(event, data string)) (string, bool, error) {
@@ -46,29 +36,19 @@ func (a *Agent) tryLLMIntentRoute(ctx context.Context, storeUserID string, userI
 		if _, hasProposal := a.getPendingProposalSession(userID); hasProposal && !a.hasAnyActiveContext(userID) {
 			return a.handlePendingProposalResponse(ctx, storeUserID, userID, lang, text, onEvent)
 		}
-		if _, has := a.getActiveSkillSession(userID); has {
-			return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
-		}
-		if a.hasAnyActiveContext(userID) {
-			return a.tryStatePriorityPath(ctx, storeUserID, userID, lang, text, onEvent)
-		}
-		return "", false, nil
+		return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
 	case "cancel":
 		a.clearPendingProposalSession(userID)
 		if a.hasAnyActiveContext(userID) {
-			a.clearSkillSession(userID)
-			a.clearWorkflowSession(userID)
-			a.clearExecutionState(userID)
+			a.clearActiveSkillSession(userID)
+			a.clearAnyActiveContext(userID)
 			return a.maybeOfferParentTaskAfterCancel(userID, lang), true, nil
 		}
 		return "", false, nil
 	case "resume_snapshot":
 		a.clearPendingProposalSession(userID)
 		if a.tryRestoreSuspendedTaskAfterSwitch(userID, text, decision.TargetSnapshotID) {
-			if _, has := a.getActiveSkillSession(userID); has {
-				return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
-			}
-			return a.tryStatePriorityPath(ctx, storeUserID, userID, lang, text, onEvent)
+			return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
 		}
 		return "", false, nil
 	case "instant_reply":
@@ -82,126 +62,14 @@ func (a *Agent) tryLLMIntentRoute(ctx context.Context, storeUserID string, userI
 		return answer, true, err
 	}
 
-	interruptedActiveContext := false
 	if a.hasAnyActiveContext(userID) {
 		a.clearPendingProposalSession(userID)
 		if a.suspendAndTryRestoreSuspendedTask(userID, lang, text, decision.TargetSnapshotID) {
-			return a.tryStatePriorityPath(ctx, storeUserID, userID, lang, text, onEvent)
-		}
-		interruptedActiveContext = true
-	}
-
-	switch decision.Route {
-	case "workflow":
-		a.clearPendingProposalSession(userID)
-		answer, handled, execErr := a.executeWorkflowDecomposition(ctx, storeUserID, userID, lang, text, workflowDecomposition{Tasks: decision.Tasks}, onEvent)
-		if interruptedActiveContext {
-			answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
-		}
-		return answer, handled, execErr
-	case "skill":
-		a.clearPendingProposalSession(userID)
-		answer, handled, execErr := a.executeRoutedAtomicSkill(ctx, storeUserID, userID, lang, text, decision, onEvent)
-		if interruptedActiveContext {
-			answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
-		}
-		return answer, handled, execErr
-	case "planner":
-		a.clearPendingProposalSession(userID)
-		answer, execErr := a.runPlannedAgentWithContextMode(ctx, storeUserID, userID, lang, text, plannerContextModeFromRouteDecision(decision), onEvent)
-		if interruptedActiveContext {
-			answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
-		}
-		return answer, true, execErr
-	default:
-		if decision.NeedPlannerHelp || decision.Track == "planning_track" {
-			a.clearPendingProposalSession(userID)
-			answer, execErr := a.runPlannedAgentWithContextMode(ctx, storeUserID, userID, lang, text, plannerContextModeFromRouteDecision(decision), onEvent)
-			if interruptedActiveContext {
-				answer = a.maybeAppendResumePrompt(userID, lang, text, answer)
-			}
-			return answer, true, execErr
+			return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
 		}
 	}
 
-	return "", false, nil
-}
-
-func plannerContextModeFromRouteDecision(decision llmSkillRouteDecision) string {
-	if decision.ContextSwitch {
-		return "fresh_context"
-	}
-	return ""
-}
-
-func (a *Agent) executeRoutedAtomicSkill(ctx context.Context, storeUserID string, userID int64, lang, text string, decision llmSkillRouteDecision, onEvent func(event, data string)) (string, bool, error) {
-	outcome, ok := a.executeLLMSkillRoute(storeUserID, userID, lang, text, decision)
-	if !ok {
-		return "", false, nil
-	}
-
-	if isReadOnlyAtomicSkillAction(outcome.Skill, outcome.Action) {
-		answer := strings.TrimSpace(outcome.UserMessage)
-		if answer == "" {
-			return "", false, nil
-		}
-		a.recordSkillInteraction(userID, text, answer)
-		if onEvent != nil {
-			label := "llm_intent_plan"
-			if decision.Skill != "" {
-				label += ":" + decision.Skill
-			}
-			if decision.Action != "" {
-				label += ":" + decision.Action
-			}
-			onEvent(StreamEventTool, label)
-			emitStreamText(onEvent, answer)
-		}
-		return answer, true, nil
-	}
-
-	review, err := a.reviewTaskCompletion(ctx, userID, lang, text, outcome)
-	if err != nil {
-		if outcome.Status == skillOutcomeRecoverableError || outcome.Status == skillOutcomeFatalError || outcome.Status == skillOutcomeNotHandled {
-			return "", false, nil
-		}
-		review = taskReviewDecision{Route: "complete", Answer: outcome.UserMessage}
-	}
-	if review.Route == "replan" {
-		answer, planErr := a.runPlannedAgent(ctx, storeUserID, userID, lang, fmt.Sprintf("Original user request:\n%s\n\nPrevious skill outcome JSON:\n%s", text, mustMarshalJSON(outcome)), onEvent)
-		return answer, true, planErr
-	}
-
-	answer := strings.TrimSpace(review.Answer)
-	if answer == "" {
-		answer = strings.TrimSpace(outcome.UserMessage)
-	}
-	if answer == "" {
-		return "", false, nil
-	}
-
-	a.recordSkillInteraction(userID, text, answer)
-	if onEvent != nil {
-		label := "llm_intent_plan"
-		if decision.Skill != "" {
-			label += ":" + decision.Skill
-		}
-		if decision.Action != "" {
-			label += ":" + decision.Action
-		}
-		onEvent(StreamEventTool, label)
-		emitStreamText(onEvent, answer)
-	}
-	return answer, true, nil
-}
-
-func isReadOnlyAtomicSkillAction(skill, action string) bool {
-	action = strings.TrimSpace(strings.ToLower(action))
-	switch action {
-	case "query", "query_list", "query_detail", "query_running", "query_strategy_binding", "query_exchange_binding", "query_model_binding":
-		return true
-	}
-	return false
+	return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
 }
 
 func parseLLMSkillRouteDecision(raw string) (llmSkillRouteDecision, error) {
@@ -228,72 +96,11 @@ func parseLLMSkillRouteDecision(raw string) (llmSkillRouteDecision, error) {
 func normalizeLLMSkillRouteDecision(decision llmSkillRouteDecision) llmSkillRouteDecision {
 	decision.Intent = strings.TrimSpace(strings.ToLower(decision.Intent))
 	decision.TargetSnapshotID = strings.TrimSpace(decision.TargetSnapshotID)
-	decision.TargetSkill = strings.TrimSpace(strings.ToLower(decision.TargetSkill))
-	decision.Route = strings.TrimSpace(strings.ToLower(decision.Route))
-	decision.Track = strings.TrimSpace(strings.ToLower(decision.Track))
-	decision.Skill = strings.TrimSpace(strings.ToLower(decision.Skill))
-	decision.Filter = strings.TrimSpace(strings.ToLower(decision.Filter))
-	decision.Tasks = normalizeWorkflowDecomposition(workflowDecomposition{Tasks: decision.Tasks}).Tasks
 	if decision.Confidence < 0 {
 		decision.Confidence = 0
 	}
 	if decision.Confidence > 1 {
 		decision.Confidence = 1
-	}
-	if decision.Route == "" {
-		switch {
-		case len(decision.Tasks) > 1:
-			decision.Route = "workflow"
-		case decision.TargetSkill != "":
-			decision.Route = "skill"
-		case decision.Skill != "" || decision.Action != "":
-			decision.Route = "skill"
-		case decision.Track == "planning_track":
-			decision.Route = "planner"
-		}
-	}
-	if decision.Track == "" {
-		switch decision.Route {
-		case "skill", "workflow":
-			decision.Track = "fast_track"
-		case "planner":
-			decision.Track = "planning_track"
-		}
-	}
-	if decision.Intent == "" {
-		switch {
-		case decision.Route == "instant_reply":
-			decision.Intent = "instant_reply"
-		case decision.TargetSnapshotID != "" && decision.Route == "" && decision.Skill == "" && decision.Action == "" && len(decision.Tasks) == 0:
-			decision.Intent = "resume_snapshot"
-		case decision.Route != "" || decision.Track != "" || decision.Skill != "" || decision.Action != "" || decision.TargetSkill != "" || len(decision.Tasks) > 0:
-			decision.Intent = "start_new"
-		}
-	}
-	if decision.Skill == "" && decision.Action == "" && decision.TargetSkill != "" {
-		decision.Skill, decision.Action = parseTargetSkill(decision.TargetSkill)
-	}
-	if decision.Route == "" && decision.NeedPlannerHelp {
-		decision.Route = "planner"
-	}
-	if decision.Route == "workflow" {
-		decision.Skill = ""
-		decision.Action = ""
-		decision.Filter = ""
-		return decision
-	}
-	if decision.Route != "skill" {
-		decision.Action = ""
-		decision.Skill = ""
-		decision.Filter = ""
-		decision.Tasks = nil
-		return decision
-	}
-	decision.Tasks = nil
-	if decision.Action == "query" && decision.Filter == "running_only" && decision.Skill == "trader_management" {
-		decision.Action = "query_running"
-	} else {
-		decision.Action = normalizeAtomicSkillAction(decision.Skill, decision.Action)
 	}
 	return decision
 }
@@ -331,7 +138,6 @@ func (a *Agent) buildTopLevelRouterPrompt(userID int64, lang, text string) (stri
 	snapshotJSON, _ := json.Marshal(snapshots)
 
 	currentRefs := buildCurrentReferenceSummary(lang, a.semanticCurrentReferences(userID))
-	managementSummary := buildManagementSkillRoutingContextWithSession(lang, &activeSkill)
 	recentConversation := a.buildRecentConversationContext(userID, text)
 	if strings.TrimSpace(recentConversation) == "" {
 		recentConversation = "(empty)"
@@ -342,11 +148,11 @@ func (a *Agent) buildTopLevelRouterPrompt(userID int64, lang, text string) (stri
 		activeFlowSummary = "none"
 	}
 
-	systemPrompt := prependNOFXiAdvisorPreamble(`You are the lightweight intent planner for NOFXi.
+	systemPrompt := prependNOFXiAdvisorPreamble(`You are the lightweight topic router for NOFXi.
 Return JSON only.
 
-You are deciding what the current user turn should do at the top level.
-You must classify every message into exactly one of these intents before any execution layer takes over.
+Your only job is to decide whether the current user turn continues the current topic/state, starts a new topic, resumes a suspended topic, cancels the current topic, or is a direct conversational reply.
+Do not perform business intent recognition. Do not choose skills, actions, tasks, or fields. The central brain will do that after you return.
 
 Valid intents:
 - "continue_active": the user is still working on the current active flow
@@ -355,11 +161,6 @@ Valid intents:
 - "cancel": the user wants to cancel the current active flow
 - "instant_reply": the user is greeting, chatting, thanking, or asking for a direct explanation without changing task state
 
-Valid routes when intent=start_new:
-- "skill"
-- "workflow"
-- "planner"
-
 Rules:
 - Read the previous assistant reply carefully. The user's short answer may be replying to that exact proposal or question.
 - If Active flow summary includes a pending hint or waiting question, short replies like "1", "2", "A", "B", "确认", "需要", or "好的" usually mean the user is continuing that flow unless they clearly switch tasks.
@@ -367,47 +168,41 @@ Rules:
 - If the user clearly corrects the entity/domain, you must output "start_new", not "continue_active".
 - If the user explicitly refers to a suspended task like "刚才那个", "恢复刚才那个", choose "resume_snapshot" and fill target_snapshot_id.
 - If the user is only greeting, thanking, social chatting, or asking a concept question without changing task state, choose "instant_reply".
-- If the request is broad, ambiguous, or creative, you may choose route "planner".
-- If a single management or diagnosis skill can handle it directly, prefer route "skill".
-- If multiple dependent steps are needed, prefer route "workflow".
 - Set context_switch=true when the user is opening a new topic/task and prior current references or suspended snapshots should not be used to fill business fields. Set context_switch=false when the user intentionally relies on previous context.
 - Do not hallucinate snapshot ids; only use those disclosed in Suspended snapshots JSON.
 
 Return JSON with this exact shape:
-{"intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","target_snapshot_id":"","route":"skill|workflow|planner","track":"fast_track|planning_track","skill":"","action":"","target_skill":"","filter":"","tasks":[],"context_switch":false,"need_planner_help":false,"confidence":0.0}`)
+{"intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","target_snapshot_id":"","context_switch":false,"confidence":0.0}`)
 
 	if strings.TrimSpace(activeSkill.Name) != "" || hasActiveTask || hasPendingProposal {
-		systemPrompt = prependNOFXiAdvisorPreamble(`You are the one-pass semantic gateway for NOFXi.
+		systemPrompt = prependNOFXiAdvisorPreamble(`You are the one-pass topic gateway for NOFXi.
 Return JSON only.
 
-You are deciding whether the user is continuing the current active flow, switching to a new task, resuming a suspended snapshot, cancelling, or simply asking for a direct reply.
+Your only job is topic-state routing: continuing the active flow, switching to a new topic, resuming a suspended snapshot, cancelling, or giving a direct conversational reply.
+Do not perform business intent recognition. Do not choose skills, actions, tasks, or fields. The central brain will do that after you return.
 
 Rules:
 - Read the previous assistant reply carefully. The user's short answer may be replying to that exact proposal or question.
 - If Active flow summary includes a pending hint or waiting question, short replies like "1", "2", "A", "B", "确认", "需要", or "好的" usually mean the user is continuing that flow unless they clearly switch tasks.
 - Prefer "continue_active" when the user is plausibly answering the current active flow.
-- If the user asks a read-only management query while an active flow is open, output intent "start_new", route "skill", and the matching query action. For example, "现有策略有哪些" means strategy_management/query_list and must use the strategy query tool, not a freeform answer.
-- If the user starts a multi-step, multi-domain, batch, or condition-based management request while an active flow is open, output intent "start_new", route "workflow", and fill tasks exactly like the normal top-level router. Do not squeeze a complex new request into only the first skill/action.
+- If the user asks a read-only management query while an active flow is open, output intent "start_new"; the central brain will choose the query tool.
+- If the user starts a multi-step, multi-domain, batch, or condition-based management request while an active flow is open, output intent "start_new"; the central brain will decompose it.
 - If the user clearly corrects the entity/domain, you must output "start_new", not "continue_active".
 - Examples of forced switch: "不是交易员，是策略", "不是这个", "换个任务", "I mean the strategy, not the trader".
 - If the user refers to a suspended task and one snapshot clearly matches, use "resume_snapshot".
 - If the user cancels the current task, use "cancel".
 - If the user only greets, thanks, chats, or asks for explanation without changing state, use "instant_reply".
 - Short greetings or acknowledgements like "你好", "hi", "hello", "谢谢", "收到", "好的" should default to "instant_reply" unless they clearly contain task data.
-- If intent=start_new, keep the same business routing semantics as the normal router: use route "skill" for one atomic management action, route "workflow" for multiple dependent or independent management actions, and route "planner" for broad or ambiguous work.
-- You may set target_skill when intent=start_new and the next task is clear.
 - Do not hallucinate snapshot ids; only use those disclosed in Suspended snapshots JSON.
 
 Return JSON with this exact shape:
-{"intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","target_snapshot_id":"","route":"skill|workflow|planner","track":"fast_track|planning_track","skill":"","action":"","target_skill":"","filter":"","tasks":[],"context_switch":false,"extracted_fields":{},"need_planner_help":false,"reason":"","confidence":0.0}`)
+{"intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","target_snapshot_id":"","context_switch":false,"confidence":0.0}`)
 	}
 
-	userPrompt := fmt.Sprintf("Language: %s\nUser message: %s\n\nPrevious assistant reply:\n%s\n\nManagement skill summary:\n%s\n\nManagement domain primer:\n%s\n\nCurrent reference summary:\n%s\n\nActive flow summary:\n%s\n\nSuspended snapshots JSON:\n%s\n\nRecent conversation:\n%s\n",
+	userPrompt := fmt.Sprintf("Language: %s\nUser message: %s\n\nPrevious assistant reply:\n%s\n\nCurrent reference summary:\n%s\n\nActive flow summary:\n%s\n\nSuspended snapshots JSON:\n%s\n\nRecent conversation:\n%s\n",
 		lang,
 		text,
 		defaultIfEmpty(previousAssistantReply, "(empty)"),
-		defaultIfEmpty(managementSummary, "(empty)"),
-		defaultIfEmpty(buildManagementDomainPrimer(lang), "(empty)"),
 		currentRefs,
 		activeFlowSummary,
 		defaultIfEmpty(string(snapshotJSON), "[]"),
@@ -478,45 +273,6 @@ func countPendingWorkflowTasks(session WorkflowSession) int {
 		}
 	}
 	return count
-}
-
-func (a *Agent) executeLLMSkillRoute(storeUserID string, userID int64, lang, text string, decision llmSkillRouteDecision) (skillOutcome, bool) {
-	session := skillSession{Name: decision.Skill, Action: decision.Action, Phase: "collecting"}
-	applyExtractedFieldsToSkillSession(&session, decision.ExtractedFields, "llm_router")
-	return a.executeAtomicSkillTaskOutcomeWithSession(storeUserID, userID, lang, text, session, nil)
-}
-
-func applyExtractedFieldsToSkillSession(session *skillSession, values map[string]any, source string) {
-	if session == nil || len(values) == 0 {
-		return
-	}
-	ensureSkillFields(session)
-	for key, raw := range values {
-		value := strings.TrimSpace(fmt.Sprint(raw))
-		if value == "" {
-			continue
-		}
-		switch key {
-		case "target_ref_id":
-			if session.TargetRef == nil {
-				session.TargetRef = &EntityReference{}
-			}
-			session.TargetRef.ID = value
-			if source != "" {
-				session.TargetRef.Source = source
-			}
-		case "target_ref_name":
-			if session.TargetRef == nil {
-				session.TargetRef = &EntityReference{}
-			}
-			session.TargetRef.Name = value
-			if source != "" {
-				session.TargetRef.Source = source
-			}
-		default:
-			setField(session, key, value)
-		}
-	}
 }
 
 func buildCurrentReferenceSummary(lang string, refs *CurrentReferences) string {
@@ -606,11 +362,18 @@ func hasAnyActiveContext(a *Agent, userID int64) bool {
 	if a == nil {
 		return false
 	}
+	if _, ok := a.getActiveSkillSession(userID); ok {
+		return true
+	}
 	return a.hasActiveSkillSession(userID) || hasActiveWorkflowSession(a.getWorkflowSession(userID)) || hasActiveExecutionState(a.getExecutionState(userID))
 }
 
 func (a *Agent) clearAnyActiveContext(userID int64) bool {
 	cleared := false
+	if _, ok := a.getActiveSkillSession(userID); ok {
+		a.clearActiveSkillSession(userID)
+		cleared = true
+	}
 	if a.hasActiveSkillSession(userID) {
 		a.clearSkillSession(userID)
 		cleared = true

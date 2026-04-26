@@ -83,3 +83,12 @@ func TestEvaluateProtectionOwnership_FallbackStopOnlyWhenProfitNotRequired(t *te
 		t.Fatalf("expected fallback-only verified when profit owner not required, got %+v", state)
 	}
 }
+
+func TestEvaluateProtectionOwnership_FallbackIsReportedAsVisibleOwnerWhenPrimaryStopMissing(t *testing.T) {
+	plan := &ProtectionPlan{NeedsStopLoss: true, StopLossPrice: 98, FallbackMaxLossPrice: 95}
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95}}
+	state := evaluateProtectionOwnership(orders, "LONG", plan, false, false)
+	if !state.Verified || state.StopOwner != "fallback" || state.MissingStop {
+		t.Fatalf("expected fallback to satisfy stop ownership when primary stop missing, got %+v", state)
+	}
+}

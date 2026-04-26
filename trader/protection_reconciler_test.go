@@ -103,7 +103,7 @@ func (f *fakeReconcileTrader) CancelTakeProfitOrders(symbol string) error {
 	return nil
 }
 
-func TestDetectMissingProtectionRequiresFallbackMaxLossStop(t *testing.T) {
+func TestDetectMissingProtectionDoesNotRequireFallbackInAdditionToPrimaryStop(t *testing.T) {
 	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98}}
 	plan := &ProtectionPlan{
 		NeedsStopLoss:        true,
@@ -112,19 +112,16 @@ func TestDetectMissingProtectionRequiresFallbackMaxLossStop(t *testing.T) {
 	}
 
 	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
-	if !missingSL {
-		t.Fatal("expected missingSL when fallback max-loss stop is absent")
+	if missingSL {
+		t.Fatal("did not expect missingSL when primary stop is already present")
 	}
 	if missingTP {
 		t.Fatal("did not expect take-profit to be missing")
 	}
 }
 
-func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPresent(t *testing.T) {
-	orders := []OpenOrder{
-		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
-		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
-	}
+func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPrimaryStopMissing(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95}}
 	plan := &ProtectionPlan{
 		NeedsStopLoss:        true,
 		StopLossPrice:        98,
@@ -133,7 +130,7 @@ func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPresent(t *testing
 
 	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
 	if missingSL || missingTP {
-		t.Fatalf("expected stop protections satisfied, got missingSL=%v missingTP=%v", missingSL, missingTP)
+		t.Fatalf("expected fallback stop to satisfy stop protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
 }
 

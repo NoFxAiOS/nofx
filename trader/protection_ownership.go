@@ -54,10 +54,8 @@ func evaluateProtectionOwnership(openOrders []OpenOrder, positionSide string, pl
 
 	if breakEvenArmed {
 		state.StopOwner = "breakeven"
-	} else if hasVisiblePlanStopOwner(openOrders, positionSide, plan) {
-		state.StopOwner = visiblePlanStopOwner(plan)
-	} else if plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice) {
-		state.StopOwner = "fallback"
+	} else {
+		state.StopOwner = visiblePlanStopOwnerFromOrders(openOrders, positionSide, plan)
 	}
 
 	if nativeTrailingArmed {
@@ -96,22 +94,22 @@ func planRequiresProfitOwner(plan *ProtectionPlan) bool {
 	return len(plan.TakeProfitOrders) > 0 || (plan.NeedsTakeProfit && plan.TakeProfitPrice > 0)
 }
 
-func hasVisiblePlanStopOwner(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) bool {
+func visiblePlanStopOwnerFromOrders(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) string {
 	if plan == nil {
-		return false
+		return ""
 	}
 	for _, target := range plan.StopLossOrders {
 		if hasMatchingProtectionOrder(openOrders, positionSide, false, target.Price) {
-			return true
+			return "ladder_sl"
 		}
 	}
 	if plan.NeedsStopLoss && plan.StopLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.StopLossPrice) {
-		return true
+		return "full_sl"
 	}
 	if plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice) {
-		return true
+		return "fallback"
 	}
-	return false
+	return ""
 }
 
 func hasVisiblePlanProfitOwner(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) bool {

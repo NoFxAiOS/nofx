@@ -495,11 +495,9 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 			}
 		}
 	} else if plan.NeedsStopLoss {
-		missingSL = !fullStopSatisfied
-	}
-
-	if !missingSL && plan.FallbackMaxLossPrice > 0 && !fallbackSatisfied {
-		missingSL = true
+		// For held positions, a visible fallback max-loss stop still counts as protected stop ownership
+		// even when the tighter primary stop is absent or temporarily non-materializable on exchange.
+		missingSL = !(fullStopSatisfied || fallbackSatisfied)
 	}
 
 	// Same rule for take-profit: when ladder TP orders exist, require each configured tier explicitly.

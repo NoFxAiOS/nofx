@@ -51,7 +51,7 @@ type AccountInfo struct {
 // CandidateCoin candidate coin (from coin pool)
 type CandidateCoin struct {
 	Symbol  string   `json:"symbol"`
-	Sources []string `json:"sources"` // Sources: "ai500" and/or "oi_top"
+	Sources []string `json:"sources"`         // Sources: "ai500" and/or "oi_top"
 	Score   float64  `json:"score,omitempty"` // Relevance score from screener
 }
 
@@ -133,9 +133,22 @@ type Decision struct {
 	OrderID    string  `json:"order_id,omitempty"`    // Order ID (for cancel)
 
 	// Common parameters
-	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
-	RiskUSD    float64 `json:"risk_usd,omitempty"`   // Maximum USD risk
-	Reasoning  string  `json:"reasoning"`
+	Confidence   int             `json:"confidence,omitempty"` // Confidence level (0-100)
+	RiskUSD      float64         `json:"risk_usd,omitempty"`   // Maximum USD risk
+	Regime       string          `json:"regime,omitempty"`
+	SetupType    string          `json:"setup_type,omitempty"`
+	QualityScore *AIQualityScore `json:"quality_score,omitempty"`
+	Reasoning    string          `json:"reasoning"`
+}
+
+type AIQualityScore struct {
+	Total              int `json:"total,omitempty"`
+	TrendAlignment     int `json:"trend_alignment,omitempty"`
+	StructureLocation  int `json:"structure_location,omitempty"`
+	SRFibQuality       int `json:"sr_fib_quality,omitempty"`
+	DerivativesContext int `json:"derivatives_context,omitempty"`
+	TriggerQuality     int `json:"trigger_quality,omitempty"`
+	NetRR              int `json:"net_rr,omitempty"`
 }
 
 type AIEntryProtectionRationale struct {
@@ -153,9 +166,9 @@ type AIEntryProtectionRationale struct {
 // AIStructuralKeyLevel represents a structural level that influenced protection placement
 type AIStructuralKeyLevel struct {
 	Price     float64 `json:"price"`
-	Type      string  `json:"type"`      // "support" or "resistance"
+	Type      string  `json:"type"` // "support" or "resistance"
 	Timeframe string  `json:"timeframe"`
-	Source    string  `json:"source"`    // "auto_detected", "fibonacci_0.618", etc.
+	Source    string  `json:"source"`   // "auto_detected", "fibonacci_0.618", etc.
 	UsedFor   string  `json:"used_for"` // "tp1", "tp2", "stop_loss", "invalidation"
 }
 
@@ -185,15 +198,15 @@ func (k *AIEntryKeyLevels) UnmarshalJSON(data []byte) error {
 	type alias AIEntryKeyLevels
 	var aux struct {
 		alias
-		SupportLevels        []float64             `json:"support_levels,omitempty"`
-		ResistanceLevels     []float64             `json:"resistance_levels,omitempty"`
-		SupportLevelObjects  []aiEntryKeyLevelObject `json:"support,omitempty"`
+		SupportLevels          []float64               `json:"support_levels,omitempty"`
+		ResistanceLevels       []float64               `json:"resistance_levels,omitempty"`
+		SupportLevelObjects    []aiEntryKeyLevelObject `json:"support,omitempty"`
 		ResistanceLevelObjects []aiEntryKeyLevelObject `json:"resistance,omitempty"`
-		FibLevels            []float64             `json:"fib_levels,omitempty"`
-		FibonacciLevels      []float64             `json:"fibonacci_levels,omitempty"`
-		SwingHigh            float64               `json:"swing_high,omitempty"`
-		SwingLow             float64               `json:"swing_low,omitempty"`
-		Fibonacci            *AIEntryFibonacci     `json:"fibonacci,omitempty"`
+		FibLevels              []float64               `json:"fib_levels,omitempty"`
+		FibonacciLevels        []float64               `json:"fibonacci_levels,omitempty"`
+		SwingHigh              float64                 `json:"swing_high,omitempty"`
+		SwingLow               float64                 `json:"swing_low,omitempty"`
+		Fibonacci              *AIEntryFibonacci       `json:"fibonacci,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		var raw struct {
@@ -302,11 +315,11 @@ func (v *AIEntryVolatilityAdjustment) UnmarshalJSON(data []byte) error {
 	type alias AIEntryVolatilityAdjustment
 	var aux struct {
 		alias
-		ATRPct        float64 `json:"atr_pct,omitempty"`
-		ATR14         float64 `json:"atr14,omitempty"`
+		ATRPct         float64 `json:"atr_pct,omitempty"`
+		ATR14          float64 `json:"atr14,omitempty"`
 		BollingerWidth float64 `json:"bollinger_width_pct,omitempty"`
-		Regime        string  `json:"regime,omitempty"`
-		BufferPct     float64 `json:"buffer_pct,omitempty"`
+		Regime         string  `json:"regime,omitempty"`
+		BufferPct      float64 `json:"buffer_pct,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -412,12 +425,12 @@ func (d *AIEntryDerivativesContext) UnmarshalJSON(data []byte) error {
 	type alias AIEntryDerivativesContext
 	var aux struct {
 		alias
-		OpenInterest      float64 `json:"open_interest,omitempty"`
-		FundingRate       float64 `json:"funding_rate,omitempty"`
-		BasisBps          float64 `json:"basis_bps,omitempty"`
-		DepthImbalance    float64 `json:"depth_imbalance,omitempty"`
-		BidNotionalTop5   float64 `json:"bid_notional_top5,omitempty"`
-		AskNotionalTop5   float64 `json:"ask_notional_top5,omitempty"`
+		OpenInterest    float64 `json:"open_interest,omitempty"`
+		FundingRate     float64 `json:"funding_rate,omitempty"`
+		BasisBps        float64 `json:"basis_bps,omitempty"`
+		DepthImbalance  float64 `json:"depth_imbalance,omitempty"`
+		BidNotionalTop5 float64 `json:"bid_notional_top5,omitempty"`
+		AskNotionalTop5 float64 `json:"ask_notional_top5,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err

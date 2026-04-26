@@ -115,6 +115,22 @@ type DecisionActionReviewContext struct {
 	Protection           *DecisionActionProtectionAlignment  `json:"protection,omitempty"`
 	Control              *DecisionActionControlOutcome       `json:"control,omitempty"`
 	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
+	QualityGate          *DecisionActionQualityGate          `json:"quality_gate,omitempty"`
+}
+
+// DecisionActionQualityGate stores record-only v2 trade-quality checks. During
+// shadow rollout this does not block orders; it lets us measure how often AI
+// decisions would fail stricter reliability rules before hard enforcement.
+type DecisionActionQualityGate struct {
+	ShadowMode   bool     `json:"shadow_mode,omitempty"`
+	Decision     string   `json:"decision,omitempty"`
+	Passed       bool     `json:"passed"`
+	FailedChecks []string `json:"failed_checks,omitempty"`
+	Regime       string   `json:"regime,omitempty"`
+	SetupType    string   `json:"setup_type,omitempty"`
+	Confidence   int      `json:"confidence,omitempty"`
+	QualityTotal int      `json:"quality_total,omitempty"`
+	NetRR        float64  `json:"net_rr,omitempty"`
 }
 
 // DecisionActionTimeframeContext stores compact structural timeframe evidence for entry audit.

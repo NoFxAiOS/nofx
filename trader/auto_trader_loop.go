@@ -222,6 +222,7 @@ func (at *AutoTrader) runCycle() error {
 		record.ExecutionLog = append(record.ExecutionLog,
 			fmt.Sprintf("AI call duration: %d ms", record.AIRequestDurationMs))
 	}
+	at.attachMarketContextV2Review(record, ctx)
 
 	// Save chain of thought, decisions, and input prompt even if there's an error (for debugging)
 	if aiDecision != nil {
@@ -429,6 +430,7 @@ func (at *AutoTrader) runCycle() error {
 
 		if actionRecord.ReviewContext != nil {
 			actionRecord.ReviewContext.Control = buildRuntimePolicyControlOutcome(policy)
+			actionRecord.ReviewContext.QualityGate = buildShadowQualityGate(&d)
 		}
 
 		if policy.Blocked {

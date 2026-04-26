@@ -705,12 +705,16 @@ func (t *OKXTrader) setStopLossWithTag(symbol string, positionSide string, quant
 		"tag":         okxReasonTag(reasonTag),
 	}
 
-	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
+	resp, err := t.doRequest("POST", okxAlgoOrderPath, body)
 	if err != nil {
 		return fmt.Errorf("failed to set stop loss: %w", err)
 	}
+	algoID, err := parseOKXAlgoOrderResponse(resp, "stop loss")
+	if err != nil {
+		return err
+	}
 
-	logger.Infof("  Stop loss price set: %.4f", stopPrice)
+	logger.Infof("  Stop loss price set: %.4f algoId=%s", stopPrice, algoID)
 	return nil
 }
 
@@ -756,12 +760,16 @@ func (t *OKXTrader) setTakeProfitWithTag(symbol string, positionSide string, qua
 		"tag":         okxReasonTag(reasonTag),
 	}
 
-	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
+	resp, err := t.doRequest("POST", okxAlgoOrderPath, body)
 	if err != nil {
 		return fmt.Errorf("failed to set take profit: %w", err)
 	}
+	algoID, err := parseOKXAlgoOrderResponse(resp, "take profit")
+	if err != nil {
+		return err
+	}
 
-	logger.Infof("  Take profit price set: %.4f", takeProfitPrice)
+	logger.Infof("  Take profit price set: %.4f algoId=%s", takeProfitPrice, algoID)
 	return nil
 }
 

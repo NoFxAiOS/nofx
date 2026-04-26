@@ -238,6 +238,19 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 		if missingSL || missingTP {
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
+			if missingSL && hasAnyProtectionOrder(openOrders, positionSide, false) {
+				logger.Infof("🧹 Protection reconciler: %s %s upgrading stop ownership; clearing existing stop orders before re-apply", symbol, positionSide)
+				at.cancelProtectionOrdersForCleanup(symbol)
+				cleanOrders, cleanErr := at.trader.GetOpenOrders(symbol)
+				if cleanErr != nil {
+					at.setReconcileCooldown(positionKey(symbol, side))
+					return result, fmt.Errorf("verify stop-upgrade cleanup open orders: %w", cleanErr)
+				}
+				if hasAnyProtectionOrder(cleanOrders, positionSide, false) {
+					at.setReconcileCooldown(positionKey(symbol, side))
+					return result, fmt.Errorf("stop-upgrade cleanup incomplete: existing stop orders remain, refusing to stack new protection")
+				}
+			}
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				at.setReconcileCooldown(positionKey(symbol, side))
 				return result, fmt.Errorf("re-apply manual protection plan: %w", err)

@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -1459,12 +1458,6 @@ func (a *Agent) handleExchangeCreateSkill(storeUserID string, userID int64, lang
 		}
 		return "Cancelled the current exchange creation flow."
 	}
-	if result := a.extractSkillSessionFieldsWithLLM(context.Background(), userID, lang, text, session); result.Intent == "continue" {
-		a.applyLLMExtractionToSkillSession(storeUserID, &session, result, lang, text)
-	}
-	if v := inferCreateDisplayName(text); fieldValue(session, "account_name") == "" && v != "" {
-		setField(&session, "account_name", v)
-	}
 	exType := fieldValue(session, "exchange_type")
 	accountName := fieldValue(session, "account_name")
 	missing := make([]string, 0, 6)
@@ -1578,18 +1571,7 @@ func (a *Agent) handleModelCreateSkill(storeUserID string, userID int64, lang, t
 		}
 		return "Cancelled the current model creation flow."
 	}
-	if result := a.extractSkillSessionFieldsWithLLM(context.Background(), userID, lang, text, session); result.Intent == "continue" {
-		a.applyLLMExtractionToSkillSession(storeUserID, &session, result, lang, text)
-	}
-	if v := inferCreateDisplayName(text); fieldValue(session, "name") == "" && v != "" {
-		setField(&session, "name", v)
-	}
 	provider := fieldValue(session, "provider")
-	if provider != "" && fieldValue(session, "api_key") == "" {
-		if credential := inferModelCredentialFromText(provider, text); credential != "" {
-			setField(&session, "api_key", credential)
-		}
-	}
 	if provider != "" {
 		if fieldValue(session, "name") == "" {
 			setField(&session, "name", defaultModelConfigName(provider))
@@ -1726,9 +1708,6 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		}
 		return "Cancelled the current strategy creation flow."
 	}
-	if result := a.extractSkillSessionFieldsWithLLM(context.Background(), userID, lang, text, session); result.Intent == "continue" {
-		a.applyLLMExtractionToSkillSession(storeUserID, &session, result, lang, text)
-	}
 	name := fieldValue(session, "name")
 	hasDescriptiveDraftIntent := session.Phase == "draft_create"
 	if hasDescriptiveDraftIntent {
@@ -1767,24 +1746,6 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 	}
 	if session.Name != skillName || session.Action != action {
 		return "", false
-	}
-	if shouldUseLLMConversationForSimpleEntity(skillName, action) {
-		result := a.llmSkillConversationDriver(context.Background(), storeUserID, userID, lang, text, session, a.buildSimpleEntityConversationResources(storeUserID, session, options))
-		if result.Cancel {
-			a.clearSkillSession(userID)
-			if lang == "zh" {
-				return "已取消当前流程。", true
-			}
-			return "Cancelled the current flow.", true
-		}
-		if result.UserRejectedFlow {
-			return a.rerouteRejectedSkillFlow(context.Background(), storeUserID, userID, lang, text)
-		}
-		applySkillConversationResultToSession(&session, result)
-		if !result.Ready && result.Question != "" {
-			a.saveSkillSession(userID, session)
-			return result.Question, true
-		}
 	}
 	if supportsBulkTargetSelection(skillName, action) && textMeansAllTargets(text) {
 		setField(&session, "bulk_scope", "all")
@@ -1886,26 +1847,6 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 }
 
 func (a *Agent) askLLMAmbiguousTargetQuestion(storeUserID string, userID int64, lang, text string, session skillSession, skillName, action string, allOptions, ambiguous []traderSkillOption) string {
-	if a.aiClient != nil {
-		ambiguousSession := session
-		ambiguousSession.Name = skillName
-		ambiguousSession.Action = action
-		ambiguousSession.TargetRef = nil
-		setSkillDAGStep(&ambiguousSession, "resolve_target")
-
-		resources := a.buildSimpleEntityConversationResources(storeUserID, ambiguousSession, allOptions)
-		if resources == nil {
-			resources = map[string]any{}
-		}
-		resources["targets"] = ambiguous
-		resources["target_conflict"] = ambiguous
-
-		result := a.llmSkillConversationDriver(context.Background(), storeUserID, userID, lang, text, ambiguousSession, resources)
-		if question := strings.TrimSpace(result.Question); question != "" {
-			a.saveSkillSession(userID, ambiguousSession)
-			return question
-		}
-	}
 	return formatAmbiguousTargetPrompt(lang, ambiguous)
 }
 

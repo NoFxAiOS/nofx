@@ -214,7 +214,7 @@ func (a *Agent) handleWorkflowSession(ctx context.Context, storeUserID string, u
 	}
 
 	if activeSkill := a.getSkillSession(userID); strings.TrimSpace(activeSkill.Name) != "" {
-		decision, extraction := a.resolveSkillSessionTurn(ctx, userID, lang, text, activeSkill)
+		decision, _ := a.resolveSkillSessionTurn(ctx, userID, lang, text, activeSkill)
 		switch decision.Intent {
 		case "cancel":
 			a.clearSkillSession(userID)
@@ -230,11 +230,6 @@ func (a *Agent) handleWorkflowSession(ctx context.Context, storeUserID string, u
 			a.clearSkillSession(userID)
 			a.clearWorkflowSession(userID)
 			return "", false, nil
-		case "continue_active":
-			if extraction.Intent == "continue" {
-				a.applyLLMExtractionToSkillSession(storeUserID, &activeSkill, extraction, lang, text)
-				a.saveSkillSession(userID, activeSkill)
-			}
 		}
 		answer, handled := a.executeAtomicSkillTask(storeUserID, userID, lang, text, activeSkill.Name, activeSkill.Action, onEvent)
 		if !handled {

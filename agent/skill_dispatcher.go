@@ -516,38 +516,6 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 		}
 	}
 
-	availableResources := a.buildTraderCreateConversationResources(storeUserID, session)
-	result := skillConversationResult{}
-	if a != nil && a.aiClient != nil {
-		result = a.llmSkillConversationDriver(context.Background(), storeUserID, userID, lang, text, session, availableResources)
-	} else {
-		result = a.fallbackTraderCreateConversation(storeUserID, lang, text, session, availableResources)
-	}
-	if !result.Cancel && !result.UserRejectedFlow && !result.Ready && result.Question == "" && a != nil && a.aiClient != nil {
-		if extraction := a.extractSkillSessionFieldsWithLLM(context.Background(), userID, lang, text, session); extraction.Intent == "continue" {
-			a.applyLLMExtractionToSkillSession(storeUserID, &session, extraction, lang, text)
-		}
-	}
-
-	if result.Cancel {
-		a.clearSkillSession(userID)
-		if lang == "zh" {
-			return "已取消当前创建交易员流程。", true
-		}
-		return "Cancelled the current trader creation flow.", true
-	}
-	if result.UserRejectedFlow {
-		return a.rerouteRejectedSkillFlow(context.Background(), storeUserID, userID, lang, text)
-	}
-
-	for k, v := range result.Extracted {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		setField(&session, k, v)
-	}
-
 	a.hydrateCreateTraderSlotReferences(storeUserID, &session)
 	if fieldValue(session, "exchange_id") != "" && fieldValue(session, "model_id") != "" && fieldValue(session, "strategy_id") != "" {
 		if err := a.validateTraderDraft(storeUserID, fieldValue(session, "model_id"), fieldValue(session, "exchange_id"), fieldValue(session, "strategy_id")); err != nil {
@@ -560,15 +528,6 @@ func (a *Agent) handleCreateTraderSkill(storeUserID string, userID int64, lang, 
 		session.Phase = "collecting"
 		a.saveSkillSession(userID, session)
 		return a.buildTraderCreateMissingPrompt(storeUserID, lang, session, a.buildTraderCreateConversationResources(storeUserID, session)), true
-	}
-	if !result.Ready && result.Question == "" {
-		result.Ready = true
-	}
-
-	if !result.Ready {
-		session.Phase = "collecting"
-		a.saveSkillSession(userID, session)
-		return "", false
 	}
 
 	if stillMissing := missingFieldKeysForSkillSession(session); len(stillMissing) > 0 {

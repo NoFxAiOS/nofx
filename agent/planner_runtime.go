@@ -935,7 +935,7 @@ func (a *Agent) tryStatePriorityPath(ctx context.Context, storeUserID string, us
 		if answer, ok := a.answerSkillSessionExplanation(storeUserID, lang, session, text); ok {
 			return answer, true, nil
 		}
-		decision, extraction := a.resolveSkillSessionTurn(ctx, userID, lang, text, session)
+		decision, _ := a.resolveSkillSessionTurn(ctx, userID, lang, text, session)
 		switch decision.Intent {
 		case "cancel":
 			a.clearSkillSession(userID)
@@ -947,10 +947,6 @@ func (a *Agent) tryStatePriorityPath(ctx context.Context, storeUserID string, us
 			answer, handled, err := a.handoffFromActiveFlow(ctx, storeUserID, userID, lang, text, decision.TargetSnapshotID, onEvent)
 			return answer, handled, err
 		default:
-			if extraction.Intent == "continue" {
-				a.applyLLMExtractionToSkillSession(storeUserID, &session, extraction, lang, text)
-				a.saveSkillSession(userID, session)
-			}
 			if answer, ok := a.dispatchBridgedSkillSession(storeUserID, userID, lang, text, session); ok {
 				if onEvent != nil && strings.TrimSpace(answer) != "" {
 					switch session.Name {
@@ -1233,12 +1229,6 @@ func (a *Agent) resolveSkillSessionTurn(ctx context.Context, userID int64, lang,
 	}
 	if isInstantDirectReplyText(text) {
 		return unifiedFlowDecision{Intent: "instant_reply"}, llmFlowExtractionResult{Intent: "instant_reply"}
-	}
-	if a.aiClient != nil {
-		result := a.extractSkillSessionFieldsWithLLM(ctx, userID, lang, text, session)
-		if decision := unifiedFlowDecisionFromIntent(result.Intent, result.TargetSnapshotID); decision.Intent != "" {
-			return decision, result
-		}
 	}
 	return a.classifySkillSessionDecision(ctx, userID, lang, session, text), llmFlowExtractionResult{}
 }

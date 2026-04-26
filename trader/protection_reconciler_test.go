@@ -379,3 +379,12 @@ func TestProtectionReconciler_SkipsBreakEvenWhenRunnerSuppressesIt(t *testing.T)
 		t.Fatalf("expected no break-even stop placement when runner suppresses it, got %d", len(ft.stopLossOrders))
 	}
 }
+
+func TestDetectUnexpectedProtectionOrdersDoesNotCountMatchingFallbackAsUnexpected(t *testing.T) {
+	plan := &ProtectionPlan{FallbackMaxLossPrice: 90.027}
+	orders := []OpenOrder{{PositionSide: "SHORT", Type: "STOP_MARKET", StopPrice: 90.027}}
+	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(orders, "SHORT", plan, false, false)
+	if unexpectedSL != 0 || unexpectedTP != 0 {
+		t.Fatalf("expected matching fallback not to be unexpected, got sl=%d tp=%d", unexpectedSL, unexpectedTP)
+	}
+}

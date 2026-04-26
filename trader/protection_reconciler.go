@@ -350,24 +350,24 @@ func protectionOrderCountForPlan(plan *ProtectionPlan) int {
 }
 
 func detectUnexpectedProtectionOrders(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan, breakEvenArmed bool, nativeTrailingArmed bool) (unexpectedStops int, unexpectedTPs int) {
-	allowedStops := make(map[string]int)
-	allowedTPs := make(map[string]int)
+	allowedStops := make([]float64, 0)
+	allowedTPs := make([]float64, 0)
 
 	if plan != nil {
 		for _, target := range plan.StopLossOrders {
-			allowedStops[fmt.Sprintf("%.8f", target.Price)]++
+			allowedStops = append(allowedStops, target.Price)
 		}
 		if len(plan.StopLossOrders) == 0 && plan.NeedsStopLoss && plan.StopLossPrice > 0 {
-			allowedStops[fmt.Sprintf("%.8f", plan.StopLossPrice)]++
+			allowedStops = append(allowedStops, plan.StopLossPrice)
 		}
 		if plan.FallbackMaxLossPrice > 0 {
-			allowedStops[fmt.Sprintf("%.8f", plan.FallbackMaxLossPrice)]++
+			allowedStops = append(allowedStops, plan.FallbackMaxLossPrice)
 		}
 		for _, target := range plan.TakeProfitOrders {
-			allowedTPs[fmt.Sprintf("%.8f", target.Price)]++
+			allowedTPs = append(allowedTPs, target.Price)
 		}
 		if len(plan.TakeProfitOrders) == 0 && plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 {
-			allowedTPs[fmt.Sprintf("%.8f", plan.TakeProfitPrice)]++
+			allowedTPs = append(allowedTPs, plan.TakeProfitPrice)
 		}
 	}
 
@@ -384,18 +384,19 @@ func detectUnexpectedProtectionOrders(openOrders []OpenOrder, positionSide strin
 			continue
 		}
 
-		key := fmt.Sprintf("%.8f", order.StopPrice)
+		price := order.StopPrice
+		if price <= 0 {
+			price = order.Price
+		}
 		if looksLikeTakeProfit(order) {
-			if allowedTPs[key] > 0 {
-				allowedTPs[key]--
+			if consumeAllowedProtectionPrice(&allowedTPs, price) {
 				continue
 			}
 			unexpectedTPs++
 			continue
 		}
 		if looksLikeStopLoss(order) {
-			if allowedStops[key] > 0 {
-				allowedStops[key]--
+			if consumeAllowedProtectionPrice(&allowedStops, price) {
 				continue
 			}
 			// One additional stop can be valid when break-even is independently armed.
@@ -408,6 +409,21 @@ func detectUnexpectedProtectionOrders(openOrders []OpenOrder, positionSide strin
 	}
 
 	return unexpectedStops, unexpectedTPs
+}
+
+func consumeAllowedProtectionPrice(prices *[]float64, actual float64) bool {
+	if prices == nil || actual <= 0 {
+		return false
+	}
+	for i, expected := range *prices {
+		if approximatelyEqualPrice(actual, expected) {
+			items := *prices
+			items = append(items[:i], items[i+1:]...)
+			*prices = items
+			return true
+		}
+	}
+	return false
 }
 
 func hasExplicitBreakEvenConfig(config *store.StrategyConfig) bool {

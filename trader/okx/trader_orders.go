@@ -1054,9 +1054,9 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	algoPath := fmt.Sprintf("%s?instId=%s&instType=SWAP&ordType=conditional", okxAlgoPendingPath, instId)
 	algoData, err := t.doRequest("GET", algoPath, nil)
 	if err != nil {
-		logger.Warnf("[OKX] Failed to get algo orders: %v", err)
+		return nil, fmt.Errorf("failed to get OKX conditional algo orders for %s: %w", symbol, err)
 	}
-	if err == nil && algoData != nil {
+	if algoData != nil {
 		var algoOrders []struct {
 			AlgoId      string `json:"algoId"`
 			InstId      string `json:"instId"`

@@ -452,6 +452,10 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 	}
 
 	if quantity <= 0 {
+		// Trailing stops are often armed immediately after an entry fill. Avoid using
+		// a stale pre-entry position cache, otherwise OKX drawdown arming can miss the
+		// just-opened position and fail with "no active position found".
+		t.InvalidatePositionCache()
 		positions, err := t.GetPositions()
 		if err != nil {
 			return fmt.Errorf("failed to get positions for trailing stop: %w", err)

@@ -643,7 +643,6 @@ func (at *AutoTrader) enrichProtectionOrdersWithPlan(symbol string, openOrders [
 		if err != nil || plan == nil {
 			continue
 		}
-		collapseLadderStopsToTightestFullStop(plan, actionFromPositionSide(side))
 		positionSide := strings.ToUpper(side)
 		for i := range openOrders {
 			if openOrders[i].PositionSide != "" && !strings.EqualFold(openOrders[i].PositionSide, positionSide) {

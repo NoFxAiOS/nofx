@@ -163,9 +163,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		plan.TakeProfitPrice = 0
 		plan.TakeProfitOrders = nil
 	}
-	if plan != nil {
-		collapseLadderStopsToTightestFullStop(plan, actionFromPositionSide(side))
-	}
+	// Preserve the configured/open-time ladder shape during held-position reconciliation.
+	// OKX can keep multiple conditional stop legs; only degrade later if exchange validation
+	// proves a tier is non-executable, not preemptively on every reconcile pass.
 	if drawdownEnabled {
 		hasGenericTP := false
 		for _, order := range openOrders {
@@ -209,6 +209,11 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 		// Detect duplicate/stale orders by explicit order-role mismatch, not only coarse order counts.
 		// This keeps valid break-even / trailing orders while removing old ladder/fallback debris.
+		if unexpectedStops > 0 && unexpectedTPs == 0 && !missingSL && ownership.StopOwner != "" {
+			logger.Infof("🛡 Protection reconciler: %s %s preserving extra protective stop orders (unexpectedSL=%d) because stop coverage is already satisfied", symbol, positionSide, unexpectedStops)
+			unexpectedStops = 0
+			ownership.UnexpectedStops = 0
+		}
 		if unexpectedStops > 0 || unexpectedTPs > 0 {
 			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), cleaning and re-applying",
 				symbol, positionSide, unexpectedStops, unexpectedTPs, planOrderCount)

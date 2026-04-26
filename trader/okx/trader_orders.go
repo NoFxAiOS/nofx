@@ -765,6 +765,20 @@ func (t *OKXTrader) setTakeProfitWithTag(symbol string, positionSide string, qua
 	return nil
 }
 
+func (t *OKXTrader) CancelAlgoOrderByID(symbol string, algoID string) error {
+	algoID = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(algoID, "_sl"), "_tp"))
+	if algoID == "" {
+		return nil
+	}
+	instId := t.convertSymbol(symbol)
+	body := []map[string]interface{}{{"algoId": algoID, "instId": instId}}
+	if _, err := t.doRequest("POST", okxCancelAlgoPath, body); err != nil {
+		return fmt.Errorf("failed to cancel algo order %s: %w", algoID, err)
+	}
+	logger.Infof("  ✓ Canceled algo order by id for %s: %s", symbol, algoID)
+	return nil
+}
+
 // CancelStopLossOrders cancels stop loss orders
 func (t *OKXTrader) CancelStopLossOrders(symbol string) error {
 	return t.cancelAlgoOrders(symbol, "sl")

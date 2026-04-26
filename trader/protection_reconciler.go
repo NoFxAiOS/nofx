@@ -212,6 +212,8 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		if unexpectedStops > 0 || unexpectedTPs > 0 {
 			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), cleaning and re-applying",
 				symbol, positionSide, unexpectedStops, unexpectedTPs, planOrderCount)
+			unexpectedIDs := collectUnexpectedProtectionOrderIDs(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+			at.cancelUnexpectedProtectionOrdersByID(symbol, unexpectedIDs)
 			at.cancelProtectionOrdersForCleanup(symbol)
 			cleanOrders, cleanErr := at.trader.GetOpenOrders(symbol)
 			if cleanErr != nil {
@@ -862,9 +864,34 @@ type okxProtectionCanceller interface {
 	CancelTakeProfitOrders(symbol string) error
 }
 
+type okxProtectionOrderIDCanceller interface {
+	CancelAlgoOrderByID(symbol string, algoID string) error
+}
+
 type okxTaggedProtectionCanceller interface {
 	CancelStopLossOrdersTagged(symbol string, reasonTag string) error
 	CancelTakeProfitOrdersTagged(symbol string, reasonTag string) error
+}
+
+func (at *AutoTrader) cancelUnexpectedProtectionOrdersByID(symbol string, orderIDs []string) {
+	if len(orderIDs) == 0 {
+		return
+	}
+	canceller, ok := at.trader.(okxProtectionOrderIDCanceller)
+	if !ok {
+		return
+	}
+	seen := map[string]bool{}
+	for _, id := range orderIDs {
+		id = strings.TrimSuffix(strings.TrimSuffix(id, "_sl"), "_tp")
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		if err := canceller.CancelAlgoOrderByID(symbol, id); err != nil {
+			logger.Warnf("  ⚠️ Cleanup: failed to cancel unexpected algo order for %s [%s]: %v", symbol, id, err)
+		}
+	}
 }
 
 func (at *AutoTrader) cancelProtectionOrdersForCleanup(symbol string) {

@@ -850,7 +850,11 @@ func (at *AutoTrader) cancelProtectionOrdersForCleanup(symbol string) {
 				logger.Warnf("  ⚠️ Cleanup: failed to cancel tagged TP orders for %s [%s]: %v", symbol, tag, err)
 			}
 		}
-	} else if canceller, ok := at.trader.(okxProtectionCanceller); ok {
+	}
+	// Tagged cleanup alone misses legacy/untagged algo orders. Always follow with
+	// broad SL/TP cleanup when available so a clean re-apply cannot stack a new
+	// fallback on top of an old untagged stop.
+	if canceller, ok := at.trader.(okxProtectionCanceller); ok {
 		if err := canceller.CancelStopLossOrders(symbol); err != nil {
 			logger.Warnf("  ⚠️ Cleanup: failed to cancel SL orders for %s: %v", symbol, err)
 		}

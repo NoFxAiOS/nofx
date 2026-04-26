@@ -264,25 +264,6 @@ func (a *Agent) buildSimpleEntityConversationResources(storeUserID string, sessi
 	return resources
 }
 
-func (a *Agent) inferredCurrentReferenceForSkill(userID int64, skillName string) *EntityReference {
-	refs := a.semanticCurrentReferences(userID)
-	if refs == nil {
-		return nil
-	}
-	switch skillName {
-	case "trader_management":
-		return normalizeEntityReference(refs.Trader)
-	case "exchange_management":
-		return normalizeEntityReference(refs.Exchange)
-	case "model_management":
-		return normalizeEntityReference(refs.Model)
-	case "strategy_management":
-		return normalizeEntityReference(refs.Strategy)
-	default:
-		return nil
-	}
-}
-
 func (a *Agent) handleTraderManagementSkill(storeUserID string, userID int64, lang, text string, session skillSession) (string, bool) {
 	if session.Name != "trader_management" || session.Action == "" {
 		return "", false
@@ -1694,9 +1675,6 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 				session.TargetRef = resolved.Ref
 			}
 			if session.TargetRef == nil {
-				session.TargetRef = a.inferredCurrentReferenceForSkill(userID, skillName)
-			}
-			if session.TargetRef == nil {
 				if !(supportsBulkTargetSelection(skillName, action) && fieldValue(session, "bulk_scope") == "all") {
 					setSkillDAGStep(&session, "resolve_target")
 					a.saveSkillSession(userID, session)
@@ -1726,9 +1704,6 @@ func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, 
 	} else {
 		if resolved := resolveTargetSelection(text, options, session.TargetRef); resolved.Ref != nil {
 			session.TargetRef = resolved.Ref
-		}
-		if session.TargetRef == nil {
-			session.TargetRef = a.inferredCurrentReferenceForSkill(userID, skillName)
 		}
 		if session.TargetRef == nil && fieldValue(session, "bulk_scope") != "all" && action != "query" && action != "query_list" && action != "query_detail" && action != "query_running" {
 			a.saveSkillSession(userID, session)

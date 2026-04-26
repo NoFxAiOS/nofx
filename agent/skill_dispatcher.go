@@ -1029,9 +1029,6 @@ func resolveTargetSelection(text string, options []traderSkillOption, existing *
 	if opt := findUniqueContainingOption(options, text); opt != nil {
 		return targetResolution{Ref: &EntityReference{ID: opt.ID, Name: opt.Name, Source: "user_mention"}}
 	}
-	if len(options) == 1 {
-		return targetResolution{Ref: &EntityReference{ID: options[0].ID, Name: options[0].Name}}
-	}
 	if len(options) > 1 {
 		return targetResolution{Ambiguous: options}
 	}

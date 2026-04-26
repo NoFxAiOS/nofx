@@ -93,6 +93,7 @@ Rules:
 - When an active session exposes allowed_field_spec_json, extracted_data must use only those canonical keys. Never output aliases, translated labels, or raw user wording as keys.
 - If the user clearly means a bulk destructive operation like "删除所有策略" or "全部删除策略", put the intent signal into extracted_data too. Example: {"bulk_scope":"all"}.
 - For strategy changes, do not use the generic "strategy_management:update" action. Use "strategy_management:update_name" for renaming, "strategy_management:update_prompt" for prompt changes, or "strategy_management:update_config" for parameter/config changes. For strategy_management:update_config, extracted_data may include a StrategyConfig-shaped "config_patch".
+- Current references are context only. Do not turn a current reference into target_ref_id/target_ref_name unless the user explicitly names that object or clearly refers to "this/current/that previous one". If a mutating task has no clear target, ask instead of executing.
 - reply_to_user should be concise and in the user's language.
 - For NEW_TASK, target_skill format must be "skill_name:action", for example "strategy_management:create".
 
@@ -418,6 +419,7 @@ Rules:
 - Ask naturally. Do not say raw slot names like target_ref unless the user explicitly asks for internal details.
 - If the user clearly means a bulk destructive operation like "删除所有策略", "全部删除策略", "all strategies", set extracted_data to {"bulk_scope":"all"} and choose "execute_skill". Do not ask for target_ref.
 - If the user refers to a specific object from disclosed targets, set target_ref_id and target_ref_name when you can resolve it.
+- Current references are context for reasoning only. Do not copy a current reference into target_ref_id/target_ref_name unless the user explicitly refers to that object by name/id or clearly says "this/current/that previous one". If the target is not clear, ask instead of executing.
 - For trader bindings, exchange/model/strategy must resolve to an ID from Relevant disclosed resources before execution. Never invent a resource name or use a generic venue type like Binance/OKX as the bound exchange unless it appears as an actual disclosed resource.
 - For strategy_management:create or strategy_management:update_config, when the user describes strategy intent, output config_patch as a partial StrategyConfig JSON object instead of leaving the default template unchanged. Example: "BTC趋势做空" should set coin_source to static BTCUSDT and add prompt/risk/entry rules for BTC trend-following short bias.
 - If there are multiple targets and the user did not disambiguate, ask a natural question with the available names.

@@ -251,6 +251,142 @@ func TestResolveTargetSelectionMatchesUniqueNameInUserText(t *testing.T) {
 	}
 }
 
+func TestStrategyUpdateUsesExplicitTargetOverCurrentReference(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-explicit-target-over-current.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	userID := int64(99)
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	for _, strategy := range []*store.Strategy{
+		{ID: "strategy-short", UserID: "default", Name: "BTC趋势做空", ConfigVisible: true, Config: string(rawCfg)},
+		{ID: "strategy-long", UserID: "default", Name: "AI500 做多策略", ConfigVisible: true, Config: string(rawCfg)},
+	} {
+		if err := st.Strategy().Create(strategy); err != nil {
+			t.Fatalf("seed strategy %s: %v", strategy.ID, err)
+		}
+	}
+	a.saveReferenceMemory(userID, &CurrentReferences{
+		Strategy: &EntityReference{ID: "strategy-short", Name: "BTC趋势做空", Source: "tool_output"},
+	}, nil)
+
+	patch := map[string]any{
+		"coin_source": map[string]any{
+			"source_type": "ai500",
+			"use_ai500":   true,
+			"ai500_limit": 5,
+		},
+		"custom_prompt": "AI500 强做多策略：只寻找强趋势多头机会。",
+	}
+	rawPatch, _ := json.Marshal(patch)
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "update_config",
+		Phase:  "collecting",
+		Fields: map[string]string{strategyCreateConfigPatchField: string(rawPatch)},
+	}
+
+	reply, handled := a.handleSimpleEntitySkill(
+		"default",
+		userID,
+		"zh",
+		"我想基于AI500 做多策略来调整成更强的做多逻辑",
+		session,
+		"strategy_management",
+		"update_config",
+		a.loadStrategyOptions("default"),
+	)
+	if !handled {
+		t.Fatalf("expected handler to handle request")
+	}
+	if !strings.Contains(reply, "已更新策略配置") {
+		t.Fatalf("expected strategy update reply, got: %s", reply)
+	}
+
+	shortStrategy, err := st.Strategy().Get("default", "strategy-short")
+	if err != nil {
+		t.Fatalf("load short strategy: %v", err)
+	}
+	longStrategy, err := st.Strategy().Get("default", "strategy-long")
+	if err != nil {
+		t.Fatalf("load long strategy: %v", err)
+	}
+	if strings.Contains(shortStrategy.Config, "强做多") {
+		t.Fatalf("current reference strategy was incorrectly updated: %s", shortStrategy.Config)
+	}
+	if !strings.Contains(longStrategy.Config, "强做多") {
+		t.Fatalf("explicitly named strategy was not updated: %s", longStrategy.Config)
+	}
+}
+
+func TestStrategyUpdateDoesNotInferTargetFromCurrentReference(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-no-current-reference-fallback.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	userID := int64(100)
+
+	cfg := store.GetDefaultStrategyConfig("zh")
+	rawCfg, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal strategy config: %v", err)
+	}
+	if err := st.Strategy().Create(&store.Strategy{
+		ID:            "strategy-short",
+		UserID:        "default",
+		Name:          "BTC趋势做空",
+		ConfigVisible: true,
+		Config:        string(rawCfg),
+	}); err != nil {
+		t.Fatalf("seed strategy: %v", err)
+	}
+	a.saveReferenceMemory(userID, &CurrentReferences{
+		Strategy: &EntityReference{ID: "strategy-short", Name: "BTC趋势做空", Source: "tool_output"},
+	}, nil)
+
+	patch := map[string]any{"custom_prompt": "不应被写入"}
+	rawPatch, _ := json.Marshal(patch)
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "update_config",
+		Phase:  "collecting",
+		Fields: map[string]string{strategyCreateConfigPatchField: string(rawPatch)},
+	}
+
+	reply, handled := a.handleSimpleEntitySkill(
+		"default",
+		userID,
+		"zh",
+		"帮我把策略改强一点",
+		session,
+		"strategy_management",
+		"update_config",
+		a.loadStrategyOptions("default"),
+	)
+	if !handled {
+		t.Fatalf("expected handler to ask for target")
+	}
+	if !strings.Contains(reply, "确定目标对象") && !strings.Contains(reply, "明确要操作的是哪一个对象") {
+		t.Fatalf("expected target clarification, got: %s", reply)
+	}
+	strategy, err := st.Strategy().Get("default", "strategy-short")
+	if err != nil {
+		t.Fatalf("load strategy: %v", err)
+	}
+	if strings.Contains(strategy.Config, "不应被写入") {
+		t.Fatalf("strategy was incorrectly updated through current reference fallback: %s", strategy.Config)
+	}
+}
+
 func TestBulkStrategyDeleteRequiresConfirmationBeforeDeleting(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "bulk-delete-strategies-confirmation.db")
 	st, err := store.New(dbPath)

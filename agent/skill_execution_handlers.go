@@ -2591,7 +2591,25 @@ func (a *Agent) executeStrategyConfigUpdate(storeUserID string, userID int64, la
 			return a.deferStrategyRiskControlledUpdate(userID, lang, &session, merged, warnings, msgZH, msgEN)
 		}
 		setSkillDAGStep(&session, "execute_update")
-		return a.persistStrategyConfigUpdate(storeUserID, userID, lang, strategy, merged, msgZH, msgEN)
+		raw, _ := json.Marshal(map[string]any{
+			"action":               "update",
+			"strategy_id":          strategy.ID,
+			"config":               patch,
+			"allow_clamped_update": true,
+		})
+		resp := a.toolManageStrategy(storeUserID, string(raw))
+		a.clearSkillSession(userID)
+		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
+			if lang == "zh" {
+				return "这次没改成功：" + errMsg
+			}
+			return "That change did not go through: " + errMsg
+		}
+		a.rememberReferencesFromToolResult(userID, "manage_strategy", resp)
+		if lang == "zh" {
+			return msgZH
+		}
+		return msgEN
 	}
 
 	if generatedDraftRequiresConfirmation(session) && fieldValue(session, "config_field") == "" && fieldValue(session, "config_value") == "" {

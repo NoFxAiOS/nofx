@@ -1123,24 +1123,6 @@ func traderCreateFieldsFromExecutionExtraction(result executionFlowExtractionRes
 	return fields
 }
 
-func executionStateCurrentReference(state ExecutionState, skillName string) *EntityReference {
-	if state.CurrentReferences == nil {
-		return nil
-	}
-	switch skillName {
-	case "trader_management":
-		return state.CurrentReferences.Trader
-	case "model_management":
-		return state.CurrentReferences.Model
-	case "exchange_management":
-		return state.CurrentReferences.Exchange
-	case "strategy_management":
-		return state.CurrentReferences.Strategy
-	default:
-		return nil
-	}
-}
-
 func (a *Agent) bridgeExecutionStateToSkillSession(storeUserID string, userID int64, text string, state ExecutionState, extraction executionFlowExtractionResult) (skillSession, bool) {
 	skillName, action := inferExecutionStateSkillBridge(state, text)
 	if a == nil || skillName == "" || action == "" || !hasSkillBridgeSignal(a, storeUserID, skillName, action, text, extraction) {
@@ -1176,22 +1158,7 @@ func (a *Agent) bridgeExecutionStateToSkillSession(storeUserID string, userID in
 
 	switch skillName {
 	case "trader_management":
-		if action != "create" && session.TargetRef == nil {
-			session.TargetRef = normalizeEntityReference(executionStateCurrentReference(state, "trader_management"))
-		}
 		a.hydrateCreateTraderSlotReferences(storeUserID, &session)
-	case "model_management":
-		if session.TargetRef == nil && action != "create" {
-			session.TargetRef = normalizeEntityReference(executionStateCurrentReference(state, "model_management"))
-		}
-	case "exchange_management":
-		if session.TargetRef == nil && action != "create" {
-			session.TargetRef = normalizeEntityReference(executionStateCurrentReference(state, "exchange_management"))
-		}
-	case "strategy_management":
-		if session.TargetRef == nil && action != "create" {
-			session.TargetRef = normalizeEntityReference(executionStateCurrentReference(state, "strategy_management"))
-		}
 	}
 	a.saveSkillSession(userID, session)
 	a.clearExecutionState(userID)

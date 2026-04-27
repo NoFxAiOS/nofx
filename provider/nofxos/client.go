@@ -16,7 +16,6 @@ import (
 const (
 	DefaultBaseURL = "https://nofxos.ai"
 	DefaultTimeout = 30 * time.Second
-	DefaultAuthKey = "cm_568c67eae410d912c54c"
 )
 
 // Client is the NofxOS API client
@@ -38,7 +37,6 @@ func DefaultClient() *Client {
 	clientOnce.Do(func() {
 		defaultClient = &Client{
 			BaseURL: DefaultBaseURL,
-			AuthKey: DefaultAuthKey,
 			Timeout: DefaultTimeout,
 		}
 	})
@@ -49,9 +47,6 @@ func DefaultClient() *Client {
 func NewClient(baseURL, authKey string) *Client {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
-	}
-	if authKey == "" {
-		authKey = DefaultAuthKey
 	}
 	return &Client{
 		BaseURL: baseURL,

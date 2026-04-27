@@ -119,10 +119,6 @@ export interface IndicatorConfig {
   boll_periods?: number[];
   external_data_sources?: ExternalDataSource[];
 
-  // ========== NofxOS 数据源统一配置 ==========
-  // Unified NofxOS API Key - used for all NofxOS data sources
-  nofxos_api_key?: string;
-
   // 量化数据源（资金流向、持仓变化、价格变化）
   enable_quant_data?: boolean;
   enable_quant_oi?: boolean;

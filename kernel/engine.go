@@ -189,12 +189,8 @@ type StrategyEngine struct {
 // NewStrategyEngine creates strategy execution engine.
 // claw402WalletKey is optional — if provided, nofxos data requests are routed through claw402.
 func NewStrategyEngine(config *store.StrategyConfig, claw402WalletKey ...string) *StrategyEngine {
-	// Create NofxOS client with API key from config
-	apiKey := config.Indicators.NofxOSAPIKey
-	if apiKey == "" {
-		apiKey = nofxos.DefaultAuthKey
-	}
-	client := nofxos.NewClient(nofxos.DefaultBaseURL, apiKey)
+	// Create NofxOS client (authKey is empty — all requests now route through claw402)
+	client := nofxos.NewClient(nofxos.DefaultBaseURL, "")
 
 	// If claw402 wallet key is provided (from trader's AI config), route through claw402
 	walletKey := ""

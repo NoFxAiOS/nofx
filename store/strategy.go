@@ -206,10 +206,6 @@ type IndicatorConfig struct {
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
 
-	// ========== NofxOS Unified API Configuration ==========
-	// Unified API Key for all NofxOS data sources
-	NofxOSAPIKey string `json:"nofxos_api_key,omitempty"`
-
 	// quantitative data sources (capital flow, position changes, price changes)
 	EnableQuantData    bool `json:"enable_quant_data"`    // whether to enable quantitative data
 	EnableQuantOI      bool `json:"enable_quant_oi"`      // whether to show OI data
@@ -340,8 +336,6 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
 			BOLLPeriods:       []int{20},
-			// NofxOS unified API key
-			NofxOSAPIKey: "cm_568c67eae410d912c54c",
 			// Quant data
 			EnableQuantData:    true,
 			EnableQuantOI:      true,

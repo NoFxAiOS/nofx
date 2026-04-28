@@ -176,7 +176,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	// Preserve the configured/open-time ladder shape during held-position reconciliation.
 	// OKX can keep multiple conditional stop legs; only degrade later if exchange validation
 	// proves a tier is non-executable, not preemptively on every reconcile pass.
-	if drawdownEnabled {
+	if drawdownEnabled && nativeTrailingArmed {
 		hasGenericTP := false
 		for _, order := range openOrders {
 			if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
@@ -187,7 +187,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				break
 			}
 		}
-		if hasGenericTP {
+		if hasGenericTP && !hasVisiblePlanProfitOwner(openOrders, positionSide, plan) {
 			if canceller, ok := at.trader.(interface{ CancelTakeProfitOrders(symbol string) error }); ok {
 				logger.Infof("🧹 Drawdown owner: removing legacy generic take-profit orders for %s %s while preserving stop-loss legs", symbol, positionSide)
 				if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
@@ -195,6 +195,8 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				}
 				openOrders, _ = at.trader.GetOpenOrders(symbol)
 			}
+		} else if hasGenericTP {
+			logger.Infof("🛡 Drawdown owner: preserving existing take-profit orders for %s %s until dynamic protection is visibly armed", symbol, positionSide)
 		}
 	}
 
@@ -226,33 +228,31 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			ownership.UnexpectedStops = 0
 		}
 		if unexpectedStops > 0 || unexpectedTPs > 0 {
-			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), cleaning and re-applying",
+			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), staging replacement before cleanup",
 				symbol, positionSide, unexpectedStops, unexpectedTPs, planOrderCount)
 			unexpectedIDs := collectUnexpectedProtectionOrderIDs(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
-			at.cancelUnexpectedProtectionOrdersByID(symbol, unexpectedIDs)
-			at.cancelProtectionOrdersForCleanup(symbol)
-			cleanOrders, cleanErr := at.trader.GetOpenOrders(symbol)
-			if cleanErr != nil {
-				at.setReconcileCooldown(positionKey(symbol, side))
-				return result, fmt.Errorf("verify cleanup open orders: %w", cleanErr)
-			}
-			remainingUnexpectedStops, remainingUnexpectedTPs := detectUnexpectedProtectionOrders(cleanOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
-			if remainingUnexpectedStops > 0 || remainingUnexpectedTPs > 0 {
-				at.setReconcileCooldown(positionKey(symbol, side))
-				return result, fmt.Errorf("cleanup incomplete: unexpected exchange protection orders remain (unexpectedSL=%d unexpectedTP=%d), refusing to stack new protection", remainingUnexpectedStops, remainingUnexpectedTPs)
-			}
-			// Re-apply clean protection plan only after cleanup is visible on exchange.
-			if !at.verifyLivePositionForProtection(symbol, side, "cleanup re-apply protection plan") {
-				result.Summary = "inactive position before cleanup re-apply; protection state cleaned"
+			if !at.verifyLivePositionForProtection(symbol, side, "unexpected protection replacement") {
+				result.Summary = "inactive position before unexpected protection replacement; protection state cleaned"
 				return result, nil
 			}
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				at.setReconcileCooldown(positionKey(symbol, side))
-				return result, fmt.Errorf("cleanup re-apply protection plan: %w", err)
+				return result, fmt.Errorf("stage replacement before cleanup: %w", err)
+			}
+			at.cancelUnexpectedProtectionOrdersByID(symbol, unexpectedIDs)
+			remainingOrders, cleanErr := at.trader.GetOpenOrders(symbol)
+			if cleanErr != nil {
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return result, fmt.Errorf("verify unexpected cleanup open orders: %w", cleanErr)
+			}
+			remainingUnexpectedStops, remainingUnexpectedTPs := detectUnexpectedProtectionOrders(remainingOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+			if remainingUnexpectedStops > 0 || remainingUnexpectedTPs > 0 {
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return result, fmt.Errorf("unexpected cleanup incomplete after replacement (unexpectedSL=%d unexpectedTP=%d)", remainingUnexpectedStops, remainingUnexpectedTPs)
 			}
 			at.setReconcileCooldown(positionKey(symbol, side))
 			result.ExchangeVerified = true
-			result.Summary = "re-applied after cleanup"
+			result.Summary = "staged replacement before cleaning unexpected protection"
 			return result, nil
 		}
 
@@ -280,17 +280,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				}
 			}
 			if missingSL && hasAnyProtectionOrder(openOrders, positionSide, false) {
-				logger.Infof("🧹 Protection reconciler: %s %s upgrading stop ownership; clearing existing stop orders before re-apply", symbol, positionSide)
-				at.cancelProtectionOrdersForCleanup(symbol)
-				cleanOrders, cleanErr := at.trader.GetOpenOrders(symbol)
-				if cleanErr != nil {
-					at.setReconcileCooldown(positionKey(symbol, side))
-					return result, fmt.Errorf("verify stop-upgrade cleanup open orders: %w", cleanErr)
-				}
-				if hasAnyProtectionOrder(cleanOrders, positionSide, false) {
-					at.setReconcileCooldown(positionKey(symbol, side))
-					return result, fmt.Errorf("stop-upgrade cleanup incomplete: existing stop orders remain, refusing to stack new protection")
-				}
+				logger.Infof("🛡 Protection reconciler: %s %s preserving existing stop owner while staging missing protection replacement", symbol, positionSide)
 			}
 			if !at.verifyLivePositionForProtection(symbol, side, "missing protection plan placement") {
 				result.Summary = "inactive position before missing protection plan placement; protection state cleaned"

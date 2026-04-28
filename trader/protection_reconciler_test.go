@@ -418,3 +418,65 @@ func TestDetectUnexpectedProtectionOrdersDoesNotCountMatchingFallbackAsUnexpecte
 		t.Fatalf("expected matching fallback not to be unexpected, got sl=%d tp=%d", unexpectedSL, unexpectedTP)
 	}
 }
+
+func TestProtectionReconcilerStagesMissingStopBeforeCleanup(t *testing.T) {
+	ft := &fakeReconcileTrader{
+		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
+			openOrders: []tradertypes.OpenOrder{{Symbol: "BTCUSDT", PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95, Quantity: 1}},
+		},
+		positions: []map[string]interface{}{{"symbol": "BTCUSDT", "side": "long", "positionAmt": 1.0, "entryPrice": 100.0, "markPrice": 100.0}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   ft,
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
+			Protection: store.ProtectionConfig{FullTPSL: store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeManual, StopLossEnabled: true, StopLoss: store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 2}}},
+		}},
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
+		drawdownState:         make(map[string]string),
+	}
+
+	result, err := at.reconcileProtectionForPosition("BTCUSDT", "long", 1, 100)
+	if err != nil {
+		t.Fatalf("reconcile protection: %v", err)
+	}
+	if !result.ExchangeVerified {
+		t.Fatalf("expected exchange protection verified, got %+v", result)
+	}
+	if len(ft.cancelStopOrdersCalls) != 0 {
+		t.Fatalf("expected no pre-placement stop cleanup, got calls=%v", ft.cancelStopOrdersCalls)
+	}
+	if len(ft.openOrders) < 2 {
+		t.Fatalf("expected existing stop preserved and replacement staged, got %+v", ft.openOrders)
+	}
+}
+
+func TestProtectionReconcilerPreservesGenericTPUntilDynamicOwnerArmed(t *testing.T) {
+	ft := &fakeReconcileTrader{
+		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
+			openOrders: []tradertypes.OpenOrder{{Symbol: "BTCUSDT", PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 105, Quantity: 1}},
+		},
+		positions: []map[string]interface{}{{"symbol": "BTCUSDT", "side": "long", "positionAmt": 1.0, "entryPrice": 100.0, "markPrice": 100.0}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   ft,
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
+			Protection: store.ProtectionConfig{
+				LadderTPSL:         store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeManual, TakeProfitEnabled: true, Rules: []store.LadderTPSLRule{{TakeProfitPct: 5, TakeProfitCloseRatioPct: 100}}},
+				DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Rules: []store.DrawdownTakeProfitRule{{MinProfitPct: 5, MaxDrawdownPct: 30, CloseRatioPct: 100}}},
+			},
+		}},
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
+		drawdownState:         make(map[string]string),
+	}
+
+	_, _ = at.reconcileProtectionForPosition("BTCUSDT", "long", 1, 100)
+	if len(ft.cancelTakeProfitCalls) != 0 {
+		t.Fatalf("expected generic TP preserved until dynamic owner armed, got calls=%v", ft.cancelTakeProfitCalls)
+	}
+}

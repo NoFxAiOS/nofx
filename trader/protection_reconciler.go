@@ -542,7 +542,7 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 	// This avoids churn where tiny positions repeatedly cancel a valid fallback, fail to materialize
 	// non-executable ladder tiers, and then recreate the same fallback.
 	if len(plan.StopLossOrders) > 0 {
-		if !(fullStopSatisfied || fallbackSatisfied) {
+		if !(fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide)) {
 			for _, target := range plan.StopLossOrders {
 				if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
 					missingSL = true
@@ -553,7 +553,7 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 	} else if plan.NeedsStopLoss {
 		// For held positions, a visible fallback max-loss stop still counts as protected stop ownership
 		// even when the tighter primary stop is absent or temporarily non-materializable on exchange.
-		missingSL = !(fullStopSatisfied || fallbackSatisfied)
+		missingSL = !(fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide))
 	}
 
 	// Same rule for take-profit: when ladder TP orders exist, require each configured tier explicitly.
@@ -572,6 +572,21 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 	}
 
 	return missingSL, missingTP
+}
+
+func visibleFallbackOwnerSatisfied(openOrders []OpenOrder, positionSide string) bool {
+	for _, order := range openOrders {
+		if positionSide != "" && order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
+			continue
+		}
+		if !looksLikeStopLoss(order) {
+			continue
+		}
+		if strings.Contains(strings.ToLower(order.ClientOrderID), "fallback") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasAnyProtectionOrder(openOrders []OpenOrder, positionSide string, wantTakeProfit bool) bool {

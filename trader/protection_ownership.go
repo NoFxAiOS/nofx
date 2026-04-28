@@ -109,6 +109,9 @@ func visiblePlanStopOwnerFromOrders(openOrders []OpenOrder, positionSide string,
 	if plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice) {
 		return "fallback"
 	}
+	if visibleFallbackOwnerSatisfied(openOrders, positionSide) {
+		return "fallback"
+	}
 	return ""
 }
 

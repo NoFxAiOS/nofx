@@ -173,6 +173,43 @@ func TestDetectMissingProtectionAcceptsFallbackOnlyForDustRemainderLadder(t *tes
 	}
 }
 
+func TestDetectMissingProtectionAcceptsTaggedFallbackWhenPlannedPriceDrifts(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 2234.51184, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        2273.51256,
+		FallbackMaxLossPrice: 2235.80,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 2273.51256, CloseRatioPct: 50},
+			{Price: 2259.74760, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	if missingSL || missingTP {
+		t.Fatalf("expected tagged fallback owner to satisfy dust stop protection despite price drift, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+	ownership := evaluateProtectionOwnership(orders, "LONG", plan, false, false)
+	if ownership.StopOwner != "fallback" || !ownership.Verified {
+		t.Fatalf("expected fallback ownership verified, got %+v", ownership)
+	}
+}
+
+func TestDetectMissingProtectionDoesNotAcceptUntaggedPriceDriftAsFallback(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 2200.00, Quantity: 0.001, ClientOrderID: "manual_sl_1"}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        2273.51256,
+		FallbackMaxLossPrice: 2235.80,
+		StopLossOrders:       []ProtectionOrder{{Price: 2273.51256, CloseRatioPct: 100}},
+	}
+
+	missingSL, _ := detectMissingProtection(orders, "LONG", plan)
+	if !missingSL {
+		t.Fatal("expected untagged drifting stop not to satisfy fallback ownership")
+	}
+}
+
 func TestDetectMissingProtectionAcceptsDegradedFullTakeProfitInsteadOfMissingLadderTP(t *testing.T) {
 	orders := []OpenOrder{{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 110}}
 	plan := &ProtectionPlan{

@@ -1,6 +1,9 @@
 package nofxos
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Language represents the language for formatting output
 type Language string
@@ -10,7 +13,26 @@ const (
 	LangEnglish Language = "en-US"
 )
 
-// formatValue formats a numeric value with sign and appropriate suffix
+func formatPlainNumber(v float64) string {
+	s := fmt.Sprintf("%.8f", v)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	if s == "-0" || s == "" {
+		return "0"
+	}
+	return s
+}
+
+func formatSignedPlainNumber(v float64) string {
+	if v > 0 {
+		return "+" + formatPlainNumber(v)
+	}
+	return formatPlainNumber(v)
+}
+
+// formatValue formats a numeric value with sign and appropriate suffix.
+// Keep the mantissa as a plain decimal with no thousands separators so AI
+// prompts stay machine-readable.
 func formatValue(v float64) string {
 	sign := "+"
 	if v < 0 {
@@ -21,11 +43,11 @@ func formatValue(v float64) string {
 		absV = -absV
 	}
 	if absV >= 1e9 {
-		return fmt.Sprintf("%s%.2fB", sign, v/1e9)
+		return fmt.Sprintf("%s%sB", sign, formatPlainNumber(v/1e9))
 	} else if absV >= 1e6 {
-		return fmt.Sprintf("%s%.2fM", sign, v/1e6)
+		return fmt.Sprintf("%s%sM", sign, formatPlainNumber(v/1e6))
 	} else if absV >= 1e3 {
-		return fmt.Sprintf("%s%.2fK", sign, v/1e3)
+		return fmt.Sprintf("%s%sK", sign, formatPlainNumber(v/1e3))
 	}
-	return fmt.Sprintf("%s%.2f", sign, v)
+	return sign + formatPlainNumber(v)
 }

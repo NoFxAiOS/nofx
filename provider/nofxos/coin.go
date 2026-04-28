@@ -12,7 +12,7 @@ type QuantData struct {
 	Symbol      string             `json:"symbol"`
 	Price       float64            `json:"price"`
 	Netflow     *NetflowData       `json:"netflow,omitempty"`
-	OI          map[string]*OIData `json:"oi,omitempty"` // keyed by exchange: "binance", "bybit"
+	OI          map[string]*OIData `json:"oi,omitempty"`           // keyed by exchange: "binance", "bybit"
 	PriceChange map[string]float64 `json:"price_change,omitempty"` // keyed by duration: "1h", "4h", etc.
 }
 
@@ -119,14 +119,14 @@ func formatQuantDataZH(symbol string, data *QuantData) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("### %s 量化数据\n", symbol))
-	sb.WriteString(fmt.Sprintf("价格: $%.4f\n\n", data.Price))
+	sb.WriteString(fmt.Sprintf("price=%s\n\n", formatPlainNumber(data.Price)))
 
 	if len(data.PriceChange) > 0 {
 		sb.WriteString("**价格变化**:\n")
 		durations := []string{"1h", "4h", "8h", "12h", "24h"}
 		for _, d := range durations {
 			if change, ok := data.PriceChange[d]; ok {
-				sb.WriteString(fmt.Sprintf("- %s: %+.2f%%\n", d, change*100))
+				sb.WriteString(fmt.Sprintf("- timeframe=%s price_delta_pct=%s\n", d, formatSignedPlainNumber(change*100)))
 			}
 		}
 		sb.WriteString("\n")
@@ -136,14 +136,14 @@ func formatQuantDataZH(symbol string, data *QuantData) string {
 		for exchange, oiData := range data.OI {
 			if oiData != nil {
 				sb.WriteString(fmt.Sprintf("**%s持仓**:\n", strings.ToUpper(exchange)))
-				sb.WriteString(fmt.Sprintf("- OI: %.2f\n", oiData.CurrentOI))
+				sb.WriteString(fmt.Sprintf("- current_oi=%s\n", formatPlainNumber(oiData.CurrentOI)))
 				if oiData.NetLong > 0 || oiData.NetShort > 0 {
-					sb.WriteString(fmt.Sprintf("- 多头: %.2f, 空头: %.2f\n", oiData.NetLong, oiData.NetShort))
+					sb.WriteString(fmt.Sprintf("- net_long=%s net_short=%s\n", formatPlainNumber(oiData.NetLong), formatPlainNumber(oiData.NetShort)))
 				}
 				if oiData.Delta != nil {
 					if delta, ok := oiData.Delta["1h"]; ok && delta != nil {
-						sb.WriteString(fmt.Sprintf("- 1h变化: %s (%.2f%%)\n",
-							formatValue(delta.OIDeltaValue), delta.OIDeltaPercent))
+						sb.WriteString(fmt.Sprintf("- timeframe=1h oi_delta_usdt=%s oi_delta_pct=%s\n",
+							formatValue(delta.OIDeltaValue), formatSignedPlainNumber(delta.OIDeltaPercent)))
 					}
 				}
 				sb.WriteString("\n")
@@ -169,14 +169,14 @@ func formatQuantDataEN(symbol string, data *QuantData) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("### %s Quant Data\n", symbol))
-	sb.WriteString(fmt.Sprintf("Price: $%.4f\n\n", data.Price))
+	sb.WriteString(fmt.Sprintf("price=%s\n\n", formatPlainNumber(data.Price)))
 
 	if len(data.PriceChange) > 0 {
 		sb.WriteString("**Price Change**:\n")
 		durations := []string{"1h", "4h", "8h", "12h", "24h"}
 		for _, d := range durations {
 			if change, ok := data.PriceChange[d]; ok {
-				sb.WriteString(fmt.Sprintf("- %s: %+.2f%%\n", d, change*100))
+				sb.WriteString(fmt.Sprintf("- timeframe=%s price_delta_pct=%s\n", d, formatSignedPlainNumber(change*100)))
 			}
 		}
 		sb.WriteString("\n")
@@ -186,14 +186,14 @@ func formatQuantDataEN(symbol string, data *QuantData) string {
 		for exchange, oiData := range data.OI {
 			if oiData != nil {
 				sb.WriteString(fmt.Sprintf("**%s OI**:\n", strings.ToUpper(exchange)))
-				sb.WriteString(fmt.Sprintf("- Current OI: %.2f\n", oiData.CurrentOI))
+				sb.WriteString(fmt.Sprintf("- current_oi=%s\n", formatPlainNumber(oiData.CurrentOI)))
 				if oiData.NetLong > 0 || oiData.NetShort > 0 {
-					sb.WriteString(fmt.Sprintf("- Net Long: %.2f, Net Short: %.2f\n", oiData.NetLong, oiData.NetShort))
+					sb.WriteString(fmt.Sprintf("- net_long=%s net_short=%s\n", formatPlainNumber(oiData.NetLong), formatPlainNumber(oiData.NetShort)))
 				}
 				if oiData.Delta != nil {
 					if delta, ok := oiData.Delta["1h"]; ok && delta != nil {
-						sb.WriteString(fmt.Sprintf("- 1h Change: %s (%.2f%%)\n",
-							formatValue(delta.OIDeltaValue), delta.OIDeltaPercent))
+						sb.WriteString(fmt.Sprintf("- timeframe=1h oi_delta_usdt=%s oi_delta_pct=%s\n",
+							formatValue(delta.OIDeltaValue), formatSignedPlainNumber(delta.OIDeltaPercent)))
 					}
 				}
 				sb.WriteString("\n")

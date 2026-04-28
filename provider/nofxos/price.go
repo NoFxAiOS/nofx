@@ -12,7 +12,7 @@ import (
 type PriceRankingItem struct {
 	Pair         string  `json:"pair"`
 	Symbol       string  `json:"symbol"`
-	PriceDelta   float64 `json:"price_delta"`    // Decimal format: 0.0723 = 7.23%
+	PriceDelta   float64 `json:"price_delta"` // Decimal format: 0.0723 = 7.23%
 	Price        float64 `json:"price"`
 	FutureFlow   float64 `json:"future_flow"`
 	SpotFlow     float64 `json:"spot_flow"`
@@ -111,11 +111,9 @@ func formatPriceRankingZH(data *PriceRankingData) string {
 
 		if len(durationData.Top) > 0 {
 			sb.WriteString("**涨幅榜**\n")
-			sb.WriteString("| 币种 | 涨幅 | 价格 | 资金流 | OI变化 |\n")
-			sb.WriteString("|------|------|------|--------|--------|\n")
 			for _, item := range durationData.Top {
-				sb.WriteString(fmt.Sprintf("| %s | %+.2f%% | $%.4f | %s | %s |\n",
-					item.Symbol, item.PriceDelta*100, item.Price,
+				sb.WriteString(fmt.Sprintf("- symbol=%s price_delta_pct=%s price=%s future_flow_usdt=%s oi_delta_usdt=%s\n",
+					item.Symbol, formatSignedPlainNumber(item.PriceDelta*100), formatPlainNumber(item.Price),
 					formatValue(item.FutureFlow), formatValue(item.OIDeltaValue)))
 			}
 			sb.WriteString("\n")
@@ -123,11 +121,9 @@ func formatPriceRankingZH(data *PriceRankingData) string {
 
 		if len(durationData.Low) > 0 {
 			sb.WriteString("**跌幅榜**\n")
-			sb.WriteString("| 币种 | 跌幅 | 价格 | 资金流 | OI变化 |\n")
-			sb.WriteString("|------|------|------|--------|--------|\n")
 			for _, item := range durationData.Low {
-				sb.WriteString(fmt.Sprintf("| %s | %.2f%% | $%.4f | %s | %s |\n",
-					item.Symbol, item.PriceDelta*100, item.Price,
+				sb.WriteString(fmt.Sprintf("- symbol=%s price_delta_pct=%s price=%s future_flow_usdt=%s oi_delta_usdt=%s\n",
+					item.Symbol, formatSignedPlainNumber(item.PriceDelta*100), formatPlainNumber(item.Price),
 					formatValue(item.FutureFlow), formatValue(item.OIDeltaValue)))
 			}
 			sb.WriteString("\n")
@@ -154,11 +150,9 @@ func formatPriceRankingEN(data *PriceRankingData) string {
 
 		if len(durationData.Top) > 0 {
 			sb.WriteString("**Top Gainers**\n")
-			sb.WriteString("| Symbol | Change | Price | Fund Flow | OI Change |\n")
-			sb.WriteString("|--------|--------|-------|-----------|----------|\n")
 			for _, item := range durationData.Top {
-				sb.WriteString(fmt.Sprintf("| %s | %+.2f%% | $%.4f | %s | %s |\n",
-					item.Symbol, item.PriceDelta*100, item.Price,
+				sb.WriteString(fmt.Sprintf("- symbol=%s price_delta_pct=%s price=%s future_flow_usdt=%s oi_delta_usdt=%s\n",
+					item.Symbol, formatSignedPlainNumber(item.PriceDelta*100), formatPlainNumber(item.Price),
 					formatValue(item.FutureFlow), formatValue(item.OIDeltaValue)))
 			}
 			sb.WriteString("\n")
@@ -166,11 +160,9 @@ func formatPriceRankingEN(data *PriceRankingData) string {
 
 		if len(durationData.Low) > 0 {
 			sb.WriteString("**Top Losers**\n")
-			sb.WriteString("| Symbol | Change | Price | Fund Flow | OI Change |\n")
-			sb.WriteString("|--------|--------|-------|-----------|----------|\n")
 			for _, item := range durationData.Low {
-				sb.WriteString(fmt.Sprintf("| %s | %.2f%% | $%.4f | %s | %s |\n",
-					item.Symbol, item.PriceDelta*100, item.Price,
+				sb.WriteString(fmt.Sprintf("- symbol=%s price_delta_pct=%s price=%s future_flow_usdt=%s oi_delta_usdt=%s\n",
+					item.Symbol, formatSignedPlainNumber(item.PriceDelta*100), formatPlainNumber(item.Price),
 					formatValue(item.FutureFlow), formatValue(item.OIDeltaValue)))
 			}
 			sb.WriteString("\n")

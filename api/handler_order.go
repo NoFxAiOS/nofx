@@ -362,27 +362,40 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		if eventStore := traderStore.PositionClose(); eventStore != nil {
 			if events, err := eventStore.ListByPositionID(pos.ID); err == nil {
 				for _, ev := range events {
+					orderID := int64(0)
+					fillCount := 0
+					if orderStore := traderStore.Order(); orderStore != nil && ev.ExchangeOrderID != "" {
+						if ord, err := orderStore.GetOrderByExchangeID(ev.ExchangeID, ev.ExchangeOrderID); err == nil && ord != nil {
+							orderID = ord.ID
+							if fills, err := orderStore.GetOrderFills(ord.ID); err == nil {
+								fillCount = len(fills)
+							}
+						}
+					}
 					closeEvents = append(closeEvents, map[string]interface{}{
-						"id":                 ev.ID,
-						"position_id":        ev.PositionID,
-						"trader_id":          ev.TraderID,
-						"exchange_id":        ev.ExchangeID,
-						"symbol":             ev.Symbol,
-						"side":               ev.Side,
-						"close_reason":       ev.CloseReason,
-						"execution_source":   ev.ExecutionSource,
-						"execution_type":     ev.ExecutionType,
-						"protection_status":  ev.ProtectionStatus,
-						"decision_cycle":     ev.DecisionCycle,
-						"decision_review":    buildDecisionReviewRef(ev.DecisionCycle, ev.Symbol, ev.CloseReason),
-						"exchange_order_id":  ev.ExchangeOrderID,
-						"close_quantity":     ev.CloseQuantity,
-						"close_ratio_pct":    ev.CloseRatioPct,
-						"execution_price":    ev.ExecutionPrice,
-						"close_value_usdt":   ev.CloseValueUSDT,
-						"realized_pnl_delta": ev.RealizedPnLDelta,
-						"fee_delta":          ev.FeeDelta,
-						"event_time":         time.UnixMilli(ev.EventTime).UTC().Format(time.RFC3339),
+						"id":                  ev.ID,
+						"position_id":         ev.PositionID,
+						"trader_id":           ev.TraderID,
+						"exchange_id":         ev.ExchangeID,
+						"symbol":              ev.Symbol,
+						"side":                ev.Side,
+						"close_reason":        ev.CloseReason,
+						"execution_source":    ev.ExecutionSource,
+						"execution_type":      ev.ExecutionType,
+						"protection_status":   ev.ProtectionStatus,
+						"decision_cycle":      ev.DecisionCycle,
+						"decision_review":     buildDecisionReviewRef(ev.DecisionCycle, ev.Symbol, ev.CloseReason),
+						"exchange_order_id":   ev.ExchangeOrderID,
+						"order_id":            orderID,
+						"related_position_id": ev.PositionID,
+						"fill_count":          fillCount,
+						"close_quantity":      ev.CloseQuantity,
+						"close_ratio_pct":     ev.CloseRatioPct,
+						"execution_price":     ev.ExecutionPrice,
+						"close_value_usdt":    ev.CloseValueUSDT,
+						"realized_pnl_delta":  ev.RealizedPnLDelta,
+						"fee_delta":           ev.FeeDelta,
+						"event_time":          time.UnixMilli(ev.EventTime).UTC().Format(time.RFC3339),
 					})
 				}
 			}

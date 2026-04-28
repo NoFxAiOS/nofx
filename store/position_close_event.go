@@ -97,3 +97,20 @@ func (s *PositionCloseEventStore) UpdateReasonByOrderID(traderID, exchangeOrderI
 		Where("trader_id = ? AND exchange_order_id = ?", traderID, exchangeOrderID).
 		Updates(updates).Error
 }
+
+func (s *PositionCloseEventStore) GetByTraderAndExchangeOrderID(traderID, exchangeOrderID string) (*PositionCloseEvent, error) {
+	if exchangeOrderID == "" {
+		return nil, nil
+	}
+	var event PositionCloseEvent
+	err := s.db.Where("trader_id = ? AND exchange_order_id = ?", traderID, exchangeOrderID).
+		Order("event_time DESC, id DESC").
+		First(&event).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query close event by order id: %w", err)
+	}
+	return &event, nil
+}

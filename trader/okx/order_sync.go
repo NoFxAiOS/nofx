@@ -152,6 +152,10 @@ func (t *OKXTrader) GetTrades(startTime time.Time, limit int) ([]OKXTrade, error
 // exchangeID: Exchange account UUID (from exchanges.id)
 // exchangeType: Exchange type ("okx")
 func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchangeType string, st *store.Store) error {
+	return t.SyncOrdersFromOKXWithFullCloseHandler(traderID, exchangeID, exchangeType, st, nil)
+}
+
+func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, exchangeID string, exchangeType string, st *store.Store, onFullClose func(symbol, side string)) error {
 	if st == nil {
 		return fmt.Errorf("store is nil")
 	}
@@ -201,8 +205,9 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 
 		// Create order record - use UTC time in milliseconds to avoid timezone issues
 		execTimeMs := trade.ExecTime.UTC().UnixMilli()
-		requestedReason := trade.OrderAction
-		if requestedReason == "close_long" || requestedReason == "close_short" {
+		canonicalAction := trade.OrderAction
+		requestedReason := canonicalAction
+		if canonicalAction == "close_long" || canonicalAction == "close_short" {
 			tagLower := strings.ToLower(trade.Tag)
 			switch {
 			case strings.Contains(tagLower, "break_even"):
@@ -274,15 +279,24 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 		}
 
 		// Create/update position record using PositionBuilder
+		preClosePosition, _ := positionStore.GetOpenPositionBySymbol(traderID, symbol, positionSide)
+		preCloseQty := 0.0
+		if preClosePosition != nil {
+			preCloseQty = preClosePosition.Quantity
+		}
 		if err := posBuilder.ProcessTrade(
 			traderID, exchangeID, exchangeType,
-			symbol, positionSide, requestedReason,
+			symbol, positionSide, canonicalAction,
 			trade.FillQtyBase, trade.FillPrice, trade.Fee, 0, // No per-trade PnL from OKX
 			execTimeMs, trade.TradeID,
 		); err != nil {
 			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
 		} else {
-			logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f)", trade.TradeID, trade.OrderAction, trade.FillQtyBase)
+			store.AttachSyncedOrderToPosition(st, orderStore, positionStore, orderRecord, traderID, symbol, positionSide, canonicalAction, trade.TradeID)
+			logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f)", trade.TradeID, canonicalAction, trade.FillQtyBase)
+			if onFullClose != nil && strings.HasPrefix(canonicalAction, "close_") && preClosePosition != nil && trade.FillQtyBase >= preCloseQty-0.0001 {
+				onFullClose(symbol, positionSide)
+			}
 		}
 
 		syncedCount++
@@ -296,10 +310,14 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 
 // StartOrderSync starts background order sync task for OKX
 func (t *OKXTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
+	t.StartOrderSyncWithFullCloseHandler(traderID, exchangeID, exchangeType, st, interval, nil)
+}
+
+func (t *OKXTrader) StartOrderSyncWithFullCloseHandler(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration, onFullClose func(symbol, side string)) {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for range ticker.C {
-			if err := t.SyncOrdersFromOKX(traderID, exchangeID, exchangeType, st); err != nil {
+			if err := t.SyncOrdersFromOKXWithFullCloseHandler(traderID, exchangeID, exchangeType, st, onFullClose); err != nil {
 				logger.Infof("⚠️  OKX order sync failed: %v", err)
 			}
 		}

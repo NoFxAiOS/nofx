@@ -25,10 +25,16 @@ type fakeOrderProtectionTrader struct {
 	visibleFromCall        int
 	formatQuantityErrBelow float64
 	validateQtyErrBelow    float64
+	positions              []map[string]interface{}
 }
 
-func (f *fakeOrderProtectionTrader) GetBalance() (map[string]interface{}, error)     { return nil, nil }
-func (f *fakeOrderProtectionTrader) GetPositions() ([]map[string]interface{}, error) { return nil, nil }
+func (f *fakeOrderProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
+func (f *fakeOrderProtectionTrader) GetPositions() ([]map[string]interface{}, error) {
+	if f.positions != nil {
+		return f.positions, nil
+	}
+	return nil, nil
+}
 func (f *fakeOrderProtectionTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	return nil, nil
 }

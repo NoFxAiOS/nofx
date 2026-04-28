@@ -368,6 +368,61 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	}, nil
 }
 
+func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
+	if at == nil || at.store == nil {
+		return
+	}
+	state, err := at.store.LoadDynamicProtectionState()
+	if err != nil {
+		logger.Warnf("⚠️ Dynamic protection state: failed to load persisted state: %v", err)
+		return
+	}
+	if len(state.Records) == 0 {
+		return
+	}
+	if at.protectionState == nil {
+		at.protectionState = make(map[string]string)
+	}
+	if at.drawdownState == nil {
+		at.drawdownState = make(map[string]string)
+	}
+	for _, record := range state.Records {
+		if record.TraderID != "" && record.TraderID != at.id {
+			continue
+		}
+		if record.Status != "" && record.Status != "armed" && record.Status != "executed" {
+			continue
+		}
+		if record.Status == "executed" && record.ProtectionType != "managed_drawdown" {
+			continue
+		}
+		key := positionKey(record.Symbol, record.Side)
+		switch record.ProtectionType {
+		case "native_trailing":
+			if record.Status != "armed" {
+				continue
+			}
+			at.protectionState[key] = "native_trailing_armed"
+			if record.RuleFingerprint != "" {
+				at.drawdownState[key] = record.RuleFingerprint
+			}
+		case "native_partial_trailing":
+			if record.Status != "armed" {
+				continue
+			}
+			at.protectionState[key] = "native_partial_trailing_armed"
+			if record.RuleFingerprint != "" {
+				at.drawdownState[key] = record.RuleFingerprint
+			}
+		case "managed_drawdown":
+			if record.RuleFingerprint != "" {
+				at.drawdownState[key] = record.RuleFingerprint
+			}
+		}
+	}
+	logger.Infof("🧷 Dynamic protection state: loaded %d persisted records", len(state.Records))
+}
+
 // Run runs the automatic trading main loop
 func (at *AutoTrader) Run() error {
 	at.isRunningMutex.Lock()
@@ -378,6 +433,7 @@ func (at *AutoTrader) Run() error {
 	at.startTime = time.Now()
 
 	logger.Info("🚀 AI-driven automatic trading system started")
+	at.loadDynamicProtectionStateFromStore()
 	logger.Infof("💰 Initial balance: %.2f USDT", at.initialBalance)
 	logger.Infof("⚙️  Scan interval: %v", at.config.ScanInterval)
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
@@ -418,7 +474,7 @@ func (at *AutoTrader) Run() error {
 	// Start OKX order sync if using OKX exchange
 	if at.exchange == "okx" {
 		if okxTrader, ok := at.trader.(*okx.OKXTrader); ok && at.store != nil {
-			okxTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			okxTrader.StartOrderSyncWithFullCloseHandler(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second, at.handleSyncedFullClose)
 			logger.Infof("🔄 [%s] OKX order+position sync enabled (every 30s)", at.name)
 		}
 	}

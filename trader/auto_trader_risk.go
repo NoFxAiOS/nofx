@@ -483,6 +483,25 @@ type nativeTrailingOrder struct {
 	OrderID      string
 }
 
+func (at *AutoTrader) findExistingFullTrailingOrder(side string, openOrders []OpenOrder) *nativeTrailingOrder {
+	for _, order := range openOrders {
+		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+			continue
+		}
+		if !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			continue
+		}
+		return &nativeTrailingOrder{
+			PositionSide: order.PositionSide,
+			StopPrice:    order.StopPrice,
+			CallbackRate: order.CallbackRate,
+			Quantity:     order.Quantity,
+			OrderID:      order.OrderID,
+		}
+	}
+	return nil
+}
+
 func (at *AutoTrader) findEquivalentPartialTrailingOrder(symbol, side string, rule store.DrawdownTakeProfitRule, entryPrice float64, openOrders []OpenOrder) (*nativeTrailingOrder, float64, float64, float64) {
 	plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
 	plannedCallbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
@@ -527,6 +546,37 @@ func (at *AutoTrader) findEquivalentPartialTrailingOrder(symbol, side string, ru
 	return nil, qtyTarget, plannedActivationPrice, plannedCallbackRate
 }
 
+func (at *AutoTrader) findPartialTrailingReplacementCandidate(side string, openOrders []OpenOrder, qtyTarget, plannedActivationPrice, plannedCallbackRate float64) *nativeTrailingOrder {
+	var best *nativeTrailingOrder
+	bestScore := math.MaxFloat64
+	for _, order := range openOrders {
+		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+			continue
+		}
+		if !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			continue
+		}
+		qtyScore := math.Abs(order.Quantity - qtyTarget)
+		callbackScore := math.Abs(order.CallbackRate-plannedCallbackRate) * 100
+		activationScore := 0.0
+		if order.StopPrice > 0 && plannedActivationPrice > 0 {
+			activationScore = math.Abs(order.StopPrice-plannedActivationPrice) / math.Max(math.Abs(order.StopPrice), math.Abs(plannedActivationPrice))
+		}
+		score := qtyScore + callbackScore + activationScore
+		if best == nil || score < bestScore {
+			bestScore = score
+			best = &nativeTrailingOrder{
+				PositionSide: order.PositionSide,
+				StopPrice:    order.StopPrice,
+				CallbackRate: order.CallbackRate,
+				Quantity:     order.Quantity,
+				OrderID:      order.OrderID,
+			}
+		}
+	}
+	return best
+}
+
 func (at *AutoTrader) shouldReplacePartialTrailingTier(existing *nativeTrailingOrder, plannedActivationPrice, plannedCallbackRate float64) bool {
 	if existing == nil {
 		return false
@@ -539,24 +589,51 @@ func (at *AutoTrader) shouldReplacePartialTrailingTier(existing *nativeTrailingO
 	return activationDrift > 0.003 || callbackDrift > 0.0002
 }
 
+func findNewestMatchingTrailingOrderID(openOrders []OpenOrder, positionSide string, existingTier *nativeTrailingOrder, qtyTarget, plannedCallbackRate float64) string {
+	for i := len(openOrders) - 1; i >= 0; i-- {
+		order := openOrders[i]
+		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
+			continue
+		}
+		if !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			continue
+		}
+		if existingTier != nil && order.OrderID == existingTier.OrderID {
+			continue
+		}
+		qtyTolerance := math.Max(0.0001, qtyTarget*0.1)
+		if math.Abs(order.Quantity-qtyTarget) <= qtyTolerance && math.Abs(order.CallbackRate-plannedCallbackRate) <= 0.0002 {
+			return order.OrderID
+		}
+	}
+	return ""
+}
+
 func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPrice float64, rule store.DrawdownTakeProfitRule) bool {
 	if !at.supportsNativeTrailingStop() {
 		return false
 	}
+	if !at.verifyLivePositionForProtection(symbol, side, "native trailing drawdown") {
+		return false
+	}
 	currentState := at.getProtectionState(symbol, side)
 	isPartial := rule.CloseRatioPct < 99.999
+	var staleFullTrailing *nativeTrailingOrder
 	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
 		if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
 			if !isPartial {
-				for _, order := range openOrders {
-					if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
-						continue
-					}
-					if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+				plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+				plannedCallbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+				existing := at.findExistingFullTrailingOrder(side, openOrders)
+				if existing != nil {
+					if !at.shouldReplacePartialTrailingTier(existing, plannedActivationPrice, plannedCallbackRate) {
 						return true
 					}
+					logger.Infof("⚠️ Native trailing state exists but full trailing order drifted from plan (%s %s), re-arming", symbol, side)
+					staleFullTrailing = existing
+				} else {
+					logger.Infof("⚠️ Native trailing state exists but no trailing order found on exchange (%s %s), re-arming", symbol, side)
 				}
-				logger.Infof("⚠️ Native trailing state exists but no trailing order found on exchange (%s %s), re-arming", symbol, side)
 			} else {
 				existingTier, _, plannedActivationPrice, plannedCallbackRate := at.findEquivalentPartialTrailingOrder(symbol, side, rule, entryPrice, openOrders)
 				if existingTier != nil && !at.shouldReplacePartialTrailingTier(existingTier, plannedActivationPrice, plannedCallbackRate) {
@@ -706,8 +783,14 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					}
 					var existingTier *nativeTrailingOrder
 					oldTrailingCount := 0
+					qtyTarget := partialQty
+					plannedCallbackRate := okxCallbackRatio
 					if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
-						existingTier, _, _, _ = at.findEquivalentPartialTrailingOrder(symbol, side, rule, entryPrice, openOrders)
+						var plannedActivationPrice float64
+						existingTier, qtyTarget, plannedActivationPrice, plannedCallbackRate = at.findEquivalentPartialTrailingOrder(symbol, side, rule, entryPrice, openOrders)
+						if existingTier == nil {
+							existingTier = at.findPartialTrailingReplacementCandidate(side, openOrders, qtyTarget, plannedActivationPrice, plannedCallbackRate)
+						}
 						for _, order := range openOrders {
 							if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
 								continue
@@ -755,12 +838,17 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 								}
 							}
 							if verified {
+								newOrderID := ""
+								if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
+									newOrderID = findNewestMatchingTrailingOrderID(openOrders, strings.ToUpper(side), existingTier, qtyTarget, plannedCallbackRate)
+								}
 								if existingTier != nil && existingTier.OrderID != "" {
 									if err := tagged.CancelTrailingStopOrdersByIDs(symbol, []string{existingTier.OrderID}); err != nil {
 										logger.Infof("⚠️ Failed to cancel replaced native partial trailing tier (%s %s, okx): %v", symbol, side, err)
 									}
 								}
 								at.setProtectionState(symbol, side, "native_partial_trailing_armed")
+								at.persistDynamicProtectionRecord(symbol, side, "native_partial_trailing", drawdownRuleFingerprint(entryPrice, quantity, rule), rule.CloseRatioPct, "armed", newOrderID)
 								logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
 								return true
 							}
@@ -851,10 +939,16 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		}
 		if tagged, ok := at.trader.(interface {
 			SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error
+			CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error
 		}); ok {
 			if err := tagged.SetTrailingStopLossTagged(symbol, positionSide, activationPrice, okxCallbackRatio, 0, "native_trailing"); err != nil {
 				logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 				return false
+			}
+			if staleFullTrailing != nil && staleFullTrailing.OrderID != "" {
+				if err := tagged.CancelTrailingStopOrdersByIDs(symbol, []string{staleFullTrailing.OrderID}); err != nil {
+					logger.Infof("⚠️ Failed to cancel replaced native full trailing order (%s %s, okx): %v", symbol, side, err)
+				}
 			}
 		} else if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, 0); err != nil {
 			logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
@@ -869,6 +963,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f close=%.1f%%", symbol, side, activationPrice, priceBasedCallbackRatio, rule.CloseRatioPct)
 	} else {
 		at.setProtectionState(symbol, side, "native_trailing_armed")
+		at.persistDynamicProtectionRecord(symbol, side, "native_trailing", drawdownRuleFingerprint(entryPrice, 0, rule), rule.CloseRatioPct, "armed", "")
 		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f", symbol, side, activationPrice, priceBasedCallbackRatio)
 	}
 	return true
@@ -1005,6 +1100,9 @@ func (at *AutoTrader) getActiveBreakEvenConfig() *store.BreakEvenStopConfig {
 
 func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPrice, currentPnLPct float64, cfg store.BreakEvenStopConfig) error {
 	if currentPnLPct < cfg.TriggerValue || entryPrice <= 0 || quantity <= 0 {
+		return nil
+	}
+	if !at.verifyLivePositionForProtection(symbol, side, "break-even stop") {
 		return nil
 	}
 

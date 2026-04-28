@@ -206,3 +206,72 @@ func TestBuildPositionProtectionRuntimeSurfacesRunnerAndBreakEvenSuppression(t *
 		t.Fatalf("expected scheduled tier stage metadata, got %#v", runtime["scheduled_tiers"])
 	}
 }
+
+func TestBuildPositionProtectionRuntimeSurfacesUnexpectedProtectionSummary(t *testing.T) {
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   &runtimeProtectionTestTrader{},
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{},
+		},
+	}
+	at.config.StrategyConfig.Protection.LadderTPSL = store.LadderTPSLConfig{
+		Enabled:         true,
+		Mode:            store.ProtectionModeManual,
+		StopLossEnabled: true,
+		StopLossPrice:   store.ProtectionValueSource{Mode: store.ProtectionValueModeManual},
+		StopLossSize:    store.ProtectionValueSource{Mode: store.ProtectionValueModeManual},
+		Rules: []store.LadderTPSLRule{{
+			StopLossPct:           3,
+			StopLossCloseRatioPct: 100,
+		}},
+	}
+
+	runtime := at.buildPositionProtectionRuntime("BTCUSDT", "long", 1, 100, []OpenOrder{
+		{
+			OrderID:        "expected-static",
+			Symbol:         "BTCUSDT",
+			PositionSide:   "LONG",
+			Type:           "STOP_MARKET",
+			StopPrice:      97,
+			Quantity:       1,
+			ClientOrderID:  "ladder_sl_1",
+			ProtectionRole: "stop_loss",
+		},
+		{
+			OrderID:       "bot-stale",
+			Symbol:        "BTCUSDT",
+			PositionSide:  "LONG",
+			Type:          "STOP_MARKET",
+			StopPrice:     90,
+			Quantity:      1,
+			ClientOrderID: "stale-ladder-sl",
+		},
+		{
+			OrderID:      "manual-stop",
+			Symbol:       "BTCUSDT",
+			PositionSide: "LONG",
+			Type:         "STOP_MARKET",
+			StopPrice:    85,
+			Quantity:     1,
+		},
+	})
+
+	summary, ok := runtime["unexpected_protection"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected unexpected protection summary, got %#v", runtime["unexpected_protection"])
+	}
+	if got := summary["expected_static_owner_count"]; got != 1 {
+		t.Fatalf("expected one static owner, got %#v", got)
+	}
+	if got := summary["stale_bot_duplicate_count"]; got != 1 {
+		t.Fatalf("expected one stale bot duplicate, got %#v", got)
+	}
+	if got := summary["manual_or_foreign_count"]; got != 1 {
+		t.Fatalf("expected one manual/foreign protection, got %#v", got)
+	}
+	ids, _ := summary["stale_bot_duplicate_order_ids"].([]string)
+	if len(ids) != 1 || ids[0] != "bot-stale" {
+		t.Fatalf("expected stale bot order id surfaced, got %#v", ids)
+	}
+}

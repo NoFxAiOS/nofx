@@ -960,12 +960,16 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	fullStopPlanned := false
 	fullTakeProfitPlanned := false
 	fallbackPlanned := false
+	unexpectedSummary := unexpectedProtectionSummary{}
 	if configuredPlan, err := at.BuildConfiguredProtectionPlan(entryPrice, "open_"+strings.ToLower(side)); err == nil && configuredPlan != nil {
 		plannedLadderStopCount = len(configuredPlan.StopLossOrders)
 		plannedLadderTakeProfitCount = len(configuredPlan.TakeProfitOrders)
 		fullStopPlanned = configuredPlan.NeedsStopLoss && configuredPlan.StopLossPrice > 0
 		fullTakeProfitPlanned = configuredPlan.NeedsTakeProfit && configuredPlan.TakeProfitPrice > 0
 		fallbackPlanned = configuredPlan.FallbackMaxLossPrice > 0
+		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
+		nativeTrailingArmed := at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed"
+		unexpectedSummary = classifyUnexpectedProtectionOrders(openOrders, positionSide, configuredPlan, breakEvenArmed, nativeTrailingArmed, true)
 	}
 	ladderDegradedStop := plannedLadderStopCount > 0 && ladderStopCount < plannedLadderStopCount
 	ladderDegradedTakeProfit := plannedLadderTakeProfitCount > 0 && ladderTakeProfitCount < plannedLadderTakeProfitCount
@@ -1033,39 +1037,49 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			}
 			return ""
 		}(),
-		"drawdown_structure_stage":              currentStructureStage,
-		"drawdown_structure_stop_source":        currentStructureStopSource,
-		"drawdown_structure_target_source":      currentStructureTargetSource,
-		"drawdown_structure_target_progress":    currentStructureTargetProgress,
-		"drawdown_structure_primary_timeframe":  currentStructurePrimaryTf,
-		"drawdown_structure_evidence":           currentStructureEvidence,
-		"drawdown_structure_trace":              currentStructureTrace,
-		"structure_protection_health":           currentStructureHealth,
-		"structure_protection_drift_reason":     currentStructureDriftReason,
-		"structure_protection_detached":         currentStructureDetached,
-		"drawdown_execution_mode":               at.getDrawdownExecutionMode(symbol, side),
-		"drawdown_config_source":                drawdownSource,
-		"break_even_execution_mode":             at.getBreakEvenExecutionMode(symbol, side),
-		"current_pnl_pct":                       currentPnLPct,
-		"drawdown_peak_pnl_pct":                 peakPnLPct,
-		"current_drawdown_pct":                  drawdownPct,
-		"current_break_even_trigger_pct":        breakEvenTrigger,
-		"break_even_offset_pct":                 breakEvenOffset,
-		"next_break_even_gap_pct":               nextBreakEvenGap,
-		"break_even_config_source":              breakEvenSource,
-		"live_break_even_stop_price":            liveBreakEvenStopPrice,
-		"break_even_order_detected":             breakEvenOrderDetected,
-		"planned_ladder_stop_count":             plannedLadderStopCount,
-		"planned_ladder_take_profit_count":      plannedLadderTakeProfitCount,
-		"live_ladder_stop_count":                ladderStopCount,
-		"live_ladder_take_profit_count":         ladderTakeProfitCount,
-		"live_full_stop_count":                  fullStopCount,
-		"live_full_take_profit_count":           fullTakeProfitCount,
-		"fallback_order_detected":               fallbackActive,
-		"live_fallback_stop_count":              fallbackStopCount,
-		"full_stop_planned":                     fullStopPlanned,
-		"full_take_profit_planned":              fullTakeProfitPlanned,
-		"fallback_planned":                      fallbackPlanned,
+		"drawdown_structure_stage":             currentStructureStage,
+		"drawdown_structure_stop_source":       currentStructureStopSource,
+		"drawdown_structure_target_source":     currentStructureTargetSource,
+		"drawdown_structure_target_progress":   currentStructureTargetProgress,
+		"drawdown_structure_primary_timeframe": currentStructurePrimaryTf,
+		"drawdown_structure_evidence":          currentStructureEvidence,
+		"drawdown_structure_trace":             currentStructureTrace,
+		"structure_protection_health":          currentStructureHealth,
+		"structure_protection_drift_reason":    currentStructureDriftReason,
+		"structure_protection_detached":        currentStructureDetached,
+		"drawdown_execution_mode":              at.getDrawdownExecutionMode(symbol, side),
+		"drawdown_config_source":               drawdownSource,
+		"break_even_execution_mode":            at.getBreakEvenExecutionMode(symbol, side),
+		"current_pnl_pct":                      currentPnLPct,
+		"drawdown_peak_pnl_pct":                peakPnLPct,
+		"current_drawdown_pct":                 drawdownPct,
+		"current_break_even_trigger_pct":       breakEvenTrigger,
+		"break_even_offset_pct":                breakEvenOffset,
+		"next_break_even_gap_pct":              nextBreakEvenGap,
+		"break_even_config_source":             breakEvenSource,
+		"live_break_even_stop_price":           liveBreakEvenStopPrice,
+		"break_even_order_detected":            breakEvenOrderDetected,
+		"planned_ladder_stop_count":            plannedLadderStopCount,
+		"planned_ladder_take_profit_count":     plannedLadderTakeProfitCount,
+		"live_ladder_stop_count":               ladderStopCount,
+		"live_ladder_take_profit_count":        ladderTakeProfitCount,
+		"live_full_stop_count":                 fullStopCount,
+		"live_full_take_profit_count":          fullTakeProfitCount,
+		"fallback_order_detected":              fallbackActive,
+		"live_fallback_stop_count":             fallbackStopCount,
+		"full_stop_planned":                    fullStopPlanned,
+		"full_take_profit_planned":             fullTakeProfitPlanned,
+		"fallback_planned":                     fallbackPlanned,
+		"unexpected_protection": map[string]interface{}{
+			"stale_bot_duplicate_count":     unexpectedSummary.StaleBotDuplicate,
+			"orphan_inactive_count":         unexpectedSummary.OrphanForInactive,
+			"manual_or_foreign_count":       unexpectedSummary.ManualOrForeign,
+			"expected_dynamic_owner_count":  unexpectedSummary.ExpectedDynamicOwner,
+			"expected_static_owner_count":   unexpectedSummary.ExpectedStaticOwner,
+			"stale_bot_duplicate_order_ids": unexpectedSummary.StaleBotDuplicateIDs,
+			"orphan_inactive_order_ids":     unexpectedSummary.OrphanForInactiveIDs,
+			"manual_or_foreign_order_ids":   unexpectedSummary.ManualOrForeignIDs,
+		},
 		"ladder_stop_degraded":                  ladderDegradedStop,
 		"ladder_take_profit_degraded":           ladderDegradedTakeProfit,
 		"ladder_stop_degraded_to_full":          ladderDegradedToFullStop,

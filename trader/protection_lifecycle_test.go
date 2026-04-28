@@ -281,8 +281,8 @@ func TestDetectUnexpectedProtectionOrdersFlagsUnplannedStopsAndTakeProfits(t *te
 		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
 		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
 		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 105},
-		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 101.2}, // stray break-even-like stop without armed state
-		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 111},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 101.2, OrderID: "4c363c81edc5bcde_old_be_stop"}, // stray bot break-even-like stop without armed state
+		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 111, OrderID: "4c363c81edc5bcde_old_tp"},
 	}
 	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(openOrders, "LONG", plan, false, false)
 	if unexpectedSL != 1 {

@@ -244,7 +244,15 @@ func TestCheckPositionDrawdownAllowsNextCloseAfterPositionFingerprintChanges(t *
 }
 
 func TestApplyNativeTrailingDrawdownAdjustsNoiseCallbackForBinance(t *testing.T) {
-	fake := &fakeProtectionTrader{}
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"markPrice":   106.0,
+			"positionAmt": 1.0,
+		}},
+	}
 	at := &AutoTrader{
 		exchange: "binance",
 		trader:   fake,
@@ -273,7 +281,15 @@ func TestApplyNativeTrailingDrawdownAdjustsNoiseCallbackForBinance(t *testing.T)
 }
 
 func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
-	fake := &fakeProtectionTrader{}
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"markPrice":   106.0,
+			"positionAmt": 1.0,
+		}},
+	}
 	at := &AutoTrader{
 		exchange: "binance",
 		trader:   fake,
@@ -304,6 +320,309 @@ func TestApplyNativeTrailingDrawdownForBinance(t *testing.T) {
 	}
 	if at.getProtectionState("BTCUSDT", "long") != "native_trailing_armed" {
 		t.Fatalf("expected protection state native_trailing_armed, got %q", at.getProtectionState("BTCUSDT", "long"))
+	}
+}
+
+func TestApplyNativeTrailingDrawdownSkipsDuplicateWhenEquivalentFullTrailingAlreadyExists(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"markPrice":   106.0,
+			"positionAmt": 1.0,
+		}},
+		openOrders: []tradertypes.OpenOrder{{
+			OrderID:      "existing-full",
+			Symbol:       "BTCUSDT",
+			PositionSide: "LONG",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    105.0,
+			CallbackRate: 0.019048,
+			Quantity:     0,
+			Status:       "NEW",
+		}},
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: map[string]string{"BTCUSDT_long": "native_trailing_armed"},
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100}
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
+	if !ok {
+		t.Fatal("expected equivalent full trailing order to satisfy duplicate-arm guard")
+	}
+	if fake.trailingCalls != 0 {
+		t.Fatalf("expected no replacement for equivalent full trailing order, got %d new trailing calls", fake.trailingCalls)
+	}
+	if fake.cancelTrailingCalls != 0 {
+		t.Fatalf("expected no cancellation for equivalent full trailing order, got %d", fake.cancelTrailingCalls)
+	}
+}
+
+func TestApplyNativeTrailingDrawdownReplacesStaleFullTrailingOrder(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"markPrice":   106.0,
+			"positionAmt": 1.0,
+		}},
+		openOrders: []tradertypes.OpenOrder{{
+			OrderID:      "stale-full",
+			Symbol:       "BTCUSDT",
+			PositionSide: "LONG",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    103.0,
+			CallbackRate: 0.05,
+			Quantity:     0,
+			Status:       "NEW",
+		}},
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: map[string]string{"BTCUSDT_long": "native_trailing_armed"},
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100}
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
+	if !ok {
+		t.Fatal("expected stale full trailing order to be replaced")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected one replacement trailing call, got %d", fake.trailingCalls)
+	}
+	if fake.cancelTrailingCalls == 0 {
+		t.Fatal("expected stale full trailing order to be canceled after replacement")
+	}
+	for _, order := range fake.openOrders {
+		if order.OrderID == "stale-full" {
+			t.Fatal("expected stale full trailing order removed from open orders after replacement")
+		}
+	}
+}
+
+func TestApplyNativeTrailingDrawdownSkipsDuplicateWhenEquivalentPartialTierAlreadyExists(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "short",
+			"entryPrice":  100.0,
+			"markPrice":   94.0,
+			"positionAmt": 2.0,
+		}},
+		openOrders: []tradertypes.OpenOrder{{
+			OrderID:      "existing-partial",
+			Symbol:       "BTCUSDT",
+			PositionSide: "SHORT",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    95.0,
+			CallbackRate: 0.021053,
+			Quantity:     1.0,
+			Status:       "NEW",
+		}},
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: map[string]string{"BTCUSDT_short": "native_partial_trailing_armed"},
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 50}
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "short", 100, rule)
+	if !ok {
+		t.Fatal("expected equivalent partial trailing tier to satisfy duplicate-arm guard")
+	}
+	if fake.trailingCalls != 0 {
+		t.Fatalf("expected no new partial trailing tier, got %d", fake.trailingCalls)
+	}
+	if fake.cancelTrailingCalls != 0 {
+		t.Fatalf("expected no partial trailing cancellation, got %d", fake.cancelTrailingCalls)
+	}
+}
+
+func TestApplyNativeTrailingDrawdownReplacesPartialTierWhenQuantityDrifts(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "short",
+			"entryPrice":  100.0,
+			"markPrice":   94.0,
+			"positionAmt": 2.0,
+		}},
+		openOrders: []tradertypes.OpenOrder{{
+			OrderID:      "stale-partial",
+			Symbol:       "BTCUSDT",
+			PositionSide: "SHORT",
+			Type:         "TRAILING_STOP_MARKET",
+			StopPrice:    95.0,
+			CallbackRate: 0.021053,
+			Quantity:     0.6,
+			Status:       "NEW",
+		}},
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: map[string]string{"BTCUSDT_short": "native_partial_trailing_armed"},
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 50}
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "short", 100, rule)
+	if !ok {
+		t.Fatal("expected stale partial tier with qty drift to be replaced")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected one replacement partial tier, got %d", fake.trailingCalls)
+	}
+	if fake.cancelTrailingCalls == 0 {
+		t.Fatal("expected stale partial tier to be canceled after replacement")
+	}
+	for _, order := range fake.openOrders {
+		if order.OrderID == "stale-partial" {
+			t.Fatal("expected stale partial tier removed from open orders after replacement")
+		}
+	}
+}
+
+func TestApplyNativeTrailingDrawdownReplacementPrefersBestMatchingPartialTierAmongMultiple(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "short",
+			"entryPrice":  100.0,
+			"markPrice":   94.0,
+			"positionAmt": 2.0,
+		}},
+		openOrders: []tradertypes.OpenOrder{
+			{
+				OrderID:      "wrong-candidate",
+				Symbol:       "BTCUSDT",
+				PositionSide: "SHORT",
+				Type:         "TRAILING_STOP_MARKET",
+				StopPrice:    92.0,
+				CallbackRate: 0.08,
+				Quantity:     0.95,
+				Status:       "NEW",
+			},
+			{
+				OrderID:      "best-candidate",
+				Symbol:       "BTCUSDT",
+				PositionSide: "SHORT",
+				Type:         "TRAILING_STOP_MARKET",
+				StopPrice:    95.4,
+				CallbackRate: 0.021053,
+				Quantity:     0.8,
+				Status:       "NEW",
+			},
+		},
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: map[string]string{"BTCUSDT_short": "native_partial_trailing_armed"},
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 50}
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "short", 100, rule)
+	if !ok {
+		t.Fatal("expected multi-tier stale partial replacement to succeed")
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected one replacement partial tier, got %d", fake.trailingCalls)
+	}
+	foundWrong := false
+	foundBest := false
+	for _, order := range fake.openOrders {
+		if order.OrderID == "wrong-candidate" {
+			foundWrong = true
+		}
+		if order.OrderID == "best-candidate" {
+			foundBest = true
+		}
+	}
+	if !foundWrong {
+		t.Fatal("expected unrelated lower-quality tier to remain")
+	}
+	if foundBest {
+		t.Fatal("expected best-matching stale tier to be canceled")
+	}
+}
+
+func TestApplyBreakEvenStopSkipsAndCleansWhenPositionClosedBeforeWrite(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: nil,
+		openOrders: []tradertypes.OpenOrder{{
+			Symbol:       "BTCUSDT",
+			PositionSide: "SHORT",
+			Type:         "STOP_MARKET",
+			StopPrice:    78000,
+			Quantity:     0.0002,
+		}},
+	}
+	at := &AutoTrader{
+		exchange:              "okx",
+		trader:                fake,
+		config:                AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState:       map[string]string{"BTCUSDT_short": "native_partial_trailing_armed"},
+		breakEvenState:        map[string]string{"BTCUSDT_short": "pending"},
+		breakEvenFingerprints: map[string]string{"BTCUSDT_short": "78867.80000000|0.00020000"},
+		peakPnLCache:          map[string]float64{"BTCUSDT_short": 2.0},
+	}
+
+	err := at.applyBreakEvenStop("BTCUSDT", "short", 0.0002, 78867.8, 1.2, store.BreakEvenStopConfig{
+		Enabled:      true,
+		TriggerMode:  store.BreakEvenTriggerProfitPct,
+		TriggerValue: 0.7,
+		OffsetPct:    0.3,
+	})
+	if err != nil {
+		t.Fatalf("expected closed-position break-even guard to skip without error, got %v", err)
+	}
+	if fake.setStopLossCalls != 0 {
+		t.Fatalf("expected no break-even stop write after position close, got %d", fake.setStopLossCalls)
+	}
+	if got := at.getProtectionState("BTCUSDT", "short"); got != "" {
+		t.Fatalf("expected inactive protection state cleared, got %q", got)
+	}
+	if got := at.getBreakEvenState("BTCUSDT", "short"); got != "" {
+		t.Fatalf("expected inactive break-even state cleared, got %q", got)
+	}
+}
+
+func TestApplyNativeTrailingDrawdownSkipsWhenPositionClosedBeforeWrite(t *testing.T) {
+	fake := &fakeProtectionTrader{positions: nil}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: map[string]string{"BTCUSDT_short": "exchange_protection_verified"},
+		breakEvenState:  map[string]string{},
+		peakPnLCache:    map[string]float64{},
+	}
+
+	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "short", 78867.8, store.DrawdownTakeProfitRule{
+		MinProfitPct:   0.8,
+		MaxDrawdownPct: 70,
+		CloseRatioPct:  50,
+	})
+	if ok {
+		t.Fatal("expected native trailing arm to be skipped for closed position")
+	}
+	if fake.trailingCalls != 0 {
+		t.Fatalf("expected no trailing order after position close, got %d", fake.trailingCalls)
+	}
+	if got := at.getProtectionState("BTCUSDT", "short"); got != "" {
+		t.Fatalf("expected inactive protection state cleared, got %q", got)
 	}
 }
 

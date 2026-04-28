@@ -271,7 +271,8 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- `entry_protection_rationale.key_levels.support` and `entry_protection_rationale.key_levels.resistance` are REQUIRED for open actions when structural entry is enabled; provide only the most decision-relevant structural levels and stay within configured caps (typically support<=3, resistance<=3) instead of dumping every visible level\n")
 	sb.WriteString("- `structural_key_levels`: structural levels that influenced protection placement decisions; each must specify price, type (support/resistance), timeframe, source, and what it was used_for (tp1/tp2/stop_loss/invalidation)\n")
 	sb.WriteString("- If you provide `structural_key_levels`, make sure they are consistent with key_levels.support/resistance; do not leave support/resistance empty\n")
-	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
+	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n")
+	sb.WriteString("- **STRICT JSON NUMBER RULE**: JSON numeric fields must use plain digits with optional decimal point only. Never use thousands separators, grouping commas, spaces, or localized punctuation in numeric fields. Correct: `97687.05`, `77048.9`, `2293.23`. Wrong: `97,687.05`, `77,048.9`, `2,293.23`, `9,76887.05`. If you want to mention comma-formatted prices, put them only inside quoted natural-language strings, never in numeric fields.\n\n")
 
 	// 8. Custom Prompt
 	if e.config.CustomPrompt != "" {

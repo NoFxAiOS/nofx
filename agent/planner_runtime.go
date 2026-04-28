@@ -2823,7 +2823,7 @@ type nextStepDecision struct {
 }
 
 func (a *Agent) decideNextStep(ctx context.Context, userID int64, lang string, state ExecutionState) (nextStepDecision, error) {
-	toolDefs, _ := json.Marshal(agentTools())
+	toolDefs, _ := json.Marshal(plannerToolsForText(state.Goal))
 	obsJSON, _ := json.Marshal(buildObservationContext(state))
 	recentlyFetchedJSON, _ := json.Marshal(buildRecentlyFetchedData(state, time.Now().UTC()))
 	currentTurnCtx := a.buildCurrentTurnContext(userID, lang, state.Goal)
@@ -3010,7 +3010,7 @@ func (a *Agent) buildRecentConversationContext(userID int64, currentUserText str
 }
 
 func (a *Agent) createExecutionPlan(ctx context.Context, userID int64, lang, userText string, state ExecutionState) (executionPlan, error) {
-	toolDefs, _ := json.Marshal(agentTools())
+	toolDefs, _ := json.Marshal(plannerToolsForText(userText))
 	currentTurnCtx := a.buildCurrentTurnContext(userID, lang, userText)
 	activeTaskCtx := a.buildActiveTaskStateContext(userID, lang)
 	currentReferenceSummary := buildCurrentReferenceSummary(lang, a.semanticCurrentReferences(userID))

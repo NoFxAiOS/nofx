@@ -43,6 +43,243 @@ var (
 // agentTools returns the tools available to the LLM for autonomous action.
 func agentTools() []mcp.Tool { return cachedTools }
 
+func plannerToolsForText(text string) []mcp.Tool {
+	domain := plannerToolDomainForText(text)
+	compactStrategy := !looksLikeStrategyMutationIntent(text)
+	names := plannerToolNamesForDomain(domain)
+	return toolsByName(names, compactStrategy)
+}
+
+func plannerToolDomainForText(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return "general"
+	}
+	if containsAny(lower, []string{"诊断", "排查", "为什么", "为啥", "失败", "报错", "异常", "停止", "没下单", "failed", "error", "diagnose", "debug", "logs", "stopped", "not trading"}) {
+		return "diagnosis"
+	}
+	if hasExplicitManagementDomainCue(text, "exchange") || containsAny(lower, []string{"交易所", "exchange", "apikey", "secret", "passphrase", "wallet address", "api凭证"}) {
+		return "exchange"
+	}
+	if hasExplicitManagementDomainCue(text, "model") || containsAny(lower, []string{"ai model", "模型", "provider", "api key", "custom_model", "custom api"}) {
+		return "model"
+	}
+	if hasExplicitManagementDomainCue(text, "strategy") || containsAny(lower, []string{"策略", "strategy", "选币", "止盈", "止损", "杠杆", "风控", "risk control"}) {
+		return "strategy"
+	}
+	if hasExplicitManagementDomainCue(text, "trader") || containsAny(lower, []string{"交易员", "trader", "启动", "停止交易员", "扫描间隔", "竞技场"}) {
+		return "trader"
+	}
+	if containsAny(lower, []string{"余额", "资产", "仓位", "持仓", "订单", "成交", "交易历史", "balance", "position", "positions", "trade history", "account"}) {
+		return "account"
+	}
+	if containsAny(lower, []string{"行情", "价格", "k线", "kline", "market", "price", "btc", "eth", "sol", "usdt", "股票", "stock"}) {
+		return "market"
+	}
+	return "general"
+}
+
+func plannerToolNamesForDomain(domain string) []string {
+	switch domain {
+	case "market":
+		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock"}
+	case "account":
+		return []string{"get_balance", "get_positions", "get_trade_history"}
+	case "trader":
+		return []string{"get_model_configs", "get_exchange_configs", "get_strategies", "manage_trader"}
+	case "model":
+		return []string{"get_model_configs", "manage_model_config"}
+	case "exchange":
+		return []string{"get_exchange_configs", "manage_exchange_config"}
+	case "strategy":
+		return []string{"get_strategies", "manage_strategy"}
+	case "diagnosis":
+		return []string{"get_backend_logs", "get_model_configs", "get_exchange_configs", "get_strategies", "manage_trader"}
+	default:
+		return []string{
+			"get_preferences", "manage_preferences",
+			"get_backend_logs",
+			"get_exchange_configs", "manage_exchange_config",
+			"get_model_configs", "manage_model_config",
+			"get_strategies", "manage_strategy",
+			"manage_trader",
+			"get_balance", "get_positions", "get_trade_history",
+			"get_market_snapshot", "get_market_price", "get_kline", "search_stock",
+		}
+	}
+}
+
+func toolsByName(names []string, compactStrategy bool) []mcp.Tool {
+	if len(names) == 0 {
+		return nil
+	}
+	byName := make(map[string]mcp.Tool, len(cachedTools))
+	for _, tool := range cachedTools {
+		byName[tool.Function.Name] = tool
+	}
+	out := make([]mcp.Tool, 0, len(names))
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		tool, ok := byName[name]
+		if !ok {
+			continue
+		}
+		if compactStrategy && name == "manage_strategy" {
+			tool = compactManageStrategyTool(tool)
+		}
+		out = append(out, tool)
+	}
+	return out
+}
+
+func compactManageStrategyTool(tool mcp.Tool) mcp.Tool {
+	tool.Function.Description = "List, query, delete, activate, duplicate, create, or update strategy templates. Planning schema is compact; use action plus strategy_id/name/description/lang/is_public/config_visible, and include config only when the user explicitly provides strategy config fields."
+	tool.Function.Parameters = map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"action":         map[string]any{"type": "string", "enum": []string{"list", "create", "update", "delete", "activate", "duplicate", "get_default_config"}},
+			"strategy_id":    map[string]any{"type": "string"},
+			"name":           map[string]any{"type": "string"},
+			"description":    map[string]any{"type": "string"},
+			"lang":           map[string]any{"type": "string", "enum": []string{"zh", "en"}},
+			"is_public":      map[string]any{"type": "boolean"},
+			"config_visible": map[string]any{"type": "boolean"},
+			"config":         map[string]any{"type": "object", "description": "Strategy config patch. Use precise StrategyConfig field paths/objects from the user request; grid risk fields such as max_drawdown_pct, stop_loss_pct, and daily_loss_limit_pct belong under grid_config. Omit when listing/querying/deleting/activating/duplicating."},
+		},
+		"required": []string{"action"},
+	}
+	return tool
+}
+
+func looksLikeStrategyMutationIntent(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	return hasExplicitManagementDomainCue(text, "strategy") &&
+		containsAny(lower, []string{"创建", "新建", "创一个", "创个", "建一个", "修改", "更新", "编辑", "调整", "配置", "create", "new", "update", "edit", "configure"})
+}
+
+type strategyConfigPatchValidation struct {
+	Config            map[string]any
+	ChangedFields     []string
+	UnchangedDefaults []string
+	RejectedFields    []string
+}
+
+func validateStrategyConfigPatch(config map[string]any) strategyConfigPatchValidation {
+	out := strategyConfigPatchValidation{
+		Config: map[string]any{},
+	}
+	if len(config) == 0 {
+		out.UnchangedDefaults = defaultStrategyConfigSections()
+		return out
+	}
+	schema := strategyConfigSchema()
+	props, _ := schema["properties"].(map[string]any)
+	for key, value := range config {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		prop, ok := props[key]
+		if !ok {
+			out.RejectedFields = append(out.RejectedFields, key+" (not in current strategy config)")
+			continue
+		}
+		cleaned, changed, rejected := sanitizeStrategyConfigValue(key, value, prop)
+		out.RejectedFields = append(out.RejectedFields, rejected...)
+		if len(changed) == 0 {
+			continue
+		}
+		out.Config[key] = cleaned
+		out.ChangedFields = append(out.ChangedFields, changed...)
+	}
+	out.UnchangedDefaults = unchangedStrategyDefaults(out.ChangedFields)
+	sort.Strings(out.ChangedFields)
+	sort.Strings(out.UnchangedDefaults)
+	sort.Strings(out.RejectedFields)
+	return out
+}
+
+func sanitizeStrategyConfigValue(path string, value any, schema any) (any, []string, []string) {
+	schemaMap, _ := schema.(map[string]any)
+	if schemaMap == nil {
+		return value, []string{path}, nil
+	}
+	if strings.EqualFold(strings.TrimSpace(fmt.Sprint(schemaMap["type"])), "object") {
+		props, _ := schemaMap["properties"].(map[string]any)
+		if len(props) == 0 {
+			return value, []string{path}, nil
+		}
+		valueMap, ok := value.(map[string]any)
+		if !ok {
+			if typed, ok := value.(map[string]string); ok {
+				valueMap = make(map[string]any, len(typed))
+				for k, v := range typed {
+					valueMap[k] = v
+				}
+				ok = true
+			}
+		}
+		if !ok {
+			return nil, nil, []string{path + " (expected object)"}
+		}
+		out := make(map[string]any, len(valueMap))
+		var changed []string
+		var rejected []string
+		for key, nestedValue := range valueMap {
+			key = strings.TrimSpace(key)
+			if key == "" {
+				continue
+			}
+			nestedPath := path + "." + key
+			prop, ok := props[key]
+			if !ok {
+				rejected = append(rejected, nestedPath+" (not in current strategy config)")
+				continue
+			}
+			cleaned, nestedChanged, nestedRejected := sanitizeStrategyConfigValue(nestedPath, nestedValue, prop)
+			rejected = append(rejected, nestedRejected...)
+			if len(nestedChanged) == 0 {
+				continue
+			}
+			out[key] = cleaned
+			changed = append(changed, nestedChanged...)
+		}
+		if len(out) == 0 {
+			return nil, nil, rejected
+		}
+		return out, changed, rejected
+	}
+	return value, []string{path}, nil
+}
+
+func defaultStrategyConfigSections() []string {
+	return []string{"strategy_type", "language", "coin_source", "indicators", "custom_prompt", "risk_control", "prompt_sections", "grid_config"}
+}
+
+func unchangedStrategyDefaults(changedFields []string) []string {
+	changedTop := make(map[string]bool, len(changedFields))
+	for _, field := range changedFields {
+		top := strings.TrimSpace(field)
+		if idx := strings.Index(top, "."); idx >= 0 {
+			top = top[:idx]
+		}
+		if top != "" {
+			changedTop[top] = true
+		}
+	}
+	out := make([]string, 0, len(defaultStrategyConfigSections()))
+	for _, section := range defaultStrategyConfigSections() {
+		if !changedTop[section] {
+			out = append(out, section)
+		}
+	}
+	return out
+}
+
 func normalizedEntityName(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
@@ -1775,14 +2012,15 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if lockedField, ok := strategyConfigContainsLockedField(args.Config); ok {
 			return fmt.Sprintf(`{"error":"%s"}`, strategyLockedFieldError("zh", lockedField))
 		}
+		validation := validateStrategyConfigPatch(args.Config)
 		if err := a.ensureUniqueStrategyName(storeUserID, name, ""); err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err)
 		}
 		defaultConfig := store.GetDefaultStrategyConfig(strings.TrimSpace(args.Lang))
 		var cfg any = defaultConfig
 		var warnings []string
-		if len(args.Config) > 0 {
-			merged, err := store.MergeStrategyConfig(defaultConfig, args.Config)
+		if len(validation.Config) > 0 {
+			merged, err := store.MergeStrategyConfig(defaultConfig, validation.Config)
 			if err != nil {
 				return fmt.Sprintf(`{"error":"invalid strategy config: %s"}`, err)
 			}
@@ -1813,10 +2051,14 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 			return fmt.Sprintf(`{"error":"failed to create strategy: %s"}`, err)
 		}
 		payload, _ := json.Marshal(map[string]any{
-			"status":   "ok",
-			"action":   "create",
-			"strategy": safeStrategyForTool(record),
-			"warnings": warnings,
+			"status":              "ok",
+			"action":              "create",
+			"created_strategy_id": record.ID,
+			"strategy":            safeStrategyForTool(record),
+			"changed_fields":      validation.ChangedFields,
+			"unchanged_defaults":  validation.UnchangedDefaults,
+			"rejected_fields":     validation.RejectedFields,
+			"warnings":            warnings,
 		})
 		return string(payload)
 	case "update":
@@ -1827,6 +2069,7 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if lockedField, ok := strategyConfigContainsLockedField(args.Config); ok {
 			return fmt.Sprintf(`{"error":"%s"}`, strategyLockedFieldError("zh", lockedField))
 		}
+		validation := validateStrategyConfigPatch(args.Config)
 		existing, err := a.store.Strategy().Get(storeUserID, strategyID)
 		if err != nil {
 			return fmt.Sprintf(`{"error":"failed to load strategy: %s"}`, err)
@@ -1855,16 +2098,29 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if args.ConfigVisible != nil {
 			configVisible = *args.ConfigVisible
 		}
+		metadataChanged := make([]string, 0, 4)
+		if !sameEntityName(name, existing.Name) {
+			metadataChanged = append(metadataChanged, "name")
+		}
+		if description != existing.Description {
+			metadataChanged = append(metadataChanged, "description")
+		}
+		if isPublic != existing.IsPublic {
+			metadataChanged = append(metadataChanged, "is_public")
+		}
+		if configVisible != existing.ConfigVisible {
+			metadataChanged = append(metadataChanged, "config_visible")
+		}
 		configJSON := existing.Config
 		var warnings []string
-		if len(args.Config) > 0 {
+		if len(validation.Config) > 0 {
 			var existingConfig store.StrategyConfig
 			if strings.TrimSpace(existing.Config) != "" {
 				if err := json.Unmarshal([]byte(existing.Config), &existingConfig); err != nil {
 					return fmt.Sprintf(`{"error":"failed to load existing strategy config: %s"}`, err)
 				}
 			}
-			merged, err := store.MergeStrategyConfig(existingConfig, args.Config)
+			merged, err := store.MergeStrategyConfig(existingConfig, validation.Config)
 			if err != nil {
 				return fmt.Sprintf(`{"error":"invalid strategy config: %s"}`, err)
 			}
@@ -1896,11 +2152,18 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		if err != nil {
 			return fmt.Sprintf(`{"error":"strategy updated but failed to reload: %s"}`, err)
 		}
+		changedFields := append([]string{}, metadataChanged...)
+		changedFields = append(changedFields, validation.ChangedFields...)
+		sort.Strings(changedFields)
 		payload, _ := json.Marshal(map[string]any{
-			"status":   "ok",
-			"action":   "update",
-			"strategy": safeStrategyForTool(updated),
-			"warnings": warnings,
+			"status":             "ok",
+			"action":             "update",
+			"strategy_id":        updated.ID,
+			"strategy":           safeStrategyForTool(updated),
+			"changed_fields":     changedFields,
+			"unchanged_defaults": validation.UnchangedDefaults,
+			"rejected_fields":    validation.RejectedFields,
+			"warnings":           warnings,
 		})
 		return string(payload)
 	case "delete":

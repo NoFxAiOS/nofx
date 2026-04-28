@@ -16,5 +16,5 @@
   - [x] 已补 UI 状态摘要与提示，明确区分“执行开关 enabled”与“整体/子项 mode”，减少“AI 模式已保留但尚未启用执行”被误读成“回到手动”
   - [ ] Protection AI mode 真实环境差异继续深挖：前端保存 payload 与 API legacy upgrade 测试均已锁住，但真实 strategy raw JSON 仍出现旧 shape；需继续抓真实 PUT incoming/merged config 日志，定位未覆盖路径
 - 执行层实盘主线（恢复优先级）:
-  - [ ] Drawdown 多档委托生命周期：确认是否做到“新单确认成功后再撤旧单”，并验证是否存在保护空窗 / 重复单 / 孤儿单清理不彻底
+  - [~] Drawdown 多档委托生命周期：已补 live-position gate + full-close cleanup 回调，先卡住“平仓后继续补写保护”的主入口；仍需继续确认是否做到“新单确认成功后再撤旧单”，以及是否还存在保护空窗 / 重复单 / 孤儿单清理不彻底
   - [ ] Break-even 实盘委托可观测性：补强日志/状态面，明确 break-even 何时触发、是否下单、是否被交易所拒绝、是否被其他保护链抑制

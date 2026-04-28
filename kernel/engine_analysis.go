@@ -349,68 +349,9 @@ func fixMissingQuotes(jsonStr string) string {
 	jsonStr = strings.ReplaceAll(jsonStr, "〕", "]")
 	jsonStr = strings.ReplaceAll(jsonStr, "、", ",")
 
-	jsonStr = stripNumericThousandsSeparators(jsonStr)
-
 	jsonStr = strings.ReplaceAll(jsonStr, "　", " ")
 
 	return jsonStr
-}
-
-func stripNumericThousandsSeparators(jsonStr string) string {
-	if jsonStr == "" {
-		return jsonStr
-	}
-	var b strings.Builder
-	b.Grow(len(jsonStr))
-	inString := false
-	escaped := false
-	for i := 0; i < len(jsonStr); i++ {
-		ch := jsonStr[i]
-		if inString {
-			b.WriteByte(ch)
-			if escaped {
-				escaped = false
-				continue
-			}
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == '"' {
-				inString = false
-			}
-			continue
-		}
-		if ch == '"' {
-			inString = true
-			b.WriteByte(ch)
-			continue
-		}
-		if ch == ',' && i > 0 && i+1 < len(jsonStr) && isDigit(jsonStr[i-1]) && isDigit(jsonStr[i+1]) {
-			prev := byte(0)
-			if i > 1 {
-				prev = jsonStr[i-2]
-			}
-			digitCount := 0
-			j := i + 1
-			for ; j < len(jsonStr) && isDigit(jsonStr[j]); j++ {
-				digitCount++
-			}
-			next := byte(0)
-			if j < len(jsonStr) {
-				next = jsonStr[j]
-			}
-			if digitCount >= 3 && (prev == 0 || !isDigit(prev)) && (next == 0 || !isDigit(next) || next == '.') {
-				continue
-			}
-		}
-		b.WriteByte(ch)
-	}
-	return b.String()
-}
-
-func isDigit(ch byte) bool {
-	return ch >= '0' && ch <= '9'
 }
 
 func validateJSONFormat(jsonStr string) error {
@@ -431,33 +372,12 @@ func validateJSONFormat(jsonStr string) error {
 		return fmt.Errorf("JSON cannot contain range symbol ~, all numbers must be precise single values")
 	}
 
-	inString := false
-	escaped := false
 	for i := 0; i < len(jsonStr)-4; i++ {
-		ch := jsonStr[i]
-		if inString {
-			if escaped {
-				escaped = false
-				continue
-			}
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == '"' {
-				inString = false
-			}
-			continue
-		}
-		if ch == '"' {
-			inString = true
-			continue
-		}
-		if isDigit(ch) &&
+		if jsonStr[i] >= '0' && jsonStr[i] <= '9' &&
 			jsonStr[i+1] == ',' &&
-			isDigit(jsonStr[i+2]) &&
-			isDigit(jsonStr[i+3]) &&
-			isDigit(jsonStr[i+4]) {
+			jsonStr[i+2] >= '0' && jsonStr[i+2] <= '9' &&
+			jsonStr[i+3] >= '0' && jsonStr[i+3] <= '9' &&
+			jsonStr[i+4] >= '0' && jsonStr[i+4] <= '9' {
 			return fmt.Errorf("JSON numbers cannot contain thousand separator comma, found: %s", jsonStr[i:min(i+10, len(jsonStr))])
 		}
 	}

@@ -54,17 +54,3 @@ func TestValidateDecisionFormatAcceptsCurrentActionSet(t *testing.T) {
 		t.Fatalf("expected current action set to validate, got %v", err)
 	}
 }
-
-func TestExtractDecisionsRepairsNumericThousandsSeparators(t *testing.T) {
-	response := `<reasoning>test</reasoning><decision>[{"symbol":"BTCUSDT","action":"hold","confidence":45,"reason":"price near 76,500 resistance","entry_protection_rationale":{"risk_reward":{"entry":9,76887.05,"invalidation":98000,"first_target":93000}}}]</decision>`
-	decisions, _, err := extractDecisions(response)
-	if err != nil {
-		t.Fatalf("extractDecisions failed: %v", err)
-	}
-	if len(decisions) != 1 {
-		t.Fatalf("expected one decision, got %d", len(decisions))
-	}
-	if decisions[0].EntryProtection == nil || decisions[0].EntryProtection.RiskReward.Entry != 976887.05 {
-		t.Fatalf("expected malformed numeric separator repaired, got %#v", decisions[0].EntryProtection)
-	}
-}

@@ -661,6 +661,10 @@ func dynamicCloseRatioFromFingerprint(fingerprint string) float64 {
 }
 
 func (at *AutoTrader) persistDynamicProtectionRecord(symbol, side, protectionType, ruleFingerprint string, closeRatioPct float64, status string, exchangeOrderID string) {
+	at.persistDynamicProtectionRecordWithDetails(symbol, side, protectionType, ruleFingerprint, closeRatioPct, status, exchangeOrderID, 0, 0, 0)
+}
+
+func (at *AutoTrader) persistDynamicProtectionRecordWithDetails(symbol, side, protectionType, ruleFingerprint string, closeRatioPct float64, status string, exchangeOrderID string, activationPrice, callbackRatio, quantity float64) {
 	if at == nil || at.store == nil {
 		return
 	}
@@ -680,6 +684,9 @@ func (at *AutoTrader) persistDynamicProtectionRecord(symbol, side, protectionTyp
 		CloseRatioPct:       closeRatioPct,
 		Status:              status,
 		ExchangeOrderID:     exchangeOrderID,
+		ActivationPrice:     activationPrice,
+		CallbackRatio:       callbackRatio,
+		Quantity:            quantity,
 	}
 	if err := at.store.SaveDynamicProtectionRecord(record); err != nil {
 		logger.Warnf("⚠️ Dynamic protection state: failed to persist %s for %s %s: %v", protectionType, symbol, side, err)

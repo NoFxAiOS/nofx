@@ -848,7 +848,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 									}
 								}
 								at.setProtectionState(symbol, side, "native_partial_trailing_armed")
-								at.persistDynamicProtectionRecord(symbol, side, "native_partial_trailing", drawdownRuleFingerprint(entryPrice, quantity, rule), rule.CloseRatioPct, "armed", newOrderID)
+								at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_partial_trailing", drawdownRuleFingerprint(entryPrice, quantity, rule), rule.CloseRatioPct, "armed", newOrderID, activationPrice, okxCallbackRatio, partialQty)
 								logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
 								return true
 							}
@@ -963,7 +963,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f close=%.1f%%", symbol, side, activationPrice, priceBasedCallbackRatio, rule.CloseRatioPct)
 	} else {
 		at.setProtectionState(symbol, side, "native_trailing_armed")
-		at.persistDynamicProtectionRecord(symbol, side, "native_trailing", drawdownRuleFingerprint(entryPrice, 0, rule), rule.CloseRatioPct, "armed", "")
+		at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_trailing", drawdownRuleFingerprint(entryPrice, 0, rule), rule.CloseRatioPct, "armed", "", activationPrice, priceBasedCallbackRatio, 0)
 		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f", symbol, side, activationPrice, priceBasedCallbackRatio)
 	}
 	return true

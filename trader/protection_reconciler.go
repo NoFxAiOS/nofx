@@ -1008,6 +1008,9 @@ func (at *AutoTrader) cancelUnexpectedProtectionOrdersByID(symbol string, orderI
 	}
 }
 
+// cancelProtectionOrdersForCleanup performs tagged-only cleanup for active-position repair paths.
+// It must not broad-cancel symbol protection while a position is active; broad cleanup is reserved
+// for fully inactive symbols in cancelOrphanedProtectionOrdersForInactiveSymbol.
 func (at *AutoTrader) cancelProtectionOrdersForCleanup(symbol string) {
 	if tagged, ok := at.trader.(okxTaggedProtectionCanceller); ok {
 		for _, tag := range []string{"ladder_sl", "full_sl", "fallback_maxloss_sl", "break_even_stop"} {
@@ -1021,17 +1024,6 @@ func (at *AutoTrader) cancelProtectionOrdersForCleanup(symbol string) {
 			}
 		}
 	}
-	// Tagged cleanup alone misses legacy/untagged algo orders. Always follow with
-	// broad SL/TP cleanup when available so a clean re-apply cannot stack a new
-	// fallback on top of an old untagged stop.
-	if canceller, ok := at.trader.(okxProtectionCanceller); ok {
-		if err := canceller.CancelStopLossOrders(symbol); err != nil {
-			logger.Warnf("  ⚠️ Cleanup: failed to cancel SL orders for %s: %v", symbol, err)
-		}
-		if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
-			logger.Warnf("  ⚠️ Cleanup: failed to cancel TP orders for %s: %v", symbol, err)
-		}
-	}
-	// Small delay to let exchange process cancellations.
+	// Small delay to let exchange process targeted cancellations.
 	time.Sleep(500 * time.Millisecond)
 }

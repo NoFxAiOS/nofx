@@ -18,7 +18,7 @@ func (t *taggedCleanupTrader) CancelTakeProfitOrdersTagged(symbol string, reason
 	return nil
 }
 
-func TestCancelProtectionOrdersForCleanupBroadCleansAfterTaggedCleanup(t *testing.T) {
+func TestCancelProtectionOrdersForCleanupUsesTaggedCleanupOnly(t *testing.T) {
 	ft := &taggedCleanupTrader{}
 	at := &AutoTrader{trader: ft}
 
@@ -27,10 +27,10 @@ func TestCancelProtectionOrdersForCleanupBroadCleansAfterTaggedCleanup(t *testin
 	if len(ft.taggedSLCalls) == 0 || len(ft.taggedTPCalls) == 0 {
 		t.Fatalf("expected tagged cleanup calls, got sl=%v tp=%v", ft.taggedSLCalls, ft.taggedTPCalls)
 	}
-	if len(ft.cancelStopLossCalls) != 1 || ft.cancelStopLossCalls[0] != "SOLUSDT" {
-		t.Fatalf("expected broad stop-loss cleanup after tagged cleanup, got %+v", ft.cancelStopLossCalls)
+	if len(ft.cancelStopLossCalls) != 0 {
+		t.Fatalf("expected no broad stop-loss cleanup for active cleanup helper, got %+v", ft.cancelStopLossCalls)
 	}
-	if len(ft.cancelTakeProfitCalls) != 1 || ft.cancelTakeProfitCalls[0] != "SOLUSDT" {
-		t.Fatalf("expected broad take-profit cleanup after tagged cleanup, got %+v", ft.cancelTakeProfitCalls)
+	if len(ft.cancelTakeProfitCalls) != 0 {
+		t.Fatalf("expected no broad take-profit cleanup for active cleanup helper, got %+v", ft.cancelTakeProfitCalls)
 	}
 }

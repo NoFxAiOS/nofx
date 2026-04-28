@@ -1295,6 +1295,9 @@ func (a *Agent) loadTraderOptions(storeUserID string) []traderSkillOption {
 	exchangeNames := map[string]string{}
 	if exchanges, err := a.store.Exchange().List(storeUserID); err == nil {
 		for _, exchange := range exchanges {
+			if !store.IsVisibleExchange(exchange) {
+				continue
+			}
 			name := strings.TrimSpace(exchange.AccountName)
 			if name == "" {
 				name = strings.TrimSpace(exchange.ExchangeType)

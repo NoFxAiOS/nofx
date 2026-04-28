@@ -1254,8 +1254,6 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		missing := missingRequiredActionSlots("exchange_management", "create", map[string]string{
 			"exchange_type": strings.TrimSpace(args.ExchangeType),
 			"account_name":  strings.TrimSpace(args.AccountName),
-			"api_key":       strings.TrimSpace(args.APIKey),
-			"secret_key":    strings.TrimSpace(args.SecretKey),
 		})
 		if len(missing) > 0 {
 			return fmt.Sprintf(`{"error":"missing required fields for create: %s"}`, strings.Join(missing, ", "))
@@ -1264,12 +1262,7 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		if exchangeType == "" {
 			return `{"error":"exchange_type is required for create"}`
 		}
-		// Match the manual settings page: newly created model configs should be
-		// enabled unless the caller explicitly asks to keep them disabled.
 		enabled := true
-		if args.Enabled != nil {
-			enabled = *args.Enabled
-		}
 		testnet := false
 		if args.Testnet != nil {
 			testnet = *args.Testnet
@@ -1363,10 +1356,7 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 		if err != nil {
 			return fmt.Sprintf(`{"error":"failed to load exchange config: %s"}`, err)
 		}
-		enabled := existing.Enabled
-		if args.Enabled != nil {
-			enabled = *args.Enabled
-		}
+		enabled := true
 		testnet := existing.Testnet
 		if args.Testnet != nil {
 			testnet = *args.Testnet
@@ -1433,12 +1423,6 @@ func (a *Agent) toolManageExchangeConfig(storeUserID, argsJSON string) string {
 			lighterPrivateKey:       effectiveLighterPrivateKey,
 			lighterAPIKeyPrivateKey: effectiveLighterAPIKeyPrivateKey,
 		}
-		if args.Enabled == nil {
-			if err := validator.Validate(); err == nil {
-				enabled = true
-			}
-		}
-		validator.enabled = enabled
 		if err := validator.Validate(); err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err)
 		}

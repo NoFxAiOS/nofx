@@ -16,6 +16,17 @@ type llmSkillRouteDecision struct {
 	Confidence       float64 `json:"confidence,omitempty"`
 }
 
+type unifiedTurnDecision struct {
+	TopicIntent      string         `json:"topic_intent,omitempty"`
+	BusinessAction   string         `json:"business_action,omitempty"`
+	TargetSkill      string         `json:"target_skill,omitempty"`
+	TargetSnapshotID string         `json:"target_snapshot_id,omitempty"`
+	ContextMode      string         `json:"context_mode,omitempty"`
+	ExtractedData    map[string]any `json:"extracted_data,omitempty"`
+	ReplyToUser      string         `json:"reply_to_user,omitempty"`
+	Confidence       float64        `json:"confidence,omitempty"`
+}
+
 func (a *Agent) tryLLMIntentRoute(ctx context.Context, storeUserID string, userID int64, lang, text string, onEvent func(event, data string)) (string, bool, error) {
 	if a.aiClient == nil {
 		return "", false, nil
@@ -24,6 +35,12 @@ func (a *Agent) tryLLMIntentRoute(ctx context.Context, storeUserID string, userI
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return "", false, nil
+	}
+
+	if decision, ok, err := a.routeTurnUnifiedWithLLM(ctx, userID, lang, text); err == nil && ok {
+		if answer, handled, execErr := a.executeUnifiedTurnDecision(ctx, storeUserID, userID, lang, text, decision, onEvent); handled || execErr != nil {
+			return answer, handled, execErr
+		}
 	}
 
 	decision, ok, err := a.routeTurnWithLLM(ctx, userID, lang, text)
@@ -70,6 +87,290 @@ func (a *Agent) tryLLMIntentRoute(ctx context.Context, storeUserID string, userI
 	}
 
 	return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
+}
+
+func parseUnifiedTurnDecision(raw string) (unifiedTurnDecision, error) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "```json")
+	raw = strings.TrimPrefix(raw, "```")
+	raw = strings.TrimSuffix(raw, "```")
+	raw = strings.TrimSpace(raw)
+
+	var decision unifiedTurnDecision
+	if err := json.Unmarshal([]byte(raw), &decision); err == nil {
+		return normalizeUnifiedTurnDecision(decision), nil
+	}
+	start := strings.Index(raw, "{")
+	end := strings.LastIndex(raw, "}")
+	if start >= 0 && end > start {
+		if err := json.Unmarshal([]byte(raw[start:end+1]), &decision); err == nil {
+			return normalizeUnifiedTurnDecision(decision), nil
+		}
+	}
+	return unifiedTurnDecision{}, fmt.Errorf("invalid unified turn decision json")
+}
+
+func normalizeUnifiedTurnDecision(decision unifiedTurnDecision) unifiedTurnDecision {
+	decision.TopicIntent = strings.TrimSpace(strings.ToLower(decision.TopicIntent))
+	decision.BusinessAction = strings.TrimSpace(strings.ToLower(decision.BusinessAction))
+	decision.TargetSkill = strings.TrimSpace(decision.TargetSkill)
+	decision.TargetSnapshotID = strings.TrimSpace(decision.TargetSnapshotID)
+	decision.ContextMode = strings.TrimSpace(strings.ToLower(decision.ContextMode))
+	decision.ReplyToUser = strings.TrimSpace(decision.ReplyToUser)
+	if decision.ExtractedData == nil {
+		decision.ExtractedData = map[string]any{}
+	}
+	if decision.Confidence < 0 {
+		decision.Confidence = 0
+	}
+	if decision.Confidence > 1 {
+		decision.Confidence = 1
+	}
+	switch decision.TopicIntent {
+	case "continue", "continue_active":
+		decision.TopicIntent = "continue_active"
+	case "start_new", "resume_snapshot", "cancel", "instant_reply":
+	default:
+		decision.TopicIntent = ""
+	}
+	switch decision.BusinessAction {
+	case "direct_answer", "new_skill", "continue_skill", "planned_agent", "none":
+	default:
+		decision.BusinessAction = ""
+	}
+	switch decision.ContextMode {
+	case "use_current", "fresh_context", "resume_snapshot":
+	default:
+		decision.ContextMode = "use_current"
+	}
+	return decision
+}
+
+func (d unifiedTurnDecision) reliable() bool {
+	if d.TopicIntent == "" || d.BusinessAction == "" {
+		return false
+	}
+	if d.Confidence > 0 && d.Confidence < 0.45 {
+		return false
+	}
+	switch d.BusinessAction {
+	case "direct_answer":
+		return strings.TrimSpace(d.ReplyToUser) != ""
+	case "new_skill":
+		skill, _ := parseTargetSkill(d.TargetSkill)
+		return skill != ""
+	case "continue_skill":
+		return d.TopicIntent == "continue_active"
+	case "planned_agent", "none":
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *Agent) routeTurnUnifiedWithLLM(ctx context.Context, userID int64, lang, text string) (unifiedTurnDecision, bool, error) {
+	systemPrompt, userPrompt := a.buildUnifiedTurnRouterPrompt(userID, lang, text)
+	stageCtx, cancel := withPlannerStageTimeout(ctx, directReplyTimeout)
+	defer cancel()
+
+	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
+		Messages: []mcp.Message{
+			mcp.NewSystemMessage(systemPrompt),
+			mcp.NewUserMessage(userPrompt),
+		},
+		Ctx: stageCtx,
+	})
+	if err != nil {
+		return unifiedTurnDecision{}, false, err
+	}
+	decision, err := parseUnifiedTurnDecision(raw)
+	if err != nil {
+		return unifiedTurnDecision{}, false, err
+	}
+	if !decision.reliable() {
+		return decision, false, nil
+	}
+	return decision, true, nil
+}
+
+func (a *Agent) buildUnifiedTurnRouterPrompt(userID int64, lang, text string) (string, string) {
+	activeSkill := a.getSkillSession(userID)
+	activeTask, hasActiveTask := a.getActiveSkillSession(userID)
+	activeWorkflow := a.getWorkflowSession(userID)
+	activeExec := a.getExecutionState(userID)
+	pendingProposal, hasPendingProposal := a.getPendingProposalSession(userID)
+	previousAssistantReply := a.currentPendingHintText(userID)
+	snapshots := a.SnapshotManager(userID).List()
+	snapshotJSON, _ := json.Marshal(snapshots)
+	currentRefs := buildCurrentReferenceSummary(lang, a.semanticCurrentReferences(userID))
+	recentConversation := a.buildRecentConversationContext(userID, text)
+	if strings.TrimSpace(recentConversation) == "" {
+		recentConversation = "(empty)"
+	}
+	activeFlowSummary := buildTopLevelActiveFlowSummary(lang, activeSkill, activeTask, hasActiveTask, activeWorkflow, activeExec, pendingProposal, hasPendingProposal)
+	if strings.TrimSpace(activeFlowSummary) == "" {
+		activeFlowSummary = "none"
+	}
+
+	activeTaskDetails := "none"
+	if hasActiveTask {
+		activeTaskDetails = buildBrainUserPrompt(lang, text, previousAssistantReply, recentConversation, currentRefs, activeTask, true)
+	}
+
+	systemPrompt := prependNOFXiAdvisorPreamble(`You are the unified turn router for NOFXi.
+Return JSON only. No markdown.
+
+You must make ONE combined decision for this user turn:
+1. Topic/context decision: continue active context, start fresh/new context, resume snapshot, cancel, or direct conversational reply.
+2. Business routing decision: answer directly, start/continue a management skill, or hand off to the planner.
+3. Context policy: whether downstream modules may use current references, must use fresh context, or must resume a snapshot.
+
+topic_intent values:
+- "continue_active": user is answering or continuing the active flow
+- "start_new": user starts or switches to a new task/topic
+- "resume_snapshot": user wants to resume one suspended snapshot
+- "cancel": user cancels the current active flow
+- "instant_reply": user only greets, thanks, chats, or asks a direct explanation
+
+business_action values:
+- "direct_answer": reply_to_user is the final answer; do not change state
+- "new_skill": start a management/diagnosis skill; target_skill is required
+- "continue_skill": continue the active skill session
+- "planned_agent": hand off to the execution planner/tools
+- "none": only valid with cancel when no more action is needed
+
+target_skill format for new_skill:
+skill_name:action, for example "trader_management:create".
+Available skills:
+trader_management, exchange_management, model_management, strategy_management,
+trader_diagnosis, exchange_diagnosis, model_diagnosis, strategy_diagnosis
+
+Available actions:
+create, update, update_name, update_bindings, configure_strategy, configure_exchange, configure_model,
+update_status, update_endpoint, update_config, update_prompt, delete, start, stop, activate, duplicate,
+query_list, query_detail, query_running
+
+context_mode values:
+- "use_current": downstream modules may use current references and recent context
+- "fresh_context": the user is switching topic; do not use old current references to fill business fields
+- "resume_snapshot": restore target_snapshot_id first
+
+Rules:
+- This router decides what context downstream LLMs will see. Be conservative with stale references.
+- If the user clearly switches domain/entity, set topic_intent="start_new" and context_mode="fresh_context".
+- If the user says "不是交易员，是策略" or similar corrections, use fresh_context.
+- If the user answers the previous assistant question, choose continue_active.
+- If the user only says "你好", "hi", "谢谢", "收到", choose instant_reply + direct_answer unless it clearly answers a pending task.
+- If the user asks a read-only management query, prefer planned_agent unless the answer is already fully available in the provided context.
+- Use new_skill for clear management tasks such as creating/updating/deleting/configuring trader/model/exchange/strategy.
+- Use planned_agent for multi-step, tool-heavy, market/account, diagnosis, or ambiguous tasks.
+- For model_management, "provider" means AI vendor, never an exchange.
+- Current references are context only. Do not copy them into extracted_data unless the user explicitly says this/current/that previous one.
+- extracted_data must contain only concrete facts from the current user message.
+- reply_to_user must be concise and in the user's language.
+- confidence should reflect how safe it is to execute this decision without the old router fallback.
+
+Return JSON with this exact shape:
+{"topic_intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","business_action":"direct_answer|new_skill|continue_skill|planned_agent|none","target_skill":"","target_snapshot_id":"","context_mode":"use_current|fresh_context|resume_snapshot","extracted_data":{},"reply_to_user":"","confidence":0.0}`)
+
+	userPrompt := fmt.Sprintf("Language: %s\nUser message: %s\n\nPrevious assistant reply:\n%s\n\nCurrent reference summary:\n%s\n\nActive flow summary:\n%s\n\nSuspended snapshots JSON:\n%s\n\nRecent conversation:\n%s\n\nManagement domain primer:\n%s\n\nActive task details:\n%s\n",
+		lang,
+		text,
+		defaultIfEmpty(previousAssistantReply, "(empty)"),
+		currentRefs,
+		activeFlowSummary,
+		defaultIfEmpty(string(snapshotJSON), "[]"),
+		recentConversation,
+		defaultIfEmpty(buildManagementDomainPrimer(lang), "(empty)"),
+		activeTaskDetails,
+	)
+
+	return systemPrompt, userPrompt
+}
+
+func (a *Agent) executeUnifiedTurnDecision(ctx context.Context, storeUserID string, userID int64, lang, text string, decision unifiedTurnDecision, onEvent func(event, data string)) (string, bool, error) {
+	switch decision.TopicIntent {
+	case "cancel":
+		a.clearPendingProposalSession(userID)
+		if a.hasAnyActiveContext(userID) {
+			a.clearActiveSkillSession(userID)
+			a.clearAnyActiveContext(userID)
+			return a.maybeOfferParentTaskAfterCancel(userID, lang), true, nil
+		}
+		if decision.BusinessAction == "direct_answer" && decision.ReplyToUser != "" {
+			emitBrainReply(onEvent, decision.ReplyToUser)
+			a.recordSkillInteraction(userID, text, decision.ReplyToUser)
+			return decision.ReplyToUser, true, nil
+		}
+		return "", false, nil
+	case "resume_snapshot":
+		a.clearPendingProposalSession(userID)
+		if a.tryRestoreSuspendedTaskAfterSwitch(userID, text, decision.TargetSnapshotID) {
+			if decision.BusinessAction == "planned_agent" {
+				answer, err := a.runPlannedAgentWithContextMode(ctx, storeUserID, userID, lang, text, "use_current", onEvent)
+				return answer, true, err
+			}
+			return a.tryMinimalBrain(ctx, storeUserID, userID, lang, text, onEvent)
+		}
+		return "", false, nil
+	}
+
+	if decision.TopicIntent == "continue_active" {
+		if _, hasProposal := a.getPendingProposalSession(userID); hasProposal && !a.hasAnyActiveContext(userID) {
+			return a.handlePendingProposalResponse(ctx, storeUserID, userID, lang, text, onEvent)
+		}
+	}
+
+	switch decision.BusinessAction {
+	case "direct_answer":
+		if decision.ReplyToUser == "" {
+			return "", false, nil
+		}
+		if decision.TopicIntent == "instant_reply" && a.hasAnyActiveContext(userID) {
+			return a.replyToActiveFlowInstantReply(ctx, userID, lang, text, onEvent), true, nil
+		}
+		emitBrainReply(onEvent, decision.ReplyToUser)
+		a.recordSkillInteraction(userID, text, decision.ReplyToUser)
+		a.runPostResponseMaintenanceAsync(userID)
+		return decision.ReplyToUser, true, nil
+	case "new_skill":
+		skill, action := parseTargetSkill(decision.TargetSkill)
+		if skill == "" {
+			return "", false, nil
+		}
+		if a.hasAnyActiveContext(userID) && decision.ContextMode == "fresh_context" {
+			if !a.suspendActiveContexts(userID, lang) {
+				a.clearSkillSession(userID)
+				a.clearWorkflowSession(userID)
+				a.clearExecutionState(userID)
+			}
+			a.clearActiveSkillSession(userID)
+		}
+		session := newActiveSkillSession(userID, skill, action)
+		session.Goal = strings.TrimSpace(text)
+		decision.ExtractedData = filterExtractedDataForActiveSession(session, decision.ExtractedData, lang)
+		mergeExtractedData(&session, decision.ExtractedData)
+		return a.driveActiveSession(ctx, storeUserID, userID, lang, text, session, onEvent)
+	case "continue_skill":
+		activeSession, hasActive := a.getActiveSkillSession(userID)
+		if !hasActive {
+			return "", false, nil
+		}
+		decision.ExtractedData = filterExtractedDataForActiveSession(activeSession, decision.ExtractedData, lang)
+		mergeExtractedData(&activeSession, decision.ExtractedData)
+		return a.driveActiveSession(ctx, storeUserID, userID, lang, text, activeSession, onEvent)
+	case "planned_agent":
+		contextMode := decision.ContextMode
+		if contextMode == "resume_snapshot" {
+			contextMode = "use_current"
+		}
+		answer, err := a.runPlannedAgentWithContextMode(ctx, storeUserID, userID, lang, text, contextMode, onEvent)
+		return answer, true, err
+	case "none":
+		return "", false, nil
+	default:
+		return "", false, nil
+	}
 }
 
 func parseLLMSkillRouteDecision(raw string) (llmSkillRouteDecision, error) {

@@ -112,30 +112,25 @@ func TestToolManageExchangeConfigCreateDefaultsToEnabledLikeManualPage(t *testin
 	}
 }
 
-func TestToolManageExchangeConfigUpdateAutoEnablesWhenConfigBecomesComplete(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "exchange-update-auto-enable.db")
+func TestToolManageExchangeConfigCreateRejectsIncompleteDraft(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "exchange-create-incomplete.db")
 	st, err := store.New(dbPath)
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
-	exchangeID, err := st.Exchange().Create("default", "okx", "OKX Main", false, "api-test-123456", "secret-test-123456", "", false, "", false, "", "", "", "", "", "", 0)
-	if err != nil {
-		t.Fatalf("seed incomplete exchange: %v", err)
+	resp := a.toolManageExchangeConfig("default", `{"action":"create","exchange_type":"okx","account_name":"OKX Main","api_key":"api-test-123456","secret_key":"secret-test-123456"}`)
+	if !strings.Contains(resp, `"error"`) || !strings.Contains(resp, "passphrase") {
+		t.Fatalf("expected incomplete create to be rejected with missing passphrase, got: %s", resp)
 	}
 
-	resp := a.toolManageExchangeConfig("default", `{"action":"update","exchange_id":"`+exchangeID+`","passphrase":"passphrase-123456"}`)
-	if strings.Contains(resp, `"error"`) {
-		t.Fatalf("expected update to succeed, got: %s", resp)
-	}
-
-	updated, err := st.Exchange().GetByID("default", exchangeID)
+	exchanges, err := st.Exchange().List("default")
 	if err != nil {
-		t.Fatalf("reload exchange: %v", err)
+		t.Fatalf("list exchanges: %v", err)
 	}
-	if !updated.Enabled {
-		t.Fatalf("expected completed exchange config to auto-enable after update")
+	if len(exchanges) != 0 {
+		t.Fatalf("expected incomplete exchange not to be persisted, got %#v", exchanges)
 	}
 }
 
@@ -269,6 +264,38 @@ func TestExchangeSkillOptionSummaryMatchesManualPage(t *testing.T) {
 		if strings.Contains(summary, hidden) {
 			t.Fatalf("did not expect hidden manual-page option %q in summary: %s", hidden, summary)
 		}
+	}
+}
+
+func TestLoadExchangeOptionsHidesInvisibleExchangeRows(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "exchange-options-visible.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	if err := store.DB().Create(&store.Exchange{
+		ID:           "hidden-exchange",
+		UserID:       "default",
+		ExchangeType: "okx",
+		AccountName:  "123413",
+		Name:         "OKX Futures",
+		Type:         "cex",
+		Enabled:      false,
+	}).Error; err != nil {
+		t.Fatalf("seed legacy hidden exchange: %v", err)
+	}
+	if _, err := st.Exchange().Create("default", "okx", "我的主力OKX账户", true, "api-test", "secret-test", "pass-test", false, "", false, "", "", "", "", "", "", 0); err != nil {
+		t.Fatalf("create visible exchange: %v", err)
+	}
+
+	options := a.loadExchangeOptions("default")
+	if len(options) != 1 {
+		t.Fatalf("expected only the visible exchange option, got %+v", options)
+	}
+	if options[0].Name != "我的主力OKX账户" {
+		t.Fatalf("expected visible exchange name, got %+v", options)
 	}
 }
 

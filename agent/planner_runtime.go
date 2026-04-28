@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"nofx/mcp"
+	"nofx/store"
 )
 
 const (
@@ -412,6 +413,9 @@ func (a *Agent) refreshCurrentReferencesForUserText(storeUserID, text string, st
 	if exchanges, err := a.store.Exchange().List(storeUserID); err == nil {
 		candidates := make([]EntityReference, 0, len(exchanges))
 		for _, exchange := range exchanges {
+			if !store.IsVisibleExchange(exchange) {
+				continue
+			}
 			name := exchange.AccountName
 			if name == "" {
 				name = exchange.ExchangeType

@@ -92,20 +92,21 @@ func (v exchangeConfigValidator) Validate() error {
 	if trimmed := strings.TrimSpace(v.secretKey); trimmed != "" && !genericAPIKeyPattern.MatchString(trimmed) && !hexCredentialPattern.MatchString(trimmed) {
 		return fmt.Errorf("Secret format looks invalid")
 	}
-	if exchangeType == "okx" && v.enabled && strings.TrimSpace(v.passphrase) == "" {
-		return fmt.Errorf("OKX requires passphrase before enabling this exchange config")
-	}
-	if exchangeType == "hyperliquid" && v.enabled && strings.TrimSpace(v.hyperliquidWalletAddr) == "" {
-		return fmt.Errorf("Hyperliquid requires wallet address before enabling this exchange config")
-	}
-	if exchangeType == "aster" && v.enabled {
-		if strings.TrimSpace(v.asterUser) == "" || strings.TrimSpace(v.asterSigner) == "" || strings.TrimSpace(v.asterPrivateKey) == "" {
-			return fmt.Errorf("Aster requires user, signer, and private key before enabling this exchange config")
-		}
-	}
-	if exchangeType == "lighter" && v.enabled {
-		if strings.TrimSpace(v.lighterWalletAddr) == "" || strings.TrimSpace(v.lighterAPIKeyPrivateKey) == "" {
-			return fmt.Errorf("Lighter requires wallet address and API key private key before enabling this exchange config")
+	if v.enabled {
+		missing := store.MissingRequiredExchangeCredentialFields(
+			exchangeType,
+			v.apiKey,
+			v.secretKey,
+			v.passphrase,
+			v.hyperliquidWalletAddr,
+			v.asterUser,
+			v.asterSigner,
+			v.asterPrivateKey,
+			v.lighterWalletAddr,
+			v.lighterAPIKeyPrivateKey,
+		)
+		if len(missing) > 0 {
+			return fmt.Errorf("cannot enable exchange config before required fields are complete: %s", strings.Join(missing, ", "))
 		}
 	}
 	return nil

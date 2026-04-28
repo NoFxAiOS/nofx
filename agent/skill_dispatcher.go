@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"nofx/store"
 )
 
 type skillSession struct {
@@ -298,6 +300,9 @@ func (a *Agent) loadExchangeOptions(storeUserID string) []traderSkillOption {
 	}
 	out := make([]traderSkillOption, 0, len(exchanges))
 	for _, exchange := range exchanges {
+		if !store.IsVisibleExchange(exchange) {
+			continue
+		}
 		name := strings.TrimSpace(exchange.AccountName)
 		if name == "" {
 			name = strings.TrimSpace(exchange.ExchangeType)

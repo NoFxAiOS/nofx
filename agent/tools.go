@@ -148,7 +148,7 @@ func compactManageStrategyTool(tool mcp.Tool) mcp.Tool {
 			"lang":           map[string]any{"type": "string", "enum": []string{"zh", "en"}},
 			"is_public":      map[string]any{"type": "boolean"},
 			"config_visible": map[string]any{"type": "boolean"},
-			"config":         map[string]any{"type": "object", "description": "Strategy config patch. Use precise field paths/objects from the user request; omit when listing/querying/deleting/activating/duplicating."},
+			"config":         map[string]any{"type": "object", "description": "Strategy config patch. Use precise StrategyConfig field paths/objects from the user request; grid risk fields such as max_drawdown_pct, stop_loss_pct, and daily_loss_limit_pct belong under grid_config. Omit when listing/querying/deleting/activating/duplicating."},
 		},
 		"required": []string{"action"},
 	}

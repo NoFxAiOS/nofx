@@ -118,6 +118,9 @@ type OpenOrder struct {
 	Status           string  `json:"status"` // NEW
 	ClientOrderID    string  `json:"client_order_id,omitempty"`
 	ProtectionRole   string  `json:"protection_role,omitempty"`
+	ActivationPrice  float64 `json:"activation_price,omitempty"`
+	CallbackRatePct  float64 `json:"callback_rate_pct,omitempty"`
+	ParentOrderID    string  `json:"parent_order_id,omitempty"`
 	ProtectionStatus string  `json:"protection_status,omitempty"`
 }
 

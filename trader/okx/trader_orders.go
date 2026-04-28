@@ -1183,6 +1183,7 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 			ActivePx      string `json:"activePx"`
 			CallbackRatio string `json:"callbackRatio"`
 			Sz            string `json:"sz"`
+			Tag           string `json:"tag"`
 		}
 		if err := json.Unmarshal(trailingData, &trailingOrders); err == nil {
 			for _, order := range trailingOrders {
@@ -1196,16 +1197,21 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 					positionSide = "BOTH"
 				}
 				result = append(result, types.OpenOrder{
-					OrderID:      order.AlgoId,
-					Symbol:       symbol,
-					Side:         side,
-					PositionSide: positionSide,
-					Type:         "TRAILING_STOP_MARKET",
-					Price:        0,
-					StopPrice:    activePx,
-					CallbackRate: callbackRatio,
-					Quantity:     quantity,
-					Status:       "NEW",
+					OrderID:         order.AlgoId,
+					Symbol:          symbol,
+					Side:            side,
+					PositionSide:    positionSide,
+					Type:            "TRAILING_STOP_MARKET",
+					Price:           0,
+					StopPrice:       activePx,
+					ActivationPrice: activePx,
+					CallbackRate:    callbackRatio,
+					CallbackRatePct: callbackRatio,
+					Quantity:        quantity,
+					Status:          "NEW",
+					ClientOrderID:   order.Tag,
+					ProtectionRole:  protectionReasonFromTag(order.Tag),
+					ParentOrderID:   order.AlgoId,
 				})
 			}
 		}

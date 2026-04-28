@@ -386,6 +386,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 						"decision_cycle":      ev.DecisionCycle,
 						"decision_review":     buildDecisionReviewRef(ev.DecisionCycle, ev.Symbol, ev.CloseReason),
 						"exchange_order_id":   ev.ExchangeOrderID,
+						"parent_order_id":     ev.ParentOrderID,
 						"order_id":            orderID,
 						"related_position_id": ev.PositionID,
 						"fill_count":          fillCount,

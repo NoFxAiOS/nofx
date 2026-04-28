@@ -503,6 +503,10 @@ export interface PositionCloseEvent {
   decision_cycle?: number
   decision_review?: DecisionReviewRef
   exchange_order_id: string
+  parent_order_id?: string
+  order_id?: number
+  related_position_id?: number
+  fill_count?: number
   close_quantity: number
   close_ratio_pct: number
   execution_price: number

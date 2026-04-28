@@ -1148,6 +1148,12 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                       <div>
                         <div style={{ color: '#848E9C' }}>{'类型 / Type'}</div>
                         <div className="font-mono" style={{ color: '#EAECEF' }}>{event.execution_type || 'unknown'}</div>
+                        <div className="mt-1 text-[11px] font-mono" style={{ color: '#848E9C' }}>
+                          {`trade=${event.exchange_order_id || '—'}`}
+                        </div>
+                        <div className="mt-1 text-[11px] font-mono" style={{ color: '#848E9C' }}>
+                          {`parent=${event.parent_order_id || '—'}`}
+                        </div>
                       </div>
                       <div>
                         <div style={{ color: '#848E9C' }}>{'数量 / Ratio'}</div>

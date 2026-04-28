@@ -252,7 +252,7 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 		add(&out, "show_in_competition", displayCatalogFieldName("show_in_competition", lang), false)
 	case "strategy_management":
 		if session.Action == "create" || session.Action == "update_config" {
-			add(&out, "config_patch", strategyConfigPatchFieldDescription(lang), false)
+			add(&out, "config_patch", "Partial StrategyConfig JSON patch inferred from the user's strategy intent. Use this for strategy requirements such as target coins, trend style, short/long bias, indicators, risk, timeframes, and prompt sections.", false)
 		}
 		if session.Action == "update_prompt" {
 			add(&out, "prompt", "Full strategy prompt text to write into the strategy custom prompt.", false)
@@ -268,10 +268,6 @@ func allowedFieldSpecsForSkillSession(session skillSession, lang string) []llmFl
 		}
 	}
 	return out
-}
-
-func strategyConfigPatchFieldDescription(lang string) string {
-	return "Partial StrategyConfig JSON patch inferred from the user's strategy intent. Use this for strategy requirements such as target coins, trend style, short/long bias, indicators, risk, timeframes, and prompt sections."
 }
 
 func currentFieldValuesForSkillSession(session skillSession) map[string]string {

@@ -34,53 +34,6 @@ func TestParseUnifiedTurnDecisionNormalizesContextPolicy(t *testing.T) {
 	}
 }
 
-func TestParseUnifiedTurnDecisionAcceptsSkillTaskList(t *testing.T) {
-	raw := `{
-		"topic_intent": "start_new",
-		"business_action": "skill_tasks",
-		"context_mode": "fresh_context",
-		"tasks": [
-			{"id":"task_1","skill":"strategy_management","action":"create","request":"创建高频交易策略","depends_on":[]},
-			{"id":"task_2","skill":"trader_management","action":"configure_strategy","request":"绑定到交易员","depends_on":["task_1"]}
-		],
-		"confidence": 0.86
-	}`
-
-	decision, err := parseUnifiedTurnDecision(raw)
-	if err != nil {
-		t.Fatalf("parse unified decision: %v", err)
-	}
-	if decision.BusinessAction != "skill_tasks" {
-		t.Fatalf("expected skill_tasks, got %q", decision.BusinessAction)
-	}
-	if len(decision.Tasks) != 2 {
-		t.Fatalf("expected 2 tasks, got %+v", decision.Tasks)
-	}
-	if decision.Tasks[0].Skill != "strategy_management" || decision.Tasks[0].Action != "create" {
-		t.Fatalf("unexpected first task: %+v", decision.Tasks[0])
-	}
-	if !decision.reliable() {
-		t.Fatalf("expected task-list decision to be reliable: %+v", decision)
-	}
-}
-
-func TestUnifiedTurnDecisionNewSkillCanUseSingleTask(t *testing.T) {
-	decision := normalizeUnifiedTurnDecision(unifiedTurnDecision{
-		TopicIntent:    "start_new",
-		BusinessAction: "new_skill",
-		ContextMode:    "fresh_context",
-		Tasks: []WorkflowTask{{
-			Skill:   "strategy_management",
-			Action:  "create",
-			Request: "创建高频交易策略",
-		}},
-		Confidence: 0.9,
-	})
-	if !decision.reliable() {
-		t.Fatalf("expected new_skill with task list to be reliable: %+v", decision)
-	}
-}
-
 func TestUnifiedTurnDecisionRejectsLowConfidenceAndIncompleteDirectAnswer(t *testing.T) {
 	lowConfidence := unifiedTurnDecision{
 		TopicIntent:    "start_new",
@@ -146,8 +99,6 @@ func TestBuildUnifiedTurnRouterPromptNamesContextPolicy(t *testing.T) {
 		"context_mode values",
 		"fresh_context",
 		"downstream modules",
-		"tasks format",
-		"skill_tasks",
 	} {
 		if !strings.Contains(systemPrompt, want) {
 			t.Fatalf("expected system prompt to contain %q", want)

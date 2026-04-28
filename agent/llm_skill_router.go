@@ -20,7 +20,6 @@ type unifiedTurnDecision struct {
 	TopicIntent      string         `json:"topic_intent,omitempty"`
 	BusinessAction   string         `json:"business_action,omitempty"`
 	TargetSkill      string         `json:"target_skill,omitempty"`
-	Tasks            []WorkflowTask `json:"tasks,omitempty"`
 	TargetSnapshotID string         `json:"target_snapshot_id,omitempty"`
 	ContextMode      string         `json:"context_mode,omitempty"`
 	ExtractedData    map[string]any `json:"extracted_data,omitempty"`
@@ -118,7 +117,6 @@ func normalizeUnifiedTurnDecision(decision unifiedTurnDecision) unifiedTurnDecis
 	decision.TargetSnapshotID = strings.TrimSpace(decision.TargetSnapshotID)
 	decision.ContextMode = strings.TrimSpace(strings.ToLower(decision.ContextMode))
 	decision.ReplyToUser = strings.TrimSpace(decision.ReplyToUser)
-	decision.Tasks = normalizeWorkflowDecomposition(workflowDecomposition{Tasks: decision.Tasks}).Tasks
 	if decision.ExtractedData == nil {
 		decision.ExtractedData = map[string]any{}
 	}
@@ -136,7 +134,7 @@ func normalizeUnifiedTurnDecision(decision unifiedTurnDecision) unifiedTurnDecis
 		decision.TopicIntent = ""
 	}
 	switch decision.BusinessAction {
-	case "direct_answer", "new_skill", "skill_tasks", "continue_skill", "planned_agent", "none":
+	case "direct_answer", "new_skill", "continue_skill", "planned_agent", "none":
 	default:
 		decision.BusinessAction = ""
 	}
@@ -159,13 +157,8 @@ func (d unifiedTurnDecision) reliable() bool {
 	case "direct_answer":
 		return strings.TrimSpace(d.ReplyToUser) != ""
 	case "new_skill":
-		if len(d.Tasks) > 0 {
-			return true
-		}
 		skill, _ := parseTargetSkill(d.TargetSkill)
 		return skill != ""
-	case "skill_tasks":
-		return len(d.Tasks) > 0
 	case "continue_skill":
 		return d.TopicIntent == "continue_active"
 	case "planned_agent", "none":
@@ -241,20 +234,12 @@ topic_intent values:
 
 business_action values:
 - "direct_answer": reply_to_user is the final answer; do not change state
-- "skill_tasks": start one or more management/diagnosis skill tasks; tasks is required
-- "new_skill": legacy single-skill route; target_skill is required if tasks is empty
+- "new_skill": start a management/diagnosis skill; target_skill is required
 - "continue_skill": continue the active skill session
 - "planned_agent": hand off to the execution planner/tools
 - "none": only valid with cancel when no more action is needed
 
-tasks format for skill_tasks:
-- id: "task_1", "task_2", ...
-- skill: one available skill name
-- action: one available action
-- request: the self-contained user-readable subtask
-- depends_on: array of task ids, empty when independent
-
-target_skill format for legacy new_skill:
+target_skill format for new_skill:
 skill_name:action, for example "trader_management:create".
 Available skills:
 trader_management, exchange_management, model_management, strategy_management,
@@ -277,9 +262,7 @@ Rules:
 - If the user answers the previous assistant question, choose continue_active.
 - If the user only says "你好", "hi", "谢谢", "收到", choose instant_reply + direct_answer unless it clearly answers a pending task.
 - If the user asks a read-only management query, prefer planned_agent unless the answer is already fully available in the provided context.
-- Use skill_tasks for clear management tasks such as creating/updating/deleting/configuring trader/model/exchange/strategy.
-- If the user request contains multiple management operations, include multiple tasks and depends_on where a later task needs an earlier result.
-- If the request contains exactly one management operation, include exactly one task.
+- Use new_skill for clear management tasks such as creating/updating/deleting/configuring trader/model/exchange/strategy.
 - Use planned_agent for multi-step, tool-heavy, market/account, diagnosis, or ambiguous tasks.
 - For model_management, "provider" means AI vendor, never an exchange.
 - Current references are context only. Do not copy them into extracted_data unless the user explicitly says this/current/that previous one.
@@ -288,7 +271,7 @@ Rules:
 - confidence should reflect how safe it is to execute this decision without the old router fallback.
 
 Return JSON with this exact shape:
-{"topic_intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","business_action":"direct_answer|skill_tasks|new_skill|continue_skill|planned_agent|none","target_skill":"","tasks":[{"id":"task_1","skill":"","action":"","request":"","depends_on":[]}],"target_snapshot_id":"","context_mode":"use_current|fresh_context|resume_snapshot","extracted_data":{},"reply_to_user":"","confidence":0.0}`)
+{"topic_intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","business_action":"direct_answer|new_skill|continue_skill|planned_agent|none","target_skill":"","target_snapshot_id":"","context_mode":"use_current|fresh_context|resume_snapshot","extracted_data":{},"reply_to_user":"","confidence":0.0}`)
 
 	userPrompt := fmt.Sprintf("Language: %s\nUser message: %s\n\nPrevious assistant reply:\n%s\n\nCurrent reference summary:\n%s\n\nActive flow summary:\n%s\n\nSuspended snapshots JSON:\n%s\n\nRecent conversation:\n%s\n\nManagement domain primer:\n%s\n\nActive task details:\n%s\n",
 		lang,
@@ -351,9 +334,6 @@ func (a *Agent) executeUnifiedTurnDecision(ctx context.Context, storeUserID stri
 		a.runPostResponseMaintenanceAsync(userID)
 		return decision.ReplyToUser, true, nil
 	case "new_skill":
-		if len(decision.Tasks) > 0 {
-			return a.executeUnifiedSkillTasks(ctx, storeUserID, userID, lang, text, decision, onEvent)
-		}
 		skill, action := parseTargetSkill(decision.TargetSkill)
 		if skill == "" {
 			return "", false, nil
@@ -371,8 +351,6 @@ func (a *Agent) executeUnifiedTurnDecision(ctx context.Context, storeUserID stri
 		decision.ExtractedData = filterExtractedDataForActiveSession(session, decision.ExtractedData, lang)
 		mergeExtractedData(&session, decision.ExtractedData)
 		return a.driveActiveSession(ctx, storeUserID, userID, lang, text, session, onEvent)
-	case "skill_tasks":
-		return a.executeUnifiedSkillTasks(ctx, storeUserID, userID, lang, text, decision, onEvent)
 	case "continue_skill":
 		activeSession, hasActive := a.getActiveSkillSession(userID)
 		if !hasActive {
@@ -393,39 +371,6 @@ func (a *Agent) executeUnifiedTurnDecision(ctx context.Context, storeUserID stri
 	default:
 		return "", false, nil
 	}
-}
-
-func (a *Agent) executeUnifiedSkillTasks(ctx context.Context, storeUserID string, userID int64, lang, text string, decision unifiedTurnDecision, onEvent func(event, data string)) (string, bool, error) {
-	tasks := normalizeWorkflowDecomposition(workflowDecomposition{Tasks: decision.Tasks}).Tasks
-	if len(tasks) == 0 {
-		return "", false, nil
-	}
-	if a.hasAnyActiveContext(userID) && decision.ContextMode == "fresh_context" {
-		if !a.suspendActiveContexts(userID, lang) {
-			a.clearSkillSession(userID)
-			a.clearWorkflowSession(userID)
-			a.clearExecutionState(userID)
-		}
-		a.clearActiveSkillSession(userID)
-	}
-	if len(tasks) == 1 {
-		task := tasks[0]
-		session := newActiveSkillSession(userID, task.Skill, task.Action)
-		session.Goal = defaultIfEmpty(strings.TrimSpace(task.Request), strings.TrimSpace(text))
-		decision.ExtractedData = filterExtractedDataForActiveSession(session, decision.ExtractedData, lang)
-		mergeExtractedData(&session, decision.ExtractedData)
-		return a.driveActiveSession(ctx, storeUserID, userID, lang, defaultIfEmpty(task.Request, text), session, onEvent)
-	}
-	session := normalizeWorkflowSession(WorkflowSession{
-		UserID:          userID,
-		OriginalRequest: strings.TrimSpace(text),
-		Tasks:           tasks,
-	})
-	if len(session.Tasks) == 0 {
-		return "", false, nil
-	}
-	a.saveWorkflowSession(userID, session)
-	return a.maybeAdvanceWorkflow(ctx, storeUserID, userID, lang, session, onEvent)
 }
 
 func parseLLMSkillRouteDecision(raw string) (llmSkillRouteDecision, error) {

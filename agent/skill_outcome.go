@@ -152,8 +152,6 @@ Rules:
 - Use route "replan" when the user's task is not complete yet and the planner should continue from the new skill outcome.
 - Prefer route "replan" for recoverable errors, unmet goals, missing prerequisites, or cases where another skill/tool sequence may help.
 - If you choose "complete", produce the final user-facing answer in the user's language.
-- For strategy_management create/update outcomes, only mention config fields present in changed_fields, unchanged_defaults, rejected_fields, warnings, or user_message. Do not add strategy settings that are not in the structured skill outcome.
-- If a strategy field is not in the current StrategyConfig or appears in rejected_fields, say it was not written / is not in the current strategy config. Do not use trading common sense to invent fields.
 - ` + cleanUserFacingReplyInstruction + `
 
 Return JSON with this exact shape:

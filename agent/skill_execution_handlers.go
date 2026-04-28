@@ -2836,50 +2836,10 @@ func (a *Agent) persistStrategyConfigUpdate(storeUserID string, userID int64, la
 			enMsg += "\n\nAdjusted to stay within safe limits:\n- " + strings.Join(warnings, "\n- ")
 		}
 	}
-	if summary := parseStrategyToolChangeSummary(resp); len(summary.ChangedFields) > 0 || len(summary.RejectedFields) > 0 || len(summary.UnchangedDefaults) > 0 {
-		if lang == "zh" {
-			if len(summary.ChangedFields) > 0 {
-				zhMsg += "\n- 实际写入配置：" + strings.Join(summary.ChangedFields, "、")
-			}
-			if len(summary.RejectedFields) > 0 {
-				zhMsg += "\n- 未写入字段：" + strings.Join(summary.RejectedFields, "、")
-			}
-			if len(summary.UnchangedDefaults) > 0 {
-				zhMsg += "\n- 仍使用默认值：" + strings.Join(summary.UnchangedDefaults, "、")
-			}
-		} else {
-			if len(summary.ChangedFields) > 0 {
-				enMsg += "\n- Config fields written: " + strings.Join(summary.ChangedFields, ", ")
-			}
-			if len(summary.RejectedFields) > 0 {
-				enMsg += "\n- Rejected fields: " + strings.Join(summary.RejectedFields, ", ")
-			}
-			if len(summary.UnchangedDefaults) > 0 {
-				enMsg += "\n- Defaults still in use: " + strings.Join(summary.UnchangedDefaults, ", ")
-			}
-		}
-	}
 	if lang == "zh" {
 		return zhMsg
 	}
 	return enMsg
-}
-
-type strategyToolChangeSummary struct {
-	CreatedStrategyID string   `json:"created_strategy_id"`
-	StrategyID        string   `json:"strategy_id"`
-	ChangedFields     []string `json:"changed_fields"`
-	UnchangedDefaults []string `json:"unchanged_defaults"`
-	RejectedFields    []string `json:"rejected_fields"`
-}
-
-func parseStrategyToolChangeSummary(raw string) strategyToolChangeSummary {
-	var payload strategyToolChangeSummary
-	_ = json.Unmarshal([]byte(raw), &payload)
-	payload.ChangedFields = cleanStringList(payload.ChangedFields)
-	payload.UnchangedDefaults = cleanStringList(payload.UnchangedDefaults)
-	payload.RejectedFields = cleanStringList(payload.RejectedFields)
-	return payload
 }
 
 func parseToolWarnings(raw string) []string {

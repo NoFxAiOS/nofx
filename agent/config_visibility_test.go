@@ -246,55 +246,6 @@ func TestToolManageStrategyRejectsFixedMinPositionSizeUpdates(t *testing.T) {
 	}
 }
 
-func TestToolManageStrategyReportsChangedAndRejectedFields(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "strategy-change-summary.db")
-	st, err := store.New(dbPath)
-	if err != nil {
-		t.Fatalf("create store: %v", err)
-	}
-	a := New(nil, st, DefaultConfig(), slog.Default())
-
-	resp := a.toolManageStrategy("default", `{"action":"create","name":"高频-短线ETH","config":{"coin_source":{"source_type":"static","static_coins":["ETHUSDT"]},"indicators":{"klines":{"primary_timeframe":"1m","selected_timeframes":["1m","3m"]}},"order_execution_speed":"fast"}}`)
-	if strings.Contains(resp, `"error"`) {
-		t.Fatalf("expected create to succeed with rejected unknown fields, got: %s", resp)
-	}
-	for _, want := range []string{
-		`"created_strategy_id"`,
-		`"changed_fields"`,
-		`coin_source.source_type`,
-		`indicators.klines.primary_timeframe`,
-		`"rejected_fields"`,
-		`order_execution_speed (not in current strategy config)`,
-		`"unchanged_defaults"`,
-	} {
-		if !strings.Contains(resp, want) {
-			t.Fatalf("expected response to contain %q, got: %s", want, resp)
-		}
-	}
-
-	strategies, err := st.Strategy().List("default")
-	if err != nil {
-		t.Fatalf("list strategies: %v", err)
-	}
-	var created *store.Strategy
-	for _, strategy := range strategies {
-		if strategy.Name == "高频-短线ETH" {
-			created = strategy
-			break
-		}
-	}
-	if created == nil {
-		t.Fatalf("expected strategy to be created")
-	}
-	var cfg map[string]any
-	if err := json.Unmarshal([]byte(created.Config), &cfg); err != nil {
-		t.Fatalf("parse config: %v", err)
-	}
-	if _, ok := cfg["order_execution_speed"]; ok {
-		t.Fatalf("unknown field should not be persisted: %s", created.Config)
-	}
-}
-
 func TestExchangeSkillOptionSummaryMatchesManualPage(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "exchange-options.db")
 	st, err := store.New(dbPath)

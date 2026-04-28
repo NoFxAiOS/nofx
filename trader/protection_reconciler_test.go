@@ -155,6 +155,24 @@ func TestDetectMissingProtectionAcceptsDegradedFullStopAndFallbackInsteadOfMissi
 	}
 }
 
+func TestDetectMissingProtectionAcceptsFallbackOnlyForDustRemainderLadder(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 98, CloseRatioPct: 50},
+			{Price: 96, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	if missingSL || missingTP {
+		t.Fatalf("expected fallback-only degraded dust remainder ownership to satisfy stop protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
 func TestDetectMissingProtectionAcceptsDegradedFullTakeProfitInsteadOfMissingLadderTP(t *testing.T) {
 	orders := []OpenOrder{{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 110}}
 	plan := &ProtectionPlan{

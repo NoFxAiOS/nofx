@@ -547,10 +547,12 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 	fullTPSatisfied := plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, true, plan.TakeProfitPrice)
 
 	// For stop-loss side, treat ladder plans as requiring ALL configured stop orders in the normal case.
-	// But if a full-position stop and fallback stop are both present, accept that as a valid degraded
+	// But if a full-position stop or fallback stop is already visible, accept that as a valid degraded
 	// execution state for dust remainders where ladder ownership can no longer be rebuilt.
+	// This avoids churn where tiny positions repeatedly cancel a valid fallback, fail to materialize
+	// non-executable ladder tiers, and then recreate the same fallback.
 	if len(plan.StopLossOrders) > 0 {
-		if !(fullStopSatisfied && (plan.FallbackMaxLossPrice <= 0 || fallbackSatisfied)) {
+		if !(fullStopSatisfied || fallbackSatisfied) {
 			for _, target := range plan.StopLossOrders {
 				if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
 					missingSL = true

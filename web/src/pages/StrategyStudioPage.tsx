@@ -481,11 +481,11 @@ export function StrategyStudioPage() {
           gridConfigCacheRef.current[selectedStrategy.id] = { ...prev.grid_config }
         }
 
+        // Use undefined so the field can be cleared for backend merge
+        const { grid_config: _ignore, ...rest } = prev
         return {
-          ...prev,
-          strategy_type: 'ai_trading',
-          // Use null so the field is preserved in JSON and backend merge can actually clear it.
-          grid_config: null,
+          ...rest,
+          strategy_type: 'ai_trading' as const,
         }
       }
 

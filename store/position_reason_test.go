@@ -16,7 +16,7 @@ func newTestPositionStore(t *testing.T) *PositionStore {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&TraderOrder{}, &TraderPosition{}, &PositionCloseEvent{}); err != nil {
+	if err := db.AutoMigrate(&TraderOrder{}, &TraderFill{}, &TraderPosition{}, &PositionCloseEvent{}); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}
 	return NewPositionStore(db)
@@ -99,5 +99,37 @@ func TestDeriveCloseReasonFallbackMaxLossMapsToFullSL(t *testing.T) {
 	}
 	if executionType != "STOP_MARKET" {
 		t.Fatalf("expected STOP_MARKET execution type, got %q", executionType)
+	}
+}
+
+func TestDeriveCloseReasonNativeTrailingFromParentAlgoOrder(t *testing.T) {
+	s := newTestPositionStore(t)
+	pos := seedTestPosition(t, s, "ex-4", 0.0007, 76712.2)
+	seedTestOrder(t, s, "ex-4", "algo-1", "4c363c81edc5BC", "TRAILING_STOP_MARKET", "native_trailing")
+	fill := &TraderFill{
+		TraderID:        "trader-1",
+		ExchangeID:      "ex-4",
+		ExchangeType:    "okx",
+		OrderID:         1,
+		ExchangeOrderID: "algo-1",
+		ExchangeTradeID: "trade-1",
+		Symbol:          "ADAUSDT",
+		Side:            "SELL",
+		Price:           76273.1,
+		Quantity:        0.0007,
+		QuoteQuantity:   53.39117,
+		CommissionAsset: "USDT",
+		ParentOrderID:   "algo-1",
+	}
+	if err := s.db.Create(fill).Error; err != nil {
+		t.Fatalf("failed to seed fill: %v", err)
+	}
+
+	reason, source, executionType := s.deriveCloseReason(pos, "trade-1", "close_short", 0.0007, 76273.1)
+	if reason != "native_trailing" || source != "native_trailing" {
+		t.Fatalf("expected native_trailing via parent algo order, got reason=%q source=%q", reason, source)
+	}
+	if executionType != "TRAILING_STOP_MARKET" {
+		t.Fatalf("expected TRAILING_STOP_MARKET, got %q", executionType)
 	}
 }

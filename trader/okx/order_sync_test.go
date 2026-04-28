@@ -26,6 +26,8 @@ func newOKXSyncTestTrader(t *testing.T, fillsJSON string) *OKXTrader {
 		httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			body := `{"code":"0","msg":"","data":[]}`
 			switch {
+			case strings.HasPrefix(req.URL.Path, "/api/v5/account/positions"):
+				body = `{"code":"0","msg":"","data":[]}`
 			case strings.HasPrefix(req.URL.Path, "/api/v5/trade/fills-history"):
 				body = fmt.Sprintf(`{"code":"0","msg":"","data":%s}`, fillsJSON)
 			case strings.HasPrefix(req.URL.Path, "/api/v5/public/instruments"):

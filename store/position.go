@@ -145,8 +145,34 @@ func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID s
 		return reason, source, executionType
 	}
 
-	var ord TraderOrder
-	if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, exchangeOrderID).First(&ord).Error; err == nil {
+	lookupOrder := func(id string) (*TraderOrder, bool) {
+		if id == "" {
+			return nil, false
+		}
+		var ord TraderOrder
+		if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, id).First(&ord).Error; err == nil {
+			return &ord, true
+		}
+		return nil, false
+	}
+
+	ord, ok := lookupOrder(exchangeOrderID)
+	if !ok {
+		var fill TraderFill
+		if err := s.db.Where("exchange_id = ? AND exchange_trade_id = ?", pos.ExchangeID, exchangeOrderID).First(&fill).Error; err == nil {
+			if parent, found := lookupOrder(fill.ExchangeOrderID); found {
+				ord = parent
+				ok = true
+			}
+		}
+	}
+	if ok && ord != nil && ord.ParentOrderID != "" {
+		if parent, found := lookupOrder(ord.ParentOrderID); found {
+			ord = parent
+		}
+	}
+
+	if ok && ord != nil {
 		tagLower := strings.ToLower(ord.ClientOrderID)
 		actionLower := strings.ToLower(ord.OrderAction)
 		switch {
@@ -232,6 +258,17 @@ func (s *PositionStore) logCloseEvent(pos *TraderPosition, closeReason, executio
 	if decisionCycle == 0 {
 		decisionCycle = pos.EntryDecisionCycle
 	}
+	parentOrderID := ""
+	if exchangeOrderID != "" && s.db != nil {
+		var fill TraderFill
+		if err := s.db.Where("exchange_id = ? AND exchange_trade_id = ?", pos.ExchangeID, exchangeOrderID).First(&fill).Error; err == nil {
+			parentOrderID = fill.ExchangeOrderID
+		}
+		var ord TraderOrder
+		if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, exchangeOrderID).First(&ord).Error; err == nil && ord.ParentOrderID != "" {
+			parentOrderID = ord.ParentOrderID
+		}
+	}
 	event := &PositionCloseEvent{
 		PositionID:       pos.ID,
 		TraderID:         pos.TraderID,
@@ -243,6 +280,7 @@ func (s *PositionStore) logCloseEvent(pos *TraderPosition, closeReason, executio
 		ExecutionType:    executionType,
 		DecisionCycle:    decisionCycle,
 		ExchangeOrderID:  exchangeOrderID,
+		ParentOrderID:    parentOrderID,
 		CloseQuantity:    closeQty,
 		CloseRatioPct:    closeRatioPct,
 		ExecutionPrice:   executionPrice,

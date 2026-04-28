@@ -12,6 +12,29 @@ import (
 	"time"
 )
 
+func protectionReasonFromTag(tag string) string {
+	tag = strings.ToLower(strings.TrimSpace(tag))
+	switch {
+	case strings.Contains(tag, "break_even"):
+		return "break_even_stop"
+	case strings.Contains(tag, "native_trailing"):
+		return "native_trailing"
+	case strings.Contains(tag, "managed_drawdown"):
+		return "managed_drawdown"
+	case strings.Contains(tag, "ladder_tp"):
+		return "ladder_tp"
+	case strings.Contains(tag, "ladder_sl"):
+		return "ladder_sl"
+	case strings.Contains(tag, "full_tp"):
+		return "full_tp"
+	case strings.Contains(tag, "full_sl"):
+		return "full_sl"
+	case strings.Contains(tag, "fallback_maxloss"):
+		return "fallback_maxloss_sl"
+	}
+	return ""
+}
+
 // OKXTrade represents a trade record from OKX fills history
 type OKXTrade struct {
 	InstID      string
@@ -147,6 +170,157 @@ func (t *OKXTrader) GetTrades(startTime time.Time, limit int) ([]OKXTrade, error
 	return trades, nil
 }
 
+func (t *OKXTrader) SyncOpenProtectionOrdersToStore(traderID string, exchangeID string, exchangeType string, st *store.Store) error {
+	if st == nil || st.Order() == nil {
+		return nil
+	}
+	state, _ := st.LoadDynamicProtectionState()
+	byAlgoID := map[string]store.DynamicProtectionRecord{}
+	if state != nil {
+		for _, record := range state.Records {
+			if record.TraderID != traderID || record.ExchangeID != exchangeID || record.ExchangeOrderID == "" {
+				continue
+			}
+			byAlgoID[record.ExchangeOrderID] = record
+		}
+	}
+	positions, _ := t.GetPositions()
+	activeQty := func(symbol, side string) float64 {
+		for _, pos := range positions {
+			if fmt.Sprint(pos["symbol"]) != symbol || !strings.EqualFold(fmt.Sprint(pos["side"]), side) {
+				continue
+			}
+			if q, ok := pos["positionAmt"].(float64); ok {
+				if q < 0 {
+					return -q
+				}
+				return q
+			}
+		}
+		return 0
+	}
+	for _, query := range []struct{ ordType, reason string }{{"move_order_stop", "native_trailing"}, {"conditional", ""}} {
+		// OKX pending algo API requires instId. Use currently active symbols plus symbols from dynamic records.
+		symbolSet := map[string]struct{}{}
+		for _, pos := range positions {
+			if sym := fmt.Sprint(pos["symbol"]); sym != "" {
+				symbolSet[sym] = struct{}{}
+			}
+		}
+		for _, record := range byAlgoID {
+			if record.Symbol != "" {
+				symbolSet[record.Symbol] = struct{}{}
+			}
+		}
+		for symbol := range symbolSet {
+			instId := t.convertSymbol(symbol)
+			path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=%s", okxAlgoPendingPath, instId, query.ordType)
+			data, err := t.doRequest("GET", path, nil)
+			if err != nil {
+				return err
+			}
+			var orders []struct {
+				AlgoID        string `json:"algoId"`
+				InstID        string `json:"instId"`
+				Side          string `json:"side"`
+				PosSide       string `json:"posSide"`
+				OrdType       string `json:"ordType"`
+				Sz            string `json:"sz"`
+				TriggerPx     string `json:"triggerPx"`
+				SlTriggerPx   string `json:"slTriggerPx"`
+				TpTriggerPx   string `json:"tpTriggerPx"`
+				ActivePx      string `json:"activePx"`
+				CallbackRatio string `json:"callbackRatio"`
+				Tag           string `json:"tag"`
+			}
+			if err := json.Unmarshal(data, &orders); err != nil {
+				return err
+			}
+			for _, order := range orders {
+				if order.AlgoID == "" {
+					continue
+				}
+				reason := query.reason
+				if tagged := protectionReasonFromTag(order.Tag); tagged != "" {
+					reason = tagged
+				}
+				if reason == "" {
+					if strings.EqualFold(order.OrdType, "move_order_stop") {
+						reason = "native_trailing"
+					} else if order.TpTriggerPx != "" {
+						reason = "full_tp"
+					} else {
+						reason = "full_sl"
+					}
+				}
+				posSide := strings.ToUpper(order.PosSide)
+				if posSide == "" {
+					if strings.EqualFold(order.Side, "buy") {
+						posSide = "SHORT"
+					} else {
+						posSide = "LONG"
+					}
+				}
+				qty, _ := strconv.ParseFloat(order.Sz, 64)
+				if inst, err := t.getInstrument(symbol); err == nil && inst.CtVal > 0 {
+					qty *= inst.CtVal
+				}
+				if qty <= 0 {
+					qty = activeQty(symbol, posSide)
+				}
+				activation, _ := strconv.ParseFloat(firstNonEmpty(order.ActivePx, order.TriggerPx, order.SlTriggerPx, order.TpTriggerPx), 64)
+				callback, _ := strconv.ParseFloat(order.CallbackRatio, 64)
+				t.recordProtectionOrder(st, traderID, exchangeID, exchangeType, symbol, order.Side, posSide, order.AlgoID, reason, activation, callback, qty)
+			}
+		}
+	}
+	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func (t *OKXTrader) recordProtectionOrder(st *store.Store, traderID string, exchangeID string, exchangeType string, symbol string, side string, positionSide string, algoID string, reason string, activationPrice float64, callbackRatio float64, quantity float64) {
+	if st == nil || st.Order() == nil || algoID == "" {
+		return
+	}
+	orderSide := "SELL"
+	if strings.EqualFold(positionSide, "SHORT") {
+		orderSide = "BUY"
+	}
+	orderType := "ALGO"
+	if reason == "native_trailing" || strings.Contains(reason, "trailing") {
+		orderType = "TRAILING_STOP_MARKET"
+	}
+	ord := &store.TraderOrder{
+		TraderID:        traderID,
+		ExchangeID:      exchangeID,
+		ExchangeType:    exchangeType,
+		ExchangeOrderID: algoID,
+		ClientOrderID:   okxReasonTag(reason),
+		Symbol:          market.Normalize(symbol),
+		Side:            orderSide,
+		PositionSide:    strings.ToUpper(positionSide),
+		Type:            orderType,
+		OrderAction:     reason,
+		Quantity:        quantity,
+		StopPrice:       activationPrice,
+		Status:          "NEW",
+		ReduceOnly:      true,
+		CreatedAt:       time.Now().UTC().UnixMilli(),
+		UpdatedAt:       time.Now().UTC().UnixMilli(),
+	}
+	if err := st.Order().CreateOrder(ord); err != nil {
+		logger.Infof("  ⚠️ Failed to record protection algo order %s %s: %v", symbol, algoID, err)
+	}
+}
+
 // SyncOrdersFromOKX syncs OKX exchange order history to local database
 // Also creates/updates position records to ensure orders/fills/positions data consistency
 // exchangeID: Exchange account UUID (from exchanges.id)
@@ -158,6 +332,9 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, exchangeID string, exchangeType string, st *store.Store, onFullClose func(symbol, side string)) error {
 	if st == nil {
 		return fmt.Errorf("store is nil")
+	}
+	if err := t.SyncOpenProtectionOrdersToStore(traderID, exchangeID, exchangeType, st); err != nil {
+		logger.Infof("  ⚠️ Failed to sync OKX open protection orders before fill attribution: %v", err)
 	}
 
 	// Get recent trades (last 24 hours)
@@ -207,23 +384,30 @@ func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, excha
 		execTimeMs := trade.ExecTime.UTC().UnixMilli()
 		canonicalAction := trade.OrderAction
 		requestedReason := canonicalAction
+		parentOrderID := strings.TrimSpace(trade.OrderID)
 		if canonicalAction == "close_long" || canonicalAction == "close_short" {
-			tagLower := strings.ToLower(trade.Tag)
-			switch {
-			case strings.Contains(tagLower, "break_even"):
-				requestedReason = "break_even_stop"
-			case strings.Contains(tagLower, "native_trailing"):
-				requestedReason = "native_trailing"
-			case strings.Contains(tagLower, "managed_drawdown"):
-				requestedReason = "managed_drawdown"
-			case strings.Contains(tagLower, "ladder_tp"):
-				requestedReason = "ladder_tp"
-			case strings.Contains(tagLower, "ladder_sl"):
-				requestedReason = "ladder_sl"
-			case strings.Contains(tagLower, "full_tp"):
-				requestedReason = "full_tp"
-			case strings.Contains(tagLower, "full_sl"):
-				requestedReason = "full_sl"
+			if reason := protectionReasonFromTag(trade.Tag); reason != "" {
+				requestedReason = reason
+			} else if parentOrderID != "" {
+				if parentOrder, err := orderStore.GetOrderByExchangeID(exchangeID, parentOrderID); err == nil && parentOrder != nil {
+					parentReason := strings.ToLower(strings.TrimSpace(parentOrder.OrderAction + " " + parentOrder.ClientOrderID))
+					switch {
+					case strings.Contains(parentReason, "native_trailing") || strings.Contains(parentReason, "trailing"):
+						requestedReason = "native_trailing"
+					case strings.Contains(parentReason, "break_even"):
+						requestedReason = "break_even_stop"
+					case strings.Contains(parentReason, "managed_drawdown"):
+						requestedReason = "managed_drawdown"
+					case strings.Contains(parentReason, "ladder_tp"):
+						requestedReason = "ladder_tp"
+					case strings.Contains(parentReason, "ladder_sl"):
+						requestedReason = "ladder_sl"
+					case strings.Contains(parentReason, "full_tp"):
+						requestedReason = "full_tp"
+					case strings.Contains(parentReason, "full_sl") || strings.Contains(parentReason, "fallback_maxloss"):
+						requestedReason = "full_sl"
+					}
+				}
 			}
 		}
 		orderRecord := &store.TraderOrder{
@@ -232,6 +416,7 @@ func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, excha
 			ExchangeType:    exchangeType, // Exchange type
 			ExchangeOrderID: trade.TradeID,
 			ClientOrderID:   trade.Tag,
+			ParentOrderID:   parentOrderID,
 			Symbol:          symbol,
 			Side:            side,
 			PositionSide:    positionSide,
@@ -261,6 +446,7 @@ func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, excha
 			ExchangeType:    exchangeType, // Exchange type
 			OrderID:         orderRecord.ID,
 			ExchangeOrderID: trade.OrderID,
+			ParentOrderID:   parentOrderID,
 			ExchangeTradeID: trade.TradeID,
 			Symbol:          symbol,
 			Side:            side,

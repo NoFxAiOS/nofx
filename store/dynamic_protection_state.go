@@ -20,6 +20,10 @@ type DynamicProtectionRecord struct {
 	CloseRatioPct       float64 `json:"close_ratio_pct"`
 	Status              string  `json:"status"`
 	ExchangeOrderID     string  `json:"exchange_order_id,omitempty"`
+	ActivationPrice     float64 `json:"activation_price,omitempty"`
+	TriggerPrice        float64 `json:"trigger_price,omitempty"`
+	CallbackRatio       float64 `json:"callback_ratio,omitempty"`
+	Quantity            float64 `json:"quantity,omitempty"`
 	UpdatedAt           int64   `json:"updated_at"`
 }
 

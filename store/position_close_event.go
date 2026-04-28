@@ -22,6 +22,7 @@ type PositionCloseEvent struct {
 	ProtectionStatus string  `gorm:"column:protection_status;default:''" json:"protection_status"`
 	DecisionCycle    int     `gorm:"column:decision_cycle;default:0" json:"decision_cycle"`
 	ExchangeOrderID  string  `gorm:"column:exchange_order_id;default:''" json:"exchange_order_id"`
+	ParentOrderID    string  `gorm:"column:parent_order_id;default:'';index:idx_close_events_parent_order_id" json:"parent_order_id"`
 	CloseQuantity    float64 `gorm:"column:close_quantity;default:0" json:"close_quantity"`
 	CloseRatioPct    float64 `gorm:"column:close_ratio_pct;default:0" json:"close_ratio_pct"`
 	ExecutionPrice   float64 `gorm:"column:execution_price;default:0" json:"execution_price"`
@@ -48,11 +49,16 @@ func (s *PositionCloseEventStore) InitTables() error {
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'position_close_events'`).Scan(&tableExists)
 		if tableExists > 0 {
 			s.db.Exec(`ALTER TABLE position_close_events ADD COLUMN IF NOT EXISTS decision_cycle INTEGER DEFAULT 0`)
+			s.db.Exec(`ALTER TABLE position_close_events ADD COLUMN IF NOT EXISTS parent_order_id TEXT DEFAULT ''`)
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_close_events_parent_order_id ON position_close_events(parent_order_id)`)
 			return nil
 		}
 	}
 	if err := s.db.AutoMigrate(&PositionCloseEvent{}); err != nil {
 		return fmt.Errorf("failed to migrate position_close_events table: %w", err)
+	}
+	if s.db.Dialector.Name() != "postgres" {
+		s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_close_events_parent_order_id ON position_close_events(parent_order_id)`)
 	}
 	return nil
 }
@@ -94,8 +100,17 @@ func (s *PositionCloseEventStore) UpdateReasonByOrderID(traderID, exchangeOrderI
 		return nil
 	}
 	return s.db.Model(&PositionCloseEvent{}).
-		Where("trader_id = ? AND exchange_order_id = ?", traderID, exchangeOrderID).
+		Where("trader_id = ? AND (exchange_order_id = ? OR parent_order_id = ?)", traderID, exchangeOrderID, exchangeOrderID).
 		Updates(updates).Error
+}
+
+func (s *PositionCloseEventStore) UpdateParentOrderIDByExchangeOrderID(traderID, exchangeOrderID, parentOrderID string) error {
+	if traderID == "" || exchangeOrderID == "" || parentOrderID == "" {
+		return nil
+	}
+	return s.db.Model(&PositionCloseEvent{}).
+		Where("trader_id = ? AND exchange_order_id = ?", traderID, exchangeOrderID).
+		Update("parent_order_id", parentOrderID).Error
 }
 
 func (s *PositionCloseEventStore) GetByTraderAndExchangeOrderID(traderID, exchangeOrderID string) (*PositionCloseEvent, error) {

@@ -444,11 +444,16 @@ func (t *OKXTrader) SetTrailingStopLossTagged(symbol string, positionSide string
 }
 
 func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error {
+	_, err := t.setTrailingStopLossWithTagReturningID(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
+	return err
+}
+
+func (t *OKXTrader) setTrailingStopLossWithTagReturningID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error) {
 	instId := t.convertSymbol(symbol)
 
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return fmt.Errorf("failed to get instrument info: %w", err)
+		return "", fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
 	if quantity <= 0 {
@@ -458,7 +463,7 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 		t.InvalidatePositionCache()
 		positions, err := t.GetPositions()
 		if err != nil {
-			return fmt.Errorf("failed to get positions for trailing stop: %w", err)
+			return "", fmt.Errorf("failed to get positions for trailing stop: %w", err)
 		}
 
 		for _, pos := range positions {
@@ -474,7 +479,7 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 		}
 	}
 	if quantity <= 0 {
-		return fmt.Errorf("no active position found for trailing stop: %s %s", symbol, positionSide)
+		return "", fmt.Errorf("no active position found for trailing stop: %s %s", symbol, positionSide)
 	}
 
 	sz := quantity / inst.CtVal
@@ -501,7 +506,7 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 
 	resp, err := t.doRequest("POST", okxAdvanceAlgoPath, body)
 	if err != nil {
-		return fmt.Errorf("failed to set trailing stop loss: %w", err)
+		return "", fmt.Errorf("failed to set trailing stop loss: %w", err)
 	}
 
 	var orders []struct {
@@ -511,7 +516,7 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 	}
 	if err := json.Unmarshal(resp, &orders); err == nil && len(orders) > 0 {
 		if orders[0].SCode != "0" {
-			return fmt.Errorf("OKX trailing stop rejected: code=%s msg=%s", orders[0].SCode, orders[0].SMsg)
+			return "", fmt.Errorf("OKX trailing stop rejected: code=%s msg=%s", orders[0].SCode, orders[0].SMsg)
 		}
 		logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s algoId=%s", symbol, activationPrice, callbackRate, quantity, szStr, orders[0].AlgoId)
 		// Safety: for full trailing, keep a single live trailing order per symbol.
@@ -521,11 +526,11 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 				logger.Infof("  ⚠️ Failed to prune older OKX trailing stop orders for %s: %v", symbol, err)
 			}
 		}
-		return nil
+		return orders[0].AlgoId, nil
 	}
 
 	logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s resp=%s", symbol, activationPrice, callbackRate, quantity, szStr, string(resp))
-	return nil
+	return "", nil
 }
 
 func (t *OKXTrader) cancelOtherTrailingStopOrders(symbol string, keepAlgoID string) error {

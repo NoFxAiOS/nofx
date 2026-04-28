@@ -17,6 +17,7 @@ type TraderOrder struct {
 	ExchangeType      string  `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
 	ExchangeOrderID   string  `gorm:"column:exchange_order_id;not null;uniqueIndex:idx_orders_exchange_unique,priority:2" json:"exchange_order_id"`
 	ClientOrderID     string  `gorm:"column:client_order_id;default:''" json:"client_order_id"`
+	ParentOrderID     string  `gorm:"column:parent_order_id;default:'';index:idx_orders_parent_order_id" json:"parent_order_id"`
 	Symbol            string  `gorm:"column:symbol;not null;index:idx_orders_symbol" json:"symbol"`
 	Side              string  `gorm:"column:side;not null" json:"side"`
 	PositionSide      string  `gorm:"column:position_side;default:''" json:"position_side"`
@@ -56,6 +57,7 @@ type TraderFill struct {
 	ExchangeType      string  `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
 	OrderID           int64   `gorm:"column:order_id;not null;index:idx_fills_order_id" json:"order_id"`
 	ExchangeOrderID   string  `gorm:"column:exchange_order_id;not null" json:"exchange_order_id"`
+	ParentOrderID     string  `gorm:"column:parent_order_id;default:'';index:idx_fills_parent_order_id" json:"parent_order_id"`
 	ExchangeTradeID   string  `gorm:"column:exchange_trade_id;not null;uniqueIndex:idx_fills_exchange_unique,priority:2" json:"exchange_trade_id"`
 	Symbol            string  `gorm:"column:symbol;not null" json:"symbol"`
 	Side              string  `gorm:"column:side;not null" json:"side"`
@@ -125,14 +127,20 @@ func (s *OrderStore) InitTables() error {
 				}
 			}
 
-			// Ensure indexes exist
+			// Ensure indexes and attribution columns exist
+			s.db.Exec(`ALTER TABLE trader_orders ADD COLUMN IF NOT EXISTS related_position_id INTEGER DEFAULT 0`)
+			s.db.Exec(`ALTER TABLE trader_orders ADD COLUMN IF NOT EXISTS parent_order_id TEXT DEFAULT ''`)
+			s.db.Exec(`ALTER TABLE trader_fills ADD COLUMN IF NOT EXISTS related_position_id INTEGER DEFAULT 0`)
+			s.db.Exec(`ALTER TABLE trader_fills ADD COLUMN IF NOT EXISTS parent_order_id TEXT DEFAULT ''`)
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_exchange_unique ON trader_orders(exchange_id, exchange_order_id)`)
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_fills_exchange_unique ON trader_fills(exchange_id, exchange_trade_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_trader_id ON trader_orders(trader_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_symbol ON trader_orders(symbol)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_status ON trader_orders(status)`)
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_parent_order_id ON trader_orders(parent_order_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_trader_id ON trader_fills(trader_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_order_id ON trader_fills(order_id)`)
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_parent_order_id ON trader_fills(parent_order_id)`)
 			return nil
 		}
 	}
@@ -145,6 +153,8 @@ func (s *OrderStore) InitTables() error {
 	s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_exchange_unique ON trader_orders(exchange_id, exchange_order_id)`)
 	// Create unique composite index for exchange_id + exchange_trade_id
 	s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_fills_exchange_unique ON trader_fills(exchange_id, exchange_trade_id)`)
+	s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_parent_order_id ON trader_orders(parent_order_id)`)
+	s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_parent_order_id ON trader_fills(parent_order_id)`)
 
 	return nil
 }
@@ -190,6 +200,28 @@ func (s *OrderStore) UpdateOrderRelatedPosition(orderID int64, positionID int64)
 	return s.db.Model(&TraderOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
 		"related_position_id": positionID,
 		"updated_at":          time.Now().UTC().UnixMilli(),
+	}).Error
+}
+
+func (s *OrderStore) UpdateOrderActionByExchangeID(exchangeID string, exchangeOrderID string, orderAction string) error {
+	if exchangeID == "" || exchangeOrderID == "" || orderAction == "" {
+		return nil
+	}
+	return s.db.Model(&TraderOrder{}).
+		Where("exchange_id = ? AND exchange_order_id = ?", exchangeID, exchangeOrderID).
+		Updates(map[string]interface{}{
+			"order_action": orderAction,
+			"updated_at":   time.Now().UTC().UnixMilli(),
+		}).Error
+}
+
+func (s *OrderStore) UpdateOrderParentByID(orderID int64, parentOrderID string) error {
+	if orderID == 0 || parentOrderID == "" {
+		return nil
+	}
+	return s.db.Model(&TraderOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+		"parent_order_id": parentOrderID,
+		"updated_at":      time.Now().UTC().UnixMilli(),
 	}).Error
 }
 

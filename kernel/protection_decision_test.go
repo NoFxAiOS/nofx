@@ -71,6 +71,17 @@ func TestExtractDecisionsAllowsCommaSeparatedPricesInsideReasonString(t *testing
 	}
 }
 
+func TestExtractDecisionsPreservesChineseCommaSeparatedPricesInsideReasonString(t *testing.T) {
+	response := `<decision>[{"symbol":"ETHUSDT","action":"hold","confidence":28,"reasoning":"ETHUSDT 当前多单处于不利状态，15m 已跌破 2275.58、2268.11 斐波那契区域。"}]</decision>`
+	decisions, _, err := extractDecisions(response)
+	if err != nil {
+		t.Fatalf("extractDecisions failed: %v", err)
+	}
+	if len(decisions) != 1 || !strings.Contains(decisions[0].Reasoning, "2275.58、2268.11") {
+		t.Fatalf("expected Chinese punctuation inside reason string preserved, got %#v", decisions)
+	}
+}
+
 func TestValidateJSONFormatRejectsThousandsSeparatorsInNumericFields(t *testing.T) {
 	bad := `[{"symbol":"BTCUSDT","action":"hold","confidence":61,"entry":97,687.05}]`
 	if err := validateJSONFormat(bad); err == nil {

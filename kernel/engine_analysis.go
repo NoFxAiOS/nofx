@@ -336,22 +336,57 @@ func fixMissingQuotes(jsonStr string) string {
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2018", "'")
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2019", "'")
 
-	jsonStr = strings.ReplaceAll(jsonStr, "［", "[")
-	jsonStr = strings.ReplaceAll(jsonStr, "］", "]")
-	jsonStr = strings.ReplaceAll(jsonStr, "｛", "{")
-	jsonStr = strings.ReplaceAll(jsonStr, "｝", "}")
-	jsonStr = strings.ReplaceAll(jsonStr, "：", ":")
-	jsonStr = strings.ReplaceAll(jsonStr, "，", ",")
-
-	jsonStr = strings.ReplaceAll(jsonStr, "【", "[")
-	jsonStr = strings.ReplaceAll(jsonStr, "】", "]")
-	jsonStr = strings.ReplaceAll(jsonStr, "〔", "[")
-	jsonStr = strings.ReplaceAll(jsonStr, "〕", "]")
-	jsonStr = strings.ReplaceAll(jsonStr, "、", ",")
-
-	jsonStr = strings.ReplaceAll(jsonStr, "　", " ")
+	jsonStr = normalizePunctuationOutsideStrings(jsonStr)
 
 	return jsonStr
+}
+
+func normalizePunctuationOutsideStrings(jsonStr string) string {
+	var b strings.Builder
+	b.Grow(len(jsonStr))
+	inString := false
+	escaped := false
+	for _, r := range jsonStr {
+		if inString {
+			b.WriteRune(r)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if r == '\\' {
+				escaped = true
+				continue
+			}
+			if r == '"' {
+				inString = false
+			}
+			continue
+		}
+		if r == '"' {
+			inString = true
+			b.WriteRune(r)
+			continue
+		}
+		switch r {
+		case '，', '、':
+			b.WriteRune(',')
+		case '：':
+			b.WriteRune(':')
+		case '［', '【', '〔':
+			b.WriteRune('[')
+		case '］', '】', '〕':
+			b.WriteRune(']')
+		case '｛':
+			b.WriteRune('{')
+		case '｝':
+			b.WriteRune('}')
+		case '　':
+			b.WriteRune(' ')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func validateJSONFormat(jsonStr string) error {

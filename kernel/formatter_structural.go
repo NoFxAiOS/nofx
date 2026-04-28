@@ -128,77 +128,28 @@ func formatSentimentDataEN(mdata *market.Data, indicators ...store.IndicatorConf
 
 // formatStructuralLevelsZH formats structural levels (Chinese)
 func formatStructuralLevelsZH(mdata *market.Data) string {
-	if len(mdata.StructuralLevels) == 0 && mdata.FibonacciLevels == nil {
-		return ""
-	}
-
-	var sb strings.Builder
-
-	if len(mdata.StructuralLevels) > 0 {
-		sb.WriteString("**关键结构性价位** (自动检测, 请结合自身分析验证):\n")
-
-		var supports, resistances []market.StructuralLevel
-		for _, l := range mdata.StructuralLevels {
-			if l.Type == "support" {
-				supports = append(supports, l)
-			} else {
-				resistances = append(resistances, l)
-			}
-		}
-
-		if len(supports) > 0 {
-			sort.Slice(supports, func(i, j int) bool { return supports[i].Price > supports[j].Price })
-			parts := make([]string, 0, len(supports))
-			for _, s := range supports {
-				parts = append(parts, fmt.Sprintf("%.4f (%s %s, 强度 %d)", s.Price, s.Timeframe, translateSource(s.Source, true), s.Strength))
-			}
-			sb.WriteString(fmt.Sprintf("- 支撑: %s\n", strings.Join(parts, " | ")))
-		}
-
-		if len(resistances) > 0 {
-			sort.Slice(resistances, func(i, j int) bool { return resistances[i].Price < resistances[j].Price })
-			parts := make([]string, 0, len(resistances))
-			for _, r := range resistances {
-				parts = append(parts, fmt.Sprintf("%.4f (%s %s, 强度 %d)", r.Price, r.Timeframe, translateSource(r.Source, true), r.Strength))
-			}
-			sb.WriteString(fmt.Sprintf("- 阻力: %s\n", strings.Join(parts, " | ")))
-		}
-
-		sb.WriteString("\n")
-	}
-
-	if mdata.FibonacciLevels != nil {
-		fib := mdata.FibonacciLevels
-		dirZH := "回撤向下"
-		if fib.Direction == "retracement_up" {
-			dirZH = "回撤向上"
-		}
-		sb.WriteString(fmt.Sprintf("**斐波那契水平** (%s, 波动 %.4f→%.4f, %s):\n", fib.Timeframe, fib.SwingLow, fib.SwingHigh, dirZH))
-
-		keys := sortedFibKeys(fib.Levels)
-		parts := make([]string, 0, len(keys))
-		for _, k := range keys {
-			parts = append(parts, fmt.Sprintf("%s: %.4f", k, fib.Levels[k]))
-		}
-		sb.WriteString(fmt.Sprintf("- %s\n", strings.Join(parts, " | ")))
-		sb.WriteString("\n")
-	}
-
-	sb.WriteString("⚠️ 以上价位为自动计算, 仅供参考。请结合自身图表分析交叉验证。\n\n")
-	return sb.String()
+	return formatStructuralLevels(mdata, true)
 }
 
 // formatStructuralLevelsEN formats structural levels (English)
 func formatStructuralLevelsEN(mdata *market.Data) string {
+	return formatStructuralLevels(mdata, false)
+}
+
+func formatStructuralLevels(mdata *market.Data, zh bool) string {
 	if len(mdata.StructuralLevels) == 0 && mdata.FibonacciLevels == nil {
 		return ""
 	}
 
 	var sb strings.Builder
 
-	if len(mdata.StructuralLevels) > 0 {
-		sb.WriteString("**Key Structural Levels** (auto-detected, verify with your analysis):\n")
+	if zh {
+		sb.WriteString("**关键结构性价位** (自动检测, 机器可读摘要; 请结合自身分析验证):\n")
+	} else {
+		sb.WriteString("**Key Structural Levels** (auto-detected, machine-readable summary; verify with your analysis):\n")
+	}
 
+	if len(mdata.StructuralLevels) > 0 {
 		var supports, resistances []market.StructuralLevel
 		for _, l := range mdata.StructuralLevels {
 			if l.Type == "support" {
@@ -210,40 +161,76 @@ func formatStructuralLevelsEN(mdata *market.Data) string {
 
 		if len(supports) > 0 {
 			sort.Slice(supports, func(i, j int) bool { return supports[i].Price > supports[j].Price })
-			parts := make([]string, 0, len(supports))
-			for _, s := range supports {
-				parts = append(parts, fmt.Sprintf("%.4f (%s %s, strength %d)", s.Price, s.Timeframe, s.Source, s.Strength))
+			label := "support_levels"
+			if zh {
+				label = "support_levels_支撑"
 			}
-			sb.WriteString(fmt.Sprintf("- Support: %s\n", strings.Join(parts, " | ")))
+			sb.WriteString(formatStructuralLevelRows(label, supports, zh))
 		}
 
 		if len(resistances) > 0 {
 			sort.Slice(resistances, func(i, j int) bool { return resistances[i].Price < resistances[j].Price })
-			parts := make([]string, 0, len(resistances))
-			for _, r := range resistances {
-				parts = append(parts, fmt.Sprintf("%.4f (%s %s, strength %d)", r.Price, r.Timeframe, r.Source, r.Strength))
+			label := "resistance_levels"
+			if zh {
+				label = "resistance_levels_阻力"
 			}
-			sb.WriteString(fmt.Sprintf("- Resistance: %s\n", strings.Join(parts, " | ")))
+			sb.WriteString(formatStructuralLevelRows(label, resistances, zh))
 		}
-
-		sb.WriteString("\n")
 	}
 
 	if mdata.FibonacciLevels != nil {
 		fib := mdata.FibonacciLevels
-		sb.WriteString(fmt.Sprintf("**Fibonacci Levels** (%s, swing %.4f→%.4f, %s):\n", fib.Timeframe, fib.SwingLow, fib.SwingHigh, fib.Direction))
-
-		keys := sortedFibKeys(fib.Levels)
-		parts := make([]string, 0, len(keys))
-		for _, k := range keys {
-			parts = append(parts, fmt.Sprintf("%s: %.4f", k, fib.Levels[k]))
+		dir := fib.Direction
+		if zh {
+			dir = "回撤向下"
+			if fib.Direction == "retracement_up" {
+				dir = "回撤向上"
+			}
 		}
-		sb.WriteString(fmt.Sprintf("- %s\n", strings.Join(parts, " | ")))
-		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("- fibonacci_context: timeframe=%s swing_low=%s swing_high=%s direction=%s\n",
+			fib.Timeframe, formatAIFloat(fib.SwingLow), formatAIFloat(fib.SwingHigh), dir))
+		keys := sortedFibKeys(fib.Levels)
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("  - fib_%s=%s\n", k, formatAIFloat(fib.Levels[k])))
+		}
 	}
 
-	sb.WriteString("⚠️ These levels are auto-calculated. Use them as reference anchors for your analysis, not as absolute truth. Cross-validate with your own chart reading.\n\n")
+	if zh {
+		sb.WriteString("⚠️ 以上价位为自动计算、无千分位逗号的机器可读格式；请交叉验证，不要把相邻价位合并成一个数字。\n\n")
+	} else {
+		sb.WriteString("⚠️ These levels are auto-calculated in machine-readable format without thousands separators; cross-validate and never merge adjacent levels into one number.\n\n")
+	}
 	return sb.String()
+}
+
+func formatStructuralLevelRows(label string, levels []market.StructuralLevel, zh bool) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("- %s:\n", label))
+	for i, level := range levels {
+		source := level.Source
+		if zh {
+			source = translateSource(level.Source, true)
+		}
+		sb.WriteString(fmt.Sprintf("  - level_%d_price=%s timeframe=%s source=%s strength=%d\n", i+1, formatAIFloat(level.Price), level.Timeframe, source, level.Strength))
+	}
+	return sb.String()
+}
+
+func formatAIFloat(v float64) string {
+	s := fmt.Sprintf("%.8f", v)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	if s == "-0" || s == "" {
+		return "0"
+	}
+	return s
+}
+
+func formatAISignedFloat(v float64) string {
+	if v > 0 {
+		return "+" + formatAIFloat(v)
+	}
+	return formatAIFloat(v)
 }
 
 func sortedFibKeys(levels map[string]float64) []string {

@@ -900,6 +900,12 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 		if len(ep.Anchors) > 0 {
 			ctx.Anchors = compactReasonAnchors(ep.Anchors)
 		}
+		if len(ep.HigherAnchors) > 0 {
+			ctx.HigherAnchors = compactReasonAnchors(ep.HigherAnchors)
+		}
+		if len(ep.TimeframeStructures) > 0 {
+			ctx.TimeframeStructures = compactTimeframeStructures(ep.TimeframeStructures)
+		}
 		if protectionOverride != nil {
 			ctx.Protection = protectionOverride
 		} else {
@@ -1002,6 +1008,37 @@ func compactLevelList(levels []float64) []float64 {
 		}
 		compact = append(compact, level)
 		if len(compact) >= 2 {
+			break
+		}
+	}
+	return compact
+}
+
+func compactTimeframeStructures(structures []kernel.AIEntryTimeframeStructure) []store.DecisionActionTimeframeStructure {
+	compact := make([]store.DecisionActionTimeframeStructure, 0, minInt(len(structures), 3))
+	for _, structure := range structures {
+		if strings.TrimSpace(structure.Timeframe) == "" {
+			continue
+		}
+		fib := (*store.DecisionActionFibonacciSummary)(nil)
+		if structure.Fibonacci != nil {
+			levels := compactLevelList(structure.Fibonacci.Levels)
+			if structure.Fibonacci.SwingHigh > 0 || structure.Fibonacci.SwingLow > 0 || len(levels) > 0 {
+				fib = &store.DecisionActionFibonacciSummary{SwingHigh: structure.Fibonacci.SwingHigh, SwingLow: structure.Fibonacci.SwingLow, Levels: levels}
+			}
+		}
+		compact = append(compact, store.DecisionActionTimeframeStructure{
+			Timeframe:  structure.Timeframe,
+			Role:       structure.Role,
+			Support:    compactLevelList(structure.Support),
+			Resistance: compactLevelList(structure.Resistance),
+			Fibonacci:  fib,
+			Anchors:    compactReasonAnchors(structure.Anchors),
+			ATR14Pct:   structure.ATR14Pct,
+			Trend:      structure.Trend,
+			UsedFor:    structure.UsedFor,
+		})
+		if len(compact) >= 3 {
 			break
 		}
 	}

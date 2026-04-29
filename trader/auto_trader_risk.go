@@ -449,26 +449,58 @@ func (at *AutoTrader) buildDrawdownStructureContext(symbol, side string) *drawdo
 			ctx.FibLevels = readFloatSlice(fib["levels"])
 		}
 	}
-	if anchorsRaw, ok := decoded["anchors"].([]interface{}); ok {
-		anchors := make([]store.DecisionActionReasonAnchor, 0, len(anchorsRaw))
-		for _, raw := range anchorsRaw {
+	ctx.Anchors = append(ctx.Anchors, readDecisionAnchors(decoded["anchors"])...)
+	ctx.Anchors = append(ctx.Anchors, readDecisionAnchors(decoded["higher_timeframe_anchors"])...)
+	if structuresRaw, ok := decoded["timeframe_structures"].([]interface{}); ok {
+		for _, raw := range structuresRaw {
 			item, ok := raw.(map[string]interface{})
 			if !ok {
 				continue
 			}
-			anchors = append(anchors, store.DecisionActionReasonAnchor{
-				Type:      readString(item["type"]),
-				Timeframe: readString(item["timeframe"]),
-				Price:     readFloat(item["price"]),
-				Reason:    readString(item["reason"]),
-			})
+			tf := readString(item["timeframe"])
+			for _, v := range readFloatSlice(item["support"]) {
+				ctx.Support = append(ctx.Support, v)
+			}
+			for _, v := range readFloatSlice(item["resistance"]) {
+				ctx.Resistance = append(ctx.Resistance, v)
+			}
+			if fib, ok := item["fibonacci"].(map[string]interface{}); ok {
+				ctx.FibLevels = append(ctx.FibLevels, readFloatSlice(fib["levels"])...)
+			}
+			anchors := readDecisionAnchors(item["anchors"])
+			for i := range anchors {
+				if anchors[i].Timeframe == "" {
+					anchors[i].Timeframe = tf
+				}
+			}
+			ctx.Anchors = append(ctx.Anchors, anchors...)
 		}
-		ctx.Anchors = anchors
 	}
 	if ctx.PrimaryTimeframe == "" && len(ctx.Support) == 0 && len(ctx.Resistance) == 0 && len(ctx.FibLevels) == 0 && len(ctx.Anchors) == 0 && ctx.Entry == 0 && ctx.FirstTarget == 0 {
 		return nil
 	}
 	return ctx
+}
+
+func readDecisionAnchors(value interface{}) []store.DecisionActionReasonAnchor {
+	anchorsRaw, ok := value.([]interface{})
+	if !ok {
+		return nil
+	}
+	anchors := make([]store.DecisionActionReasonAnchor, 0, len(anchorsRaw))
+	for _, raw := range anchorsRaw {
+		item, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		anchors = append(anchors, store.DecisionActionReasonAnchor{
+			Type:      readString(item["type"]),
+			Timeframe: readString(item["timeframe"]),
+			Price:     readFloat(item["price"]),
+			Reason:    readString(item["reason"]),
+		})
+	}
+	return anchors
 }
 
 func readString(value interface{}) string {

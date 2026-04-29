@@ -112,6 +112,8 @@ type DecisionActionReviewContext struct {
 	RiskReward           *DecisionActionRiskRewardSummary    `json:"risk_reward,omitempty"`
 	KeyLevels            *DecisionActionKeyLevels            `json:"key_levels,omitempty"`
 	Anchors              []DecisionActionReasonAnchor        `json:"anchors,omitempty"`
+	HigherAnchors        []DecisionActionReasonAnchor        `json:"higher_timeframe_anchors,omitempty"`
+	TimeframeStructures  []DecisionActionTimeframeStructure  `json:"timeframe_structures,omitempty"`
 	Protection           *DecisionActionProtectionAlignment  `json:"protection,omitempty"`
 	Control              *DecisionActionControlOutcome       `json:"control,omitempty"`
 	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
@@ -201,6 +203,18 @@ type DecisionActionKeyLevels struct {
 	SwingHighs []float64                       `json:"swing_highs,omitempty"`
 	SwingLows  []float64                       `json:"swing_lows,omitempty"`
 	Fibonacci  *DecisionActionFibonacciSummary `json:"fibonacci,omitempty"`
+}
+
+type DecisionActionTimeframeStructure struct {
+	Timeframe  string                          `json:"timeframe,omitempty"`
+	Role       string                          `json:"role,omitempty"`
+	Support    []float64                       `json:"support,omitempty"`
+	Resistance []float64                       `json:"resistance,omitempty"`
+	Fibonacci  *DecisionActionFibonacciSummary `json:"fibonacci,omitempty"`
+	Anchors    []DecisionActionReasonAnchor    `json:"anchors,omitempty"`
+	ATR14Pct   float64                         `json:"atr14_pct,omitempty"`
+	Trend      string                          `json:"trend,omitempty"`
+	UsedFor    string                          `json:"used_for,omitempty"`
 }
 
 // DecisionActionFibonacciSummary stores compact fibonacci structural anchors when configured.

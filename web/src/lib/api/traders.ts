@@ -80,6 +80,18 @@ export const traderApi = {
     return result.data!
   },
 
+  async updateTraderAIControls(
+    traderId: string,
+    controls: { allow_ai_open?: boolean; allow_ai_close?: boolean }
+  ): Promise<{ allow_ai_open: boolean; allow_ai_close: boolean }> {
+    const result = await httpClient.put<{ allow_ai_open: boolean; allow_ai_close: boolean }>(
+      `${API_BASE}/traders/${traderId}/ai-controls`,
+      controls
+    )
+    if (!result.success) throw new Error('Failed to update AI controls')
+    return result.data!
+  },
+
   async updateTrader(
     traderId: string,
     request: CreateTraderRequest

@@ -490,6 +490,58 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	})
 }
 
+// UpdateAIControlsRequest updates runtime AI open/close gates.
+type UpdateAIControlsRequest struct {
+	AllowAIOpen  *bool `json:"allow_ai_open"`
+	AllowAIClose *bool `json:"allow_ai_close"`
+}
+
+// handleUpdateTraderAIControls updates AI execution gates without reloading/restarting the trader.
+func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Param("id")
+
+	var req UpdateAIControlsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SafeBadRequest(c, "Invalid request parameters")
+		return
+	}
+	if req.AllowAIOpen == nil && req.AllowAIClose == nil {
+		SafeBadRequest(c, "No AI control fields provided")
+		return
+	}
+
+	fullCfg, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil || fullCfg == nil || fullCfg.Trader == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist or no access permission"})
+		return
+	}
+
+	allowAIOpen := fullCfg.Trader.AllowAIOpen
+	allowAIClose := fullCfg.Trader.AllowAIClose
+	if req.AllowAIOpen != nil {
+		allowAIOpen = *req.AllowAIOpen
+	}
+	if req.AllowAIClose != nil {
+		allowAIClose = *req.AllowAIClose
+	}
+	if err := s.store.Trader().UpdateAIExecutionControls(userID, traderID, allowAIOpen, allowAIClose); err != nil {
+		SafeInternalError(c, "Failed to update AI controls", err)
+		return
+	}
+
+	if at, getErr := s.traderManager.GetTrader(traderID); getErr == nil && at != nil {
+		at.SetAllowAIOpen(allowAIOpen)
+		at.SetAllowAIClose(allowAIClose)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"trader_id":      traderID,
+		"allow_ai_open":  allowAIOpen,
+		"allow_ai_close": allowAIClose,
+	})
+}
+
 // handleDeleteTrader Delete trader
 func (s *Server) handleDeleteTrader(c *gin.Context) {
 	userID := c.GetString("user_id")

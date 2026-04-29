@@ -197,23 +197,15 @@ export function TraderDashboardPage({
     }, [selectedTraderId])
 
     const saveAIControls = async (patch: Partial<CreateTraderRequest>) => {
-        if (!selectedTraderId || !selectedTrader) return
+        if (!selectedTraderId) return
         setSavingAIControls(true)
         try {
-            const current = await api.getTraderConfig(selectedTraderId)
-            await api.updateTrader(selectedTraderId, {
-                name: current.trader_name,
-                ai_model_id: current.ai_model,
-                exchange_id: current.exchange_id,
-                strategy_id: current.strategy_id,
-                initial_balance: current.initial_balance,
-                scan_interval_minutes: current.scan_interval_minutes,
-                is_cross_margin: current.is_cross_margin,
-                show_in_competition: current.show_in_competition,
-                allow_ai_open: patch.allow_ai_open ?? current.allow_ai_open ?? true,
-                allow_ai_close: patch.allow_ai_close ?? current.allow_ai_close ?? true,
-                ai_decision_mode: patch.ai_decision_mode ?? current.ai_decision_mode ?? 'balanced',
+            const result = await api.updateTraderAIControls(selectedTraderId, {
+                allow_ai_open: patch.allow_ai_open,
+                allow_ai_close: patch.allow_ai_close,
             })
+            if (typeof result.allow_ai_open === 'boolean') setAllowAIOpen(result.allow_ai_open)
+            if (typeof result.allow_ai_close === 'boolean') setAllowAIClose(result.allow_ai_close)
             await Promise.all([
                 mutate(`trader-config-${selectedTraderId}`),
                 mutate(`${selectedTraderId}-status`),

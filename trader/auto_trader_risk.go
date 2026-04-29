@@ -801,10 +801,11 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 						}
 					}
 					if tagged, ok := at.trader.(interface {
-						SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error
+						SetTrailingStopLossTaggedWithID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error)
 						CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error
 					}); ok {
-						if err := tagged.SetTrailingStopLossTagged(symbol, positionSide, activationPrice, okxCallbackRatio, partialQty, "native_trailing"); err == nil {
+						placedOrderID, err := tagged.SetTrailingStopLossTaggedWithID(symbol, positionSide, activationPrice, okxCallbackRatio, partialQty, "native_trailing")
+						if err == nil {
 							verified := false
 							for attempt := 1; !verified && attempt <= protectionVerifyMaxAttempts; attempt++ {
 								at.sleepForVerification(protectionVerifyDelay)
@@ -838,9 +839,11 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 								}
 							}
 							if verified {
-								newOrderID := ""
-								if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
-									newOrderID = findNewestMatchingTrailingOrderID(openOrders, strings.ToUpper(side), existingTier, qtyTarget, plannedCallbackRate)
+								newOrderID := placedOrderID
+								if newOrderID == "" {
+									if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
+										newOrderID = findNewestMatchingTrailingOrderID(openOrders, strings.ToUpper(side), existingTier, qtyTarget, plannedCallbackRate)
+									}
 								}
 								if existingTier != nil && existingTier.OrderID != "" {
 									if err := tagged.CancelTrailingStopOrdersByIDs(symbol, []string{existingTier.OrderID}); err != nil {
@@ -883,6 +886,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return true
 	}
 
+	placedOrderID := ""
 	switch exchange {
 	case "binance":
 		binanceTrader, ok := at.trader.(interface {
@@ -938,10 +942,12 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 			okxCallbackRatio = 1
 		}
 		if tagged, ok := at.trader.(interface {
-			SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error
+			SetTrailingStopLossTaggedWithID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error)
 			CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error
 		}); ok {
-			if err := tagged.SetTrailingStopLossTagged(symbol, positionSide, activationPrice, okxCallbackRatio, 0, "native_trailing"); err != nil {
+			var err error
+			placedOrderID, err = tagged.SetTrailingStopLossTaggedWithID(symbol, positionSide, activationPrice, okxCallbackRatio, 0, "native_trailing")
+			if err != nil {
 				logger.Infof("❌ Native trailing drawdown apply failed (%s %s): %v", symbol, side, err)
 				return false
 			}
@@ -963,7 +969,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f close=%.1f%%", symbol, side, activationPrice, priceBasedCallbackRatio, rule.CloseRatioPct)
 	} else {
 		at.setProtectionState(symbol, side, "native_trailing_armed")
-		at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_trailing", drawdownRuleFingerprint(entryPrice, 0, rule), rule.CloseRatioPct, "armed", "", activationPrice, priceBasedCallbackRatio, 0)
+		at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_trailing", drawdownRuleFingerprint(entryPrice, 0, rule), rule.CloseRatioPct, "armed", placedOrderID, activationPrice, priceBasedCallbackRatio, 0)
 		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f", symbol, side, activationPrice, priceBasedCallbackRatio)
 	}
 	return true

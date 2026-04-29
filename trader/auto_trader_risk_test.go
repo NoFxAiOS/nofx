@@ -3,6 +3,7 @@ package trader
 import (
 	"fmt"
 	"math"
+	"path/filepath"
 	"nofx/store"
 	tradertypes "nofx/trader/types"
 	"strings"
@@ -129,7 +130,15 @@ func (f *fakeProtectionTrader) SetTrailingStopLoss(symbol string, positionSide s
 	return nil
 }
 func (f *fakeProtectionTrader) SetTrailingStopLossTagged(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error {
-	return f.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, quantity)
+	_, err := f.SetTrailingStopLossTaggedWithID(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
+	return err
+}
+func (f *fakeProtectionTrader) SetTrailingStopLossTaggedWithID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error) {
+	before := f.trailingCalls
+	if err := f.SetTrailingStopLoss(symbol, positionSide, activationPrice, callbackRate, quantity); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("new-tier-%d", before+1), nil
 }
 func (f *fakeProtectionTrader) CancelTrailingStopOrders(symbol string) error {
 	removed := 0
@@ -408,6 +417,55 @@ func TestApplyNativeTrailingDrawdownReplacesStaleFullTrailingOrder(t *testing.T)
 	}
 }
 
+func TestApplyNativeTrailingDrawdownPersistsFullTrailingOrderID(t *testing.T) {
+	st, err := store.New(filepath.Join(t.TempDir(), "native-trailing-full.db"))
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "long",
+			"entryPrice":  100.0,
+			"markPrice":   106.0,
+			"positionAmt": 1.0,
+		}},
+	}
+	at := &AutoTrader{
+		id:              "trader-1",
+		exchangeID:      "exchange-1",
+		store:           st,
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: make(map[string]string),
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100}
+	if ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule); !ok {
+		t.Fatal("expected native trailing drawdown to be applied")
+	}
+
+	state, err := st.LoadDynamicProtectionState()
+	if err != nil {
+		t.Fatalf("load dynamic protection state: %v", err)
+	}
+	key := store.BuildDynamicProtectionKey("trader-1", "exchange-1", "BTCUSDT", "long", "100.00000000|0.00000000", "native_trailing", drawdownRuleFingerprint(100, 0, rule), 100)
+	record, ok := state.Records[key]
+	if !ok {
+		t.Fatalf("expected native trailing dynamic protection record for key %q", key)
+	}
+	if record.ExchangeOrderID != "new-tier-1" {
+		t.Fatalf("expected persisted order id new-tier-1, got %q", record.ExchangeOrderID)
+	}
+	if record.ActivationPrice <= 100 {
+		t.Fatalf("expected activation price persisted above entry, got %.4f", record.ActivationPrice)
+	}
+	if record.CallbackRatio <= 0 {
+		t.Fatalf("expected callback ratio persisted, got %.6f", record.CallbackRatio)
+	}
+}
+
 func TestApplyNativeTrailingDrawdownSkipsDuplicateWhenEquivalentPartialTierAlreadyExists(t *testing.T) {
 	fake := &fakeProtectionTrader{
 		positions: []map[string]interface{}{{
@@ -555,6 +613,55 @@ func TestApplyNativeTrailingDrawdownReplacementPrefersBestMatchingPartialTierAmo
 	}
 	if foundBest {
 		t.Fatal("expected best-matching stale tier to be canceled")
+	}
+}
+
+func TestApplyNativeTrailingDrawdownPersistsPartialTrailingOrderID(t *testing.T) {
+	st, err := store.New(filepath.Join(t.TempDir(), "native-trailing-partial.db"))
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "short",
+			"entryPrice":  100.0,
+			"markPrice":   94.0,
+			"positionAmt": 2.0,
+		}},
+	}
+	at := &AutoTrader{
+		id:              "trader-1",
+		exchangeID:      "exchange-1",
+		store:           st,
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: make(map[string]string),
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 50}
+	if ok := at.applyNativeTrailingDrawdown("BTCUSDT", "short", 100, rule); !ok {
+		t.Fatal("expected native partial trailing drawdown to be applied")
+	}
+
+	state, err := st.LoadDynamicProtectionState()
+	if err != nil {
+		t.Fatalf("load dynamic protection state: %v", err)
+	}
+	key := store.BuildDynamicProtectionKey("trader-1", "exchange-1", "BTCUSDT", "short", "100.00000000|2.00000000", "native_partial_trailing", drawdownRuleFingerprint(100, 2, rule), 50)
+	record, ok := state.Records[key]
+	if !ok {
+		t.Fatalf("expected native partial trailing dynamic protection record for key %q", key)
+	}
+	if record.ExchangeOrderID != "new-tier-1" {
+		t.Fatalf("expected persisted order id new-tier-1, got %q", record.ExchangeOrderID)
+	}
+	if math.Abs(record.Quantity-1.0) > 0.0001 {
+		t.Fatalf("expected persisted partial quantity 1.0, got %.4f", record.Quantity)
+	}
+	if record.CallbackRatio <= 0 {
+		t.Fatalf("expected callback ratio persisted, got %.6f", record.CallbackRatio)
 	}
 }
 

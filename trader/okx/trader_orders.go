@@ -443,6 +443,10 @@ func (t *OKXTrader) SetTrailingStopLossTagged(symbol string, positionSide string
 	return t.setTrailingStopLossWithTag(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
 }
 
+func (t *OKXTrader) SetTrailingStopLossTaggedWithID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error) {
+	return t.setTrailingStopLossWithTagReturningID(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
+}
+
 func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error {
 	_, err := t.setTrailingStopLossWithTagReturningID(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
 	return err

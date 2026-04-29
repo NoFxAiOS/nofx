@@ -370,15 +370,62 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 }
 
 func (s *PositionStore) GetLatestDecisionCycle(traderID string) int {
+	return s.GetLatestSuccessfulDecisionCycle(traderID)
+}
+
+func (s *PositionStore) GetLatestSuccessfulDecisionCycle(traderID string) int {
 	if s.db == nil || traderID == "" {
 		return 0
 	}
 	var cycle int
 	s.db.Model(&DecisionRecordDB{}).
-		Where("trader_id = ?", traderID).
+		Where("trader_id = ? AND success = ?", traderID, true).
 		Select("COALESCE(MAX(cycle_number), 0)").
 		Scan(&cycle)
 	return cycle
+}
+
+func (s *PositionStore) FindEntryDecisionCycleForPosition(traderID, symbol, side string, entryTimeMs int64) int {
+	if s.db == nil || traderID == "" || symbol == "" {
+		return 0
+	}
+	query := s.db.Model(&DecisionRecordDB{}).
+		Where("trader_id = ? AND success = ?", traderID, true)
+	if entryTimeMs > 0 {
+		entryTime := time.UnixMilli(entryTimeMs).UTC()
+		query = query.Where("timestamp <= ? OR created_at <= ?", entryTime, entryTime)
+	}
+	sideLower := strings.ToLower(strings.TrimSpace(side))
+	action := ""
+	switch sideLower {
+	case "long":
+		action = "open_long"
+	case "short":
+		action = "open_short"
+	}
+	if action != "" {
+		likeSymbol := fmt.Sprintf("%%\"symbol\":\"%s\"%%", symbol)
+		likeAction := fmt.Sprintf("%%\"action\":\"%s\"%%", action)
+		query = query.Where("REPLACE(decisions, ' ', '') LIKE ? AND REPLACE(decisions, ' ', '') LIKE ?", likeSymbol, likeAction)
+	}
+	var cycle int
+	query.Order("cycle_number DESC").
+		Limit(1).
+		Select("cycle_number").
+		Scan(&cycle)
+	return cycle
+}
+
+func (s *PositionStore) BackfillEntryDecisionCycle(positionID int64, cycle int) error {
+	if s.db == nil || positionID <= 0 || cycle <= 0 {
+		return nil
+	}
+	return s.db.Model(&TraderPosition{}).
+		Where("id = ? AND (entry_decision_cycle = 0 OR entry_decision_cycle IS NULL)", positionID).
+		Updates(map[string]interface{}{
+			"entry_decision_cycle": cycle,
+			"updated_at":           time.Now().UTC().UnixMilli(),
+		}).Error
 }
 
 // ClosePosition closes position

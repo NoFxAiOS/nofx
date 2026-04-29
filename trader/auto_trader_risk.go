@@ -399,10 +399,24 @@ func (at *AutoTrader) buildDrawdownStructureContext(symbol, side string) *drawdo
 		return nil
 	}
 	openPos, err := positionStore.GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side))
-	if err != nil || openPos == nil || openPos.EntryDecisionCycle <= 0 {
+	if err != nil || openPos == nil {
 		return nil
 	}
-	record, err := decisionStore.GetRecordByCycle(at.id, openPos.EntryDecisionCycle)
+	entryDecisionCycle := openPos.EntryDecisionCycle
+	if entryDecisionCycle <= 0 {
+		if inferred := positionStore.FindEntryDecisionCycleForPosition(at.id, symbol, strings.ToUpper(side), openPos.EntryTime); inferred > 0 {
+			entryDecisionCycle = inferred
+			if err := positionStore.BackfillEntryDecisionCycle(openPos.ID, inferred); err != nil {
+				logger.Infof("⚠️ Failed to backfill entry decision cycle for %s %s position %d: %v", symbol, side, openPos.ID, err)
+			} else {
+				logger.Infof("🧷 Backfilled entry decision cycle for %s %s position %d -> cycle %d", symbol, side, openPos.ID, inferred)
+			}
+		}
+	}
+	if entryDecisionCycle <= 0 {
+		return nil
+	}
+	record, err := decisionStore.GetRecordByCycle(at.id, entryDecisionCycle)
 	if err != nil || record == nil {
 		return nil
 	}

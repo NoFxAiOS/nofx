@@ -70,6 +70,10 @@ func CreatePositionSnapshot(traderID, exchangeID, exchangeType string, trader Tr
 			entryPrice = markPrice
 		}
 
+		entryDecisionCycle := positionStore.GetLatestSuccessfulDecisionCycle(traderID)
+		if inferred := positionStore.FindEntryDecisionCycleForPosition(traderID, symbol, side, nowMs); inferred > 0 {
+			entryDecisionCycle = inferred
+		}
 		snapshotPosition := &store.TraderPosition{
 			TraderID:           traderID,
 			ExchangeID:         exchangeID,
@@ -80,7 +84,7 @@ func CreatePositionSnapshot(traderID, exchangeID, exchangeType string, trader Tr
 			Quantity:           positionAmt,
 			EntryPrice:         entryPrice,
 			EntryOrderID:       "snapshot", // Mark as snapshot
-			EntryDecisionCycle: positionStore.GetLatestDecisionCycle(traderID),
+			EntryDecisionCycle: entryDecisionCycle,
 			EntryTime:          nowMs,
 			Leverage:           int(leverage),
 			Status:             "OPEN",

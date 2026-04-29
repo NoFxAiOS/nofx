@@ -16,7 +16,7 @@ func newTestPositionStore(t *testing.T) *PositionStore {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&TraderOrder{}, &TraderFill{}, &TraderPosition{}, &PositionCloseEvent{}); err != nil {
+	if err := db.AutoMigrate(&TraderOrder{}, &TraderFill{}, &TraderPosition{}, &PositionCloseEvent{}, &DecisionRecordDB{}); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}
 	return NewPositionStore(db)

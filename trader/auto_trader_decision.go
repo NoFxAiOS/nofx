@@ -84,6 +84,7 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		"safe_mode":        at.safeMode,
 		"safe_mode_reason": at.safeModeReason,
 		"protect_only":     at.safeMode && strings.HasPrefix(at.safeModeReason, "protect-only"),
+		"allow_ai_open":    at.GetAllowAIOpen(),
 		"allow_ai_close":   at.GetAllowAIClose(),
 		"ai_decision_mode": at.GetAIDecisionMode(),
 	}

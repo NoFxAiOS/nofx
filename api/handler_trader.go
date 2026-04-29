@@ -33,6 +33,7 @@ type CreateTraderRequest struct {
 	IsCrossMargin       *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
 	ShowInCompetition   *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
 	AllowAIClose        *bool   `json:"allow_ai_close"`
+	AllowAIOpen         *bool   `json:"allow_ai_open"`
 	AIDecisionMode      string  `json:"ai_decision_mode"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
@@ -56,6 +57,7 @@ type UpdateTraderRequest struct {
 	IsCrossMargin       *bool   `json:"is_cross_margin"`
 	ShowInCompetition   *bool   `json:"show_in_competition"`
 	AllowAIClose        *bool   `json:"allow_ai_close"`
+	AllowAIOpen         *bool   `json:"allow_ai_open"`
 	AIDecisionMode      string  `json:"ai_decision_mode"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
@@ -113,6 +115,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	showInCompetition := true // Default to show in competition
 	if req.ShowInCompetition != nil {
 		showInCompetition = *req.ShowInCompetition
+	}
+
+	allowAIOpen := true
+	if req.AllowAIOpen != nil {
+		allowAIOpen = *req.AllowAIOpen
 	}
 
 	allowAIClose := true
@@ -280,6 +287,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		AllowAIOpen:          allowAIOpen,
 		AllowAIClose:         allowAIClose,
 		AIDecisionMode:       aiDecisionMode,
 		ScanIntervalMinutes:  scanIntervalMinutes,
@@ -357,6 +365,11 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		showInCompetition = *req.ShowInCompetition
 	}
 
+	allowAIOpen := existingTrader.AllowAIOpen
+	if req.AllowAIOpen != nil {
+		allowAIOpen = *req.AllowAIOpen
+	}
+
 	allowAIClose := existingTrader.AllowAIClose
 	if req.AllowAIClose != nil {
 		allowAIClose = *req.AllowAIClose
@@ -419,6 +432,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		AllowAIOpen:          allowAIOpen,
 		AllowAIClose:         allowAIClose,
 		AIDecisionMode:       aiDecisionMode,
 		ScanIntervalMinutes:  scanIntervalMinutes,
@@ -581,6 +595,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	protectOnly := strings.EqualFold(c.Query("mode"), "protect_only") || strings.EqualFold(c.Query("mode"), "protect-only") || c.Query("protect_only") == "true"
 	if protectOnly {
 		trader.SetProtectOnlyMode(true, "protect-only mode requested via start API")
+		trader.SetAllowAIOpen(false)
 		trader.SetAllowAIClose(false)
 		logger.Warnf("🛡️  Starting trader %s in protect-only mode: AI opens and AI closes are blocked", traderID)
 	}

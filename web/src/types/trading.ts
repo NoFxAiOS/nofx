@@ -14,6 +14,7 @@ export interface SystemStatus {
   safe_mode?: boolean
   safe_mode_reason?: string
   protect_only?: boolean
+  allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   strategy_type?: 'ai_trading' | 'grid_trading'
@@ -419,6 +420,7 @@ export interface DecisionRecord {
   decisions: DecisionAction[]
   execution_log: string[]
   protection_snapshot?: ProtectionSnapshot
+  allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   success: boolean
@@ -441,6 +443,7 @@ export interface TraderInfo {
   exchange_id?: string
   is_running?: boolean
   show_in_competition?: boolean
+  allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   strategy_id?: string
@@ -480,6 +483,7 @@ export interface TraderConfigData {
   strategy_name?: string  // 策略名称
   is_cross_margin: boolean
   show_in_competition: boolean  // 是否在竞技场显示
+  allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   scan_interval_minutes: number

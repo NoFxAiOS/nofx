@@ -147,6 +147,7 @@ export function TraderDashboardPage({
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+    const [allowAIOpen, setAllowAIOpen] = useState<boolean>(true)
     const [allowAIClose, setAllowAIClose] = useState<boolean>(true)
     const [aiDecisionMode, setAIDecisionMode] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced')
     const [savingAIControls, setSavingAIControls] = useState<boolean>(false)
@@ -182,6 +183,7 @@ export function TraderDashboardPage({
             try {
                 const cfg = await api.getTraderConfig(selectedTraderId)
                 if (cancelled) return
+                setAllowAIOpen(cfg.allow_ai_open !== false)
                 setAllowAIClose(cfg.allow_ai_close !== false)
                 setAIDecisionMode(cfg.ai_decision_mode || 'balanced')
             } catch (err) {
@@ -208,6 +210,7 @@ export function TraderDashboardPage({
                 scan_interval_minutes: current.scan_interval_minutes,
                 is_cross_margin: current.is_cross_margin,
                 show_in_competition: current.show_in_competition,
+                allow_ai_open: patch.allow_ai_open ?? current.allow_ai_open ?? true,
                 allow_ai_close: patch.allow_ai_close ?? current.allow_ai_close ?? true,
                 ai_decision_mode: patch.ai_decision_mode ?? current.ai_decision_mode ?? 'balanced',
             })
@@ -521,6 +524,24 @@ export function TraderDashboardPage({
                                 )}
                             </span>
                             <label className="flex items-center gap-2 ml-2 text-xs">
+                                <span className="opacity-60">AI Open</span>
+                                <input
+                                    type="checkbox"
+                                    checked={allowAIOpen}
+                                    disabled={savingAIControls}
+                                    onChange={async (e) => {
+                                        const next = e.target.checked
+                                        setAllowAIOpen(next)
+                                        try {
+                                            await saveAIControls({ allow_ai_open: next })
+                                        } catch {
+                                            setAllowAIOpen(!next)
+                                        }
+                                    }}
+                                    className="h-4 w-4 accent-[#F0B90B]"
+                                />
+                            </label>
+                            <label className="flex items-center gap-2 ml-2 text-xs">
                                 <span className="opacity-60">AI Close</span>
                                 <input
                                     type="checkbox"
@@ -575,7 +596,7 @@ export function TraderDashboardPage({
                                 {selectedTrader.strategy_name || 'No Strategy'}
                             </span>
                         </span>
-                        {status && (status.protect_only || status.safe_mode || status.allow_ai_close === false) && (
+                        {status && (status.protect_only || status.safe_mode || status.allow_ai_open === false || status.allow_ai_close === false) && (
                             <span className="w-px h-3 bg-white/10 hidden md:block" />
                         )}
                         {status?.protect_only && (
@@ -586,6 +607,11 @@ export function TraderDashboardPage({
                         {status?.safe_mode && !status?.protect_only && (
                             <span className="px-2 py-0.5 rounded border border-orange-400/40 bg-orange-400/10 text-orange-300 font-semibold" title={status.safe_mode_reason || undefined}>
                                 SAFE MODE
+                            </span>
+                        )}
+                        {status?.allow_ai_open === false && (
+                            <span className="px-2 py-0.5 rounded border border-purple-400/30 bg-purple-400/10 text-purple-300 font-semibold">
+                                AI OPEN OFF
                             </span>
                         )}
                         {status?.allow_ai_close === false && (

@@ -30,6 +30,7 @@ type DecisionRecordDB struct {
 	ProtectionSnapshot  string    `gorm:"column:protection_snapshot;default:''"`
 	ReviewContext       string    `gorm:"column:review_context;default:''"`
 	AllowAIClose        bool      `gorm:"column:allow_ai_close;default:true"`
+	AllowAIOpen         bool      `gorm:"column:allow_ai_open;default:true"`
 	AIDecisionMode      string    `gorm:"column:ai_decision_mode;default:'balanced'"`
 	Success             bool      `gorm:"default:false"`
 	ErrorMessage        string    `gorm:"column:error_message;default:''"`
@@ -61,6 +62,7 @@ type DecisionRecord struct {
 	ProtectionSnapshot  *ProtectionSnapshot    `json:"protection_snapshot,omitempty"`
 	ReviewContext       map[string]interface{} `json:"review_context,omitempty"`
 	AllowAIClose        bool                   `json:"allow_ai_close"`
+	AllowAIOpen         bool                   `json:"allow_ai_open"`
 	AIDecisionMode      string                 `json:"ai_decision_mode"`
 }
 
@@ -333,6 +335,7 @@ func (s *DecisionStore) initTables() error {
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS protection_snapshot TEXT DEFAULT ''`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS review_context TEXT DEFAULT ''`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS allow_ai_close BOOLEAN DEFAULT true`)
+			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS allow_ai_open BOOLEAN DEFAULT true`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS ai_decision_mode TEXT DEFAULT 'balanced'`)
 			return nil
 		}
@@ -356,6 +359,7 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 		ErrorMessage:        db.ErrorMessage,
 		AIRequestDurationMs: db.AIRequestDurationMs,
 		AllowAIClose:        db.AllowAIClose,
+		AllowAIOpen:         db.AllowAIOpen,
 		AIDecisionMode:      db.AIDecisionMode,
 	}
 	json.Unmarshal([]byte(db.CandidateCoins), &record.CandidateCoins)
@@ -416,6 +420,7 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		ProtectionSnapshot:  protectionSnapshotJSON,
 		ReviewContext:       reviewContextJSON,
 		AllowAIClose:        record.AllowAIClose,
+		AllowAIOpen:         record.AllowAIOpen,
 		AIDecisionMode:      record.AIDecisionMode,
 		Success:             record.Success,
 		ErrorMessage:        record.ErrorMessage,

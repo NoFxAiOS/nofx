@@ -110,6 +110,7 @@ type AutoTraderConfig struct {
 
 	// Competition visibility
 	ShowInCompetition bool   // Whether to show in competition page
+	AllowAIOpen       bool   // Whether AI is allowed to issue open_long / open_short
 	AllowAIClose      bool   // Whether AI is allowed to issue close_long / close_short
 	AIDecisionMode    string // conservative | balanced | aggressive
 
@@ -125,6 +126,7 @@ type AutoTrader struct {
 	exchange              string // Trading platform type (binance/bybit/etc)
 	exchangeID            string // Exchange account UUID
 	showInCompetition     bool   // Whether to show in competition page
+	allowAIOpen           bool   // Whether AI can actively open positions
 	allowAIClose          bool   // Whether AI can actively close positions
 	aiDecisionMode        string // conservative | balanced | aggressive
 	config                AutoTraderConfig
@@ -336,6 +338,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		exchange:              config.Exchange,
 		exchangeID:            config.ExchangeID,
 		showInCompetition:     config.ShowInCompetition,
+		allowAIOpen:           config.AllowAIOpen,
 		allowAIClose:          config.AllowAIClose,
 		aiDecisionMode:        config.AIDecisionMode,
 		config:                config,
@@ -639,6 +642,16 @@ func (at *AutoTrader) GetExchange() string {
 // GetShowInCompetition returns whether trader should be shown in competition
 func (at *AutoTrader) GetShowInCompetition() bool {
 	return at.showInCompetition
+}
+
+// GetAllowAIOpen returns whether AI can actively open positions
+func (at *AutoTrader) GetAllowAIOpen() bool {
+	return at.allowAIOpen
+}
+
+// SetAllowAIOpen updates whether AI can actively open positions
+func (at *AutoTrader) SetAllowAIOpen(allow bool) {
+	at.allowAIOpen = allow
 }
 
 // GetAllowAIClose returns whether AI can actively close positions

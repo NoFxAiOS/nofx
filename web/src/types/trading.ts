@@ -136,6 +136,8 @@ export interface ProtectionRuntime {
   runner_migration_safety_reason?: string
   runner_migration_would_loosen?: boolean
   runner_migration_would_tighten?: boolean
+  runner_migration_actionable?: boolean
+  runner_migration_actionable_reason?: string
   structure_protection_health?: string
   structure_protection_drift_reason?: string
   structure_protection_detached?: boolean

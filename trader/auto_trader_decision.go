@@ -998,6 +998,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	runnerMigrationSafetyReason := ""
 	runnerMigrationWouldLoosenProtection := false
 	runnerMigrationWouldTightenProtection := false
+	runnerMigrationActionable := false
+	runnerMigrationActionableReason := ""
 	if currentStructureStage == "higher_timeframe_runner" && structureCtx != nil && len(drawdownRules) > 0 {
 		var runnerRule *store.DrawdownTakeProfitRule
 		for i := range drawdownRules {
@@ -1049,6 +1051,21 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 					}
 				}
 			}
+		}
+	}
+	if runnerMigrationNeeded {
+		switch {
+		case !runnerMigrationSafe:
+			runnerMigrationActionableReason = "migration_not_safe"
+		case runnerMigrationAnchor == nil || runnerMigrationAnchor.Price <= 0:
+			runnerMigrationActionableReason = "missing_higher_runner_anchor"
+		case runnerMigrationLiveActivation <= 0 || runnerMigrationLiveCallback <= 0:
+			runnerMigrationActionableReason = "missing_live_trailing"
+		case runnerMigrationDesiredActivation <= 0 || runnerMigrationDesiredCallback < minNativeDrawdownCallbackRatio:
+			runnerMigrationActionableReason = "invalid_desired_trailing_plan"
+		default:
+			runnerMigrationActionable = true
+			runnerMigrationActionableReason = "manual_replace_ready"
 		}
 	}
 	if currentStructureHealth == "aligned" && runnerMigrationNeeded {
@@ -1149,6 +1166,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"runner_migration_safety_reason":      runnerMigrationSafetyReason,
 		"runner_migration_would_loosen":       runnerMigrationWouldLoosenProtection,
 		"runner_migration_would_tighten":      runnerMigrationWouldTightenProtection,
+		"runner_migration_actionable":         runnerMigrationActionable,
+		"runner_migration_actionable_reason":  runnerMigrationActionableReason,
 		"drawdown_execution_mode":             at.getDrawdownExecutionMode(symbol, side),
 		"drawdown_config_source":              drawdownSource,
 		"break_even_execution_mode":           at.getBreakEvenExecutionMode(symbol, side),

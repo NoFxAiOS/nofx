@@ -595,12 +595,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	protectOnly := strings.EqualFold(c.Query("mode"), "protect_only") || strings.EqualFold(c.Query("mode"), "protect-only") || c.Query("protect_only") == "true"
 	if protectOnly {
 		trader.SetProtectOnlyMode(true, "protect-only mode requested via start API")
-		trader.SetAllowAIOpen(false)
-		trader.SetAllowAIClose(false)
-		if err := s.store.Trader().UpdateAIExecutionControls(userID, traderID, false, false); err != nil {
-			logger.Infof("⚠️  Failed to persist protect-only AI controls: %v", err)
-		}
-		logger.Warnf("🛡️  Starting trader %s in protect-only mode: AI opens and AI closes are blocked", traderID)
+		logger.Warnf("🛡️  Starting trader %s in protect-only mode: AI opens/closes follow allow_ai_open/allow_ai_close gates", traderID)
 	}
 	go func() {
 		logger.Infof("▶️  Starting trader %s (%s)", traderID, trader.GetName())

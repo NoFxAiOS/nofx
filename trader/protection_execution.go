@@ -46,6 +46,7 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 			return err
 		}
 		plan = mergeProtectionPlans(configuredPlan, decisionPlan)
+		at.setAIDrawdownRules(req.Symbol, req.PositionSide, decisionPlan.DrawdownRules)
 	}
 
 	// Structural fallback: if plan has no TP/SL orders, try generating from structural levels

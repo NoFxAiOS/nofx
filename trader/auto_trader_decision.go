@@ -742,7 +742,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		nextBreakEvenGap = 0
 	}
 
-	drawdownRules := at.getActiveDrawdownRules()
+	drawdownRules := at.getActiveDrawdownRulesForPosition(symbol, side)
 	drawdownSource := at.getDrawdownConfigSource(symbol, side)
 	runnerState := at.getDrawdownRunnerState(symbol, side)
 	drawdownCfg := store.DrawdownTakeProfitConfig{}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"nofx/kernel"
 	"nofx/logger"
 	"nofx/store"
 	"strings"
@@ -99,11 +100,6 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		return
 	}
 
-	rules := at.getActiveDrawdownRules()
-	if len(rules) == 0 {
-		return
-	}
-
 	drawdownCfg := store.DrawdownTakeProfitConfig{}
 	if at.config.StrategyConfig != nil {
 		drawdownCfg = at.config.StrategyConfig.Protection.DrawdownTakeProfit
@@ -117,6 +113,11 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		quantity := pos["positionAmt"].(float64)
 		if quantity < 0 {
 			quantity = -quantity // Short position quantity is negative, convert to positive
+		}
+
+		rules := at.getActiveDrawdownRulesForPosition(symbol, side)
+		if len(rules) == 0 {
+			continue
 		}
 
 		// Calculate current P&L percentage using pure price move, not leveraged return on margin.
@@ -248,7 +249,86 @@ func (at *AutoTrader) checkPositionDrawdown() {
 	}
 }
 
+func (at *AutoTrader) setAIDrawdownRules(symbol, side string, rules []store.DrawdownTakeProfitRule) {
+	if len(rules) == 0 {
+		return
+	}
+	key := positionKey(symbol, side)
+	cloned := make([]store.DrawdownTakeProfitRule, 0, len(rules))
+	for _, rule := range rules {
+		rule = normalizeDrawdownRule(rule)
+		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
+			continue
+		}
+		cloned = append(cloned, rule)
+	}
+	if len(cloned) == 0 {
+		return
+	}
+	at.protectionStateMutex.Lock()
+	if at.drawdownAIRules == nil {
+		at.drawdownAIRules = make(map[string][]store.DrawdownTakeProfitRule)
+	}
+	at.drawdownAIRules[key] = cloned
+	at.drawdownSource[key] = "ai_decision"
+	at.protectionStateMutex.Unlock()
+}
+
+func (at *AutoTrader) restoreAIDrawdownRulesForPosition(symbol, side string) []store.DrawdownTakeProfitRule {
+	if at == nil || at.store == nil || symbol == "" || side == "" {
+		return nil
+	}
+	pos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side))
+	if err != nil || pos == nil || pos.EntryDecisionCycle <= 0 {
+		return nil
+	}
+	record, err := at.store.Decision().GetRecordByCycle(at.id, pos.EntryDecisionCycle)
+	if err != nil || record == nil || record.DecisionJSON == "" {
+		return nil
+	}
+	var decisions []kernel.Decision
+	if err := json.Unmarshal([]byte(record.DecisionJSON), &decisions); err != nil {
+		return nil
+	}
+	action := sideToOpenAction(side)
+	for i := range decisions {
+		decision := decisions[i]
+		if !strings.EqualFold(decision.Symbol, symbol) || !strings.EqualFold(decision.Action, action) || decision.ProtectionPlan == nil {
+			continue
+		}
+		plan, err := buildAIProtectionPlan(pos.EntryPrice, decision.Action, decision.ProtectionPlan)
+		if err != nil || plan == nil || len(plan.DrawdownRules) == 0 {
+			continue
+		}
+		at.setAIDrawdownRules(symbol, side, plan.DrawdownRules)
+		return plan.DrawdownRules
+	}
+	return nil
+}
+
 func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
+	return at.getActiveDrawdownRulesForPosition("", "")
+}
+
+func (at *AutoTrader) getActiveDrawdownRulesForPosition(symbol, side string) []store.DrawdownTakeProfitRule {
+	if symbol != "" || side != "" {
+		key := positionKey(symbol, side)
+		at.protectionStateMutex.RLock()
+		if rules := at.drawdownAIRules[key]; len(rules) > 0 {
+			out := make([]store.DrawdownTakeProfitRule, 0, len(rules))
+			for _, rule := range rules {
+				out = append(out, normalizeDrawdownRule(rule))
+			}
+			at.protectionStateMutex.RUnlock()
+			return out
+		}
+		at.protectionStateMutex.RUnlock()
+
+		if restored := at.restoreAIDrawdownRulesForPosition(symbol, side); len(restored) > 0 {
+			return restored
+		}
+	}
+
 	if at.config.StrategyConfig == nil {
 		return nil
 	}
@@ -1139,8 +1219,12 @@ func (at *AutoTrader) getDrawdownConfigSource(symbol, side string) string {
 	at.protectionStateMutex.RLock()
 	defer at.protectionStateMutex.RUnlock()
 	if symbol != "" || side != "" {
-		if src, ok := at.drawdownSource[positionKey(symbol, side)]; ok && src != "" {
+		key := positionKey(symbol, side)
+		if src, ok := at.drawdownSource[key]; ok && src != "" {
 			return src
+		}
+		if len(at.drawdownAIRules[key]) > 0 {
+			return "ai_decision"
 		}
 	}
 	for _, src := range at.drawdownSource {

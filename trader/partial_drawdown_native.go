@@ -66,7 +66,8 @@ func (ctx *drawdownStructureContext) selectTierAnchor(side string, rule store.Dr
 		targetPrice = ctx.FirstTarget
 	}
 	higher := ctx.higherTimeframeSet()
-	preferHigher := rule.RunnerKeepPct > 0 || strings.Contains(strings.ToLower(rule.StageName), "runner") || strings.Contains(strings.ToLower(rule.RunnerTargetMode), "structure")
+	preferHigher := isHigherTimeframeRunnerRule(rule)
+	preferredTf := strings.TrimSpace(rule.Timeframe)
 	var best *drawdownTierAnchor
 	bestScore := 0.0
 	for _, anchor := range ctx.Anchors {
@@ -87,22 +88,50 @@ func (ctx *drawdownStructureContext) selectTierAnchor(side string, rule store.Dr
 			distancePct = distance / targetPrice * 100
 		}
 		score := distance
-		if _, ok := higher[anchor.Timeframe]; ok && preferHigher {
-			score *= 0.05
+		if preferredTf != "" && strings.EqualFold(anchor.Timeframe, preferredTf) {
+			score *= 0.01
+		} else if _, ok := higher[anchor.Timeframe]; ok && preferHigher {
+			score *= 0.01
 		} else if _, ok := higher[anchor.Timeframe]; ok {
 			score *= 0.75
 		}
 		if best == nil || score < bestScore {
 			bestScore = score
-			best = &drawdownTierAnchor{StageName: rule.StageName, Timeframe: anchor.Timeframe, AnchorType: anchor.Type, Price: anchor.Price, Reason: anchor.Reason, Source: "entry_structure_anchor", UsedFor: "drawdown_runner", DistancePct: distancePct, Reference: fmt.Sprintf("min_profit=%.4f", rule.MinProfitPct)}
+			usedFor := "drawdown_profit_lock"
+			if preferHigher {
+				usedFor = "higher_timeframe_runner"
+			}
+			best = &drawdownTierAnchor{StageName: rule.StageName, Timeframe: anchor.Timeframe, AnchorType: anchor.Type, Price: anchor.Price, Reason: anchor.Reason, Source: "entry_structure_anchor", UsedFor: usedFor, DistancePct: distancePct, Reference: fmt.Sprintf("min_profit=%.4f", rule.MinProfitPct)}
 		}
 	}
 	return best
 }
 
+func isHigherTimeframeRunnerRule(rule store.DrawdownTakeProfitRule) bool {
+	stage := strings.ToLower(strings.TrimSpace(rule.StageName))
+	tf := strings.ToLower(strings.TrimSpace(rule.Timeframe))
+	return strings.Contains(stage, "runner") || strings.Contains(stage, "outer") || strings.Contains(stage, "higher") || strings.Contains(stage, "trend") || strings.Contains(tf, "h") || strings.Contains(strings.ToLower(rule.RunnerTargetSource), "higher") || strings.Contains(strings.ToLower(rule.RunnerStopSource), "higher")
+}
+
+func inferDrawdownStageName(rule store.DrawdownTakeProfitRule) string {
+	if strings.TrimSpace(rule.StageName) != "" {
+		return strings.TrimSpace(rule.StageName)
+	}
+	if rule.CloseRatioPct >= 99.999 {
+		return "outer_exit"
+	}
+	if isHigherTimeframeRunnerRule(rule) || rule.RunnerKeepPct > 0 && rule.CloseRatioPct >= 70 {
+		return "higher_timeframe_runner"
+	}
+	if rule.CloseRatioPct > 0 && rule.CloseRatioPct < 100 {
+		return "partial_profit_lock"
+	}
+	return "profit_stage"
+}
+
 func normalizeDrawdownRule(rule store.DrawdownTakeProfitRule) store.DrawdownTakeProfitRule {
 	if strings.TrimSpace(rule.StageName) == "" {
-		rule.StageName = "profit_stage"
+		rule.StageName = inferDrawdownStageName(rule)
 	}
 	if rule.RunnerKeepPct <= 0 && rule.CloseRatioPct > 0 && rule.CloseRatioPct < 100 {
 		rule.RunnerKeepPct = 100 - rule.CloseRatioPct
@@ -169,7 +198,7 @@ func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, p
 
 	rule := normalizeDrawdownRule(rules[bestIdx])
 	resolvedStage, stopSource, targetSource := classifyAIDrawdownStage(currentPnLPct, peakPnLPct, structure, side, markPrice)
-	if strings.TrimSpace(rule.StageName) == "" || rule.StageName == "profit_stage" {
+	if rule.StageName == "" || rule.StageName == "profit_stage" || rule.StageName == "partial_profit_lock" || rule.StageName == "higher_timeframe_runner" || rule.StageName == "outer_exit" {
 		rule.StageName = resolvedStage
 	}
 

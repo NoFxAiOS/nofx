@@ -52,6 +52,8 @@ export interface ProtectionRuntimeOrder {
 export interface ProtectionRuntimeTier {
   index: number
   stage_name?: string
+  timeframe?: string
+  reason_anchor?: string
   min_profit_pct: number
   max_drawdown_pct: number
   close_ratio_pct: number

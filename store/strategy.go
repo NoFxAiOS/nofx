@@ -271,16 +271,18 @@ func (c *DrawdownTakeProfitConfig) UnmarshalJSON(data []byte) error {
 	}
 	if c.BreakEvenRunnerPolicy == "" {
 		c.BreakEvenRunnerPolicy = DrawdownBreakEvenRunnerFallbackOnly
-		}
+	}
 
 	return nil
 }
 
 type DrawdownTakeProfitRule struct {
+	Timeframe           string  `json:"timeframe,omitempty"`
 	MinProfitPct        float64 `json:"min_profit_pct,omitempty"`
 	MaxDrawdownPct      float64 `json:"max_drawdown_pct,omitempty"`
 	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
 	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
+	ReasonAnchor        string  `json:"reason_anchor,omitempty"`
 	StageName           string  `json:"stage_name,omitempty"`
 	RunnerKeepPct       float64 `json:"runner_keep_pct,omitempty"`
 	RunnerStopMode      string  `json:"runner_stop_mode,omitempty"`
@@ -410,10 +412,10 @@ type IndicatorConfig struct {
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
 	// Exchange sentiment data toggles
-	EnableLongShortRatio    bool `json:"enable_long_short_ratio"`    // long/short account ratio
-	EnableTopTraderRatio    bool `json:"enable_top_trader_ratio"`    // top trader long/short ratio (Binance only)
+	EnableLongShortRatio    bool `json:"enable_long_short_ratio"`     // long/short account ratio
+	EnableTopTraderRatio    bool `json:"enable_top_trader_ratio"`     // top trader long/short ratio (Binance only)
 	EnableTakerBuySellRatio bool `json:"enable_taker_buy_sell_ratio"` // taker buy/sell volume ratio
-	EnableOrderBookDepth    bool `json:"enable_order_book_depth"`    // order book depth imbalance
+	EnableOrderBookDepth    bool `json:"enable_order_book_depth"`     // order book depth imbalance
 	// EMA period configuration
 	EMAPeriods []int `json:"ema_periods,omitempty"` // default [20, 50]
 	// RSI period configuration
@@ -560,10 +562,10 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EnableTopTraderRatio:    true, // Binance only
 			EnableTakerBuySellRatio: true,
 			EnableOrderBookDepth:    true,
-			EMAPeriods:        []int{20, 50},
-			RSIPeriods:        []int{7, 14},
-			ATRPeriods:        []int{14},
-			BOLLPeriods:       []int{20},
+			EMAPeriods:              []int{20, 50},
+			RSIPeriods:              []int{7, 14},
+			ATRPeriods:              []int{14},
+			BOLLPeriods:             []int{20},
 			// NofxOS unified API key
 			NofxOSAPIKey: "cm_568c67eae410d912c54c",
 			// Quant data

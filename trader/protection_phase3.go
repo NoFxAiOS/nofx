@@ -379,10 +379,12 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		rules := make([]store.DrawdownTakeProfitRule, 0, len(plan.DrawdownRules))
 		for _, rule := range plan.DrawdownRules {
 			rules = append(rules, store.DrawdownTakeProfitRule{
+				Timeframe:           rule.Timeframe,
 				MinProfitPct:        rule.MinProfitPct,
 				MaxDrawdownPct:      rule.MaxDrawdownPct,
 				CloseRatioPct:       rule.CloseRatioPct,
 				PollIntervalSeconds: rule.PollIntervalSeconds,
+				ReasonAnchor:        rule.ReasonAnchor,
 				StageName:           rule.StageName,
 				RunnerKeepPct:       rule.RunnerKeepPct,
 				RunnerStopMode:      rule.RunnerStopMode,
@@ -420,10 +422,12 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 			rules := make([]store.DrawdownTakeProfitRule, 0, len(plan.DrawdownRules))
 			for _, rule := range plan.DrawdownRules {
 				rules = append(rules, store.DrawdownTakeProfitRule{
+					Timeframe:           rule.Timeframe,
 					MinProfitPct:        rule.MinProfitPct,
 					MaxDrawdownPct:      rule.MaxDrawdownPct,
 					CloseRatioPct:       rule.CloseRatioPct,
 					PollIntervalSeconds: rule.PollIntervalSeconds,
+					ReasonAnchor:        rule.ReasonAnchor,
 					StageName:           rule.StageName,
 					RunnerKeepPct:       rule.RunnerKeepPct,
 					RunnerStopMode:      rule.RunnerStopMode,

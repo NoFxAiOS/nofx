@@ -510,7 +510,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                           <KV label={language === 'zh' ? '仓位' : 'Close'} value={`${Number(tier.close_ratio_pct || 0).toFixed(0)}%${tier.runner_keep_pct ? ` · runner keep ${Number(tier.runner_keep_pct).toFixed(0)}%` : ''}`} />
                           <KV label={language === 'zh' ? '触发 / 回调' : 'Activation / CB'} value={`${formatPrice(Number(tier.activation_price || tier.planned_activation_price || 0))} · ${(Number(tier.callback_rate || 0) * 100).toFixed(2)}%`} />
                           <KV label={language === 'zh' ? '结构位' : 'Anchor'} value={anchorPrice > 0 ? `${tf} · ${compactSourceLabel(anchorType, language)} · ${formatPrice(anchorPrice)}` : '—'} />
-                          {anchor?.reason && <div className="text-[10px] text-nofx-text-muted leading-snug line-clamp-2">{anchor.reason}</div>}
+                          {anchor?.used_for && <KV label={language === 'zh' ? '用途' : 'Use'} value={compactSourceLabel(anchor.used_for, language)} />}
+                          {(tier.reason_anchor || anchor?.reason) && <div className="text-[10px] text-nofx-text-muted leading-snug line-clamp-2">{tier.reason_anchor || anchor?.reason}</div>}
                         </div>
                       )
                     })}

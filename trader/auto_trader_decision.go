@@ -972,6 +972,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			tier := map[string]interface{}{
 				"index":                    idx + 1,
 				"stage_name":               rule.StageName,
+				"timeframe":                rule.Timeframe,
+				"reason_anchor":            rule.ReasonAnchor,
 				"min_profit_pct":           rule.MinProfitPct,
 				"max_drawdown_pct":         rule.MaxDrawdownPct,
 				"close_ratio_pct":          rule.CloseRatioPct,

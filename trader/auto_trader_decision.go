@@ -987,6 +987,55 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	ladderDegradedToFullStop := ladderDegradedStop && fullStopCount > 0
 	ladderDegradedToFullTakeProfit := ladderDegradedTakeProfit && fullTakeProfitCount > 0
 	fallbackActive := fallbackStopCount > 0
+	runnerMigrationNeeded := false
+	runnerMigrationReason := ""
+	runnerMigrationAnchor := (*drawdownTierAnchor)(nil)
+	runnerMigrationDesiredActivation := 0.0
+	runnerMigrationDesiredCallback := 0.0
+	runnerMigrationLiveActivation := 0.0
+	runnerMigrationLiveCallback := 0.0
+	if currentStructureStage == "higher_timeframe_runner" && structureCtx != nil && len(drawdownRules) > 0 {
+		var runnerRule *store.DrawdownTakeProfitRule
+		for i := range drawdownRules {
+			rule := normalizeDrawdownRule(drawdownRules[i])
+			if rule.RunnerKeepPct > 0 || strings.Contains(strings.ToLower(rule.StageName), "runner") {
+				runnerRule = &rule
+				break
+			}
+		}
+		if runnerRule == nil {
+			rule := normalizeDrawdownRule(drawdownRules[len(drawdownRules)-1])
+			runnerRule = &rule
+		}
+		if runnerRule != nil {
+			runnerMigrationAnchor = structureCtx.selectTierAnchor(side, *runnerRule, entryPrice)
+			runnerMigrationDesiredActivation = calculateProfitBasedTrailingTriggerPrice(entryPrice, side, runnerRule.MinProfitPct)
+			runnerMigrationDesiredCallback = calculateProfitBasedTrailingCallbackRatio(entryPrice, side, runnerRule.MinProfitPct, runnerRule.MaxDrawdownPct)
+			runnerMigrationLiveActivation = liveTrailingTriggerPrice
+			runnerMigrationLiveCallback = liveTrailingCallbackRate
+			if runnerMigrationAnchor == nil || runnerMigrationAnchor.Timeframe == "" {
+				runnerMigrationNeeded = true
+				runnerMigrationReason = "missing_higher_runner_anchor"
+			} else if liveTrailingTriggerPrice <= 0 {
+				runnerMigrationNeeded = true
+				runnerMigrationReason = "missing_live_trailing"
+			} else {
+				activationDrift := math.Abs(liveTrailingTriggerPrice-runnerMigrationDesiredActivation) / math.Max(runnerMigrationDesiredActivation, 1)
+				callbackDrift := 0.0
+				if runnerMigrationDesiredCallback > 0 {
+					callbackDrift = math.Abs(liveTrailingCallbackRate-runnerMigrationDesiredCallback) / runnerMigrationDesiredCallback
+				}
+				if activationDrift > 0.003 || callbackDrift > 0.20 {
+					runnerMigrationNeeded = true
+					runnerMigrationReason = "live_trailing_differs_from_higher_runner_plan"
+				}
+			}
+		}
+	}
+	if currentStructureHealth == "aligned" && runnerMigrationNeeded {
+		currentStructureHealth = "runner_migration_needed"
+		currentStructureDriftReason = runnerMigrationReason
+	}
 	if currentStructureHealth == "aligned" {
 		switch {
 		case ladderDegradedStop || ladderDegradedTakeProfit:
@@ -1065,34 +1114,41 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			}
 			return nil
 		}(),
-		"drawdown_structure_evidence":       currentStructureEvidence,
-		"drawdown_structure_trace":          currentStructureTrace,
-		"structure_protection_health":       currentStructureHealth,
-		"structure_protection_drift_reason": currentStructureDriftReason,
-		"structure_protection_detached":     currentStructureDetached,
-		"drawdown_execution_mode":           at.getDrawdownExecutionMode(symbol, side),
-		"drawdown_config_source":            drawdownSource,
-		"break_even_execution_mode":         at.getBreakEvenExecutionMode(symbol, side),
-		"current_pnl_pct":                   currentPnLPct,
-		"drawdown_peak_pnl_pct":             peakPnLPct,
-		"current_drawdown_pct":              drawdownPct,
-		"current_break_even_trigger_pct":    breakEvenTrigger,
-		"break_even_offset_pct":             breakEvenOffset,
-		"next_break_even_gap_pct":           nextBreakEvenGap,
-		"break_even_config_source":          breakEvenSource,
-		"live_break_even_stop_price":        liveBreakEvenStopPrice,
-		"break_even_order_detected":         breakEvenOrderDetected,
-		"planned_ladder_stop_count":         plannedLadderStopCount,
-		"planned_ladder_take_profit_count":  plannedLadderTakeProfitCount,
-		"live_ladder_stop_count":            ladderStopCount,
-		"live_ladder_take_profit_count":     ladderTakeProfitCount,
-		"live_full_stop_count":              fullStopCount,
-		"live_full_take_profit_count":       fullTakeProfitCount,
-		"fallback_order_detected":           fallbackActive,
-		"live_fallback_stop_count":          fallbackStopCount,
-		"full_stop_planned":                 fullStopPlanned,
-		"full_take_profit_planned":          fullTakeProfitPlanned,
-		"fallback_planned":                  fallbackPlanned,
+		"drawdown_structure_evidence":         currentStructureEvidence,
+		"drawdown_structure_trace":            currentStructureTrace,
+		"structure_protection_health":         currentStructureHealth,
+		"structure_protection_drift_reason":   currentStructureDriftReason,
+		"structure_protection_detached":       currentStructureDetached,
+		"runner_migration_needed":             runnerMigrationNeeded,
+		"runner_migration_reason":             runnerMigrationReason,
+		"runner_migration_anchor":             runnerMigrationAnchor,
+		"runner_migration_desired_activation": runnerMigrationDesiredActivation,
+		"runner_migration_desired_callback":   runnerMigrationDesiredCallback,
+		"runner_migration_live_activation":    runnerMigrationLiveActivation,
+		"runner_migration_live_callback":      runnerMigrationLiveCallback,
+		"drawdown_execution_mode":             at.getDrawdownExecutionMode(symbol, side),
+		"drawdown_config_source":              drawdownSource,
+		"break_even_execution_mode":           at.getBreakEvenExecutionMode(symbol, side),
+		"current_pnl_pct":                     currentPnLPct,
+		"drawdown_peak_pnl_pct":               peakPnLPct,
+		"current_drawdown_pct":                drawdownPct,
+		"current_break_even_trigger_pct":      breakEvenTrigger,
+		"break_even_offset_pct":               breakEvenOffset,
+		"next_break_even_gap_pct":             nextBreakEvenGap,
+		"break_even_config_source":            breakEvenSource,
+		"live_break_even_stop_price":          liveBreakEvenStopPrice,
+		"break_even_order_detected":           breakEvenOrderDetected,
+		"planned_ladder_stop_count":           plannedLadderStopCount,
+		"planned_ladder_take_profit_count":    plannedLadderTakeProfitCount,
+		"live_ladder_stop_count":              ladderStopCount,
+		"live_ladder_take_profit_count":       ladderTakeProfitCount,
+		"live_full_stop_count":                fullStopCount,
+		"live_full_take_profit_count":         fullTakeProfitCount,
+		"fallback_order_detected":             fallbackActive,
+		"live_fallback_stop_count":            fallbackStopCount,
+		"full_stop_planned":                   fullStopPlanned,
+		"full_take_profit_planned":            fullTakeProfitPlanned,
+		"fallback_planned":                    fallbackPlanned,
 		"unexpected_protection": map[string]interface{}{
 			"stale_bot_duplicate_count":     unexpectedSummary.StaleBotDuplicate,
 			"orphan_inactive_count":         unexpectedSummary.OrphanForInactive,

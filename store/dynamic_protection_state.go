@@ -64,6 +64,21 @@ func (s *Store) SaveDynamicProtectionRecord(record DynamicProtectionRecord) erro
 	if record.Key == "" {
 		record.Key = BuildDynamicProtectionKey(record.TraderID, record.ExchangeID, record.Symbol, record.Side, record.PositionFingerprint, record.ProtectionType, record.RuleFingerprint, record.CloseRatioPct)
 	}
+	for key, existing := range state.Records {
+		if key == record.Key {
+			continue
+		}
+		if existing.TraderID != record.TraderID || existing.ExchangeID != record.ExchangeID || existing.Symbol != record.Symbol || existing.Side != record.Side || existing.PositionFingerprint != record.PositionFingerprint || existing.ProtectionType != record.ProtectionType || existing.Status != "armed" {
+			continue
+		}
+		// Native trailing ownership is singleton per active position/protection type.
+		// When a newer arm succeeds, older persisted owners must not be restored on restart.
+		if record.Status == "armed" && (record.ProtectionType == "native_trailing" || record.ProtectionType == "native_partial_trailing") {
+			existing.Status = "replaced"
+			existing.UpdatedAt = record.UpdatedAt
+			state.Records[key] = existing
+		}
+	}
 	state.Records[record.Key] = record
 	data, err := json.Marshal(state)
 	if err != nil {

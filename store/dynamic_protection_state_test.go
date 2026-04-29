@@ -39,6 +39,51 @@ func TestDynamicProtectionStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDynamicProtectionStateMarksOlderNativeOwnerReplaced(t *testing.T) {
+	s, err := New(filepath.Join(t.TempDir(), "dynamic-protection-replace.db"))
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	oldRecord := DynamicProtectionRecord{
+		TraderID:            "trader-1",
+		ExchangeID:          "exchange-1",
+		Symbol:              "DOGEUSDT",
+		Side:                "long",
+		PositionFingerprint: "0.09930000|650.00000000",
+		ProtectionType:      "native_partial_trailing",
+		RuleFingerprint:     "rule-old",
+		CloseRatioPct:       80,
+		Status:              "armed",
+		ExchangeOrderID:     "algo-old",
+		UpdatedAt:           1000,
+	}
+	newRecord := oldRecord
+	newRecord.RuleFingerprint = "rule-new"
+	newRecord.ExchangeOrderID = "algo-new"
+	newRecord.UpdatedAt = 2000
+	if err := s.SaveDynamicProtectionRecord(oldRecord); err != nil {
+		t.Fatalf("save old record: %v", err)
+	}
+	if err := s.SaveDynamicProtectionRecord(newRecord); err != nil {
+		t.Fatalf("save new record: %v", err)
+	}
+	state, err := s.LoadDynamicProtectionState()
+	if err != nil {
+		t.Fatalf("load dynamic protection state: %v", err)
+	}
+	if len(state.Records) != 2 {
+		t.Fatalf("expected old and new records retained for audit, got %+v", state.Records)
+	}
+	oldKey := BuildDynamicProtectionKey(oldRecord.TraderID, oldRecord.ExchangeID, oldRecord.Symbol, oldRecord.Side, oldRecord.PositionFingerprint, oldRecord.ProtectionType, oldRecord.RuleFingerprint, oldRecord.CloseRatioPct)
+	newKey := BuildDynamicProtectionKey(newRecord.TraderID, newRecord.ExchangeID, newRecord.Symbol, newRecord.Side, newRecord.PositionFingerprint, newRecord.ProtectionType, newRecord.RuleFingerprint, newRecord.CloseRatioPct)
+	if got := state.Records[oldKey].Status; got != "replaced" {
+		t.Fatalf("expected old native owner marked replaced, got %q", got)
+	}
+	if got := state.Records[newKey].Status; got != "armed" {
+		t.Fatalf("expected new native owner armed, got %q", got)
+	}
+}
+
 func TestDeleteDynamicProtectionRecordsForInactive(t *testing.T) {
 	s, err := New(filepath.Join(t.TempDir(), "dynamic-protection-cleanup.db"))
 	if err != nil {

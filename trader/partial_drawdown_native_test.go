@@ -130,3 +130,34 @@ func TestDrawdownStructureContextSelectsPrimaryAnchorForFirstStage(t *testing.T)
 		t.Fatalf("expected nearest primary anchor, got %+v", anchor)
 	}
 }
+
+func TestClassifyAIDrawdownStageMigratesPastPrimaryTargetToHigherRunner(t *testing.T) {
+	ctx := &drawdownStructureContext{
+		Entry:            100,
+		FirstTarget:      110,
+		HigherTimeframes: []string{"1h"},
+		Anchors: []store.DecisionActionReasonAnchor{
+			{Type: "resistance", Timeframe: "15m", Price: 110, Reason: "primary target"},
+			{Type: "resistance", Timeframe: "1h", Price: 118, Reason: "higher runner target"},
+		},
+	}
+	stage, stopSource, targetSource := classifyAIDrawdownStage(11, 12, ctx, "long", 111)
+	if stage != "higher_timeframe_runner" || stopSource != "higher_timeframe_structure_trail" || targetSource != "higher_timeframe_runner_target" {
+		t.Fatalf("expected higher timeframe runner stage, got stage=%s stop=%s target=%s", stage, stopSource, targetSource)
+	}
+}
+
+func TestClassifyAIDrawdownStageKeepsPrimaryBeforeTarget(t *testing.T) {
+	ctx := &drawdownStructureContext{
+		Entry:            100,
+		FirstTarget:      110,
+		HigherTimeframes: []string{"1h"},
+		Anchors: []store.DecisionActionReasonAnchor{
+			{Type: "resistance", Timeframe: "1h", Price: 118, Reason: "higher runner target"},
+		},
+	}
+	stage, stopSource, targetSource := classifyAIDrawdownStage(8, 8, ctx, "long", 108)
+	if stage != "trend_continuation" || stopSource != "adjacent_support_flip" || targetSource != "trend_continuation_structure" {
+		t.Fatalf("expected trend continuation before primary target zone, got stage=%s stop=%s target=%s", stage, stopSource, targetSource)
+	}
+}

@@ -231,6 +231,9 @@ func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, p
 func classifyAIDrawdownStage(currentPnLPct, peakPnLPct float64, structure *drawdownStructureContext, side string, markPrice float64) (string, string, string) {
 	if structure != nil && structure.Entry > 0 && structure.FirstTarget > 0 && markPrice > 0 {
 		progress := structuralTargetProgress(side, structure.Entry, structure.FirstTarget, markPrice)
+		if progress >= 1.0 && hasHigherTimeframeAnchor(structure) {
+			return "higher_timeframe_runner", "higher_timeframe_structure_trail", "higher_timeframe_runner_target"
+		}
 		if progress >= 1.15 || isNearAnyLevel(markPrice, structure.FibLevels, 0.0035) {
 			return "extension_exhaustion", "extension_swing_trail", "extension_fibonacci"
 		}
@@ -250,6 +253,22 @@ func classifyAIDrawdownStage(currentPnLPct, peakPnLPct float64, structure *drawd
 	default:
 		return "trend_continuation", "adjacent_support_flip", "trend_continuation_structure"
 	}
+}
+
+func hasHigherTimeframeAnchor(structure *drawdownStructureContext) bool {
+	if structure == nil {
+		return false
+	}
+	higher := structure.higherTimeframeSet()
+	if len(higher) == 0 {
+		return false
+	}
+	for _, anchor := range structure.Anchors {
+		if _, ok := higher[strings.TrimSpace(anchor.Timeframe)]; ok && anchor.Price > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func structuralTargetProgress(side string, entry, firstTarget, markPrice float64) float64 {

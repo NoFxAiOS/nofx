@@ -73,3 +73,30 @@ func TestLoadDynamicProtectionStateFromStoreSkipsInactiveNativeRecords(t *testin
 		t.Fatalf("expected executed managed drawdown fingerprint restored, got %q", got)
 	}
 }
+
+func TestLoadDynamicProtectionStateFromStoreUsesLatestNativeRecordPerPosition(t *testing.T) {
+	st, err := store.New(filepath.Join(t.TempDir(), "dynamic-protection-runtime-latest.db"))
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	traderID := "trader-1"
+	records := []store.DynamicProtectionRecord{
+		{TraderID: traderID, ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "long", PositionFingerprint: "old", ProtectionType: "native_trailing", RuleFingerprint: "old-full", CloseRatioPct: 100, Status: "armed", UpdatedAt: 1000},
+		{TraderID: traderID, ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "long", PositionFingerprint: "new", ProtectionType: "native_partial_trailing", RuleFingerprint: "new-partial", CloseRatioPct: 80, Status: "armed", UpdatedAt: 2000},
+	}
+	for _, record := range records {
+		if err := st.SaveDynamicProtectionRecord(record); err != nil {
+			t.Fatalf("save dynamic protection record: %v", err)
+		}
+	}
+
+	at := &AutoTrader{id: traderID, store: st}
+	at.loadDynamicProtectionStateFromStore()
+
+	if got := at.getProtectionState("DOGEUSDT", "long"); got != "native_partial_trailing_armed" {
+		t.Fatalf("expected latest native partial state restored, got %q", got)
+	}
+	if got := at.getDrawdownExecutionFingerprint("DOGEUSDT", "long"); got != "new-partial" {
+		t.Fatalf("expected latest native fingerprint restored, got %q", got)
+	}
+}

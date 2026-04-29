@@ -386,41 +386,50 @@ func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
 	if at.drawdownState == nil {
 		at.drawdownState = make(map[string]string)
 	}
+	latestNativeRecord := make(map[string]store.DynamicProtectionRecord)
+	managedRecords := make([]store.DynamicProtectionRecord, 0, len(state.Records))
 	for _, record := range state.Records {
 		if record.TraderID != "" && record.TraderID != at.id {
 			continue
 		}
-		if record.Status != "" && record.Status != "armed" && record.Status != "executed" {
+		if record.Status != "armed" && record.Status != "executed" {
 			continue
 		}
 		if record.Status == "executed" && record.ProtectionType != "managed_drawdown" {
 			continue
 		}
 		key := positionKey(record.Symbol, record.Side)
-		switch record.ProtectionType {
-		case "native_trailing":
-			if record.Status != "armed" {
-				continue
-			}
-			at.protectionState[key] = "native_trailing_armed"
-			if record.RuleFingerprint != "" {
-				at.drawdownState[key] = record.RuleFingerprint
-			}
-		case "native_partial_trailing":
-			if record.Status != "armed" {
-				continue
-			}
-			at.protectionState[key] = "native_partial_trailing_armed"
-			if record.RuleFingerprint != "" {
-				at.drawdownState[key] = record.RuleFingerprint
-			}
-		case "managed_drawdown":
-			if record.RuleFingerprint != "" {
-				at.drawdownState[key] = record.RuleFingerprint
+		existingRecord, hasExisting := latestNativeRecord[key]
+		if isDynamicNativeProtectionType(record.ProtectionType) {
+			if !hasExisting || record.UpdatedAt >= existingRecord.UpdatedAt {
+				latestNativeRecord[key] = record
 			}
 		}
+		managedRecords = append(managedRecords, record)
+	}
+	for _, record := range latestNativeRecord {
+		key := positionKey(record.Symbol, record.Side)
+		switch record.ProtectionType {
+		case "native_trailing":
+			at.protectionState[key] = "native_trailing_armed"
+		case "native_partial_trailing":
+			at.protectionState[key] = "native_partial_trailing_armed"
+		}
+		if record.RuleFingerprint != "" {
+			at.drawdownState[key] = record.RuleFingerprint
+		}
+	}
+	for _, record := range managedRecords {
+		if record.ProtectionType != "managed_drawdown" || record.RuleFingerprint == "" {
+			continue
+		}
+		at.drawdownState[positionKey(record.Symbol, record.Side)] = record.RuleFingerprint
 	}
 	logger.Infof("🧷 Dynamic protection state: loaded %d persisted records", len(state.Records))
+}
+
+func isDynamicNativeProtectionType(protectionType string) bool {
+	return protectionType == "native_trailing" || protectionType == "native_partial_trailing"
 }
 
 // Run runs the automatic trading main loop

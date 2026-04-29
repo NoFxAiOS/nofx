@@ -197,7 +197,7 @@ func (s *Server) handlePositions(c *gin.Context) {
 			if symbol == "" || side == "" || qty <= 0 {
 				continue
 			}
-			livePositions[strings.ToUpper(market.Normalize(symbol))+"|"+strings.ToUpper(side)] = qty
+			livePositions[strings.ToUpper(market.Normalize(symbol))+"|"+normalizeAPIPositionSideForStore(side)] = qty
 		}
 		updated, markErr := s.store.Position().MarkOpenPositionsAbsentFromExchangeClosed(traderID, livePositions, "sync_absent_from_exchange")
 		if markErr != nil {
@@ -208,6 +208,18 @@ func (s *Server) handlePositions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, positions)
+}
+
+func normalizeAPIPositionSideForStore(side string) string {
+	side = strings.ToUpper(strings.TrimSpace(side))
+	switch side {
+	case "LONG", "BUY":
+		return "LONG"
+	case "SHORT", "SELL":
+		return "SHORT"
+	default:
+		return side
+	}
 }
 
 // handlePositionHistory Historical closed positions with statistics

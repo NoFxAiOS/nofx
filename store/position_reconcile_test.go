@@ -65,6 +65,28 @@ func TestMarkOpenPositionsAbsentFromExchangeClosed(t *testing.T) {
 	}
 }
 
+func TestMarkOpenPositionsAbsentFromExchangeClosedNormalizesLiveSide(t *testing.T) {
+	s := newPositionReconcileTestStore(t)
+	if err := s.CreateOpenPosition(&TraderPosition{TraderID: "t", ExchangeID: "ex", Symbol: "BTCUSDT", Side: "LONG", Quantity: 0.0009, EntryQuantity: 0.0009, EntryPrice: 77165.5, EntryTime: 1, Status: "OPEN"}); err != nil {
+		t.Fatalf("create position: %v", err)
+	}
+
+	updated, err := s.MarkOpenPositionsAbsentFromExchangeClosed("t", map[string]float64{"BTCUSDT|LONG": 0.0009}, "sync_absent_from_exchange")
+	if err != nil {
+		t.Fatalf("mark absent closed: %v", err)
+	}
+	if updated != 0 {
+		t.Fatalf("expected lowercase/live-style long side to preserve position, got %d updates", updated)
+	}
+	open, err := s.GetOpenPositions("t")
+	if err != nil {
+		t.Fatalf("get open positions: %v", err)
+	}
+	if len(open) != 1 || open[0].Symbol != "BTCUSDT" {
+		t.Fatalf("expected BTC long preserved, got %+v", open)
+	}
+}
+
 func TestMarkOpenPositionsAbsentFromExchangeClosedWithEmptyLiveClosesAllTraderPositions(t *testing.T) {
 	s := newPositionReconcileTestStore(t)
 	if err := s.CreateOpenPosition(&TraderPosition{TraderID: "t", ExchangeID: "ex", Symbol: "BTCUSDT", Side: "LONG", Quantity: 0.0009, EntryQuantity: 0.0009, EntryPrice: 77165.5, EntryTime: 1, Status: "OPEN"}); err != nil {

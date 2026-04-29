@@ -771,7 +771,19 @@ func (s *PositionStore) MarkOpenPositionsAbsentFromExchangeClosed(traderID strin
 }
 
 func positionPresenceKey(symbol, side string) string {
-	return strings.ToUpper(strings.TrimSpace(symbol)) + "|" + strings.ToUpper(strings.TrimSpace(side))
+	return strings.ToUpper(strings.TrimSpace(symbol)) + "|" + normalizePositionSideForStore(side)
+}
+
+func normalizePositionSideForStore(side string) string {
+	side = strings.ToUpper(strings.TrimSpace(side))
+	switch side {
+	case "LONG", "BUY":
+		return "LONG"
+	case "SHORT", "SELL":
+		return "SHORT"
+	default:
+		return side
+	}
 }
 
 func quantitiesEquivalent(a, b float64) bool {

@@ -199,6 +199,7 @@ func (s *Server) handlePositions(c *gin.Context) {
 			}
 			livePositions[strings.ToUpper(market.Normalize(symbol))+"|"+normalizeAPIPositionSideForStore(side)] = qty
 		}
+		logger.Infof("🧭 Positions: live position keys for trader %s: %v", traderID, livePositions)
 		updated, markErr := s.store.Position().MarkOpenPositionsAbsentFromExchangeClosed(traderID, livePositions, "sync_absent_from_exchange")
 		if markErr != nil {
 			logger.Warnf("⚠️ Positions: failed to reconcile local open positions for trader %s: %v", traderID, markErr)

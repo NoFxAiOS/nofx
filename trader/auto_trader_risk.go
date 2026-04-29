@@ -1142,11 +1142,24 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 		return fmt.Errorf("invalid break-even stop price calculated for %s %s", symbol, side)
 	}
 
+	positionSide := strings.ToUpper(side)
+	// If a matching break-even stop is already live (for example after a restart
+	// before local BE state has been restored), treat it as armed instead of
+	// placing another native stop.
+	if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
+		if hasMatchingProtectionOrder(openOrders, positionSide, false, breakEvenPrice) {
+			logger.Infof("🟠 Break-even stop already live: %s %s | stop=%.6f", symbol, side, breakEvenPrice)
+			at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct), 0, "armed", "", breakEvenPrice, 0, quantity)
+			return nil
+		}
+	} else {
+		logger.Warnf("⚠️ Break-even live-order precheck failed (%s %s): %v", symbol, side, err)
+	}
+
 	// Break-even stop is managed independently. Do not cancel existing ladder/full stop-loss
 	// orders here, otherwise we destroy the long-term stop-loss protection stack.
 	// If exchanges later support per-order tags / amend-by-id, we can target only prior
 	// break-even stops. For now, preserve existing SL orders and add break-even separately.
-	positionSide := strings.ToUpper(side)
 	if okxTrader, ok := at.trader.(interface {
 		SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
 		SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error
@@ -1181,7 +1194,7 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 
 	logger.Infof("🟠 Break-even stop applied: %s %s | trigger=%.2f%% current=%.2f%% stop=%.6f",
 		symbol, side, cfg.TriggerValue, currentPnLPct, breakEvenPrice)
-	at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct), 0, "armed", "", 0, 0, quantity)
+	at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct), 0, "armed", "", breakEvenPrice, 0, quantity)
 	return nil
 }
 

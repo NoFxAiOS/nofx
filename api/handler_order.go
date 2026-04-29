@@ -185,6 +185,27 @@ func (s *Server) handlePositions(c *gin.Context) {
 		SafeInternalError(c, "Get positions", err)
 		return
 	}
+	if s.store != nil {
+		livePositions := make(map[string]float64, len(positions))
+		for _, pos := range positions {
+			symbol, _ := pos["symbol"].(string)
+			side, _ := pos["side"].(string)
+			qty, _ := pos["positionAmt"].(float64)
+			if qty < 0 {
+				qty = -qty
+			}
+			if symbol == "" || side == "" || qty <= 0 {
+				continue
+			}
+			livePositions[strings.ToUpper(market.Normalize(symbol))+"|"+strings.ToUpper(side)] = qty
+		}
+		updated, markErr := s.store.Position().MarkOpenPositionsAbsentFromExchangeClosed(traderID, livePositions, "sync_absent_from_exchange")
+		if markErr != nil {
+			logger.Warnf("⚠️ Positions: failed to reconcile local open positions for trader %s: %v", traderID, markErr)
+		} else if updated > 0 {
+			logger.Infof("🧹 Positions: marked %d local stale open positions closed for trader %s", updated, traderID)
+		}
+	}
 
 	c.JSON(http.StatusOK, positions)
 }

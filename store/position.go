@@ -734,3 +734,46 @@ func (s *PositionStore) ClosePositionWithAccurateData(id int64, exitPrice float6
 		"updated_at":    time.Now().UTC().UnixMilli(),
 	}).Error
 }
+
+func (s *PositionStore) MarkOpenPositionsAbsentFromExchangeClosed(traderID string, livePositions map[string]float64, closeReason string) (int64, error) {
+	if traderID == "" {
+		return 0, nil
+	}
+	if closeReason == "" {
+		closeReason = "sync_absent_from_exchange"
+	}
+	openPositions, err := s.GetOpenPositions(traderID)
+	if err != nil {
+		return 0, err
+	}
+	nowMs := time.Now().UTC().UnixMilli()
+	var updated int64
+	for _, pos := range openPositions {
+		key := positionPresenceKey(pos.Symbol, pos.Side)
+		liveQty, ok := livePositions[key]
+		if ok && quantitiesEquivalent(pos.Quantity, liveQty) {
+			continue
+		}
+		res := s.db.Model(&TraderPosition{}).Where("id = ? AND status = ?", pos.ID, "OPEN").Updates(map[string]interface{}{
+			"quantity":     0,
+			"exit_price":   pos.EntryPrice,
+			"exit_time":    nowMs,
+			"status":       "CLOSED",
+			"close_reason": closeReason,
+			"updated_at":   nowMs,
+		})
+		if res.Error != nil {
+			return updated, res.Error
+		}
+		updated += res.RowsAffected
+	}
+	return updated, nil
+}
+
+func positionPresenceKey(symbol, side string) string {
+	return strings.ToUpper(strings.TrimSpace(symbol)) + "|" + strings.ToUpper(strings.TrimSpace(side))
+}
+
+func quantitiesEquivalent(a, b float64) bool {
+	return math.Abs(a-b) <= math.Max(0.00000001, math.Max(math.Abs(a), math.Abs(b))*0.0001)
+}

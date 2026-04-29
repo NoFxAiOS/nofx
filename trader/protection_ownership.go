@@ -45,7 +45,7 @@ func evaluateProtectionOwnership(openOrders []OpenOrder, positionSide string, pl
 		return state
 	}
 
-	missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
+	missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan, false)
 	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
 	state.MissingStop = missingSL && !breakEvenArmed
 	state.MissingProfit = missingTP && !nativeTrailingArmed

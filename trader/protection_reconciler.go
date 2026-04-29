@@ -210,12 +210,12 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	}
 
 	if plan != nil {
-		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
-		planOrderCount := protectionOrderCountForPlan(plan)
 		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
 		if at.isBreakEvenSuppressedByRunner(symbol, side) {
 			breakEvenArmed = false
 		}
+		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan, breakEvenArmed)
+		planOrderCount := protectionOrderCountForPlan(plan)
 		unexpectedStops, unexpectedTPs := detectUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
 		unexpectedSummary := classifyUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed, true)
 		ownership := evaluateProtectionOwnership(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
@@ -540,11 +540,12 @@ func hasExplicitBreakEvenConfig(config *store.StrategyConfig) bool {
 	return be.Enabled && be.TriggerMode == store.BreakEvenTriggerProfitPct && be.TriggerValue > 0
 }
 
-func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) (missingSL bool, missingTP bool) {
+func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan, breakEvenArmed bool) (missingSL bool, missingTP bool) {
 	if plan == nil {
 		return false, false
 	}
 
+	breakEvenSatisfied := breakEvenArmed && hasAnyProtectionOrder(openOrders, positionSide, false)
 	fallbackSatisfied := plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice)
 	fullStopSatisfied := plan.NeedsStopLoss && plan.StopLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.StopLossPrice)
 	fullTPSatisfied := plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, true, plan.TakeProfitPrice)
@@ -555,7 +556,7 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 	// This avoids churn where tiny positions repeatedly cancel a valid fallback, fail to materialize
 	// non-executable ladder tiers, and then recreate the same fallback.
 	if len(plan.StopLossOrders) > 0 {
-		if !(fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide)) {
+		if !(breakEvenSatisfied || fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide)) {
 			for _, target := range plan.StopLossOrders {
 				if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
 					missingSL = true
@@ -564,9 +565,10 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 			}
 		}
 	} else if plan.NeedsStopLoss {
-		// For held positions, a visible fallback max-loss stop still counts as protected stop ownership
-		// even when the tighter primary stop is absent or temporarily non-materializable on exchange.
-		missingSL = !(fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide))
+		// For held positions, a visible break-even/fallback max-loss stop still counts as protected
+		// stop ownership even when tighter static ladder tiers are absent or intentionally handled by
+		// a dynamic owner. This avoids re-materializing static stops next to an armed break-even stop.
+		missingSL = !(breakEvenSatisfied || fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide))
 	}
 
 	// Same rule for take-profit: when ladder TP orders exist, require each configured tier explicitly.

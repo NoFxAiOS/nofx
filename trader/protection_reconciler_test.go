@@ -111,7 +111,7 @@ func TestDetectMissingProtectionDoesNotRequireFallbackInAdditionToPrimaryStop(t 
 		FallbackMaxLossPrice: 95,
 	}
 
-	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
 	if missingSL {
 		t.Fatal("did not expect missingSL when primary stop is already present")
 	}
@@ -128,7 +128,7 @@ func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPrimaryStopMissing
 		FallbackMaxLossPrice: 95,
 	}
 
-	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
 	if missingSL || missingTP {
 		t.Fatalf("expected fallback stop to satisfy stop protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
@@ -149,7 +149,7 @@ func TestDetectMissingProtectionAcceptsDegradedFullStopAndFallbackInsteadOfMissi
 		},
 	}
 
-	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
 	if missingSL || missingTP {
 		t.Fatalf("expected degraded full+fallback stop ownership to satisfy protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
@@ -167,7 +167,7 @@ func TestDetectMissingProtectionAcceptsFallbackOnlyForDustRemainderLadder(t *tes
 		},
 	}
 
-	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
 	if missingSL || missingTP {
 		t.Fatalf("expected fallback-only degraded dust remainder ownership to satisfy stop protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
@@ -185,7 +185,7 @@ func TestDetectMissingProtectionAcceptsTaggedFallbackWhenPlannedPriceDrifts(t *t
 		},
 	}
 
-	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
 	if missingSL || missingTP {
 		t.Fatalf("expected tagged fallback owner to satisfy dust stop protection despite price drift, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
@@ -204,7 +204,7 @@ func TestDetectMissingProtectionDoesNotAcceptUntaggedPriceDriftAsFallback(t *tes
 		StopLossOrders:       []ProtectionOrder{{Price: 2273.51256, CloseRatioPct: 100}},
 	}
 
-	missingSL, _ := detectMissingProtection(orders, "LONG", plan)
+	missingSL, _ := detectMissingProtection(orders, "LONG", plan, false)
 	if !missingSL {
 		t.Fatal("expected untagged drifting stop not to satisfy fallback ownership")
 	}
@@ -221,7 +221,7 @@ func TestDetectMissingProtectionAcceptsDegradedFullTakeProfitInsteadOfMissingLad
 		},
 	}
 
-	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
 	if missingSL || missingTP {
 		t.Fatalf("expected degraded full TP ownership to satisfy protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
@@ -242,7 +242,7 @@ func TestProtectionReconciler_DoesNotReapplyWhenDustRemainderAlreadyHasFullStopA
 		},
 	}
 
-	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
 	if missingSL || missingTP {
 		t.Fatalf("expected degraded dust remainder stop ownership to be accepted, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}

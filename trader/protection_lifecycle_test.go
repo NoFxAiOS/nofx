@@ -246,7 +246,7 @@ func TestDetectMissingProtectionTreatsSingleLadderStopAsRequired(t *testing.T) {
 	openOrders := []OpenOrder{
 		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 100.2}, // break-even style stop, not the configured ladder stop
 	}
-	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan, false)
 	if !missingSL {
 		t.Fatal("expected single configured ladder stop to be treated as missing when only unrelated stop exists")
 	}
@@ -262,7 +262,7 @@ func TestDetectMissingProtectionTreatsSingleLadderTakeProfitAsRequired(t *testin
 	openOrders := []OpenOrder{
 		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 110},
 	}
-	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan)
+	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan, false)
 	if missingTP != true {
 		t.Fatal("expected single configured ladder TP to be treated as missing when only unrelated TP exists")
 	}

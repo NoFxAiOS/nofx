@@ -308,6 +308,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 		result.ExchangeVerified = ownership.Verified
 		result.Summary = strings.Join(ownership.Reasons, "; ")
+		if ownership.ProfitOwner == "drawdown" && (at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed") {
+			result.Summary = "dynamic protection owner armed; exchange static ownership verified"
+		}
 	}
 
 	markPrice, _ := at.getPositionMarkPrice(symbol, side)
@@ -341,25 +344,30 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 	rules := at.getActiveDrawdownRules()
 	if len(rules) > 0 {
-		peakPnLPct := currentPnLPct
-		at.peakPnLCacheMutex.RLock()
-		if peak, ok := at.peakPnLCache[positionKey(symbol, side)]; ok && peak > peakPnLPct {
-			peakPnLPct = peak
-		}
-		at.peakPnLCacheMutex.RUnlock()
-
-		drawdownPct := 0.0
-		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
-			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
-		}
-		for _, armRule := range at.getDrawdownArmRules(currentPnLPct, rules) {
-			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
-				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (arm close=%.1f%%)", symbol, positionSide, armRule.CloseRatioPct)
+		drawdownExecutionMode := at.getDrawdownExecutionMode(symbol, side)
+		if drawdownExecutionMode == "native_trailing_full" || drawdownExecutionMode == "native_partial_trailing" || drawdownExecutionMode == "managed_partial_drawdown" {
+			logger.Infof("🟣 Protection reconciler: %s %s already in %s, skipping duplicate native drawdown ensure", symbol, positionSide, drawdownExecutionMode)
+		} else {
+			peakPnLPct := currentPnLPct
+			at.peakPnLCacheMutex.RLock()
+			if peak, ok := at.peakPnLCache[positionKey(symbol, side)]; ok && peak > peakPnLPct {
+				peakPnLPct = peak
 			}
-		}
-		for _, triggeredRule := range at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules) {
-			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
-				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (trigger close=%.1f%%)", symbol, positionSide, triggeredRule.CloseRatioPct)
+			at.peakPnLCacheMutex.RUnlock()
+
+			drawdownPct := 0.0
+			if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+				drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+			}
+			for _, armRule := range at.getDrawdownArmRules(currentPnLPct, rules) {
+				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
+					logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (arm close=%.1f%%)", symbol, positionSide, armRule.CloseRatioPct)
+				}
+			}
+			for _, triggeredRule := range at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules) {
+				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
+					logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (trigger close=%.1f%%)", symbol, positionSide, triggeredRule.CloseRatioPct)
+				}
 			}
 		}
 	}

@@ -652,6 +652,11 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		StrategyConfig:        strategyConfig,
 	}
 
+	protectOnlyOnStart := !traderConfig.AllowAIOpen && !traderConfig.AllowAIClose
+	if protectOnlyOnStart {
+		logger.Warnf("🛡️  Trader %s configured with AI open/close disabled; auto-start will use protect-only mode", traderCfg.Name)
+	}
+
 	logger.Infof("📊 Loading trader %s: ScanIntervalMinutes=%d (from DB), ScanInterval=%v",
 		traderCfg.Name, traderCfg.ScanIntervalMinutes, traderConfig.ScanInterval)
 
@@ -731,6 +736,9 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	// Auto-start if trader was running before shutdown
 	if traderCfg.IsRunning {
 		logger.Infof("🔄 Auto-starting trader '%s' (was running before shutdown)...", traderCfg.Name)
+		if protectOnlyOnStart {
+			at.SetProtectOnlyMode(true, "protect-only restored from AI open/close disabled config")
+		}
 		go func(trader *trader.AutoTrader, traderName, traderID, userID string) {
 			if err := trader.Run(); err != nil {
 				logger.Warnf("⚠️ Trader '%s' stopped with error: %v", traderName, err)

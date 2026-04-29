@@ -1157,6 +1157,13 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		}
 	}
 
+	orphanProtectionCleanupNeeded := false
+	orphanProtectionOrderCount := 0
+	if quantity <= 0 && len(activeOrders) > 0 {
+		orphanProtectionCleanupNeeded = true
+		orphanProtectionOrderCount = len(activeOrders)
+	}
+
 	return map[string]interface{}{
 		"protection_state":                at.getProtectionState(symbol, side),
 		"break_even_state":                at.getBreakEvenState(symbol, side),
@@ -1226,6 +1233,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"protection_max_order_quantity":       maxProtectionOrderQuantity,
 		"protection_max_order_id":             maxProtectionOrderQuantityOrderID,
 		"protection_quantity_drift_orders":    protectionQuantityDriftOrders,
+		"orphan_protection_cleanup_needed":    orphanProtectionCleanupNeeded,
+		"orphan_protection_order_count":       orphanProtectionOrderCount,
 		"runner_migration_needed":             runnerMigrationNeeded,
 		"runner_migration_reason":             runnerMigrationReason,
 		"runner_migration_anchor":             runnerMigrationAnchor,

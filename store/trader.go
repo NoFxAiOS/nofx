@@ -110,6 +110,16 @@ func (s *TraderStore) UpdateShowInCompetition(userID, id string, showInCompetiti
 		Update("show_in_competition", showInCompetition).Error
 }
 
+// UpdateAIExecutionControls updates AI open/close execution gates.
+func (s *TraderStore) UpdateAIExecutionControls(userID, id string, allowAIOpen, allowAIClose bool) error {
+	return s.db.Model(&Trader{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]interface{}{
+			"allow_ai_open":  allowAIOpen,
+			"allow_ai_close": allowAIClose,
+		}).Error
+}
+
 // Update updates trader configuration
 func (s *TraderStore) Update(trader *Trader) error {
 	fmt.Printf("📝 TraderStore.Update: ID=%s, Name=%s, AIModelID=%s, StrategyID=%s\n",

@@ -359,6 +359,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const protectionMaxOrderQuantity = Number(rt?.protection_max_order_quantity ?? 0)
           const protectionMaxOrderID = String(rt?.protection_max_order_id || '')
           const protectionQuantityDriftOrders = rt?.protection_quantity_drift_orders || []
+          const orphanProtectionCleanupNeeded = Boolean(rt?.orphan_protection_cleanup_needed)
+          const orphanProtectionOrderCount = Number(rt?.orphan_protection_order_count ?? 0)
           const breakEvenTriggerPct = Number(rt?.current_break_even_trigger_pct ?? 0)
           const breakEvenGapPct = Number(rt?.next_break_even_gap_pct ?? 0)
           const breakEvenSuppressedByRunner = Boolean(rt?.break_even_suppressed_by_runner ?? runnerState?.break_even_suppressed ?? nextTier?.break_even_suppressed_by_runner)
@@ -518,6 +520,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     {(runnerDesiredCallback > 0 || runnerLiveCallback > 0) && <KV label={language === 'zh' ? '迁移回调' : 'Migration callback'} value={`${runnerLiveCallback > 0 ? `${(runnerLiveCallback * 100).toFixed(2)}%` : '—'} → ${runnerDesiredCallback > 0 ? `${(runnerDesiredCallback * 100).toFixed(2)}%` : '—'}`} />}
                     {protectionQuantityDrift && <KV label={language === 'zh' ? '保护覆盖' : 'Protection coverage'} value={`${compactSourceLabel(protectionQuantityDriftReason, language)} · pos ${formatQuantity(protectionPositionQuantity)} / max order ${formatQuantity(protectionMaxOrderQuantity)}${protectionMaxOrderID ? ` · ${protectionMaxOrderID}` : ''}`} />}
                     {protectionQuantityDriftOrders.length > 0 && <KV label={language === 'zh' ? '覆盖订单' : 'Coverage orders'} value={protectionQuantityDriftOrders.slice(0, 2).map((o) => `${o.order_id || '—'} ${formatQuantity(Number(o.quantity || 0))}`).join(' | ')} />}
+                    {orphanProtectionCleanupNeeded && <KV label={language === 'zh' ? '清仓清理' : 'Orphan cleanup'} value={`${language === 'zh' ? '需要清理保护单' : 'protection cleanup needed'} · ${orphanProtectionOrderCount}`} />}
                     {structureDetached && !structureDriftReason && <KV label={language === 'zh' ? '偏离' : 'Drift'} value={compactSourceLabel('structure_detached', language)} />}
                     {structureTrace.length > 0 && <KV label={language === 'zh' ? '轨迹' : 'Trace'} value={structureTrace.slice(-3).join(' → ')} />}
                   </div>

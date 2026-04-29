@@ -159,6 +159,8 @@ export interface ProtectionRuntime {
   protection_max_order_quantity?: number
   protection_max_order_id?: string
   protection_quantity_drift_orders?: Array<{ order_id?: string; client_order_id?: string; type?: string; quantity?: number; position_quantity?: number; excess_quantity?: number }>
+  orphan_protection_cleanup_needed?: boolean
+  orphan_protection_order_count?: number
   structure_protection_health?: string
   structure_protection_drift_reason?: string
   structure_protection_detached?: boolean

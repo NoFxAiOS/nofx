@@ -698,6 +698,8 @@ func (at *AutoTrader) persistDynamicProtectionRecordWithDetails(symbol, side, pr
 		Status:              status,
 		ExchangeOrderID:     exchangeOrderID,
 		ActivationPrice:     activationPrice,
+		TriggerPrice:        activationPrice,
+		StopPrice:           activationPrice,
 		CallbackRatio:       callbackRatio,
 		Quantity:            quantity,
 	}

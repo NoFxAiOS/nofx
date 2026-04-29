@@ -1181,6 +1181,7 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 
 	logger.Infof("🟠 Break-even stop applied: %s %s | trigger=%.2f%% current=%.2f%% stop=%.6f",
 		symbol, side, cfg.TriggerValue, currentPnLPct, breakEvenPrice)
+	at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct), 0, "armed", "", 0, 0, quantity)
 	return nil
 }
 

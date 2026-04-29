@@ -386,7 +386,14 @@ func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
 	if at.drawdownState == nil {
 		at.drawdownState = make(map[string]string)
 	}
+	if at.breakEvenState == nil {
+		at.breakEvenState = make(map[string]string)
+	}
+	if at.breakEvenFingerprints == nil {
+		at.breakEvenFingerprints = make(map[string]string)
+	}
 	latestNativeRecord := make(map[string]store.DynamicProtectionRecord)
+	latestBreakEvenRecord := make(map[string]store.DynamicProtectionRecord)
 	managedRecords := make([]store.DynamicProtectionRecord, 0, len(state.Records))
 	for _, record := range state.Records {
 		if record.TraderID != "" && record.TraderID != at.id {
@@ -405,6 +412,12 @@ func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
 				latestNativeRecord[key] = record
 			}
 		}
+		if record.ProtectionType == "break_even_stop" {
+			existingRecord, hasExisting := latestBreakEvenRecord[key]
+			if !hasExisting || record.UpdatedAt >= existingRecord.UpdatedAt {
+				latestBreakEvenRecord[key] = record
+			}
+		}
 		managedRecords = append(managedRecords, record)
 	}
 	for _, record := range latestNativeRecord {
@@ -417,6 +430,13 @@ func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
 		}
 		if record.RuleFingerprint != "" {
 			at.drawdownState[key] = record.RuleFingerprint
+		}
+	}
+	for _, record := range latestBreakEvenRecord {
+		key := positionKey(record.Symbol, record.Side)
+		at.breakEvenState[key] = "armed"
+		if record.PositionFingerprint != "" {
+			at.breakEvenFingerprints[key] = record.PositionFingerprint
 		}
 	}
 	for _, record := range managedRecords {

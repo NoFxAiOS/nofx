@@ -93,6 +93,33 @@ func TestDynamicProtectionStateMarksOlderNativeOwnerReplaced(t *testing.T) {
 	}
 }
 
+func TestDynamicProtectionStateKeepsBreakEvenSeparateFromNativeOwner(t *testing.T) {
+	s, err := New(filepath.Join(t.TempDir(), "dynamic-protection-be-native.db"))
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	nativeRecord := DynamicProtectionRecord{TraderID: "trader-1", ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "long", PositionFingerprint: "pos", ProtectionType: "native_partial_trailing", RuleFingerprint: "native", CloseRatioPct: 80, Status: "armed", UpdatedAt: 1000}
+	breakEvenRecord := DynamicProtectionRecord{TraderID: "trader-1", ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "long", PositionFingerprint: "pos", ProtectionType: "break_even_stop", RuleFingerprint: "be", Status: "armed", UpdatedAt: 2000}
+	if err := s.SaveDynamicProtectionRecord(nativeRecord); err != nil {
+		t.Fatalf("save native record: %v", err)
+	}
+	if err := s.SaveDynamicProtectionRecord(breakEvenRecord); err != nil {
+		t.Fatalf("save break-even record: %v", err)
+	}
+	state, err := s.LoadDynamicProtectionState()
+	if err != nil {
+		t.Fatalf("load dynamic protection state: %v", err)
+	}
+	nativeKey := BuildDynamicProtectionKey(nativeRecord.TraderID, nativeRecord.ExchangeID, nativeRecord.Symbol, nativeRecord.Side, nativeRecord.PositionFingerprint, nativeRecord.ProtectionType, nativeRecord.RuleFingerprint, nativeRecord.CloseRatioPct)
+	breakEvenKey := BuildDynamicProtectionKey(breakEvenRecord.TraderID, breakEvenRecord.ExchangeID, breakEvenRecord.Symbol, breakEvenRecord.Side, breakEvenRecord.PositionFingerprint, breakEvenRecord.ProtectionType, breakEvenRecord.RuleFingerprint, breakEvenRecord.CloseRatioPct)
+	if got := state.Records[nativeKey].Status; got != "armed" {
+		t.Fatalf("expected native owner still armed, got %q", got)
+	}
+	if got := state.Records[breakEvenKey].Status; got != "armed" {
+		t.Fatalf("expected break-even owner armed, got %q", got)
+	}
+}
+
 func TestDeleteDynamicProtectionRecordsForInactive(t *testing.T) {
 	s, err := New(filepath.Join(t.TempDir(), "dynamic-protection-cleanup.db"))
 	if err != nil {

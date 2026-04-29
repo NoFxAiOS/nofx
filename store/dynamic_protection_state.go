@@ -22,6 +22,7 @@ type DynamicProtectionRecord struct {
 	ExchangeOrderID     string  `json:"exchange_order_id,omitempty"`
 	ActivationPrice     float64 `json:"activation_price,omitempty"`
 	TriggerPrice        float64 `json:"trigger_price,omitempty"`
+	StopPrice           float64 `json:"stop_price,omitempty"`
 	CallbackRatio       float64 `json:"callback_ratio,omitempty"`
 	Quantity            float64 `json:"quantity,omitempty"`
 	UpdatedAt           int64   `json:"updated_at"`
@@ -71,10 +72,10 @@ func (s *Store) SaveDynamicProtectionRecord(record DynamicProtectionRecord) erro
 		if existing.TraderID != record.TraderID || existing.ExchangeID != record.ExchangeID || existing.Symbol != record.Symbol || existing.Side != record.Side || existing.Status != "armed" {
 			continue
 		}
-		// Native trailing ownership is singleton per active symbol/side. When a newer arm
-		// succeeds, older persisted owners must not be restored on restart, even if the
-		// older owner used another native form (full vs partial) or an older fingerprint.
-		if record.Status == "armed" && isNativeTrailingProtectionType(record.ProtectionType) && isNativeTrailingProtectionType(existing.ProtectionType) {
+		// Dynamic native protections are singleton owners per active symbol/side.
+		// When a newer arm succeeds, older persisted owners in the same singleton group
+		// must not be restored on restart.
+		if record.Status == "armed" && singletonDynamicProtectionGroup(record.ProtectionType) != "" && singletonDynamicProtectionGroup(record.ProtectionType) == singletonDynamicProtectionGroup(existing.ProtectionType) {
 			existing.Status = "replaced"
 			existing.UpdatedAt = record.UpdatedAt
 			state.Records[key] = existing
@@ -88,8 +89,15 @@ func (s *Store) SaveDynamicProtectionRecord(record DynamicProtectionRecord) erro
 	return s.SetSystemConfig(DynamicProtectionStateConfigKey, string(data))
 }
 
-func isNativeTrailingProtectionType(protectionType string) bool {
-	return protectionType == "native_trailing" || protectionType == "native_partial_trailing"
+func singletonDynamicProtectionGroup(protectionType string) string {
+	switch protectionType {
+	case "native_trailing", "native_partial_trailing":
+		return "native_trailing"
+	case "break_even_stop":
+		return "break_even_stop"
+	default:
+		return ""
+	}
 }
 
 func (s *Store) DeleteDynamicProtectionRecordsForInactive(activeKeys map[string]struct{}) error {

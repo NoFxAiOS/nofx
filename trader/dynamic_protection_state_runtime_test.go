@@ -16,6 +16,7 @@ func TestLoadDynamicProtectionStateFromStoreRestoresRuntimeMaps(t *testing.T) {
 	records := []store.DynamicProtectionRecord{
 		{TraderID: traderID, ExchangeID: "exchange-1", Symbol: "BTCUSDT", Side: "short", PositionFingerprint: "100|2", ProtectionType: "native_partial_trailing", RuleFingerprint: "100|2|5|40|50", CloseRatioPct: 50, Status: "armed", ExchangeOrderID: "algo-partial"},
 		{TraderID: traderID, ExchangeID: "exchange-1", Symbol: "ETHUSDT", Side: "long", PositionFingerprint: "200|1", ProtectionType: "native_trailing", RuleFingerprint: "200|1|5|40|100", CloseRatioPct: 100, Status: "armed", ExchangeOrderID: "algo-full"},
+		{TraderID: traderID, ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "long", PositionFingerprint: "0.09930000|650.00000000", ProtectionType: "break_even_stop", RuleFingerprint: "0.09930000|650.00000000|0.7000|0.3000", Status: "armed", StopPrice: 0.099598},
 		{TraderID: "other-trader", ExchangeID: "exchange-1", Symbol: "SOLUSDT", Side: "long", PositionFingerprint: "50|10", ProtectionType: "native_trailing", RuleFingerprint: "50|10|5|40|100", CloseRatioPct: 100, Status: "armed"},
 	}
 	for _, record := range records {
@@ -41,6 +42,12 @@ func TestLoadDynamicProtectionStateFromStoreRestoresRuntimeMaps(t *testing.T) {
 	}
 	if got := at.getDrawdownExecutionFingerprint("ETHUSDT", "long"); got != "200|1|5|40|100" {
 		t.Fatalf("expected ETH drawdown fingerprint restored, got %q", got)
+	}
+	if got := at.getBreakEvenState("DOGEUSDT", "long"); got != "armed" {
+		t.Fatalf("expected DOGE break-even state restored, got %q", got)
+	}
+	if got := at.breakEvenFingerprints["DOGEUSDT_long"]; got != "0.09930000|650.00000000" {
+		t.Fatalf("expected DOGE break-even fingerprint restored, got %q", got)
 	}
 }
 

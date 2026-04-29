@@ -930,7 +930,11 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 					}
 				}
 			}
-			tiers = append(tiers, map[string]interface{}{
+			anchor := (*drawdownTierAnchor)(nil)
+			if structureCtx != nil {
+				anchor = structureCtx.selectTierAnchor(side, rule, entryPrice)
+			}
+			tier := map[string]interface{}{
 				"index":                    idx + 1,
 				"stage_name":               rule.StageName,
 				"min_profit_pct":           rule.MinProfitPct,
@@ -951,7 +955,14 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				"execution_mode":           executionMode,
 				"is_satisfied":             currentPnLPct >= rule.MinProfitPct,
 				"is_triggered":             currentPnLPct >= rule.MinProfitPct && drawdownPct >= rule.MaxDrawdownPct,
-			})
+			}
+			if anchor != nil {
+				tier["structure_anchor"] = anchor
+				tier["anchor_timeframe"] = anchor.Timeframe
+				tier["anchor_price"] = anchor.Price
+				tier["anchor_source"] = anchor.Source
+			}
+			tiers = append(tiers, tier)
 		}
 	}
 
@@ -1042,34 +1053,46 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"drawdown_structure_target_source":     currentStructureTargetSource,
 		"drawdown_structure_target_progress":   currentStructureTargetProgress,
 		"drawdown_structure_primary_timeframe": currentStructurePrimaryTf,
-		"drawdown_structure_evidence":          currentStructureEvidence,
-		"drawdown_structure_trace":             currentStructureTrace,
-		"structure_protection_health":          currentStructureHealth,
-		"structure_protection_drift_reason":    currentStructureDriftReason,
-		"structure_protection_detached":        currentStructureDetached,
-		"drawdown_execution_mode":              at.getDrawdownExecutionMode(symbol, side),
-		"drawdown_config_source":               drawdownSource,
-		"break_even_execution_mode":            at.getBreakEvenExecutionMode(symbol, side),
-		"current_pnl_pct":                      currentPnLPct,
-		"drawdown_peak_pnl_pct":                peakPnLPct,
-		"current_drawdown_pct":                 drawdownPct,
-		"current_break_even_trigger_pct":       breakEvenTrigger,
-		"break_even_offset_pct":                breakEvenOffset,
-		"next_break_even_gap_pct":              nextBreakEvenGap,
-		"break_even_config_source":             breakEvenSource,
-		"live_break_even_stop_price":           liveBreakEvenStopPrice,
-		"break_even_order_detected":            breakEvenOrderDetected,
-		"planned_ladder_stop_count":            plannedLadderStopCount,
-		"planned_ladder_take_profit_count":     plannedLadderTakeProfitCount,
-		"live_ladder_stop_count":               ladderStopCount,
-		"live_ladder_take_profit_count":        ladderTakeProfitCount,
-		"live_full_stop_count":                 fullStopCount,
-		"live_full_take_profit_count":          fullTakeProfitCount,
-		"fallback_order_detected":              fallbackActive,
-		"live_fallback_stop_count":             fallbackStopCount,
-		"full_stop_planned":                    fullStopPlanned,
-		"full_take_profit_planned":             fullTakeProfitPlanned,
-		"fallback_planned":                     fallbackPlanned,
+		"drawdown_structure_higher_timeframes": func() []string {
+			if structureCtx != nil {
+				return structureCtx.HigherTimeframes
+			}
+			return nil
+		}(),
+		"drawdown_structure_anchors": func() []store.DecisionActionReasonAnchor {
+			if structureCtx != nil {
+				return structureCtx.Anchors
+			}
+			return nil
+		}(),
+		"drawdown_structure_evidence":       currentStructureEvidence,
+		"drawdown_structure_trace":          currentStructureTrace,
+		"structure_protection_health":       currentStructureHealth,
+		"structure_protection_drift_reason": currentStructureDriftReason,
+		"structure_protection_detached":     currentStructureDetached,
+		"drawdown_execution_mode":           at.getDrawdownExecutionMode(symbol, side),
+		"drawdown_config_source":            drawdownSource,
+		"break_even_execution_mode":         at.getBreakEvenExecutionMode(symbol, side),
+		"current_pnl_pct":                   currentPnLPct,
+		"drawdown_peak_pnl_pct":             peakPnLPct,
+		"current_drawdown_pct":              drawdownPct,
+		"current_break_even_trigger_pct":    breakEvenTrigger,
+		"break_even_offset_pct":             breakEvenOffset,
+		"next_break_even_gap_pct":           nextBreakEvenGap,
+		"break_even_config_source":          breakEvenSource,
+		"live_break_even_stop_price":        liveBreakEvenStopPrice,
+		"break_even_order_detected":         breakEvenOrderDetected,
+		"planned_ladder_stop_count":         plannedLadderStopCount,
+		"planned_ladder_take_profit_count":  plannedLadderTakeProfitCount,
+		"live_ladder_stop_count":            ladderStopCount,
+		"live_ladder_take_profit_count":     ladderTakeProfitCount,
+		"live_full_stop_count":              fullStopCount,
+		"live_full_take_profit_count":       fullTakeProfitCount,
+		"fallback_order_detected":           fallbackActive,
+		"live_fallback_stop_count":          fallbackStopCount,
+		"full_stop_planned":                 fullStopPlanned,
+		"full_take_profit_planned":          fullTakeProfitPlanned,
+		"fallback_planned":                  fallbackPlanned,
 		"unexpected_protection": map[string]interface{}{
 			"stale_bot_duplicate_count":     unexpectedSummary.StaleBotDuplicate,
 			"orphan_inactive_count":         unexpectedSummary.OrphanForInactive,

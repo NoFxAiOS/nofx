@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"fmt"
 	"math"
 	"strings"
 
@@ -28,6 +29,75 @@ type drawdownStructureContext struct {
 	Resistance       []float64
 	FibLevels        []float64
 	Anchors          []store.DecisionActionReasonAnchor
+}
+
+type drawdownTierAnchor struct {
+	StageName   string  `json:"stage_name,omitempty"`
+	Timeframe   string  `json:"timeframe,omitempty"`
+	AnchorType  string  `json:"anchor_type,omitempty"`
+	Price       float64 `json:"price,omitempty"`
+	Reason      string  `json:"reason,omitempty"`
+	Source      string  `json:"source,omitempty"`
+	UsedFor     string  `json:"used_for,omitempty"`
+	DistancePct float64 `json:"distance_pct,omitempty"`
+	Reference   string  `json:"reference,omitempty"`
+}
+
+func (ctx *drawdownStructureContext) higherTimeframeSet() map[string]struct{} {
+	out := make(map[string]struct{})
+	if ctx == nil {
+		return out
+	}
+	for _, tf := range ctx.HigherTimeframes {
+		if tf = strings.TrimSpace(tf); tf != "" {
+			out[tf] = struct{}{}
+		}
+	}
+	return out
+}
+
+func (ctx *drawdownStructureContext) selectTierAnchor(side string, rule store.DrawdownTakeProfitRule, entryPrice float64) *drawdownTierAnchor {
+	if ctx == nil {
+		return nil
+	}
+	rule = normalizeDrawdownRule(rule)
+	targetPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+	if targetPrice <= 0 {
+		targetPrice = ctx.FirstTarget
+	}
+	higher := ctx.higherTimeframeSet()
+	preferHigher := rule.RunnerKeepPct > 0 || strings.Contains(strings.ToLower(rule.StageName), "runner") || strings.Contains(strings.ToLower(rule.RunnerTargetMode), "structure")
+	var best *drawdownTierAnchor
+	bestScore := 0.0
+	for _, anchor := range ctx.Anchors {
+		if anchor.Price <= 0 {
+			continue
+		}
+		kind := strings.ToLower(strings.TrimSpace(anchor.Type))
+		if strings.EqualFold(side, "long") {
+			if !strings.Contains(kind, "resistance") && !strings.Contains(kind, "target") && !strings.Contains(kind, "high") && !strings.Contains(kind, "fib") {
+				continue
+			}
+		} else if !strings.Contains(kind, "support") && !strings.Contains(kind, "target") && !strings.Contains(kind, "low") && !strings.Contains(kind, "fib") {
+			continue
+		}
+		distance := math.Abs(anchor.Price - targetPrice)
+		distancePct := 0.0
+		if targetPrice > 0 {
+			distancePct = distance / targetPrice * 100
+		}
+		score := distance
+		if _, ok := higher[anchor.Timeframe]; ok && preferHigher {
+			score *= 0.05
+		} else if _, ok := higher[anchor.Timeframe]; ok {
+			score *= 0.75
+		}
+		if best == nil || score < bestScore {
+			bestScore = score
+			best = &drawdownTierAnchor{StageName: rule.StageName, Timeframe: anchor.Timeframe, AnchorType: anchor.Type, Price: anchor.Price, Reason: anchor.Reason, Source: "entry_structure_anchor", UsedFor: "drawdown_runner", DistancePct: distancePct, Reference: fmt.Sprintf("min_profit=%.4f", rule.MinProfitPct)}
+		}
+	}
+	return best
 }
 
 func normalizeDrawdownRule(rule store.DrawdownTakeProfitRule) store.DrawdownTakeProfitRule {

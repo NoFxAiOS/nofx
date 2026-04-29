@@ -94,3 +94,39 @@ func TestBuildManagedPartialDrawdownPlanCandidate_CarriesRunnerStateAndSuppresse
 		t.Fatalf("expected runner keep 30, got %.2f", plan.DrawdownRunnerState.RunnerKeepPct)
 	}
 }
+
+func TestDrawdownStructureContextSelectsHigherTimeframeRunnerAnchor(t *testing.T) {
+	ctx := &drawdownStructureContext{
+		HigherTimeframes: []string{"1h"},
+		Anchors: []store.DecisionActionReasonAnchor{
+			{Type: "resistance", Timeframe: "15m", Price: 110, Reason: "primary target"},
+			{Type: "resistance", Timeframe: "1h", Price: 118, Reason: "higher runner target"},
+		},
+	}
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 8, MaxDrawdownPct: 50, CloseRatioPct: 50, RunnerKeepPct: 50, StageName: "runner"}
+	anchor := ctx.selectTierAnchor("long", rule, 100)
+	if anchor == nil {
+		t.Fatal("expected anchor")
+	}
+	if anchor.Timeframe != "1h" || anchor.Price != 118 {
+		t.Fatalf("expected higher timeframe runner anchor, got %+v", anchor)
+	}
+}
+
+func TestDrawdownStructureContextSelectsPrimaryAnchorForFirstStage(t *testing.T) {
+	ctx := &drawdownStructureContext{
+		HigherTimeframes: []string{"1h"},
+		Anchors: []store.DecisionActionReasonAnchor{
+			{Type: "resistance", Timeframe: "15m", Price: 110, Reason: "primary target"},
+			{Type: "resistance", Timeframe: "1h", Price: 118, Reason: "higher runner target"},
+		},
+	}
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 10, MaxDrawdownPct: 60, CloseRatioPct: 100, StageName: "partial_lock"}
+	anchor := ctx.selectTierAnchor("long", rule, 100)
+	if anchor == nil {
+		t.Fatal("expected anchor")
+	}
+	if anchor.Timeframe != "15m" || anchor.Price != 110 {
+		t.Fatalf("expected nearest primary anchor, got %+v", anchor)
+	}
+}

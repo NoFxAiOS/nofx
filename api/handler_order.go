@@ -43,6 +43,17 @@ func (s *Server) handleTraderList(c *gin.Context) {
 
 		// Return complete AIModelID (e.g. "admin_deepseek"), don't truncate
 		// Frontend needs complete ID to verify model exists (consistent with handleGetTraderConfig)
+		allowAIOpen := trader.AllowAIOpen
+		allowAIClose := trader.AllowAIClose
+		if at, err := s.traderManager.GetTrader(trader.ID); err == nil {
+			status := at.GetStatus()
+			if v, ok := status["allow_ai_open"].(bool); ok {
+				allowAIOpen = v
+			}
+			if v, ok := status["allow_ai_close"].(bool); ok {
+				allowAIClose = v
+			}
+		}
 		result = append(result, map[string]interface{}{
 			"trader_id":           trader.ID,
 			"trader_name":         trader.Name,
@@ -50,7 +61,8 @@ func (s *Server) handleTraderList(c *gin.Context) {
 			"exchange_id":         trader.ExchangeID,
 			"is_running":          isRunning,
 			"show_in_competition": trader.ShowInCompetition,
-			"allow_ai_close":      trader.AllowAIClose,
+			"allow_ai_open":       allowAIOpen,
+			"allow_ai_close":      allowAIClose,
 			"ai_decision_mode":    trader.AIDecisionMode,
 			"initial_balance":     trader.InitialBalance,
 			"strategy_id":         trader.StrategyID,
@@ -80,10 +92,18 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 
 	// Get real-time running status
 	isRunning := traderConfig.IsRunning
+	allowAIOpen := traderConfig.AllowAIOpen
+	allowAIClose := traderConfig.AllowAIClose
 	if at, err := s.traderManager.GetTrader(traderID); err == nil {
 		status := at.GetStatus()
 		if running, ok := status["is_running"].(bool); ok {
 			isRunning = running
+		}
+		if v, ok := status["allow_ai_open"].(bool); ok {
+			allowAIOpen = v
+		}
+		if v, ok := status["allow_ai_close"].(bool); ok {
+			allowAIClose = v
 		}
 	}
 
@@ -99,7 +119,8 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"strategy_name":         "",
 		"initial_balance":       traderConfig.InitialBalance,
 		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,
-		"allow_ai_close":        traderConfig.AllowAIClose,
+		"allow_ai_open":         allowAIOpen,
+		"allow_ai_close":        allowAIClose,
 		"ai_decision_mode":      traderConfig.AIDecisionMode,
 		"btc_eth_leverage":      traderConfig.BTCETHLeverage,
 		"altcoin_leverage":      traderConfig.AltcoinLeverage,

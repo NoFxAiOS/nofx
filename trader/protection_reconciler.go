@@ -155,6 +155,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	if err != nil {
 		return result, fmt.Errorf("get open orders: %w", err)
 	}
+	at.reconcileLocalOpenOrderStatuses(symbol, openOrders)
 
 	// If native trailing drawdown is already armed/arming, generic take-profit plans should not be
 	// re-applied on top of it. But stop-loss protection must still be preserved and repaired.
@@ -976,7 +977,33 @@ func (at *AutoTrader) cancelOrphanedProtectionOrdersForInactiveSymbol(symbol str
 			logger.Warnf("⚠️ Protection cleanup: trailing stop cleanup for inactive symbol %s returned: %v", symbol, err)
 		}
 	}
+	if at.store != nil && at.exchangeID != "" {
+		updated, err := at.store.Order().MarkSymbolProtectionOrdersCanceled(at.exchangeID, symbol)
+		if err != nil {
+			logger.Warnf("⚠️ Protection cleanup: failed to mark local orphan orders canceled for %s: %v", symbol, err)
+		} else if updated > 0 {
+			logger.Infof("🧹 Protection cleanup: marked %d local orphan order records canceled for inactive symbol %s", updated, symbol)
+		}
+	}
 	return nil
+}
+
+func (at *AutoTrader) reconcileLocalOpenOrderStatuses(symbol string, openOrders []OpenOrder) {
+	if at == nil || at.store == nil || at.exchangeID == "" || symbol == "" {
+		return
+	}
+	liveIDs := make([]string, 0, len(openOrders))
+	for _, order := range openOrders {
+		liveIDs = append(liveIDs, order.OrderID)
+	}
+	updated, err := at.store.Order().MarkMissingOpenOrdersCanceled(at.exchangeID, symbol, liveIDs)
+	if err != nil {
+		logger.Warnf("⚠️ Protection reconciler: failed to reconcile local open order statuses for %s: %v", symbol, err)
+		return
+	}
+	if updated > 0 {
+		logger.Infof("🧹 Protection reconciler: marked %d local stale open order records canceled for %s", updated, symbol)
+	}
 }
 
 func splitPositionKey(key string) (symbol, side string) {

@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -191,6 +192,53 @@ func (s *OrderStore) UpdateOrderStatus(id int64, status string, filledQty, avgPr
 	}
 
 	return s.db.Model(&TraderOrder{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (s *OrderStore) MarkMissingOpenOrdersCanceled(exchangeID string, symbol string, liveExchangeOrderIDs []string) (int64, error) {
+	if exchangeID == "" || symbol == "" {
+		return 0, nil
+	}
+	live := make([]string, 0, len(liveExchangeOrderIDs)*3)
+	seen := make(map[string]struct{}, len(liveExchangeOrderIDs)*3)
+	for _, id := range liveExchangeOrderIDs {
+		if id == "" {
+			continue
+		}
+		for _, candidate := range []string{id, strings.TrimSuffix(strings.TrimSuffix(id, "_sl"), "_tp"), id + "_sl", id + "_tp"} {
+			if candidate == "" {
+				continue
+			}
+			if _, ok := seen[candidate]; ok {
+				continue
+			}
+			seen[candidate] = struct{}{}
+			live = append(live, candidate)
+		}
+	}
+
+	q := s.db.Model(&TraderOrder{}).
+		Where("exchange_id = ? AND symbol = ? AND status IN ? AND type IN ?", exchangeID, symbol, []string{"NEW", "PARTIALLY_FILLED"}, []string{"ALGO", "TRAILING_STOP_MARKET", "STOP_MARKET", "TAKE_PROFIT_MARKET", "LIMIT"})
+	if len(live) > 0 {
+		q = q.Where("exchange_order_id NOT IN ?", live)
+	}
+	res := q.Updates(map[string]interface{}{
+		"status":     "CANCELED",
+		"updated_at": time.Now().UTC().UnixMilli(),
+	})
+	return res.RowsAffected, res.Error
+}
+
+func (s *OrderStore) MarkSymbolProtectionOrdersCanceled(exchangeID string, symbol string) (int64, error) {
+	if exchangeID == "" || symbol == "" {
+		return 0, nil
+	}
+	res := s.db.Model(&TraderOrder{}).
+		Where("exchange_id = ? AND symbol = ? AND status IN ? AND type IN ?", exchangeID, symbol, []string{"NEW", "PARTIALLY_FILLED"}, []string{"ALGO", "TRAILING_STOP_MARKET", "STOP_MARKET", "TAKE_PROFIT_MARKET"}).
+		Updates(map[string]interface{}{
+			"status":     "CANCELED",
+			"updated_at": time.Now().UTC().UnixMilli(),
+		})
+	return res.RowsAffected, res.Error
 }
 
 func (s *OrderStore) UpdateOrderRelatedPosition(orderID int64, positionID int64) error {

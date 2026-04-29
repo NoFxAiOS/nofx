@@ -49,18 +49,27 @@ func TestDynamicProtectionStateMarksOlderNativeOwnerReplaced(t *testing.T) {
 		ExchangeID:          "exchange-1",
 		Symbol:              "DOGEUSDT",
 		Side:                "long",
-		PositionFingerprint: "0.09930000|650.00000000",
-		ProtectionType:      "native_partial_trailing",
+		PositionFingerprint: "0.09937000|0.00000000",
+		ProtectionType:      "native_trailing",
 		RuleFingerprint:     "rule-old",
-		CloseRatioPct:       80,
+		CloseRatioPct:       100,
 		Status:              "armed",
 		ExchangeOrderID:     "algo-old",
 		UpdatedAt:           1000,
 	}
-	newRecord := oldRecord
-	newRecord.RuleFingerprint = "rule-new"
-	newRecord.ExchangeOrderID = "algo-new"
-	newRecord.UpdatedAt = 2000
+	newRecord := DynamicProtectionRecord{
+		TraderID:            "trader-1",
+		ExchangeID:          "exchange-1",
+		Symbol:              "DOGEUSDT",
+		Side:                "long",
+		PositionFingerprint: "0.09930000|650.00000000",
+		ProtectionType:      "native_partial_trailing",
+		RuleFingerprint:     "rule-new",
+		CloseRatioPct:       80,
+		Status:              "armed",
+		ExchangeOrderID:     "algo-new",
+		UpdatedAt:           2000,
+	}
 	if err := s.SaveDynamicProtectionRecord(oldRecord); err != nil {
 		t.Fatalf("save old record: %v", err)
 	}

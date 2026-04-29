@@ -132,6 +132,10 @@ export interface ProtectionRuntime {
   runner_migration_desired_callback?: number
   runner_migration_live_activation?: number
   runner_migration_live_callback?: number
+  runner_migration_safe?: boolean
+  runner_migration_safety_reason?: string
+  runner_migration_would_loosen?: boolean
+  runner_migration_would_tighten?: boolean
   structure_protection_health?: string
   structure_protection_drift_reason?: string
   structure_protection_detached?: boolean

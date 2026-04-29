@@ -994,6 +994,10 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	runnerMigrationDesiredCallback := 0.0
 	runnerMigrationLiveActivation := 0.0
 	runnerMigrationLiveCallback := 0.0
+	runnerMigrationSafe := false
+	runnerMigrationSafetyReason := ""
+	runnerMigrationWouldLoosenProtection := false
+	runnerMigrationWouldTightenProtection := false
 	if currentStructureStage == "higher_timeframe_runner" && structureCtx != nil && len(drawdownRules) > 0 {
 		var runnerRule *store.DrawdownTakeProfitRule
 		for i := range drawdownRules {
@@ -1028,6 +1032,21 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				if activationDrift > 0.003 || callbackDrift > 0.20 {
 					runnerMigrationNeeded = true
 					runnerMigrationReason = "live_trailing_differs_from_higher_runner_plan"
+				}
+			}
+			if runnerMigrationNeeded && liveTrailingTriggerPrice > 0 && runnerMigrationDesiredActivation > 0 && runnerMigrationDesiredCallback > 0 {
+				liveTrailDistance := liveTrailingTriggerPrice * liveTrailingCallbackRate
+				desiredTrailDistance := runnerMigrationDesiredActivation * runnerMigrationDesiredCallback
+				runnerMigrationWouldLoosenProtection = desiredTrailDistance > liveTrailDistance
+				runnerMigrationWouldTightenProtection = desiredTrailDistance < liveTrailDistance
+				if runnerMigrationAnchor != nil && runnerMigrationAnchor.Price > 0 && runnerMigrationDesiredCallback >= minNativeDrawdownCallbackRatio {
+					if runnerMigrationWouldLoosenProtection {
+						runnerMigrationSafe = false
+						runnerMigrationSafetyReason = "would_loosen_live_trailing"
+					} else {
+						runnerMigrationSafe = true
+						runnerMigrationSafetyReason = "tightens_or_preserves_live_trailing"
+					}
 				}
 			}
 		}
@@ -1126,6 +1145,10 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"runner_migration_desired_callback":   runnerMigrationDesiredCallback,
 		"runner_migration_live_activation":    runnerMigrationLiveActivation,
 		"runner_migration_live_callback":      runnerMigrationLiveCallback,
+		"runner_migration_safe":               runnerMigrationSafe,
+		"runner_migration_safety_reason":      runnerMigrationSafetyReason,
+		"runner_migration_would_loosen":       runnerMigrationWouldLoosenProtection,
+		"runner_migration_would_tighten":      runnerMigrationWouldTightenProtection,
 		"drawdown_execution_mode":             at.getDrawdownExecutionMode(symbol, side),
 		"drawdown_config_source":              drawdownSource,
 		"break_even_execution_mode":           at.getBreakEvenExecutionMode(symbol, side),

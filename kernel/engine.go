@@ -160,7 +160,21 @@ type AIEntryProtectionRationale struct {
 	ExecutionConstraints AIEntryExecutionConstraints `json:"execution_constraints,omitempty"`
 	DerivativesContext   AIEntryDerivativesContext   `json:"derivatives_context,omitempty"`
 	Anchors              []AIEntryProtectionAnchor   `json:"anchors,omitempty"`
+	HigherAnchors        []AIEntryProtectionAnchor   `json:"higher_timeframe_anchors,omitempty"`
+	TimeframeStructures  []AIEntryTimeframeStructure `json:"timeframe_structures,omitempty"`
 	AlignmentNotes       []string                    `json:"alignment_notes,omitempty"`
+}
+
+type AIEntryTimeframeStructure struct {
+	Timeframe  string                    `json:"timeframe,omitempty"`
+	Role       string                    `json:"role,omitempty"`
+	Support    []float64                 `json:"support,omitempty"`
+	Resistance []float64                 `json:"resistance,omitempty"`
+	Fibonacci  *AIEntryFibonacci         `json:"fibonacci,omitempty"`
+	Anchors    []AIEntryProtectionAnchor `json:"anchors,omitempty"`
+	ATR14Pct   float64                   `json:"atr14_pct,omitempty"`
+	Trend      string                    `json:"trend,omitempty"`
+	UsedFor    string                    `json:"used_for,omitempty"`
 }
 
 // AIStructuralKeyLevel represents a structural level that influenced protection placement

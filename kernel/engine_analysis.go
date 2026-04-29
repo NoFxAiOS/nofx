@@ -630,6 +630,9 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 					}
 				}
 			}
+			if err := validateHigherTimeframeStructureCoverage(d, entryStructure.RequireAdjacentTimeframes, entryStructure.RequireFibonacci && entryStructure.RequireAdjacentTimeframes); err != nil {
+				return err
+			}
 			if entryStructure.RequireFibonacci {
 				fib := d.EntryProtection.KeyLevels.Fibonacci
 				if fib == nil || fib.SwingHigh <= 0 || fib.SwingLow <= 0 || len(fib.Levels) == 0 {
@@ -695,6 +698,53 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 	return nil
 }
 
+func validateHigherTimeframeStructureCoverage(d Decision, requireHigherContext bool, requireFibonacci bool) error {
+	if d.EntryProtection == nil || len(d.EntryProtection.TimeframeContext.Higher) == 0 || !requireHigherContext {
+		return nil
+	}
+	higherTF := map[string]struct{}{}
+	for _, tf := range d.EntryProtection.TimeframeContext.Higher {
+		if tf = strings.TrimSpace(tf); tf != "" {
+			higherTF[tf] = struct{}{}
+		}
+	}
+	if len(higherTF) == 0 {
+		return nil
+	}
+	anchors := append([]AIEntryProtectionAnchor{}, d.EntryProtection.HigherAnchors...)
+	for _, anchor := range d.EntryProtection.Anchors {
+		if _, ok := higherTF[strings.TrimSpace(anchor.Timeframe)]; ok {
+			anchors = append(anchors, anchor)
+		}
+	}
+	for _, structure := range d.EntryProtection.TimeframeStructures {
+		if _, ok := higherTF[strings.TrimSpace(structure.Timeframe)]; !ok {
+			continue
+		}
+		anchors = append(anchors, structure.Anchors...)
+	}
+	if len(anchors) == 0 {
+		return fmt.Errorf("entry_protection_rationale requires at least one higher timeframe anchor when timeframe_context.higher is provided")
+	}
+	for i, anchor := range anchors {
+		if _, ok := higherTF[strings.TrimSpace(anchor.Timeframe)]; !ok {
+			return fmt.Errorf("entry_protection_rationale.higher_timeframe_anchors[%d] timeframe %s not in timeframe_context.higher", i, anchor.Timeframe)
+		}
+		if strings.TrimSpace(anchor.Type) == "" || anchor.Price <= 0 || strings.TrimSpace(anchor.Reason) == "" {
+			return fmt.Errorf("entry_protection_rationale.higher_timeframe_anchors[%d] requires type, timeframe, price, and reason", i)
+		}
+	}
+	if requireFibonacci {
+		for _, structure := range d.EntryProtection.TimeframeStructures {
+			if _, ok := higherTF[strings.TrimSpace(structure.Timeframe)]; ok && structure.Fibonacci != nil && structure.Fibonacci.SwingHigh > 0 && structure.Fibonacci.SwingLow > 0 && len(structure.Fibonacci.Levels) > 0 {
+				return nil
+			}
+		}
+		return fmt.Errorf("entry_protection_rationale requires higher timeframe fibonacci context when fibonacci is required")
+	}
+	return nil
+}
+
 func validateStructuralPriceAlignment(action string, rationale *AIEntryProtectionRationale, config *store.StrategyConfig) error {
 	if rationale == nil {
 		return nil
@@ -719,11 +769,18 @@ func validateStructuralPriceAlignment(action string, rationale *AIEntryProtectio
 }
 
 func validateStructuralAnchorCoverage(action string, rationale *AIEntryProtectionRationale) error {
-	if len(rationale.Anchors) == 0 {
+	anchors := append([]AIEntryProtectionAnchor{}, rationale.Anchors...)
+	if len(anchors) == 0 && len(rationale.HigherAnchors) == 0 && len(rationale.TimeframeStructures) == 0 {
 		return nil
 	}
 	var invalidationAnchor, targetAnchor bool
-	for _, anchor := range rationale.Anchors {
+	if len(rationale.HigherAnchors) > 0 {
+		anchors = append(anchors, rationale.HigherAnchors...)
+	}
+	for _, structure := range rationale.TimeframeStructures {
+		anchors = append(anchors, structure.Anchors...)
+	}
+	for _, anchor := range anchors {
 		t := strings.ToLower(strings.TrimSpace(anchor.Type))
 		switch action {
 		case "open_long":
@@ -841,7 +898,7 @@ func structuralReferenceLevels(rationale *AIEntryProtectionRationale) (invalidat
 		switch usedFor {
 		case "invalidation", "stop_loss", "entry_support", "entry_resistance", "entry":
 			invalidationRefs = append(invalidationRefs, lvl.Price)
-		case "take_profit", "first_target", "tp1", "tp2", "tp1_drawdown_trigger", "tp2_drawdown_trigger", "profit_protection_stage_1", "profit_protection_stage_2", "profit_protection_stage_3", "tp2_reference", "break_even":
+		case "take_profit", "first_target", "tp1", "tp2", "tp1_drawdown_trigger", "tp2_drawdown_trigger", "profit_protection_stage_1", "profit_protection_stage_2", "profit_protection_stage_3", "tp2_reference", "break_even", "outer_drawdown_runner", "runner_target":
 			targetRefs = append(targetRefs, lvl.Price)
 		}
 	}

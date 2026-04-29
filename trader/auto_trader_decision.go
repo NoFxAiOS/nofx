@@ -767,6 +767,12 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	fullStopCount := 0
 	fullTakeProfitCount := 0
 	fallbackStopCount := 0
+	maxProtectionOrderQuantity := 0.0
+	maxProtectionOrderQuantityOrderID := ""
+	protectionQuantityDrift := false
+	protectionQuantityDriftReason := ""
+	protectionQuantityDriftOrders := make([]map[string]interface{}, 0)
+	quantityTolerance := math.Max(0.00000001, quantity*0.02)
 	for _, order := range openOrders {
 		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
 			continue
@@ -819,6 +825,26 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				ladderTakeProfitCount++
 			case strings.Contains(clientOrderIDLower, "full"):
 				fullTakeProfitCount++
+			}
+		}
+		if (looksLikeStopLoss(order) || strings.Contains(strings.ToUpper(order.Type), "TRAILING")) && order.Quantity > 0 {
+			if order.Quantity > maxProtectionOrderQuantity {
+				maxProtectionOrderQuantity = order.Quantity
+				maxProtectionOrderQuantityOrderID = order.OrderID
+			}
+			if quantity > 0 && order.Quantity > quantity+quantityTolerance {
+				protectionQuantityDrift = true
+				if protectionQuantityDriftReason == "" {
+					protectionQuantityDriftReason = "protection_order_quantity_exceeds_position"
+				}
+				protectionQuantityDriftOrders = append(protectionQuantityDriftOrders, map[string]interface{}{
+					"order_id":          order.OrderID,
+					"client_order_id":   order.ClientOrderID,
+					"type":              order.Type,
+					"quantity":          order.Quantity,
+					"position_quantity": quantity,
+					"excess_quantity":   order.Quantity - quantity,
+				})
 			}
 		}
 		activeOrders = append(activeOrders, map[string]interface{}{
@@ -1193,6 +1219,12 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"structure_protection_health":         currentStructureHealth,
 		"structure_protection_drift_reason":   currentStructureDriftReason,
 		"structure_protection_detached":       currentStructureDetached,
+		"protection_quantity_drift":           protectionQuantityDrift,
+		"protection_quantity_drift_reason":    protectionQuantityDriftReason,
+		"protection_position_quantity":        quantity,
+		"protection_max_order_quantity":       maxProtectionOrderQuantity,
+		"protection_max_order_id":             maxProtectionOrderQuantityOrderID,
+		"protection_quantity_drift_orders":    protectionQuantityDriftOrders,
 		"runner_migration_needed":             runnerMigrationNeeded,
 		"runner_migration_reason":             runnerMigrationReason,
 		"runner_migration_anchor":             runnerMigrationAnchor,

@@ -158,6 +158,7 @@ function compactSourceLabel(value: string | undefined, language: Language): stri
   if (v === 'invalid_desired_trailing_plan') return language === 'zh' ? '目标 trailing 计划无效' : 'invalid desired trailing plan'
   if (v === 'manual_replace_ready') return language === 'zh' ? '可人工替换' : 'manual replace ready'
   if (v === 'replace_native_trailing') return language === 'zh' ? '替换原生 trailing' : 'replace native trailing'
+  if (v === 'protection_order_quantity_exceeds_position') return language === 'zh' ? '保护单数量超过仓位' : 'protection order qty exceeds position'
   if (v === 'strategy') return language === 'zh' ? '策略' : 'strategy'
   if (v === 'ai_decision') return language === 'zh' ? 'AI 决策' : 'AI'
   if (v === 'primary_resistance') return language === 'zh' ? '主周期阻力' : 'primary resistance'
@@ -352,6 +353,12 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const runnerMigrationActionable = Boolean(rt?.runner_migration_actionable)
           const runnerMigrationActionableReason = String(rt?.runner_migration_actionable_reason || '')
           const runnerMigrationPlan = rt?.runner_migration_plan
+          const protectionQuantityDrift = Boolean(rt?.protection_quantity_drift)
+          const protectionQuantityDriftReason = String(rt?.protection_quantity_drift_reason || '')
+          const protectionPositionQuantity = Number(rt?.protection_position_quantity ?? position.quantity ?? 0)
+          const protectionMaxOrderQuantity = Number(rt?.protection_max_order_quantity ?? 0)
+          const protectionMaxOrderID = String(rt?.protection_max_order_id || '')
+          const protectionQuantityDriftOrders = rt?.protection_quantity_drift_orders || []
           const breakEvenTriggerPct = Number(rt?.current_break_even_trigger_pct ?? 0)
           const breakEvenGapPct = Number(rt?.next_break_even_gap_pct ?? 0)
           const breakEvenSuppressedByRunner = Boolean(rt?.break_even_suppressed_by_runner ?? runnerState?.break_even_suppressed ?? nextTier?.break_even_suppressed_by_runner)
@@ -509,6 +516,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     {runnerMigrationAnchor?.price && <KV label={language === 'zh' ? 'Runner 锚点' : 'Runner anchor'} value={`${runnerMigrationAnchor.timeframe || '—'} · ${compactSourceLabel(runnerMigrationAnchor.anchor_type, language)} · ${formatPrice(runnerMigrationAnchor.price)}`} />}
                     {(runnerDesiredActivation > 0 || runnerLiveActivation > 0) && <KV label={language === 'zh' ? '迁移触发价' : 'Migration activation'} value={`${runnerLiveActivation > 0 ? formatPrice(runnerLiveActivation) : '—'} → ${runnerDesiredActivation > 0 ? formatPrice(runnerDesiredActivation) : '—'}`} />}
                     {(runnerDesiredCallback > 0 || runnerLiveCallback > 0) && <KV label={language === 'zh' ? '迁移回调' : 'Migration callback'} value={`${runnerLiveCallback > 0 ? `${(runnerLiveCallback * 100).toFixed(2)}%` : '—'} → ${runnerDesiredCallback > 0 ? `${(runnerDesiredCallback * 100).toFixed(2)}%` : '—'}`} />}
+                    {protectionQuantityDrift && <KV label={language === 'zh' ? '数量漂移' : 'Qty drift'} value={`${compactSourceLabel(protectionQuantityDriftReason, language)} · pos ${formatQuantity(protectionPositionQuantity)} / max order ${formatQuantity(protectionMaxOrderQuantity)}${protectionMaxOrderID ? ` · ${protectionMaxOrderID}` : ''}`} />}
+                    {protectionQuantityDriftOrders.length > 0 && <KV label={language === 'zh' ? '漂移订单' : 'Drift orders'} value={protectionQuantityDriftOrders.slice(0, 2).map((o) => `${o.order_id || '—'} ${formatQuantity(Number(o.quantity || 0))}`).join(' | ')} />}
                     {structureDetached && !structureDriftReason && <KV label={language === 'zh' ? '偏离' : 'Drift'} value={compactSourceLabel('structure_detached', language)} />}
                     {structureTrace.length > 0 && <KV label={language === 'zh' ? '轨迹' : 'Trace'} value={structureTrace.slice(-3).join(' → ')} />}
                   </div>

@@ -151,9 +151,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		return result, fmt.Errorf("get open orders: %w", err)
 	}
 
-	// If native trailing drawdown is already armed, generic take-profit plans should not be
+	// If native trailing drawdown is already armed/arming, generic take-profit plans should not be
 	// re-applied on top of it. But stop-loss protection must still be preserved and repaired.
-	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
+	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" || currentProtectionState == "native_trailing_arming" || currentProtectionState == "native_partial_trailing_arming"
 
 	plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
 	if err != nil {
@@ -308,7 +308,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 		result.ExchangeVerified = ownership.Verified
 		result.Summary = strings.Join(ownership.Reasons, "; ")
-		if ownership.ProfitOwner == "drawdown" && (at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed") {
+		if ownership.ProfitOwner == "drawdown" && (at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming") {
 			result.Summary = "dynamic protection owner armed; exchange static ownership verified"
 		}
 	}
@@ -372,7 +372,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
-	if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed") {
+	if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming") {
 		result.Summary = "dynamic protection owner armed; exchange static ownership not fully verified"
 	}
 	return result, nil
@@ -781,6 +781,15 @@ func (at *AutoTrader) setProtectionState(symbol, side, state string) {
 	at.protectionState[symbol+"_"+strings.ToLower(side)] = state
 }
 
+func (at *AutoTrader) clearProtectionState(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.protectionState == nil {
+		return
+	}
+	delete(at.protectionState, symbol+"_"+strings.ToLower(side))
+}
+
 func (at *AutoTrader) setBreakEvenState(symbol, side, state string) {
 	at.breakEvenStateMutex.Lock()
 	defer at.breakEvenStateMutex.Unlock()
@@ -820,9 +829,9 @@ func (at *AutoTrader) clearBreakEvenState(symbol, side string) {
 func (at *AutoTrader) getDrawdownExecutionMode(symbol, side string) string {
 	state := at.getProtectionState(symbol, side)
 	switch state {
-	case "native_trailing_armed":
+	case "native_trailing_arming", "native_trailing_armed":
 		return "native_trailing_full"
-	case "native_partial_trailing_armed":
+	case "native_partial_trailing_arming", "native_partial_trailing_armed":
 		return "native_partial_trailing"
 	case "managed_partial_drawdown_armed":
 		return "managed_partial_drawdown"

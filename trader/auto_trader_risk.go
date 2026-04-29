@@ -617,6 +617,10 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		return false
 	}
 	currentState := at.getProtectionState(symbol, side)
+	if currentState == "native_trailing_arming" || currentState == "native_partial_trailing_arming" {
+		logger.Infof("🟣 Native trailing drawdown already arming, skipping duplicate apply (%s %s state=%s)", symbol, side, currentState)
+		return true
+	}
 	isPartial := rule.CloseRatioPct < 99.999
 	var staleFullTrailing *nativeTrailingOrder
 	if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" {
@@ -693,6 +697,22 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	positionSide := strings.ToUpper(side)
 	positionAction := "open_" + strings.ToLower(side)
 	exchange := strings.ToLower(at.exchange)
+	armingState := "native_trailing_arming"
+	if isPartial {
+		armingState = "native_partial_trailing_arming"
+	}
+	previousProtectionState := currentState
+	at.setProtectionState(symbol, side, armingState)
+	defer func() {
+		if at.getProtectionState(symbol, side) != armingState {
+			return
+		}
+		if previousProtectionState == "" {
+			at.clearProtectionState(symbol, side)
+			return
+		}
+		at.setProtectionState(symbol, side, previousProtectionState)
+	}()
 
 	if isPartial {
 		positions, err := at.trader.GetPositions()

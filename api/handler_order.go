@@ -652,6 +652,21 @@ func (s *Server) handleOpenOrders(c *gin.Context) {
 		SafeInternalError(c, "Get open orders", err)
 		return
 	}
+	if s.store != nil {
+		liveIDs := make([]string, 0, len(openOrders))
+		for _, order := range openOrders {
+			liveIDs = append(liveIDs, order.OrderID)
+		}
+		fullCfg, cfgErr := s.store.Trader().GetFullConfig(c.GetString("user_id"), traderID)
+		if cfgErr == nil && fullCfg != nil && fullCfg.Trader != nil {
+			updated, markErr := s.store.Order().MarkMissingOpenOrdersCanceled(fullCfg.Trader.ExchangeID, symbol, liveIDs)
+			if markErr != nil {
+				logger.Warnf("⚠️ Open orders: failed to reconcile local order status for %s: %v", symbol, markErr)
+			} else if updated > 0 {
+				logger.Infof("🧹 Open orders: marked %d local stale order records canceled for %s", updated, symbol)
+			}
+		}
+	}
 
 	c.JSON(http.StatusOK, openOrders)
 }

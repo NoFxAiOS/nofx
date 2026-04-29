@@ -92,8 +92,13 @@ func (at *AutoTrader) reconcilePositionProtections() {
 		}
 
 		if result.ExchangeVerified {
-			at.setProtectionState(symbol, side, "exchange_protection_verified")
-			logger.Infof("✅ Protection reconciler: %s %s exchange protection verified", symbol, side)
+			currentState := at.getProtectionState(symbol, side)
+			if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" || currentState == "native_trailing_arming" || currentState == "native_partial_trailing_arming" || currentState == "managed_partial_drawdown_armed" {
+				logger.Infof("✅ Protection reconciler: %s %s exchange protection verified (preserving dynamic state=%s)", symbol, side, currentState)
+			} else {
+				at.setProtectionState(symbol, side, "exchange_protection_verified")
+				logger.Infof("✅ Protection reconciler: %s %s exchange protection verified", symbol, side)
+			}
 		} else {
 			if result.Summary == "" {
 				result.Summary = "no exchange protection ownership verified"

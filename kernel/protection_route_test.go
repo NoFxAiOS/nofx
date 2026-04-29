@@ -197,7 +197,10 @@ func TestValidateAIDecisionsWithStrategyAllowsDrawdownPlusFullOwnershipSplit(t *
 			Anchors:          []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 95, Reason: "invalidation"}, {Type: "resistance", Timeframe: "15m", Price: 110, Reason: "target"}},
 			RiskReward:       AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2, NetEstimatedRR: 2, MinRequiredRR: 1.5, Passed: true},
 		},
-		ProtectionPlan: &AIProtectionPlan{Mode: "drawdown", DrawdownRules: []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, ReasonAnchor: "target"}}, BreakEvenTrigger: "profit_pct", BreakEvenValue: 3, BreakEvenOffset: 0.1},
+		ProtectionPlan: &AIProtectionPlan{Mode: "drawdown", DrawdownRules: []AIProtectionDrawdownRule{
+			{MinProfitPct: 5, MaxDrawdownPct: 60, CloseRatioPct: 40, ReasonAnchor: "15m target partial lock"},
+			{MinProfitPct: 8, MaxDrawdownPct: 40, CloseRatioPct: 60, ReasonAnchor: "1h trend extension runner"},
+		}, BreakEvenTrigger: "profit_pct", BreakEvenValue: 3, BreakEvenOffset: 0.1},
 	}}
 
 	if err := ValidateAIDecisionsWithStrategy(decisions, cfg); err != nil {
@@ -255,7 +258,10 @@ func TestValidateAIDecisionsWithStrategyAllowsCombinedDrawdownPlusLadderAI(t *te
 				{StopLossPct: 1, StopLossCloseRatioPct: 50, StructuralAnchor: "15m support"},
 				{StopLossPct: 2, StopLossCloseRatioPct: 50, StructuralAnchor: "1h support"},
 			},
-			DrawdownRules:    []AIProtectionDrawdownRule{{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, ReasonAnchor: "target"}},
+			DrawdownRules: []AIProtectionDrawdownRule{
+				{MinProfitPct: 5, MaxDrawdownPct: 60, CloseRatioPct: 40, ReasonAnchor: "15m target partial lock"},
+				{MinProfitPct: 8, MaxDrawdownPct: 40, CloseRatioPct: 60, ReasonAnchor: "1h trend extension runner"},
+			},
 			BreakEvenTrigger: "profit_pct", BreakEvenValue: 3, BreakEvenOffset: 0.1,
 		},
 	}}

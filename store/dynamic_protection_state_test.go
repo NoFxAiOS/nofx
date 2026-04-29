@@ -39,57 +39,54 @@ func TestDynamicProtectionStateRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDynamicProtectionStateMarksOlderNativeOwnerReplaced(t *testing.T) {
-	s, err := New(filepath.Join(t.TempDir(), "dynamic-protection-replace.db"))
+func TestDynamicProtectionStateKeepsNativeTrailingTiersArmed(t *testing.T) {
+	s, err := New(filepath.Join(t.TempDir(), "dynamic-protection-native-tiers.db"))
 	if err != nil {
 		t.Fatalf("create store: %v", err)
 	}
-	oldRecord := DynamicProtectionRecord{
-		TraderID:            "trader-1",
-		ExchangeID:          "exchange-1",
-		Symbol:              "DOGEUSDT",
-		Side:                "long",
-		PositionFingerprint: "0.09937000|0.00000000",
-		ProtectionType:      "native_trailing",
-		RuleFingerprint:     "rule-old",
-		CloseRatioPct:       100,
-		Status:              "armed",
-		ExchangeOrderID:     "algo-old",
-		UpdatedAt:           1000,
-	}
-	newRecord := DynamicProtectionRecord{
+	firstRecord := DynamicProtectionRecord{
 		TraderID:            "trader-1",
 		ExchangeID:          "exchange-1",
 		Symbol:              "DOGEUSDT",
 		Side:                "long",
 		PositionFingerprint: "0.09930000|650.00000000",
 		ProtectionType:      "native_partial_trailing",
-		RuleFingerprint:     "rule-new",
-		CloseRatioPct:       80,
+		RuleFingerprint:     "rule-1",
+		CloseRatioPct:       40,
 		Status:              "armed",
-		ExchangeOrderID:     "algo-new",
+		ExchangeOrderID:     "algo-1",
+		UpdatedAt:           1000,
+	}
+	secondRecord := DynamicProtectionRecord{
+		TraderID:            "trader-1",
+		ExchangeID:          "exchange-1",
+		Symbol:              "DOGEUSDT",
+		Side:                "long",
+		PositionFingerprint: "0.09930000|650.00000000",
+		ProtectionType:      "native_partial_trailing",
+		RuleFingerprint:     "rule-2",
+		CloseRatioPct:       60,
+		Status:              "armed",
+		ExchangeOrderID:     "algo-2",
 		UpdatedAt:           2000,
 	}
-	if err := s.SaveDynamicProtectionRecord(oldRecord); err != nil {
-		t.Fatalf("save old record: %v", err)
+	if err := s.SaveDynamicProtectionRecord(firstRecord); err != nil {
+		t.Fatalf("save first record: %v", err)
 	}
-	if err := s.SaveDynamicProtectionRecord(newRecord); err != nil {
-		t.Fatalf("save new record: %v", err)
+	if err := s.SaveDynamicProtectionRecord(secondRecord); err != nil {
+		t.Fatalf("save second record: %v", err)
 	}
 	state, err := s.LoadDynamicProtectionState()
 	if err != nil {
 		t.Fatalf("load dynamic protection state: %v", err)
 	}
-	if len(state.Records) != 2 {
-		t.Fatalf("expected old and new records retained for audit, got %+v", state.Records)
+	firstKey := BuildDynamicProtectionKey(firstRecord.TraderID, firstRecord.ExchangeID, firstRecord.Symbol, firstRecord.Side, firstRecord.PositionFingerprint, firstRecord.ProtectionType, firstRecord.RuleFingerprint, firstRecord.CloseRatioPct)
+	secondKey := BuildDynamicProtectionKey(secondRecord.TraderID, secondRecord.ExchangeID, secondRecord.Symbol, secondRecord.Side, secondRecord.PositionFingerprint, secondRecord.ProtectionType, secondRecord.RuleFingerprint, secondRecord.CloseRatioPct)
+	if got := state.Records[firstKey].Status; got != "armed" {
+		t.Fatalf("expected first native tier still armed, got %q", got)
 	}
-	oldKey := BuildDynamicProtectionKey(oldRecord.TraderID, oldRecord.ExchangeID, oldRecord.Symbol, oldRecord.Side, oldRecord.PositionFingerprint, oldRecord.ProtectionType, oldRecord.RuleFingerprint, oldRecord.CloseRatioPct)
-	newKey := BuildDynamicProtectionKey(newRecord.TraderID, newRecord.ExchangeID, newRecord.Symbol, newRecord.Side, newRecord.PositionFingerprint, newRecord.ProtectionType, newRecord.RuleFingerprint, newRecord.CloseRatioPct)
-	if got := state.Records[oldKey].Status; got != "replaced" {
-		t.Fatalf("expected old native owner marked replaced, got %q", got)
-	}
-	if got := state.Records[newKey].Status; got != "armed" {
-		t.Fatalf("expected new native owner armed, got %q", got)
+	if got := state.Records[secondKey].Status; got != "armed" {
+		t.Fatalf("expected second native tier armed, got %q", got)
 	}
 }
 

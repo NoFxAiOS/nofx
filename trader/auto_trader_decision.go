@@ -743,7 +743,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	if at.config.StrategyConfig != nil {
 		drawdownCfg = at.config.StrategyConfig.Protection.DrawdownTakeProfit
 	}
-	armRules := at.getDrawdownArmRules(currentPnLPct, drawdownRules)
+	armRules := at.getDrawdownArmRules(currentPnLPct, entryPrice, quantity, symbol, side, drawdownRules)
 	currentStageMinProfit := 0.0
 	currentStageRuleCount := 0
 	if len(armRules) > 0 {

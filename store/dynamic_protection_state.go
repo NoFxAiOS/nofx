@@ -91,8 +91,6 @@ func (s *Store) SaveDynamicProtectionRecord(record DynamicProtectionRecord) erro
 
 func singletonDynamicProtectionGroup(protectionType string) string {
 	switch protectionType {
-	case "native_trailing", "native_partial_trailing":
-		return "native_trailing"
 	case "break_even_stop":
 		return "break_even_stop"
 	default:

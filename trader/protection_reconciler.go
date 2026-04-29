@@ -350,31 +350,32 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 
 	rules := at.getActiveDrawdownRules()
 	if len(rules) > 0 {
-		drawdownExecutionMode := at.getDrawdownExecutionMode(symbol, side)
-		if drawdownExecutionMode == "native_trailing_full" || drawdownExecutionMode == "native_partial_trailing" || drawdownExecutionMode == "managed_partial_drawdown" {
-			logger.Infof("🟣 Protection reconciler: %s %s already in %s, skipping duplicate native drawdown ensure", symbol, positionSide, drawdownExecutionMode)
-		} else {
-			peakPnLPct := currentPnLPct
-			at.peakPnLCacheMutex.RLock()
-			if peak, ok := at.peakPnLCache[positionKey(symbol, side)]; ok && peak > peakPnLPct {
-				peakPnLPct = peak
-			}
-			at.peakPnLCacheMutex.RUnlock()
+		peakPnLPct := currentPnLPct
+		at.peakPnLCacheMutex.RLock()
+		if peak, ok := at.peakPnLCache[positionKey(symbol, side)]; ok && peak > peakPnLPct {
+			peakPnLPct = peak
+		}
+		at.peakPnLCacheMutex.RUnlock()
 
-			drawdownPct := 0.0
-			if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
-				drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		drawdownPct := 0.0
+		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		}
+		armedAny := false
+		for _, armRule := range at.getDrawdownArmRules(currentPnLPct, entryPrice, quantity, symbol, side, rules) {
+			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
+				armedAny = true
+				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (arm close=%.1f%%)", symbol, positionSide, armRule.CloseRatioPct)
 			}
-			for _, armRule := range at.getDrawdownArmRules(currentPnLPct, rules) {
-				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
-					logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (arm close=%.1f%%)", symbol, positionSide, armRule.CloseRatioPct)
-				}
+		}
+		for _, triggeredRule := range at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules) {
+			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
+				armedAny = true
+				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (trigger close=%.1f%%)", symbol, positionSide, triggeredRule.CloseRatioPct)
 			}
-			for _, triggeredRule := range at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules) {
-				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
-					logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (trigger close=%.1f%%)", symbol, positionSide, triggeredRule.CloseRatioPct)
-				}
-			}
+		}
+		if !armedAny && isNativeTrailingProtectionState(at.getProtectionState(symbol, side)) {
+			logger.Infof("🟣 Protection reconciler: %s %s already has all satisfied native trailing tiers armed (%s)", symbol, positionSide, at.getDrawdownExecutionMode(symbol, side))
 		}
 	}
 
@@ -838,13 +839,33 @@ func (at *AutoTrader) clearBreakEvenState(symbol, side string) {
 
 func (at *AutoTrader) getDrawdownExecutionMode(symbol, side string) string {
 	state := at.getProtectionState(symbol, side)
-	switch state {
-	case "native_trailing_arming", "native_trailing_armed":
-		return "native_trailing_full"
-	case "native_partial_trailing_arming", "native_partial_trailing_armed":
-		return "native_partial_trailing"
-	case "managed_partial_drawdown_armed":
+	if state == "managed_partial_drawdown_armed" {
 		return "managed_partial_drawdown"
+	}
+	if state == "native_trailing_arming" || state == "native_partial_trailing_arming" {
+		return "native_trailing_arming"
+	}
+	if state == "native_trailing_armed" || state == "native_partial_trailing_armed" {
+		fullCount := 0
+		partialCount := 0
+		for _, record := range at.getArmedDrawdownRecords(symbol, side) {
+			if record.CloseRatioPct >= 99.999 || record.ProtectionType == "native_trailing" {
+				fullCount++
+			} else {
+				partialCount++
+			}
+		}
+		switch {
+		case partialCount > 0 && fullCount > 0:
+			return "native_trailing_tiers"
+		case partialCount > 1:
+			return "native_partial_trailing_tiers"
+		case partialCount > 0:
+			return "native_partial_trailing"
+		case fullCount > 0 || state == "native_trailing_armed":
+			return "native_trailing_full"
+		}
+		return "native_partial_trailing"
 	}
 
 	rules := at.getActiveDrawdownRules()

@@ -169,30 +169,25 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		structureCtx := at.buildDrawdownStructureContext(symbol, side)
-		armRules := at.getDrawdownArmRules(currentPnLPct, rules)
-		if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
-			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules, structureCtx, side, markPrice); eval != nil {
-				armRules = []store.DrawdownTakeProfitRule{eval.Rule}
-			}
-		}
 
 		// For exchange-native trailing protections, arm all tiers whose min-profit gate is already met.
 		// Do NOT wait for drawdown to happen first — the exchange trailing order itself is responsible
 		// for tracking the drawdown once armed.
 		if at.supportsNativeTrailingStop() {
 			executionMode := at.getDrawdownExecutionMode(symbol, side)
-			if executionMode == "native_trailing_full" || executionMode == "native_partial_trailing" || executionMode == "managed_partial_drawdown" {
-				logger.Infof("🟣 Drawdown monitor: %s %s already in %s, skipping duplicate arm pass", symbol, side, executionMode)
-				continue
-			}
-			armedAny := false
-			for _, armRule := range armRules {
-				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
-					armedAny = true
+			armRules := at.getDrawdownArmRules(currentPnLPct, entryPrice, quantity, symbol, side, rules)
+			if len(armRules) == 0 && isNativeTrailingProtectionState(at.getProtectionState(symbol, side)) {
+				logger.Infof("🟣 Drawdown monitor: %s %s already has all satisfied native trailing tiers armed (%s), skipping duplicate arm pass", symbol, side, executionMode)
+			} else {
+				armedAny := false
+				for _, armRule := range armRules {
+					if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
+						armedAny = true
+					}
 				}
-			}
-			if armedAny {
-				continue
+				if armedAny {
+					continue
+				}
 			}
 		}
 
@@ -271,9 +266,68 @@ func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
 		if rule.CloseRatioPct > 100 {
 			rule.CloseRatioPct = 100
 		}
-		rules = append(rules, rule)
+		rules = append(rules, normalizeDrawdownRule(rule))
 	}
 	return rules
+}
+
+func isNativeTrailingProtectionState(state string) bool {
+	return state == "native_trailing_arming" || state == "native_trailing_armed" || state == "native_partial_trailing_arming" || state == "native_partial_trailing_armed"
+}
+
+func isDrawdownRuleSatisfied(currentPnLPct float64, rule store.DrawdownTakeProfitRule) bool {
+	return currentPnLPct >= rule.MinProfitPct
+}
+
+func (at *AutoTrader) getArmedDrawdownRecords(symbol, side string) []store.DynamicProtectionRecord {
+	if at.store == nil {
+		return nil
+	}
+	state, err := at.store.LoadDynamicProtectionState()
+	if err != nil || state == nil {
+		return nil
+	}
+	records := make([]store.DynamicProtectionRecord, 0)
+	for _, record := range state.Records {
+		if record.TraderID != "" && record.TraderID != at.id {
+			continue
+		}
+		if !strings.EqualFold(record.Symbol, symbol) || !strings.EqualFold(record.Side, side) {
+			continue
+		}
+		if record.Status != "armed" || !isDynamicNativeProtectionType(record.ProtectionType) {
+			continue
+		}
+		records = append(records, record)
+	}
+	return records
+}
+
+func (at *AutoTrader) getArmedDrawdownRuleFingerprints(symbol, side string) map[string]struct{} {
+	armed := make(map[string]struct{})
+	for _, record := range at.getArmedDrawdownRecords(symbol, side) {
+		if record.RuleFingerprint != "" {
+			armed[record.RuleFingerprint] = struct{}{}
+		}
+	}
+	return armed
+}
+
+func (at *AutoTrader) getDrawdownArmRules(currentPnLPct, entryPrice, quantity float64, symbol, side string, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
+	armedFingerprints := at.getArmedDrawdownRuleFingerprints(symbol, side)
+	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
+	for _, rule := range rules {
+		rule = normalizeDrawdownRule(rule)
+		if !isDrawdownRuleSatisfied(currentPnLPct, rule) {
+			continue
+		}
+		fingerprint := drawdownRuleFingerprint(entryPrice, quantity, rule)
+		if _, ok := armedFingerprints[fingerprint]; ok {
+			continue
+		}
+		matched = append(matched, rule)
+	}
+	return matched
 }
 
 func sideToOpenAction(side string) string {
@@ -998,33 +1052,13 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 func (at *AutoTrader) matchDrawdownArmRule(currentPnLPct float64, rules []store.DrawdownTakeProfitRule) *store.DrawdownTakeProfitRule {
 	var matched *store.DrawdownTakeProfitRule
 	for i := range rules {
-		rule := rules[i]
+		rule := normalizeDrawdownRule(rules[i])
 		if currentPnLPct < rule.MinProfitPct {
 			continue
 		}
 		if matched == nil || rule.MinProfitPct > matched.MinProfitPct {
 			matched = &rule
 		}
-	}
-	return matched
-}
-
-func (at *AutoTrader) getDrawdownArmRules(currentPnLPct float64, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
-	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
-	maxSatisfiedMinProfit := 0.0
-	for _, rule := range rules {
-		if currentPnLPct < rule.MinProfitPct {
-			continue
-		}
-		if rule.MinProfitPct > maxSatisfiedMinProfit {
-			maxSatisfiedMinProfit = rule.MinProfitPct
-		}
-	}
-	for _, rule := range rules {
-		if currentPnLPct < rule.MinProfitPct || rule.MinProfitPct < maxSatisfiedMinProfit {
-			continue
-		}
-		matched = append(matched, rule)
 	}
 	return matched
 }

@@ -81,7 +81,7 @@ func TestLoadDynamicProtectionStateFromStoreSkipsInactiveNativeRecords(t *testin
 	}
 }
 
-func TestLoadDynamicProtectionStateFromStoreUsesLatestNativeRecordPerPosition(t *testing.T) {
+func TestLoadDynamicProtectionStateFromStoreRestoresMixedNativeRecordsPerPosition(t *testing.T) {
 	st, err := store.New(filepath.Join(t.TempDir(), "dynamic-protection-runtime-latest.db"))
 	if err != nil {
 		t.Fatalf("create store: %v", err)
@@ -100,10 +100,51 @@ func TestLoadDynamicProtectionStateFromStoreUsesLatestNativeRecordPerPosition(t 
 	at := &AutoTrader{id: traderID, store: st}
 	at.loadDynamicProtectionStateFromStore()
 
-	if got := at.getProtectionState("DOGEUSDT", "long"); got != "native_partial_trailing_armed" {
-		t.Fatalf("expected latest native partial state restored, got %q", got)
+	if got := at.getProtectionState("DOGEUSDT", "long"); got != "native_trailing_armed" {
+		t.Fatalf("expected native full state restored when a full tier exists, got %q", got)
 	}
-	if got := at.getDrawdownExecutionFingerprint("DOGEUSDT", "long"); got != "new-partial" {
-		t.Fatalf("expected latest native fingerprint restored, got %q", got)
+	if got := at.getDrawdownExecutionMode("DOGEUSDT", "long"); got != "native_trailing_tiers" {
+		t.Fatalf("expected mixed native tier mode restored, got %q", got)
+	}
+	armed := at.getArmedDrawdownRuleFingerprints("DOGEUSDT", "long")
+	if _, ok := armed["old-full"]; !ok {
+		t.Fatalf("expected full native fingerprint restored, got %+v", armed)
+	}
+	if _, ok := armed["new-partial"]; !ok {
+		t.Fatalf("expected partial native fingerprint restored, got %+v", armed)
+	}
+}
+
+func TestLoadDynamicProtectionStateFromStoreRestoresAllNativeTiers(t *testing.T) {
+	st, err := store.New(filepath.Join(t.TempDir(), "dynamic-protection-runtime-tiers.db"))
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	traderID := "trader-1"
+	records := []store.DynamicProtectionRecord{
+		{TraderID: traderID, ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "long", PositionFingerprint: "pos", ProtectionType: "native_partial_trailing", RuleFingerprint: "tier-1", CloseRatioPct: 40, Status: "armed", UpdatedAt: 1000},
+		{TraderID: traderID, ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "long", PositionFingerprint: "pos", ProtectionType: "native_partial_trailing", RuleFingerprint: "tier-2", CloseRatioPct: 60, Status: "armed", UpdatedAt: 2000},
+	}
+	for _, record := range records {
+		if err := st.SaveDynamicProtectionRecord(record); err != nil {
+			t.Fatalf("save dynamic protection record: %v", err)
+		}
+	}
+
+	at := &AutoTrader{id: traderID, store: st}
+	at.loadDynamicProtectionStateFromStore()
+
+	if got := at.getProtectionState("DOGEUSDT", "long"); got != "native_partial_trailing_armed" {
+		t.Fatalf("expected native partial state restored, got %q", got)
+	}
+	if got := at.getDrawdownExecutionMode("DOGEUSDT", "long"); got != "native_partial_trailing_tiers" {
+		t.Fatalf("expected tiered native mode restored, got %q", got)
+	}
+	armed := at.getArmedDrawdownRuleFingerprints("DOGEUSDT", "long")
+	if _, ok := armed["tier-1"]; !ok {
+		t.Fatalf("expected tier-1 restored, got %+v", armed)
+	}
+	if _, ok := armed["tier-2"]; !ok {
+		t.Fatalf("expected tier-2 restored, got %+v", armed)
 	}
 }

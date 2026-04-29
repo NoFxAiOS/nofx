@@ -392,7 +392,6 @@ func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
 	if at.breakEvenFingerprints == nil {
 		at.breakEvenFingerprints = make(map[string]string)
 	}
-	latestNativeRecord := make(map[string]store.DynamicProtectionRecord)
 	latestBreakEvenRecord := make(map[string]store.DynamicProtectionRecord)
 	managedRecords := make([]store.DynamicProtectionRecord, 0, len(state.Records))
 	for _, record := range state.Records {
@@ -406,10 +405,17 @@ func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
 			continue
 		}
 		key := positionKey(record.Symbol, record.Side)
-		existingRecord, hasExisting := latestNativeRecord[key]
 		if isDynamicNativeProtectionType(record.ProtectionType) {
-			if !hasExisting || record.UpdatedAt >= existingRecord.UpdatedAt {
-				latestNativeRecord[key] = record
+			switch record.ProtectionType {
+			case "native_trailing":
+				at.protectionState[key] = "native_trailing_armed"
+			case "native_partial_trailing":
+				if at.protectionState[key] != "native_trailing_armed" {
+					at.protectionState[key] = "native_partial_trailing_armed"
+				}
+			}
+			if record.RuleFingerprint != "" {
+				at.drawdownState[key] = record.RuleFingerprint
 			}
 		}
 		if record.ProtectionType == "break_even_stop" {
@@ -419,18 +425,6 @@ func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
 			}
 		}
 		managedRecords = append(managedRecords, record)
-	}
-	for _, record := range latestNativeRecord {
-		key := positionKey(record.Symbol, record.Side)
-		switch record.ProtectionType {
-		case "native_trailing":
-			at.protectionState[key] = "native_trailing_armed"
-		case "native_partial_trailing":
-			at.protectionState[key] = "native_partial_trailing_armed"
-		}
-		if record.RuleFingerprint != "" {
-			at.drawdownState[key] = record.RuleFingerprint
-		}
 	}
 	for _, record := range latestBreakEvenRecord {
 		key := positionKey(record.Symbol, record.Side)

@@ -336,7 +336,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - **position_size_usd**: Position size in USDT (required for open_long/open_short)
 - **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
 - **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
-- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), mode=ladder with ladder_rules, or mode=drawdown with non-empty drawdown_rules.
+- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), mode=ladder with ladder_rules, or mode=drawdown with at least 2 drawdown_rules.
 - **entry_protection_rationale**: Required for open_long/open_short. Must include structured timeframe/key-level/RR rationale. At minimum include ` + "`risk_reward.entry`" + `, ` + "`risk_reward.invalidation`" + `, ` + "`risk_reward.first_target`" + `, ` + "`risk_reward.gross_estimated_rr`" + `, and preferably ` + "`risk_reward.net_estimated_rr`" + ` plus structural ` + "`anchors`" + `.
 - Treat entry structure as compact evidence rather than indicator dumping: use the minimum support/resistance, timeframe, anchor, and fibonacci fields needed to justify entry/invalidation/first target.
 - If strategy entry-structure requirements demand primary timeframe / adjacent timeframes / support-resistance / anchors / fibonacci and you cannot support them from available market data, do not force an open action; return wait or [] instead.
@@ -551,6 +551,9 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 				if len(d.ProtectionPlan.DrawdownRules) == 0 {
 					return fmt.Errorf("decision #%d: drawdown protection_plan requires drawdown_rules", i+1)
 				}
+				if len(d.ProtectionPlan.DrawdownRules) < 2 {
+					return fmt.Errorf("decision #%d: drawdown protection_plan requires at least 2 drawdown_rules: first stage partial profit lock, outer stage runner/trend protection", i+1)
+				}
 				for j, rule := range d.ProtectionPlan.DrawdownRules {
 					if rule.MinProfitPct <= 0 {
 						return fmt.Errorf("decision #%d: drawdown_rules[%d] requires positive min_profit_pct", i+1, j)
@@ -568,6 +571,9 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 			case "combined":
 				if len(d.ProtectionPlan.LadderRules) == 0 || len(d.ProtectionPlan.DrawdownRules) == 0 {
 					return fmt.Errorf("decision #%d: combined protection_plan requires both ladder_rules and drawdown_rules", i+1)
+				}
+				if len(d.ProtectionPlan.DrawdownRules) < 2 {
+					return fmt.Errorf("decision #%d: combined protection_plan requires at least 2 drawdown_rules: first stage partial profit lock, outer stage runner/trend protection", i+1)
 				}
 				if d.ProtectionPlan.TakeProfitPct > 0 || d.ProtectionPlan.StopLossPct > 0 {
 					return fmt.Errorf("decision #%d: combined protection_plan must not include full take_profit_pct/stop_loss_pct", i+1)

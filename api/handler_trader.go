@@ -521,7 +521,8 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	if existingTrader != nil {
 		status := existingTrader.GetStatus()
 		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Trader is already running"})
+			safeModeReason, _ := status["safe_mode_reason"].(string)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Trader is already running", "safe_mode": status["safe_mode"], "safe_mode_reason": safeModeReason})
 			return
 		}
 		// Trader exists but is stopped - remove from memory to reload fresh config
@@ -577,6 +578,12 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	}
 
 	// Start trader
+	protectOnly := strings.EqualFold(c.Query("mode"), "protect_only") || strings.EqualFold(c.Query("mode"), "protect-only") || c.Query("protect_only") == "true"
+	if protectOnly {
+		trader.SetProtectOnlyMode(true, "protect-only mode requested via start API")
+		trader.SetAllowAIClose(false)
+		logger.Warnf("🛡️  Starting trader %s in protect-only mode: AI opens and AI closes are blocked", traderID)
+	}
 	go func() {
 		logger.Infof("▶️  Starting trader %s (%s)", traderID, trader.GetName())
 		if err := trader.Run(); err != nil {

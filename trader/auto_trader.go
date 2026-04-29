@@ -652,6 +652,22 @@ func (at *AutoTrader) GetAllowAIClose() bool {
 	return at.allowAIClose
 }
 
+// SetProtectOnlyMode enables/disables protect-only safe mode. In this mode the
+// trader loop, order sync, drawdown monitor, and protection reconciler can run,
+// but AI open decisions are blocked by the existing safe-mode execution gate.
+func (at *AutoTrader) SetProtectOnlyMode(enabled bool, reason string) {
+	if enabled {
+		if reason == "" {
+			reason = "protect-only mode requested"
+		}
+		at.safeMode = true
+		at.safeModeReason = reason
+		return
+	}
+	at.safeMode = false
+	at.safeModeReason = ""
+}
+
 // SetAllowAIClose updates whether AI can actively close positions
 func (at *AutoTrader) SetAllowAIClose(allow bool) {
 	at.allowAIClose = allow

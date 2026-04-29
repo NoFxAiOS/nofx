@@ -303,7 +303,7 @@ func (at *AutoTrader) runCycle() error {
 		logger.Infof("✅ [%s] AI recovered after %d consecutive failures", at.name, at.consecutiveAIFailures)
 	}
 	at.consecutiveAIFailures = 0
-	if at.safeMode {
+	if at.safeMode && !strings.HasPrefix(at.safeModeReason, "protect-only") {
 		logger.Infof("🛡️ [%s] SAFE MODE DEACTIVATED — AI is working again. Resuming normal trading.", at.name)
 		at.safeMode = false
 		at.safeModeReason = ""

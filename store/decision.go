@@ -375,6 +375,12 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 		var rc map[string]interface{}
 		if err := json.Unmarshal([]byte(db.ReviewContext), &rc); err == nil {
 			record.ReviewContext = rc
+			if v, ok := rc["allow_ai_open"].(bool); ok {
+				record.AllowAIOpen = v
+			}
+			if v, ok := rc["allow_ai_close"].(bool); ok {
+				record.AllowAIClose = v
+			}
 		}
 	}
 	return record

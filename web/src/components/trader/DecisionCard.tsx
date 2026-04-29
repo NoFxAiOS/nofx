@@ -488,6 +488,9 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
 
       {/* AI Control Snapshot */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(168, 85, 247, 0.12)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.25)' }}>
+          AI Open: {decision.allow_ai_open === false ? 'OFF' : 'ON'}
+        </div>
         <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(240, 185, 11, 0.12)', color: '#F0B90B', border: '1px solid rgba(240,185,11,0.25)' }}>
           AI Close: {decision.allow_ai_close === false ? 'OFF' : 'ON'}
         </div>

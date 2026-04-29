@@ -1000,6 +1000,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	runnerMigrationWouldTightenProtection := false
 	runnerMigrationActionable := false
 	runnerMigrationActionableReason := ""
+	runnerMigrationPlan := map[string]interface{}{}
 	if currentStructureStage == "higher_timeframe_runner" && structureCtx != nil && len(drawdownRules) > 0 {
 		var runnerRule *store.DrawdownTakeProfitRule
 		for i := range drawdownRules {
@@ -1066,6 +1067,38 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		default:
 			runnerMigrationActionable = true
 			runnerMigrationActionableReason = "manual_replace_ready"
+		}
+		if runnerMigrationActionable {
+			cancelOrderID := ""
+			cancelClientOrderID := ""
+			cancelQuantity := 0.0
+			for _, order := range trailingOrders {
+				triggerVal, _ := order["trigger_price"].(float64)
+				callbackVal, _ := order["callback_rate"].(float64)
+				if math.Abs(triggerVal-runnerMigrationLiveActivation) <= math.Max(0.01, runnerMigrationLiveActivation*0.0001) && math.Abs(callbackVal-runnerMigrationLiveCallback) <= math.Max(0.000001, runnerMigrationLiveCallback*0.001) {
+					cancelOrderID, _ = order["order_id"].(string)
+					cancelClientOrderID, _ = order["client_order_id"].(string)
+					cancelQuantity, _ = order["quantity"].(float64)
+					break
+				}
+			}
+			if cancelOrderID == "" && len(trailingOrders) > 0 {
+				cancelOrderID, _ = trailingOrders[0]["order_id"].(string)
+				cancelClientOrderID, _ = trailingOrders[0]["client_order_id"].(string)
+				cancelQuantity, _ = trailingOrders[0]["quantity"].(float64)
+			}
+			if cancelQuantity <= 0 {
+				cancelQuantity = quantity
+			}
+			runnerMigrationPlan = map[string]interface{}{
+				"action":                 "replace_native_trailing",
+				"cancel_order_id":        cancelOrderID,
+				"cancel_client_order_id": cancelClientOrderID,
+				"new_activation":         runnerMigrationDesiredActivation,
+				"new_callback":           runnerMigrationDesiredCallback,
+				"quantity":               math.Min(cancelQuantity, quantity),
+				"requires_confirmation":  true,
+			}
 		}
 	}
 	if currentStructureHealth == "aligned" && runnerMigrationNeeded {
@@ -1168,6 +1201,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"runner_migration_would_tighten":      runnerMigrationWouldTightenProtection,
 		"runner_migration_actionable":         runnerMigrationActionable,
 		"runner_migration_actionable_reason":  runnerMigrationActionableReason,
+		"runner_migration_plan":               runnerMigrationPlan,
 		"drawdown_execution_mode":             at.getDrawdownExecutionMode(symbol, side),
 		"drawdown_config_source":              drawdownSource,
 		"break_even_execution_mode":           at.getBreakEvenExecutionMode(symbol, side),

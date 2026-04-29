@@ -138,6 +138,15 @@ export interface ProtectionRuntime {
   runner_migration_would_tighten?: boolean
   runner_migration_actionable?: boolean
   runner_migration_actionable_reason?: string
+  runner_migration_plan?: {
+    action?: string
+    cancel_order_id?: string
+    cancel_client_order_id?: string
+    new_activation?: number
+    new_callback?: number
+    quantity?: number
+    requires_confirmation?: boolean
+  }
   structure_protection_health?: string
   structure_protection_drift_reason?: string
   structure_protection_detached?: boolean

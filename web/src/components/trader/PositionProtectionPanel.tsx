@@ -157,6 +157,7 @@ function compactSourceLabel(value: string | undefined, language: Language): stri
   if (v === 'migration_not_safe') return language === 'zh' ? '迁移不安全' : 'migration not safe'
   if (v === 'invalid_desired_trailing_plan') return language === 'zh' ? '目标 trailing 计划无效' : 'invalid desired trailing plan'
   if (v === 'manual_replace_ready') return language === 'zh' ? '可人工替换' : 'manual replace ready'
+  if (v === 'replace_native_trailing') return language === 'zh' ? '替换原生 trailing' : 'replace native trailing'
   if (v === 'strategy') return language === 'zh' ? '策略' : 'strategy'
   if (v === 'ai_decision') return language === 'zh' ? 'AI 决策' : 'AI'
   if (v === 'primary_resistance') return language === 'zh' ? '主周期阻力' : 'primary resistance'
@@ -350,6 +351,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const runnerMigrationWouldTighten = Boolean(rt?.runner_migration_would_tighten)
           const runnerMigrationActionable = Boolean(rt?.runner_migration_actionable)
           const runnerMigrationActionableReason = String(rt?.runner_migration_actionable_reason || '')
+          const runnerMigrationPlan = rt?.runner_migration_plan
           const breakEvenTriggerPct = Number(rt?.current_break_even_trigger_pct ?? 0)
           const breakEvenGapPct = Number(rt?.next_break_even_gap_pct ?? 0)
           const breakEvenSuppressedByRunner = Boolean(rt?.break_even_suppressed_by_runner ?? runnerState?.break_even_suppressed ?? nextTier?.break_even_suppressed_by_runner)
@@ -502,6 +504,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     {runnerMigrationNeeded && <KV label={language === 'zh' ? 'Runner 迁移' : 'Runner migration'} value={`${runnerMigrationReason ? compactSourceLabel(runnerMigrationReason, language) : (language === 'zh' ? '需要' : 'needed')}${runnerMigrationSafe ? ` · ${language === 'zh' ? '安全' : 'safe'}` : ''}`} />}
                     {runnerMigrationSafetyReason && <KV label={language === 'zh' ? '迁移安全' : 'Migration safety'} value={`${compactSourceLabel(runnerMigrationSafetyReason, language)}${runnerMigrationWouldLoosen ? ` · ${language === 'zh' ? '会放宽' : 'would loosen'}` : ''}${runnerMigrationWouldTighten ? ` · ${language === 'zh' ? '会收紧' : 'would tighten'}` : ''}`} />}
                     {(runnerMigrationActionable || runnerMigrationActionableReason) && <KV label={language === 'zh' ? '可执行' : 'Actionable'} value={`${runnerMigrationActionable ? (language === 'zh' ? '是' : 'yes') : (language === 'zh' ? '否' : 'no')}${runnerMigrationActionableReason ? ` · ${compactSourceLabel(runnerMigrationActionableReason, language)}` : ''}`} />}
+                    {runnerMigrationPlan?.cancel_order_id && <KV label={language === 'zh' ? '迁移计划' : 'Migration plan'} value={`${compactSourceLabel(runnerMigrationPlan.action, language)} · ${language === 'zh' ? '需确认' : 'confirm'} · ${runnerMigrationPlan.cancel_order_id}`} />}
+                    {runnerMigrationPlan?.new_activation && <KV label={language === 'zh' ? '计划新单' : 'Planned new order'} value={`${formatQuantity(runnerMigrationPlan.quantity || 0)} @ ${formatPrice(runnerMigrationPlan.new_activation)} · ${(Number(runnerMigrationPlan.new_callback || 0) * 100).toFixed(2)}%`} />}
                     {runnerMigrationAnchor?.price && <KV label={language === 'zh' ? 'Runner 锚点' : 'Runner anchor'} value={`${runnerMigrationAnchor.timeframe || '—'} · ${compactSourceLabel(runnerMigrationAnchor.anchor_type, language)} · ${formatPrice(runnerMigrationAnchor.price)}`} />}
                     {(runnerDesiredActivation > 0 || runnerLiveActivation > 0) && <KV label={language === 'zh' ? '迁移触发价' : 'Migration activation'} value={`${runnerLiveActivation > 0 ? formatPrice(runnerLiveActivation) : '—'} → ${runnerDesiredActivation > 0 ? formatPrice(runnerDesiredActivation) : '—'}`} />}
                     {(runnerDesiredCallback > 0 || runnerLiveCallback > 0) && <KV label={language === 'zh' ? '迁移回调' : 'Migration callback'} value={`${runnerLiveCallback > 0 ? `${(runnerLiveCallback * 100).toFixed(2)}%` : '—'} → ${runnerDesiredCallback > 0 ? `${(runnerDesiredCallback * 100).toFixed(2)}%` : '—'}`} />}

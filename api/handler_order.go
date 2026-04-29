@@ -189,8 +189,14 @@ func (s *Server) handlePositions(c *gin.Context) {
 		livePositions := make(map[string]float64, len(positions))
 		for _, pos := range positions {
 			symbol, _ := pos["symbol"].(string)
-			side, _ := pos["side"].(string)
+			side, _ := pos["position_side"].(string)
+			if side == "" {
+				side, _ = pos["side"].(string)
+			}
 			qty, _ := pos["positionAmt"].(float64)
+			if qty == 0 {
+				qty, _ = pos["quantity"].(float64)
+			}
 			if qty < 0 {
 				qty = -qty
 			}
@@ -199,7 +205,6 @@ func (s *Server) handlePositions(c *gin.Context) {
 			}
 			livePositions[strings.ToUpper(market.Normalize(symbol))+"|"+normalizeAPIPositionSideForStore(side)] = qty
 		}
-		logger.Infof("🧭 Positions: live position keys for trader %s: %v", traderID, livePositions)
 		updated, markErr := s.store.Position().MarkOpenPositionsAbsentFromExchangeClosed(traderID, livePositions, "sync_absent_from_exchange")
 		if markErr != nil {
 			logger.Warnf("⚠️ Positions: failed to reconcile local open positions for trader %s: %v", traderID, markErr)

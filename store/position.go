@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-
-	"nofx/logger"
 )
 
 // adaptivePriceRound rounds a price based on its magnitude to preserve meaningful precision.
@@ -753,7 +751,6 @@ func (s *PositionStore) MarkOpenPositionsAbsentFromExchangeClosed(traderID strin
 	for _, pos := range openPositions {
 		key := positionPresenceKey(pos.Symbol, pos.Side)
 		liveQty, ok := livePositions[key]
-		logger.Infof("🧭 Position reconcile: local id=%d key=%s qty=%.8f live_ok=%t live_qty=%.8f", pos.ID, key, pos.Quantity, ok, liveQty)
 		if ok && quantitiesEquivalent(pos.Quantity, liveQty) {
 			continue
 		}

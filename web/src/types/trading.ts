@@ -121,8 +121,17 @@ export interface ProtectionRuntime {
   drawdown_structure_target_source?: string
   drawdown_structure_target_progress?: number
   drawdown_structure_primary_timeframe?: string
+  drawdown_structure_higher_timeframes?: string[]
+  drawdown_structure_anchors?: Array<{ type?: string; timeframe?: string; price?: number; reason?: string }>
   drawdown_structure_evidence?: string[]
   drawdown_structure_trace?: string[]
+  runner_migration_needed?: boolean
+  runner_migration_reason?: string
+  runner_migration_anchor?: { stage_name?: string; timeframe?: string; anchor_type?: string; price?: number; reason?: string; source?: string; used_for?: string; distance_pct?: number; reference?: string }
+  runner_migration_desired_activation?: number
+  runner_migration_desired_callback?: number
+  runner_migration_live_activation?: number
+  runner_migration_live_callback?: number
   structure_protection_health?: string
   structure_protection_drift_reason?: string
   structure_protection_detached?: boolean

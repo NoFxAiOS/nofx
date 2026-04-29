@@ -145,7 +145,13 @@ function compactSourceLabel(value: string | undefined, language: Language): stri
   if (v === 'structure_detached') return language === 'zh' ? '结构脱钩' : 'structure detached'
   if (v === 'unstructured') return language === 'zh' ? '未结构化' : 'unstructured'
   if (v === 'ladder_degraded') return language === 'zh' ? '梯级降级' : 'ladder degraded'
-  if (v === 'missing_structure_context') return language === 'zh' ? '缺少结构上下文' : 'missing structure context'
+  if (v === 'runner_migration_needed') return language === 'zh' ? 'Runner 需迁移' : 'runner migration needed'
+  if (v === 'higher_timeframe_runner') return language === 'zh' ? '高周期 Runner' : 'higher timeframe runner'
+  if (v === 'higher_timeframe_structure_trail') return language === 'zh' ? '高周期结构跟踪' : 'higher timeframe trail'
+  if (v === 'higher_timeframe_runner_target') return language === 'zh' ? '高周期 Runner 目标' : 'higher timeframe runner target'
+  if (v === 'missing_higher_runner_anchor') return language === 'zh' ? '缺少高周期 Runner 锚点' : 'missing higher runner anchor'
+  if (v === 'missing_live_trailing') return language === 'zh' ? '缺少实盘 trailing' : 'missing live trailing'
+  if (v === 'live_trailing_differs_from_higher_runner_plan') return language === 'zh' ? '实盘 trailing 偏离高周期计划' : 'live trailing differs from higher runner plan'
   if (v === 'strategy') return language === 'zh' ? '策略' : 'strategy'
   if (v === 'ai_decision') return language === 'zh' ? 'AI 决策' : 'AI'
   if (v === 'primary_resistance') return language === 'zh' ? '主周期阻力' : 'primary resistance'
@@ -326,6 +332,13 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const structureDetached = Boolean(rt?.structure_protection_detached)
           const structurePrimaryTf = String(rt?.drawdown_structure_primary_timeframe || '')
           const structureTrace = rt?.drawdown_structure_trace || []
+          const runnerMigrationNeeded = Boolean(rt?.runner_migration_needed)
+          const runnerMigrationReason = String(rt?.runner_migration_reason || '')
+          const runnerMigrationAnchor = rt?.runner_migration_anchor as { timeframe?: string; price?: number; anchor_type?: string; reason?: string; distance_pct?: number } | undefined
+          const runnerDesiredActivation = Number(rt?.runner_migration_desired_activation ?? 0)
+          const runnerDesiredCallback = Number(rt?.runner_migration_desired_callback ?? 0)
+          const runnerLiveActivation = Number(rt?.runner_migration_live_activation ?? 0)
+          const runnerLiveCallback = Number(rt?.runner_migration_live_callback ?? 0)
           const breakEvenTriggerPct = Number(rt?.current_break_even_trigger_pct ?? 0)
           const breakEvenGapPct = Number(rt?.next_break_even_gap_pct ?? 0)
           const breakEvenSuppressedByRunner = Boolean(rt?.break_even_suppressed_by_runner ?? runnerState?.break_even_suppressed ?? nextTier?.break_even_suppressed_by_runner)
@@ -475,6 +488,10 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                     {breakEvenSuppressedByRunner && <KV label={language === 'zh' ? 'Runner 抑制' : 'Runner suppressed'} value={language === 'zh' ? '是' : 'yes'} />}
                     <KV label={language === 'zh' ? '结构' : 'Structure'} value={`${compactSourceLabel(structureHealth, language)}${structurePrimaryTf ? ` · ${structurePrimaryTf}` : ''}`} />
                     {structureDriftReason && <KV label={language === 'zh' ? '偏离' : 'Drift'} value={compactSourceLabel(structureDriftReason, language)} />}
+                    {runnerMigrationNeeded && <KV label={language === 'zh' ? 'Runner 迁移' : 'Runner migration'} value={runnerMigrationReason ? compactSourceLabel(runnerMigrationReason, language) : (language === 'zh' ? '需要' : 'needed')} />}
+                    {runnerMigrationAnchor?.price && <KV label={language === 'zh' ? 'Runner 锚点' : 'Runner anchor'} value={`${runnerMigrationAnchor.timeframe || '—'} · ${compactSourceLabel(runnerMigrationAnchor.anchor_type, language)} · ${formatPrice(runnerMigrationAnchor.price)}`} />}
+                    {(runnerDesiredActivation > 0 || runnerLiveActivation > 0) && <KV label={language === 'zh' ? '迁移触发价' : 'Migration activation'} value={`${runnerLiveActivation > 0 ? formatPrice(runnerLiveActivation) : '—'} → ${runnerDesiredActivation > 0 ? formatPrice(runnerDesiredActivation) : '—'}`} />}
+                    {(runnerDesiredCallback > 0 || runnerLiveCallback > 0) && <KV label={language === 'zh' ? '迁移回调' : 'Migration callback'} value={`${runnerLiveCallback > 0 ? `${(runnerLiveCallback * 100).toFixed(2)}%` : '—'} → ${runnerDesiredCallback > 0 ? `${(runnerDesiredCallback * 100).toFixed(2)}%` : '—'}`} />}
                     {structureDetached && !structureDriftReason && <KV label={language === 'zh' ? '偏离' : 'Drift'} value={compactSourceLabel('structure_detached', language)} />}
                     {structureTrace.length > 0 && <KV label={language === 'zh' ? '轨迹' : 'Trace'} value={structureTrace.slice(-3).join(' → ')} />}
                   </div>

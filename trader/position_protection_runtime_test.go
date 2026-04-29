@@ -207,6 +207,72 @@ func TestBuildPositionProtectionRuntimeSurfacesRunnerAndBreakEvenSuppression(t *
 	}
 }
 
+func TestBuildPositionProtectionRuntimeRestoresAIDrawdownRulesFromEntryDecision(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	defer st.Close()
+	traderID := "trader-1"
+	pos := &store.TraderPosition{
+		TraderID:           traderID,
+		ExchangeID:         "exchange-1",
+		ExchangeType:       "okx",
+		Symbol:             "DOGEUSDT",
+		Side:               "SHORT",
+		Quantity:           630,
+		EntryPrice:         0.10342,
+		EntryTime:          time.Now().UTC().UnixMilli(),
+		EntryDecisionCycle: 7965,
+		Status:             "OPEN",
+	}
+	if err := st.Position().CreateOpenPosition(pos); err != nil {
+		t.Fatalf("create position: %v", err)
+	}
+	decisionJSON := `[{"symbol":"DOGEUSDT","action":"open_short","price":0.10342,"protection_plan":{"mode":"drawdown","drawdown_rules":[{"min_profit_pct":1.25,"max_drawdown_pct":64,"close_ratio_pct":50,"stage_name":"first_lock"},{"min_profit_pct":2.15,"max_drawdown_pct":58,"close_ratio_pct":80,"stage_name":"primary_runner"},{"min_profit_pct":3.45,"max_drawdown_pct":52,"close_ratio_pct":100,"stage_name":"outer_exit"}]}}]`
+	if err := st.GormDB().Create(&store.DecisionRecordDB{TraderID: traderID, CycleNumber: 7965, Timestamp: time.Now().UTC(), CreatedAt: time.Now().UTC(), Success: true, DecisionJSON: decisionJSON, Decisions: `[{"symbol":"DOGEUSDT","action":"open_short","price":0.10342}]`}).Error; err != nil {
+		t.Fatalf("create decision record: %v", err)
+	}
+	if record, err := st.Decision().GetRecordByCycle(traderID, 7965); err != nil || record == nil || record.DecisionJSON == "" {
+		t.Fatalf("decision record not readable: record=%#v err=%v", record, err)
+	}
+
+	at := &AutoTrader{
+		id:       traderID,
+		exchange: "okx",
+		trader:   &runtimeProtectionTestTrader{},
+		store:    st,
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{Protection: store.ProtectionConfig{DrawdownTakeProfit: store.DrawdownTakeProfitConfig{
+			Enabled: true,
+			Mode:    store.ProtectionModeAI,
+			Rules: []store.DrawdownTakeProfitRule{{
+				MinProfitPct: 0.8, MaxDrawdownPct: 40, CloseRatioPct: 50, StageName: "strategy_default",
+			}},
+		}}}},
+		drawdownAIRules: map[string][]store.DrawdownTakeProfitRule{},
+		drawdownSource:  map[string]string{},
+	}
+
+	if rules := at.restoreAIDrawdownRulesForPositionWithEntry("DOGEUSDT", "short", 0.10342); len(rules) != 3 {
+		t.Fatalf("expected direct restore of 3 AI rules, got %#v", rules)
+	}
+
+	runtime := at.buildPositionProtectionRuntime("DOGEUSDT", "short", 630, 0.10342, nil)
+	if got := runtime["drawdown_config_source"]; got != "ai_decision" {
+		t.Fatalf("expected ai_decision source, got %#v", got)
+	}
+	tiers, _ := runtime["scheduled_tiers"].([]map[string]interface{})
+	if len(tiers) != 3 {
+		t.Fatalf("expected 3 AI tiers, got %#v", runtime["scheduled_tiers"])
+	}
+	if got := tiers[0]["min_profit_pct"]; got != 1.25 {
+		t.Fatalf("expected first AI tier min profit 1.25, got %#v", got)
+	}
+	if got := tiers[2]["stage_name"]; got != "outer_exit" {
+		t.Fatalf("expected third AI tier stage restored, got %#v", got)
+	}
+}
+
 func TestBuildPositionProtectionRuntimeSurfacesUnexpectedProtectionSummary(t *testing.T) {
 	at := &AutoTrader{
 		exchange: "okx",

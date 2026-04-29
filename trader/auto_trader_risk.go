@@ -275,6 +275,10 @@ func (at *AutoTrader) setAIDrawdownRules(symbol, side string, rules []store.Draw
 }
 
 func (at *AutoTrader) restoreAIDrawdownRulesForPosition(symbol, side string) []store.DrawdownTakeProfitRule {
+	return at.restoreAIDrawdownRulesForPositionWithEntry(symbol, side, 0)
+}
+
+func (at *AutoTrader) restoreAIDrawdownRulesForPositionWithEntry(symbol, side string, fallbackEntryPrice float64) []store.DrawdownTakeProfitRule {
 	if at == nil || at.store == nil || symbol == "" || side == "" {
 		return nil
 	}
@@ -283,27 +287,50 @@ func (at *AutoTrader) restoreAIDrawdownRulesForPosition(symbol, side string) []s
 		return nil
 	}
 	record, err := at.store.Decision().GetRecordByCycle(at.id, pos.EntryDecisionCycle)
-	if err != nil || record == nil || record.DecisionJSON == "" {
-		return nil
-	}
-	var decisions []kernel.Decision
-	if err := json.Unmarshal([]byte(record.DecisionJSON), &decisions); err != nil {
+	if err != nil || record == nil {
 		return nil
 	}
 	action := sideToOpenAction(side)
-	for i := range decisions {
-		decision := decisions[i]
-		if !strings.EqualFold(decision.Symbol, symbol) || !strings.EqualFold(decision.Action, action) || decision.ProtectionPlan == nil {
+	entryPrice := pos.EntryPrice
+	if entryPrice <= 0 {
+		entryPrice = fallbackEntryPrice
+	}
+	if entryPrice <= 0 {
+		entryPrice = recordActionPrice(record, symbol, action)
+	}
+	if entryPrice <= 0 {
+		return nil
+	}
+	for _, payload := range []string{record.DecisionJSON, record.RawResponse} {
+		if strings.TrimSpace(payload) == "" {
 			continue
 		}
-		plan, err := buildAIProtectionPlan(pos.EntryPrice, decision.Action, decision.ProtectionPlan)
-		if err != nil || plan == nil || len(plan.DrawdownRules) == 0 {
+		var decisions []kernel.Decision
+		if err := json.Unmarshal([]byte(payload), &decisions); err != nil {
 			continue
 		}
-		at.setAIDrawdownRules(symbol, side, plan.DrawdownRules)
-		return plan.DrawdownRules
+		for i := range decisions {
+			decision := decisions[i]
+			if !strings.EqualFold(decision.Symbol, symbol) || !strings.EqualFold(decision.Action, action) || decision.ProtectionPlan == nil {
+				continue
+			}
+			plan, err := buildAIProtectionPlan(entryPrice, decision.Action, decision.ProtectionPlan)
+			if err != nil || plan == nil || len(plan.DrawdownRules) == 0 {
+				continue
+			}
+			at.setAIDrawdownRules(symbol, side, plan.DrawdownRules)
+			return plan.DrawdownRules
+		}
 	}
 	return nil
+}
+
+func recordActionPrice(record *store.DecisionRecord, symbol, action string) float64 {
+	candidate := findMatchedDecisionAction(record, symbol, action)
+	if candidate == nil {
+		return 0
+	}
+	return candidate.Price
 }
 
 func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
@@ -324,7 +351,7 @@ func (at *AutoTrader) getActiveDrawdownRulesForPosition(symbol, side string) []s
 		}
 		at.protectionStateMutex.RUnlock()
 
-		if restored := at.restoreAIDrawdownRulesForPosition(symbol, side); len(restored) > 0 {
+		if restored := at.restoreAIDrawdownRulesForPositionWithEntry(symbol, side, 0); len(restored) > 0 {
 			return restored
 		}
 	}

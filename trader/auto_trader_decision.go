@@ -743,6 +743,9 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 	}
 
 	drawdownRules := at.getActiveDrawdownRulesForPosition(symbol, side)
+	if len(drawdownRules) == 0 {
+		drawdownRules = at.restoreAIDrawdownRulesForPositionWithEntry(symbol, side, entryPrice)
+	}
 	drawdownSource := at.getDrawdownConfigSource(symbol, side)
 	runnerState := at.getDrawdownRunnerState(symbol, side)
 	drawdownCfg := store.DrawdownTakeProfitConfig{}
@@ -894,8 +897,8 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			currentStructureHealth = "aligned"
 		}
 	}
-	if at.config.StrategyConfig != nil {
-		for idx, rule := range at.config.StrategyConfig.Protection.DrawdownTakeProfit.Rules {
+	if len(drawdownRules) > 0 {
+		for idx, rule := range drawdownRules {
 			rule = normalizeDrawdownRule(rule)
 			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
 				continue

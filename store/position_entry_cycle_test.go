@@ -28,7 +28,7 @@ func TestFindEntryDecisionCycleForPositionMatchesSymbolAndSideBeforeEntry(t *tes
 	}
 }
 
-func TestBackfillEntryDecisionCycleOnlyFillsMissingCycle(t *testing.T) {
+func TestBackfillEntryDecisionCycleUpdatesExistingCycle(t *testing.T) {
 	s := newTestPositionStore(t)
 	pos := &TraderPosition{TraderID: "trader-1", ExchangeID: "exchange-1", Symbol: "BTCUSDT", Side: "LONG", Quantity: 0.001, EntryPrice: 77000, EntryTime: 1, Status: "OPEN"}
 	if err := s.CreateOpenPosition(pos); err != nil {
@@ -51,8 +51,8 @@ func TestBackfillEntryDecisionCycleOnlyFillsMissingCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get position: %v", err)
 	}
-	if got.EntryDecisionCycle != 7841 {
-		t.Fatalf("expected existing cycle preserved, got %d", got.EntryDecisionCycle)
+	if got.EntryDecisionCycle != 9999 {
+		t.Fatalf("expected existing cycle updated, got %d", got.EntryDecisionCycle)
 	}
 }
 
@@ -70,6 +70,37 @@ func TestFindEntryDecisionCycleForPositionIgnoresFailedRecords(t *testing.T) {
 	got := s.FindEntryDecisionCycleForPosition(traderID, "BTCUSDT", "LONG", time.UnixMilli(2000).UnixMilli())
 	if got != 19 {
 		t.Fatalf("expected latest successful cycle, got %d", got)
+	}
+}
+
+func TestBackfillEntryDecisionCycleUpdatesIncorrectExistingCycle(t *testing.T) {
+	s := newTestPositionStore(t)
+	pos := &TraderPosition{TraderID: "trader-1", ExchangeID: "exchange-1", Symbol: "DOGEUSDT", Side: "SHORT", Quantity: 630, EntryPrice: 0.10342, EntryTime: 1, EntryDecisionCycle: 7836, Status: "OPEN"}
+	if err := s.CreateOpenPosition(pos); err != nil {
+		t.Fatalf("create position: %v", err)
+	}
+	if err := s.BackfillEntryDecisionCycle(pos.ID, 7965); err != nil {
+		t.Fatalf("backfill entry cycle: %v", err)
+	}
+	got, err := s.GetOpenPositionBySymbol("trader-1", "DOGEUSDT", "SHORT")
+	if err != nil {
+		t.Fatalf("get position: %v", err)
+	}
+	if got.EntryDecisionCycle != 7965 {
+		t.Fatalf("expected cycle corrected to 7965, got %d", got.EntryDecisionCycle)
+	}
+}
+
+func TestFindEntryDecisionCycleForPositionFallsForwardForLateSync(t *testing.T) {
+	s := newTestPositionStore(t)
+	traderID := "trader-1"
+	entryTime := time.UnixMilli(2000).UTC()
+	if err := s.db.Create(&DecisionRecordDB{TraderID: traderID, CycleNumber: 41, Timestamp: time.UnixMilli(3000).UTC(), CreatedAt: time.UnixMilli(3000).UTC(), Success: true, Decisions: `[{"symbol":"DOGEUSDT","action":"open_short"}]`}).Error; err != nil {
+		t.Fatalf("create decision record: %v", err)
+	}
+	got := s.FindEntryDecisionCycleForPosition(traderID, "DOGEUSDT", "SHORT", entryTime.UnixMilli())
+	if got != 41 {
+		t.Fatalf("expected nearest forward cycle 41, got %d", got)
 	}
 }
 

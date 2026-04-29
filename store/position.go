@@ -389,12 +389,6 @@ func (s *PositionStore) FindEntryDecisionCycleForPosition(traderID, symbol, side
 	if s.db == nil || traderID == "" || symbol == "" {
 		return 0
 	}
-	query := s.db.Model(&DecisionRecordDB{}).
-		Where("trader_id = ? AND success = ?", traderID, true)
-	if entryTimeMs > 0 {
-		entryTime := time.UnixMilli(entryTimeMs).UTC()
-		query = query.Where("timestamp <= ? OR created_at <= ?", entryTime, entryTime)
-	}
 	sideLower := strings.ToLower(strings.TrimSpace(side))
 	action := ""
 	switch sideLower {
@@ -403,13 +397,49 @@ func (s *PositionStore) FindEntryDecisionCycleForPosition(traderID, symbol, side
 	case "short":
 		action = "open_short"
 	}
-	if action != "" {
-		likeSymbol := fmt.Sprintf("%%\"symbol\":\"%s\"%%", symbol)
-		likeAction := fmt.Sprintf("%%\"action\":\"%s\"%%", action)
-		query = query.Where("REPLACE(decisions, ' ', '') LIKE ? AND REPLACE(decisions, ' ', '') LIKE ?", likeSymbol, likeAction)
+	if action == "" {
+		return 0
 	}
+
+	entryTime := time.Time{}
+	if entryTimeMs > 0 {
+		entryTime = time.UnixMilli(entryTimeMs).UTC()
+	}
+	likeSymbol := fmt.Sprintf("%%\"symbol\":\"%s\"%%", symbol)
+	likeAction := fmt.Sprintf("%%\"action\":\"%s\"%%", action)
+
+	query := func() *gorm.DB {
+		q := s.db.Model(&DecisionRecordDB{}).
+			Where("trader_id = ? AND success = ?", traderID, true).
+			Where("REPLACE(decisions, ' ', '') LIKE ? AND REPLACE(decisions, ' ', '') LIKE ?", likeSymbol, likeAction)
+		return q
+	}
+
+	if !entryTime.IsZero() {
+		var cycle int
+		query().Where("timestamp <= ? OR created_at <= ?", entryTime, entryTime).
+			Order("cycle_number DESC").
+			Limit(1).
+			Select("cycle_number").
+			Scan(&cycle)
+		if cycle > 0 {
+			return cycle
+		}
+
+		// Exchange sync can create the local position after the order/decision timestamp.
+		// If no pre-entry match exists, use the nearest same-symbol/side open decision
+		// after the observed position time, bounded to avoid stale historical matches.
+		windowEnd := entryTime.Add(6 * time.Hour)
+		query().Where("(timestamp > ? AND timestamp <= ?) OR (created_at > ? AND created_at <= ?)", entryTime, windowEnd, entryTime, windowEnd).
+			Order("timestamp ASC, created_at ASC, cycle_number ASC").
+			Limit(1).
+			Select("cycle_number").
+			Scan(&cycle)
+		return cycle
+	}
+
 	var cycle int
-	query.Order("cycle_number DESC").
+	query().Order("cycle_number DESC").
 		Limit(1).
 		Select("cycle_number").
 		Scan(&cycle)
@@ -421,7 +451,7 @@ func (s *PositionStore) BackfillEntryDecisionCycle(positionID int64, cycle int) 
 		return nil
 	}
 	return s.db.Model(&TraderPosition{}).
-		Where("id = ? AND (entry_decision_cycle = 0 OR entry_decision_cycle IS NULL)", positionID).
+		Where("id = ?", positionID).
 		Updates(map[string]interface{}{
 			"entry_decision_cycle": cycle,
 			"updated_at":           time.Now().UTC().UnixMilli(),

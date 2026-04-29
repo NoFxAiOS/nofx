@@ -51,6 +51,7 @@ export interface ProtectionRuntimeOrder {
 
 export interface ProtectionRuntimeTier {
   index: number
+  stage_name?: string
   min_profit_pct: number
   max_drawdown_pct: number
   close_ratio_pct: number
@@ -72,6 +73,10 @@ export interface ProtectionRuntimeTier {
   runner_target_price?: number
   runner_target_source?: string
   break_even_suppressed_by_runner?: boolean
+  structure_anchor?: { stage_name?: string; timeframe?: string; anchor_type?: string; price?: number; reason?: string; source?: string; used_for?: string; distance_pct?: number; reference?: string }
+  anchor_timeframe?: string
+  anchor_price?: number
+  anchor_source?: string
   is_satisfied?: boolean
   is_triggered?: boolean
 }

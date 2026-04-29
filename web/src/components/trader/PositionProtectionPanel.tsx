@@ -490,7 +490,35 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                 {linkageStatus && <span>{language === 'zh' ? '联动' : 'Linkage'}: <span className="text-nofx-text-main">{linkageStatus}</span></span>}
               </div>
 
-              {/* ── Layer 3: Runtime Status (collapsed) ── */}
+              {/* ── Layer 3: Drawdown Tier Structure Map ── */}
+              {runtimeTiers.length > 0 && (
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                  <div className="text-[11px] font-medium text-nofx-text-muted uppercase tracking-wide mb-2">{language === 'zh' ? 'Drawdown 分层结构位' : 'Drawdown Tier Structure Map'}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                    {runtimeTiers.map((tier) => {
+                      const anchor = tier.structure_anchor
+                      const tf = tier.anchor_timeframe || anchor?.timeframe || '—'
+                      const anchorPrice = Number(tier.anchor_price ?? anchor?.price ?? 0)
+                      const anchorType = String(anchor?.anchor_type || tier.anchor_source || '')
+                      return (
+                        <div key={`${symbol}-${side}-tier-${tier.index}`} className="rounded-md border border-white/10 bg-black/20 p-2 space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-nofx-text-main font-semibold">T{tier.index} {tier.stage_name || ''}</span>
+                            <span className="text-nofx-text-muted">{tf}</span>
+                          </div>
+                          <KV label={language === 'zh' ? '利润 / 回撤' : 'Profit / DD'} value={`${Number(tier.min_profit_pct || 0).toFixed(2)}% / ${Number(tier.max_drawdown_pct || 0).toFixed(0)}%`} />
+                          <KV label={language === 'zh' ? '仓位' : 'Close'} value={`${Number(tier.close_ratio_pct || 0).toFixed(0)}%${tier.runner_keep_pct ? ` · runner keep ${Number(tier.runner_keep_pct).toFixed(0)}%` : ''}`} />
+                          <KV label={language === 'zh' ? '触发 / 回调' : 'Activation / CB'} value={`${formatPrice(Number(tier.activation_price || tier.planned_activation_price || 0))} · ${(Number(tier.callback_rate || 0) * 100).toFixed(2)}%`} />
+                          <KV label={language === 'zh' ? '结构位' : 'Anchor'} value={anchorPrice > 0 ? `${tf} · ${compactSourceLabel(anchorType, language)} · ${formatPrice(anchorPrice)}` : '—'} />
+                          {anchor?.reason && <div className="text-[10px] text-nofx-text-muted leading-snug line-clamp-2">{anchor.reason}</div>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Layer 4: Runtime Status (collapsed) ── */}
               <CollapsibleSection title={language === 'zh' ? '📊 运行时状态' : '📊 Runtime Status'}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   {/* Left: Drawdown Runtime */}

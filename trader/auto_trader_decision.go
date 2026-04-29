@@ -68,19 +68,24 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 	at.isRunningMutex.RUnlock()
 
 	result := map[string]interface{}{
-		"trader_id":       at.id,
-		"trader_name":     at.name,
-		"ai_model":        at.aiModel,
-		"exchange":        at.exchange,
-		"is_running":      isRunning,
-		"start_time":      at.startTime.Format(time.RFC3339),
-		"runtime_minutes": int(time.Since(at.startTime).Minutes()),
-		"call_count":      at.callCount,
-		"initial_balance": at.initialBalance,
-		"scan_interval":   at.config.ScanInterval.String(),
-		"stop_until":      at.stopUntil.Format(time.RFC3339),
-		"last_reset_time": at.lastResetTime.Format(time.RFC3339),
-		"ai_provider":     aiProvider,
+		"trader_id":        at.id,
+		"trader_name":      at.name,
+		"ai_model":         at.aiModel,
+		"exchange":         at.exchange,
+		"is_running":       isRunning,
+		"start_time":       at.startTime.Format(time.RFC3339),
+		"runtime_minutes":  int(time.Since(at.startTime).Minutes()),
+		"call_count":       at.callCount,
+		"initial_balance":  at.initialBalance,
+		"scan_interval":    at.config.ScanInterval.String(),
+		"stop_until":       at.stopUntil.Format(time.RFC3339),
+		"last_reset_time":  at.lastResetTime.Format(time.RFC3339),
+		"ai_provider":      aiProvider,
+		"safe_mode":        at.safeMode,
+		"safe_mode_reason": at.safeModeReason,
+		"protect_only":     at.safeMode && strings.HasPrefix(at.safeModeReason, "protect-only"),
+		"allow_ai_close":   at.GetAllowAIClose(),
+		"ai_decision_mode": at.GetAIDecisionMode(),
 	}
 
 	// Add strategy info

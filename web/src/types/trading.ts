@@ -11,6 +11,11 @@ export interface SystemStatus {
   stop_until: string
   last_reset_time: string
   ai_provider: string
+  safe_mode?: boolean
+  safe_mode_reason?: string
+  protect_only?: boolean
+  allow_ai_close?: boolean
+  ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   strategy_type?: 'ai_trading' | 'grid_trading'
   grid_symbol?: string
 }

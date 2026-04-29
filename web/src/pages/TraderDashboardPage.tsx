@@ -575,6 +575,29 @@ export function TraderDashboardPage({
                                 {selectedTrader.strategy_name || 'No Strategy'}
                             </span>
                         </span>
+                        {status && (status.protect_only || status.safe_mode || status.allow_ai_close === false) && (
+                            <span className="w-px h-3 bg-white/10 hidden md:block" />
+                        )}
+                        {status?.protect_only && (
+                            <span className="px-2 py-0.5 rounded border border-amber-400/40 bg-amber-400/10 text-amber-300 font-semibold">
+                                PROTECT-ONLY
+                            </span>
+                        )}
+                        {status?.safe_mode && !status?.protect_only && (
+                            <span className="px-2 py-0.5 rounded border border-orange-400/40 bg-orange-400/10 text-orange-300 font-semibold" title={status.safe_mode_reason || undefined}>
+                                SAFE MODE
+                            </span>
+                        )}
+                        {status?.allow_ai_close === false && (
+                            <span className="px-2 py-0.5 rounded border border-blue-400/30 bg-blue-400/10 text-blue-300 font-semibold">
+                                AI CLOSE OFF
+                            </span>
+                        )}
+                        {status?.safe_mode_reason && (
+                            <span className="max-w-[280px] truncate" title={status.safe_mode_reason}>
+                                Reason: <span className="text-nofx-text-main">{status.safe_mode_reason}</span>
+                            </span>
+                        )}
                         {status && (
                             <div className="hidden md:contents">
                                 <span className="w-px h-3 bg-white/10" />

@@ -63,48 +63,76 @@ export function EntryStructureEditor({ config, onChange, disabled = false, langu
           </div>
           <div className="text-xs text-nofx-text-muted mt-1">
             {language === 'zh'
-              ? '这些开关会影响运行时校验：缺少必要结构证据时，系统应输出 wait / []，而不是强行开仓。'
-              : 'These toggles affect runtime validation: when required structure is missing, the system should return wait / [] instead of forcing an open.'}
+              ? '这些是开仓硬约束：缺少必要结构证据时，系统应输出 wait / []，而不是强行开仓。各项不是互斥关系，而是逐层叠加。'
+              : 'These are hard entry gates: when required structure is missing, return wait / [] instead of forcing an open. Toggles are additive, not mutually exclusive.'}
           </div>
         </div>
         {safe.enabled && safe.require_fibonacci && (!safe.require_support_resistance || !safe.require_structural_anchors) && (
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs" style={{ color: '#FCD34D' }}>
             {language === 'zh'
-              ? '提示：Fibonacci 单独启用时语义偏弱，建议同时启用“支撑/阻力”和“结构锚点”。'
+              ? '提示：Fibonacci 单独启用时语义偏弱，建议同时启用“支撑/阻力地图”和“本单结构锚点”。'
               : 'Hint: Fibonacci is weak in isolation. Pair it with support/resistance and structural anchors for a stronger contract.'}
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {[
-            ['require_primary_timeframe', language === 'zh' ? '必须主周期' : 'Require primary timeframe'],
-            ['require_adjacent_timeframes', language === 'zh' ? '必须相邻周期' : 'Require adjacent timeframes'],
-            ['require_support_resistance', language === 'zh' ? '必须支撑/阻力' : 'Require support/resistance'],
-            ['require_structural_anchors', language === 'zh' ? '必须结构锚点' : 'Require structural anchors'],
-            ['require_fibonacci', language === 'zh' ? '必须斐波那契' : 'Require fibonacci'],
-            ['require_invalidation_target_linkage', language === 'zh' ? '要求失效/目标联动审计' : 'Require invalidation/target linkage'],
-          ].map(([key, label]) => (
-            <label key={key} className="rounded-lg border border-white/10 bg-black/20 p-3 flex items-center justify-between gap-3">
-              <span className="text-sm text-nofx-text-main">{label}</span>
-              <input
-                type="checkbox"
-                checked={Boolean(safe[key as keyof EntryStructureConfig])}
-                disabled={inactive}
-                onChange={(e) => update({ [key]: e.target.checked } as Partial<EntryStructureConfig>)}
-              />
-            </label>
-          ))}
+
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+          <div className="text-xs font-medium text-cyan-300">{language === 'zh' ? '1. 时间框架要求' : '1. Timeframe requirements'}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              ['require_primary_timeframe', language === 'zh' ? '必须主周期' : 'Require primary timeframe', language === 'zh' ? '要求 AI 明确主判断周期，例如 15m。' : 'Require the primary decision timeframe, e.g. 15m.'],
+              ['require_adjacent_timeframes', language === 'zh' ? '必须相邻周期' : 'Require adjacent timeframe', language === 'zh' ? '要求至少一个 lower 或 higher 周期辅助确认。' : 'Require at least one lower or higher timeframe for confirmation.'],
+            ].map(([key, label, desc]) => (
+              <label key={key} className="rounded-lg border border-white/10 bg-black/20 p-3 flex items-start justify-between gap-3">
+                <span>
+                  <span className="block text-sm text-nofx-text-main">{label}</span>
+                  <span className="block text-[11px] text-nofx-text-muted mt-1">{desc}</span>
+                </span>
+                <input type="checkbox" checked={Boolean(safe[key as keyof EntryStructureConfig])} disabled={inactive} onChange={(e) => update({ [key]: e.target.checked } as Partial<EntryStructureConfig>)} />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+          <div className="text-xs font-medium text-cyan-300">{language === 'zh' ? '2. 结构证据要求' : '2. Structural evidence requirements'}</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {[
+              ['require_support_resistance', language === 'zh' ? '必须支撑/阻力地图' : 'Require support/resistance map', language === 'zh' ? '要求给出支撑和阻力列表。' : 'Require support and resistance level lists.'],
+              ['require_structural_anchors', language === 'zh' ? '必须本单结构锚点' : 'Require trade-specific anchors', language === 'zh' ? '要求说明本单具体引用哪些结构位。' : 'Require the specific anchors used by this trade.'],
+              ['require_fibonacci', language === 'zh' ? '必须 Fibonacci 共振' : 'Require Fibonacci confluence', language === 'zh' ? '要求 fib swing 和 levels；更严格，开仓会更少。' : 'Require fib swing anchors and levels; stricter, fewer entries.'],
+            ].map(([key, label, desc]) => (
+              <label key={key} className="rounded-lg border border-white/10 bg-black/20 p-3 flex items-start justify-between gap-3">
+                <span>
+                  <span className="block text-sm text-nofx-text-main">{label}</span>
+                  <span className="block text-[11px] text-nofx-text-muted mt-1">{desc}</span>
+                </span>
+                <input type="checkbox" checked={Boolean(safe[key as keyof EntryStructureConfig])} disabled={inactive} onChange={(e) => update({ [key]: e.target.checked } as Partial<EntryStructureConfig>)} />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+          <div className="text-xs font-medium text-cyan-300">{language === 'zh' ? '3. 价格联动要求' : '3. Price-linkage requirement'}</div>
+          <label className="rounded-lg border border-white/10 bg-black/20 p-3 flex items-start justify-between gap-3">
+            <span>
+              <span className="block text-sm text-nofx-text-main">{language === 'zh' ? '止损/目标必须贴近结构位' : 'SL/target must link to structure'}</span>
+              <span className="block text-[11px] text-nofx-text-muted mt-1">{language === 'zh' ? '检查 invalidation / first target 是否真的靠近支撑、阻力、锚点或 fib，而不是只在文字里说参考结构。' : 'Check whether invalidation / first target are truly near support, resistance, anchors, or fib levels.'}</span>
+            </span>
+            <input type="checkbox" checked={Boolean(safe.require_invalidation_target_linkage)} disabled={inactive} onChange={(e) => update({ require_invalidation_target_linkage: e.target.checked })} />
+          </label>
         </div>
       </div>
 
       <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
         <div>
           <div className="text-sm font-medium text-nofx-text-main">
-            {language === 'zh' ? '实盘审计可见性' : 'Runtime audit visibility'}
+            {language === 'zh' ? '复盘展示' : 'Review visibility'}
           </div>
           <div className="text-xs text-nofx-text-muted mt-1">
             {language === 'zh'
-              ? '控制持仓历史里应该突出哪些结构证据，方便复盘真实开仓。当前先作为 UI / 数据契约前置。'
-              : 'Control which structural evidence should be highlighted in position history so real opens are easier to audit. For now this acts as a UI/data-contract readiness layer.'}
+              ? '只控制持仓历史和面板里突出展示哪些结构证据，方便复盘真实开仓；不作为开仓硬约束。'
+              : 'Only controls which structural evidence is highlighted in position history/panels for review; not a hard entry gate.'}
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

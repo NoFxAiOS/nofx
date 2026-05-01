@@ -160,6 +160,7 @@ export interface RegimeFilterConfig {
   block_high_volatility: boolean;
   max_atr14_pct: number;
   require_trend_alignment: boolean;
+  trend_alignment_mode?: 'strict' | 'allow_range_edge_reversal';
 
   // Entry confidence gate (moved from RiskControl)
   min_confidence?: number;        // 0-100, minimum AI confidence to open

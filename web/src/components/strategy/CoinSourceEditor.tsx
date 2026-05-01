@@ -804,6 +804,21 @@ export function CoinSourceEditor({
             <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
               {language === 'zh' ? '每个分类取前 N 个币种，去重后合并' : 'Top N per category, merged and deduplicated'}
             </p>
+            <div className="mt-3 rounded-lg border border-nofx-border bg-nofx-bg p-3 text-xs text-nofx-text-muted space-y-1.5">
+              <div className="font-medium text-nofx-text">
+                {language === 'zh' ? '筛选与打分机制' : 'Filtering & scoring'}
+              </div>
+              <p>
+                {language === 'zh'
+                  ? '三类市场榜单共用质量过滤：低成交额、低 OI 深度、极端 24h 涨跌会被过滤；榜单结果缓存 180 秒，与当前 AI 分析周期对齐。'
+                  : 'All market lists share a quality filter: low volume, shallow OI, and extreme 24h moves are filtered; list results are cached for 180s to match the current AI cycle.'}
+              </p>
+              <p>
+                {language === 'zh'
+                  ? 'Hot 总排行综合 T=可交易价值、L=流动性、OI=持仓深度、A=活跃度、M=动量；OI 增减榜以 OI 变化为主轴，同时叠加可交易价值评分。'
+                  : 'Hot ranking blends T=tradability, L=liquidity, OI=depth, A=activity, and M=momentum; OI increase/decrease lists are led by OI change and adjusted by tradability scores.'}
+              </p>
+            </div>
           </div>
         </div>
       )}

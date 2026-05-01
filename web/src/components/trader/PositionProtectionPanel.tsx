@@ -82,7 +82,7 @@ function getOrderSourceLabel(order: OpenOrder, language: Language): string {
   if (id.includes('ladder_sl')) return language === 'zh' ? 'Ladder 止损' : 'Ladder SL'
   if (id.includes('ladder_tp')) return language === 'zh' ? 'Ladder 止盈' : 'Ladder TP'
   if (id.includes('break_even') || id.includes('breakeven')) return language === 'zh' ? '保本止损' : 'Break-even SL'
-  if (id.includes('drawdown') || id.includes('trailing')) return language === 'zh' ? 'Drawdown / trailing' : 'Drawdown / trailing'
+  if (id.includes('drawdown') || id.includes('trailing')) return language === 'zh' ? '回撤跟踪' : 'Drawdown trailing'
   return ''
 }
 
@@ -105,6 +105,26 @@ function buildProtectionRows(position: Position, orders: OpenOrder[], language: 
       source: getOrderSourceLabel(order, language),
     }
   })
+}
+
+function formatLadderPlanLine(rule: any, idx: number, language: Language): string {
+  const tpPrice = Number(rule.take_profit_price ?? rule.Price ?? rule.price ?? 0)
+  const tpPct = Number(rule.take_profit_pct ?? 0)
+  const tpRatio = Number(rule.take_profit_close_ratio_pct ?? rule.CloseRatioPct ?? rule.close_ratio_pct ?? 0)
+  const slPrice = Number(rule.stop_loss_price ?? rule.Price ?? rule.price ?? 0)
+  const slPct = Number(rule.stop_loss_pct ?? 0)
+  const slRatio = Number(rule.stop_loss_close_ratio_pct ?? rule.CloseRatioPct ?? rule.close_ratio_pct ?? 0)
+  const buf = Number(rule.volatility_buffer_pct ?? 0)
+  const left = language === 'zh' ? `#${idx + 1}` : `#${idx + 1}`
+  const parts: string[] = []
+  if (tpPrice > 0 || tpPct > 0 || tpRatio > 0) {
+    parts.push(`TP ${tpPrice > 0 ? formatPrice(tpPrice) : '—'}${tpPct > 0 ? ` (${tpPct.toFixed(2)}%)` : ''}${tpRatio > 0 ? ` · ${tpRatio.toFixed(0)}%` : ''}`)
+  }
+  if (slPrice > 0 || slPct > 0 || slRatio > 0) {
+    parts.push(`SL ${slPrice > 0 ? formatPrice(slPrice) : '—'}${slPct > 0 ? ` (${slPct.toFixed(2)}%)` : ''}${slRatio > 0 ? ` · ${slRatio.toFixed(0)}%` : ''}`)
+  }
+  if (buf > 0) parts.push(`${language === 'zh' ? '缓冲' : 'buffer'} ${buf.toFixed(2)}%`)
+  return `${left} ${parts.join(' / ') || '—'}`
 }
 
 function compactProtectionLabel(state: string | undefined, language: Language, exchange?: string): string {
@@ -222,13 +242,29 @@ function getAuditToggleText(audit: Position['entry_structure_audit'] | undefined
 
 // ── Structural alignment badge ────────────────────────────────────────
 
-function structuralAlignBadge(price: number, candidates: Array<{ label: string; value: number }>): { text: string; cls: string } {
+function compactStructureLabel(label: string, language: Language): string {
+  if (label === 'inv') return language === 'zh' ? '失效位' : 'invalidation'
+  if (label === 'tgt') return language === 'zh' ? '目标位' : 'target'
+  if (label.startsWith('S')) return language === 'zh' ? `支撑${label.slice(1)}` : label
+  if (label.startsWith('R')) return language === 'zh' ? `阻力${label.slice(1)}` : label
+  if (label.startsWith('swL')) return language === 'zh' ? `摆动低点${label.slice(3)}` : label
+  if (label.startsWith('swH')) return language === 'zh' ? `摆动高点${label.slice(3)}` : label
+  return label
+}
+
+function structuralBufferBadge(price: number, candidates: Array<{ label: string; value: number }>, language: Language): { text: string; cls: string; title: string } {
   const nearest = nearestLevelMapping(price, candidates)
-  if (!nearest) return { text: '—', cls: 'text-nofx-text-muted' }
+  if (!nearest) return { text: '—', cls: 'text-nofx-text-muted', title: language === 'zh' ? '没有可比较的结构位' : 'No structure level available' }
   const absDiff = Math.abs(nearest.diffPct)
-  if (absDiff < 0.3) return { text: `✅ ${nearest.label} (${absDiff.toFixed(1)}%)`, cls: 'text-emerald-300' }
-  if (absDiff < 1.0) return { text: `⚠️ ${nearest.label} (${absDiff.toFixed(1)}%)`, cls: 'text-amber-300' }
-  return { text: `❌ ${nearest.label} (${absDiff.toFixed(1)}%)`, cls: 'text-red-400' }
+  const label = compactStructureLabel(nearest.label, language)
+  const suffix = language === 'zh' ? `${label} · 缓冲 ${absDiff.toFixed(1)}%` : `${label} · ${absDiff.toFixed(1)}% buffer`
+  const title = language === 'zh'
+    ? `离最近结构位 ${label} 约 ${absDiff.toFixed(2)}%。这里衡量的是保护价相对结构位预留的有效突破/跌破缓冲，不是“越贴越好”。⚪ <0.05% 基本贴线，容易被针刺/噪声触发；✅ 0.05–1.0% 通常属于可接受结构缓冲；⚠️ 1.0–2.0% 缓冲偏宽，需要 ATR/波动解释；❌ >2.0% 可能脱离原结构锚点。`
+    : `About ${absDiff.toFixed(2)}% away from nearest structure level ${label}. This measures effective-break buffer around the structure, not “closer is always better”. ⚪ <0.05% nearly naked on the level; ✅ 0.05–1.0% generally acceptable buffer; ⚠️ 1.0–2.0% wide buffer, needs ATR/volatility explanation; ❌ >2.0% may be detached from the structure anchor.`
+  if (absDiff < 0.05) return { text: `⚪ ${suffix}`, cls: 'text-nofx-text-muted', title }
+  if (absDiff <= 1.0) return { text: `✅ ${suffix}`, cls: 'text-emerald-300', title }
+  if (absDiff <= 2.0) return { text: `⚠️ ${suffix}`, cls: 'text-amber-300', title }
+  return { text: `❌ ${suffix}`, cls: 'text-red-400', title }
 }
 
 // ── Collapsible section ───────────────────────────────────────────────
@@ -368,6 +404,9 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const plannedLadderTakeProfitCount = Number(rt?.planned_ladder_take_profit_count ?? 0)
           const liveLadderStopCount = Number(rt?.live_ladder_stop_count ?? 0)
           const liveLadderTakeProfitCount = Number(rt?.live_ladder_take_profit_count ?? 0)
+          const plannedLadderOrders = rt?.planned_ladder_orders || {}
+          const plannedLadderTPOrders = Array.isArray(plannedLadderOrders.take_profit) ? plannedLadderOrders.take_profit : []
+          const plannedLadderSLOrders = Array.isArray(plannedLadderOrders.stop_loss) ? plannedLadderOrders.stop_loss : []
 
           // Entry structure data
           const entryReviewSummary = position.entry_review_summary
@@ -439,7 +478,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                         <th className="text-right py-1.5 px-3 font-medium">{language === 'zh' ? '触发价' : 'Trigger'}</th>
                         <th className="text-right py-1.5 px-3 font-medium">{language === 'zh' ? '偏移' : 'vs Entry'}</th>
                         <th className="text-right py-1.5 px-3 font-medium">{language === 'zh' ? '比例' : 'Ratio'}</th>
-                        <th className="text-left py-1.5 px-3 font-medium">{language === 'zh' ? '结构对齐' : 'Structure'}</th>
+                        <th className="text-left py-1.5 px-3 font-medium">{language === 'zh' ? '结构缓冲' : 'Structure Buffer'}</th>
                         <th className="text-right py-1.5 pl-3 font-medium">{language === 'zh' ? '状态' : 'Status'}</th>
                       </tr>
                     </thead>
@@ -447,8 +486,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                       {protectionRows.map((row) => {
                         const badge = statusBadge(row.visualStatus, language)
                         const align = row.bucket === 'trailing' && row.callbackRate > 0
-                          ? { text: '—', cls: 'text-nofx-text-muted' }
-                          : structuralAlignBadge(row.triggerPrice, structureCandidates)
+                          ? { text: language === 'zh' ? '按回调比例执行' : 'callback-based', cls: 'text-nofx-text-muted', title: language === 'zh' ? 'Trailing 单没有固定止损/止盈价；触发后按回调比例移动，所以不做静态结构缓冲距离评估。' : 'Trailing order has no fixed stop/target price; it moves by callback after activation, so no static structure-buffer distance is evaluated.' }
+                          : structuralBufferBadge(row.triggerPrice, structureCandidates, language)
                         const deltaColor = row.deltaPct > 0 ? 'text-nofx-green' : row.deltaPct < 0 ? 'text-nofx-red' : 'text-nofx-text-muted'
                         return (
                           <tr key={`${row.orderId}-${row.type}-${row.triggerPrice}`} className="border-b border-white/5">
@@ -458,7 +497,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                               {row.closeRatioPct > 0 && row.closeRatioPct < 100 ? <span className="text-nofx-text-muted ml-1">({row.closeRatioPct.toFixed(0)}%)</span> : null}
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono text-nofx-text-main">
-                              {row.bucket === 'trailing' && row.callbackRate > 0 ? `cb ${row.callbackRate.toFixed(2)}%` : formatPrice(row.triggerPrice)}
+                              {row.bucket === 'trailing' && row.callbackRate > 0 ? `cb ${row.callbackRate.toFixed(3)}%` : formatPrice(row.triggerPrice)}
                             </td>
                             <td className={`py-1.5 px-3 text-right font-mono ${deltaColor}`}>
                               {row.bucket === 'trailing' && row.callbackRate > 0 ? '—' : formatSignedPercent(row.deltaPct)}
@@ -466,7 +505,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                             <td className="py-1.5 px-3 text-right font-mono text-nofx-text-main">
                               {row.closeRatioPct > 0 ? `${row.closeRatioPct.toFixed(0)}%` : '—'}
                             </td>
-                            <td className={`py-1.5 px-3 text-left text-[11px] ${align.cls}`}>{align.text}</td>
+                            <td className={`py-1.5 px-3 text-left text-[11px] ${align.cls}`} title={align.title}>{align.text}</td>
                             <td className="py-1.5 pl-3 text-right">
                               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span>
                             </td>
@@ -489,6 +528,26 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                 {ladderSummary && <span className="text-nofx-text-main">{ladderSummary}</span>}
                 {linkageStatus && <span>{language === 'zh' ? '联动' : 'Linkage'}: <span className="text-nofx-text-main">{linkageStatus}</span></span>}
               </div>
+
+              {ladderSummary && (
+                <div className="rounded-lg border border-yellow-500/15 bg-yellow-500/[0.04] p-3 text-xs">
+                  <div className="flex items-center justify-between gap-2 mb-2"><div className="text-[11px] font-medium text-nofx-text-muted uppercase tracking-wide">{language === 'zh' ? 'Ladder 计划价位' : 'Ladder planned levels'}</div><div className="text-[10px] text-nofx-text-muted">{language === 'zh' ? '计划 vs 实盘委托' : 'plan vs live orders'}</div></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {plannedLadderTPOrders.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-nofx-text-muted">{language === 'zh' ? '止盈' : 'Take profit'}</div>
+                        {plannedLadderTPOrders.map((rule: any, idx: number) => <div key={`tp-${idx}`} className="font-mono text-[11px] text-nofx-text-main">{formatLadderPlanLine(rule, idx, language)}</div>)}
+                      </div>
+                    )}
+                    {plannedLadderSLOrders.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-nofx-text-muted">{language === 'zh' ? '止损' : 'Stop loss'}</div>
+                        {plannedLadderSLOrders.map((rule: any, idx: number) => <div key={`sl-${idx}`} className="font-mono text-[11px] text-nofx-text-main">{formatLadderPlanLine(rule, idx, language)}</div>)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* ── Layer 3: Drawdown Tier Structure Map ── */}
               {runtimeTiers.length > 0 && (

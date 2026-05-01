@@ -204,6 +204,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
   const rr = ctx?.risk_reward
   const control = ctx?.control
   const executionConstraintItems = formatExecutionConstraintItems(ctx?.execution_constraints)
+  const executionQualityItems = formatExecutionQualityItems(ctx?.extra?.execution_quality)
   const actionAudit = formatActionAudit(control)
   const normalizedDecision = String(control?.decision || '').toLowerCase()
   const controlStatus = normalizedDecision
@@ -251,6 +252,7 @@ export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
     alignmentNotes: formatAlignmentNotes(ctx, 3),
     anchors: ctx?.anchors || [],
     executionConstraintItems,
+    executionQualityItems,
   }
 }
 
@@ -321,6 +323,26 @@ function formatExecutionConstraintItems(constraints?: DecisionActionReviewContex
   const slippage = formatOptionalNumber(constraints.estimated_slippage_bps, 2)
   if (slippage) items.push({ label: `slip ${slippage}bps`, tone: 'cost' })
 
+  return items
+}
+
+function formatExecutionQualityItems(quality?: DecisionActionReviewContext['extra'] extends infer E ? E extends { execution_quality?: infer Q } ? Q : never : never): { label: string; tone?: 'cost' | 'warn' | 'danger' }[] {
+  if (!quality || typeof quality !== 'object') return []
+  const q = quality as NonNullable<DecisionActionReviewContext['extra']>['execution_quality']
+  if (!q) return []
+  const items: { label: string; tone?: 'cost' | 'warn' | 'danger' }[] = []
+  if (q.grade) {
+    items.push({ label: `exec ${q.grade}`, tone: q.grade === 'D' ? 'danger' : q.grade === 'C' ? 'warn' : undefined })
+  }
+  const spread = formatOptionalNumber(q.spread_bps, 2)
+  if (spread) items.push({ label: `spread ${spread}bps`, tone: 'cost' })
+  const slip = formatOptionalNumber(q.estimated_slippage_bps, 2)
+  if (slip) items.push({ label: `slip ${slip}bps`, tone: 'cost' })
+  const minOrder = formatOptionalNumber(q.min_order_notional_usdt, 2)
+  if (minOrder) items.push({ label: `min order ${minOrder} USDT` })
+  if (q.ladder_tiers_feasible) items.push({ label: `ladder feasible ${q.ladder_tiers_feasible}` })
+  if (q.partial_close_feasible === false) items.push({ label: 'partial weak', tone: 'warn' })
+  if (q.reason) items.push({ label: q.reason, tone: q.grade === 'D' ? 'danger' : q.grade === 'C' ? 'warn' : undefined })
   return items
 }
 
@@ -424,6 +446,7 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
     audit.timeframeTrail.length === 0 &&
     audit.alignmentNotes.length === 0 &&
     audit.executionConstraintItems.length === 0 &&
+    audit.executionQualityItems.length === 0 &&
     !policyStatus &&
     !audit.controlStatus &&
     !audit.actionAudit &&
@@ -606,6 +629,25 @@ function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
                 item.tone === 'cost'
                   ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
                   : 'border-slate-500/20 bg-slate-500/10 text-slate-200'
+              }`}
+            >
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.executionQualityItems.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.executionQualityItems.map((item, idx) => (
+            <span
+              key={`exec-quality-${idx}`}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 ${
+                item.tone === 'danger'
+                  ? 'border-red-500/20 bg-red-500/10 text-red-200'
+                  : item.tone === 'warn' || item.tone === 'cost'
+                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                    : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-200'
               }`}
             >
               {item.label}

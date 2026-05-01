@@ -127,10 +127,32 @@ export function PreEntryGateEditor({ config, onChange, disabled, language }: Pre
         </div>
 
         {/* Trend Alignment */}
-        <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}>
-          <input type="checkbox" checked={config.require_trend_alignment} onChange={(e) => update('require_trend_alignment', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-sky-500" />
-          {ts(preEntryGate.requireTrendAlignment, language)}
-        </label>
+        <div className="space-y-2 rounded-lg p-3" style={{ background: '#11161C', border: '1px solid #2B3139' }}>
+          <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}>
+            <input type="checkbox" checked={config.require_trend_alignment} onChange={(e) => update('require_trend_alignment', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-sky-500" />
+            {ts(preEntryGate.requireTrendAlignment, language)}
+          </label>
+          <div className="text-[11px] leading-relaxed" style={{ color: '#848E9C' }}>
+            {isZh ? '注意：即使允许了“下跌趋势”，开启趋势同向后仍会拒绝下跌趋势里的做多；允许“上涨趋势”也仍会拒绝上涨趋势里的做空。' : 'Note: allowing a regime does not allow both directions; with trend alignment on, longs are blocked in downtrends and shorts are blocked in uptrends.'}
+          </div>
+          {config.require_trend_alignment && (
+            <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}>
+              <input
+                type="checkbox"
+                checked={(config.trend_alignment_mode || 'strict') === 'allow_range_edge_reversal'}
+                onChange={(e) => update('trend_alignment_mode', (e.target.checked ? 'allow_range_edge_reversal' : 'strict') as RegimeFilterConfig['trend_alignment_mode'])}
+                disabled={disabled}
+                className="h-4 w-4 accent-amber-500"
+              />
+              {isZh ? '允许 range_edge 支撑/阻力逆势例外' : 'Allow range_edge support/resistance reversal exception'}
+            </label>
+          )}
+          {config.require_trend_alignment && (config.trend_alignment_mode || 'strict') === 'allow_range_edge_reversal' && (
+            <div className="text-[11px] leading-relaxed" style={{ color: '#F0B90B' }}>
+              {isZh ? '仅对 setup_type=range_edge 生效；仍要求价格接近布林/结构边缘、短线动量不过度极端，并继续经过 RR、结构、保护门禁。' : 'Only applies to setup_type=range_edge; price must be near a band/structure edge, momentum must not be extreme, and RR/structure/protection gates still apply.'}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Section 2: Entry Structure */}

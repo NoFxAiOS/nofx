@@ -86,6 +86,13 @@ function getOrderSourceLabel(order: OpenOrder, language: Language): string {
   return ''
 }
 
+function normalizeCallbackRate(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0
+  if (value > 1) return value / 100
+  if (value >= 0.1) return value / 100
+  return value
+}
+
 function buildProtectionRows(position: Position, orders: OpenOrder[], language: Language) {
   const positionQty = position.quantity || 0
   const entryPrice = position.entry_price || 0
@@ -98,7 +105,7 @@ function buildProtectionRows(position: Position, orders: OpenOrder[], language: 
     return {
       orderId: order.order_id,
       type: String(order.type || '').toUpperCase(),
-      triggerPrice, callbackRate: Number(order.callback_rate || 0),
+      triggerPrice, callbackRate: normalizeCallbackRate(Number(order.callback_rate || 0)),
       closeRatioPct, valueUsdt, deltaPct, bucket,
       visualStatus: getVisualStatus(order, bucket, triggerPrice, 0),
       label: getOrderLabel(bucket, language),
@@ -497,7 +504,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                               {row.closeRatioPct > 0 && row.closeRatioPct < 100 ? <span className="text-nofx-text-muted ml-1">({row.closeRatioPct.toFixed(0)}%)</span> : null}
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono text-nofx-text-main">
-                              {row.bucket === 'trailing' && row.callbackRate > 0 ? `cb ${row.callbackRate.toFixed(3)}%` : formatPrice(row.triggerPrice)}
+                              {row.bucket === 'trailing' && row.callbackRate > 0 ? `cb ${(row.callbackRate * 100).toFixed(2)}%` : formatPrice(row.triggerPrice)}
                             </td>
                             <td className={`py-1.5 px-3 text-right font-mono ${deltaColor}`}>
                               {row.bucket === 'trailing' && row.callbackRate > 0 ? '—' : formatSignedPercent(row.deltaPct)}

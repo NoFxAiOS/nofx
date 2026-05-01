@@ -434,6 +434,19 @@ func (t *OKXTrader) ValidateProtectionQuantity(symbol string, quantity float64) 
 	return nil
 }
 
+func normalizeOKXCallbackRatio(callbackRatio float64) float64 {
+	if callbackRatio <= 0 {
+		return 0
+	}
+	if callbackRatio > 1 {
+		return callbackRatio / 100.0
+	}
+	if callbackRatio >= 0.1 {
+		return callbackRatio / 100.0
+	}
+	return callbackRatio
+}
+
 // SetTrailingStopLoss sets a native trailing stop on OKX advance algo orders
 func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
 	return t.setTrailingStopLossWithTag(symbol, positionSide, activationPrice, callbackRate, quantity, "")
@@ -1195,6 +1208,12 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 				quantity := quantityContracts * ctVal
 				activePx, _ := strconv.ParseFloat(order.ActivePx, 64)
 				callbackRatio, _ := strconv.ParseFloat(order.CallbackRatio, 64)
+				// OKX returns callbackRatio in percentage units (for example "0.55" means
+				// 0.55%). Internally OpenOrder.CallbackRate is a decimal ratio, matching
+				// the value we pass when placing trailing orders (0.0055). Normalizing here
+				// prevents equivalent-order detection from missing live native trailing
+				// orders and re-placing the same tier every monitor/reconcile pass.
+				callbackRate := normalizeOKXCallbackRatio(callbackRatio)
 				side := strings.ToUpper(order.Side)
 				positionSide := strings.ToUpper(order.PosSide)
 				if positionSide == "NET" {
@@ -1209,7 +1228,7 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 					Price:           0,
 					StopPrice:       activePx,
 					ActivationPrice: activePx,
-					CallbackRate:    callbackRatio,
+					CallbackRate:    callbackRate,
 					CallbackRatePct: callbackRatio,
 					Quantity:        quantity,
 					Status:          "NEW",

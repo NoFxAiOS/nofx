@@ -270,7 +270,11 @@ func (t *OKXTrader) SyncOpenProtectionOrdersToStore(traderID string, exchangeID 
 				}
 				activation, _ := strconv.ParseFloat(firstNonEmpty(order.ActivePx, order.TriggerPx, order.SlTriggerPx, order.TpTriggerPx), 64)
 				callback, _ := strconv.ParseFloat(order.CallbackRatio, 64)
-				t.recordProtectionOrder(st, traderID, exchangeID, exchangeType, symbol, order.Side, posSide, order.AlgoID, reason, activation, callback, qty)
+				// OKX callbackRatio is reported in percentage units; store/order runtime
+				// comparisons use decimal ratios. Keep persisted metadata consistent with
+				// GetOpenOrders so synced native trailing orders can be matched reliably.
+				callbackRate := normalizeOKXCallbackRatio(callback)
+				t.recordProtectionOrder(st, traderID, exchangeID, exchangeType, symbol, order.Side, posSide, order.AlgoID, reason, activation, callbackRate, qty)
 			}
 		}
 	}

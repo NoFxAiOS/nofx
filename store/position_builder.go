@@ -107,6 +107,14 @@ func (pb *PositionBuilder) handleClose(
 	}
 
 	if position == nil {
+		fallback, fallbackErr := pb.positionStore.GetRecentlyClosedSyncAbsentPosition(traderID, symbol, side, tradeTimeMs, 2*time.Minute)
+		if fallbackErr != nil {
+			return fallbackErr
+		}
+		if fallback != nil {
+			logger.Infof("  🩹 Late close fill matched recently sync-closed position: %s %s qty=%.6f @ %.8f (orderID: %s, positionID: %d)", symbol, side, quantity, price, orderID, fallback.ID)
+			return pb.positionStore.ApplyLateCloseFillToClosedPosition(fallback.ID, quantity, price, fee, realizedPnL, action, action, "MARKET", orderID, tradeTimeMs)
+		}
 		// No open position found - just skip
 		// This can happen if trades are processed out of order or database was cleared
 		logger.Infof("  ⚠️  No matching open position for %s %s (orderID: %s), skipping", symbol, side, orderID)

@@ -63,25 +63,7 @@ export function buildStrategySavePayload(
     },
   }
 
-  const activeAiRoute = protection.drawdown_take_profit.enabled && protection.drawdown_take_profit.mode === 'ai'
-    ? 'drawdown'
-    : protection.ladder_tp_sl.enabled && protection.ladder_tp_sl.mode === 'ai'
-      ? 'ladder'
-      : protection.full_tp_sl.enabled && protection.full_tp_sl.mode === 'ai'
-        ? 'full'
-        : null
-
-  if (activeAiRoute !== 'full' && protection.full_tp_sl.mode === 'ai') {
-    protection.full_tp_sl.mode = 'manual'
-  }
-  if (activeAiRoute !== 'ladder' && protection.ladder_tp_sl.mode === 'ai') {
-    protection.ladder_tp_sl.mode = 'manual'
-  }
-  if (activeAiRoute !== 'drawdown' && protection.drawdown_take_profit.mode === 'ai') {
-    protection.drawdown_take_profit.mode = 'manual'
-    protection.drawdown_take_profit.engine_mode = 'manual'
-  }
-  if (activeAiRoute === 'drawdown') {
+  if (protection.drawdown_take_profit.mode === 'ai') {
     protection.drawdown_take_profit.engine_mode = 'ai'
   }
 
@@ -551,11 +533,16 @@ export function StrategyStudioPage() {
         )}
         {mode === 'ladder' && Array.isArray(plan.ladder_rules) && (
           <div className="mt-1 space-y-1">
-            {plan.ladder_rules.map((rule: any, idx: number) => (
-              <div key={idx} className="text-[11px] text-nofx-text-muted">
-                #{idx + 1} TP {String(rule.take_profit_pct ?? '-')}% / {String(rule.take_profit_close_ratio_pct ?? '-')}% · SL {String(rule.stop_loss_pct ?? '-')}% / {String(rule.stop_loss_close_ratio_pct ?? '-')}%
-              </div>
-            ))}
+            {plan.ladder_rules.map((rule: any, idx: number) => {
+              const tpPrice = rule.take_profit_price ?? rule.tp_level ?? rule.tp_price
+              const slPrice = rule.stop_loss_price ?? rule.sl_level ?? rule.sl_price
+              const buffer = rule.volatility_buffer_pct ?? rule.buffer_pct
+              return (
+                <div key={idx} className="text-[11px] text-nofx-text-muted">
+                  #{idx + 1} TP {tpPrice ? `${String(tpPrice)} / ` : ''}{String(rule.take_profit_pct ?? '-')}% / {String(rule.take_profit_close_ratio_pct ?? '-')}% · SL {slPrice ? `${String(slPrice)} / ` : ''}{String(rule.stop_loss_pct ?? '-')}% / {String(rule.stop_loss_close_ratio_pct ?? '-')}%{buffer ? ` · buffer ${String(buffer)}%` : ''}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

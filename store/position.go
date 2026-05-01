@@ -694,6 +694,121 @@ func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*Trade
 	return positions, nil
 }
 
+// GetRecentlyClosedSyncAbsentPosition returns the most recent position closed via
+// sync_absent_from_exchange for the same symbol/side within the specified delay window.
+func (s *PositionStore) GetRecentlyClosedSyncAbsentPosition(traderID, symbol, side string, tradeTimeMs int64, maxDelay time.Duration) (*TraderPosition, error) {
+	if s.db == nil || traderID == "" || symbol == "" || side == "" || tradeTimeMs <= 0 {
+		return nil, nil
+	}
+	if maxDelay <= 0 {
+		maxDelay = 2 * time.Minute
+	}
+	minExitTime := tradeTimeMs - maxDelay.Milliseconds()
+	var pos TraderPosition
+	err := s.db.Where("trader_id = ? AND symbol = ? AND side = ? AND status = ? AND close_reason = ? AND exit_time > 0 AND exit_time <= ? AND exit_time >= ?",
+		traderID, symbol, side, "CLOSED", "sync_absent_from_exchange", tradeTimeMs, minExitTime).
+		Order("exit_time DESC, id DESC").
+		First(&pos).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query recently closed sync-absent position: %w", err)
+	}
+	if pos.EntryQuantity == 0 {
+		pos.EntryQuantity = pos.Quantity
+	}
+	return &pos, nil
+}
+
+// ApplyLateCloseFillToClosedPosition backfills a close fill that arrived after the
+// local position had already been marked closed. This preserves close-event and PnL
+// accounting for short sync gaps without reopening the position.
+func (s *PositionStore) ApplyLateCloseFillToClosedPosition(id int64, closeQty float64, exitPrice float64, addFee float64, addPnL float64, closeReason string, executionSource string, executionType string, exchangeOrderID string, eventTimeMs int64) error {
+	if s.db == nil || id <= 0 || closeQty <= 0 {
+		return nil
+	}
+	var pos TraderPosition
+	if err := s.db.First(&pos, id).Error; err != nil {
+		return fmt.Errorf("failed to get closed position: %w", err)
+	}
+	if pos.Status != "CLOSED" {
+		return fmt.Errorf("position %d is not closed", id)
+	}
+	entryQty := pos.EntryQuantity
+	if entryQty <= 0 {
+		entryQty = pos.Quantity
+	}
+	if entryQty <= 0 {
+		return nil
+	}
+
+	events, err := NewPositionCloseEventStore(s.db).ListByPositionID(id)
+	if err != nil {
+		return err
+	}
+	closedBefore := 0.0
+	recordedCloseValue := 0.0
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		closedBefore += event.CloseQuantity
+		recordedCloseValue += event.ExecutionPrice * event.CloseQuantity
+	}
+	remaining := entryQty - closedBefore
+	if remaining <= 0 {
+		return nil
+	}
+	appliedQty := closeQty
+	if appliedQty > remaining {
+		appliedQty = remaining
+	}
+	if appliedQty <= 0 {
+		return nil
+	}
+
+	recordedExitPrice := pos.ExitPrice
+	if closedBefore > 0 {
+		recordedExitPrice = recordedCloseValue / closedBefore
+	} else if recordedExitPrice == 0 {
+		recordedExitPrice = pos.EntryPrice
+	}
+	newClosedQty := closedBefore + appliedQty
+	newExitPrice := exitPrice
+	if newClosedQty > 0 {
+		newExitPrice = adaptivePriceRound((recordedExitPrice*closedBefore+exitPrice*appliedQty)/newClosedQty, recordedExitPrice, exitPrice, pos.EntryPrice)
+	}
+	nowMs := time.Now().UTC().UnixMilli()
+	if eventTimeMs == 0 {
+		eventTimeMs = nowMs
+	}
+	reason, source, execType := s.deriveCloseReason(&pos, exchangeOrderID, closeReason, appliedQty, exitPrice)
+	if closeReason != "" {
+		reason = closeReason
+	}
+	if executionSource != "" {
+		source = executionSource
+	}
+	if executionType != "" {
+		execType = executionType
+	}
+
+	updates := map[string]interface{}{
+		"realized_pnl": pos.RealizedPnL + addPnL,
+		"fee":          pos.Fee + addFee,
+		"exit_price":   newExitPrice,
+		"updated_at":   nowMs,
+	}
+	if pos.ExitTime == 0 || eventTimeMs > pos.ExitTime {
+		updates["exit_time"] = eventTimeMs
+	}
+	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+	return s.logCloseEvent(&pos, reason, source, execType, exchangeOrderID, appliedQty, exitPrice, addFee, addPnL, eventTimeMs)
+}
+
 // GetAllOpenPositions gets all traders' open positions
 func (s *PositionStore) GetAllOpenPositions() ([]*TraderPosition, error) {
 	var positions []*TraderPosition

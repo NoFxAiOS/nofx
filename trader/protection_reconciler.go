@@ -157,6 +157,14 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	}
 	at.reconcileLocalOpenOrderStatuses(symbol, openOrders)
 
+	if currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" || currentProtectionState == "native_trailing_arming" || currentProtectionState == "native_partial_trailing_arming" {
+		if len(at.getArmedDrawdownRecordsForPosition(symbol, side, entryPrice, quantity)) == 0 {
+			logger.Infof("🟣 Protection reconciler: %s %s native trailing state belongs to an old position fingerprint, re-arming current position", symbol, positionSide)
+			currentProtectionState = ""
+			at.clearProtectionState(symbol, side)
+		}
+	}
+
 	// If native trailing drawdown is already armed/arming, generic take-profit plans should not be
 	// re-applied on top of it. But stop-loss protection must still be preserved and repaired.
 	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" || currentProtectionState == "native_trailing_arming" || currentProtectionState == "native_partial_trailing_arming"
@@ -348,7 +356,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
-	rules := at.getActiveDrawdownRules()
+	rules := at.getActiveDrawdownRulesForPosition(symbol, side)
 	if len(rules) > 0 {
 		peakPnLPct := currentPnLPct
 		at.peakPnLCacheMutex.RLock()
@@ -362,7 +370,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 		armedAny := false
-		for _, armRule := range at.getDrawdownArmRules(currentPnLPct, entryPrice, quantity, symbol, side, rules) {
+		for _, armRule := range at.getDrawdownArmRulesForNativeExposure(currentPnLPct, entryPrice, quantity, symbol, side, rules) {
 			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
 				armedAny = true
 				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (arm close=%.1f%%)", symbol, positionSide, armRule.CloseRatioPct)
@@ -717,9 +725,13 @@ func drawdownRuleFingerprint(entryPrice, quantity float64, rule store.DrawdownTa
 	return fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%.4f|%s|%.4f|%s|%s|%s|%s", entryPrice, quantity, rule.MinProfitPct, rule.MaxDrawdownPct, rule.CloseRatioPct, rule.StageName, rule.RunnerKeepPct, rule.RunnerStopMode, rule.RunnerStopSource, rule.RunnerTargetMode, rule.RunnerTargetSource)
 }
 
-func (at *AutoTrader) refreshDrawdownExecutionFingerprint(symbol, side string, entryPrice, quantity float64) bool {
+func stableDrawdownRuleFingerprint(entryPrice float64, rule store.DrawdownTakeProfitRule) string {
+	return drawdownRuleFingerprint(entryPrice, 0, rule)
+}
+
+func (at *AutoTrader) refreshDrawdownExecutionFingerprint(symbol, side string, entryPrice float64) bool {
 	key := positionKey(symbol, side)
-	base := fmt.Sprintf("%.8f|%.8f", entryPrice, quantity)
+	base := fmt.Sprintf("%.8f|", entryPrice)
 
 	at.protectionStateMutex.Lock()
 	defer at.protectionStateMutex.Unlock()
@@ -730,7 +742,7 @@ func (at *AutoTrader) refreshDrawdownExecutionFingerprint(symbol, side string, e
 	if !ok || prev == "" {
 		return false
 	}
-	if !strings.HasPrefix(prev, base+"|") && prev != base {
+	if !strings.HasPrefix(prev, base) && prev != strings.TrimSuffix(base, "|") {
 		delete(at.drawdownState, key)
 		return true
 	}
@@ -775,6 +787,28 @@ func (at *AutoTrader) clearDrawdownRunnerState(symbol, side string) {
 func (at *AutoTrader) isBreakEvenSuppressedByRunner(symbol, side string) bool {
 	state := at.getDrawdownRunnerState(symbol, side)
 	return state != nil && state.BreakEvenSuppressedByRunner
+}
+
+func isNativeTrailingArmingState(state string) bool {
+	return state == "native_trailing_arming" || state == "native_partial_trailing_arming"
+}
+
+func (at *AutoTrader) claimProtectionArmingState(symbol, side, expectedCurrentState, armingState string) (claimed bool, previousState string, actualState string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.protectionState == nil {
+		at.protectionState = make(map[string]string)
+	}
+	key := symbol + "_" + strings.ToLower(side)
+	actualState = at.protectionState[key]
+	if isNativeTrailingArmingState(actualState) {
+		return false, actualState, actualState
+	}
+	if actualState != expectedCurrentState {
+		return false, actualState, actualState
+	}
+	at.protectionState[key] = armingState
+	return true, actualState, actualState
 }
 
 func (at *AutoTrader) getProtectionState(symbol, side string) string {

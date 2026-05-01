@@ -33,17 +33,7 @@ func adjustNativeDrawdownCallbackRatio(entryPrice float64, side string, rule sto
 	if callbackRatio >= minNativeDrawdownCallbackRatio {
 		return adjustment, nil
 	}
-	// A native trailing callback must not be so tight that ordinary noise closes the
-	// position. Raise it to a strategy-safe floor only when the activation profit
-	// has enough room to keep the trailing stop on the profitable side of entry.
-	maxProfitableCallback := math.Abs(activationPrice-entryPrice) / activationPrice
-	if minNativeDrawdownCallbackRatio >= maxProfitableCallback {
-		return adjustment, fmt.Errorf("drawdown profit space %.6f cannot support safe callback floor %.6f", maxProfitableCallback, minNativeDrawdownCallbackRatio)
-	}
-	adjustment.CallbackRatio = minNativeDrawdownCallbackRatio
-	adjustment.Adjusted = true
-	adjustment.Reason = "callback_below_noise_floor"
-	return adjustment, nil
+	return adjustment, fmt.Errorf("drawdown callback %.6f below native safety floor %.6f; use managed drawdown fallback instead of widening callback", callbackRatio, minNativeDrawdownCallbackRatio)
 }
 
 func (at *AutoTrader) startDrawdownMonitor() {
@@ -75,7 +65,7 @@ func (at *AutoTrader) getDrawdownMonitorInterval() time.Duration {
 	}
 
 	drawdown := at.config.StrategyConfig.Protection.DrawdownTakeProfit
-	if !drawdown.Enabled || len(drawdown.Rules) == 0 {
+	if !drawdown.Enabled {
 		return time.Minute
 	}
 
@@ -147,8 +137,8 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
-		if fingerprintChanged := at.refreshDrawdownExecutionFingerprint(symbol, side, entryPrice, quantity); fingerprintChanged {
-			logger.Infof("🟠 Drawdown monitor: %s %s drawdown fingerprint changed, clearing previous execution guard", symbol, side)
+		if fingerprintChanged := at.refreshDrawdownExecutionFingerprint(symbol, side, entryPrice); fingerprintChanged {
+			logger.Infof("🟠 Drawdown monitor: %s %s drawdown entry fingerprint changed, clearing previous execution guard", symbol, side)
 		}
 
 		matchedBreakEven := at.getActiveBreakEvenConfig()
@@ -176,7 +166,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		// for tracking the drawdown once armed.
 		if at.supportsNativeTrailingStop() {
 			executionMode := at.getDrawdownExecutionMode(symbol, side)
-			armRules := at.getDrawdownArmRules(currentPnLPct, entryPrice, quantity, symbol, side, rules)
+			armRules := at.getDrawdownArmRulesForNativeExposure(currentPnLPct, entryPrice, quantity, symbol, side, rules)
 			if len(armRules) == 0 && isNativeTrailingProtectionState(at.getProtectionState(symbol, side)) {
 				logger.Infof("🟣 Drawdown monitor: %s %s already has all satisfied native trailing tiers armed (%s), skipping duplicate arm pass", symbol, side, executionMode)
 			} else {
@@ -210,14 +200,16 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		if at.supportsNativeTrailingStop() {
 			for _, triggeredRule := range triggeredRules {
-				if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
-					continue
-				}
+				at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule)
+			}
+			if at.hasArmedNativeDrawdownForPosition(symbol, side, entryPrice) {
+				logger.Infof("🟣 Drawdown monitor: %s %s native trailing drawdown is armed; skipping managed market close fallback", symbol, side)
+				continue
 			}
 		}
 
 		matchedRule := normalizeDrawdownRule(triggeredRules[0])
-		ruleFingerprint := drawdownRuleFingerprint(entryPrice, quantity, matchedRule)
+		ruleFingerprint := stableDrawdownRuleFingerprint(entryPrice, matchedRule)
 		if at.getDrawdownExecutionFingerprint(symbol, side) == ruleFingerprint {
 			logger.Infof("🟠 Drawdown monitor: %s %s rule already executed (fingerprint=%s), skipping duplicate close", symbol, side, ruleFingerprint)
 			continue
@@ -338,6 +330,15 @@ func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
 }
 
 func (at *AutoTrader) getActiveDrawdownRulesForPosition(symbol, side string) []store.DrawdownTakeProfitRule {
+	if at.config.StrategyConfig == nil {
+		return nil
+	}
+
+	cfg := at.config.StrategyConfig.Protection.DrawdownTakeProfit
+	if !cfg.Enabled {
+		return nil
+	}
+
 	if symbol != "" || side != "" {
 		key := positionKey(symbol, side)
 		at.protectionStateMutex.RLock()
@@ -351,17 +352,15 @@ func (at *AutoTrader) getActiveDrawdownRulesForPosition(symbol, side string) []s
 		}
 		at.protectionStateMutex.RUnlock()
 
-		if restored := at.restoreAIDrawdownRulesForPositionWithEntry(symbol, side, 0); len(restored) > 0 {
-			return restored
+		if cfg.Mode == store.ProtectionModeAI && at.store != nil {
+			if restored := at.restoreAIDrawdownRulesForPositionWithEntry(symbol, side, 0); len(restored) > 0 {
+				return restored
+			}
+			return nil
 		}
 	}
 
-	if at.config.StrategyConfig == nil {
-		return nil
-	}
-
-	cfg := at.config.StrategyConfig.Protection.DrawdownTakeProfit
-	if !cfg.Enabled || len(cfg.Rules) == 0 {
+	if len(cfg.Rules) == 0 {
 		return nil
 	}
 
@@ -387,6 +386,10 @@ func isDrawdownRuleSatisfied(currentPnLPct float64, rule store.DrawdownTakeProfi
 }
 
 func (at *AutoTrader) getArmedDrawdownRecords(symbol, side string) []store.DynamicProtectionRecord {
+	return at.getArmedDrawdownRecordsForPosition(symbol, side, 0, 0)
+}
+
+func (at *AutoTrader) getArmedDrawdownRecordsForPosition(symbol, side string, entryPrice, quantity float64) []store.DynamicProtectionRecord {
 	if at.store == nil {
 		return nil
 	}
@@ -394,6 +397,8 @@ func (at *AutoTrader) getArmedDrawdownRecords(symbol, side string) []store.Dynam
 	if err != nil || state == nil {
 		return nil
 	}
+	currentFingerprint := positionFingerprint(entryPrice, quantity)
+	currentEntryFingerprint := entryPositionFingerprint(entryPrice)
 	records := make([]store.DynamicProtectionRecord, 0)
 	for _, record := range state.Records {
 		if record.TraderID != "" && record.TraderID != at.id {
@@ -405,14 +410,50 @@ func (at *AutoTrader) getArmedDrawdownRecords(symbol, side string) []store.Dynam
 		if record.Status != "armed" || !isDynamicNativeProtectionType(record.ProtectionType) {
 			continue
 		}
+		if currentEntryFingerprint != "" && record.PositionFingerprint != "" {
+			if recordEntryFingerprint(record.PositionFingerprint) != currentEntryFingerprint {
+				logger.Infof("🟣 Drawdown record ignored for current position: %s %s record_fp=%s current_fp=%s type=%s", symbol, side, record.PositionFingerprint, currentFingerprint, record.ProtectionType)
+				continue
+			}
+		}
 		records = append(records, record)
 	}
 	return records
 }
 
+func positionFingerprint(entryPrice, quantity float64) string {
+	if entryPrice <= 0 || quantity <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.8f|%.8f", entryPrice, quantity)
+}
+
+func entryPositionFingerprint(entryPrice float64) string {
+	if entryPrice <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.8f", entryPrice)
+}
+
+func recordEntryFingerprint(positionFingerprint string) string {
+	parts := strings.Split(positionFingerprint, "|")
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[0]
+}
+
+func (at *AutoTrader) hasArmedNativeDrawdownForPosition(symbol, side string, entryPrice float64) bool {
+	return len(at.getArmedDrawdownRecordsForPosition(symbol, side, entryPrice, 0)) > 0
+}
+
 func (at *AutoTrader) getArmedDrawdownRuleFingerprints(symbol, side string) map[string]struct{} {
+	return at.getArmedDrawdownRuleFingerprintsForPosition(symbol, side, 0, 0)
+}
+
+func (at *AutoTrader) getArmedDrawdownRuleFingerprintsForPosition(symbol, side string, entryPrice, quantity float64) map[string]struct{} {
 	armed := make(map[string]struct{})
-	for _, record := range at.getArmedDrawdownRecords(symbol, side) {
+	for _, record := range at.getArmedDrawdownRecordsForPosition(symbol, side, entryPrice, quantity) {
 		if record.RuleFingerprint != "" {
 			armed[record.RuleFingerprint] = struct{}{}
 		}
@@ -420,18 +461,114 @@ func (at *AutoTrader) getArmedDrawdownRuleFingerprints(symbol, side string) map[
 	return armed
 }
 
+func (at *AutoTrader) hasMatchingNativeTrailingOrderForRule(symbol, side string, entryPrice float64, rule store.DrawdownTakeProfitRule, openOrders []OpenOrder) bool {
+	if len(openOrders) == 0 {
+		return false
+	}
+	plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
+	plannedCallbackRate := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
+	for _, order := range openOrders {
+		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+			continue
+		}
+		if !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			continue
+		}
+		callback := order.CallbackRate
+		if callback <= 0 && order.CallbackRatePct > 0 {
+			callback = order.CallbackRatePct / 100.0
+		}
+		if callback > 1 {
+			callback = callback / 100.0
+		}
+		callbackTolerance := 0.00025
+		activationOK := true
+		if order.StopPrice > 0 && plannedActivationPrice > 0 {
+			activationDrift := math.Abs(order.StopPrice-plannedActivationPrice) / math.Max(math.Abs(order.StopPrice), math.Abs(plannedActivationPrice))
+			activationOK = activationDrift <= 0.004
+		}
+		if activationOK && math.Abs(callback-plannedCallbackRate) <= callbackTolerance {
+			return true
+		}
+	}
+	return false
+}
+
+func (at *AutoTrader) getDrawdownArmRulesForNativeExposure(currentPnLPct, entryPrice, quantity float64, symbol, side string, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
+	// Exchange-native trailing coverage is intentionally single-tier on OKX-style
+	// venues. Live OKX behaviour showed multiple simultaneous trailing tiers on the
+	// same symbol/side can churn (place/cancel/place). Keep one exchange tier stable
+	// and let local managed drawdown + reconciler migrate it as profit advances.
+	rule, ok := selectNativeDrawdownExposureRule(currentPnLPct, rules)
+	if !ok {
+		return nil
+	}
+	return at.getDrawdownArmRulesForSelectedRule(entryPrice, quantity, symbol, side, rule)
+}
+
+func selectNativeDrawdownExposureRule(currentPnLPct float64, rules []store.DrawdownTakeProfitRule) (store.DrawdownTakeProfitRule, bool) {
+	bestSatisfied := store.DrawdownTakeProfitRule{}
+	hasSatisfied := false
+	next := store.DrawdownTakeProfitRule{}
+	hasNext := false
+	for _, raw := range rules {
+		rule := normalizeDrawdownRule(raw)
+		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
+			continue
+		}
+		if currentPnLPct >= rule.MinProfitPct {
+			if !hasSatisfied || rule.MinProfitPct > bestSatisfied.MinProfitPct {
+				bestSatisfied = rule
+				hasSatisfied = true
+			}
+			continue
+		}
+		if !hasNext || rule.MinProfitPct < next.MinProfitPct {
+			next = rule
+			hasNext = true
+		}
+	}
+	if hasSatisfied {
+		return bestSatisfied, true
+	}
+	return next, hasNext
+}
+
+func (at *AutoTrader) getDrawdownArmRulesForSelectedRule(entryPrice, quantity float64, symbol, side string, rule store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
+	rule = normalizeDrawdownRule(rule)
+	armedFingerprints := at.getArmedDrawdownRuleFingerprintsForPosition(symbol, side, entryPrice, quantity)
+	openOrders, _ := at.trader.GetOpenOrders(symbol)
+	fingerprint := stableDrawdownRuleFingerprint(entryPrice, rule)
+	if _, ok := armedFingerprints[fingerprint]; ok {
+		if at.hasMatchingNativeTrailingOrderForRule(symbol, side, entryPrice, rule, openOrders) {
+			logger.Infof("🟣 Drawdown native exposure skipped: %s %s already armed fingerprint=%s", symbol, side, fingerprint)
+			return nil
+		}
+		logger.Infof("⚠️ Drawdown native exposure record stale: %s %s fingerprint=%s has no matching exchange trailing order, re-arming", symbol, side, fingerprint)
+	}
+	logger.Infof("🟣 Drawdown native exposure selected: %s %s min=%.4f close=%.1f%% fingerprint=%s", symbol, side, rule.MinProfitPct, rule.CloseRatioPct, fingerprint)
+	return []store.DrawdownTakeProfitRule{rule}
+}
+
 func (at *AutoTrader) getDrawdownArmRules(currentPnLPct, entryPrice, quantity float64, symbol, side string, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
-	armedFingerprints := at.getArmedDrawdownRuleFingerprints(symbol, side)
+	armedFingerprints := at.getArmedDrawdownRuleFingerprintsForPosition(symbol, side, entryPrice, quantity)
+	openOrders, _ := at.trader.GetOpenOrders(symbol)
 	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
 	for _, rule := range rules {
 		rule = normalizeDrawdownRule(rule)
 		if !isDrawdownRuleSatisfied(currentPnLPct, rule) {
+			logger.Infof("🟣 Drawdown arm pending: %s %s profit %.4f below min %.4f (close=%.1f%%)", symbol, side, currentPnLPct, rule.MinProfitPct, rule.CloseRatioPct)
 			continue
 		}
-		fingerprint := drawdownRuleFingerprint(entryPrice, quantity, rule)
+		fingerprint := stableDrawdownRuleFingerprint(entryPrice, rule)
 		if _, ok := armedFingerprints[fingerprint]; ok {
-			continue
+			if at.hasMatchingNativeTrailingOrderForRule(symbol, side, entryPrice, rule, openOrders) {
+				logger.Infof("🟣 Drawdown arm skipped: %s %s already armed fingerprint=%s", symbol, side, fingerprint)
+				continue
+			}
+			logger.Infof("⚠️ Drawdown arm record stale: %s %s fingerprint=%s has no matching exchange trailing order, re-arming", symbol, side, fingerprint)
 		}
+		logger.Infof("🟣 Drawdown arm eligible: %s %s profit %.4f >= min %.4f close=%.1f%% fingerprint=%s", symbol, side, currentPnLPct, rule.MinProfitPct, rule.CloseRatioPct, fingerprint)
 		matched = append(matched, rule)
 	}
 	return matched
@@ -711,7 +848,7 @@ func (at *AutoTrader) findExistingFullTrailingOrder(side string, openOrders []Op
 
 func (at *AutoTrader) findEquivalentPartialTrailingOrder(symbol, side string, rule store.DrawdownTakeProfitRule, entryPrice float64, openOrders []OpenOrder) (*nativeTrailingOrder, float64, float64, float64) {
 	plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
-	plannedCallbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+	plannedCallbackRate := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
 	qtyTarget := 0.0
 	positions, err := at.trader.GetPositions()
 	if err == nil {
@@ -739,7 +876,7 @@ func (at *AutoTrader) findEquivalentPartialTrailingOrder(symbol, side string, ru
 			if !strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
 				continue
 			}
-			if math.Abs(order.Quantity-qtyTarget) <= qtyTolerance && math.Abs(order.CallbackRate-plannedCallbackRate) <= callbackTolerance {
+			if math.Abs(order.Quantity-qtyTarget) <= qtyTolerance && math.Abs(order.CallbackRate-plannedCallbackRate) <= callbackTolerance && activationMatches(order.StopPrice, plannedActivationPrice) {
 				return &nativeTrailingOrder{
 					PositionSide: order.PositionSide,
 					StopPrice:    order.StopPrice,
@@ -751,6 +888,13 @@ func (at *AutoTrader) findEquivalentPartialTrailingOrder(symbol, side string, ru
 		}
 	}
 	return nil, qtyTarget, plannedActivationPrice, plannedCallbackRate
+}
+
+func activationMatches(actual, planned float64) bool {
+	if actual <= 0 || planned <= 0 {
+		return false
+	}
+	return math.Abs(actual-planned)/math.Max(math.Abs(actual), math.Abs(planned)) <= 0.003
 }
 
 func (at *AutoTrader) findPartialTrailingReplacementCandidate(side string, openOrders []OpenOrder, qtyTarget, plannedActivationPrice, plannedCallbackRate float64) *nativeTrailingOrder {
@@ -834,7 +978,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
 			if !isPartial {
 				plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
-				plannedCallbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+				plannedCallbackRate := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
 				existing := at.findExistingFullTrailingOrder(side, openOrders)
 				if existing != nil {
 					if !at.shouldReplacePartialTrailingTier(existing, plannedActivationPrice, plannedCallbackRate) {
@@ -883,7 +1027,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	} else if err != nil {
 		logger.Infof("⚠️ Failed to get latest market price for trailing activation (%s %s): %v", symbol, side, err)
 	}
-	priceBasedCallbackRatio := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+	priceBasedCallbackRatio := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
 	if activationPrice <= 0 || priceBasedCallbackRatio <= 0 {
 		return false
 	}
@@ -908,8 +1052,15 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	if isPartial {
 		armingState = "native_partial_trailing_arming"
 	}
-	previousProtectionState := currentState
-	at.setProtectionState(symbol, side, armingState)
+	claimed, previousProtectionState, actualProtectionState := at.claimProtectionArmingState(symbol, side, currentState, armingState)
+	if !claimed {
+		if isNativeTrailingArmingState(actualProtectionState) {
+			logger.Infof("🟣 Native trailing drawdown already arming, skipping duplicate apply (%s %s state=%s)", symbol, side, actualProtectionState)
+		} else {
+			logger.Infof("🟣 Native trailing drawdown state changed during prepare, skipping duplicate apply (%s %s expected=%s actual=%s)", symbol, side, currentState, actualProtectionState)
+		}
+		return true
+	}
 	defer func() {
 		if at.getProtectionState(symbol, side) != armingState {
 			return
@@ -1078,7 +1229,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 									}
 								}
 								at.setProtectionState(symbol, side, "native_partial_trailing_armed")
-								at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_partial_trailing", drawdownRuleFingerprint(entryPrice, quantity, rule), rule.CloseRatioPct, "armed", newOrderID, activationPrice, okxCallbackRatio, partialQty)
+								at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_partial_trailing", stableDrawdownRuleFingerprint(entryPrice, rule), rule.CloseRatioPct, "armed", newOrderID, activationPrice, okxCallbackRatio, partialQty)
 								logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
 								return true
 							}
@@ -1111,6 +1262,31 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		}
 		at.setProtectionState(symbol, side, "managed_partial_drawdown_armed")
 		return true
+	}
+
+	if !isPartial && currentState == "native_partial_trailing_armed" {
+		if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
+			ids := make([]string, 0)
+			for _, order := range openOrders {
+				if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+					continue
+				}
+				if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+					ids = append(ids, order.OrderID)
+				}
+			}
+			if len(ids) > 0 {
+				if tagged, ok := at.trader.(interface {
+					CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error
+				}); ok {
+					if err := tagged.CancelTrailingStopOrdersByIDs(symbol, ids); err != nil {
+						logger.Infof("⚠️ Failed to collapse old native partial trailing tiers before full-tier migration (%s %s): %v", symbol, side, err)
+					} else {
+						logger.Infof("🧹 Collapsed %d old native partial trailing tier(s) before full-tier migration: %s %s", len(ids), symbol, side)
+					}
+				}
+			}
+		}
 	}
 
 	placedOrderID := ""
@@ -1196,7 +1372,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		logger.Infof("🟣 Managed partial drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f close=%.1f%%", symbol, side, activationPrice, priceBasedCallbackRatio, rule.CloseRatioPct)
 	} else {
 		at.setProtectionState(symbol, side, "native_trailing_armed")
-		at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_trailing", drawdownRuleFingerprint(entryPrice, 0, rule), rule.CloseRatioPct, "armed", placedOrderID, activationPrice, priceBasedCallbackRatio, 0)
+		at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_trailing", stableDrawdownRuleFingerprint(entryPrice, rule), rule.CloseRatioPct, "armed", placedOrderID, activationPrice, priceBasedCallbackRatio, 0)
 		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f", symbol, side, activationPrice, priceBasedCallbackRatio)
 	}
 	return true
@@ -1220,7 +1396,7 @@ func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rule
 	var matched *store.DrawdownTakeProfitRule
 	for i := range rules {
 		rule := rules[i]
-		if currentPnLPct < rule.MinProfitPct || drawdownPct < rule.MaxDrawdownPct {
+		if currentPnLPct < rule.MinProfitPct || !isDrawdownThresholdMet(currentPnLPct, drawdownPct, rule) {
 			continue
 		}
 		if matched == nil || rule.MinProfitPct > matched.MinProfitPct ||
@@ -1234,7 +1410,7 @@ func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rule
 func (at *AutoTrader) getTriggeredDrawdownRules(currentPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
 	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
 	for _, rule := range rules {
-		if currentPnLPct < rule.MinProfitPct || drawdownPct < rule.MaxDrawdownPct {
+		if currentPnLPct < rule.MinProfitPct || !isDrawdownThresholdMet(currentPnLPct, drawdownPct, rule) {
 			continue
 		}
 		matched = append(matched, rule)
@@ -1618,6 +1794,14 @@ func getSideFromAction(action string) string {
 	}
 }
 
+func isDrawdownThresholdMet(currentPnLPct, drawdownPct float64, rule store.DrawdownTakeProfitRule) bool {
+	rule = normalizeDrawdownRule(rule)
+	if rule.MaxDrawdownAbsPct > 0 {
+		return currentPnLPct <= rule.MinProfitPct-rule.MaxDrawdownAbsPct
+	}
+	return drawdownPct >= rule.MaxDrawdownPct
+}
+
 func calculateProfitBasedTrailingTriggerPrice(entryPrice float64, side string, minProfitPct float64) float64 {
 	if entryPrice <= 0 || minProfitPct <= 0 {
 		return 0
@@ -1655,4 +1839,24 @@ func calculateProfitBasedTrailingCallbackRatio(entryPrice float64, side string, 
 		return 0
 	}
 	return allowedGivebackAbs / activationPrice
+}
+
+func calculateAbsoluteProfitDrawdownCallbackRatio(entryPrice float64, side string, minProfitPct float64, absDrawdownPct float64) float64 {
+	activationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, minProfitPct)
+	if entryPrice <= 0 || activationPrice <= 0 || absDrawdownPct <= 0 {
+		return 0
+	}
+	allowedGivebackAbs := entryPrice * absDrawdownPct / 100.0
+	if allowedGivebackAbs <= 0 {
+		return 0
+	}
+	return allowedGivebackAbs / activationPrice
+}
+
+func calculateDrawdownRuleCallbackRatio(entryPrice float64, side string, rule store.DrawdownTakeProfitRule) float64 {
+	rule = normalizeDrawdownRule(rule)
+	if rule.MaxDrawdownAbsPct > 0 {
+		return calculateAbsoluteProfitDrawdownCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownAbsPct)
+	}
+	return calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
 }

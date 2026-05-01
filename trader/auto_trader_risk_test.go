@@ -3,15 +3,17 @@ package trader
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"nofx/store"
 	tradertypes "nofx/trader/types"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 type fakeProtectionTrader struct {
+	mu                  sync.Mutex
 	cancelStopLossCalls int
 	setStopLossCalls    int
 	lastSymbol          string
@@ -34,12 +36,15 @@ type fakeProtectionTrader struct {
 	closeShortQtys      []float64
 	taggedCloseLongs    []string
 	taggedCloseShorts   []string
+	trailingDelay       time.Duration
 }
 
 func (f *fakeProtectionTrader) GetBalance() (map[string]interface{}, error) { return nil, nil }
 func (f *fakeProtectionTrader) GetPositions() ([]map[string]interface{}, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.positions != nil {
-		return f.positions, nil
+		return append([]map[string]interface{}(nil), f.positions...), nil
 	}
 	return nil, nil
 }
@@ -109,9 +114,16 @@ func (f *fakeProtectionTrader) GetClosedPnL(startTime time.Time, limit int) ([]t
 	return nil, nil
 }
 func (f *fakeProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) {
-	return f.openOrders, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]tradertypes.OpenOrder(nil), f.openOrders...), nil
 }
 func (f *fakeProtectionTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
+	if f.trailingDelay > 0 {
+		time.Sleep(f.trailingDelay)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.trailingCalls++
 	f.trailingSymbol = symbol
 	f.trailingSide = positionSide
@@ -141,6 +153,8 @@ func (f *fakeProtectionTrader) SetTrailingStopLossTaggedWithID(symbol string, po
 	return fmt.Sprintf("new-tier-%d", before+1), nil
 }
 func (f *fakeProtectionTrader) CancelTrailingStopOrders(symbol string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	removed := 0
 	filtered := make([]tradertypes.OpenOrder, 0, len(f.openOrders))
 	for _, order := range f.openOrders {
@@ -155,6 +169,8 @@ func (f *fakeProtectionTrader) CancelTrailingStopOrders(symbol string) error {
 	return nil
 }
 func (f *fakeProtectionTrader) CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.cancelTrailingCalls += len(orderIDs)
 	filtered := make([]tradertypes.OpenOrder, 0, len(f.openOrders))
 	set := make(map[string]struct{}, len(orderIDs))
@@ -210,7 +226,7 @@ func TestCheckPositionDrawdownSkipsDuplicateManagedPartialCloseForSameRule(t *te
 	}
 }
 
-func TestCheckPositionDrawdownAllowsNextCloseAfterPositionFingerprintChanges(t *testing.T) {
+func TestCheckPositionDrawdownSkipsSameStageAfterPositionQuantityChanges(t *testing.T) {
 	fake := &fakeProtectionTrader{
 		positions: []map[string]interface{}{{
 			"symbol":      "ADAUSDT",
@@ -244,15 +260,15 @@ func TestCheckPositionDrawdownAllowsNextCloseAfterPositionFingerprintChanges(t *
 		"positionAmt": 51.0,
 	}}
 	at.checkPositionDrawdown()
-	if fake.closeLongCalls != 2 {
-		t.Fatalf("expected second close after quantity changed, got %d", fake.closeLongCalls)
+	if fake.closeLongCalls != 1 {
+		t.Fatalf("expected same stage to stay guarded after quantity changed, got %d closes", fake.closeLongCalls)
 	}
-	if len(fake.closeLongQtys) != 2 || fake.closeLongQtys[1] != 35.7 {
-		t.Fatalf("expected second close qty 35.7 after quantity changed, got %+v", fake.closeLongQtys)
+	if len(fake.closeLongQtys) != 1 {
+		t.Fatalf("expected only first close qty to be recorded, got %+v", fake.closeLongQtys)
 	}
 }
 
-func TestApplyNativeTrailingDrawdownAdjustsNoiseCallbackForBinance(t *testing.T) {
+func TestApplyNativeTrailingDrawdownRejectsNoiseCallbackForNativeAndFallsBack(t *testing.T) {
 	fake := &fakeProtectionTrader{
 		positions: []map[string]interface{}{{
 			"symbol":      "BTCUSDT",
@@ -278,14 +294,11 @@ func TestApplyNativeTrailingDrawdownAdjustsNoiseCallbackForBinance(t *testing.T)
 	}
 
 	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
-	if !ok {
-		t.Fatal("expected noise-level callback to be adjusted when profit space supports the floor")
+	if ok {
+		t.Fatal("expected native trailing to reject noise-level callback so managed fallback can preserve drawdown math")
 	}
-	if fake.trailingCalls != 1 {
-		t.Fatalf("expected 1 trailing call, got %d", fake.trailingCalls)
-	}
-	if math.Abs(fake.trailingCallback-0.3) > 0.0001 {
-		t.Fatalf("expected callback floor 0.3 percent for binance, got %.4f", fake.trailingCallback)
+	if fake.trailingCalls != 0 {
+		t.Fatalf("expected no native trailing call, got %d", fake.trailingCalls)
 	}
 }
 
@@ -551,6 +564,52 @@ func TestApplyNativeTrailingDrawdownReplacesPartialTierWhenQuantityDrifts(t *tes
 	}
 }
 
+func TestApplyNativeTrailingDrawdownConcurrentPartialArmingPlacesOnlyOneOrder(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "BTCUSDT",
+			"side":        "short",
+			"entryPrice":  100.0,
+			"markPrice":   94.0,
+			"positionAmt": 2.0,
+		}},
+		trailingDelay: 20 * time.Millisecond,
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState: make(map[string]string),
+	}
+
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 50}
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	results := make(chan bool, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			results <- at.applyNativeTrailingDrawdown("BTCUSDT", "short", 100, rule)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	for ok := range results {
+		if !ok {
+			t.Fatal("expected concurrent native partial trailing apply calls to resolve successfully")
+		}
+	}
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected exactly one trailing placement under concurrent arming, got %d", fake.trailingCalls)
+	}
+	if got := at.getProtectionState("BTCUSDT", "short"); got != "native_partial_trailing_armed" {
+		t.Fatalf("expected native_partial_trailing_armed after concurrent arming, got %q", got)
+	}
+}
+
 func TestApplyNativeTrailingDrawdownReplacementPrefersBestMatchingPartialTierAmongMultiple(t *testing.T) {
 	fake := &fakeProtectionTrader{
 		positions: []map[string]interface{}{{
@@ -649,7 +708,7 @@ func TestApplyNativeTrailingDrawdownPersistsPartialTrailingOrderID(t *testing.T)
 	if err != nil {
 		t.Fatalf("load dynamic protection state: %v", err)
 	}
-	key := store.BuildDynamicProtectionKey("trader-1", "exchange-1", "BTCUSDT", "short", "100.00000000|2.00000000", "native_partial_trailing", drawdownRuleFingerprint(100, 2, rule), 50)
+	key := store.BuildDynamicProtectionKey("trader-1", "exchange-1", "BTCUSDT", "short", "100.00000000|0.00000000", "native_partial_trailing", stableDrawdownRuleFingerprint(100, rule), 50)
 	record, ok := state.Records[key]
 	if !ok {
 		t.Fatalf("expected native partial trailing dynamic protection record for key %q", key)
@@ -662,6 +721,49 @@ func TestApplyNativeTrailingDrawdownPersistsPartialTrailingOrderID(t *testing.T)
 	}
 	if record.CallbackRatio <= 0 {
 		t.Fatalf("expected callback ratio persisted, got %.6f", record.CallbackRatio)
+	}
+}
+
+func TestGetDrawdownArmRulesIgnoresArmedRecordsFromOldPositionFingerprint(t *testing.T) {
+	st, err := store.New(filepath.Join(t.TempDir(), "drawdown-fingerprint.db"))
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	traderID := "trader-1"
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 0.8, MaxDrawdownPct: 70, CloseRatioPct: 50}
+	oldFingerprint := stableDrawdownRuleFingerprint(0.10527, rule)
+	if err := st.SaveDynamicProtectionRecord(store.DynamicProtectionRecord{
+		TraderID:            traderID,
+		ExchangeID:          "exchange-1",
+		Symbol:              "DOGEUSDT",
+		Side:                "short",
+		PositionFingerprint: "0.10527000|610.00000000",
+		ProtectionType:      "native_partial_trailing",
+		RuleFingerprint:     oldFingerprint,
+		CloseRatioPct:       50,
+		Status:              "armed",
+	}); err != nil {
+		t.Fatalf("save old record: %v", err)
+	}
+
+	at := &AutoTrader{id: traderID, store: st, trader: &fakeProtectionTrader{}}
+	if got := at.getDrawdownArmRules(1.0, 0.10504, 610, "DOGEUSDT", "short", []store.DrawdownTakeProfitRule{rule}); len(got) != 1 {
+		t.Fatalf("expected current position to arm despite stale old entry fingerprint, got %d", len(got))
+	}
+	at.trader = &fakeProtectionTrader{openOrders: []tradertypes.OpenOrder{{
+		Symbol:       "DOGEUSDT",
+		PositionSide: "SHORT",
+		Type:         "TRAILING_STOP_MARKET",
+		StopPrice:    calculateProfitBasedTrailingTriggerPrice(0.10527, "short", rule.MinProfitPct),
+		CallbackRate: calculateProfitBasedTrailingCallbackRatio(0.10527, "short", rule.MinProfitPct, rule.MaxDrawdownPct),
+		Quantity:     305,
+	}}}
+	if got := at.getDrawdownArmRules(1.0, 0.10527, 305, "DOGEUSDT", "short", []store.DrawdownTakeProfitRule{rule}); len(got) != 0 {
+		t.Fatalf("expected same entry/stage to remain guarded when exchange trailing still exists, got %d", len(got))
+	}
+	at.trader = &fakeProtectionTrader{}
+	if got := at.getDrawdownArmRules(1.0, 0.10527, 305, "DOGEUSDT", "short", []store.DrawdownTakeProfitRule{rule}); len(got) != 1 {
+		t.Fatalf("expected stale armed record without exchange order to re-arm, got %d", len(got))
 	}
 }
 
@@ -928,5 +1030,21 @@ func TestBuildEntryReviewSummaryFromDecisionReviewWhitelistsFields(t *testing.T)
 		if _, ok := summary[key]; !ok {
 			t.Fatalf("expected key %s in summary: %+v", key, summary)
 		}
+	}
+}
+
+func TestGetDrawdownArmRulesForNativeExposureSelectsOneStableTierBeforeProfitGate(t *testing.T) {
+	at := &AutoTrader{trader: &fakeProtectionTrader{}}
+	rules := []store.DrawdownTakeProfitRule{
+		{MinProfitPct: 0.8, MaxDrawdownPct: 55, CloseRatioPct: 50},
+		{MinProfitPct: 1.5, MaxDrawdownPct: 45, CloseRatioPct: 80},
+	}
+	got := at.getDrawdownArmRulesForNativeExposure(0.2, 100, 1, "BTCUSDT", "long", rules)
+	if len(got) != 1 || got[0].MinProfitPct != 0.8 {
+		t.Fatalf("expected nearest native tier before profit gate, got %+v", got)
+	}
+	got = at.getDrawdownArmRulesForNativeExposure(2.0, 100, 1, "BTCUSDT", "long", rules)
+	if len(got) != 1 || got[0].MinProfitPct != 1.5 {
+		t.Fatalf("expected highest satisfied native tier after profit advances, got %+v", got)
 	}
 }

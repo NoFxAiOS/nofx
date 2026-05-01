@@ -743,9 +743,13 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		logger.Warnf("🛡️ Trader '%s' loaded in diagnostic protect-only boot: monitors/protection run, AI opens disabled", traderCfg.Name)
 	}
 
-	// Auto-start if trader was running before shutdown, or always on normal boot.
-	if traderCfg.IsRunning || !isProtectOnlyBoot() {
-		logger.Infof("🔄 Auto-starting trader '%s' (normal boot policy: %t, db_is_running=%t)...", traderCfg.Name, !isProtectOnlyBoot(), traderCfg.IsRunning)
+	// Auto-start only when the persisted trader state says it should run. Normal boot
+	// calls ForceAllRunning before loading, so configured traders still restart after a
+	// service restart. Start/API reload paths for stopped traders can then load fresh
+	// config without accidentally spawning an extra Run goroutine before the handler
+	// performs its explicit start.
+	if traderCfg.IsRunning {
+		logger.Infof("🔄 Auto-starting trader '%s' (db_is_running=%t)...", traderCfg.Name, traderCfg.IsRunning)
 		go func(trader *trader.AutoTrader, traderName, traderID, userID string) {
 			if err := trader.Run(); err != nil {
 				logger.Warnf("⚠️ Trader '%s' stopped with error: %v", traderName, err)

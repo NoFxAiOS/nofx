@@ -240,6 +240,11 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 			logger.Infof("🛡 Protection reconciler: %s %s preserving extra protective stop orders (unexpectedSL=%d) because stop coverage is already satisfied", symbol, positionSide, unexpectedStops)
 			unexpectedStops = 0
 			ownership.UnexpectedStops = 0
+			ownership.Reasons = removeUnexpectedProtectionReason(ownership.Reasons)
+			if ownership.StopOwner != "" && (!planRequiresProfitOwner(plan) || ownership.ProfitOwner != "") && ownership.UnexpectedProfits == 0 {
+				ownership.State = "protected"
+				ownership.Verified = true
+			}
 		}
 		if unexpectedStops > 0 || unexpectedTPs > 0 {
 			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), staging replacement before cleanup",
@@ -597,6 +602,17 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 	}
 
 	return missingSL, missingTP
+}
+
+func removeUnexpectedProtectionReason(reasons []string) []string {
+	filtered := make([]string, 0, len(reasons))
+	for _, r := range reasons {
+		if strings.HasPrefix(r, "unexpected protection orders sl=") {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
 }
 
 func visibleFallbackOwnerSatisfied(openOrders []OpenOrder, positionSide string) bool {

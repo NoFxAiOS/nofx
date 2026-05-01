@@ -166,6 +166,68 @@ func TestTrendAlignmentRangeRegimeBlocksStrongCounterTrend(t *testing.T) {
 	}
 }
 
+func TestTrendAlignmentAllowsConfiguredRangeEdgeReversalException(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"trending", "trending_down"},
+		RequireTrendAlignment: true,
+		TrendAlignmentMode:    store.RegimeTrendAlignmentAllowRangeEdgeReversal,
+	}
+
+	data := &market.Data{
+		CurrentPrice:  82.94,
+		CurrentEMA20:  83.14,
+		PriceChange4h: -2.1,
+		PriceChange1h: -0.8,
+		CurrentMACD:   -0.03,
+		IntradaySeries: &market.IntradayData{
+			ATR14: 0.09,
+		},
+		TimeframeData: map[string]*market.TimeframeSeriesData{
+			"15m": {
+				BOLLLower: []float64{82.86},
+				BOLLUpper: []float64{83.49},
+			},
+		},
+	}
+	decision := &kernel.Decision{Symbol: "SOLUSDT", Action: "open_long", SetupType: "range_edge"}
+	if !at.allowDecisionByRegime(decision, data) {
+		t.Fatal("expected configured range_edge reversal exception to allow structurally plausible support-bounce long")
+	}
+}
+
+func TestTrendAlignmentStrictStillBlocksRangeEdgeReversal(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"trending", "trending_down"},
+		RequireTrendAlignment: true,
+		TrendAlignmentMode:    store.RegimeTrendAlignmentStrict,
+	}
+
+	data := &market.Data{
+		CurrentPrice:  82.94,
+		CurrentEMA20:  83.14,
+		PriceChange4h: -2.1,
+		PriceChange1h: -0.8,
+		CurrentMACD:   -0.03,
+		IntradaySeries: &market.IntradayData{
+			ATR14: 0.09,
+		},
+		TimeframeData: map[string]*market.TimeframeSeriesData{
+			"15m": {
+				BOLLLower: []float64{82.86},
+				BOLLUpper: []float64{83.49},
+			},
+		},
+	}
+	decision := &kernel.Decision{Symbol: "SOLUSDT", Action: "open_long", SetupType: "range_edge"}
+	if at.allowDecisionByRegime(decision, data) {
+		t.Fatal("expected strict trend alignment to keep blocking counter-trend range_edge long")
+	}
+}
+
 func TestFakeTraderProtectionLifecycle(t *testing.T) {
 	fake := testutil.NewFakeTrader()
 	at := &AutoTrader{trader: fake, exchange: "binance"}

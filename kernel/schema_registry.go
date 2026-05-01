@@ -31,11 +31,11 @@ var decisionSchemaRegistry = map[string]SchemaFieldMeta{
 		RepairPolicy:   "alias_then_autofill",
 	},
 	"key_levels.fibonacci.levels": {
-		Canonical:      "key_levels.fibonacci.levels",
-		Aliases:        []string{"fib_levels", "fibonacci_levels"},
-		Required:       false,
-		AutoFill:       false,
-		RepairPolicy:   "alias_only",
+		Canonical:    "key_levels.fibonacci.levels",
+		Aliases:      []string{"fib_levels", "fibonacci_levels"},
+		Required:     false,
+		AutoFill:     false,
+		RepairPolicy: "alias_only",
 	},
 	"key_levels.fibonacci.swing_high": {
 		Canonical:    "key_levels.fibonacci.swing_high",
@@ -111,34 +111,37 @@ var decisionSchemaRegistry = map[string]SchemaFieldMeta{
 	},
 
 	// execution_constraints
-	"execution_constraints.best_bid": {Canonical: "execution_constraints.best_bid", Aliases: []string{"bid"}, RepairPolicy: "alias_only"},
-	"execution_constraints.best_ask": {Canonical: "execution_constraints.best_ask", Aliases: []string{"ask"}, RepairPolicy: "alias_only"},
+	"execution_constraints.best_bid":               {Canonical: "execution_constraints.best_bid", Aliases: []string{"bid"}, RepairPolicy: "alias_only"},
+	"execution_constraints.best_ask":               {Canonical: "execution_constraints.best_ask", Aliases: []string{"ask"}, RepairPolicy: "alias_only"},
 	"execution_constraints.estimated_slippage_bps": {Canonical: "execution_constraints.estimated_slippage_bps", Aliases: []string{"slippage_bps"}, RepairPolicy: "alias_only"},
-	"execution_constraints.tick_size": {Canonical: "execution_constraints.tick_size", Aliases: []string{"price_step"}, RepairPolicy: "alias_only"},
-	"execution_constraints.qty_step_size": {Canonical: "execution_constraints.qty_step_size", Aliases: []string{"quantity_step_size"}, RepairPolicy: "alias_only"},
+	"execution_constraints.tick_size":              {Canonical: "execution_constraints.tick_size", Aliases: []string{"price_step"}, RepairPolicy: "alias_only"},
+	"execution_constraints.qty_step_size":          {Canonical: "execution_constraints.qty_step_size", Aliases: []string{"quantity_step_size"}, RepairPolicy: "alias_only"},
 
 	// derivatives_context
-	"derivatives_context.oi_current": {Canonical: "derivatives_context.oi_current", Aliases: []string{"open_interest"}, RepairPolicy: "alias_only"},
+	"derivatives_context.oi_current":           {Canonical: "derivatives_context.oi_current", Aliases: []string{"open_interest"}, RepairPolicy: "alias_only"},
 	"derivatives_context.funding_rate_current": {Canonical: "derivatives_context.funding_rate_current", Aliases: []string{"funding_rate"}, RepairPolicy: "alias_only"},
 	"derivatives_context.mark_index_basis_bps": {Canonical: "derivatives_context.mark_index_basis_bps", Aliases: []string{"basis_bps"}, RepairPolicy: "alias_only"},
-	"derivatives_context.orderbook_imbalance": {Canonical: "derivatives_context.orderbook_imbalance", Aliases: []string{"depth_imbalance"}, RepairPolicy: "alias_only"},
-	"derivatives_context.top5_bid_notional": {Canonical: "derivatives_context.top5_bid_notional", Aliases: []string{"bid_notional_top5"}, RepairPolicy: "alias_only"},
-	"derivatives_context.top5_ask_notional": {Canonical: "derivatives_context.top5_ask_notional", Aliases: []string{"ask_notional_top5"}, RepairPolicy: "alias_only"},
+	"derivatives_context.orderbook_imbalance":  {Canonical: "derivatives_context.orderbook_imbalance", Aliases: []string{"depth_imbalance"}, RepairPolicy: "alias_only"},
+	"derivatives_context.top5_bid_notional":    {Canonical: "derivatives_context.top5_bid_notional", Aliases: []string{"bid_notional_top5"}, RepairPolicy: "alias_only"},
+	"derivatives_context.top5_ask_notional":    {Canonical: "derivatives_context.top5_ask_notional", Aliases: []string{"ask_notional_top5"}, RepairPolicy: "alias_only"},
 
 	// protection_plan break-even
-	"protection_plan.break_even_trigger_mode": {Canonical: "protection_plan.break_even_trigger_mode", Aliases: []string{"breakeven_trigger"}, Required: false, RepairPolicy: "alias_only"},
+	"protection_plan.break_even_trigger_mode":  {Canonical: "protection_plan.break_even_trigger_mode", Aliases: []string{"breakeven_trigger"}, Required: false, RepairPolicy: "alias_only"},
 	"protection_plan.break_even_trigger_value": {Canonical: "protection_plan.break_even_trigger_value", Aliases: []string{"break_even_value", "breakeven_value"}, Required: false, RepairPolicy: "alias_only"},
-	"protection_plan.break_even_offset_pct": {Canonical: "protection_plan.break_even_offset_pct", Aliases: []string{"break_even_offset", "breakeven_offset_pct"}, Required: false, RepairPolicy: "alias_only"},
+	"protection_plan.break_even_offset_pct":    {Canonical: "protection_plan.break_even_offset_pct", Aliases: []string{"break_even_offset", "breakeven_offset_pct"}, Required: false, RepairPolicy: "alias_only"},
 	"protection_plan.break_even_reason_anchor": {Canonical: "protection_plan.break_even_reason_anchor", Aliases: []string{"break_even_reason", "breakeven_reason_anchor"}, Required: false, RepairPolicy: "alias_only"},
 
 	// drawdown_rules
 	"drawdown_rules.close_ratio_pct": {Canonical: "drawdown_rules.close_ratio_pct", Aliases: []string{"close_ratio"}, Required: true, RepairPolicy: "alias_only"},
 
 	// ladder_rules
-	"ladder_rules.take_profit_pct": {Canonical: "ladder_rules.take_profit_pct", Aliases: []string{"tp_pct", "tp_level"}, RepairPolicy: "alias_only"},
-	"ladder_rules.stop_loss_pct": {Canonical: "ladder_rules.stop_loss_pct", Aliases: []string{"sl_pct", "sl_level"}, RepairPolicy: "alias_only"},
+	"ladder_rules.take_profit_pct":             {Canonical: "ladder_rules.take_profit_pct", Aliases: []string{"tp_pct"}, RepairPolicy: "alias_only"},
+	"ladder_rules.take_profit_price":           {Canonical: "ladder_rules.take_profit_price", Aliases: []string{"tp_level", "tp_price"}, RepairPolicy: "alias_only"},
+	"ladder_rules.stop_loss_pct":               {Canonical: "ladder_rules.stop_loss_pct", Aliases: []string{"sl_pct"}, RepairPolicy: "alias_only"},
+	"ladder_rules.stop_loss_price":             {Canonical: "ladder_rules.stop_loss_price", Aliases: []string{"sl_level", "sl_price"}, RepairPolicy: "alias_only"},
 	"ladder_rules.take_profit_close_ratio_pct": {Canonical: "ladder_rules.take_profit_close_ratio_pct", Aliases: []string{"tp_close_ratio_pct"}, RepairPolicy: "alias_only"},
-	"ladder_rules.stop_loss_close_ratio_pct": {Canonical: "ladder_rules.stop_loss_close_ratio_pct", Aliases: []string{"sl_close_ratio_pct"}, RepairPolicy: "alias_only"},
+	"ladder_rules.stop_loss_close_ratio_pct":   {Canonical: "ladder_rules.stop_loss_close_ratio_pct", Aliases: []string{"sl_close_ratio_pct"}, RepairPolicy: "alias_only"},
+	"ladder_rules.volatility_buffer_pct":       {Canonical: "ladder_rules.volatility_buffer_pct", Aliases: []string{"buffer_pct", "atr_buffer_pct"}, RepairPolicy: "alias_only"},
 }
 
 func schemaAliases(canonical string) []string {

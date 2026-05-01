@@ -152,7 +152,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("2. **Protection planning — MUST use multi-timeframe structure**:\n")
 	sb.WriteString("   - **Stop Loss**: Place beyond the nearest structural invalidation level on the PRIMARY or HIGHER timeframe. Add ATR-based buffer (0.3-0.5x ATR) to avoid stop-hunts/wicks\n")
 	sb.WriteString("   - **Take Profit / Ladder TP**: Align with resistance/fib levels (longs) or support/fib levels (shorts). Use HIGHER timeframe levels for major targets, lower timeframe for partial exits\n")
-	sb.WriteString("   - **Drawdown rules**: Each profit stage's min_profit_pct should correspond to a structural level distance from entry. max_drawdown_pct should be calibrated to ATR volatility so normal retracements don't trigger premature close\n")
+	sb.WriteString("   - **Drawdown rules**: Each profit stage's min_profit_pct should correspond to a structural level distance from entry. max_drawdown_pct is percentage-of-peak-profit giveback (exchange trailing semantics), e.g. 55 means allow 55% of peak profit to be given back before closing; it is NOT 0.55% absolute price/profit drawdown.\n")
 	sb.WriteString("   - **Break-even trigger**: Set trigger_value near the first structural level past entry, with offset beyond the nearest support/resistance\n")
 	sb.WriteString("3. **Volatility buffer**: All SL/TP/drawdown thresholds must account for typical wick range. Use ATR14 from the relevant timeframe as the volatility gauge. A stop placed exactly at a structural level WILL get swept — always add buffer\n")
 	sb.WriteString("4. **Cross-validation**: Auto-detected levels are hints. Confirm with volume, price action, and multi-timeframe alignment\n")
@@ -183,7 +183,8 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 			sb.WriteString("### ⚠️ ACTIVE: Ladder + Drawdown are BOTH in AI mode for this strategy\n")
 			sb.WriteString("- You MUST include one `protection_plan` with `mode=\"combined\"` for every open_long/open_short decision\n")
 			sb.WriteString("- The combined plan MUST include both non-empty `ladder_rules` and at least 2 `drawdown_rules`; omission or a single drawdown stage rejects the trade\n")
-			sb.WriteString("- `ladder_rules` own staged stop-loss / optional staged TP; derive percentages and close ratios from structure, not from default round numbers\n")
+			sb.WriteString("- `ladder_rules` own staged stop-loss / optional staged TP; derive absolute prices, percentages, buffers, and close ratios from structure, not from default round numbers\n")
+			sb.WriteString("- Every ladder rule must include a volatility/wick buffer using ATR or recent wick behavior; do not place stops/targets exactly on crowded structure/fib levels\n")
 			sb.WriteString("- `drawdown_rules` own profit-protection/trailing stages; derive min_profit_pct/max_drawdown_pct/close_ratio_pct from structural targets and volatility\n")
 			sb.WriteString("- Include structural_anchor on every ladder rule and reason_anchor on every drawdown rule\n")
 			sb.WriteString(fmt.Sprintf("- Strategy has %d default ladder rule(s) and %d default drawdown rule(s) only as reference; do not copy them unless structure justifies them\n", len(prot.LadderTPSL.Rules), len(prot.DrawdownTakeProfit.Rules)))
@@ -256,6 +257,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- Optional reliability fields for every decision: `regime` (trend_up|trend_down|range|squeeze|chop|news_risk|no_trade), `setup_type` (trend_pullback|range_edge|breakout_retest|none), and `quality_score` with total/trend_alignment/structure_location/sr_fib_quality/derivatives_context/trigger_quality/net_rr. These fields are currently audit/shadow fields, but strong opens should include them.\n")
 	sb.WriteString("- Default to `wait` unless the setup is one of trend_pullback, range_edge, or breakout_retest with clear multi-timeframe alignment and acceptable derivatives/crowding context.\n")
 	sb.WriteString("- `protection_plan`: optional structured protection output for open actions only\n")
+	sb.WriteString("- Ladder rule price fields: explicit absolute `take_profit_price` / `stop_loss_price` (or aliases `tp_level` / `sl_level`) are required when structure exists; `take_profit_pct` / `stop_loss_pct` are only equivalent UI/audit percentages, not the source of truth. Include `take_profit_anchor` / `stop_loss_anchor` or `structural_anchor` naming the support/resistance/fibonacci/invalidation level, plus a volatility/wick buffer (`volatility_buffer_pct` or `volatility_buffer_reason`) based on ATR/recent wicks. Do not put stops/targets naked exactly on crowded structural levels: invalidation should require an effective break, not a one-tick touch. Never output generic 0.9% / 1.5% ladder stops unless those exact percentages are back-calculated from explicit structural prices plus buffer.\n")
 	sb.WriteString("- `entry_protection_rationale`: required for `open_long` / `open_short`; must include timeframe_context, risk_reward (entry/invalidation/first_target/gross_estimated_rr and preferably net_estimated_rr), and structural anchors when opening\n")
 	sb.WriteString("  - If timeframe_context.higher is present, you MUST include at least one higher timeframe structural anchor in `higher_timeframe_anchors` or `timeframe_structures`, with type/timeframe/price/reason\n")
 	sb.WriteString("  - Treat structural entry as a compact contract, not a verbose essay: include only the few levels/anchors needed to justify entry, invalidation, and first target\n")
@@ -264,6 +266,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("  - Use `mode=full` when one unified TP/SL plan is enough\n")
 	sb.WriteString("  - For `mode=full`, output `take_profit_pct` / `stop_loss_pct` only; do not place absolute price fields inside protection_plan\n")
 	sb.WriteString("  - Use `mode=ladder` when you want staged TP/SL with multiple ladder_rules\n")
+	sb.WriteString("  - For ladder_rules, output absolute structural prices as `take_profit_price` / `stop_loss_price`; include equivalent `take_profit_pct` / `stop_loss_pct` only after calculating them from the absolute prices for display/audit. Include `take_profit_anchor` / `stop_loss_anchor` or `structural_anchor`, and include ATR/recent-wick buffer so stops are beyond invalidation and TP tiers are not exactly on crowded levels. Structural linkage means anchored-with-buffer, not exact equality: a stop below support/above resistance should allow effective breakdown/breakout confirmation, and TP should usually sit slightly before crowded resistance/support for fill realism. Percent-only ladder rules are allowed only when no structural levels exist; otherwise they may be normalized to structure or rejected.\n")
 	sb.WriteString("  - Use `mode=drawdown` when the strategy route enables AI drawdown profit protection; then `drawdown_rules` must be non-empty\n")
 	sb.WriteString("  - Use `mode=break_even` when the strategy enables Break-even Stop as an AI-required runtime stop layer; include break_even_trigger_mode/value/offset\n")
 	sb.WriteString("  - In drawdown/break-even AI mode, reasoning must reference the primary timeframe, adjacent timeframes, and structural anchors such as support/resistance, fibonacci, and volatility\n")
@@ -530,24 +533,27 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		positionSymbols[normalizedSymbol] = true
 	}
 
+	seenCandidateSymbols := make(map[string]bool)
 	displayableCount := 0
 	for _, coin := range ctx.CandidateCoins {
 		normalizedCoinSymbol := market.Normalize(coin.Symbol)
-		if positionSymbols[normalizedCoinSymbol] {
+		if positionSymbols[normalizedCoinSymbol] || seenCandidateSymbols[normalizedCoinSymbol] {
 			continue
 		}
 		if _, hasData := ctx.MarketDataMap[coin.Symbol]; !hasData {
 			continue
 		}
+		seenCandidateSymbols[normalizedCoinSymbol] = true
 		displayableCount++
 	}
 
 	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", displayableCount))
 	displayedCount := 0
+	displayedCandidateSymbols := make(map[string]bool)
 	for _, coin := range ctx.CandidateCoins {
 		// Skip if this coin is already a position (data already shown in positions section)
 		normalizedCoinSymbol := market.Normalize(coin.Symbol)
-		if positionSymbols[normalizedCoinSymbol] {
+		if positionSymbols[normalizedCoinSymbol] || displayedCandidateSymbols[normalizedCoinSymbol] {
 			continue
 		}
 
@@ -555,11 +561,13 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		if !hasData {
 			continue
 		}
+		displayedCandidateSymbols[normalizedCoinSymbol] = true
 		displayedCount++
 
 		sourceTags := e.formatCoinSourceTag(coin.Sources)
 		sb.WriteString(fmt.Sprintf("### %d. %s%s\n\n", displayedCount, coin.Symbol, sourceTags))
 		sb.WriteString(e.formatMarketData(marketData))
+		sb.WriteString(e.formatMarketContextV2(coin.Symbol, marketData))
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[coin.Symbol]; hasQuant {
@@ -589,6 +597,23 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 	// Price Ranking data (market-wide gainers/losers)
 	if ctx.PriceRankingData != nil {
 		sb.WriteString(nofxos.FormatPriceRankingForAI(ctx.PriceRankingData, nofxosLang))
+	}
+
+	// Optional data availability: never fail closed; continue with available exchange/market data.
+	if len(ctx.OptionalDataStates) > 0 {
+		sb.WriteString("## Optional Data Availability\n")
+		for _, state := range ctx.OptionalDataStates {
+			status := "missing"
+			if state.Available {
+				status = "available"
+			}
+			sb.WriteString(fmt.Sprintf("- source=%s status=%s", state.Source, status))
+			if state.Reason != "" {
+				sb.WriteString(fmt.Sprintf(" reason=%s", state.Reason))
+			}
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Rule: optional data absence is not a no-trade signal by itself; use remaining price/structure/exchange data and mention uncertainty if relevant.\n\n")
 	}
 
 	sb.WriteString("---\n\n")
@@ -625,6 +650,7 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))
+		sb.WriteString(e.formatMarketContextV2(pos.Symbol, marketData))
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[pos.Symbol]; hasQuant {
@@ -866,6 +892,40 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	sb.WriteString("\n")
+}
+
+func (e *StrategyEngine) formatMarketContextV2(symbol string, data *market.Data) string {
+	ctx := market.BuildMarketContextV2(symbol, data, []string{"3m", "15m", "1h", "4h", "1d"}, "15m")
+	if ctx == nil || ctx.RegimeRules == nil {
+		return ""
+	}
+	snapshot := market.BuildCompositeMarketSnapshotFromExistingData("okx", []string{"3m", "15m", "1h", "4h", "1d"}, "15m", 180*time.Second, data)
+	if snapshot != nil && snapshot.AICompact != "" {
+		return "Composite Market Context (shared human/AI source):\n" + snapshot.AICompact + "  rule: open only when setup_type is compatible with allowed_setups and structural anchors satisfy structure_mode; otherwise wait. For any open with ladder protection, stop_loss_price must be an explicit structural invalidation price beyond support/resistance/fibonacci plus ATR/wick buffer; stop_loss_pct is only a derived display value, never the planning input.\n"
+	}
+	var sb strings.Builder
+	sb.WriteString("Execution Regime Guidance:\n")
+	sb.WriteString(fmt.Sprintf("  regime=%s structure_mode=%s fibonacci_mode=%s\n", ctx.RegimeRules.Regime, ctx.RegimeRules.StructureMode, ctx.RegimeRules.FibonacciMode))
+	if len(ctx.RegimeRules.AllowedSetups) > 0 {
+		sb.WriteString(fmt.Sprintf("  allowed_setups=%s\n", strings.Join(ctx.RegimeRules.AllowedSetups, ",")))
+	}
+	if len(ctx.RegimeRules.RequiredAnchors) > 0 {
+		sb.WriteString(fmt.Sprintf("  required_anchors=%s\n", strings.Join(ctx.RegimeRules.RequiredAnchors, ",")))
+	}
+	if ctx.RegimeRules.ProtectionGuidance != "" {
+		sb.WriteString(fmt.Sprintf("  protection_guidance=%s\n", ctx.RegimeRules.ProtectionGuidance))
+	}
+	if ctx.Derivatives != nil {
+		sb.WriteString(fmt.Sprintf("  derivatives: funding_bias=%s squeeze_risk=%s oi_1h=%.2f%% volume_z=%.2f\n", ctx.Derivatives.FundingBias, ctx.Derivatives.SqueezeRisk, ctx.Derivatives.OIChange1hPct, ctx.Derivatives.VolumeZScore))
+	}
+	if ctx.Quant != nil && ctx.Quant.DataQuality != "" && ctx.Quant.DataQuality != "missing" {
+		sb.WriteString(fmt.Sprintf("  quant: flow_bias=%s crowding=%s inst_future_1h=%s retail_future_1h=%s oi_1h=%.2f%%\n", ctx.Quant.FlowBias, ctx.Quant.CrowdingRisk, formatFlowValue(ctx.Quant.InstitutionFuture1h), formatFlowValue(ctx.Quant.RetailFuture1h), ctx.Quant.OIChange1hPct))
+	}
+	if ctx.ExchangeFlow != nil && ctx.ExchangeFlow.DataQuality != "" && ctx.ExchangeFlow.DataQuality != "missing" {
+		sb.WriteString(fmt.Sprintf("  exchange_flow: funding=%s long_short=%s taker=%s depth=%s crowding=%s depth_total=%s\n", ctx.ExchangeFlow.FundingBias, ctx.ExchangeFlow.LongShortSkew, ctx.ExchangeFlow.TakerFlowBias, ctx.ExchangeFlow.DepthBias, ctx.ExchangeFlow.CrowdingRisk, formatFlowValue(ctx.ExchangeFlow.DepthTotalUSDT)))
+	}
+	sb.WriteString("  rule: open only when setup_type is compatible with allowed_setups and structural anchors satisfy structure_mode; otherwise wait.\n")
+	return sb.String()
 }
 
 func (e *StrategyEngine) formatQuantData(data *QuantData) string {

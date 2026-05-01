@@ -120,6 +120,7 @@ type DecisionActionReviewContext struct {
 	Control              *DecisionActionControlOutcome       `json:"control,omitempty"`
 	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
 	QualityGate          *DecisionActionQualityGate          `json:"quality_gate,omitempty"`
+	Extra                map[string]interface{}              `json:"extra,omitempty"`
 }
 
 // DecisionActionQualityGate stores record-only v2 trade-quality checks. During
@@ -166,6 +167,8 @@ type DecisionActionControlOutcome struct {
 	RegimeATR14Pct             float64  `json:"regime_atr14_pct,omitempty"`
 	RegimeFundingRate          float64  `json:"regime_funding_rate,omitempty"`
 	RegimeTrendAligned         *bool    `json:"regime_trend_aligned,omitempty"`
+	RegimeStructureCurrent     string   `json:"regime_structure_current,omitempty"`
+	RegimeStructureAllowed     []string `json:"regime_structure_allowed,omitempty"`
 	NoOrderPlaced              bool     `json:"no_order_placed,omitempty"`
 }
 
@@ -286,19 +289,26 @@ type ProtectionSnapshotLadder struct {
 // ProtectionSnapshotLadderRule a single ladder rule with concrete values
 type ProtectionSnapshotLadderRule struct {
 	TakeProfitPct           float64 `json:"take_profit_pct,omitempty"`
+	TakeProfitPrice         float64 `json:"take_profit_price,omitempty"`
 	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`
 	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
+	StopLossPrice           float64 `json:"stop_loss_price,omitempty"`
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
+	StructuralAnchor        string  `json:"structural_anchor,omitempty"`
+	TakeProfitAnchor        string  `json:"take_profit_anchor,omitempty"`
+	StopLossAnchor          string  `json:"stop_loss_anchor,omitempty"`
+	VolatilityBufferPct     float64 `json:"volatility_buffer_pct,omitempty"`
 }
 
 // ProtectionSnapshotDrawdown drawdown take-profit rule snapshot
 type ProtectionSnapshotDrawdown struct {
-	Mode           string  `json:"mode,omitempty"`
-	Source         string  `json:"source,omitempty"`
-	MinProfitPct   float64 `json:"min_profit_pct"`
-	MaxDrawdownPct float64 `json:"max_drawdown_pct"`
-	CloseRatioPct  float64 `json:"close_ratio_pct"`
-	PollIntervalS  int     `json:"poll_interval_s"`
+	Mode              string  `json:"mode,omitempty"`
+	Source            string  `json:"source,omitempty"`
+	MinProfitPct      float64 `json:"min_profit_pct"`
+	MaxDrawdownPct    float64 `json:"max_drawdown_pct"`
+	MaxDrawdownAbsPct float64 `json:"max_drawdown_abs_profit_pct,omitempty"`
+	CloseRatioPct     float64 `json:"close_ratio_pct"`
+	PollIntervalS     int     `json:"poll_interval_s"`
 }
 
 // ProtectionSnapshotBreakEven break-even stop snapshot

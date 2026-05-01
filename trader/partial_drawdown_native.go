@@ -183,7 +183,7 @@ func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, p
 	bestScore := -1.0
 	for i, raw := range rules {
 		rule := normalizeDrawdownRule(raw)
-		if currentPnLPct < rule.MinProfitPct || drawdownPct < rule.MaxDrawdownPct {
+		if currentPnLPct < rule.MinProfitPct || !isDrawdownThresholdMet(currentPnLPct, drawdownPct, rule) {
 			continue
 		}
 		score := rule.MinProfitPct*1000 + rule.MaxDrawdownPct

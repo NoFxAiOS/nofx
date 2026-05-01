@@ -112,11 +112,24 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		return decision, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	// 6. Validate protection routes against strategy config (drawdown/ladder/break-even AI mode)
+	// 6. Validate protection routes against strategy config (drawdown/ladder/break-even AI mode).
+	// Route validation failures are per-decision quality failures: reject only the bad
+	// open proposal and keep other valid candidates from the same AI response.
 	config := engine.GetConfig()
 	if decision != nil && len(decision.Decisions) > 0 {
-		if routeErr := ValidateAIDecisionsWithStrategyAndCoT(decision.Decisions, config, decision.CoTTrace); routeErr != nil {
-			return decision, fmt.Errorf("protection route validation failed: %w", routeErr)
+		filtered, rejected := FilterInvalidAIDecisionsWithStrategyAndCoT(decision.Decisions, config, decision.CoTTrace)
+		if len(rejected) > 0 {
+			for _, rej := range rejected {
+				if rej.Index >= 0 {
+					logger.Warnf("🚫 Protection route validation rejected decision #%d %s %s: %v", rej.Index+1, rej.Decision.Symbol, rej.Decision.Action, rej.Err)
+				} else {
+					logger.Warnf("🚫 Protection route validation rejected AI response package: %v", rej.Err)
+				}
+			}
+			decision.Decisions = filtered
+			if len(decision.Decisions) == 0 {
+				logger.Warnf("🚫 Protection route validation rejected all open decisions; continuing with empty no-trade decision set")
+			}
 		}
 	}
 
@@ -481,6 +494,46 @@ func ValidateAIDecisionsWithStrategy(decisions []Decision, config *store.Strateg
 	return validateAIDecisionRoutesWithStrategy(decisions, config)
 }
 
+type DecisionRouteRejection struct {
+	Index    int
+	Decision Decision
+	Err      error
+}
+
+func FilterInvalidAIDecisionsWithStrategyAndCoT(decisions []Decision, config *store.StrategyConfig, cotTrace string) ([]Decision, []DecisionRouteRejection) {
+	if err := ValidateDecisionFormatWithCoT(decisions, cotTrace); err != nil {
+		return decisions, []DecisionRouteRejection{{Index: -1, Err: err}}
+	}
+	return filterInvalidAIDecisionRoutesWithStrategy(decisions, config)
+}
+
+func FilterInvalidAIDecisionsWithStrategy(decisions []Decision, config *store.StrategyConfig) ([]Decision, []DecisionRouteRejection) {
+	if err := ValidateDecisionFormat(decisions); err != nil {
+		return decisions, []DecisionRouteRejection{{Index: -1, Err: err}}
+	}
+	return filterInvalidAIDecisionRoutesWithStrategy(decisions, config)
+}
+
+func filterInvalidAIDecisionRoutesWithStrategy(decisions []Decision, config *store.StrategyConfig) ([]Decision, []DecisionRouteRejection) {
+	if config == nil {
+		return decisions, nil
+	}
+	filtered := make([]Decision, 0, len(decisions))
+	rejected := make([]DecisionRouteRejection, 0)
+	for i, d := range decisions {
+		if d.Action != "open_long" && d.Action != "open_short" && d.Action != "OPEN_NEW" {
+			filtered = append(filtered, d)
+			continue
+		}
+		if err := validateAIDecisionRoutesWithStrategy([]Decision{d}, config); err != nil {
+			rejected = append(rejected, DecisionRouteRejection{Index: i, Decision: d, Err: err})
+			continue
+		}
+		filtered = append(filtered, d)
+	}
+	return filtered, rejected
+}
+
 func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.StrategyConfig) error {
 	if config == nil {
 		return nil
@@ -522,10 +575,12 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 			if len(d.ProtectionPlan.DrawdownRules) == 0 {
 				return fmt.Errorf("decision #%d: combined protection_plan must contain drawdown_rules under current strategy route", i+1)
 			}
-			for j, rule := range d.ProtectionPlan.LadderRules {
+			for j := range d.ProtectionPlan.LadderRules {
+				rule := &d.ProtectionPlan.LadderRules[j]
 				if strings.TrimSpace(rule.StructuralAnchor) == "" {
 					logger.Warnf("decision #%d ladder_rule[%d]: missing structural_anchor (structural justification expected)", i+1, j)
 				}
+				ensureLadderVolatilityBuffer(d, rule, i, j)
 			}
 			for j, rule := range d.ProtectionPlan.DrawdownRules {
 				if strings.TrimSpace(rule.ReasonAnchor) == "" {
@@ -540,6 +595,9 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 			}
 			if n := len(d.ProtectionPlan.LadderRules); n < 2 || n > 3 {
 				return fmt.Errorf("decision #%d: ladder protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
+			}
+			for j := range d.ProtectionPlan.LadderRules {
+				ensureLadderVolatilityBuffer(d, &d.ProtectionPlan.LadderRules[j], i, j)
 			}
 		}
 		if fullAI && !drawdownAI && !ladderAI {
@@ -993,6 +1051,12 @@ func validateProtectionPlanAlignmentSkeleton(d Decision, rr AIRiskRewardRational
 				}
 			}
 		}
+		if mode == "ladder" || mode == "combined" {
+			applyLadderVolatilityBuffers(d.Action, rr, plan)
+			if err := validateLadderPlanStructuralAlignment(d.Action, rr, d.EntryProtection, plan); err != nil {
+				return err
+			}
+		}
 		if err := validateBreakEvenTriggerAlignment(d.Action, rr, plan); err != nil {
 			return err
 		}
@@ -1001,6 +1065,182 @@ func validateProtectionPlanAlignmentSkeleton(d Decision, rr AIRiskRewardRational
 		return err
 	}
 	return nil
+}
+
+func ensureLadderVolatilityBuffer(d Decision, rule *AIProtectionLadderRule, decisionIndex, ruleIndex int) {
+	if rule == nil || rule.VolatilityBufferPct > 0 {
+		return
+	}
+	if d.EntryProtection != nil && d.EntryProtection.VolatilityAdjustment.ATR14Pct > 0 {
+		rule.VolatilityBufferPct = d.EntryProtection.VolatilityAdjustment.ATR14Pct * 0.35
+		rule.VolatilityBufferReason = firstNonEmptyString(rule.VolatilityBufferReason, "auto 0.35x ATR14 buffer from entry_protection_rationale")
+		return
+	}
+	logger.Warnf("decision #%d ladder_rule[%d]: missing volatility buffer; structural alignment fallback will be used", decisionIndex+1, ruleIndex)
+}
+
+func firstNonEmptyString(primary, fallback string) string {
+	if strings.TrimSpace(primary) != "" {
+		return primary
+	}
+	return fallback
+}
+
+func applyLadderVolatilityBuffers(action string, rr AIRiskRewardRationale, plan *AIProtectionPlan) {
+	if plan == nil || len(plan.LadderRules) == 0 || rr.Entry <= 0 {
+		return
+	}
+	for i := range plan.LadderRules {
+		rule := &plan.LadderRules[i]
+		if rule.VolatilityBufferPct <= 0 {
+			continue
+		}
+		bufferMove := rr.Entry * rule.VolatilityBufferPct / 100.0
+		if rule.StopLossPrice > 0 {
+			switch action {
+			case "open_long":
+				rule.StopLossPrice -= bufferMove
+			case "open_short":
+				rule.StopLossPrice += bufferMove
+			}
+		}
+		if rule.TakeProfitPrice > 0 {
+			switch action {
+			case "open_long":
+				rule.TakeProfitPrice -= bufferMove
+			case "open_short":
+				rule.TakeProfitPrice += bufferMove
+			}
+		}
+	}
+}
+
+func validateLadderPlanStructuralAlignment(action string, rr AIRiskRewardRationale, rationale *AIEntryProtectionRationale, plan *AIProtectionPlan) error {
+	if plan == nil || rationale == nil || len(plan.LadderRules) == 0 {
+		return nil
+	}
+	entry := rr.Entry
+	if entry <= 0 {
+		return nil
+	}
+
+	riskDistance := absFloat(rr.Entry - rr.Invalidation)
+	rewardDistance := absFloat(rr.FirstTarget - rr.Entry)
+	invalidationRefs, targetRefs := structuralReferenceLevels(rationale)
+	if len(targetRefs) == 0 {
+		switch action {
+		case "open_long":
+			targetRefs = filterPositiveLevels(rationale.KeyLevels.Resistance)
+		case "open_short":
+			targetRefs = filterPositiveLevels(rationale.KeyLevels.Support)
+		}
+	}
+	if len(invalidationRefs) == 0 {
+		switch action {
+		case "open_long":
+			invalidationRefs = filterPositiveLevels(rationale.KeyLevels.Support)
+		case "open_short":
+			invalidationRefs = filterPositiveLevels(rationale.KeyLevels.Resistance)
+		}
+	}
+	fibLevels := fibonacciLevels(rationale.KeyLevels.Fibonacci)
+	targetRefs = append(targetRefs, fibLevels...)
+
+	targetTol := structuralTolerance(maxFloat(rewardDistance, entry*0.005), rationale.VolatilityAdjustment.ATR14Pct, entry)
+	stopTol := structuralTolerance(maxFloat(riskDistance, entry*0.005), rationale.VolatilityAdjustment.ATR14Pct, entry)
+
+	for i, rule := range plan.LadderRules {
+		if rule.TakeProfitCloseRatioPct > 0 {
+			tpPrice := ladderRulePriceFromPctOrAbsolute(action, entry, rule.TakeProfitPct, rule.TakeProfitPrice, true)
+			unbufferedTPPrice := ladderRulePriceFromPctOrAbsolute(action, entry, rule.TakeProfitPct, removeLadderBuffer(action, entry, rule.TakeProfitPrice, rule.VolatilityBufferPct, true), true)
+			if tpPrice <= 0 {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] take profit requires take_profit_price or take_profit_pct", i)
+			}
+			if !isTakeProfitPriceForAction(action, entry, tpPrice) {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] take profit %.4f is not executable for %s entry %.4f", i, tpPrice, action, entry)
+			}
+			if len(targetRefs) > 0 {
+				nearest, gap := nearestLevel(unbufferedTPPrice, targetRefs)
+				if gap > targetTol {
+					return fmt.Errorf("protection_plan.ladder_rules[%d] take profit %.4f too far from structural/fibonacci target %.4f", i, tpPrice, nearest)
+				}
+			}
+		}
+		if rule.StopLossCloseRatioPct > 0 {
+			slPrice := ladderRulePriceFromPctOrAbsolute(action, entry, rule.StopLossPct, rule.StopLossPrice, false)
+			unbufferedSLPrice := ladderRulePriceFromPctOrAbsolute(action, entry, rule.StopLossPct, removeLadderBuffer(action, entry, rule.StopLossPrice, rule.VolatilityBufferPct, false), false)
+			if slPrice <= 0 {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] stop loss requires stop_loss_price or stop_loss_pct", i)
+			}
+			if !isStopLossPriceForAction(action, entry, slPrice) {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] stop loss %.4f is not executable for %s entry %.4f", i, slPrice, action, entry)
+			}
+			if len(invalidationRefs) > 0 {
+				nearest, gap := nearestLevel(unbufferedSLPrice, invalidationRefs)
+				if gap > stopTol {
+					return fmt.Errorf("protection_plan.ladder_rules[%d] stop loss %.4f too far from structural invalidation %.4f", i, slPrice, nearest)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func ladderRulePriceFromPctOrAbsolute(action string, entry, pct, absolute float64, takeProfit bool) float64 {
+	if absolute > 0 {
+		return absolute
+	}
+	if entry <= 0 || pct <= 0 {
+		return 0
+	}
+	move := pct / 100.0
+	if takeProfit {
+		if action == "open_long" {
+			return entry * (1 + move)
+		}
+		if action == "open_short" {
+			return entry * (1 - move)
+		}
+	} else {
+		if action == "open_long" {
+			return entry * (1 - move)
+		}
+		if action == "open_short" {
+			return entry * (1 + move)
+		}
+	}
+	return 0
+}
+
+func isTakeProfitPriceForAction(action string, entry, price float64) bool {
+	return entry > 0 && price > 0 && ((action == "open_long" && price > entry) || (action == "open_short" && price < entry))
+}
+
+func isStopLossPriceForAction(action string, entry, price float64) bool {
+	return entry > 0 && price > 0 && ((action == "open_long" && price < entry) || (action == "open_short" && price > entry))
+}
+
+func removeLadderBuffer(action string, entry, price, bufferPct float64, takeProfit bool) float64 {
+	if entry <= 0 || price <= 0 || bufferPct <= 0 {
+		return price
+	}
+	move := entry * bufferPct / 100.0
+	if takeProfit {
+		switch action {
+		case "open_long":
+			return price + move
+		case "open_short":
+			return price - move
+		}
+	} else {
+		switch action {
+		case "open_long":
+			return price + move
+		case "open_short":
+			return price - move
+		}
+	}
+	return price
 }
 
 func validateBreakEvenTriggerAlignment(action string, rr AIRiskRewardRationale, plan *AIProtectionPlan) error {
@@ -1124,10 +1364,14 @@ func normalizeAndRepairOpenDecisions(decisions []Decision) {
 			continue
 		}
 		if d.EntryProtection != nil {
+			if len(d.EntryProtection.StructuralKeyLevels) == 0 && len(d.StructuralKeyLevels) > 0 {
+				d.EntryProtection.StructuralKeyLevels = append([]AIStructuralKeyLevel{}, d.StructuralKeyLevels...)
+			}
 			normalizeEntryProtectionRationale(d.EntryProtection)
 		}
 		if d.ProtectionPlan != nil {
 			normalizeProtectionPlan(d.ProtectionPlan)
+			alignLadderPlanToStructure(d.Action, d.EntryProtection, d.ProtectionPlan)
 		}
 	}
 }
@@ -1210,6 +1454,73 @@ func normalizeProtectionPlan(pp *AIProtectionPlan) {
 		pp.DrawdownRules[i].RunnerTargetMode = strings.TrimSpace(pp.DrawdownRules[i].RunnerTargetMode)
 		pp.DrawdownRules[i].RunnerTargetSource = strings.TrimSpace(pp.DrawdownRules[i].RunnerTargetSource)
 	}
+}
+
+func alignLadderPlanToStructure(action string, ep *AIEntryProtectionRationale, pp *AIProtectionPlan) {
+	if ep == nil || pp == nil || len(pp.LadderRules) == 0 {
+		return
+	}
+	mode := strings.ToLower(strings.TrimSpace(pp.Mode))
+	if mode != "ladder" && mode != "combined" {
+		return
+	}
+
+	_, targetRefs := structuralReferenceLevels(ep)
+	if len(targetRefs) == 0 {
+		switch action {
+		case "open_long":
+			targetRefs = filterPositiveLevels(ep.KeyLevels.Resistance)
+		case "open_short":
+			targetRefs = filterPositiveLevels(ep.KeyLevels.Support)
+		}
+	}
+	targetRefs = append(targetRefs, fibonacciLevels(ep.KeyLevels.Fibonacci)...)
+	invalidationRefs, _ := structuralReferenceLevels(ep)
+	if len(invalidationRefs) == 0 {
+		switch action {
+		case "open_long":
+			invalidationRefs = filterPositiveLevels(ep.KeyLevels.Support)
+		case "open_short":
+			invalidationRefs = filterPositiveLevels(ep.KeyLevels.Resistance)
+		}
+	}
+
+	for i := range pp.LadderRules {
+		rule := &pp.LadderRules[i]
+		if rule.TakeProfitPrice <= 0 && rule.TakeProfitPct > 0 && len(targetRefs) > 0 {
+			pctPrice := ladderRulePriceFromPctOrAbsolute(action, ep.RiskReward.Entry, rule.TakeProfitPct, 0, true)
+			nearest, _ := nearestLevel(pctPrice, targetRefs)
+			if isTakeProfitPriceForAction(action, ep.RiskReward.Entry, nearest) {
+				rule.TakeProfitPrice = nearest
+			}
+		}
+		if rule.StopLossPrice <= 0 && len(invalidationRefs) > 0 {
+			nearest := bestStopLossReference(action, ep.RiskReward.Entry, invalidationRefs)
+			if isStopLossPriceForAction(action, ep.RiskReward.Entry, nearest) {
+				rule.StopLossPrice = nearest
+				rule.StopLossAnchor = firstNonEmptyString(rule.StopLossAnchor, "auto-aligned to structural invalidation")
+			}
+		}
+		if rule.TakeProfitPct <= 0 && rule.TakeProfitPrice > 0 {
+			rule.TakeProfitPct = protectionPctFromPrices(action, ep.RiskReward.Entry, rule.TakeProfitPrice)
+		}
+		if rule.StopLossPct <= 0 && rule.StopLossPrice > 0 {
+			rule.StopLossPct = protectionPctFromPrices(action, ep.RiskReward.Entry, rule.StopLossPrice)
+		}
+	}
+}
+
+func bestStopLossReference(action string, entry float64, refs []float64) float64 {
+	best := 0.0
+	for _, ref := range refs {
+		if !isStopLossPriceForAction(action, entry, ref) {
+			continue
+		}
+		if best == 0 || absFloat(entry-ref) < absFloat(entry-best) {
+			best = ref
+		}
+	}
+	return best
 }
 
 func backfillStructuralKeyLevels(ep *AIEntryProtectionRationale) {

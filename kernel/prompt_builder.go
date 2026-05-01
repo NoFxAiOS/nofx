@@ -121,7 +121,7 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 - **position_size_usd**: 仓位大小（USDT，开新仓时必需）
 - **stop_loss**: 直接止损价（可选，仅当你不使用 protection_plan 时）
 - **take_profit**: 直接止盈价（可选，仅当你不使用 protection_plan 时）
-- **protection_plan**: 可选的结构化保护计划。mode=full 时只提供 take_profit_pct/stop_loss_pct（不要写价格字段）；mode=ladder 时提供 ladder_rules
+- **protection_plan**: 可选的结构化保护计划。mode=full/ladder 都优先提供结构绝对价 take_profit_price/stop_loss_price，同时给等价百分比；百分比只是审计/显示值，不是结构止损来源
 - **confidence**: 信心度（0-100）
 - **reasoning**: 推理过程（必需，必须详细说明决策依据）
 
@@ -276,7 +276,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
         {
           "timeframe": "15m",
           "min_profit_pct": 4,
-          "max_drawdown_pct": 30,
+          "max_drawdown_pct": 55,
           "close_ratio_pct": 50,
           "poll_interval_seconds": 60,
           "reason_anchor": "primary timeframe structure"
@@ -336,7 +336,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - **position_size_usd**: Position size in USDT (required for open_long/open_short)
 - **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
 - **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
-- **protection_plan**: Optional structured protection plan. Use mode=full with take_profit_pct/stop_loss_pct only (do not put price fields inside protection_plan), mode=ladder with ladder_rules, or mode=drawdown with at least 2 drawdown_rules.
+- **protection_plan**: Optional structured protection plan. Use mode=full/ladder with structural absolute prices plus equivalent pct where applicable, or mode=drawdown with at least 2 drawdown_rules. In drawdown_rules, max_drawdown_pct is peak-profit giveback percentage: 55 means give back 55% of peak profit; do not output 0.55 unless you truly mean 0.55% of peak profit.
 - **entry_protection_rationale**: Required for open_long/open_short. Must include structured timeframe/key-level/RR rationale. At minimum include ` + "`risk_reward.entry`" + `, ` + "`risk_reward.invalidation`" + `, ` + "`risk_reward.first_target`" + `, ` + "`risk_reward.gross_estimated_rr`" + `, and preferably ` + "`risk_reward.net_estimated_rr`" + ` plus structural ` + "`anchors`" + `. If ` + "`timeframe_context.higher`" + ` is present, include ` + "`higher_timeframe_anchors`" + ` or ` + "`timeframe_structures`" + ` with explicit higher-TF price anchors for runner/drawdown context.
 - Treat entry structure as compact evidence rather than indicator dumping: use the minimum support/resistance, timeframe, anchor, and fibonacci fields needed to justify entry/invalidation/first target.
 - If strategy entry-structure requirements demand primary timeframe / adjacent timeframes / support-resistance / anchors / fibonacci and you cannot support them from available market data, do not force an open action; return wait or [] instead.
@@ -517,8 +517,8 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 				if len(d.ProtectionPlan.DrawdownRules) > 0 {
 					return fmt.Errorf("decision #%d: full protection_plan must not include drawdown_rules", i+1)
 				}
-				if d.ProtectionPlan.TakeProfitPct <= 0 && d.ProtectionPlan.StopLossPct <= 0 {
-					return fmt.Errorf("decision #%d: full protection_plan requires take_profit_pct or stop_loss_pct", i+1)
+				if d.ProtectionPlan.TakeProfitPct <= 0 && d.ProtectionPlan.TakeProfitPrice <= 0 && d.ProtectionPlan.StopLossPct <= 0 && d.ProtectionPlan.StopLossPrice <= 0 {
+					return fmt.Errorf("decision #%d: full protection_plan requires take_profit_pct/take_profit_price or stop_loss_pct/stop_loss_price", i+1)
 				}
 			case "ladder":
 				if len(d.ProtectionPlan.DrawdownRules) > 0 {
@@ -528,8 +528,8 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 					return fmt.Errorf("decision #%d: ladder protection_plan requires ladder_rules", i+1)
 				}
 				for j, rule := range d.ProtectionPlan.LadderRules {
-					if rule.TakeProfitPct <= 0 && rule.StopLossPct <= 0 {
-						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct or stop_loss_pct", i+1, j)
+					if rule.TakeProfitPct <= 0 && rule.TakeProfitPrice <= 0 && rule.StopLossPct <= 0 && rule.StopLossPrice <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct/take_profit_price or stop_loss_pct/stop_loss_price", i+1, j)
 					}
 					if rule.TakeProfitCloseRatioPct < 0 || rule.TakeProfitCloseRatioPct > 100 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid take_profit_close_ratio_pct", i+1, j)
@@ -537,10 +537,10 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 					if rule.StopLossCloseRatioPct < 0 || rule.StopLossCloseRatioPct > 100 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid stop_loss_close_ratio_pct", i+1, j)
 					}
-					if rule.TakeProfitPct > 0 && rule.TakeProfitCloseRatioPct <= 0 {
+					if (rule.TakeProfitPct > 0 || rule.TakeProfitPrice > 0) && rule.TakeProfitCloseRatioPct <= 0 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] take_profit_pct requires positive take_profit_close_ratio_pct", i+1, j)
 					}
-					if rule.StopLossPct > 0 && rule.StopLossCloseRatioPct <= 0 {
+					if (rule.StopLossPct > 0 || rule.StopLossPrice > 0) && rule.StopLossCloseRatioPct <= 0 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] stop_loss_pct requires positive stop_loss_close_ratio_pct", i+1, j)
 					}
 				}
@@ -579,8 +579,8 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 					return fmt.Errorf("decision #%d: combined protection_plan must not include full take_profit_pct/stop_loss_pct", i+1)
 				}
 				for j, rule := range d.ProtectionPlan.LadderRules {
-					if rule.TakeProfitPct <= 0 && rule.StopLossPct <= 0 {
-						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct or stop_loss_pct", i+1, j)
+					if rule.TakeProfitPct <= 0 && rule.TakeProfitPrice <= 0 && rule.StopLossPct <= 0 && rule.StopLossPrice <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct/take_profit_price or stop_loss_pct/stop_loss_price", i+1, j)
 					}
 					if rule.TakeProfitCloseRatioPct < 0 || rule.TakeProfitCloseRatioPct > 100 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid take_profit_close_ratio_pct", i+1, j)
@@ -588,10 +588,10 @@ func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bo
 					if rule.StopLossCloseRatioPct < 0 || rule.StopLossCloseRatioPct > 100 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid stop_loss_close_ratio_pct", i+1, j)
 					}
-					if rule.TakeProfitPct > 0 && rule.TakeProfitCloseRatioPct <= 0 {
+					if (rule.TakeProfitPct > 0 || rule.TakeProfitPrice > 0) && rule.TakeProfitCloseRatioPct <= 0 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] take_profit_pct requires positive take_profit_close_ratio_pct", i+1, j)
 					}
-					if rule.StopLossPct > 0 && rule.StopLossCloseRatioPct <= 0 {
+					if (rule.StopLossPct > 0 || rule.StopLossPrice > 0) && rule.StopLossCloseRatioPct <= 0 {
 						return fmt.Errorf("decision #%d: ladder_rules[%d] stop_loss_pct requires positive stop_loss_close_ratio_pct", i+1, j)
 					}
 				}

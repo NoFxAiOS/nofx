@@ -30,8 +30,11 @@ func TestGetMarketDataCapabilities_OKX(t *testing.T) {
 	if !caps.QuoteLastPrice {
 		t.Fatalf("expected okx last price capability, got %+v", caps)
 	}
-	if caps.QuoteMarkPrice || caps.QuoteBestBid || caps.QuoteBestAsk || caps.QuoteSpread {
-		t.Fatalf("expected conservative false values for not-yet-wired okx quote extras, got %+v", caps)
+	if caps.QuoteMarkPrice {
+		t.Fatalf("expected conservative false value for not-yet-wired okx mark price, got %+v", caps)
+	}
+	if !caps.QuoteBestBid || !caps.QuoteBestAsk || !caps.QuoteSpread {
+		t.Fatalf("expected okx top-of-book quote capabilities, got %+v", caps)
 	}
 }
 

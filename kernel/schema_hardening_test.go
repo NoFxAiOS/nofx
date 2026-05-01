@@ -9,10 +9,10 @@ import (
 
 func TestSchemaRegistryContainsCoreAliases(t *testing.T) {
 	cases := map[string][]string{
-		"drawdown_rules.close_ratio_pct": {"close_ratio"},
+		"drawdown_rules.close_ratio_pct":          {"close_ratio"},
 		"protection_plan.break_even_trigger_mode": {"breakeven_trigger"},
-		"key_levels.support": {"support_levels"},
-		"risk_reward.entry": {"entry_price"},
+		"key_levels.support":                      {"support_levels"},
+		"risk_reward.entry":                       {"entry_price"},
 	}
 	for canonical, expected := range cases {
 		got := schemaAliases(canonical)
@@ -99,6 +99,16 @@ func TestLadderRuleAcceptsAliases(t *testing.T) {
 	}
 }
 
+func TestLadderRuleLevelAliasesMapToAbsolutePrices(t *testing.T) {
+	var rule AIProtectionLadderRule
+	if err := json.Unmarshal([]byte(`{"tp_level":111.82,"sl_level":113.14,"tp_close_ratio_pct":40,"sl_close_ratio_pct":25}`), &rule); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if rule.TakeProfitPrice != 111.82 || rule.StopLossPrice != 113.14 || rule.TakeProfitPct != 0 || rule.StopLossPct != 0 {
+		t.Fatalf("expected ladder level aliases to map to absolute prices, got %+v", rule)
+	}
+}
+
 func TestProtectionPlanAcceptsBreakevenAliases(t *testing.T) {
 	var plan AIProtectionPlan
 	if err := json.Unmarshal([]byte(`{"mode":"break_even","breakeven_trigger":"price_change_pct","breakeven_value":1.2,"breakeven_offset_pct":0.15,"breakeven_reason_anchor":"15m support flip"}`), &plan); err != nil {
@@ -174,7 +184,7 @@ func TestNormalizeAndRepairOpenDecisionBackfillsStructuralKeyLevels(t *testing.T
 		Action: " OPEN_LONG ",
 		EntryProtection: &AIEntryProtectionRationale{
 			TimeframeContext: AIEntryTimeframeContext{Primary: " 15m "},
-			KeyLevels: AIEntryKeyLevels{Support: []float64{100}, Resistance: []float64{110}},
+			KeyLevels:        AIEntryKeyLevels{Support: []float64{100}, Resistance: []float64{110}},
 		},
 	}}
 	normalizeAndRepairOpenDecisions(decisions)
@@ -200,7 +210,7 @@ func TestNormalizeAndRepairOpenDecisionKeepsKeyLevelsWithinConfigCapsAfterBackfi
 			Support:    []float64{100, 99, 98},
 			Resistance: []float64{110, 111, 112, 113},
 		},
-		Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 100, Reason: "invalidation"}, {Type: "resistance", Timeframe: "1h", Price: 113, Reason: "first target"}},
+		Anchors:    []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 100, Reason: "invalidation"}, {Type: "resistance", Timeframe: "1h", Price: 113, Reason: "first target"}},
 		RiskReward: AIRiskRewardRationale{Entry: 105, Invalidation: 100, FirstTarget: 113, GrossEstimatedRR: 1.6, NetEstimatedRR: 1.5, MinRequiredRR: 1.5, Passed: true},
 	}
 	decisions := []Decision{{Symbol: "ZECUSDT", Action: "open_long", EntryProtection: ep}}
@@ -224,5 +234,23 @@ func TestBackfillEntryProtectionKeyLevelsFromAnchors(t *testing.T) {
 	}
 	if len(ep.KeyLevels.Resistance) != 1 || ep.KeyLevels.Resistance[0] != 120 {
 		t.Fatalf("expected resistance [120], got %#v", ep.KeyLevels.Resistance)
+	}
+}
+
+func TestNormalizeAndRepairOpenDecisionMovesTopLevelStructuralKeyLevels(t *testing.T) {
+	decisions := []Decision{{
+		Symbol: "zecusdt",
+		Action: "open_long",
+		EntryProtection: &AIEntryProtectionRationale{
+			TimeframeContext: AIEntryTimeframeContext{Primary: "15m"},
+			RiskReward:       AIRiskRewardRationale{Entry: 329.84, Invalidation: 328.7, FirstTarget: 333.24487643, GrossEstimatedRR: 2.99},
+		},
+		StructuralKeyLevels: []AIStructuralKeyLevel{{Price: 328.7, Type: "support", Timeframe: "15m", Source: "ATR_buffered_structural_stop", UsedFor: "stop_loss"}},
+	}}
+
+	normalizeAndRepairOpenDecisions(decisions)
+
+	if got := decisions[0].EntryProtection.StructuralKeyLevels; len(got) != 1 || got[0].Price != 328.7 || got[0].UsedFor != "stop_loss" {
+		t.Fatalf("expected top-level structural_key_levels moved into entry_protection_rationale, got %#v", got)
 	}
 }

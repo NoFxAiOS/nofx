@@ -84,6 +84,7 @@ func generateStructuralLadderRules(entryPrice float64, isLong bool, mdata *marke
 	// Generate TP orders with proportional sizing
 	ratios := ladderCloseRatios(len(tpLevels))
 	for i, price := range tpLevels {
+		price := applyStructuralProtectionBuffer(entryPrice, price, isLong, true, mdata)
 		tpOrders = append(tpOrders, ProtectionOrder{
 			Price:         roundProtectionPrice(price),
 			CloseRatioPct: ratios[i],
@@ -92,13 +93,43 @@ func generateStructuralLadderRules(entryPrice float64, isLong bool, mdata *marke
 
 	// Generate SL order from nearest support/resistance
 	if len(slLevels) > 0 {
+		price := applyStructuralProtectionBuffer(entryPrice, slLevels[0], isLong, false, mdata)
 		slOrders = append(slOrders, ProtectionOrder{
-			Price:         roundProtectionPrice(slLevels[0]),
+			Price:         roundProtectionPrice(price),
 			CloseRatioPct: 100,
 		})
 	}
 
 	return tpOrders, slOrders
+}
+
+func applyStructuralProtectionBuffer(entryPrice, price float64, isLong bool, takeProfit bool, mdata *market.Data) float64 {
+	if entryPrice <= 0 || price <= 0 || mdata == nil {
+		return price
+	}
+	atr := 0.0
+	if mdata.TimeframeData != nil {
+		if tf := mdata.TimeframeData["15m"]; tf != nil && tf.ATR14 > 0 {
+			atr = tf.ATR14
+		}
+	}
+	if atr <= 0 && mdata.IntradaySeries != nil && mdata.IntradaySeries.ATR14 > 0 {
+		atr = mdata.IntradaySeries.ATR14
+	}
+	if atr <= 0 {
+		return price
+	}
+	buffer := atr * 0.35
+	if takeProfit {
+		if isLong {
+			return price - buffer
+		}
+		return price + buffer
+	}
+	if isLong {
+		return price - buffer
+	}
+	return price + buffer
 }
 
 func ladderCloseRatios(n int) []float64 {

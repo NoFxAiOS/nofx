@@ -29,6 +29,20 @@ func evaluateShadowQualityGate(decision *kernel.Decision, data *market.Data, min
 	}
 	if data != nil {
 		regime := classifyProtectionRegime(data)
+		if guidance := market.BuildRegimeEntryGuidance(data, market.BuildMarketStructureBrief(data), market.BuildDerivativesContext(data), data.QuantContext, market.BuildExchangeFlowContext(data)); guidance != nil && guidance.Regime != "" {
+			regime = guidance.Regime
+			allowed := false
+			setup := strings.ToLower(strings.TrimSpace(decision.SetupType))
+			for _, item := range guidance.AllowedSetups {
+				if strings.EqualFold(item, setup) {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				failed = appendMissing(failed, "regime_structure_mismatch")
+			}
+		}
 		if gate.Regime == "" {
 			gate.Regime = regime
 		}

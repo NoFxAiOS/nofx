@@ -460,3 +460,19 @@ func TestBuildConfiguredProtectionPlanDrawdownSuppressesStaticTPAndLadderOwnsSto
 		t.Fatalf("expected full stop suppressed by ladder stop, got %+v", plan)
 	}
 }
+
+func TestBuildAIDecisionFullProtectionPlanPrefersAbsolutePrices(t *testing.T) {
+	plan, err := buildAIProtectionPlan(100, "open_long", &kernel.AIProtectionPlan{
+		Mode:            "full",
+		StopLossPrice:   97.5,
+		StopLossPct:     1,
+		TakeProfitPrice: 106,
+		TakeProfitPct:   2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil || !almostEqual(plan.StopLossPrice, 97.5) || !almostEqual(plan.TakeProfitPrice, 106) {
+		t.Fatalf("expected absolute prices to win, got %+v", plan)
+	}
+}

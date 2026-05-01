@@ -760,6 +760,30 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		currentStageRuleCount = len(armRules)
 	}
 
+	plannedLadderStopCount := 0
+	plannedLadderTakeProfitCount := 0
+	fullStopPlanned := false
+	fullTakeProfitPlanned := false
+	fallbackPlanned := false
+	unexpectedSummary := unexpectedProtectionSummary{}
+	plannedLadderOrders := map[string]interface{}{}
+	var configuredPlan *ProtectionPlan
+	if plan, err := at.BuildConfiguredProtectionPlan(entryPrice, "open_"+strings.ToLower(side)); err == nil && plan != nil {
+		configuredPlan = plan
+		plannedLadderStopCount = len(plan.StopLossOrders)
+		plannedLadderTakeProfitCount = len(plan.TakeProfitOrders)
+		plannedLadderOrders = map[string]interface{}{
+			"stop_loss":   plan.StopLossOrders,
+			"take_profit": plan.TakeProfitOrders,
+		}
+		fullStopPlanned = plan.NeedsStopLoss && plan.StopLossPrice > 0
+		fullTakeProfitPlanned = plan.NeedsTakeProfit && plan.TakeProfitPrice > 0
+		fallbackPlanned = plan.FallbackMaxLossPrice > 0
+		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
+		nativeTrailingArmed := at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed"
+		unexpectedSummary = classifyUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed, true)
+	}
+
 	activeOrders := make([]map[string]interface{}, 0)
 	trailingOrders := make([]map[string]interface{}, 0)
 	liveTrailingTriggerPrice := 0.0
@@ -786,6 +810,12 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			triggerPrice = order.Price
 		}
 		clientOrderID := strings.ToLower(strings.TrimSpace(order.ClientOrderID))
+		if clientOrderID == "" && configuredPlan != nil {
+			if inferred := inferProtectionClientOrderID(order, positionSide, configuredPlan); inferred != "" {
+				order.ClientOrderID = inferred
+				clientOrderID = strings.ToLower(inferred)
+			}
+		}
 		if !breakEvenOrderDetected && looksLikeStopLoss(order) {
 			if strings.Contains(clientOrderID, "break_even") || strings.Contains(clientOrderID, "breakeven") {
 				breakEvenOrderDetected = true
@@ -920,7 +950,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				}
 			}
 			activationPrice := plannedActivationPrice
-			callbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+			callbackRate := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
 			activationSource := "planned"
 			callbackSource := "planned"
 			plannedQty := quantity * rule.CloseRatioPct / 100.0
@@ -969,29 +999,43 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 			if structureCtx != nil {
 				anchor = structureCtx.selectTierAnchor(side, rule, entryPrice)
 			}
+			legacyWarning := ""
+			nativeRejectedReason := ""
+			if rule.MaxDrawdownPct > 0 && rule.MaxDrawdownPct < 5 && rule.MaxDrawdownAbsPct <= 0 {
+				legacyWarning = "max_drawdown_pct is below 5 under peak-profit giveback semantics; likely legacy absolute-profit value"
+			}
+			if entryPrice > 0 && rule.MinProfitPct > 0 && strings.Contains(strings.ToLower(executionMode), "managed") {
+				cb := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
+				if cb > 0 && cb < minNativeDrawdownCallbackRatio {
+					nativeRejectedReason = fmt.Sprintf("native callback %.6f below safety floor %.6f; managed fallback preserves rule math", cb, minNativeDrawdownCallbackRatio)
+				}
+			}
 			tier := map[string]interface{}{
-				"index":                    idx + 1,
-				"stage_name":               rule.StageName,
-				"timeframe":                rule.Timeframe,
-				"reason_anchor":            rule.ReasonAnchor,
-				"min_profit_pct":           rule.MinProfitPct,
-				"max_drawdown_pct":         rule.MaxDrawdownPct,
-				"close_ratio_pct":          rule.CloseRatioPct,
-				"runner_keep_pct":          rule.RunnerKeepPct,
-				"runner_stop_mode":         rule.RunnerStopMode,
-				"runner_stop_source":       rule.RunnerStopSource,
-				"runner_target_mode":       rule.RunnerTargetMode,
-				"runner_target_source":     rule.RunnerTargetSource,
-				"activation_price":         activationPrice,
-				"planned_activation_price": plannedActivationPrice,
-				"activation_source":        activationSource,
-				"callback_rate":            callbackRate,
-				"callback_source":          callbackSource,
-				"planned_quantity":         quantity * rule.CloseRatioPct / 100.0,
-				"source":                   source,
-				"execution_mode":           executionMode,
-				"is_satisfied":             currentPnLPct >= rule.MinProfitPct,
-				"is_triggered":             currentPnLPct >= rule.MinProfitPct && drawdownPct >= rule.MaxDrawdownPct,
+				"index":                             idx + 1,
+				"stage_name":                        rule.StageName,
+				"timeframe":                         rule.Timeframe,
+				"reason_anchor":                     rule.ReasonAnchor,
+				"min_profit_pct":                    rule.MinProfitPct,
+				"max_drawdown_pct":                  rule.MaxDrawdownPct,
+				"max_drawdown_abs_profit_pct":       rule.MaxDrawdownAbsPct,
+				"close_ratio_pct":                   rule.CloseRatioPct,
+				"runner_keep_pct":                   rule.RunnerKeepPct,
+				"runner_stop_mode":                  rule.RunnerStopMode,
+				"runner_stop_source":                rule.RunnerStopSource,
+				"runner_target_mode":                rule.RunnerTargetMode,
+				"runner_target_source":              rule.RunnerTargetSource,
+				"activation_price":                  activationPrice,
+				"planned_activation_price":          plannedActivationPrice,
+				"activation_source":                 activationSource,
+				"callback_rate":                     callbackRate,
+				"callback_source":                   callbackSource,
+				"planned_quantity":                  quantity * rule.CloseRatioPct / 100.0,
+				"source":                            source,
+				"execution_mode":                    executionMode,
+				"is_satisfied":                      currentPnLPct >= rule.MinProfitPct,
+				"is_triggered":                      currentPnLPct >= rule.MinProfitPct && isDrawdownThresholdMet(currentPnLPct, drawdownPct, rule),
+				"legacy_drawdown_semantics_warning": legacyWarning,
+				"native_trailing_rejected_reason":   nativeRejectedReason,
 			}
 			if anchor != nil {
 				tier["structure_anchor"] = anchor
@@ -1003,22 +1047,6 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		}
 	}
 
-	plannedLadderStopCount := 0
-	plannedLadderTakeProfitCount := 0
-	fullStopPlanned := false
-	fullTakeProfitPlanned := false
-	fallbackPlanned := false
-	unexpectedSummary := unexpectedProtectionSummary{}
-	if configuredPlan, err := at.BuildConfiguredProtectionPlan(entryPrice, "open_"+strings.ToLower(side)); err == nil && configuredPlan != nil {
-		plannedLadderStopCount = len(configuredPlan.StopLossOrders)
-		plannedLadderTakeProfitCount = len(configuredPlan.TakeProfitOrders)
-		fullStopPlanned = configuredPlan.NeedsStopLoss && configuredPlan.StopLossPrice > 0
-		fullTakeProfitPlanned = configuredPlan.NeedsTakeProfit && configuredPlan.TakeProfitPrice > 0
-		fallbackPlanned = configuredPlan.FallbackMaxLossPrice > 0
-		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
-		nativeTrailingArmed := at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed"
-		unexpectedSummary = classifyUnexpectedProtectionOrders(openOrders, positionSide, configuredPlan, breakEvenArmed, nativeTrailingArmed, true)
-	}
 	ladderDegradedStop := plannedLadderStopCount > 0 && ladderStopCount < plannedLadderStopCount
 	ladderDegradedTakeProfit := plannedLadderTakeProfitCount > 0 && ladderTakeProfitCount < plannedLadderTakeProfitCount
 	ladderDegradedToFullStop := ladderDegradedStop && fullStopCount > 0
@@ -1268,6 +1296,7 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		"break_even_order_detected":           breakEvenOrderDetected,
 		"planned_ladder_stop_count":           plannedLadderStopCount,
 		"planned_ladder_take_profit_count":    plannedLadderTakeProfitCount,
+		"planned_ladder_orders":               plannedLadderOrders,
 		"live_ladder_stop_count":              ladderStopCount,
 		"live_ladder_take_profit_count":       ladderTakeProfitCount,
 		"live_full_stop_count":                fullStopCount,

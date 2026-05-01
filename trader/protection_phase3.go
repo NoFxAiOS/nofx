@@ -131,13 +131,20 @@ func classifyTrendDirection(data *market.Data) int {
 // - narrow/standard/wide: both directions allowed (range trading is valid)
 // - volatile: both directions allowed (but other filters may block)
 // - If regime is not directional, fall back to multi-factor scoring
-func isTrendAligned(action string, data *market.Data) bool {
+func isTrendAlignedWithMode(action string, setupType string, data *market.Data, mode store.RegimeTrendAlignmentMode) bool {
 	if data == nil {
 		return true
 	}
 
 	regime := classifyProtectionRegime(data)
 	act := strings.ToLower(action)
+	setup := strings.ToLower(strings.TrimSpace(setupType))
+
+	if mode == store.RegimeTrendAlignmentAllowRangeEdgeReversal && setup == "range_edge" {
+		if isRangeEdgeReversalStructurallyPlausible(act, data) {
+			return true
+		}
+	}
 
 	switch regime {
 	case string(market.RegimeLevelTrendingUp):
@@ -229,6 +236,57 @@ func isStrongCounterTrend(action string, data *market.Data) bool {
 	return counterScore >= 4
 }
 
+func isTrendAligned(action string, data *market.Data) bool {
+	return isTrendAlignedWithMode(action, "", data, store.RegimeTrendAlignmentStrict)
+}
+
+// isRangeEdgeReversalStructurallyPlausible allows deliberate support/resistance
+// fade entries to pass the directional trend gate when the strategy explicitly
+// opts in. It is intentionally conservative: only range_edge setups, near a
+// Bollinger edge, with non-extreme short-term momentum may bypass strict trend
+// direction. RR/structure/protection gates still run after this.
+func isRangeEdgeReversalStructurallyPlausible(action string, data *market.Data) bool {
+	if data == nil || data.CurrentPrice <= 0 {
+		return false
+	}
+	atrPct := 0.0
+	if data.IntradaySeries != nil && data.IntradaySeries.ATR14 > 0 {
+		atrPct = data.IntradaySeries.ATR14 / data.CurrentPrice * 100
+	} else if data.LongerTermContext != nil && data.LongerTermContext.ATR14 > 0 {
+		atrPct = data.LongerTermContext.ATR14 / data.CurrentPrice * 100
+	}
+	if atrPct <= 0 || atrPct > 1.5 {
+		return false
+	}
+	lower, upper := latestBollingerBand(data)
+	if lower <= 0 || upper <= 0 || upper <= lower {
+		return false
+	}
+	edgeTolerance := data.CurrentPrice * math.Max(atrPct*1.2, 0.15) / 100.0
+	switch strings.ToLower(action) {
+	case "open_long":
+		return data.CurrentPrice <= lower+edgeTolerance && data.PriceChange1h > -2.5
+	case "open_short":
+		return data.CurrentPrice >= upper-edgeTolerance && data.PriceChange1h < 2.5
+	default:
+		return true
+	}
+}
+
+func latestBollingerBand(data *market.Data) (float64, float64) {
+	if data == nil || data.TimeframeData == nil {
+		return 0, 0
+	}
+	for _, tf := range []string{"15m", "5m", "3m", "1h"} {
+		series := data.TimeframeData[tf]
+		if series == nil || len(series.BOLLLower) == 0 || len(series.BOLLUpper) == 0 {
+			continue
+		}
+		return series.BOLLLower[len(series.BOLLLower)-1], series.BOLLUpper[len(series.BOLLUpper)-1]
+	}
+	return 0, 0
+}
+
 func (at *AutoTrader) evaluateDecisionRegimeGate(decision *kernel.Decision, data *market.Data) regimeGateResult {
 	result := regimeGateResult{Allowed: true}
 	if at == nil || at.config.StrategyConfig == nil || decision == nil {
@@ -295,12 +353,16 @@ func (at *AutoTrader) evaluateDecisionRegimeGate(decision *kernel.Decision, data
 	}
 
 	if cfg.RequireTrendAlignment {
-		aligned := isTrendAligned(decision.Action, data)
+		aligned := isTrendAlignedWithMode(decision.Action, decision.SetupType, data, cfg.TrendAlignmentMode)
 		result.TrendAligned = &aligned
 		if !aligned {
 			result.Allowed = false
 			result.ReasonCode = "trend_misaligned"
-			result.Reason = fmt.Sprintf("trend alignment failed for %s under regime gate", decision.Action)
+			if cfg.TrendAlignmentMode == store.RegimeTrendAlignmentAllowRangeEdgeReversal {
+				result.Reason = fmt.Sprintf("trend alignment failed for %s under regime gate (range_edge reversal exception not satisfied)", decision.Action)
+			} else {
+				result.Reason = fmt.Sprintf("trend alignment failed for %s under regime gate", decision.Action)
+			}
 			return result
 		}
 	}
@@ -346,33 +408,11 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		return &ProtectionPlan{Mode: string(store.ProtectionModeAI), BreakEvenConfig: be}, nil
 	}
 	if mode == "" || mode == "full" {
-		full := store.FullTPSLConfig{
-			Enabled:    true,
-			Mode:       store.ProtectionModeAI,
-			TakeProfit: store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: plan.TakeProfitPct},
-			StopLoss:   store.ProtectionValueSource{Mode: store.ProtectionValueModeAI, Value: plan.StopLossPct},
-		}
-		return buildAIFullProtectionPlan(entryPrice, action, full)
+		return buildAIDecisionFullProtectionPlan(entryPrice, action, plan)
 	}
 
 	if mode == "ladder" {
-		ladderRules := make([]store.LadderTPSLRule, 0, len(plan.LadderRules))
-		for _, rule := range plan.LadderRules {
-			ladderRules = append(ladderRules, store.LadderTPSLRule{
-				TakeProfitPct:           rule.TakeProfitPct,
-				TakeProfitCloseRatioPct: rule.TakeProfitCloseRatioPct,
-				StopLossPct:             rule.StopLossPct,
-				StopLossCloseRatioPct:   rule.StopLossCloseRatioPct,
-			})
-		}
-		ladder := store.LadderTPSLConfig{
-			Enabled:           true,
-			Mode:              store.ProtectionModeAI,
-			TakeProfitEnabled: true,
-			StopLossEnabled:   true,
-			Rules:             ladderRules,
-		}
-		return buildAILadderProtectionPlan(entryPrice, action, ladder)
+		return buildAIDecisionLadderProtectionPlan(entryPrice, action, plan.LadderRules)
 	}
 
 	if mode == "drawdown" {
@@ -402,17 +442,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		}
 		parts := make([]*ProtectionPlan, 0, 2)
 		if len(plan.LadderRules) > 0 {
-			ladderRules := make([]store.LadderTPSLRule, 0, len(plan.LadderRules))
-			for _, rule := range plan.LadderRules {
-				ladderRules = append(ladderRules, store.LadderTPSLRule{
-					TakeProfitPct:           rule.TakeProfitPct,
-					TakeProfitCloseRatioPct: rule.TakeProfitCloseRatioPct,
-					StopLossPct:             rule.StopLossPct,
-					StopLossCloseRatioPct:   rule.StopLossCloseRatioPct,
-				})
-			}
-			ladder := store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI, TakeProfitEnabled: true, StopLossEnabled: true, Rules: ladderRules}
-			if p, err := buildAILadderProtectionPlan(entryPrice, action, ladder); err != nil {
+			if p, err := buildAIDecisionLadderProtectionPlan(entryPrice, action, plan.LadderRules); err != nil {
 				return nil, err
 			} else if p != nil {
 				parts = append(parts, p)
@@ -425,6 +455,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 					Timeframe:           rule.Timeframe,
 					MinProfitPct:        rule.MinProfitPct,
 					MaxDrawdownPct:      rule.MaxDrawdownPct,
+					MaxDrawdownAbsPct:   rule.MaxDrawdownAbsPct,
 					CloseRatioPct:       rule.CloseRatioPct,
 					PollIntervalSeconds: rule.PollIntervalSeconds,
 					ReasonAnchor:        rule.ReasonAnchor,
@@ -442,6 +473,46 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 	}
 
 	return nil, nil
+}
+
+func buildAIDecisionFullProtectionPlan(entryPrice float64, action string, plan *kernel.AIProtectionPlan) (*ProtectionPlan, error) {
+	if plan == nil || entryPrice <= 0 {
+		return nil, nil
+	}
+	isLong := action == "open_long"
+	isShort := action == "open_short"
+	if !isLong && !isShort {
+		return nil, nil
+	}
+	out := &ProtectionPlan{Mode: string(store.ProtectionModeAI), RequiresNativeOrders: true}
+	if plan.StopLossPrice > 0 && isExecutableStopLossPrice(entryPrice, action, plan.StopLossPrice) {
+		out.StopLossPrice = roundProtectionPrice(plan.StopLossPrice)
+		out.NeedsStopLoss = true
+	} else if plan.StopLossPct > 0 {
+		move := plan.StopLossPct / 100.0
+		if isLong {
+			out.StopLossPrice = roundProtectionPrice(entryPrice * (1 - move))
+		} else {
+			out.StopLossPrice = roundProtectionPrice(entryPrice * (1 + move))
+		}
+		out.NeedsStopLoss = true
+	}
+	if plan.TakeProfitPrice > 0 && isExecutableTakeProfitPrice(entryPrice, action, plan.TakeProfitPrice) {
+		out.TakeProfitPrice = roundProtectionPrice(plan.TakeProfitPrice)
+		out.NeedsTakeProfit = true
+	} else if plan.TakeProfitPct > 0 {
+		move := plan.TakeProfitPct / 100.0
+		if isLong {
+			out.TakeProfitPrice = roundProtectionPrice(entryPrice * (1 + move))
+		} else {
+			out.TakeProfitPrice = roundProtectionPrice(entryPrice * (1 - move))
+		}
+		out.NeedsTakeProfit = true
+	}
+	if !out.NeedsStopLoss && !out.NeedsTakeProfit {
+		return nil, nil
+	}
+	return out, nil
 }
 
 func buildAIFullProtectionPlan(entryPrice float64, action string, full store.FullTPSLConfig) (*ProtectionPlan, error) {
@@ -496,6 +567,99 @@ func buildAIFullProtectionPlan(entryPrice float64, action string, full store.Ful
 	}
 
 	return plan, nil
+}
+
+func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rules []kernel.AIProtectionLadderRule) (*ProtectionPlan, error) {
+	if entryPrice <= 0 || len(rules) == 0 {
+		return nil, nil
+	}
+
+	isLong := action == "open_long"
+	isShort := action == "open_short"
+	if !isLong && !isShort {
+		return nil, nil
+	}
+
+	plan := &ProtectionPlan{
+		Mode:                 string(store.ProtectionModeAI),
+		RequiresNativeOrders: true,
+		RequiresPartialClose: true,
+	}
+
+	remainingTakeProfitRatio := 100.0
+	remainingStopLossRatio := 100.0
+	for _, rule := range rules {
+		if rule.TakeProfitCloseRatioPct > 0 && remainingTakeProfitRatio > 0 {
+			price := rule.TakeProfitPrice
+			if price <= 0 && rule.TakeProfitPct > 0 {
+				move := rule.TakeProfitPct / 100.0
+				if isLong {
+					price = entryPrice * (1 + move)
+				} else {
+					price = entryPrice * (1 - move)
+				}
+			}
+			if price > 0 && rule.VolatilityBufferPct > 0 {
+				bufferMove := entryPrice * rule.VolatilityBufferPct / 100.0
+				if isLong {
+					price -= bufferMove
+				} else {
+					price += bufferMove
+				}
+			}
+			if price > 0 && isExecutableTakeProfitPrice(entryPrice, action, price) {
+				closeRatio := minPositive(rule.TakeProfitCloseRatioPct, remainingTakeProfitRatio)
+				plan.TakeProfitOrders = append(plan.TakeProfitOrders, ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio})
+				remainingTakeProfitRatio -= closeRatio
+			}
+		}
+
+		if rule.StopLossCloseRatioPct > 0 && remainingStopLossRatio > 0 {
+			price := rule.StopLossPrice
+			if price <= 0 && rule.StopLossPct > 0 {
+				move := rule.StopLossPct / 100.0
+				if isLong {
+					price = entryPrice * (1 - move)
+				} else {
+					price = entryPrice * (1 + move)
+				}
+			}
+			if price > 0 && rule.VolatilityBufferPct > 0 {
+				bufferMove := entryPrice * rule.VolatilityBufferPct / 100.0
+				if isLong {
+					price -= bufferMove
+				} else {
+					price += bufferMove
+				}
+			}
+			if price > 0 && isExecutableStopLossPrice(entryPrice, action, price) {
+				closeRatio := minPositive(rule.StopLossCloseRatioPct, remainingStopLossRatio)
+				plan.StopLossOrders = append(plan.StopLossOrders, ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio})
+				remainingStopLossRatio -= closeRatio
+			}
+		}
+	}
+
+	if len(plan.StopLossOrders) == 0 && len(plan.TakeProfitOrders) == 0 {
+		return nil, nil
+	}
+	plan.NeedsStopLoss = len(plan.StopLossOrders) > 0
+	plan.NeedsTakeProfit = len(plan.TakeProfitOrders) > 0
+	return plan, nil
+}
+
+func isExecutableTakeProfitPrice(entryPrice float64, action string, price float64) bool {
+	if entryPrice <= 0 || price <= 0 {
+		return false
+	}
+	return (action == "open_long" && price > entryPrice) || (action == "open_short" && price < entryPrice)
+}
+
+func isExecutableStopLossPrice(entryPrice float64, action string, price float64) bool {
+	if entryPrice <= 0 || price <= 0 {
+		return false
+	}
+	return (action == "open_long" && price < entryPrice) || (action == "open_short" && price > entryPrice)
 }
 
 func buildAILadderProtectionPlan(entryPrice float64, action string, ladder store.LadderTPSLConfig) (*ProtectionPlan, error) {

@@ -280,6 +280,7 @@ type DrawdownTakeProfitRule struct {
 	Timeframe           string  `json:"timeframe,omitempty"`
 	MinProfitPct        float64 `json:"min_profit_pct,omitempty"`
 	MaxDrawdownPct      float64 `json:"max_drawdown_pct,omitempty"`
+	MaxDrawdownAbsPct   float64 `json:"max_drawdown_abs_profit_pct,omitempty"`
 	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
 	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
 	ReasonAnchor        string  `json:"reason_anchor,omitempty"`
@@ -305,14 +306,22 @@ type BreakEvenStopConfig struct {
 	OffsetPct    float64              `json:"offset_pct,omitempty"`
 }
 
+type RegimeTrendAlignmentMode string
+
+const (
+	RegimeTrendAlignmentStrict                 RegimeTrendAlignmentMode = "strict"
+	RegimeTrendAlignmentAllowRangeEdgeReversal RegimeTrendAlignmentMode = "allow_range_edge_reversal"
+)
+
 type RegimeFilterConfig struct {
-	Enabled               bool     `json:"enabled"`
-	AllowedRegimes        []string `json:"allowed_regimes,omitempty"`
-	BlockHighFunding      bool     `json:"block_high_funding"`
-	MaxFundingRateAbs     float64  `json:"max_funding_rate_abs,omitempty"`
-	BlockHighVolatility   bool     `json:"block_high_volatility"`
-	MaxATR14Pct           float64  `json:"max_atr14_pct,omitempty"`
-	RequireTrendAlignment bool     `json:"require_trend_alignment"`
+	Enabled               bool                     `json:"enabled"`
+	AllowedRegimes        []string                 `json:"allowed_regimes,omitempty"`
+	BlockHighFunding      bool                     `json:"block_high_funding"`
+	MaxFundingRateAbs     float64                  `json:"max_funding_rate_abs,omitempty"`
+	BlockHighVolatility   bool                     `json:"block_high_volatility"`
+	MaxATR14Pct           float64                  `json:"max_atr14_pct,omitempty"`
+	RequireTrendAlignment bool                     `json:"require_trend_alignment"`
+	TrendAlignmentMode    RegimeTrendAlignmentMode `json:"trend_alignment_mode,omitempty"`
 }
 
 // GridStrategyConfig grid trading specific configuration
@@ -569,15 +578,15 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			// NofxOS unified API key
 			NofxOSAPIKey: "cm_568c67eae410d912c54c",
 			// Quant data
-			EnableQuantData:    true,
-			EnableQuantOI:      true,
-			EnableQuantNetflow: true,
+			EnableQuantData:    false,
+			EnableQuantOI:      false,
+			EnableQuantNetflow: false,
 			// OI ranking data
-			EnableOIRanking:   true,
+			EnableOIRanking:   false,
 			OIRankingDuration: "1h",
 			OIRankingLimit:    10,
 			// NetFlow ranking data
-			EnableNetFlowRanking:   true,
+			EnableNetFlowRanking:   false,
 			NetFlowRankingDuration: "1h",
 			NetFlowRankingLimit:    10,
 			// Price ranking data

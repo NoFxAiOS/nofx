@@ -10,23 +10,23 @@ import "strings"
 // A false value means "do not rely on this field by default".
 //
 // Notes:
-// - Price/quantity precision and tick/step flags refer to instrument/exchange-rule
-//   metadata already available through the adapter.
-// - MinNotional and MinQty/MinSize are kept separate because exchanges expose
-//   different constraint models.
-// - Last/Mark/BidAsk/Spread are about readily available quote data, not deep books.
-// - ContractValue is especially relevant for contract-based venues like OKX.
-// - FeeFallback means the runtime may use configured/safe-default fee assumptions
-//   when venue-native fee schedules are not wired through this helper.
-// - DegradedProfile marks conservative exchanges where only a thin subset should be used.
+//   - Price/quantity precision and tick/step flags refer to instrument/exchange-rule
+//     metadata already available through the adapter.
+//   - MinNotional and MinQty/MinSize are kept separate because exchanges expose
+//     different constraint models.
+//   - Last/Mark/BidAsk/Spread are about readily available quote data, not deep books.
+//   - ContractValue is especially relevant for contract-based venues like OKX.
+//   - FeeFallback means the runtime may use configured/safe-default fee assumptions
+//     when venue-native fee schedules are not wired through this helper.
+//   - DegradedProfile marks conservative exchanges where only a thin subset should be used.
 type MarketDataCapabilities struct {
-	InstrumentTickSize      bool
+	InstrumentTickSize       bool
 	InstrumentPricePrecision bool
-	InstrumentQtyStep       bool
-	InstrumentQtyPrecision  bool
-	InstrumentMinQty        bool
-	InstrumentMinNotional   bool
-	InstrumentContractValue bool
+	InstrumentQtyStep        bool
+	InstrumentQtyPrecision   bool
+	InstrumentMinQty         bool
+	InstrumentMinNotional    bool
+	InstrumentContractValue  bool
 
 	QuoteLastPrice bool
 	QuoteMarkPrice bool
@@ -74,9 +74,9 @@ func (at *AutoTrader) GetMarketDataCapabilities() MarketDataCapabilities {
 			InstrumentContractValue:  true,
 			QuoteLastPrice:           true,
 			QuoteMarkPrice:           false,
-			QuoteBestBid:             false,
-			QuoteBestAsk:             false,
-			QuoteSpread:              false,
+			QuoteBestBid:             true,
+			QuoteBestAsk:             true,
+			QuoteSpread:              true,
 			FeeFallback:              true,
 		}
 	case "gate", "kucoin", "bybit", "bitget", "aster", "lighter", "hyperliquid":

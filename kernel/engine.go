@@ -90,26 +90,27 @@ type RecentOrder struct {
 
 // Context trading context (complete information passed to AI)
 type Context struct {
-	CurrentTime        string                             `json:"current_time"`
-	RuntimeMinutes     int                                `json:"runtime_minutes"`
-	CallCount          int                                `json:"call_count"`
-	Account            AccountInfo                        `json:"account"`
-	Positions          []PositionInfo                     `json:"positions"`
-	CandidateCoins     []CandidateCoin                    `json:"candidate_coins"`
-	PromptVariant      string                             `json:"prompt_variant,omitempty"`
-	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
-	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
-	MarketDataMap      map[string]*market.Data            `json:"-"`
-	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
-	OITopDataMap       map[string]*OITopData              `json:"-"`
-	QuantDataMap       map[string]*QuantData              `json:"-"`
-	OIRankingData      *nofxos.OIRankingData              `json:"-"` // Market-wide OI ranking data
-	NetFlowRankingData *nofxos.NetFlowRankingData         `json:"-"` // Market-wide fund flow ranking data
-	PriceRankingData   *nofxos.PriceRankingData           `json:"-"` // Market-wide price gainers/losers
-	BTCETHLeverage     int                                `json:"-"`
-	AltcoinLeverage    int                                `json:"-"`
-	Timeframes         []string                           `json:"-"`
-	Indicators         store.IndicatorConfig              `json:"-"` // Indicator config for prompt filtering
+	CurrentTime        string                              `json:"current_time"`
+	RuntimeMinutes     int                                 `json:"runtime_minutes"`
+	CallCount          int                                 `json:"call_count"`
+	Account            AccountInfo                         `json:"account"`
+	Positions          []PositionInfo                      `json:"positions"`
+	CandidateCoins     []CandidateCoin                     `json:"candidate_coins"`
+	PromptVariant      string                              `json:"prompt_variant,omitempty"`
+	TradingStats       *TradingStats                       `json:"trading_stats,omitempty"`
+	RecentOrders       []RecentOrder                       `json:"recent_orders,omitempty"`
+	MarketDataMap      map[string]*market.Data             `json:"-"`
+	MultiTFMarket      map[string]map[string]*market.Data  `json:"-"`
+	OITopDataMap       map[string]*OITopData               `json:"-"`
+	QuantDataMap       map[string]*QuantData               `json:"-"`
+	OptionalDataStates map[string]market.OptionalDataState `json:"-"`
+	OIRankingData      *nofxos.OIRankingData               `json:"-"` // Market-wide OI ranking data
+	NetFlowRankingData *nofxos.NetFlowRankingData          `json:"-"` // Market-wide fund flow ranking data
+	PriceRankingData   *nofxos.PriceRankingData            `json:"-"` // Market-wide price gainers/losers
+	BTCETHLeverage     int                                 `json:"-"`
+	AltcoinLeverage    int                                 `json:"-"`
+	Timeframes         []string                            `json:"-"`
+	Indicators         store.IndicatorConfig               `json:"-"` // Indicator config for prompt filtering
 }
 
 // Decision AI trading decision
@@ -119,12 +120,13 @@ type Decision struct {
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
 	// Opening position parameters
-	Leverage        int                         `json:"leverage,omitempty"`
-	PositionSizeUSD float64                     `json:"position_size_usd,omitempty"`
-	StopLoss        float64                     `json:"stop_loss,omitempty"`
-	TakeProfit      float64                     `json:"take_profit,omitempty"`
-	ProtectionPlan  *AIProtectionPlan           `json:"protection_plan,omitempty"`
-	EntryProtection *AIEntryProtectionRationale `json:"entry_protection_rationale,omitempty"`
+	Leverage            int                         `json:"leverage,omitempty"`
+	PositionSizeUSD     float64                     `json:"position_size_usd,omitempty"`
+	StopLoss            float64                     `json:"stop_loss,omitempty"`
+	TakeProfit          float64                     `json:"take_profit,omitempty"`
+	ProtectionPlan      *AIProtectionPlan           `json:"protection_plan,omitempty"`
+	EntryProtection     *AIEntryProtectionRationale `json:"entry_protection_rationale,omitempty"`
+	StructuralKeyLevels []AIStructuralKeyLevel      `json:"structural_key_levels,omitempty"` // Backward-compatible top-level placement accepted from prompts
 
 	// Grid trading parameters
 	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
@@ -469,7 +471,11 @@ type AIEntryProtectionAnchor struct {
 type AIProtectionPlan struct {
 	Mode             string                     `json:"mode,omitempty"`
 	TakeProfitPct    float64                    `json:"take_profit_pct,omitempty"`
+	TakeProfitPrice  float64                    `json:"take_profit_price,omitempty"`
 	StopLossPct      float64                    `json:"stop_loss_pct,omitempty"`
+	StopLossPrice    float64                    `json:"stop_loss_price,omitempty"`
+	TakeProfitAnchor string                     `json:"take_profit_anchor,omitempty"`
+	StopLossAnchor   string                     `json:"stop_loss_anchor,omitempty"`
 	LadderRules      []AIProtectionLadderRule   `json:"ladder_rules,omitempty"`
 	DrawdownRules    []AIProtectionDrawdownRule `json:"drawdown_rules,omitempty"`
 	BreakEvenTrigger string                     `json:"break_even_trigger_mode,omitempty"`
@@ -483,6 +489,12 @@ func (p *AIProtectionPlan) UnmarshalJSON(data []byte) error {
 	type alias AIProtectionPlan
 	var aux struct {
 		alias
+		TakeProfitLevel  string  `json:"take_profit_level,omitempty"`
+		StopLossLevel    string  `json:"stop_loss_level,omitempty"`
+		TPPrice          float64 `json:"tp_price,omitempty"`
+		SLPrice          float64 `json:"sl_price,omitempty"`
+		TPLevel          float64 `json:"tp_level,omitempty"`
+		SLLevel          float64 `json:"sl_level,omitempty"`
 		BreakevenTrigger string  `json:"breakeven_trigger,omitempty"`
 		BreakEvenValue   float64 `json:"break_even_value,omitempty"`
 		BreakevenValue   float64 `json:"breakeven_value,omitempty"`
@@ -495,6 +507,10 @@ func (p *AIProtectionPlan) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*p = AIProtectionPlan(aux.alias)
+	p.TakeProfitPrice = firstAliasFloat(p.TakeProfitPrice, map[string]float64{"tp_price": aux.TPPrice, "tp_level": aux.TPLevel}, "protection_plan.take_profit_price")
+	p.StopLossPrice = firstAliasFloat(p.StopLossPrice, map[string]float64{"sl_price": aux.SLPrice, "sl_level": aux.SLLevel}, "protection_plan.stop_loss_price")
+	p.TakeProfitAnchor = strings.TrimSpace(p.TakeProfitAnchor)
+	p.StopLossAnchor = strings.TrimSpace(p.StopLossAnchor)
 	p.BreakEvenTrigger = firstAliasString(p.BreakEvenTrigger, map[string]string{"breakeven_trigger": aux.BreakevenTrigger}, "protection_plan.break_even_trigger_mode")
 	p.BreakEvenValue = firstAliasFloat(p.BreakEvenValue, map[string]float64{"break_even_value": aux.BreakEvenValue, "breakeven_value": aux.BreakevenValue}, "protection_plan.break_even_trigger_value")
 	p.BreakEvenOffset = firstAliasFloat(p.BreakEvenOffset, map[string]float64{"break_even_offset": aux.BreakEvenOffset, "breakeven_offset_pct": aux.BreakevenOffset}, "protection_plan.break_even_offset_pct")
@@ -506,6 +522,7 @@ type AIProtectionDrawdownRule struct {
 	Timeframe           string  `json:"timeframe,omitempty"`
 	MinProfitPct        float64 `json:"min_profit_pct,omitempty"`
 	MaxDrawdownPct      float64 `json:"max_drawdown_pct,omitempty"`
+	MaxDrawdownAbsPct   float64 `json:"max_drawdown_abs_profit_pct,omitempty"`
 	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
 	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
 	ReasonAnchor        string  `json:"reason_anchor,omitempty"`
@@ -522,22 +539,34 @@ func (r *AIProtectionDrawdownRule) UnmarshalJSON(data []byte) error {
 	type alias AIProtectionDrawdownRule
 	var aux struct {
 		alias
-		CloseRatio float64 `json:"close_ratio,omitempty"`
+		CloseRatio        float64 `json:"close_ratio,omitempty"`
+		MaxDrawdownAbsPct float64 `json:"max_drawdown_abs_pct,omitempty"`
+		AbsProfitDrawdown float64 `json:"absolute_profit_drawdown_pct,omitempty"`
+		GivebackRatio     float64 `json:"giveback_ratio,omitempty"`
+		GivebackPctOfPeak float64 `json:"giveback_pct_of_peak_profit,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 	*r = AIProtectionDrawdownRule(aux.alias)
 	r.CloseRatioPct = firstAliasFloat(r.CloseRatioPct, map[string]float64{"close_ratio": aux.CloseRatio}, "drawdown_rules.close_ratio_pct")
+	r.MaxDrawdownAbsPct = firstAliasFloat(r.MaxDrawdownAbsPct, map[string]float64{"max_drawdown_abs_pct": aux.MaxDrawdownAbsPct, "absolute_profit_drawdown_pct": aux.AbsProfitDrawdown}, "drawdown_rules.max_drawdown_abs_profit_pct")
+	r.MaxDrawdownPct = firstAliasFloat(r.MaxDrawdownPct, map[string]float64{"giveback_ratio": aux.GivebackRatio, "giveback_pct_of_peak_profit": aux.GivebackPctOfPeak}, "drawdown_rules.max_drawdown_pct")
 	return nil
 }
 
 type AIProtectionLadderRule struct {
 	TakeProfitPct           float64 `json:"take_profit_pct,omitempty"`
+	TakeProfitPrice         float64 `json:"take_profit_price,omitempty"`
 	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`
 	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
+	StopLossPrice           float64 `json:"stop_loss_price,omitempty"`
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
 	StructuralAnchor        string  `json:"structural_anchor,omitempty"`
+	StopLossAnchor          string  `json:"stop_loss_anchor,omitempty"`
+	TakeProfitAnchor        string  `json:"take_profit_anchor,omitempty"`
+	VolatilityBufferPct     float64 `json:"volatility_buffer_pct,omitempty"`
+	VolatilityBufferReason  string  `json:"volatility_buffer_reason,omitempty"`
 }
 
 // UnmarshalJSON accepts common ladder-rule aliases such as tp/sl abbreviations.
@@ -551,15 +580,23 @@ func (r *AIProtectionLadderRule) UnmarshalJSON(data []byte) error {
 		SLCloseRatio float64 `json:"sl_close_ratio_pct,omitempty"`
 		TPLevel      float64 `json:"tp_level,omitempty"`
 		SLLevel      float64 `json:"sl_level,omitempty"`
+		TPPrice      float64 `json:"tp_price,omitempty"`
+		SLPrice      float64 `json:"sl_price,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 	*r = AIProtectionLadderRule(aux.alias)
-	r.TakeProfitPct = firstAliasFloat(r.TakeProfitPct, map[string]float64{"tp_pct": aux.TPPct, "tp_level": aux.TPLevel}, "ladder_rules.take_profit_pct")
-	r.StopLossPct = firstAliasFloat(r.StopLossPct, map[string]float64{"sl_pct": aux.SLPct, "sl_level": aux.SLLevel}, "ladder_rules.stop_loss_pct")
+	r.TakeProfitPct = firstAliasFloat(r.TakeProfitPct, map[string]float64{"tp_pct": aux.TPPct}, "ladder_rules.take_profit_pct")
+	r.StopLossPct = firstAliasFloat(r.StopLossPct, map[string]float64{"sl_pct": aux.SLPct}, "ladder_rules.stop_loss_pct")
+	r.TakeProfitPrice = firstAliasFloat(r.TakeProfitPrice, map[string]float64{"tp_level": aux.TPLevel, "tp_price": aux.TPPrice}, "ladder_rules.take_profit_price")
+	r.StopLossPrice = firstAliasFloat(r.StopLossPrice, map[string]float64{"sl_level": aux.SLLevel, "sl_price": aux.SLPrice}, "ladder_rules.stop_loss_price")
 	r.TakeProfitCloseRatioPct = firstAliasFloat(r.TakeProfitCloseRatioPct, map[string]float64{"tp_close_ratio_pct": aux.TPCloseRatio}, "ladder_rules.take_profit_close_ratio_pct")
 	r.StopLossCloseRatioPct = firstAliasFloat(r.StopLossCloseRatioPct, map[string]float64{"sl_close_ratio_pct": aux.SLCloseRatio}, "ladder_rules.stop_loss_close_ratio_pct")
+	r.StructuralAnchor = strings.TrimSpace(r.StructuralAnchor)
+	r.StopLossAnchor = strings.TrimSpace(r.StopLossAnchor)
+	r.TakeProfitAnchor = strings.TrimSpace(r.TakeProfitAnchor)
+	r.VolatilityBufferReason = strings.TrimSpace(r.VolatilityBufferReason)
 	return nil
 }
 

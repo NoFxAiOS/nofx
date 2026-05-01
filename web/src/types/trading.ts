@@ -56,6 +56,9 @@ export interface ProtectionRuntimeTier {
   reason_anchor?: string
   min_profit_pct: number
   max_drawdown_pct: number
+  max_drawdown_abs_profit_pct?: number
+  legacy_drawdown_semantics_warning?: string
+  native_trailing_rejected_reason?: string
   close_ratio_pct: number
   activation_price: number
   planned_activation_price?: number
@@ -113,6 +116,10 @@ export interface ProtectionRuntime {
   break_even_order_detected?: boolean
   planned_ladder_stop_count?: number
   planned_ladder_take_profit_count?: number
+  planned_ladder_orders?: {
+    stop_loss?: Array<{ Price?: number; price?: number; CloseRatioPct?: number; close_ratio_pct?: number }>
+    take_profit?: Array<{ Price?: number; price?: number; CloseRatioPct?: number; close_ratio_pct?: number }>
+  }
   live_ladder_stop_count?: number
   live_ladder_take_profit_count?: number
   live_full_stop_count?: number
@@ -184,6 +191,16 @@ export interface ProtectionRuntime {
   active_orders?: ProtectionRuntimeOrder[]
   active_trailing_orders?: ProtectionRuntimeOrder[]
   scheduled_tiers?: ProtectionRuntimeTier[]
+  unexpected_protection?: {
+    stale_bot_duplicate_count?: number
+    orphan_inactive_count?: number
+    manual_or_foreign_count?: number
+    expected_dynamic_owner_count?: number
+    expected_static_owner_count?: number
+    stale_bot_duplicate_order_ids?: string[]
+    orphan_inactive_order_ids?: string[]
+    manual_or_foreign_order_ids?: string[]
+  }
 }
 
 export interface Position {
@@ -224,9 +241,12 @@ export interface ProtectionSnapshotFullTPSL {
 
 export interface ProtectionSnapshotLadderRule {
   take_profit_pct?: number
+  take_profit_price?: number
   take_profit_close_ratio_pct?: number
   stop_loss_pct?: number
+  stop_loss_price?: number
   stop_loss_close_ratio_pct?: number
+  volatility_buffer_pct?: number
 }
 
 export interface ProtectionSnapshotLadder {
@@ -257,6 +277,7 @@ export interface ProtectionSnapshotDrawdown {
   break_even_suppressed_by_runner?: boolean
   min_profit_pct: number
   max_drawdown_pct: number
+  max_drawdown_abs_profit_pct?: number
   close_ratio_pct: number
   poll_interval_s: number
 }
@@ -374,6 +395,28 @@ export interface DecisionActionControlOutcome {
   no_order_placed?: boolean
 }
 
+export interface DecisionActionQualityGate {
+  shadow_mode?: boolean
+  decision?: string
+  passed?: boolean
+  failed_checks?: string[]
+  regime?: string
+  setup_type?: string
+  confidence?: number
+  quality_total?: number
+  net_rr?: number
+}
+
+export interface DecisionActionExecutionQuality {
+  grade?: string
+  spread_bps?: number
+  estimated_slippage_bps?: number
+  min_order_notional_usdt?: number
+  partial_close_feasible?: boolean
+  ladder_tiers_feasible?: number
+  reason?: string
+}
+
 export interface DecisionActionReviewContext {
   primary_timeframe?: string
   timeframe_context?: {
@@ -388,6 +431,11 @@ export interface DecisionActionReviewContext {
   protection?: DecisionActionProtectionAlignment
   control?: DecisionActionControlOutcome
   execution_constraints?: DecisionActionExecutionConstraints
+  quality_gate?: DecisionActionQualityGate
+  extra?: {
+    execution_quality?: DecisionActionExecutionQuality
+    [key: string]: unknown
+  }
   alignment_notes?: string[]
 }
 

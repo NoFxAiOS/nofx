@@ -23,23 +23,24 @@ type regimeGateResult struct {
 // runtimePolicyResult captures the narrow, deterministic runtime policy effect
 // applied after compact execution constraints are collected.
 type runtimePolicyResult struct {
-	Blocked            bool
-	Reason             string
-	ReasonCode         string
-	Decision           string
-	OriginalAction     string
-	FinalAction        string
-	ConstraintsMerged  bool
-	RRRecomputed       bool
-	AIGrossRR          float64
-	AINetRR            float64
-	RuntimeGrossRR     float64
-	RuntimeNetRR       float64
-	EffectiveRR        float64
-	EffectiveRRSource  string
-	ConstraintsSources []string
-	Protection         *store.DecisionActionProtectionAlignment
-	RegimeGate         *regimeGateResult
+	Blocked             bool
+	Reason              string
+	ReasonCode          string
+	Decision            string
+	OriginalAction      string
+	FinalAction         string
+	ConstraintsMerged   bool
+	RRRecomputed        bool
+	AIGrossRR           float64
+	AINetRR             float64
+	RuntimeGrossRR      float64
+	RuntimeNetRR        float64
+	EffectiveRR         float64
+	EffectiveRRSource   string
+	ConstraintsSources  []string
+	Protection          *store.DecisionActionProtectionAlignment
+	RegimeGate          *regimeGateResult
+	RegimeStructureGate *regimeStructureGateResult
 }
 
 // applyRuntimeOpenPolicy enforces the smallest system-controlled final judgment

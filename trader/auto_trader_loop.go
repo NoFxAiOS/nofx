@@ -122,12 +122,13 @@ func (at *AutoTrader) runCycle() error {
 			drawdownSource := "strategy"
 			for _, r := range protCfg.DrawdownTakeProfit.Rules {
 				ps.Drawdown = append(ps.Drawdown, store.ProtectionSnapshotDrawdown{
-					Mode:           string(protCfg.DrawdownTakeProfit.Mode),
-					Source:         drawdownSource,
-					MinProfitPct:   r.MinProfitPct,
-					MaxDrawdownPct: r.MaxDrawdownPct,
-					CloseRatioPct:  r.CloseRatioPct,
-					PollIntervalS:  r.PollIntervalSeconds,
+					Mode:              string(protCfg.DrawdownTakeProfit.Mode),
+					Source:            drawdownSource,
+					MinProfitPct:      r.MinProfitPct,
+					MaxDrawdownPct:    r.MaxDrawdownPct,
+					MaxDrawdownAbsPct: r.MaxDrawdownAbsPct,
+					CloseRatioPct:     r.CloseRatioPct,
+					PollIntervalS:     r.PollIntervalSeconds,
 				})
 			}
 		}
@@ -412,7 +413,25 @@ func (at *AutoTrader) runCycle() error {
 			policyMode = at.config.StrategyConfig.StrategyControlPolicy.EffectiveMode()
 		}
 		protectionAlignment := deriveProtectionAlignment(&d, record.ProtectionSnapshot)
+		plannedLadderTiers := 0
+		if d.ProtectionPlan != nil {
+			plannedLadderTiers = len(d.ProtectionPlan.LadderRules)
+		}
+		executionQuality := buildExecutionQualityContext(constraintSnapshot, d.PositionSizeUSD, plannedLadderTiers)
 		policy := applyRuntimeOpenPolicy(&d, constraintSnapshot, at.getMinRiskRewardRatio(), policyMode, protectionAlignment)
+		regimeStructureGate := evaluateRegimeStructureGate(&d, ctx.MarketDataMap[d.Symbol], policyMode)
+		if !regimeStructureGate.Allowed {
+			regimePolicy := applyRegimeStructureGatePolicy(regimeStructureGate)
+			policy.RegimeStructureGate = &regimeStructureGate
+			if regimePolicy.Reason != "" && policy.Reason == "" {
+				policy.Reason = regimePolicy.Reason
+			}
+			if regimePolicy.Blocked || regimePolicy.Decision == "downgraded_to_wait" {
+				policy.Blocked = regimePolicy.Blocked
+				policy.Decision = regimePolicy.Decision
+				policy.Reason = regimePolicy.Reason
+			}
+		}
 		if policy.Reason != "" {
 			appendRuntimePolicyNote(&d, policy.Reason)
 		}
@@ -441,6 +460,7 @@ func (at *AutoTrader) runCycle() error {
 		if actionRecord.ReviewContext != nil {
 			actionRecord.ReviewContext.Control = buildRuntimePolicyControlOutcome(policy)
 			actionRecord.ReviewContext.QualityGate = evaluateShadowQualityGate(&d, ctx.MarketDataMap[d.Symbol], at.getMinRiskRewardRatio(), at.getMinConfidence())
+			attachExecutionQualityToReview(actionRecord.ReviewContext, executionQuality)
 		}
 
 		if policy.Blocked {
@@ -732,6 +752,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 		logger.Infof("📊 [%s] Fetching quantitative data for %d symbols...", at.name, len(symbols))
 		ctx.QuantDataMap = at.strategyEngine.FetchQuantDataBatch(symbols)
+		attachQuantContextToMarketData(ctx.MarketDataMap, ctx.QuantDataMap)
+		ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_quant", len(ctx.QuantDataMap) > 0, "unavailable/deprecated or no symbols returned; continuing without quant netflow")
 		logger.Infof("📊 [%s] Successfully fetched quantitative data for %d symbols", at.name, len(ctx.QuantDataMap))
 	}
 
@@ -740,8 +762,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		logger.Infof("📊 [%s] Fetching OI ranking data...", at.name)
 		ctx.OIRankingData = at.strategyEngine.FetchOIRankingData()
 		if ctx.OIRankingData != nil {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_oi_ranking", true, "")
 			logger.Infof("📊 [%s] OI ranking data ready: %d top, %d low positions",
 				at.name, len(ctx.OIRankingData.TopPositions), len(ctx.OIRankingData.LowPositions))
+		} else {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_oi_ranking", false, "unavailable; continuing with exchange OI/funding")
 		}
 	}
 
@@ -750,8 +775,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		logger.Infof("💰 [%s] Fetching NetFlow ranking data...", at.name)
 		ctx.NetFlowRankingData = at.strategyEngine.FetchNetFlowRankingData()
 		if ctx.NetFlowRankingData != nil {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_netflow_ranking", true, "")
 			logger.Infof("💰 [%s] NetFlow ranking data ready: inst_in=%d, inst_out=%d",
 				at.name, len(ctx.NetFlowRankingData.InstitutionFutureTop), len(ctx.NetFlowRankingData.InstitutionFutureLow))
+		} else {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_netflow_ranking", false, "unavailable; continuing without market-wide netflow")
 		}
 	}
 
@@ -760,8 +788,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		logger.Infof("📈 [%s] Fetching Price ranking data...", at.name)
 		ctx.PriceRankingData = at.strategyEngine.FetchPriceRankingData()
 		if ctx.PriceRankingData != nil {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_price_ranking", true, "")
 			logger.Infof("📈 [%s] Price ranking data ready for %d durations",
 				at.name, len(ctx.PriceRankingData.Durations))
+		} else {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_price_ranking", false, "unavailable; continuing with exchange price/klines")
 		}
 	}
 
@@ -928,6 +959,31 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 	return ctx
 }
 
+func attachProtectionPlanAudit(ctx *store.DecisionActionReviewContext, decision *kernel.Decision) {
+	if ctx == nil || decision == nil || decision.ProtectionPlan == nil || len(decision.ProtectionPlan.LadderRules) == 0 {
+		return
+	}
+	rules := make([]store.ProtectionSnapshotLadderRule, 0, len(decision.ProtectionPlan.LadderRules))
+	for _, r := range decision.ProtectionPlan.LadderRules {
+		rules = append(rules, store.ProtectionSnapshotLadderRule{
+			TakeProfitPct:           r.TakeProfitPct,
+			TakeProfitPrice:         r.TakeProfitPrice,
+			TakeProfitCloseRatioPct: r.TakeProfitCloseRatioPct,
+			StopLossPct:             r.StopLossPct,
+			StopLossPrice:           r.StopLossPrice,
+			StopLossCloseRatioPct:   r.StopLossCloseRatioPct,
+			StructuralAnchor:        r.StructuralAnchor,
+			TakeProfitAnchor:        r.TakeProfitAnchor,
+			StopLossAnchor:          r.StopLossAnchor,
+			VolatilityBufferPct:     r.VolatilityBufferPct,
+		})
+	}
+	if ctx.Extra == nil {
+		ctx.Extra = map[string]interface{}{}
+	}
+	ctx.Extra["ai_ladder_plan"] = rules
+}
+
 func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.DecisionActionControlOutcome {
 	if !policy.Blocked && policy.Reason == "" && !policy.ConstraintsMerged && !policy.RRRecomputed && policy.AIGrossRR == 0 && policy.AINetRR == 0 && policy.RuntimeGrossRR == 0 && policy.RuntimeNetRR == 0 && policy.EffectiveRR == 0 && len(policy.ConstraintsSources) == 0 && policy.OriginalAction == "" && policy.FinalAction == "" {
 		return nil
@@ -957,6 +1013,13 @@ func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.Decisio
 	}
 	if policy.ReasonCode != "" {
 		out.FailedChecks = []string{policy.ReasonCode}
+	}
+	if policy.RegimeStructureGate != nil {
+		out.RegimeStructureCurrent = policy.RegimeStructureGate.Regime
+		out.RegimeStructureAllowed = append([]string(nil), policy.RegimeStructureGate.AllowedSetups...)
+		if policy.RegimeStructureGate.Reason != "" {
+			out.FailedChecks = appendMissing(out.FailedChecks, "regime_structure_mismatch")
+		}
 	}
 	return out
 }

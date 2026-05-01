@@ -96,11 +96,17 @@ func (s *TraderStore) List(userID string) ([]*Trader, error) {
 	return traders, nil
 }
 
-// UpdateStatus updates trader running status
+// UpdateStatus updates trader running status. This should be used only by explicit
+// frontend start/stop controls, not by normal process restarts.
 func (s *TraderStore) UpdateStatus(userID, id string, isRunning bool) error {
 	return s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Update("is_running", isRunning).Error
+}
+
+// ForceAllRunning marks every configured trader as running for normal service boot.
+func (s *TraderStore) ForceAllRunning() error {
+	return s.db.Model(&Trader{}).Where("1 = 1").Update("is_running", true).Error
 }
 
 // UpdateShowInCompetition updates trader competition visibility

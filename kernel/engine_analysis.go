@@ -750,6 +750,9 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 	if absFloat(rr.GrossEstimatedRR-computedRR) > 0.05 {
 		return fmt.Errorf("entry_protection_rationale.risk_reward gross_estimated_rr %.2f inconsistent with entry/invalidation/first_target %.2f", rr.GrossEstimatedRR, computedRR)
 	}
+	if err := validateAIProtectionPlanCompletenessAndStructure(d); err != nil {
+		return err
+	}
 	if err := validateProtectionPlanAlignmentSkeleton(d, rr, config); err != nil {
 		return err
 	}

@@ -162,7 +162,31 @@ func firstRuntimeProtectionAlignment(protection []*store.DecisionActionProtectio
 }
 
 func applyRuntimeProtectionAlignmentPolicy(decision *kernel.Decision, mode store.StrategyControlPolicyMode, result *runtimePolicyResult) bool {
-	if decision == nil || result == nil || result.Protection == nil || result.Protection.TargetAligned {
+	if decision == nil || result == nil || result.Protection == nil {
+		return false
+	}
+	if result.Protection.PolicyRejected {
+		result.ReasonCode = "protection_policy_rejected"
+		reason := "protection plan rejected by structural alignment policy"
+		if len(result.Protection.PolicyReasons) > 0 {
+			reason = reason + ": " + strings.Join(result.Protection.PolicyReasons, ",")
+		}
+		if mode == store.StrategyControlPolicyModeRecommendOnly {
+			result.Decision = "downgraded_to_wait"
+			result.FinalAction = "wait"
+			result.Reason = fmt.Sprintf("runtime protection policy downgraded %s %s to wait: %s", result.OriginalAction, decision.Symbol, reason)
+			decision.Action = "wait"
+			decision.Reasoning = appendRuntimeDowngradeReasoning(decision.Reasoning, result.Reason)
+			return true
+		}
+		result.Reason = fmt.Sprintf("runtime protection policy %s %s %s: %s", runtimePolicyVerb(mode), result.OriginalAction, decision.Symbol, reason)
+		if mode == store.StrategyControlPolicyModeStrict {
+			result.Blocked = true
+			result.Decision = "rejected"
+		}
+		return true
+	}
+	if result.Protection.TargetAligned {
 		return false
 	}
 	result.ReasonCode = "protection_target_before_first_target"

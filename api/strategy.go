@@ -542,15 +542,28 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		return
 	}
 
+	// Validate merged configuration and collect warnings
+	warnings := validateStrategyConfig(&mergedConfig)
+
+	response := gin.H{"message": "Strategy updated successfully"}
+	if len(warnings) > 0 {
+		response["warnings"] = warnings
+	}
+
+	c.JSON(http.StatusOK, response)
+
 	if len(affectedTraders) > 0 {
-		for _, traderCfg := range affectedTraders {
-			s.traderManager.RemoveTrader(traderCfg.ID)
-		}
-		if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
-			logger.Infof("[strategy.update] id=%s trader hot reload failed: %v", strategyID, loadErr)
-		} else {
+		logger.Infof("[strategy.update] id=%s scheduling async hot reload for %d affected traders", strategyID, len(affectedTraders))
+		go func(userID, strategyID string, affectedTraders []*store.Trader, wasRunning map[string]bool) {
 			for _, traderCfg := range affectedTraders {
-				if !wasRunning[traderCfg.ID] {
+				s.traderManager.RemoveTrader(traderCfg.ID)
+			}
+			if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+				logger.Infof("[strategy.update] id=%s trader hot reload failed: %v", strategyID, loadErr)
+				return
+			}
+			for _, traderCfg := range affectedTraders {
+				if !wasRunning[traderCfg.ID] || traderCfg.IsRunning {
 					continue
 				}
 				if reloadedTrader, getErr := s.traderManager.GetTrader(traderCfg.ID); getErr == nil {
@@ -561,18 +574,8 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 					}(reloadedTrader)
 				}
 			}
-		}
+		}(userID, strategyID, affectedTraders, wasRunning)
 	}
-
-	// Validate merged configuration and collect warnings
-	warnings := validateStrategyConfig(&mergedConfig)
-
-	response := gin.H{"message": "Strategy updated successfully"}
-	if len(warnings) > 0 {
-		response["warnings"] = warnings
-	}
-
-	c.JSON(http.StatusOK, response)
 }
 
 // handleDeleteStrategy Delete strategy

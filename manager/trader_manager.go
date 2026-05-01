@@ -6,6 +6,7 @@ import (
 	"nofx/logger"
 	"nofx/store"
 	"nofx/trader"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -506,6 +507,14 @@ func (tm *TraderManager) LoadTradersFromStore(st *store.Store) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
+	if st != nil && !isProtectOnlyBoot() {
+		if err := st.Trader().ForceAllRunning(); err != nil {
+			logger.Warnf("⚠️ Failed to force traders running on normal boot: %v", err)
+		} else {
+			logger.Infof("🟢 Normal boot policy: all configured traders marked running; use frontend stop or NOFX_PROTECT_ONLY_BOOT=1 for diagnostic protect-only boot")
+		}
+	}
+
 	// Get all users
 	userIDs, err := st.User().GetAllIDs()
 	if err != nil {
@@ -728,20 +737,30 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	tm.traders[traderCfg.ID] = at
 	logger.Infof("✓ Trader '%s' (%s + %s/%s) loaded to memory", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ExchangeType, exchangeCfg.AccountName)
 
-	// Auto-start if trader was running before shutdown
-	if traderCfg.IsRunning {
-		logger.Infof("🔄 Auto-starting trader '%s' (was running before shutdown)...", traderCfg.Name)
+	if isProtectOnlyBoot() {
+		at.SetProtectOnlyMode(true, "protect-only diagnostic boot requested by NOFX_PROTECT_ONLY_BOOT")
+		at.SetAllowAIOpen(false)
+		logger.Warnf("🛡️ Trader '%s' loaded in diagnostic protect-only boot: monitors/protection run, AI opens disabled", traderCfg.Name)
+	}
+
+	// Auto-start if trader was running before shutdown, or always on normal boot.
+	if traderCfg.IsRunning || !isProtectOnlyBoot() {
+		logger.Infof("🔄 Auto-starting trader '%s' (normal boot policy: %t, db_is_running=%t)...", traderCfg.Name, !isProtectOnlyBoot(), traderCfg.IsRunning)
 		go func(trader *trader.AutoTrader, traderName, traderID, userID string) {
 			if err := trader.Run(); err != nil {
 				logger.Warnf("⚠️ Trader '%s' stopped with error: %v", traderName, err)
-				// Update database to reflect stopped state
-				if st != nil {
-					_ = st.Trader().UpdateStatus(userID, traderID, false)
-				}
+				// In normal boot policy, a runtime error must not silently persist a stopped trader
+				// and turn later restarts into an empty backend. Diagnostic protect-only boot keeps
+				// DB state untouched unless explicitly controlled from the frontend.
 			}
 		}(at, traderCfg.Name, traderCfg.ID, traderCfg.UserID)
 		logger.Infof("✅ Trader '%s' auto-started successfully", traderCfg.Name)
 	}
 
 	return nil
+}
+
+func isProtectOnlyBoot() bool {
+	v := os.Getenv("NOFX_PROTECT_ONLY_BOOT")
+	return v == "1" || v == "true" || v == "TRUE" || v == "yes" || v == "YES"
 }

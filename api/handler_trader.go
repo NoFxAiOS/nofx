@@ -691,7 +691,10 @@ func (s *Server) handleStopTrader(c *gin.Context) {
 		return
 	}
 
-	// Stop trader
+	logger.Warnf("⏹ Frontend stop requested for trader %s by user=%s remote=%s user_agent=%q", traderID, userID, c.ClientIP(), c.GetHeader("User-Agent"))
+
+	// Stop trader. Normal service restarts do not use this path; only the frontend/API
+	// stop control should persist is_running=false.
 	trader.Stop()
 
 	// Update running status in database

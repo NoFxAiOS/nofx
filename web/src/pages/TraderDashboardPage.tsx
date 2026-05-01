@@ -203,9 +203,11 @@ export function TraderDashboardPage({
             const result = await api.updateTraderAIControls(selectedTraderId, {
                 allow_ai_open: patch.allow_ai_open,
                 allow_ai_close: patch.allow_ai_close,
+                ai_decision_mode: patch.ai_decision_mode,
             })
             if (typeof result.allow_ai_open === 'boolean') setAllowAIOpen(result.allow_ai_open)
             if (typeof result.allow_ai_close === 'boolean') setAllowAIClose(result.allow_ai_close)
+            if (result.ai_decision_mode) setAIDecisionMode(result.ai_decision_mode)
             await Promise.all([
                 mutate(`trader-config-${selectedTraderId}`),
                 mutate(`${selectedTraderId}-status`),

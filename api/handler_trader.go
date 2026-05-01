@@ -490,10 +490,11 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	})
 }
 
-// UpdateAIControlsRequest updates runtime AI open/close gates.
+// UpdateAIControlsRequest updates runtime AI open/close gates and decision style.
 type UpdateAIControlsRequest struct {
-	AllowAIOpen  *bool `json:"allow_ai_open"`
-	AllowAIClose *bool `json:"allow_ai_close"`
+	AllowAIOpen    *bool  `json:"allow_ai_open"`
+	AllowAIClose   *bool  `json:"allow_ai_close"`
+	AIDecisionMode string `json:"ai_decision_mode"`
 }
 
 // handleUpdateTraderAIControls updates AI execution gates without reloading/restarting the trader.
@@ -506,8 +507,12 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
-	if req.AllowAIOpen == nil && req.AllowAIClose == nil {
+	if req.AllowAIOpen == nil && req.AllowAIClose == nil && req.AIDecisionMode == "" {
 		SafeBadRequest(c, "No AI control fields provided")
+		return
+	}
+	if req.AIDecisionMode != "" && req.AIDecisionMode != "conservative" && req.AIDecisionMode != "balanced" && req.AIDecisionMode != "aggressive" {
+		SafeBadRequest(c, "Invalid AI decision mode")
 		return
 	}
 
@@ -519,13 +524,20 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 
 	allowAIOpen := fullCfg.Trader.AllowAIOpen
 	allowAIClose := fullCfg.Trader.AllowAIClose
+	aiDecisionMode := fullCfg.Trader.AIDecisionMode
+	if aiDecisionMode == "" {
+		aiDecisionMode = "balanced"
+	}
 	if req.AllowAIOpen != nil {
 		allowAIOpen = *req.AllowAIOpen
 	}
 	if req.AllowAIClose != nil {
 		allowAIClose = *req.AllowAIClose
 	}
-	if err := s.store.Trader().UpdateAIExecutionControls(userID, traderID, allowAIOpen, allowAIClose); err != nil {
+	if req.AIDecisionMode != "" {
+		aiDecisionMode = req.AIDecisionMode
+	}
+	if err := s.store.Trader().UpdateAIExecutionControls(userID, traderID, allowAIOpen, allowAIClose, aiDecisionMode); err != nil {
 		SafeInternalError(c, "Failed to update AI controls", err)
 		return
 	}
@@ -533,12 +545,14 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 	if at, getErr := s.traderManager.GetTrader(traderID); getErr == nil && at != nil {
 		at.SetAllowAIOpen(allowAIOpen)
 		at.SetAllowAIClose(allowAIClose)
+		at.SetAIDecisionMode(aiDecisionMode)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"trader_id":      traderID,
-		"allow_ai_open":  allowAIOpen,
-		"allow_ai_close": allowAIClose,
+		"trader_id":        traderID,
+		"allow_ai_open":    allowAIOpen,
+		"allow_ai_close":   allowAIClose,
+		"ai_decision_mode": aiDecisionMode,
 	})
 }
 

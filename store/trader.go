@@ -116,13 +116,17 @@ func (s *TraderStore) UpdateShowInCompetition(userID, id string, showInCompetiti
 		Update("show_in_competition", showInCompetition).Error
 }
 
-// UpdateAIExecutionControls updates AI open/close execution gates.
-func (s *TraderStore) UpdateAIExecutionControls(userID, id string, allowAIOpen, allowAIClose bool) error {
+// UpdateAIExecutionControls updates AI open/close execution gates and decision style.
+func (s *TraderStore) UpdateAIExecutionControls(userID, id string, allowAIOpen, allowAIClose bool, aiDecisionMode string) error {
+	if aiDecisionMode == "" {
+		aiDecisionMode = "balanced"
+	}
 	return s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Updates(map[string]interface{}{
-			"allow_ai_open":  allowAIOpen,
-			"allow_ai_close": allowAIClose,
+			"allow_ai_open":    allowAIOpen,
+			"allow_ai_close":   allowAIClose,
+			"ai_decision_mode": aiDecisionMode,
 		}).Error
 }
 

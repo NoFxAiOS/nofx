@@ -171,8 +171,8 @@ Only include fields you want to change.`,
 Body: {"symbol":"<string, e.g. BTCUSDT — must match an open position symbol from GET /api/positions>"}`,
 				s.handleClosePosition)
 			// Lightweight runtime AI execution controls. These do not reload/restart the trader.
-			s.routeWithSchema(protected, "PUT", "/traders/:id/ai-controls", "Update AI open/close execution gates",
-				`Body: {"allow_ai_open":<bool optional>,"allow_ai_close":<bool optional>}`,
+			s.routeWithSchema(protected, "PUT", "/traders/:id/ai-controls", "Update AI open/close execution gates and decision style",
+				`Body: {"allow_ai_open":<bool optional>,"allow_ai_close":<bool optional>,"ai_decision_mode":"conservative|balanced|aggressive" optional}`,
 				s.handleUpdateTraderAIControls)
 			s.routeWithSchema(protected, "PUT", "/traders/:id/competition", "Toggle competition leaderboard visibility",
 				`:id = trader_id from GET /api/my-traders.

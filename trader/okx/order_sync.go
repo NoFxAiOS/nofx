@@ -389,12 +389,14 @@ func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, excha
 		canonicalAction := trade.OrderAction
 		requestedReason := canonicalAction
 		parentOrderID := strings.TrimSpace(trade.OrderID)
-		if canonicalAction == "close_long" || canonicalAction == "close_short" {
-			if reason := protectionReasonFromTag(trade.Tag); reason != "" {
-				requestedReason = reason
-			} else if parentOrderID != "" {
-				if parentOrder, err := orderStore.GetOrderByExchangeID(exchangeID, parentOrderID); err == nil && parentOrder != nil {
-					parentReason := strings.ToLower(strings.TrimSpace(parentOrder.OrderAction + " " + parentOrder.ClientOrderID))
+		ownerTraderID := traderID
+		if parentOrderID != "" {
+			if parentOrder, err := orderStore.GetOrderByExchangeID(exchangeID, parentOrderID); err == nil && parentOrder != nil {
+				if parentOrder.TraderID != "" {
+					ownerTraderID = parentOrder.TraderID
+				}
+				parentReason := strings.ToLower(strings.TrimSpace(parentOrder.OrderAction + " " + parentOrder.ClientOrderID))
+				if requestedReason == canonicalAction {
 					switch {
 					case strings.Contains(parentReason, "native_trailing") || strings.Contains(parentReason, "trailing"):
 						requestedReason = "native_trailing"
@@ -414,8 +416,13 @@ func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, excha
 				}
 			}
 		}
+		if canonicalAction == "close_long" || canonicalAction == "close_short" {
+			if reason := protectionReasonFromTag(trade.Tag); reason != "" {
+				requestedReason = reason
+			}
+		}
 		orderRecord := &store.TraderOrder{
-			TraderID:        traderID,
+			TraderID:        ownerTraderID,
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
 			ExchangeOrderID: trade.TradeID,
@@ -437,15 +444,14 @@ func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, excha
 			UpdatedAt:       execTimeMs,
 		}
 
-		// Insert order record
-		if err := orderStore.CreateOrder(orderRecord); err != nil {
-			logger.Infof("  ⚠️ Failed to sync trade %s: %v", trade.TradeID, err)
+		if err := orderStore.UpsertSyncedOrder(orderRecord); err != nil {
+			logger.Infof("  ⚠️ Failed to sync order ownership for trade %s: %v", trade.TradeID, err)
 			continue
 		}
 
 		// Create fill record - use UTC time in milliseconds
 		fillRecord := &store.TraderFill{
-			TraderID:        traderID,
+			TraderID:        orderRecord.TraderID,
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
 			OrderID:         orderRecord.ID,
@@ -469,20 +475,20 @@ func (t *OKXTrader) SyncOrdersFromOKXWithFullCloseHandler(traderID string, excha
 		}
 
 		// Create/update position record using PositionBuilder
-		preClosePosition, _ := positionStore.GetOpenPositionBySymbol(traderID, symbol, positionSide)
+		preClosePosition, _ := positionStore.GetOpenPositionBySymbol(orderRecord.TraderID, symbol, positionSide)
 		preCloseQty := 0.0
 		if preClosePosition != nil {
 			preCloseQty = preClosePosition.Quantity
 		}
 		if err := posBuilder.ProcessTrade(
-			traderID, exchangeID, exchangeType,
+			orderRecord.TraderID, exchangeID, exchangeType,
 			symbol, positionSide, canonicalAction,
 			trade.FillQtyBase, trade.FillPrice, trade.Fee, 0, // No per-trade PnL from OKX
 			execTimeMs, trade.TradeID,
 		); err != nil {
 			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
 		} else {
-			store.AttachSyncedOrderToPosition(st, orderStore, positionStore, orderRecord, traderID, symbol, positionSide, canonicalAction, trade.TradeID)
+			store.AttachSyncedOrderToPosition(st, orderStore, positionStore, orderRecord, orderRecord.TraderID, symbol, positionSide, canonicalAction, trade.TradeID)
 			logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f)", trade.TradeID, canonicalAction, trade.FillQtyBase)
 			if onFullClose != nil && strings.HasPrefix(canonicalAction, "close_") && preClosePosition != nil && trade.FillQtyBase >= preCloseQty-0.0001 {
 				onFullClose(symbol, positionSide)

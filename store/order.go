@@ -177,6 +177,79 @@ func (s *OrderStore) CreateOrder(order *TraderOrder) error {
 	return s.db.Create(order).Error
 }
 
+func (s *OrderStore) UpsertSyncedOrder(order *TraderOrder) error {
+	if order == nil || order.ExchangeID == "" || order.ExchangeOrderID == "" {
+		return nil
+	}
+	existing, err := s.GetOrderByExchangeID(order.ExchangeID, order.ExchangeOrderID)
+	if err != nil {
+		return fmt.Errorf("failed to check existing order: %w", err)
+	}
+	if existing == nil {
+		return s.db.Create(order).Error
+	}
+	order.ID = existing.ID
+	if order.TraderID == "" {
+		order.TraderID = existing.TraderID
+	}
+	if order.OrderAction == "" {
+		order.OrderAction = existing.OrderAction
+	}
+	if order.PositionSide == "" {
+		order.PositionSide = existing.PositionSide
+	}
+	updates := map[string]interface{}{
+		"client_order_id":  firstNonEmpty(order.ClientOrderID, existing.ClientOrderID),
+		"parent_order_id":  firstNonEmpty(order.ParentOrderID, existing.ParentOrderID),
+		"symbol":           firstNonEmpty(order.Symbol, existing.Symbol),
+		"side":             firstNonEmpty(order.Side, existing.Side),
+		"position_side":    firstNonEmpty(order.PositionSide, existing.PositionSide),
+		"type":             firstNonEmpty(order.Type, existing.Type),
+		"order_action":     firstNonEmpty(order.OrderAction, existing.OrderAction),
+		"quantity":         nonZeroFloat(order.Quantity, existing.Quantity),
+		"price":            nonZeroFloat(order.Price, existing.Price),
+		"status":           firstNonEmpty(order.Status, existing.Status),
+		"filled_quantity":  nonZeroFloat(order.FilledQuantity, existing.FilledQuantity),
+		"avg_fill_price":   nonZeroFloat(order.AvgFillPrice, existing.AvgFillPrice),
+		"commission":       nonZeroFloat(order.Commission, existing.Commission),
+		"commission_asset": firstNonEmpty(order.CommissionAsset, existing.CommissionAsset),
+		"filled_at":        nonZeroInt(order.FilledAt, existing.FilledAt),
+		"updated_at":       nonZeroInt(order.UpdatedAt, time.Now().UTC().UnixMilli()),
+	}
+	if existing.TraderID == "" {
+		updates["trader_id"] = order.TraderID
+	} else {
+		order.TraderID = existing.TraderID
+	}
+	if existing.CreatedAt == 0 && order.CreatedAt > 0 {
+		updates["created_at"] = order.CreatedAt
+	} else {
+		order.CreatedAt = existing.CreatedAt
+	}
+	return s.db.Model(&TraderOrder{}).Where("id = ?", existing.ID).Updates(updates).Error
+}
+
+func firstNonEmpty(v, fallback string) string {
+	if v != "" {
+		return v
+	}
+	return fallback
+}
+
+func nonZeroFloat(v, fallback float64) float64 {
+	if v != 0 {
+		return v
+	}
+	return fallback
+}
+
+func nonZeroInt(v, fallback int64) int64 {
+	if v != 0 {
+		return v
+	}
+	return fallback
+}
+
 // UpdateOrderStatus updates order status
 func (s *OrderStore) UpdateOrderStatus(id int64, status string, filledQty, avgPrice, commission float64) error {
 	updates := map[string]interface{}{

@@ -136,3 +136,62 @@ func TestSyncOrdersFromOKXWithFullCloseHandler_DoesNotInvokeCallbackOnPartialClo
 		t.Fatalf("expected remaining quantity about 0.0002, got %.8f", got)
 	}
 }
+
+func TestSyncOrdersFromOKXWithFullCloseHandler_UsesAnchoredParentOrderOwner(t *testing.T) {
+	fills := `[
+		{"instId":"BTC-USDT-SWAP","tradeId":"trade-open","ordId":"order-open","billId":"bill-open","side":"buy","posSide":"long","fillPx":"77395.3","fillSz":"6","fee":"-0.01","feeCcy":"USDT","ts":"1714260000000","execType":"T","tag":"entry"}
+	]`
+	tr := newOKXSyncTestTrader(t, fills)
+	st := newOKXSyncTestStore(t)
+
+	anchor := &store.TraderOrder{
+		TraderID:        "owner-trader",
+		ExchangeID:      "exchange-1",
+		ExchangeType:    "okx",
+		ExchangeOrderID: "order-open",
+		Symbol:          "BTCUSDT",
+		Side:            "BUY",
+		PositionSide:    "LONG",
+		Type:            "MARKET",
+		OrderAction:     "open_long",
+		Quantity:        0.0006,
+		Status:          "NEW",
+		CreatedAt:       1714259999000,
+		UpdatedAt:       1714259999000,
+	}
+	if err := st.Order().CreateOrder(anchor); err != nil {
+		t.Fatalf("create anchor order: %v", err)
+	}
+
+	if err := tr.SyncOrdersFromOKXWithFullCloseHandler("sync-trader", "exchange-1", "okx", st, nil); err != nil {
+		t.Fatalf("sync orders: %v", err)
+	}
+	orders, err := st.Order().GetTraderOrders("owner-trader", 10)
+	if err != nil {
+		t.Fatalf("get owner orders: %v", err)
+	}
+	if len(orders) != 2 {
+		t.Fatalf("expected owner trader to have anchor plus synced fill order, got %d", len(orders))
+	}
+	fillOrder, err := st.Order().GetOrderByExchangeID("exchange-1", "trade-open")
+	if err != nil {
+		t.Fatalf("get fill order: %v", err)
+	}
+	if fillOrder == nil || fillOrder.TraderID != "owner-trader" {
+		t.Fatalf("expected synced trade to use anchored owner, got %+v", fillOrder)
+	}
+	positions, err := st.Position().GetOpenPositions("owner-trader")
+	if err != nil {
+		t.Fatalf("get owner positions: %v", err)
+	}
+	if len(positions) != 1 || positions[0].Symbol != "BTCUSDT" {
+		t.Fatalf("expected owner position for BTCUSDT, got %+v", positions)
+	}
+	syncPositions, err := st.Position().GetOpenPositions("sync-trader")
+	if err != nil {
+		t.Fatalf("get sync positions: %v", err)
+	}
+	if len(syncPositions) != 0 {
+		t.Fatalf("expected no position under sync trader, got %+v", syncPositions)
+	}
+}

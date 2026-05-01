@@ -333,11 +333,17 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 	var actualQty = quantity
 	var fee float64
 
-	// Exchanges with OrderSync: Skip immediate order recording, let OrderSync handle it
-	// This ensures accurate data from GetTrades API and avoids duplicate records
+	// Exchanges with OrderSync still need a durable ownership anchor so later
+	// fill sync can attribute the trade to the trader that actually placed it.
+	// We store a lightweight placeholder keyed by the exchange order id.
 	switch at.exchange {
 	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster", "kucoin", "gate":
-		logger.Infof("  📝 Order submitted (id: %s), will be synced by OrderSync", orderID)
+		orderRecord := at.createOrderRecord(orderID, symbol, action, positionSide, quantity, price, leverage)
+		if err := at.store.Order().CreateOrder(orderRecord); err != nil {
+			logger.Infof("  ⚠️ Failed to anchor order owner for sync: %v", err)
+		} else {
+			logger.Infof("  📝 Order submitted (id: %s), owner anchored for OrderSync", orderID)
+		}
 		return
 	}
 

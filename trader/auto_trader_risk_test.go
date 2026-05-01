@@ -1048,3 +1048,25 @@ func TestGetDrawdownArmRulesForNativeExposureSelectsOneStableTierBeforeProfitGat
 		t.Fatalf("expected highest satisfied native tier after profit advances, got %+v", got)
 	}
 }
+
+func TestApplyNativeTrailingDrawdownBelowSafetyFloorArmsManagedFullFallback(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{"symbol": "BTCUSDT", "side": "long", "positionAmt": 1.0}},
+	}
+	at := &AutoTrader{
+		exchange:        "okx",
+		trader:          fake,
+		config:          AutoTraderConfig{Exchange: "okx", StrategyConfig: &store.StrategyConfig{}},
+		protectionState: make(map[string]string),
+	}
+	rule := store.DrawdownTakeProfitRule{MinProfitPct: 0.1, MaxDrawdownPct: 10, CloseRatioPct: 100, StageName: "outer_exit"}
+	if !at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule) {
+		t.Fatalf("expected managed fallback to be armed")
+	}
+	if got := at.getProtectionState("BTCUSDT", "long"); got != "managed_drawdown_armed" {
+		t.Fatalf("state=%s, want managed_drawdown_armed", got)
+	}
+	if fake.trailingCalls != 0 {
+		t.Fatalf("native trailing should not be placed below safety floor, got %d", fake.trailingCalls)
+	}
+}

@@ -2,6 +2,7 @@ package trader
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"nofx/kernel"
@@ -24,6 +25,16 @@ type nativeDrawdownCallbackAdjustment struct {
 	Reason        string
 }
 
+type nativeDrawdownRejection struct {
+	CallbackRatio float64
+	SafetyFloor   float64
+	Reason        string
+}
+
+func (e nativeDrawdownRejection) Error() string {
+	return fmt.Sprintf("drawdown callback %.6f below native safety floor %.6f; use managed drawdown fallback instead of widening callback", e.CallbackRatio, e.SafetyFloor)
+}
+
 func adjustNativeDrawdownCallbackRatio(entryPrice float64, side string, rule store.DrawdownTakeProfitRule, callbackRatio float64) (nativeDrawdownCallbackAdjustment, error) {
 	adjustment := nativeDrawdownCallbackAdjustment{CallbackRatio: callbackRatio}
 	activationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
@@ -33,7 +44,7 @@ func adjustNativeDrawdownCallbackRatio(entryPrice float64, side string, rule sto
 	if callbackRatio >= minNativeDrawdownCallbackRatio {
 		return adjustment, nil
 	}
-	return adjustment, fmt.Errorf("drawdown callback %.6f below native safety floor %.6f; use managed drawdown fallback instead of widening callback", callbackRatio, minNativeDrawdownCallbackRatio)
+	return adjustment, nativeDrawdownRejection{CallbackRatio: callbackRatio, SafetyFloor: minNativeDrawdownCallbackRatio, Reason: "below_native_safety_floor"}
 }
 
 func (at *AutoTrader) startDrawdownMonitor() {
@@ -960,6 +971,57 @@ func findNewestMatchingTrailingOrderID(openOrders []OpenOrder, positionSide stri
 	return ""
 }
 
+func (at *AutoTrader) applyManagedDrawdownFallback(symbol, side string, entryPrice float64, rule store.DrawdownTakeProfitRule, activationPrice float64, callbackRatio float64) bool {
+	if !at.verifyLivePositionForProtection(symbol, side, "managed drawdown fallback") {
+		return false
+	}
+	if rule.CloseRatioPct <= 0 || entryPrice <= 0 {
+		return false
+	}
+	positionSide := strings.ToUpper(side)
+	positionAction := "open_" + strings.ToLower(side)
+	if rule.CloseRatioPct < 99.999 {
+		positions, err := at.trader.GetPositions()
+		if err != nil {
+			logger.Infof("❌ Managed partial drawdown fallback failed to fetch positions (%s %s): %v", symbol, side, err)
+			return false
+		}
+		quantity := 0.0
+		for _, pos := range positions {
+			ps, _ := pos["symbol"].(string)
+			pd, _ := pos["side"].(string)
+			if ps != symbol || !strings.EqualFold(pd, side) {
+				continue
+			}
+			quantity, _ = pos["positionAmt"].(float64)
+			if quantity < 0 {
+				quantity = -quantity
+			}
+			break
+		}
+		if quantity <= 0 {
+			logger.Infof("❌ Managed partial drawdown fallback missing quantity (%s %s)", symbol, side)
+			return false
+		}
+		candidate := buildManagedPartialDrawdownPlanCandidate(entryPrice, positionAction, rule)
+		if candidate == nil || !at.canApplyManagedPartialDrawdownPlan(candidate) {
+			return false
+		}
+		logger.Infof("🟣 Managed partial drawdown fallback armed after native rejection: %s %s | activation=%.6f callbackRatio=%.6f close=%.1f%%", symbol, side, activationPrice, callbackRatio, rule.CloseRatioPct)
+		if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, candidate); err != nil {
+			logger.Infof("❌ Managed partial drawdown fallback apply failed (%s %s): %v", symbol, side, err)
+			return false
+		}
+		at.setProtectionState(symbol, side, "managed_partial_drawdown_armed")
+		at.persistDynamicProtectionRecordWithDetails(symbol, side, "managed_drawdown", stableDrawdownRuleFingerprint(entryPrice, rule), rule.CloseRatioPct, "armed", "", activationPrice, callbackRatio, 0)
+		return true
+	}
+	at.setProtectionState(symbol, side, "managed_drawdown_armed")
+	at.persistDynamicProtectionRecordWithDetails(symbol, side, "managed_drawdown", stableDrawdownRuleFingerprint(entryPrice, rule), rule.CloseRatioPct, "armed", "", activationPrice, callbackRatio, 0)
+	logger.Infof("🟣 Managed full drawdown fallback armed after native rejection: %s %s | activation=%.6f callbackRatio=%.6f close=100%%", symbol, side, activationPrice, callbackRatio)
+	return true
+}
+
 func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPrice float64, rule store.DrawdownTakeProfitRule) bool {
 	if !at.supportsNativeTrailingStop() {
 		return false
@@ -1037,6 +1099,10 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 	callbackAdjustment, err := adjustNativeDrawdownCallbackRatio(entryPrice, side, rule, priceBasedCallbackRatio)
 	if err != nil {
 		logger.Warnf("❌ Native trailing drawdown rejected by safety policy (%s %s): %v", symbol, side, err)
+		var nativeReject nativeDrawdownRejection
+		if errors.As(err, &nativeReject) {
+			return at.applyManagedDrawdownFallback(symbol, side, entryPrice, rule, activationPrice, priceBasedCallbackRatio)
+		}
 		return false
 	}
 	if callbackAdjustment.Adjusted {

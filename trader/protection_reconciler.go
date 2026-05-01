@@ -387,7 +387,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
-	if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming") {
+	if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming" || at.getProtectionState(symbol, side) == "managed_drawdown_armed") {
 		result.Summary = "dynamic protection owner armed; exchange static ownership not fully verified"
 	}
 	return result, nil

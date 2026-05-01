@@ -110,6 +110,7 @@ func (s *Server) setupRoutes() {
 		s.route(api, "GET", "/market/hot-coins", "Hot coins ranking (?limit=20&exchange=binance&excluded=COIN1,COIN2)", s.handleHotCoins)
 		s.route(api, "GET", "/market/oi-ranking", "OI increase/decrease ranking (?direction=top&limit=20&excluded=COIN1,COIN2)", s.handleOIRanking)
 		s.route(api, "GET", "/market/coin-data", "Full market data for a single coin (?symbol=BTCUSDT)", s.handleCoinData)
+		s.route(api, "GET", "/market/composite", "Composite market snapshot for human UI and AI prompt context (?symbol=BTCUSDT&exchange=okx&view=summary|chart|ai|full&timeframes=3m,5m,15m,1h,4h,1d&primary=15m&count=120&ttl=180)", s.handleCompositeMarket)
 
 		// Public strategy market (no authentication required)
 		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)

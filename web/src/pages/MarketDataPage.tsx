@@ -4,7 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import type { Language } from '../i18n/translations'
 import { api } from '../lib/api'
-import type { HotCoinResponse, CoinDataResponse } from '../lib/api/market'
+import type { HotCoinResponse, CoinDataResponse, CompositeMarketSnapshot, HotCoinItem } from '../lib/api/market'
 
 type Tab = 'hot' | 'oi-top' | 'oi-low'
 
@@ -30,7 +30,14 @@ export function MarketDataPage() {
 
   const { data: coinData, isLoading: coinLoading } = useSWR<CoinDataResponse>(
     selectedCoin ? `coin-data-${selectedCoin}` : null,
-    () => api.getCoinData(selectedCoin!)
+    () => api.getCoinData(selectedCoin!),
+    { refreshInterval: autoRefresh ? 180000 : 0, dedupingInterval: 30000 }
+  )
+
+  const { data: compositeData } = useSWR<CompositeMarketSnapshot>(
+    selectedCoin ? `composite-market-${selectedCoin}-${exchange}` : null,
+    () => api.getCompositeMarket(selectedCoin!, exchange, 180, 'chart'),
+    { refreshInterval: autoRefresh ? 180000 : 0, dedupingInterval: 30000 }
   )
 
   // Re-fetch when params change
@@ -147,6 +154,7 @@ export function MarketDataPage() {
                   <th className="px-4 py-3 text-right">{t('change24h', language)}</th>
                   <th className="px-4 py-3 text-right">{t('volume24h', language)}</th>
                   <th className="px-4 py-3 text-right">{t('openInterest', language)}</th>
+                  <th className="px-4 py-3 text-right">Quality</th>
                   {tab === 'hot' ? (
                     <th className="px-4 py-3 text-right">{t('compositeScore', language)}</th>
                   ) : (
@@ -175,13 +183,16 @@ export function MarketDataPage() {
                     <td className="px-4 py-3 text-right font-mono text-zinc-300">
                       ${fmt(coin.oi)}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <QualityPills quality={coin.quality} />
+                    </td>
                     {tab === 'hot' ? (
                       <td className="px-4 py-3 text-right">
                         <ScoreBar score={coin.score} />
                       </td>
                     ) : (
-                      <td className={`px-4 py-3 text-right font-mono ${pctColor(coin.score)}`}>
-                        {coin.score >= 0 ? '+' : ''}{coin.score.toFixed(2)}%
+                      <td className={`px-4 py-3 text-right font-mono ${pctColor(coin.oi_change_pct ?? coin.score)}`}>
+                        {formatOIChangeCell(coin)}
                       </td>
                     )}
                   </tr>
@@ -197,6 +208,7 @@ export function MarketDataPage() {
         <CoinDrawer
           symbol={selectedCoin}
           data={coinData}
+          composite={compositeData}
           loading={coinLoading}
           language={language}
           onClose={() => setSelectedCoin(null)}
@@ -204,6 +216,13 @@ export function MarketDataPage() {
       )}
     </div>
   )
+}
+
+function formatOIChangeCell(coin: HotCoinItem): string {
+  const v = coin.oi_change_pct ?? coin.score
+  const sign = v >= 0 ? '+' : ''
+  const window = coin.oi_change_window_seconds ? `/${Math.round(coin.oi_change_window_seconds / 60)}m` : ''
+  return `${sign}${v.toFixed(3)}%${window}`
 }
 
 function ScoreBar({ score }: { score: number }) {
@@ -222,12 +241,14 @@ function ScoreBar({ score }: { score: number }) {
 function CoinDrawer({
   symbol,
   data,
+  composite,
   loading,
   language,
   onClose,
 }: {
   symbol: string
   data?: CoinDataResponse
+  composite?: CompositeMarketSnapshot
   loading: boolean
   language: Language
   onClose: () => void
@@ -263,6 +284,28 @@ function CoinDrawer({
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Composite Snapshot */}
+              {composite && (
+                <Section title="综合市场快照 / AI Context">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <Metric label="Quality" value={composite.data_quality || '-'} />
+                    <Metric label="TTL" value={`${composite.ttl_seconds}s`} />
+                    <Metric label="Updated" value={new Date(composite.updated_at).toLocaleTimeString()} />
+                    <Metric label="Regime" value={(composite.context as any)?.regime_entry_guidance?.regime || '-'} />
+                    <Metric label="Crowding" value={(composite.context as any)?.exchange_flow?.crowding_risk || '-'} />
+                  </div>
+                  {composite.sources && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {composite.sources.map(src => (
+                        <span key={src.name} className={`rounded-full border px-2 py-0.5 text-[10px] ${src.available ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200' : 'border-zinc-600/30 bg-zinc-800/60 text-zinc-500'}`}>
+                          {src.name}{src.available ? '' : ' off'}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+              )}
+
               {/* Price */}
               <div className="bg-zinc-800/50 rounded-lg p-4">
                 <div className="text-2xl font-bold text-white font-mono">
@@ -324,10 +367,14 @@ function CoinDrawer({
                 </Section>
               )}
 
-              {/* Chart placeholder */}
-              <div className="bg-zinc-800/30 border border-zinc-700/50 rounded-lg p-8 text-center text-zinc-600 text-sm">
-                {t('chartComingSoon', language)}
-              </div>
+              {/* Chart */}
+              {composite ? (
+                <MarketMiniChart snapshot={composite} />
+              ) : (
+                <div className="bg-zinc-800/30 border border-zinc-700/50 rounded-lg p-8 text-center text-zinc-600 text-sm">
+                  {t('chartComingSoon', language)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -350,6 +397,89 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between py-1.5 text-sm">
       <span className="text-zinc-500">{label}</span>
       <span className="text-zinc-200 font-mono">{value}</span>
+    </div>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5">
+      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="truncate font-mono text-xs text-zinc-200">{value}</div>
+    </div>
+  )
+}
+
+function MarketMiniChart({ snapshot }: { snapshot: CompositeMarketSnapshot }) {
+  const tf = snapshot.timeframes?.[snapshot.primary_timeframe] || Object.values(snapshot.timeframes || {})[0]
+  const bars = (tf?.klines || []).slice(-80)
+  const lines = (tf?.lines || snapshot.lines || []).filter(l => Number.isFinite(l.price)).slice(0, 24)
+  if (bars.length < 2) {
+    return <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/30 p-8 text-center text-sm text-zinc-600">No chart data</div>
+  }
+  const highs = bars.map(b => b.high)
+  const lows = bars.map(b => b.low)
+  const linePrices = lines.map(l => l.price)
+  const max = Math.max(...highs, ...linePrices)
+  const min = Math.min(...lows, ...linePrices)
+  const span = Math.max(max - min, 1e-9)
+  const w = 360
+  const h = 170
+  const x = (i: number) => (i / Math.max(bars.length - 1, 1)) * w
+  const y = (p: number) => h - ((p - min) / span) * h
+  const closePath = bars.map((b, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(2)} ${y(b.close).toFixed(2)}`).join(' ')
+  const ema = (tf?.ema20 || []).slice(-bars.length)
+  const emaPath = ema.length === bars.length
+    ? ema.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(2)} ${y(v).toFixed(2)}`).join(' ')
+    : ''
+  const fmtPrice = (p: number) => p.toLocaleString(undefined, { maximumFractionDigits: p > 10 ? 3 : 6 })
+
+  return (
+    <Section title={`Chart · ${tf?.timeframe || snapshot.primary_timeframe}`}>
+      <div className="rounded-lg border border-zinc-700/50 bg-zinc-950/60 p-3">
+        <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full overflow-visible">
+          {lines.map((line) => {
+            const yy = y(line.price)
+            const color = line.kind === 'support' ? '#34d399' : line.kind === 'resistance' ? '#f87171' : '#fbbf24'
+            return (
+              <g key={line.id}>
+                <line x1="0" x2={w} y1={yy} y2={yy} stroke={color} strokeOpacity="0.45" strokeDasharray={line.kind === 'fibonacci' ? '4 4' : '2 3'} />
+                <text x="4" y={Math.max(10, yy - 3)} fill={color} fontSize="9">{line.label} {fmtPrice(line.price)}</text>
+              </g>
+            )
+          })}
+          <path d={closePath} fill="none" stroke="#38bdf8" strokeWidth="1.6" />
+          {emaPath && <path d={emaPath} fill="none" stroke="#a78bfa" strokeWidth="1" strokeOpacity="0.9" />}
+          <line x1="0" x2={w} y1={y(snapshot.price)} y2={y(snapshot.price)} stroke="#e5e7eb" strokeOpacity="0.6" />
+        </svg>
+        <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-zinc-500">
+          <span className="text-sky-300">close</span>
+          <span className="text-violet-300">EMA20</span>
+          <span className="text-emerald-300">support</span>
+          <span className="text-red-300">resistance</span>
+          <span className="text-amber-300">fib</span>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+function QualityPills({ quality }: { quality?: { liquidity_score?: number; open_interest_score?: number; activity_score?: number; reliability_score?: number; tradability_score?: number; risk_penalty?: number } }) {
+  if (!quality) return <span className="text-xs text-zinc-600">—</span>
+  const items = [
+    ['T', quality.tradability_score],
+    ['L', quality.liquidity_score],
+    ['OI', quality.open_interest_score],
+    ['A', quality.activity_score],
+    ['R', quality.reliability_score],
+  ] as const
+  return (
+    <div className="flex justify-end gap-1">
+      {items.map(([label, value]) => (
+        <span key={label} className="rounded border border-zinc-700 bg-zinc-800/70 px-1.5 py-0.5 text-[10px] text-zinc-300">
+          {label}:{Math.round((value || 0) * 100)}
+        </span>
+      ))}
     </div>
   )
 }

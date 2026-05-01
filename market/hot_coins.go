@@ -6,17 +6,22 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // HotCoin represents a hot coin with composite scoring
 type HotCoin struct {
-	Symbol          string  `json:"symbol"`
-	QuoteVolume24h  float64 `json:"quote_volume_24h"`
-	PriceChangePct  float64 `json:"price_change_pct"`
-	OpenInterestUSD float64 `json:"open_interest_usd"`
-	FundingRate     float64 `json:"funding_rate"`
-	HotScore        float64 `json:"hot_score"`
-	Source          string  `json:"source"`
+	Symbol                string           `json:"symbol"`
+	QuoteVolume24h        float64          `json:"quote_volume_24h"`
+	PriceChangePct        float64          `json:"price_change_pct"`
+	OpenInterestUSD       float64          `json:"open_interest_usd"`
+	OpenInterestChangePct float64          `json:"open_interest_change_pct,omitempty"`
+	OpenInterestWindowSec int              `json:"open_interest_window_sec,omitempty"`
+	OpenInterestSource    string           `json:"open_interest_source,omitempty"`
+	FundingRate           float64          `json:"funding_rate"`
+	HotScore              float64          `json:"hot_score"`
+	Source                string           `json:"source"`
+	Quality               CandidateQuality `json:"quality,omitempty"`
 }
 
 const (
@@ -32,14 +37,16 @@ func GetHotCoins(limit int, excludedCoins []string) ([]HotCoin, error) {
 
 // GetHotCoinsWithExchange returns hot coins from specified exchange
 func GetHotCoinsWithExchange(limit int, excludedCoins []string, exchange string) ([]HotCoin, error) {
-	switch strings.ToLower(exchange) {
-	case "okx":
-		return getHotCoinsOKX(limit, excludedCoins)
-	case "binance":
-		return getHotCoinsBinance(limit, excludedCoins)
-	default:
-		return getHotCoinsOKX(limit, excludedCoins)
-	}
+	return cachedHotCoinList(hotCoinCacheKey("hot", limit, excludedCoins, exchange), 180*time.Second, func() ([]HotCoin, error) {
+		switch strings.ToLower(exchange) {
+		case "okx":
+			return getHotCoinsOKX(limit, excludedCoins)
+		case "binance":
+			return getHotCoinsBinance(limit, excludedCoins)
+		default:
+			return getHotCoinsOKX(limit, excludedCoins)
+		}
+	})
 }
 
 // GetOITopCoins returns coins ranked by OI increase (defaults to OKX)
@@ -49,12 +56,14 @@ func GetOITopCoins(limit int, excludedCoins []string) ([]HotCoin, error) {
 
 // GetOITopCoinsWithExchange returns coins ranked by OI increase from specified exchange
 func GetOITopCoinsWithExchange(limit int, excludedCoins []string, exchange string) ([]HotCoin, error) {
-	switch strings.ToLower(exchange) {
-	case "binance":
-		return getOIRankedCoinsBinance(limit, excludedCoins, true)
-	default:
-		return getOIRankedCoinsOKX(limit, excludedCoins, true)
-	}
+	return cachedHotCoinList(hotCoinCacheKey("oi_top", limit, excludedCoins, exchange), 180*time.Second, func() ([]HotCoin, error) {
+		switch strings.ToLower(exchange) {
+		case "binance":
+			return getOIRankedCoinsBinance(limit, excludedCoins, true)
+		default:
+			return getOIRankedCoinsOKX(limit, excludedCoins, true)
+		}
+	})
 }
 
 // GetOILowCoins returns coins ranked by OI decrease (defaults to OKX)
@@ -64,12 +73,14 @@ func GetOILowCoins(limit int, excludedCoins []string) ([]HotCoin, error) {
 
 // GetOILowCoinsWithExchange returns coins ranked by OI decrease from specified exchange
 func GetOILowCoinsWithExchange(limit int, excludedCoins []string, exchange string) ([]HotCoin, error) {
-	switch strings.ToLower(exchange) {
-	case "binance":
-		return getOIRankedCoinsBinance(limit, excludedCoins, false)
-	default:
-		return getOIRankedCoinsOKX(limit, excludedCoins, false)
-	}
+	return cachedHotCoinList(hotCoinCacheKey("oi_low", limit, excludedCoins, exchange), 180*time.Second, func() ([]HotCoin, error) {
+		switch strings.ToLower(exchange) {
+		case "binance":
+			return getOIRankedCoinsBinance(limit, excludedCoins, false)
+		default:
+			return getOIRankedCoinsOKX(limit, excludedCoins, false)
+		}
+	})
 }
 
 // ---- OKX implementation ----
@@ -146,19 +157,33 @@ func getHotCoinsOKX(limit int, excludedCoins []string) ([]HotCoin, error) {
 	}
 
 	var candidates []HotCoin
+	var maxActivity float64
 	for _, r := range raws {
-		normVol := safeNorm(r.vol, maxVol)
-		normOI := safeNorm(r.oi, maxOI)
-		normChg := safeNorm(r.chg, maxChg)
-		score := 0.4*normVol + 0.3*normOI + 0.3*normChg
-
+		activity := 0.0
+		if r.oi > 0 {
+			activity = r.vol / r.oi * 100
+		}
+		if activity > maxActivity {
+			maxActivity = activity
+		}
+	}
+	for _, r := range raws {
+		activity := 0.0
+		if r.oi > 0 {
+			activity = r.vol / r.oi * 100
+		}
+		quality := scoreCandidateQuality(r.vol, r.oi, r.chg, activity, maxVol, maxOI, maxChg, maxActivity)
+		if !quality.Passed {
+			continue
+		}
 		candidates = append(candidates, HotCoin{
 			Symbol:          r.symbol,
 			QuoteVolume24h:  r.vol,
 			PriceChangePct:  r.chg,
 			OpenInterestUSD: r.oi,
-			HotScore:        score,
+			HotScore:        compositeHotScore(quality),
 			Source:          "okx_hot",
+			Quality:         quality,
 		})
 	}
 
@@ -183,7 +208,7 @@ func getOIRankedCoinsOKX(limit int, excludedCoins []string, ascending bool) ([]H
 		return nil, err
 	}
 
-	var coins []HotCoin
+	var rawCoins []HotCoin
 
 	for _, t := range tickers {
 		if !strings.HasSuffix(t.InstID, "-USDT-SWAP") {
@@ -220,7 +245,7 @@ func getOIRankedCoinsOKX(limit int, excludedCoins []string, ascending bool) ([]H
 			oiChange = volUSD / oiUSD * 100
 		}
 
-		coins = append(coins, HotCoin{
+		rawCoins = append(rawCoins, HotCoin{
 			Symbol:          stdSymbol,
 			QuoteVolume24h:  volUSD,
 			PriceChangePct:  chg,
@@ -230,7 +255,10 @@ func getOIRankedCoinsOKX(limit int, excludedCoins []string, ascending bool) ([]H
 		})
 	}
 
-	if ascending {
+	coins := RerankOICoins(rawCoins, ascending)
+	if deltaCoins, ok := computeOIDeltaScores("okx", coins, ascending); ok {
+		coins = deltaCoins
+	} else if ascending {
 		sort.Slice(coins, func(i, j int) bool {
 			return coins[i].HotScore > coins[j].HotScore
 		})
@@ -259,7 +287,7 @@ func getOIRankedCoinsBinance(limit int, excludedCoins []string, ascending bool) 
 		return nil, err
 	}
 
-	var coins []HotCoin
+	var rawCoins []HotCoin
 
 	for _, t := range tickers {
 		if !strings.HasSuffix(t.Symbol, "USDT") {
@@ -288,7 +316,7 @@ func getOIRankedCoinsBinance(limit int, excludedCoins []string, ascending bool) 
 			oiChange = vol / oiUSD * 100
 		}
 
-		coins = append(coins, HotCoin{
+		rawCoins = append(rawCoins, HotCoin{
 			Symbol:          t.Symbol,
 			QuoteVolume24h:  vol,
 			PriceChangePct:  chg,
@@ -298,7 +326,10 @@ func getOIRankedCoinsBinance(limit int, excludedCoins []string, ascending bool) 
 		})
 	}
 
-	if ascending {
+	coins := RerankOICoins(rawCoins, ascending)
+	if deltaCoins, ok := computeOIDeltaScores("binance", coins, ascending); ok {
+		coins = deltaCoins
+	} else if ascending {
 		sort.Slice(coins, func(i, j int) bool {
 			return coins[i].HotScore > coins[j].HotScore
 		})
@@ -376,19 +407,33 @@ func getHotCoinsBinance(limit int, excludedCoins []string) ([]HotCoin, error) {
 	}
 
 	var candidates []HotCoin
+	var maxActivity float64
 	for _, r := range raws {
-		normVol := safeNorm(r.vol, maxVol)
-		normOI := safeNorm(r.oi, maxOI)
-		normChg := safeNorm(r.chg, maxChg)
-		score := 0.4*normVol + 0.3*normOI + 0.3*normChg
-
+		activity := 0.0
+		if r.oi > 0 {
+			activity = r.vol / r.oi * 100
+		}
+		if activity > maxActivity {
+			maxActivity = activity
+		}
+	}
+	for _, r := range raws {
+		activity := 0.0
+		if r.oi > 0 {
+			activity = r.vol / r.oi * 100
+		}
+		quality := scoreCandidateQuality(r.vol, r.oi, r.chg, activity, maxVol, maxOI, maxChg, maxActivity)
+		if !quality.Passed {
+			continue
+		}
 		candidates = append(candidates, HotCoin{
 			Symbol:          r.symbol,
 			QuoteVolume24h:  r.vol,
 			PriceChangePct:  r.chg,
 			OpenInterestUSD: r.oi,
-			HotScore:        score,
+			HotScore:        compositeHotScore(quality),
 			Source:          "binance_hot",
+			Quality:         quality,
 		})
 	}
 

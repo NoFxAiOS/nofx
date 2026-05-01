@@ -1,11 +1,29 @@
 import { API_BASE, httpClient } from './helpers'
 
+export interface CandidateQuality {
+  passed?: boolean
+  reasons?: string[]
+  liquidity_score?: number
+  open_interest_score?: number
+  activity_score?: number
+  momentum_score?: number
+  reliability_score?: number
+  tradability_score?: number
+  risk_penalty?: number
+}
+
 export interface HotCoinItem {
   symbol: string
   score: number
+  tradability_score?: number
   volume_24h: number
   oi: number
+  oi_change_pct?: number
+  oi_change_window_seconds?: number
+  oi_source?: string
   price_change_24h: number
+  source?: string
+  quality?: CandidateQuality
 }
 
 export interface HotCoinResponse {
@@ -46,6 +64,46 @@ export interface CoinDataResponse {
   }
 }
 
+export interface CompositeMarketLine {
+  id: string
+  price: number
+  kind: string
+  label: string
+  timeframe?: string
+  strength?: number
+  source?: string
+  distance_pct?: number
+}
+
+export interface CompositeMarketTimeframe {
+  timeframe: string
+  klines?: Array<{ time: number; open: number; high: number; low: number; close: number; volume: number }>
+  ema20?: number[]
+  ema50?: number[]
+  rsi14?: number[]
+  atr14?: number
+  lines?: CompositeMarketLine[]
+}
+
+export interface CompositeMarketSnapshot {
+  symbol: string
+  exchange: string
+  primary_timeframe: string
+  updated_at: string
+  expires_at: string
+  ttl_seconds: number
+  stale?: boolean
+  price: number
+  price_change_1h: number
+  price_change_4h: number
+  data_quality?: string
+  sources?: Array<{ name: string; available: boolean; reason?: string; updated_at?: string }>
+  context?: unknown
+  timeframes?: Record<string, CompositeMarketTimeframe>
+  lines?: CompositeMarketLine[]
+  ai_compact?: string
+}
+
 export const marketApi = {
   async getHotCoins(limit = 20, exchange = 'binance', excluded?: string[]): Promise<HotCoinResponse> {
     const params = new URLSearchParams({ limit: String(limit), exchange })
@@ -66,6 +124,13 @@ export const marketApi = {
   async getCoinData(symbol: string): Promise<CoinDataResponse> {
     const result = await httpClient.get<CoinDataResponse>(`${API_BASE}/market/coin-data?symbol=${encodeURIComponent(symbol)}`)
     if (!result.success) throw new Error('Failed to fetch coin data')
+    return result.data!
+  },
+
+  async getCompositeMarket(symbol: string, exchange = 'okx', ttl = 180, view: 'summary' | 'chart' | 'ai' | 'full' = 'chart'): Promise<CompositeMarketSnapshot> {
+    const params = new URLSearchParams({ symbol, exchange, ttl: String(ttl), view })
+    const result = await httpClient.get<CompositeMarketSnapshot>(`${API_BASE}/market/composite?${params}`)
+    if (!result.success) throw new Error('Failed to fetch composite market snapshot')
     return result.data!
   },
 }

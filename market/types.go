@@ -26,6 +26,33 @@ type Data struct {
 	DepthImbalance    *float64          `json:"depth_imbalance,omitempty"`
 	FibonacciLevels   *FibonacciLevels  `json:"fibonacci_levels,omitempty"`
 	StructuralLevels  []StructuralLevel `json:"structural_levels,omitempty"`
+	QuantContext      *QuantContext     `json:"quant_context,omitempty"`
+}
+
+type QuantContext struct {
+	InstitutionFuture1h float64 `json:"institution_future_1h,omitempty"`
+	InstitutionFuture4h float64 `json:"institution_future_4h,omitempty"`
+	InstitutionSpot1h   float64 `json:"institution_spot_1h,omitempty"`
+	RetailFuture1h      float64 `json:"retail_future_1h,omitempty"`
+	OIChange1hPct       float64 `json:"oi_change_1h_pct,omitempty"`
+	OIChange4hPct       float64 `json:"oi_change_4h_pct,omitempty"`
+	OIChange1hValue     float64 `json:"oi_change_1h_value,omitempty"`
+	FlowBias            string  `json:"flow_bias,omitempty"`
+	CrowdingRisk        string  `json:"crowding_risk,omitempty"`
+	Interpretation      string  `json:"interpretation,omitempty"`
+	DataQuality         string  `json:"data_quality,omitempty"`
+}
+
+type ExchangeFlowContext struct {
+	FundingBias    string  `json:"funding_bias,omitempty"`
+	LongShortSkew  string  `json:"long_short_skew,omitempty"`
+	TakerFlowBias  string  `json:"taker_flow_bias,omitempty"`
+	DepthBias      string  `json:"depth_bias,omitempty"`
+	DepthTotalUSDT float64 `json:"depth_total_usdt,omitempty"`
+	DepthImbalance float64 `json:"depth_imbalance,omitempty"`
+	CrowdingRisk   string  `json:"crowding_risk,omitempty"`
+	DataQuality    string  `json:"data_quality,omitempty"`
+	Interpretation string  `json:"interpretation,omitempty"`
 }
 
 // KlineBar single kline bar with OHLCV data
@@ -245,11 +272,11 @@ const (
 type GridDirection string
 
 const (
-	GridDirectionNeutral   GridDirection = "neutral"     // 50% buy + 50% sell
-	GridDirectionLong      GridDirection = "long"        // 100% buy
-	GridDirectionShort     GridDirection = "short"       // 100% sell
-	GridDirectionLongBias  GridDirection = "long_bias"   // 70% buy + 30% sell (default)
-	GridDirectionShortBias GridDirection = "short_bias"  // 30% buy + 70% sell (default)
+	GridDirectionNeutral   GridDirection = "neutral"    // 50% buy + 50% sell
+	GridDirectionLong      GridDirection = "long"       // 100% buy
+	GridDirectionShort     GridDirection = "short"      // 100% sell
+	GridDirectionLongBias  GridDirection = "long_bias"  // 70% buy + 30% sell (default)
+	GridDirectionShortBias GridDirection = "short_bias" // 30% buy + 70% sell (default)
 )
 
 // GetBuySellRatio returns the buy and sell ratio for this direction

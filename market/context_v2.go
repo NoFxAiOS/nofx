@@ -22,16 +22,29 @@ type DerivativesContext struct {
 // feed regime/setup gates. Phase 1 stores or tests this structure without using
 // it to change live order behavior.
 type MarketContextV2 struct {
-	Symbol      string                `json:"symbol"`
-	Timeframes  []string              `json:"timeframes,omitempty"`
-	PrimaryTF   string                `json:"primary_timeframe,omitempty"`
-	TriggerTF   string                `json:"trigger_timeframe,omitempty"`
-	BiasTF      string                `json:"bias_timeframe,omitempty"`
-	MacroTFs    []string              `json:"macro_timeframes,omitempty"`
-	DataQuality string                `json:"data_quality,omitempty"`
-	MissingTFs  []string              `json:"missing_timeframes,omitempty"`
-	Derivatives *DerivativesContext   `json:"derivatives,omitempty"`
-	Structure   *MarketStructureBrief `json:"structure,omitempty"`
+	Symbol       string                `json:"symbol"`
+	Timeframes   []string              `json:"timeframes,omitempty"`
+	PrimaryTF    string                `json:"primary_timeframe,omitempty"`
+	TriggerTF    string                `json:"trigger_timeframe,omitempty"`
+	BiasTF       string                `json:"bias_timeframe,omitempty"`
+	MacroTFs     []string              `json:"macro_timeframes,omitempty"`
+	DataQuality  string                `json:"data_quality,omitempty"`
+	MissingTFs   []string              `json:"missing_timeframes,omitempty"`
+	RegimeRules  *RegimeEntryGuidance  `json:"regime_entry_guidance,omitempty"`
+	Derivatives  *DerivativesContext   `json:"derivatives,omitempty"`
+	Structure    *MarketStructureBrief `json:"structure,omitempty"`
+	Quant        *QuantContext         `json:"quant,omitempty"`
+	ExchangeFlow *ExchangeFlowContext  `json:"exchange_flow,omitempty"`
+}
+
+type RegimeEntryGuidance struct {
+	Regime             string   `json:"regime,omitempty"`
+	AllowedSetups      []string `json:"allowed_setups,omitempty"`
+	StructureMode      string   `json:"structure_mode,omitempty"`
+	FibonacciMode      string   `json:"fibonacci_mode,omitempty"`
+	RequiredAnchors    []string `json:"required_anchors,omitempty"`
+	ProtectionGuidance string   `json:"protection_guidance,omitempty"`
+	Notes              []string `json:"notes,omitempty"`
 }
 
 // MarketStructureBrief is a compact structural summary suitable for review context.
@@ -63,6 +76,9 @@ func BuildMarketContextV2(symbol string, data *Data, expectedTFs []string, prima
 
 	ctx.Derivatives = BuildDerivativesContext(data)
 	ctx.Structure = BuildMarketStructureBrief(data)
+	ctx.Quant = data.QuantContext
+	ctx.ExchangeFlow = BuildExchangeFlowContext(data)
+	ctx.RegimeRules = BuildRegimeEntryGuidance(data, ctx.Structure, ctx.Derivatives, ctx.Quant, ctx.ExchangeFlow)
 
 	missing := make([]string, 0)
 	for _, tf := range expectedTFs {
@@ -238,10 +254,115 @@ func classifyRangePosition(price, support, resistance float64) string {
 	pos := (price - support) / (resistance - support)
 	switch {
 	case pos <= 0.3:
-		return "lower_edge"
+		return "near_support"
 	case pos >= 0.7:
-		return "upper_edge"
+		return "near_resistance"
 	default:
 		return "middle"
 	}
+}
+
+func BuildRegimeEntryGuidance(data *Data, structure *MarketStructureBrief, derivatives *DerivativesContext, quant *QuantContext, exchangeFlow ...*ExchangeFlowContext) *RegimeEntryGuidance {
+	var ex *ExchangeFlowContext
+	if len(exchangeFlow) > 0 {
+		ex = exchangeFlow[0]
+	}
+	regime := inferExecutionRegime(data, structure, derivatives, quant, ex)
+	g := &RegimeEntryGuidance{Regime: regime}
+	switch regime {
+	case "trend_up":
+		g.AllowedSetups = []string{"trend_pullback", "breakout_retest"}
+		g.StructureMode = "support_as_invalidation_resistance_or_fib_as_target"
+		g.FibonacciMode = "prefer_retracement_confluence"
+		g.RequiredAnchors = []string{"primary_support", "higher_tf_trend_or_target"}
+		g.ProtectionGuidance = "allow_runner; drawdown tolerance should be wider than normal retests"
+	case "trend_down":
+		g.AllowedSetups = []string{"trend_pullback", "breakout_retest"}
+		g.StructureMode = "resistance_as_invalidation_support_or_fib_as_target"
+		g.FibonacciMode = "prefer_retracement_confluence"
+		g.RequiredAnchors = []string{"primary_resistance", "higher_tf_trend_or_target"}
+		g.ProtectionGuidance = "allow_runner; drawdown tolerance should be wider than normal retests"
+	case "range_edge":
+		g.AllowedSetups = []string{"range_edge"}
+		g.StructureMode = "trade_only_near_support_or_resistance_edge"
+		g.FibonacciMode = "audit_only"
+		g.RequiredAnchors = []string{"range_edge", "opposite_range_target"}
+		g.ProtectionGuidance = "take profit sooner; avoid wide runner assumptions"
+	case "squeeze_risk":
+		g.AllowedSetups = []string{"breakout_retest"}
+		g.StructureMode = "wait_for_retest_or_sweep_confirmation"
+		g.FibonacciMode = "audit_only"
+		g.RequiredAnchors = []string{"breakout_level", "failed_sweep_or_retest"}
+		g.ProtectionGuidance = "reduce size; require wider wick buffer; avoid chasing first breakout candle"
+	case "crowded":
+		g.AllowedSetups = []string{"post_sweep_reversal", "range_edge"}
+		g.StructureMode = "require_liquidity_sweep_or_clear_invalidation"
+		g.FibonacciMode = "audit_only"
+		g.RequiredAnchors = []string{"sweep_level", "invalidation_after_sweep"}
+		g.ProtectionGuidance = "smaller size; higher net RR; no momentum chasing"
+	default:
+		g.AllowedSetups = []string{"range_edge", "trend_pullback"}
+		g.StructureMode = "standard_support_resistance_anchor_linkage"
+		g.FibonacciMode = "optional_confluence"
+		g.RequiredAnchors = []string{"invalidation", "first_target"}
+		g.ProtectionGuidance = "balanced ladder/drawdown; avoid arbitrary round percentages"
+	}
+	g.Notes = regimeNotes(derivatives, quant)
+	return g
+}
+
+func inferExecutionRegime(data *Data, structure *MarketStructureBrief, derivatives *DerivativesContext, quant *QuantContext, exchangeFlow *ExchangeFlowContext) string {
+	if derivatives != nil && derivatives.SqueezeRisk == "high" {
+		return "squeeze_risk"
+	}
+	if quant != nil && quant.CrowdingRisk == "high" {
+		return "crowded"
+	}
+	if exchangeFlow != nil && exchangeFlow.CrowdingRisk == "high" {
+		return "crowded"
+	}
+	if structure != nil && (structure.RangePosition == "near_support" || structure.RangePosition == "near_resistance") && absMarketChange(data) < 1.5 {
+		return "range_edge"
+	}
+	if data != nil {
+		if data.PriceChange1h > 0.8 && data.PriceChange4h > 1.2 {
+			return "trend_up"
+		}
+		if data.PriceChange1h < -0.8 && data.PriceChange4h < -1.2 {
+			return "trend_down"
+		}
+	}
+	return "balanced"
+}
+
+func regimeNotes(derivatives *DerivativesContext, quant *QuantContext) []string {
+	notes := []string{}
+	if derivatives != nil {
+		if derivatives.FundingBias != "" && derivatives.FundingBias != "neutral" && derivatives.FundingBias != "unknown" {
+			notes = append(notes, "funding_bias="+derivatives.FundingBias)
+		}
+		if derivatives.SqueezeRisk != "" && derivatives.SqueezeRisk != "low" && derivatives.SqueezeRisk != "unknown" {
+			notes = append(notes, "squeeze_risk="+derivatives.SqueezeRisk)
+		}
+	}
+	if quant != nil {
+		if quant.FlowBias != "" && quant.FlowBias != "unknown" {
+			notes = append(notes, "flow_bias="+quant.FlowBias)
+		}
+		if quant.CrowdingRisk != "" && quant.CrowdingRisk != "low" && quant.CrowdingRisk != "unknown" {
+			notes = append(notes, "crowding="+quant.CrowdingRisk)
+		}
+	}
+	return notes
+}
+
+func absMarketChange(data *Data) float64 {
+	if data == nil {
+		return 0
+	}
+	v := data.PriceChange1h
+	if v < 0 {
+		return -v
+	}
+	return v
 }

@@ -137,7 +137,20 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
   }
 
   const updateLadder = <K extends keyof LadderTPSLConfig>(key: K, value: LadderTPSLConfig[K]) => {
-    updateSection('ladder_tp_sl', { ...config.ladder_tp_sl, [key]: value })
+    let next: LadderTPSLConfig = { ...config.ladder_tp_sl, [key]: value }
+    if (key === 'mode' && value === 'ai') {
+      next = {
+        ...next,
+        enabled: true,
+        take_profit_enabled: true,
+        stop_loss_enabled: true,
+        take_profit_price: updateValueSource(next.take_profit_price, { mode: 'ai', value: 0 }),
+        take_profit_size: updateValueSource(next.take_profit_size, { mode: 'ai', value: 0 }),
+        stop_loss_price: updateValueSource(next.stop_loss_price, { mode: 'ai', value: 0 }),
+        stop_loss_size: updateValueSource(next.stop_loss_size, { mode: 'ai', value: 0 }),
+      }
+    }
+    updateSection('ladder_tp_sl', next)
   }
 
   const updateDrawdown = <K extends keyof DrawdownTakeProfitConfig>(key: K, value: DrawdownTakeProfitConfig[K]) => {
@@ -481,7 +494,7 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
                 </div>
                 <input type="checkbox" checked={config.ladder_tp_sl.enabled} onChange={(e) => updateLadder('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-blue-500" />
               </div>
-              <select value={config.ladder_tp_sl.mode} onChange={(e) => updateLadder('mode', e.target.value as LadderTPSLConfig['mode'])} disabled={disabled || !ladderEnabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+              <select value={config.ladder_tp_sl.mode} onChange={(e) => updateLadder('mode', e.target.value as LadderTPSLConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
                 {protectionModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
               </select>
             </div>

@@ -22,7 +22,7 @@ import (
 func mergeStrategyConfig(existing store.StrategyConfig, incoming json.RawMessage) (store.StrategyConfig, error) {
 	merged := existing
 	if len(incoming) == 0 || string(incoming) == "null" {
-		normalizeExclusiveAIProtectionModes(&merged)
+		normalizeAIProtectionEngineModes(&merged)
 		return merged, nil
 	}
 
@@ -48,22 +48,16 @@ func mergeStrategyConfig(existing store.StrategyConfig, incoming json.RawMessage
 	if err := json.Unmarshal(blob, &merged); err != nil {
 		return store.StrategyConfig{}, err
 	}
-	normalizeExclusiveAIProtectionModes(&merged)
+	normalizeAIProtectionEngineModes(&merged)
 	return merged, nil
 }
 
-func normalizeExclusiveAIProtectionModes(cfg *store.StrategyConfig) {
+func normalizeAIProtectionEngineModes(cfg *store.StrategyConfig) {
 	if cfg == nil {
 		return
 	}
 	prot := &cfg.Protection
 	if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
-		if prot.FullTPSL.Mode == store.ProtectionModeAI {
-			prot.FullTPSL.Mode = store.ProtectionModeManual
-		}
-		if prot.LadderTPSL.Mode == store.ProtectionModeAI {
-			prot.LadderTPSL.Mode = store.ProtectionModeManual
-		}
 		if prot.DrawdownTakeProfit.EngineMode == "" {
 			prot.DrawdownTakeProfit.EngineMode = store.DrawdownEngineModeAI
 		}
@@ -222,10 +216,10 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 			warnings = append(warnings, "protection.drawdown_take_profit.rules must contain at least one rule when mode=manual.")
 		}
 		if drawdown.Mode == store.ProtectionModeAI && full.Mode == store.ProtectionModeAI {
-			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai cannot currently be combined with protection.full_tp_sl.mode=ai.")
+			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai and protection.full_tp_sl.mode=ai are both enabled; AI must output a combined protection_plan when both routes own protection.")
 		}
 		if drawdown.Mode == store.ProtectionModeAI && ladder.Mode == store.ProtectionModeAI {
-			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai cannot currently be combined with protection.ladder_tp_sl.mode=ai.")
+			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai and protection.ladder_tp_sl.mode=ai are both enabled; AI must output combined ladder+drawdown protection_plan.")
 		}
 		for i, rule := range drawdown.Rules {
 			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.MaxDrawdownPct > 100 ||

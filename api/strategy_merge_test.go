@@ -76,15 +76,15 @@ func TestStrategyUpdateAPIEndToEndPreservesNestedProtectionConfig(t *testing.T) 
 	}
 
 	updateBody := map[string]any{
-		"name": "e2e-strategy",
-		"description": "after",
-		"is_public": false,
+		"name":           "e2e-strategy",
+		"description":    "after",
+		"is_public":      false,
 		"config_visible": true,
 		"config": map[string]any{
 			"protection": map[string]any{
 				"full_tp_sl": map[string]any{
 					"fallback_max_loss": map[string]any{
-						"mode": "manual",
+						"mode":  "manual",
 						"value": 6,
 					},
 				},
@@ -295,7 +295,7 @@ func TestStrategyConfigMergePreservesFullFallbackWhenUpdatingLadderOnly(t *testi
 	}
 }
 
-func TestStrategyConfigMergeNormalizesExclusiveAIProtectionModesToDrawdown(t *testing.T) {
+func TestStrategyConfigMergePreservesMultipleAIProtectionModes(t *testing.T) {
 	existing := store.GetDefaultStrategyConfig("zh")
 	existing.Protection.FullTPSL = store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
 	existing.Protection.LadderTPSL = store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeAI}
@@ -305,11 +305,11 @@ func TestStrategyConfigMergeNormalizesExclusiveAIProtectionModesToDrawdown(t *te
 	if err != nil {
 		t.Fatalf("merge drawdown-priority partial failed: %v", err)
 	}
-	if merged.Protection.DrawdownTakeProfit.Mode != store.ProtectionModeAI {
+	if merged.Protection.DrawdownTakeProfit.Mode != store.ProtectionModeAI || merged.Protection.DrawdownTakeProfit.EngineMode != store.DrawdownEngineModeAI {
 		t.Fatalf("expected drawdown to remain ai, got %+v", merged.Protection.DrawdownTakeProfit)
 	}
-	if merged.Protection.FullTPSL.Mode == store.ProtectionModeAI || merged.Protection.LadderTPSL.Mode == store.ProtectionModeAI {
-		t.Fatalf("expected stale full/ladder ai modes to be normalized, got full=%+v ladder=%+v", merged.Protection.FullTPSL, merged.Protection.LadderTPSL)
+	if merged.Protection.FullTPSL.Mode != store.ProtectionModeAI || merged.Protection.LadderTPSL.Mode != store.ProtectionModeAI {
+		t.Fatalf("expected full/ladder ai modes to be preserved, got full=%+v ladder=%+v", merged.Protection.FullTPSL, merged.Protection.LadderTPSL)
 	}
 }
 

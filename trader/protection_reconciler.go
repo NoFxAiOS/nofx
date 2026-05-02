@@ -335,7 +335,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	markPrice, _ := at.getPositionMarkPrice(symbol, side)
 	currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
 
-	be := at.getActiveBreakEvenConfigForPlan(nil)
+	be := at.getActiveBreakEvenConfigForPlan(plan)
 	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
 	if at.isBreakEvenSuppressedByRunner(symbol, side) {
@@ -407,6 +407,20 @@ func isExecutableHeldStopPrice(side string, stopPrice, markPrice float64) bool {
 		return stopPrice > markPrice
 	case "long":
 		return stopPrice < markPrice
+	default:
+		return true
+	}
+}
+
+func isExecutableHeldTakeProfitPrice(side string, takeProfitPrice, markPrice float64) bool {
+	if takeProfitPrice <= 0 || markPrice <= 0 {
+		return true
+	}
+	switch strings.ToLower(side) {
+	case "short":
+		return takeProfitPrice < markPrice
+	case "long":
+		return takeProfitPrice > markPrice
 	default:
 		return true
 	}

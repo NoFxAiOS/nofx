@@ -301,6 +301,7 @@ const (
 
 type BreakEvenStopConfig struct {
 	Enabled      bool                 `json:"enabled"`
+	Mode         ProtectionMode       `json:"mode,omitempty"`
 	TriggerMode  BreakEvenTriggerMode `json:"trigger_mode,omitempty"`
 	TriggerValue float64              `json:"trigger_value,omitempty"`
 	OffsetPct    float64              `json:"offset_pct,omitempty"`
@@ -657,6 +658,7 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			},
 			BreakEvenStop: BreakEvenStopConfig{
 				Enabled:      false,
+				Mode:         ProtectionModeManual,
 				TriggerMode:  BreakEvenTriggerProfitPct,
 				TriggerValue: 3,
 				OffsetPct:    0.1,

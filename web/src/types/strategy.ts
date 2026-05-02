@@ -147,6 +147,7 @@ export interface DrawdownTakeProfitConfig {
 
 export interface BreakEvenStopConfig {
   enabled: boolean;
+  mode?: ProtectionMode;
   trigger_mode: BreakEvenTriggerMode;
   trigger_value: number;
   offset_pct: number;

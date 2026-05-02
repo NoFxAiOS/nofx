@@ -375,7 +375,11 @@ func (at *AutoTrader) allowDecisionByRegime(decision *kernel.Decision, data *mar
 }
 
 func buildAIBreakEvenConfig(plan *kernel.AIProtectionPlan) *store.BreakEvenStopConfig {
-	if plan == nil || strings.ToLower(plan.Mode) != "break_even" {
+	if plan == nil {
+		return nil
+	}
+	mode := strings.ToLower(plan.Mode)
+	if mode != "break_even" && mode != "combined" {
 		return nil
 	}
 	if plan.BreakEvenTrigger == "" || plan.BreakEvenValue <= 0 || plan.BreakEvenOffset < 0 {
@@ -394,12 +398,44 @@ func buildAIBreakEvenConfig(plan *kernel.AIProtectionPlan) *store.BreakEvenStopC
 	return cfg
 }
 
-func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIProtectionPlan) (*ProtectionPlan, error) {
+func clampAIDrawdownCloseRatio(rule store.DrawdownTakeProfitRule, cfg store.DrawdownTakeProfitConfig) store.DrawdownTakeProfitRule {
+	if cfg.EngineMode != store.DrawdownEngineModeAI {
+		return rule
+	}
+	anchor := strings.ToLower(strings.Join([]string{rule.StageName, rule.Timeframe, rule.RunnerStopMode, rule.RunnerStopSource, rule.RunnerTargetMode, rule.RunnerTargetSource, rule.ReasonAnchor}, " "))
+	isRunnerRule := rule.RunnerKeepPct > 0 || strings.Contains(anchor, "runner")
+	isEarlyRule := strings.Contains(anchor, "early") || strings.Contains(anchor, "first") || strings.Contains(anchor, "tp1") || strings.Contains(anchor, "partial") || strings.Contains(anchor, "lock_first")
+	maxFirstReduce := cfg.MaxFirstReducePct
+	if maxFirstReduce <= 0 || maxFirstReduce > 100 {
+		maxFirstReduce = 60
+	}
+	if isRunnerRule {
+		minRunnerKeep := rule.RunnerKeepPct
+		if minRunnerKeep <= 0 {
+			minRunnerKeep = cfg.MinRunnerKeepPct
+		}
+		if cfg.RunnerEnabled && minRunnerKeep > 0 {
+			rule.CloseRatioPct = minPositive(rule.CloseRatioPct, 100-minRunnerKeep)
+		}
+	} else if isEarlyRule {
+		rule.CloseRatioPct = minPositive(rule.CloseRatioPct, maxFirstReduce)
+	}
+	if rule.RunnerKeepPct > 0 && rule.CloseRatioPct > 100-rule.RunnerKeepPct {
+		rule.CloseRatioPct = 100 - rule.RunnerKeepPct
+	}
+	return rule
+}
+
+func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIProtectionPlan, cfgs ...*store.StrategyConfig) (*ProtectionPlan, error) {
 	if plan == nil || entryPrice <= 0 {
 		return nil, nil
 	}
 
 	mode := strings.ToLower(plan.Mode)
+	drawdownCfg := store.DrawdownTakeProfitConfig{EngineMode: store.DrawdownEngineModeAI, RunnerEnabled: true, MinRunnerKeepPct: 30, MaxFirstReducePct: 60}
+	if len(cfgs) > 0 && cfgs[0] != nil {
+		drawdownCfg = cfgs[0].Protection.DrawdownTakeProfit
+	}
 	if mode == "break_even" {
 		be := buildAIBreakEvenConfig(plan)
 		if be == nil {
@@ -418,7 +454,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 	if mode == "drawdown" {
 		rules := make([]store.DrawdownTakeProfitRule, 0, len(plan.DrawdownRules))
 		for _, rule := range plan.DrawdownRules {
-			rules = append(rules, store.DrawdownTakeProfitRule{
+			drawdownRule := clampAIDrawdownCloseRatio(store.DrawdownTakeProfitRule{
 				Timeframe:           rule.Timeframe,
 				MinProfitPct:        rule.MinProfitPct,
 				MaxDrawdownPct:      rule.MaxDrawdownPct,
@@ -431,7 +467,10 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 				RunnerStopSource:    rule.RunnerStopSource,
 				RunnerTargetMode:    rule.RunnerTargetMode,
 				RunnerTargetSource:  rule.RunnerTargetSource,
-			})
+			}, drawdownCfg)
+			if drawdownRule.CloseRatioPct > 0 {
+				rules = append(rules, drawdownRule)
+			}
 		}
 		return &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules}, nil
 	}
@@ -440,7 +479,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		if len(plan.LadderRules) == 0 || len(plan.DrawdownRules) == 0 {
 			return nil, nil
 		}
-		parts := make([]*ProtectionPlan, 0, 2)
+		parts := make([]*ProtectionPlan, 0, 3)
 		if len(plan.LadderRules) > 0 {
 			if p, err := buildAIDecisionLadderProtectionPlan(entryPrice, action, plan.LadderRules); err != nil {
 				return nil, err
@@ -451,7 +490,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		if len(plan.DrawdownRules) > 0 {
 			rules := make([]store.DrawdownTakeProfitRule, 0, len(plan.DrawdownRules))
 			for _, rule := range plan.DrawdownRules {
-				rules = append(rules, store.DrawdownTakeProfitRule{
+				drawdownRule := clampAIDrawdownCloseRatio(store.DrawdownTakeProfitRule{
 					Timeframe:           rule.Timeframe,
 					MinProfitPct:        rule.MinProfitPct,
 					MaxDrawdownPct:      rule.MaxDrawdownPct,
@@ -465,9 +504,15 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 					RunnerStopSource:    rule.RunnerStopSource,
 					RunnerTargetMode:    rule.RunnerTargetMode,
 					RunnerTargetSource:  rule.RunnerTargetSource,
-				})
+				}, drawdownCfg)
+				if drawdownRule.CloseRatioPct > 0 {
+					rules = append(rules, drawdownRule)
+				}
 			}
 			parts = append(parts, &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules})
+		}
+		if be := buildAIBreakEvenConfig(plan); be != nil {
+			parts = append(parts, &ProtectionPlan{Mode: string(store.ProtectionModeAI), BreakEvenConfig: be})
 		}
 		return mergeProtectionPlans(parts...), nil
 	}
@@ -590,23 +635,7 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 	remainingStopLossRatio := 100.0
 	for _, rule := range rules {
 		if rule.TakeProfitCloseRatioPct > 0 && remainingTakeProfitRatio > 0 {
-			price := rule.TakeProfitPrice
-			if price <= 0 && rule.TakeProfitPct > 0 {
-				move := rule.TakeProfitPct / 100.0
-				if isLong {
-					price = entryPrice * (1 + move)
-				} else {
-					price = entryPrice * (1 - move)
-				}
-			}
-			if price > 0 && rule.VolatilityBufferPct > 0 {
-				bufferMove := entryPrice * rule.VolatilityBufferPct / 100.0
-				if isLong {
-					price -= bufferMove
-				} else {
-					price += bufferMove
-				}
-			}
+			price := resolveAIDecisionLadderPrice(entryPrice, action, rule.TakeProfitPct, rule.TakeProfitPrice, rule.VolatilityBufferPct, true)
 			if price > 0 && isExecutableTakeProfitPrice(entryPrice, action, price) {
 				closeRatio := minPositive(rule.TakeProfitCloseRatioPct, remainingTakeProfitRatio)
 				plan.TakeProfitOrders = append(plan.TakeProfitOrders, ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio})
@@ -615,23 +644,7 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 		}
 
 		if rule.StopLossCloseRatioPct > 0 && remainingStopLossRatio > 0 {
-			price := rule.StopLossPrice
-			if price <= 0 && rule.StopLossPct > 0 {
-				move := rule.StopLossPct / 100.0
-				if isLong {
-					price = entryPrice * (1 - move)
-				} else {
-					price = entryPrice * (1 + move)
-				}
-			}
-			if price > 0 && rule.VolatilityBufferPct > 0 {
-				bufferMove := entryPrice * rule.VolatilityBufferPct / 100.0
-				if isLong {
-					price -= bufferMove
-				} else {
-					price += bufferMove
-				}
-			}
+			price := resolveAIDecisionLadderPrice(entryPrice, action, rule.StopLossPct, rule.StopLossPrice, rule.VolatilityBufferPct, false)
 			if price > 0 && isExecutableStopLossPrice(entryPrice, action, price) {
 				closeRatio := minPositive(rule.StopLossCloseRatioPct, remainingStopLossRatio)
 				plan.StopLossOrders = append(plan.StopLossOrders, ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio})
@@ -646,6 +659,41 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 	plan.NeedsStopLoss = len(plan.StopLossOrders) > 0
 	plan.NeedsTakeProfit = len(plan.TakeProfitOrders) > 0
 	return plan, nil
+}
+
+func resolveAIDecisionLadderPrice(entryPrice float64, action string, pct, absolute, bufferPct float64, takeProfit bool) float64 {
+	price := absolute
+	derivedFromPct := false
+	if price <= 0 && pct > 0 {
+		move := pct / 100.0
+		derivedFromPct = true
+		if takeProfit {
+			if action == "open_long" {
+				price = entryPrice * (1 + move)
+			} else {
+				price = entryPrice * (1 - move)
+			}
+		} else {
+			if action == "open_long" {
+				price = entryPrice * (1 - move)
+			} else {
+				price = entryPrice * (1 + move)
+			}
+		}
+	}
+	// AI already returns absolute structural prices with buffers applied in most cases.
+	// Only apply volatility_buffer_pct as a price adjustment when the price was derived
+	// locally from a percent fallback, otherwise we double-buffer and detach from structure.
+	if derivedFromPct && price > 0 && bufferPct > 0 {
+		bufferMove := entryPrice * bufferPct / 100.0
+		switch action {
+		case "open_long":
+			price -= bufferMove
+		case "open_short":
+			price += bufferMove
+		}
+	}
+	return price
 }
 
 func isExecutableTakeProfitPrice(entryPrice float64, action string, price float64) bool {

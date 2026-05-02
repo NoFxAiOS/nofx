@@ -263,6 +263,21 @@ func TestIsExecutableHeldStopPrice(t *testing.T) {
 	}
 }
 
+func TestIsExecutableHeldTakeProfitPrice(t *testing.T) {
+	if isExecutableHeldTakeProfitPrice("short", 105, 100) {
+		t.Fatal("expected short TP above current mark to be non-executable")
+	}
+	if !isExecutableHeldTakeProfitPrice("short", 95, 100) {
+		t.Fatal("expected short TP below current mark to be executable")
+	}
+	if isExecutableHeldTakeProfitPrice("long", 95, 100) {
+		t.Fatal("expected long TP below current mark to be non-executable")
+	}
+	if !isExecutableHeldTakeProfitPrice("long", 105, 100) {
+		t.Fatal("expected long TP above current mark to be executable")
+	}
+}
+
 func TestProtectionReconciler_DoesNotReapplyBreakEvenWhenAlreadyArmedAndFingerprintStable(t *testing.T) {
 	ft := &fakeReconcileTrader{
 		fakeOrderProtectionTrader: fakeOrderProtectionTrader{

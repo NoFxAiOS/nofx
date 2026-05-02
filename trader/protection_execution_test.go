@@ -235,6 +235,77 @@ func TestValidateProtectionPlanExecutionKeepsOnlyExecutableLadderTiers(t *testin
 	}
 }
 
+func TestValidateProtectionPlanExecutionDropsNonExecutableLadderPricesAgainstMark(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "XAGUSDT",
+			"side":        "long",
+			"positionAmt": 0.48,
+			"markPrice":   75.41,
+		}},
+	}
+	at := &AutoTrader{trader: fakeTrader, exchange: "okx"}
+	plan := &ProtectionPlan{
+		NeedsStopLoss: true,
+		StopLossPrice: 74.96,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 75.56375, CloseRatioPct: 50}, // already above mark for a held LONG, OKX 51280
+			{Price: 74.96, CloseRatioPct: 50},
+		},
+	}
+
+	validated, err := at.validateProtectionPlanExecution("XAGUSDT", "LONG", 0.48, plan)
+	if err != nil {
+		t.Fatalf("expected validation success, got %v", err)
+	}
+	if len(validated.StopLossOrders) != 1 || validated.StopLossOrders[0].Price != 74.96 {
+		t.Fatalf("expected only executable SL ladder tier below mark to remain, got %+v", validated.StopLossOrders)
+	}
+	if validated.StopLossPrice != 0 {
+		t.Fatalf("expected remaining ladder tier to own stop side, got full stop %.6f", validated.StopLossPrice)
+	}
+}
+
+func TestValidateProtectionPlanExecutionDropsNonExecutableFullStopAgainstMark(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{
+		positions: []map[string]interface{}{{
+			"symbol":      "XAGUSDT",
+			"side":        "long",
+			"positionAmt": 0.48,
+			"markPrice":   75.41,
+		}},
+	}
+	at := &AutoTrader{trader: fakeTrader, exchange: "okx"}
+	plan := &ProtectionPlan{
+		NeedsStopLoss: true,
+		StopLossPrice: 75.56375,
+	}
+
+	validated, err := at.validateProtectionPlanExecution("XAGUSDT", "LONG", 0.48, plan)
+	if err != nil {
+		t.Fatalf("expected validation success, got %v", err)
+	}
+	if validated != nil {
+		t.Fatalf("expected non-executable full stop-only plan to be dropped, got %+v", validated)
+	}
+}
+
+func TestProtectionPlanRetryStopsOnNonRetryableReject(t *testing.T) {
+	fakeTrader := &fakeOrderProtectionTrader{setStopLossErr: fmt.Errorf("OKX stop loss rejected: code=51280 msg=SL trigger price must be less than the last price")}
+	at := &AutoTrader{trader: fakeTrader, exchange: "okx"}
+
+	err := at.placeAndVerifyProtectionPlanWithRetry("XAGUSDT", "LONG", 0.48, &ProtectionPlan{
+		NeedsStopLoss: true,
+		StopLossPrice: 75.56375,
+	})
+	if err == nil {
+		t.Fatal("expected non-retryable protection reject")
+	}
+	if len(fakeTrader.stopLossOrders) != 0 {
+		t.Fatalf("expected no successful stop loss orders, got %+v", fakeTrader.stopLossOrders)
+	}
+}
+
 func TestPlaceAndVerifyProtectionPlanFallsBackToFullStopWhenLadderIsNonExecutable(t *testing.T) {
 	fakeTrader := &fakeOrderProtectionTrader{}
 	at := &AutoTrader{trader: fakeTrader, exchange: "okx"}

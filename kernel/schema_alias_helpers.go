@@ -2,6 +2,18 @@ package kernel
 
 import "strings"
 
+func firstPositiveFloat(primary float64, candidates ...float64) float64 {
+	if primary > 0 {
+		return primary
+	}
+	for _, candidate := range candidates {
+		if candidate > 0 {
+			return candidate
+		}
+	}
+	return primary
+}
+
 func firstAliasFloat(primary float64, aliasMap map[string]float64, canonical string) float64 {
 	if primary > 0 {
 		return primary

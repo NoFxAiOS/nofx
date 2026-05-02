@@ -8,7 +8,7 @@ import (
 	"nofx/store"
 )
 
-func TestBuildConfiguredProtectionPlanUsesStrategyLevelAIModeConfig(t *testing.T) {
+func TestBuildConfiguredProtectionPlanSkipsStrategyLevelAIModeReference(t *testing.T) {
 	at := &AutoTrader{
 		config: AutoTraderConfig{
 			StrategyConfig: &store.StrategyConfig{
@@ -44,14 +44,8 @@ func TestBuildConfiguredProtectionPlanUsesStrategyLevelAIModeConfig(t *testing.T
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if plan == nil {
-		t.Fatal("expected non-nil plan when strategy protection is ai-enabled")
-	}
-	if plan.Mode != string(store.ProtectionModeAI) {
-		t.Fatalf("expected ai plan mode, got %+v", plan)
-	}
-	if len(plan.StopLossOrders) == 0 && !plan.NeedsStopLoss && plan.StopLossPrice == 0 {
-		t.Fatalf("expected ai-configured plan to contribute stop-loss protection, got %+v", plan)
+	if plan != nil {
+		t.Fatalf("expected strategy-level AI reference config to wait for decision protection_plan, got %+v", plan)
 	}
 }
 

@@ -294,11 +294,14 @@ func TestApplyNativeTrailingDrawdownRejectsNoiseCallbackForNativeAndFallsBack(t 
 	}
 
 	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
-	if ok {
-		t.Fatal("expected native trailing to reject noise-level callback so managed fallback can preserve drawdown math")
+	if !ok {
+		t.Fatal("expected native trailing noise rejection to arm managed fallback and report protection armed")
 	}
 	if fake.trailingCalls != 0 {
 		t.Fatalf("expected no native trailing call, got %d", fake.trailingCalls)
+	}
+	if state := at.getProtectionState("BTCUSDT", "long"); state != "managed_drawdown_armed" {
+		t.Fatalf("expected managed fallback state, got %s", state)
 	}
 }
 
@@ -851,7 +854,7 @@ func TestCheckPositionDrawdownActivatesRunnerAndSuppressesBreakEvenAfterPartialC
 		config: AutoTraderConfig{
 			StrategyConfig: &store.StrategyConfig{
 				Protection: store.ProtectionConfig{
-					DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI, EngineMode: store.DrawdownEngineModeAI, RunnerEnabled: true, MinRunnerKeepPct: 20, MaxFirstReducePct: 60, BreakEvenRunnerPolicy: store.DrawdownBreakEvenRunnerFallbackOnly, Rules: []store.DrawdownTakeProfitRule{{
+					DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeManual, EngineMode: store.DrawdownEngineModeAI, RunnerEnabled: true, MinRunnerKeepPct: 20, MaxFirstReducePct: 60, BreakEvenRunnerPolicy: store.DrawdownBreakEvenRunnerFallbackOnly, Rules: []store.DrawdownTakeProfitRule{{
 						MinProfitPct:     0.7,
 						MaxDrawdownPct:   55,
 						CloseRatioPct:    70,

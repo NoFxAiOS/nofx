@@ -176,7 +176,7 @@ func TestBuildPositionProtectionRuntimeSurfacesRunnerAndBreakEvenSuppression(t *
 		}},
 	}
 	at.config.StrategyConfig.Protection.BreakEvenStop = store.BreakEvenStopConfig{Enabled: true, TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 4, OffsetPct: 0.1}
-	at.config.StrategyConfig.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeAI, Rules: []store.DrawdownTakeProfitRule{{
+	at.config.StrategyConfig.Protection.DrawdownTakeProfit = store.DrawdownTakeProfitConfig{Enabled: true, Mode: store.ProtectionModeManual, Rules: []store.DrawdownTakeProfitRule{{
 		MinProfitPct:       5,
 		MaxDrawdownPct:     30,
 		CloseRatioPct:      70,

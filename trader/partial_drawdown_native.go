@@ -174,6 +174,39 @@ type drawdownEvaluation struct {
 	Rule store.DrawdownTakeProfitRule
 }
 
+func enforceDrawdownRunnerPolicy(cfg store.DrawdownTakeProfitConfig, rule store.DrawdownTakeProfitRule) store.DrawdownTakeProfitRule {
+	if cfg.EngineMode != store.DrawdownEngineModeAI || !cfg.RunnerEnabled {
+		return rule
+	}
+	minRunnerKeep := cfg.MinRunnerKeepPct
+	if minRunnerKeep < 0 {
+		minRunnerKeep = 0
+	}
+	if minRunnerKeep > 100 {
+		minRunnerKeep = 100
+	}
+	maxFirstReduce := cfg.MaxFirstReducePct
+	if maxFirstReduce <= 0 || maxFirstReduce > 100 {
+		maxFirstReduce = 100
+	}
+	if rule.RunnerKeepPct < minRunnerKeep {
+		rule.RunnerKeepPct = minRunnerKeep
+	}
+	if rule.RunnerKeepPct > 100 {
+		rule.RunnerKeepPct = 100
+	}
+	closeRatio := 100 - rule.RunnerKeepPct
+	if closeRatio > maxFirstReduce {
+		closeRatio = maxFirstReduce
+		rule.RunnerKeepPct = 100 - closeRatio
+	}
+	rule.CloseRatioPct = closeRatio
+	if cfg.BreakEvenRunnerPolicy == store.DrawdownBreakEvenRunnerFallbackOnly && rule.RunnerKeepPct > 0 {
+		rule.RunnerStopMode = "structure"
+	}
+	return rule
+}
+
 func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, peakPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule, structure *drawdownStructureContext, side string, markPrice float64) *drawdownEvaluation {
 	if len(rules) == 0 {
 		return nil
@@ -214,22 +247,7 @@ func evaluateAIDrawdownRule(cfg store.DrawdownTakeProfitConfig, currentPnLPct, p
 		maxFirstReduce = 100
 	}
 
-	if cfg.RunnerEnabled {
-		if rule.RunnerKeepPct < minRunnerKeep {
-			rule.RunnerKeepPct = minRunnerKeep
-		}
-		if rule.RunnerKeepPct > 100 {
-			rule.RunnerKeepPct = 100
-		}
-		closeRatio := 100 - rule.RunnerKeepPct
-		if closeRatio > maxFirstReduce {
-			closeRatio = maxFirstReduce
-			rule.RunnerKeepPct = math.Max(0, 100-closeRatio)
-		}
-		rule.CloseRatioPct = closeRatio
-	} else {
-		rule.RunnerKeepPct = 0
-	}
+	rule = enforceDrawdownRunnerPolicy(cfg, rule)
 
 	switch cfg.BreakEvenRunnerPolicy {
 	case store.DrawdownBreakEvenRunnerDisabled:

@@ -402,6 +402,35 @@ func normalizePunctuationOutsideStrings(jsonStr string) string {
 	return b.String()
 }
 
+func containsRangeSymbolOutsideStrings(jsonStr string) bool {
+	inString := false
+	escaped := false
+	for _, r := range jsonStr {
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if r == '\\' {
+				escaped = true
+				continue
+			}
+			if r == '"' {
+				inString = false
+			}
+			continue
+		}
+		if r == '"' {
+			inString = true
+			continue
+		}
+		if r == '~' {
+			return true
+		}
+	}
+	return false
+}
+
 func validateJSONFormat(jsonStr string) error {
 	trimmed := strings.TrimSpace(jsonStr)
 
@@ -416,8 +445,8 @@ func validateJSONFormat(jsonStr string) error {
 		return fmt.Errorf("JSON must start with [{ (whitespace allowed), actual: %s", trimmed[:min(20, len(trimmed))])
 	}
 
-	if strings.Contains(jsonStr, "~") {
-		return fmt.Errorf("JSON cannot contain range symbol ~, all numbers must be precise single values")
+	if containsRangeSymbolOutsideStrings(jsonStr) {
+		return fmt.Errorf("JSON cannot contain range symbol ~ outside string fields; all numeric fields must use precise single values")
 	}
 
 	inString := false
@@ -556,9 +585,9 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		if (fullAI && drawdownAI) || (ladderAI && drawdownAI) || (fullAI && ladderAI) {
 			logger.Warnf("strategy has multiple AI protection routes enabled, validating by ownership: full=%t ladder=%t drawdown=%t", fullAI, ladderAI, drawdownAI)
 		}
-		if config.Protection.BreakEvenStop.Enabled && isOpen {
+		if config.Protection.BreakEvenStop.Enabled && config.Protection.BreakEvenStop.Mode == store.ProtectionModeAI && isOpen {
 			if d.ProtectionPlan == nil || d.ProtectionPlan.BreakEvenTrigger == "" || d.ProtectionPlan.BreakEvenValue <= 0 {
-				return fmt.Errorf("decision #%d: current strategy route requires break-even protection output for open actions", i+1)
+				return fmt.Errorf("decision #%d: current strategy route requires AI break-even protection output for open actions", i+1)
 			}
 		}
 		planMode := ""
@@ -567,7 +596,8 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		}
 		if drawdownAI && ladderAI {
 			if d.ProtectionPlan == nil || planMode != "combined" {
-				return fmt.Errorf("decision #%d: current strategy route requires combined protection_plan with ladder_rules and drawdown_rules for open actions", i+1)
+				logger.Warnf("decision #%d: combined AI protection_plan missing/invalid; open may continue with manual/fallback protection if execution accepts", i+1)
+				continue
 			}
 			if n := len(d.ProtectionPlan.LadderRules); n < 2 || n > 3 {
 				return fmt.Errorf("decision #%d: combined protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
@@ -587,6 +617,7 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
 				}
 			}
+			warnDrawdownRulesStructure(i+1, d.ProtectionPlan.DrawdownRules)
 			continue
 		}
 		if ladderAI && !drawdownAI && !fullAI {
@@ -607,7 +638,8 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		}
 		if drawdownAI {
 			if d.ProtectionPlan == nil || planMode != "drawdown" {
-				return fmt.Errorf("decision #%d: current strategy route requires drawdown protection_plan for open actions", i+1)
+				logger.Warnf("decision #%d: drawdown AI protection_plan missing/invalid; open may continue with manual/fallback protection if execution accepts", i+1)
+				continue
 			}
 			if len(d.ProtectionPlan.DrawdownRules) == 0 {
 				return fmt.Errorf("decision #%d: drawdown protection_plan must contain drawdown_rules under current strategy route", i+1)
@@ -617,7 +649,49 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
 				}
 			}
+			warnDrawdownRulesStructure(i+1, d.ProtectionPlan.DrawdownRules)
 		}
+	}
+	return nil
+}
+
+func warnDrawdownRulesStructure(decisionIndex int, rules []AIProtectionDrawdownRule) {
+	if err := validateDrawdownRulesStructure(rules); err != nil {
+		logger.Warnf("decision #%d drawdown_rules structure degraded; execution will sanitize/fallback instead of rejecting open: %v", decisionIndex, err)
+	}
+}
+
+func validateDrawdownRulesStructure(rules []AIProtectionDrawdownRule) error {
+	if len(rules) == 0 {
+		return nil
+	}
+	seenStages := map[string]struct{}{}
+	seenTimeframes := map[string]struct{}{}
+	fullCloseCount := 0
+	for i, rule := range rules {
+		if rule.CloseRatioPct >= 99.999 {
+			fullCloseCount++
+			if i < len(rules)-1 {
+				return fmt.Errorf("drawdown_rules[%d] closes 100%% before final stage; use partial close / runner_keep_pct for earlier structure stages", i)
+			}
+		}
+		stage := strings.ToLower(strings.TrimSpace(rule.StageName))
+		if stage != "" {
+			seenStages[stage] = struct{}{}
+		}
+		tf := strings.ToLower(strings.TrimSpace(rule.Timeframe))
+		if tf != "" {
+			seenTimeframes[tf] = struct{}{}
+		}
+		if rule.RunnerKeepPct > 0 && rule.CloseRatioPct > 100-rule.RunnerKeepPct+0.0001 {
+			return fmt.Errorf("drawdown_rules[%d] close_ratio_pct %.2f conflicts with runner_keep_pct %.2f", i, rule.CloseRatioPct, rule.RunnerKeepPct)
+		}
+	}
+	if fullCloseCount == len(rules) && len(rules) > 1 {
+		return fmt.Errorf("drawdown_rules cannot all close 100%%; preserve partial/runner semantics across structure stages")
+	}
+	if len(rules) >= 3 && len(seenStages) <= 1 && len(seenTimeframes) <= 1 {
+		return fmt.Errorf("drawdown_rules with 3+ tiers must vary stage_name or timeframe; do not emit repeated same-timeframe outer_exit tiers")
 	}
 	return nil
 }

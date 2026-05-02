@@ -12,10 +12,10 @@ type ProtectionOwnerPolicy struct {
 
 func evaluateProtectionOwnerPolicy(protection store.ProtectionConfig) ProtectionOwnerPolicy {
 	policy := ProtectionOwnerPolicy{}
-	if protection.LadderTPSL.Enabled && protection.LadderTPSL.StopLossEnabled {
+	if protection.LadderTPSL.Enabled && protectionFeatureUsesManual(protection.LadderTPSL.Mode) && protection.LadderTPSL.StopLossEnabled {
 		policy.StopOwner = "ladder"
 		policy.UseLadderStops = true
-	} else if protection.FullTPSL.Enabled && protection.FullTPSL.StopLoss.Mode != store.ProtectionValueModeDisabled {
+	} else if protection.FullTPSL.Enabled && protectionFeatureUsesManual(protection.FullTPSL.Mode) && protection.FullTPSL.StopLoss.Mode != store.ProtectionValueModeDisabled {
 		policy.StopOwner = "full"
 	} else if protection.BreakEvenStop.Enabled {
 		policy.StopOwner = "break_even_dynamic"
@@ -25,9 +25,9 @@ func evaluateProtectionOwnerPolicy(protection store.ProtectionConfig) Protection
 		policy.ProfitOwner = "drawdown"
 		policy.UseDrawdownTP = true
 		policy.SuppressStaticTP = true
-	} else if protection.LadderTPSL.Enabled && protection.LadderTPSL.TakeProfitEnabled {
+	} else if protection.LadderTPSL.Enabled && protectionFeatureUsesManual(protection.LadderTPSL.Mode) && protection.LadderTPSL.TakeProfitEnabled {
 		policy.ProfitOwner = "ladder"
-	} else if protection.FullTPSL.Enabled && protection.FullTPSL.TakeProfit.Mode != store.ProtectionValueModeDisabled {
+	} else if protection.FullTPSL.Enabled && protectionFeatureUsesManual(protection.FullTPSL.Mode) && protection.FullTPSL.TakeProfit.Mode != store.ProtectionValueModeDisabled {
 		policy.ProfitOwner = "full"
 	}
 	return policy

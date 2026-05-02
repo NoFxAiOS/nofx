@@ -82,6 +82,24 @@ func TestExtractDecisionsPreservesChineseCommaSeparatedPricesInsideReasonString(
 	}
 }
 
+func TestExtractDecisionsPreservesRangeSymbolInsideReasonString(t *testing.T) {
+	response := `<decision>[{"symbol":"ZECUSDT","action":"wait","confidence":45,"reasoning":"ZEC今日经历从~350到393的大幅拉升，进场~383.4但RR不足。"}]</decision>`
+	decisions, _, err := extractDecisions(response)
+	if err != nil {
+		t.Fatalf("extractDecisions should allow ~ inside reason string, got %v", err)
+	}
+	if len(decisions) != 1 || !strings.Contains(decisions[0].Reasoning, "从~350到393") {
+		t.Fatalf("expected reason string with ~ preserved, got %#v", decisions)
+	}
+}
+
+func TestValidateJSONFormatRejectsRangeSymbolOutsideStrings(t *testing.T) {
+	bad := `[{"symbol":"BTCUSDT","action":"hold","confidence":61,"entry":97~98}]`
+	if err := validateJSONFormat(bad); err == nil {
+		t.Fatal("expected range symbol outside string fields to be rejected")
+	}
+}
+
 func TestValidateJSONFormatRejectsThousandsSeparatorsInNumericFields(t *testing.T) {
 	bad := `[{"symbol":"BTCUSDT","action":"hold","confidence":61,"entry":97,687.05}]`
 	if err := validateJSONFormat(bad); err == nil {

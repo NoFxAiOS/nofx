@@ -233,11 +233,32 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 	return merged
 }
 
+func protectionFeatureUsesAI(mode store.ProtectionMode) bool {
+	return mode == store.ProtectionModeAI
+}
+
+func protectionFeatureUsesManual(mode store.ProtectionMode) bool {
+	return mode == "" || mode == store.ProtectionModeManual
+}
+
+func buildConfiguredBreakEvenPlan(be store.BreakEvenStopConfig) *ProtectionPlan {
+	if !be.Enabled || !protectionFeatureUsesManual(be.Mode) {
+		return nil
+	}
+	if be.TriggerMode != store.BreakEvenTriggerProfitPct || be.TriggerValue <= 0 {
+		return nil
+	}
+	cfg := be
+	if cfg.OffsetPct < 0 {
+		cfg.OffsetPct = 0
+	}
+	return &ProtectionPlan{Mode: string(store.ProtectionModeManual), BreakEvenConfig: &cfg}
+}
+
 // BuildConfiguredProtectionPlan creates a normalized protection plan from strategy configuration.
-// Manual strategy config materializes directly.
-// AI strategy config now also materializes directly from strategy-level percentages / rules so
-// selecting AI mode in Strategy Studio actually enables exchange protection execution even when
-// the model omits decision.ProtectionPlan.
+// It intentionally materializes only manual/default protections. AI-owned ladder/full/drawdown
+// legs must come from the decision protection_plan; if they are unusable, execution falls back
+// to manual/fallback safety instead of mixing stale configured AI reference percentages in.
 func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action string) (*ProtectionPlan, error) {
 	if at.config.StrategyConfig == nil {
 		return nil, nil
@@ -249,7 +270,7 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 
 	// Build ladder plan first so we know which directions it covers.
 	var ladderPlan *ProtectionPlan
-	if protection.LadderTPSL.Enabled {
+	if protection.LadderTPSL.Enabled && protectionFeatureUsesManual(protection.LadderTPSL.Mode) {
 		var err error
 		switch protection.LadderTPSL.Mode {
 		case store.ProtectionModeManual:
@@ -278,7 +299,7 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 	}
 
 	// Build full plan, but suppress directions already covered by ladder.
-	if protection.FullTPSL.Enabled {
+	if protection.FullTPSL.Enabled && protectionFeatureUsesManual(protection.FullTPSL.Mode) {
 		var (
 			fullPlan *ProtectionPlan
 			err      error
@@ -312,6 +333,10 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 				plans = append(plans, fullPlan)
 			}
 		}
+	}
+
+	if bePlan := buildConfiguredBreakEvenPlan(protection.BreakEvenStop); bePlan != nil {
+		plans = append(plans, bePlan)
 	}
 
 	return mergeProtectionPlans(plans...), nil

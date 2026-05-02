@@ -206,9 +206,15 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		}
 	}
 	if prot.BreakEvenStop.Enabled {
-		sb.WriteString("### ⚠️ ACTIVE: Break-even Stop is enabled for this strategy\n")
-		sb.WriteString("- You MUST include break_even_trigger_mode, break_even_trigger_value, and break_even_offset_pct in protection_plan for every open action\n")
-		sb.WriteString(fmt.Sprintf("  - Default: trigger_mode=%s, trigger_value=%.1f, offset=%.2f%%\n", prot.BreakEvenStop.TriggerMode, prot.BreakEvenStop.TriggerValue, prot.BreakEvenStop.OffsetPct))
+		if prot.BreakEvenStop.Mode == store.ProtectionModeAI {
+			sb.WriteString("### ⚠️ ACTIVE: Break-even Stop is enabled in AI mode for this strategy\n")
+			sb.WriteString("- You MUST include break_even_trigger_mode, break_even_trigger_value, and break_even_offset_pct in protection_plan for every open action\n")
+			sb.WriteString(fmt.Sprintf("  - Manual fallback/reference: trigger_mode=%s, trigger_value=%.1f, offset=%.2f%%\n", prot.BreakEvenStop.TriggerMode, prot.BreakEvenStop.TriggerValue, prot.BreakEvenStop.OffsetPct))
+		} else {
+			sb.WriteString("### ⚠️ ACTIVE: Break-even Stop is enabled in manual mode for this strategy\n")
+			sb.WriteString("- Break-even uses the strategy manual trigger/offset; do NOT invent AI break-even values unless another AI protection route needs rationale text\n")
+			sb.WriteString(fmt.Sprintf("  - Manual: trigger_mode=%s, trigger_value=%.1f, offset=%.2f%%\n", prot.BreakEvenStop.TriggerMode, prot.BreakEvenStop.TriggerValue, prot.BreakEvenStop.OffsetPct))
+		}
 		sb.WriteString("\n")
 	}
 	sb.WriteString("### For break_even mode:\n")

@@ -194,6 +194,9 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		triggeredRules := at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules)
+		if len(triggeredRules) > 0 {
+			triggeredRules = []store.DrawdownTakeProfitRule{enforceDrawdownRunnerPolicy(drawdownCfg, normalizeDrawdownRule(triggeredRules[0]))}
+		}
 		if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
 			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules, structureCtx, side, markPrice); eval != nil {
 				triggeredRules = []store.DrawdownTakeProfitRule{eval.Rule}
@@ -317,7 +320,7 @@ func (at *AutoTrader) restoreAIDrawdownRulesForPositionWithEntry(symbol, side st
 			if !strings.EqualFold(decision.Symbol, symbol) || !strings.EqualFold(decision.Action, action) || decision.ProtectionPlan == nil {
 				continue
 			}
-			plan, err := buildAIProtectionPlan(entryPrice, decision.Action, decision.ProtectionPlan)
+			plan, err := buildAIProtectionPlan(entryPrice, decision.Action, decision.ProtectionPlan, at.config.StrategyConfig)
 			if err != nil || plan == nil || len(plan.DrawdownRules) == 0 {
 				continue
 			}
@@ -369,6 +372,10 @@ func (at *AutoTrader) getActiveDrawdownRulesForPosition(symbol, side string) []s
 			}
 			return nil
 		}
+	}
+
+	if cfg.Mode == store.ProtectionModeAI && (symbol != "" || side != "") {
+		return nil
 	}
 
 	if len(cfg.Rules) == 0 {
@@ -1524,14 +1531,17 @@ func (at *AutoTrader) getBreakEvenConfigSource(symbol, side string) string {
 }
 
 func (at *AutoTrader) getActiveBreakEvenConfigForPlan(plan *ProtectionPlan) *store.BreakEvenStopConfig {
-	if plan != nil && plan.BreakEvenConfig != nil {
-		cfg := *plan.BreakEvenConfig
-		if cfg.Enabled && cfg.TriggerValue > 0 {
-			if cfg.OffsetPct < 0 {
-				cfg.OffsetPct = 0
+	if at != nil && at.config.StrategyConfig != nil && at.config.StrategyConfig.Protection.BreakEvenStop.Mode == store.ProtectionModeAI {
+		if plan != nil && plan.BreakEvenConfig != nil {
+			cfg := *plan.BreakEvenConfig
+			if cfg.Enabled && cfg.TriggerValue > 0 {
+				if cfg.OffsetPct < 0 {
+					cfg.OffsetPct = 0
+				}
+				return &cfg
 			}
-			return &cfg
 		}
+		return at.getActiveBreakEvenConfig()
 	}
 	return at.getActiveBreakEvenConfig()
 }

@@ -99,6 +99,16 @@ func TestLadderRuleAcceptsAliases(t *testing.T) {
 	}
 }
 
+func TestLadderRuleAcceptsRatioPctAliases(t *testing.T) {
+	var rule AIProtectionLadderRule
+	if err := json.Unmarshal([]byte(`{"take_profit_ratio_pct":40,"stop_loss_ratio_pct":25,"take_profit_price":111,"stop_loss_price":99}`), &rule); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if rule.TakeProfitCloseRatioPct != 40 || rule.StopLossCloseRatioPct != 25 {
+		t.Fatalf("expected ratio aliases to map to close ratios, got %+v", rule)
+	}
+}
+
 func TestLadderRuleLevelAliasesMapToAbsolutePrices(t *testing.T) {
 	var rule AIProtectionLadderRule
 	if err := json.Unmarshal([]byte(`{"tp_level":111.82,"sl_level":113.14,"tp_close_ratio_pct":40,"sl_close_ratio_pct":25}`), &rule); err != nil {

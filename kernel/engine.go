@@ -559,9 +559,11 @@ type AIProtectionLadderRule struct {
 	TakeProfitPct           float64 `json:"take_profit_pct,omitempty"`
 	TakeProfitPrice         float64 `json:"take_profit_price,omitempty"`
 	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`
+	TakeProfitRatioPct      float64 `json:"take_profit_ratio_pct,omitempty"`
 	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
 	StopLossPrice           float64 `json:"stop_loss_price,omitempty"`
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
+	StopLossRatioPct        float64 `json:"stop_loss_ratio_pct,omitempty"`
 	StructuralAnchor        string  `json:"structural_anchor,omitempty"`
 	StopLossAnchor          string  `json:"stop_loss_anchor,omitempty"`
 	TakeProfitAnchor        string  `json:"take_profit_anchor,omitempty"`
@@ -578,6 +580,10 @@ func (r *AIProtectionLadderRule) UnmarshalJSON(data []byte) error {
 		SLPct        float64 `json:"sl_pct,omitempty"`
 		TPCloseRatio float64 `json:"tp_close_ratio_pct,omitempty"`
 		SLCloseRatio float64 `json:"sl_close_ratio_pct,omitempty"`
+		TPRatio      float64 `json:"take_profit_ratio_pct,omitempty"`
+		TPRatioShort float64 `json:"tp_ratio_pct,omitempty"`
+		SLRatio      float64 `json:"stop_loss_ratio_pct,omitempty"`
+		SLRatioShort float64 `json:"sl_ratio_pct,omitempty"`
 		TPLevel      float64 `json:"tp_level,omitempty"`
 		SLLevel      float64 `json:"sl_level,omitempty"`
 		TPPrice      float64 `json:"tp_price,omitempty"`
@@ -593,6 +599,25 @@ func (r *AIProtectionLadderRule) UnmarshalJSON(data []byte) error {
 	r.StopLossPrice = firstAliasFloat(r.StopLossPrice, map[string]float64{"sl_level": aux.SLLevel, "sl_price": aux.SLPrice}, "ladder_rules.stop_loss_price")
 	r.TakeProfitCloseRatioPct = firstAliasFloat(r.TakeProfitCloseRatioPct, map[string]float64{"tp_close_ratio_pct": aux.TPCloseRatio}, "ladder_rules.take_profit_close_ratio_pct")
 	r.StopLossCloseRatioPct = firstAliasFloat(r.StopLossCloseRatioPct, map[string]float64{"sl_close_ratio_pct": aux.SLCloseRatio}, "ladder_rules.stop_loss_close_ratio_pct")
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err == nil {
+		readFloat := func(key string) float64 {
+			if payload, ok := raw[key]; ok {
+				var value float64
+				_ = json.Unmarshal(payload, &value)
+				return value
+			}
+			return 0
+		}
+		r.TakeProfitCloseRatioPct = firstPositiveFloat(r.TakeProfitCloseRatioPct, readFloat("take_profit_ratio_pct"), readFloat("tp_ratio_pct"))
+		r.StopLossCloseRatioPct = firstPositiveFloat(r.StopLossCloseRatioPct, readFloat("stop_loss_ratio_pct"), readFloat("sl_ratio_pct"))
+	}
+	if r.TakeProfitCloseRatioPct <= 0 && r.TakeProfitRatioPct > 0 {
+		r.TakeProfitCloseRatioPct = r.TakeProfitRatioPct
+	}
+	if r.StopLossCloseRatioPct <= 0 && r.StopLossRatioPct > 0 {
+		r.StopLossCloseRatioPct = r.StopLossRatioPct
+	}
 	r.StructuralAnchor = strings.TrimSpace(r.StructuralAnchor)
 	r.StopLossAnchor = strings.TrimSpace(r.StopLossAnchor)
 	r.TakeProfitAnchor = strings.TrimSpace(r.TakeProfitAnchor)

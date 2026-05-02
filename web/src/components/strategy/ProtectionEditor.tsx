@@ -54,6 +54,7 @@ export const defaultProtectionConfig: ProtectionConfig = {
   },
   break_even_stop: {
     enabled: false,
+    mode: 'manual',
     trigger_mode: 'profit_pct',
     trigger_value: 3,
     offset_pct: 0.1,
@@ -754,12 +755,21 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               isZh ? 'Break-even 只负责把止损抬到保本附近，不接管 Drawdown 的盈利控制，也不替代 Full / Ladder 的长期止损结构。' : 'Break-even only raises stop-loss toward breakeven. It does not take over Drawdown profit control or replace the long-lived stop-loss structure from Full / Ladder.',
               isZh ? '建议：把它当成盈利后附加的一层止损保护。' : 'Recommendation: use it as an extra stop-loss layer after profit appears.'
             )}
-            <div>
-              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '触发模式' : 'Trigger Mode'}</label>
-              <select value={config.break_even_stop.trigger_mode} onChange={(e) => updateBreakEven('trigger_mode', e.target.value as BreakEvenStopConfig['trigger_mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                <option value="profit_pct">{triggerModeLabel('profit_pct')}</option>
-                <option value="r_multiple">{triggerModeLabel('r_multiple')}</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '模式' : 'Mode'}</label>
+                <select value={config.break_even_stop.mode || 'manual'} onChange={(e) => updateBreakEven('mode', e.target.value as BreakEvenStopConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+                  <option value="manual">{modeLabel('manual')}</option>
+                  <option value="ai">{modeLabel('ai')}</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '触发模式' : 'Trigger Mode'}</label>
+                <select value={config.break_even_stop.trigger_mode} onChange={(e) => updateBreakEven('trigger_mode', e.target.value as BreakEvenStopConfig['trigger_mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+                  <option value="profit_pct">{triggerModeLabel('profit_pct')}</option>
+                  <option value="r_multiple">{triggerModeLabel('r_multiple')}</option>
+                </select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

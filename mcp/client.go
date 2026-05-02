@@ -30,12 +30,15 @@ var (
 		"connection refused",
 		"temporary failure",
 		"no such host",
-		"stream error",   // HTTP/2 stream error
-		"INTERNAL_ERROR", // Server internal error
-		"status 502",     // Bad Gateway
-		"status 503",     // Service Unavailable
-		"status 520",     // Cloudflare origin error
-		"status 524",     // Cloudflare timeout
+		"stream error",                 // HTTP/2 stream error
+		"INTERNAL_ERROR",               // Server internal error
+		"status 502",                   // Bad Gateway
+		"status 503",                   // Service Unavailable
+		"status 520",                   // Cloudflare origin error
+		"status 524",                   // Cloudflare timeout
+		"failed to parse response",     // upstream/proxy occasionally returns plaintext/HTML with 200
+		"body preview: do request",     // observed ltcraft proxy transient plaintext response
+		"body preview: <!doctype html", // observed proxy/cloudflare HTML with 200
 	}
 
 	// TokenUsageCallback is called after each AI request with token usage info
@@ -287,7 +290,7 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 	}
 
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w — body preview: %s", err, sanitizeResponsePreview(body, 300))
 	}
 
 	if len(raw.Choices) == 0 {
@@ -373,6 +376,18 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 		Content:   content,
 		ToolCalls: toolCalls,
 	}, nil
+}
+
+func sanitizeResponsePreview(body []byte, limit int) string {
+	preview := strings.TrimSpace(string(body))
+	preview = strings.Join(strings.Fields(preview), " ")
+	if preview == "" {
+		return "<empty>"
+	}
+	if limit > 0 && len(preview) > limit {
+		preview = preview[:limit] + "..."
+	}
+	return preview
 }
 
 func (client *Client) BuildUrl() string {

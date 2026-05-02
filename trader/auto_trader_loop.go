@@ -412,7 +412,7 @@ func (at *AutoTrader) runCycle() error {
 		if at.config.StrategyConfig != nil {
 			policyMode = at.config.StrategyConfig.StrategyControlPolicy.EffectiveMode()
 		}
-		protectionAlignment := deriveProtectionAlignment(&d, record.ProtectionSnapshot)
+		protectionAlignment := deriveProtectionAlignmentWithStrategy(&d, record.ProtectionSnapshot, at.config.StrategyConfig)
 		plannedLadderTiers := 0
 		if d.ProtectionPlan != nil {
 			plannedLadderTiers = len(d.ProtectionPlan.LadderRules)
@@ -1138,51 +1138,79 @@ func compactReasonAnchors(anchors []kernel.AIEntryProtectionAnchor) []store.Deci
 }
 
 func deriveProtectionAlignment(decision *kernel.Decision, snapshot *store.ProtectionSnapshot) *store.DecisionActionProtectionAlignment {
+	return deriveProtectionAlignmentWithStrategy(decision, snapshot, nil)
+}
+
+func deriveProtectionAlignmentWithStrategy(decision *kernel.Decision, snapshot *store.ProtectionSnapshot, strategy *store.StrategyConfig) *store.DecisionActionProtectionAlignment {
 	if decision == nil || decision.EntryProtection == nil {
 		return nil
 	}
 	rr := decision.EntryProtection.RiskReward
 	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
-		policyStatus, policyOverride, policyRejected, policyReasons := deriveProtectionPolicyTransparency(nil)
-		if len(decision.EntryProtection.AlignmentNotes) == 0 && policyStatus == "" {
+		if len(decision.EntryProtection.AlignmentNotes) == 0 {
 			return nil
 		}
-		return &store.DecisionActionProtectionAlignment{
-			PolicyStatus:   policyStatus,
-			PolicyOverride: policyOverride,
-			PolicyRejected: policyRejected,
-			PolicyReasons:  policyReasons,
-			Notes:          compactNotes(decision.EntryProtection.AlignmentNotes, 3),
-		}
+		return &store.DecisionActionProtectionAlignment{Notes: compactNotes(decision.EntryProtection.AlignmentNotes, 3)}
 	}
 	isLong := decision.Action == "open_long"
 	isShort := decision.Action == "open_short"
 	alignment := &store.DecisionActionProtectionAlignment{
 		Notes: compactNotes(decision.EntryProtection.AlignmentNotes, 3),
 	}
+	checked := protectionAlignmentChecks{}
 	hasSignal := len(alignment.Notes) > 0
-	if snapshot != nil {
-		if stopPrice, ok := deriveProtectionStopPrice(snapshot, rr.Entry, isLong, isShort); ok {
+
+	// Prefer the concrete AI plan for AI-owned opens. Strategy snapshots may contain
+	// placeholder/reference percentages (for example 0.9/1.5 ladder defaults) that
+	// are not the orders the execution chain will place.
+	if decision.ProtectionPlan != nil {
+		if stopPrice, ok := deriveAIProtectionStopPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
 			alignment.StopBeyondInvalidation = (isLong && stopPrice <= rr.Invalidation) || (isShort && stopPrice >= rr.Invalidation)
+			checked.stop = true
 			hasSignal = true
 		}
-		if targetPrice, ok := deriveProtectionTargetPrice(snapshot, rr.Entry, isLong, isShort); ok {
+		if targetPrice, ok := deriveAIProtectionTargetPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
 			alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
+			checked.target = true
 			hasSignal = true
 		}
-		if snapshot.BreakEven != nil && snapshot.BreakEven.Enabled {
-			triggerPrice, ok := deriveBreakEvenTriggerPrice(snapshot.BreakEven, rr.Entry, isLong, isShort)
-			if ok {
-				alignment.BreakEvenBeforeTarget = (isLong && triggerPrice <= rr.FirstTarget) || (isShort && triggerPrice >= rr.FirstTarget)
-				hasSignal = true
-			}
-		}
-		if fallbackPrice, ok := deriveFallbackMaxLossPrice(snapshot, rr.Entry, isLong, isShort); ok {
-			alignment.FallbackWithinEnvelope = (isLong && fallbackPrice <= rr.Invalidation) || (isShort && fallbackPrice >= rr.Invalidation)
+		if triggerPrice, ok := deriveAIProtectionBreakEvenTriggerPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
+			alignment.BreakEvenBeforeTarget = (isLong && triggerPrice <= rr.FirstTarget) || (isShort && triggerPrice >= rr.FirstTarget)
+			checked.breakEven = true
 			hasSignal = true
 		}
 	}
-	alignment.PolicyStatus, alignment.PolicyOverride, alignment.PolicyRejected, alignment.PolicyReasons = deriveProtectionPolicyTransparency(alignment)
+
+	if snapshot != nil {
+		if !checked.stop && shouldUseSnapshotStop(snapshot) {
+			if stopPrice, ok := deriveProtectionStopPrice(snapshot, rr.Entry, isLong, isShort); ok {
+				alignment.StopBeyondInvalidation = (isLong && stopPrice <= rr.Invalidation) || (isShort && stopPrice >= rr.Invalidation)
+				checked.stop = true
+				hasSignal = true
+			}
+		}
+		if !checked.target && shouldUseSnapshotTarget(snapshot) {
+			if targetPrice, ok := deriveProtectionTargetPrice(snapshot, rr.Entry, isLong, isShort); ok {
+				alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
+				checked.target = true
+				hasSignal = true
+			}
+		}
+		if !checked.breakEven && snapshot.BreakEven != nil && snapshot.BreakEven.Enabled {
+			triggerPrice, ok := deriveBreakEvenTriggerPrice(snapshot.BreakEven, rr.Entry, isLong, isShort)
+			if ok {
+				alignment.BreakEvenBeforeTarget = (isLong && triggerPrice <= rr.FirstTarget) || (isShort && triggerPrice >= rr.FirstTarget)
+				checked.breakEven = true
+				hasSignal = true
+			}
+		}
+		if fallbackPrice, ok := deriveFallbackMaxLossPriceWithStrategy(snapshot, rr.Entry, isLong, isShort, strategy); ok {
+			alignment.FallbackWithinEnvelope = (isLong && fallbackPrice <= rr.Invalidation) || (isShort && fallbackPrice >= rr.Invalidation)
+			checked.fallback = true
+			hasSignal = true
+		}
+	}
+	alignment.PolicyStatus, alignment.PolicyOverride, alignment.PolicyRejected, alignment.PolicyReasons = deriveProtectionPolicyTransparency(alignment, checked)
 	if alignment.PolicyStatus != "" {
 		hasSignal = true
 	}
@@ -1192,32 +1220,149 @@ func deriveProtectionAlignment(decision *kernel.Decision, snapshot *store.Protec
 	return alignment
 }
 
-func deriveProtectionPolicyTransparency(alignment *store.DecisionActionProtectionAlignment) (status string, override bool, rejected bool, reasons []string) {
+type protectionAlignmentChecks struct {
+	stop      bool
+	target    bool
+	breakEven bool
+	fallback  bool
+}
+
+func deriveProtectionPolicyTransparency(alignment *store.DecisionActionProtectionAlignment, checked protectionAlignmentChecks) (status string, override bool, rejected bool, reasons []string) {
 	if alignment == nil {
 		return "", false, false, nil
 	}
 	reasons = make([]string, 0, 4)
-	if !alignment.StopBeyondInvalidation {
+	criticalReasons := 0
+	if checked.stop && !alignment.StopBeyondInvalidation {
 		reasons = append(reasons, "stop_inside_invalidation")
+		criticalReasons++
 	}
-	if !alignment.TargetAligned {
+	if checked.target && !alignment.TargetAligned {
 		reasons = append(reasons, "target_before_first_target")
+		criticalReasons++
 	}
-	if !alignment.BreakEvenBeforeTarget {
+	if checked.breakEven && !alignment.BreakEvenBeforeTarget {
 		reasons = append(reasons, "break_even_after_target")
 	}
-	if !alignment.FallbackWithinEnvelope {
+	if checked.fallback && !alignment.FallbackWithinEnvelope {
 		reasons = append(reasons, "fallback_inside_invalidation")
+		criticalReasons++
 	}
 
-	switch len(reasons) {
-	case 0:
+	switch {
+	case len(reasons) == 0:
 		return "aligned", false, false, nil
-	case 1:
-		return "recomputed", true, false, reasons
-	default:
+	case criticalReasons >= 2:
 		return "rejected", true, true, reasons
+	default:
+		return "recomputed", true, false, reasons
 	}
+}
+
+func shouldUseSnapshotStop(snapshot *store.ProtectionSnapshot) bool {
+	if snapshot == nil {
+		return false
+	}
+	if snapshot.FullTPSL != nil && !strings.EqualFold(snapshot.FullTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	if snapshot.LadderTPSL != nil && !strings.EqualFold(snapshot.LadderTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	return false
+}
+
+func shouldUseSnapshotTarget(snapshot *store.ProtectionSnapshot) bool {
+	if snapshot == nil {
+		return false
+	}
+	if snapshot.FullTPSL != nil && !strings.EqualFold(snapshot.FullTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	if snapshot.LadderTPSL != nil && !strings.EqualFold(snapshot.LadderTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	return false
+}
+
+func deriveAIProtectionStopPrice(plan *kernel.AIProtectionPlan, entry float64, isLong, isShort bool) (float64, bool) {
+	if plan == nil || entry <= 0 {
+		return 0, false
+	}
+	if plan.StopLossPrice > 0 {
+		return plan.StopLossPrice, true
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.StopLossPrice > 0 {
+			return rule.StopLossPrice, true
+		}
+	}
+	if plan.StopLossPct > 0 {
+		return pctOffsetPrice(entry, plan.StopLossPct, isLong, isShort, false)
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.StopLossPct > 0 {
+			return pctOffsetPrice(entry, rule.StopLossPct, isLong, isShort, false)
+		}
+	}
+	return 0, false
+}
+
+func deriveAIProtectionTargetPrice(plan *kernel.AIProtectionPlan, entry float64, isLong, isShort bool) (float64, bool) {
+	if plan == nil || entry <= 0 {
+		return 0, false
+	}
+	if plan.TakeProfitPrice > 0 {
+		return plan.TakeProfitPrice, true
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.TakeProfitPrice > 0 {
+			return rule.TakeProfitPrice, true
+		}
+	}
+	if plan.TakeProfitPct > 0 {
+		return pctOffsetPrice(entry, plan.TakeProfitPct, isLong, isShort, true)
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.TakeProfitPct > 0 {
+			return pctOffsetPrice(entry, rule.TakeProfitPct, isLong, isShort, true)
+		}
+	}
+	return 0, false
+}
+
+func deriveAIProtectionBreakEvenTriggerPrice(plan *kernel.AIProtectionPlan, entry float64, isLong, isShort bool) (float64, bool) {
+	if plan == nil || entry <= 0 || plan.BreakEvenValue <= 0 {
+		return 0, false
+	}
+	switch strings.ToLower(strings.TrimSpace(plan.BreakEvenTrigger)) {
+	case "profit_pct", "pnl_pct", "percent", "pct", "price_change_pct":
+		return pctOffsetPrice(entry, plan.BreakEvenValue, isLong, isShort, true)
+	case "price":
+		return plan.BreakEvenValue, true
+	case "r_multiple":
+		riskPct := 0.0
+		if stopPrice, ok := deriveAIProtectionStopPrice(plan, entry, isLong, isShort); ok {
+			riskPct = protectionPctFromEntry(entry, stopPrice)
+		}
+		if riskPct <= 0 {
+			return 0, false
+		}
+		return pctOffsetPrice(entry, plan.BreakEvenValue*riskPct, isLong, isShort, true)
+	default:
+		return 0, false
+	}
+}
+
+func protectionPctFromEntry(entry, price float64) float64 {
+	if entry <= 0 || price <= 0 {
+		return 0
+	}
+	pct := (price - entry) / entry * 100
+	if pct < 0 {
+		return -pct
+	}
+	return pct
 }
 
 func deriveProtectionStopPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
@@ -1265,6 +1410,10 @@ func deriveProtectionTargetPrice(snapshot *store.ProtectionSnapshot, entry float
 }
 
 func deriveFallbackMaxLossPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
+	return deriveFallbackMaxLossPriceWithStrategy(snapshot, entry, isLong, isShort, nil)
+}
+
+func deriveFallbackMaxLossPriceWithStrategy(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool, strategy *store.StrategyConfig) (float64, bool) {
 	if snapshot == nil || entry <= 0 {
 		return 0, false
 	}
@@ -1276,6 +1425,18 @@ func deriveFallbackMaxLossPrice(snapshot *store.ProtectionSnapshot, entry float6
 	if snapshot.LadderTPSL != nil {
 		if price, ok := valueSourceToAbsolutePrice(snapshot.LadderTPSL.FallbackMaxLoss, entry, isLong, isShort, false); ok {
 			return price, true
+		}
+	}
+	if strategy != nil {
+		fallbackPct := 0.0
+		if pct, ok := resolveLadderFallbackMaxLoss(strategy.Protection.LadderTPSL); ok {
+			fallbackPct = pct
+		}
+		if pct, ok := resolveFallbackMaxLoss(strategy.Protection.FullTPSL); ok && pct > fallbackPct {
+			fallbackPct = pct
+		}
+		if fallbackPct > 0 {
+			return pctOffsetPrice(entry, fallbackPct, isLong, isShort, false)
 		}
 	}
 	return 0, false
@@ -1306,6 +1467,8 @@ func valueSourceToAbsolutePrice(src store.ProtectionSnapshotValueSource, entry f
 	switch mode {
 	case "price", "absolute":
 		return src.Value, src.Value > 0
+	case "manual":
+		return pctOffsetPrice(entry, src.Value, isLong, isShort, favorable)
 	case "percent", "pct", "profit_pct", "loss_pct", "offset_pct":
 		return pctOffsetPrice(entry, src.Value, isLong, isShort, favorable)
 	default:

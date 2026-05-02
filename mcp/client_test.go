@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -521,4 +523,47 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestClient_ParseMCPResponseFull_InvalidJSONIncludesBodyPreview(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	_, err := c.ParseMCPResponseFull([]byte("do request failed transiently"))
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	if !strings.Contains(err.Error(), "body preview: do request failed transiently") {
+		t.Fatalf("expected body preview in error, got %v", err)
+	}
+}
+
+func TestClient_CallWithRequestRetriesPlaintextProxyResponse(t *testing.T) {
+	mockHTTP := NewMockHTTPClient()
+	calls := 0
+	mockHTTP.ResponseFunc = func(req *http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("do request failed transiently")), Header: make(http.Header)}, nil
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"ok after retry"}}]}`)), Header: make(http.Header)}, nil
+	}
+	client := NewClient(
+		WithHTTPClient(mockHTTP.ToHTTPClient()),
+		WithAPIKey("test-key"),
+		WithBaseURL("https://api.test.com"),
+		WithRetryWaitBase(0),
+	)
+	c := client.(*Client)
+
+	result, err := c.CallWithRequest(&Request{Messages: []Message{{Role: "user", Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("expected retry success, got %v", err)
+	}
+	if result != "ok after retry" {
+		t.Fatalf("unexpected result %q", result)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 calls, got %d", calls)
+	}
 }

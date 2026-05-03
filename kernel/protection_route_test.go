@@ -256,8 +256,8 @@ func TestValidateAIDecisionsWithStrategyAllowsCombinedDrawdownPlusLadderAI(t *te
 		ProtectionPlan: &AIProtectionPlan{
 			Mode: "combined",
 			LadderRules: []AIProtectionLadderRule{
-				{StopLossPrice: 95, StopLossCloseRatioPct: 50, StructuralAnchor: "15m support"},
-				{StopLossPrice: 95, StopLossCloseRatioPct: 50, StructuralAnchor: "1h support"},
+				{StopLossPrice: 95, StopLossCloseRatioPct: 50, StructuralAnchor: "15m support", VolatilityBufferReason: "15m ATR buffer"},
+				{StopLossPrice: 95, StopLossCloseRatioPct: 50, StructuralAnchor: "1h support", VolatilityBufferReason: "1h ATR buffer"},
 			},
 			DrawdownRules: []AIProtectionDrawdownRule{
 				{MinProfitPct: 5, MaxDrawdownPct: 60, CloseRatioPct: 40, ReasonAnchor: "15m target partial lock"},
@@ -401,7 +401,7 @@ func TestValidateLadderPlanRejectsUnanchoredAbsoluteTarget(t *testing.T) {
 			Anchors:             []AIEntryProtectionAnchor{{Type: "resistance", Timeframe: "15m", Price: 113.14, Reason: "buffered stop"}, {Type: "support", Timeframe: "15m", Price: 111.82698, Reason: "fib target"}},
 			RiskReward:          AIRiskRewardRationale{Entry: 112.8, Invalidation: 113.14, FirstTarget: 111.82698, GrossEstimatedRR: 2.86, NetEstimatedRR: 2.6, MinRequiredRR: 2, Passed: true},
 		},
-		ProtectionPlan: &AIProtectionPlan{Mode: "ladder", LadderRules: []AIProtectionLadderRule{{TakeProfitPrice: 109.4, TakeProfitCloseRatioPct: 50, StopLossPrice: 115, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support"}, {TakeProfitPrice: 108.8, TakeProfitCloseRatioPct: 50, StopLossPrice: 115.5, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support"}}},
+		ProtectionPlan: &AIProtectionPlan{Mode: "ladder", LadderRules: []AIProtectionLadderRule{{TakeProfitPrice: 109.4, TakeProfitCloseRatioPct: 50, StopLossPrice: 115, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support", VolatilityBufferReason: "15m ATR buffer"}, {TakeProfitPrice: 108.8, TakeProfitCloseRatioPct: 50, StopLossPrice: 115.5, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support", VolatilityBufferReason: "15m ATR buffer"}}},
 	}
 
 	if err := ValidateAIDecisionsWithStrategy([]Decision{decision}, cfg); err == nil || !strings.Contains(err.Error(), "ladder_rules[0] take profit") {
@@ -432,7 +432,7 @@ func TestValidateLadderPlanAcceptsAbsoluteStructuralPriceLevels(t *testing.T) {
 			Anchors:             []AIEntryProtectionAnchor{{Type: "resistance", Timeframe: "15m", Price: 113.14, Reason: "buffered stop"}, {Type: "support", Timeframe: "15m", Price: 111.82698, Reason: "fib target"}},
 			RiskReward:          AIRiskRewardRationale{Entry: 112.8, Invalidation: 113.14, FirstTarget: 111.82698, GrossEstimatedRR: 2.86, NetEstimatedRR: 2.6, MinRequiredRR: 2, Passed: true},
 		},
-		ProtectionPlan: &AIProtectionPlan{Mode: "ladder", LadderRules: []AIProtectionLadderRule{{TakeProfitPrice: 111.82698, TakeProfitCloseRatioPct: 50, StopLossPrice: 113.14, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support"}, {TakeProfitPrice: 111.19208, TakeProfitCloseRatioPct: 50, StopLossPrice: 113.14, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support"}}},
+		ProtectionPlan: &AIProtectionPlan{Mode: "ladder", LadderRules: []AIProtectionLadderRule{{TakeProfitPrice: 111.82698, TakeProfitCloseRatioPct: 50, StopLossPrice: 113.14, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support", VolatilityBufferReason: "15m ATR buffer"}, {TakeProfitPrice: 111.19208, TakeProfitCloseRatioPct: 50, StopLossPrice: 113.14, StopLossCloseRatioPct: 50, StructuralAnchor: "15m fib support", VolatilityBufferReason: "15m ATR buffer"}}},
 	}
 
 	if err := ValidateAIDecisionsWithStrategy([]Decision{decision}, cfg); err != nil {

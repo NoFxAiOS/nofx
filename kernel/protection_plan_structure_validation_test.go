@@ -18,11 +18,77 @@ func TestValidateAIProtectionPlanCompletenessAndStructureRejectsPercentOnlyLadde
 				TakeProfitCloseRatioPct: 50,
 				StopLossCloseRatioPct:   50,
 				StructuralAnchor:        "15m support",
+				VolatilityBufferReason:  "15m ATR buffer",
 			}},
 		},
 	}
 	if err := validateAIProtectionPlanCompletenessAndStructure(d); err == nil {
 		t.Fatal("expected percent-only ladder fallback to be rejected")
+	}
+}
+
+func TestValidateAIProtectionPlanCompletenessAndStructureRejectsLadderWithoutBuffer(t *testing.T) {
+	d := Decision{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+		ProtectionPlan: &AIProtectionPlan{
+			Mode: "ladder",
+			LadderRules: []AIProtectionLadderRule{{
+				TakeProfitPrice:         110,
+				TakeProfitCloseRatioPct: 40,
+				StopLossPrice:           95,
+				StopLossCloseRatioPct:   50,
+				StructuralAnchor:        "15m support / 15m resistance",
+			}},
+		},
+	}
+	if err := validateAIProtectionPlanCompletenessAndStructure(d); err == nil || !strings.Contains(err.Error(), "volatility_buffer") {
+		t.Fatalf("expected missing volatility buffer to be rejected, got %v", err)
+	}
+}
+
+func TestValidateAIProtectionPlanCompletenessAndStructureRejectsWrongSideLadder(t *testing.T) {
+	d := Decision{
+		Symbol:          "BTCUSDT",
+		Action:          "open_short",
+		EntryProtection: validEntryProtectionForTest("open_short"),
+		ProtectionPlan: &AIProtectionPlan{
+			Mode: "ladder",
+			LadderRules: []AIProtectionLadderRule{{
+				TakeProfitPrice:         105,
+				TakeProfitCloseRatioPct: 40,
+				StopLossPrice:           95,
+				StopLossCloseRatioPct:   50,
+				StructuralAnchor:        "15m resistance / 15m support",
+				VolatilityBufferReason:  "15m ATR buffer",
+			}},
+		},
+	}
+	if err := validateAIProtectionPlanCompletenessAndStructure(d); err == nil || !strings.Contains(err.Error(), "take_profit_price must be below entry for short") {
+		t.Fatalf("expected wrong-side short TP to be rejected, got %v", err)
+	}
+}
+
+func TestValidateAIProtectionPlanCompletenessAndStructureAllowsAnchoredAbsoluteLadder(t *testing.T) {
+	d := Decision{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		EntryProtection: validEntryProtectionForTest("open_long"),
+		ProtectionPlan: &AIProtectionPlan{
+			Mode: "ladder",
+			LadderRules: []AIProtectionLadderRule{{
+				TakeProfitPrice:         110,
+				TakeProfitCloseRatioPct: 40,
+				StopLossPrice:           95,
+				StopLossCloseRatioPct:   50,
+				StructuralAnchor:        "15m support / 15m resistance",
+				VolatilityBufferReason:  "15m ATR buffer",
+			}},
+		},
+	}
+	if err := validateAIProtectionPlanCompletenessAndStructure(d); err != nil {
+		t.Fatalf("expected anchored absolute ladder to pass, got %v", err)
 	}
 }
 

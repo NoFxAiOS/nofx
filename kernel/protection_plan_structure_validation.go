@@ -48,8 +48,40 @@ func validateAILadderRulesCompleteness(d Decision) error {
 		if rule.TakeProfitCloseRatioPct > 0 && rule.TakeProfitPrice <= 0 {
 			return fmt.Errorf("protection_plan.ladder_rules[%d] requires absolute take_profit_price; percent-only AI ladder fallback is not allowed", i)
 		}
+		if rule.TakeProfitPrice > 0 && rule.TakeProfitCloseRatioPct <= 0 {
+			return fmt.Errorf("protection_plan.ladder_rules[%d] take_profit_price requires positive take_profit_close_ratio_pct", i)
+		}
+		if rule.StopLossPrice > 0 && rule.StopLossCloseRatioPct <= 0 {
+			return fmt.Errorf("protection_plan.ladder_rules[%d] stop_loss_price requires positive stop_loss_close_ratio_pct", i)
+		}
+		if d.Action == "open_long" {
+			if rule.TakeProfitPrice > 0 && rule.TakeProfitPrice <= entryPriceForProtectionValidation(d) {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] take_profit_price must be above entry for long", i)
+			}
+			if rule.StopLossPrice > 0 && rule.StopLossPrice >= entryPriceForProtectionValidation(d) {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] stop_loss_price must be below entry for long", i)
+			}
+		}
+		if d.Action == "open_short" {
+			if rule.TakeProfitPrice > 0 && rule.TakeProfitPrice >= entryPriceForProtectionValidation(d) {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] take_profit_price must be below entry for short", i)
+			}
+			if rule.StopLossPrice > 0 && rule.StopLossPrice <= entryPriceForProtectionValidation(d) {
+				return fmt.Errorf("protection_plan.ladder_rules[%d] stop_loss_price must be above entry for short", i)
+			}
+		}
+		if rule.VolatilityBufferPct <= 0 && strings.TrimSpace(rule.VolatilityBufferReason) == "" {
+			return fmt.Errorf("protection_plan.ladder_rules[%d] requires volatility_buffer_pct or volatility_buffer_reason", i)
+		}
 	}
 	return nil
+}
+
+func entryPriceForProtectionValidation(d Decision) float64 {
+	if d.EntryProtection != nil && d.EntryProtection.RiskReward.Entry > 0 {
+		return d.EntryProtection.RiskReward.Entry
+	}
+	return 0
 }
 
 func validateAIDrawdownRulesCompleteness(d Decision) error {

@@ -1425,9 +1425,20 @@ func ParseAndValidateAIDecisionsWithStrategy(response string, config *store.Stra
 		}
 	}
 	cot := extractCoTTrace(response)
-	if err := ValidateAIDecisionsWithStrategyAndCoT(decisions, config, cot); err != nil {
+	if err := ValidateDecisionFormatWithCoT(decisions, cot); err != nil {
 		return decisions, err
 	}
+	filtered, rejected := FilterInvalidAIDecisionsWithStrategyAndCoT(decisions, config, cot)
+	if len(rejected) > 0 {
+		for _, rej := range rejected {
+			if rej.Index >= 0 {
+				logger.Warnf("🚫 Protection route validation rejected decision #%d %s %s: %v", rej.Index+1, rej.Decision.Symbol, rej.Decision.Action, rej.Err)
+			} else {
+				return decisions, rej.Err
+			}
+		}
+	}
+	decisions = filtered
 	if err := ValidateProtectionReasoningContract(cot, config); err != nil {
 		return decisions, err
 	}

@@ -377,6 +377,12 @@ func (at *AutoTrader) validateProtectionPlanExecution(symbol, positionSide strin
 		}
 		adjusted.StopLossOrders = filterProtectionOrders(adjusted.StopLossOrders, isExecutableStop)
 		adjusted.TakeProfitOrders = filterProtectionOrders(adjusted.TakeProfitOrders, isExecutableTP)
+		if len(plan.StopLossOrders) > 0 && len(adjusted.StopLossOrders) == 0 {
+			adjusted.StopLossPrice = 0
+		}
+		if len(plan.TakeProfitOrders) > 0 && len(adjusted.TakeProfitOrders) == 0 {
+			adjusted.TakeProfitPrice = 0
+		}
 		if adjusted.StopLossPrice > 0 && !isExecutableHeldStopPrice(strings.ToLower(positionSide), adjusted.StopLossPrice, markPrice) {
 			logger.Warnf("  ⚠️ Protection full stop dropped as non-executable against mark: symbol=%s side=%s stop=%.6f mark=%.6f", symbol, positionSide, adjusted.StopLossPrice, markPrice)
 			adjusted.StopLossPrice = 0

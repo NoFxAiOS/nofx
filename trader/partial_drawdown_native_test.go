@@ -29,8 +29,8 @@ func TestBuildManagedPartialDrawdownPlanCandidate_Long(t *testing.T) {
 	if plan.TakeProfitOrders[0].CloseRatioPct != 50 {
 		t.Fatalf("expected close ratio 50, got %.2f", plan.TakeProfitOrders[0].CloseRatioPct)
 	}
-	if plan.TakeProfitOrders[0].Price <= 0 {
-		t.Fatalf("expected positive derived price, got %.4f", plan.TakeProfitOrders[0].Price)
+	if got := plan.TakeProfitOrders[0].Price; got <= 100 || got >= 110 {
+		t.Fatalf("expected retained-profit long trigger between entry and peak target, got %.4f", got)
 	}
 }
 
@@ -48,8 +48,8 @@ func TestBuildManagedPartialDrawdownPlanCandidate_Short(t *testing.T) {
 	if plan.Mode != "drawdown_partial_managed" {
 		t.Fatalf("expected managed mode, got %q", plan.Mode)
 	}
-	if plan.TakeProfitOrders[0].Price <= 0 {
-		t.Fatalf("expected positive derived price, got %.4f", plan.TakeProfitOrders[0].Price)
+	if got := plan.TakeProfitOrders[0].Price; got <= 90 || got >= 100 {
+		t.Fatalf("expected retained-profit short trigger between peak target and entry, got %.4f", got)
 	}
 }
 

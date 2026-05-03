@@ -434,13 +434,22 @@ func buildManagedPartialDrawdownPlanCandidate(entryPrice float64, action string,
 	}
 
 	peakMove := rule.MinProfitPct / 100.0
-	drawdownMove := rule.MaxDrawdownPct / 100.0
+	drawdownGiveback := rule.MaxDrawdownPct / 100.0
+	if drawdownGiveback > 1 {
+		drawdownGiveback = 1
+	}
+	// MaxDrawdownPct is exchange trailing semantics: percentage of the peak profit
+	// that may be given back, not an absolute price move from entry. Managed
+	// fallback therefore triggers at the retained-profit price:
+	// long  = entry * (1 + minProfit * (1 - giveback))
+	// short = entry * (1 - minProfit * (1 - giveback))
+	retainedProfitMove := peakMove * (1 - drawdownGiveback)
 	price := entryPrice
 
 	if isLong {
-		price = entryPrice * (1 + peakMove) * (1 - drawdownMove)
+		price = entryPrice * (1 + retainedProfitMove)
 	} else {
-		price = entryPrice * (1 - peakMove) * (1 + drawdownMove)
+		price = entryPrice * (1 - retainedProfitMove)
 	}
 
 	if price <= 0 {

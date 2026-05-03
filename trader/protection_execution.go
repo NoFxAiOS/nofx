@@ -235,7 +235,9 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 		at.drawdownSource[positionKey(req.Symbol, strings.ToLower(req.PositionSide))] = "ai_decision"
 		at.protectionStateMutex.Unlock()
 	} else if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
-		// AI mode but AI did not provide drawdown_rules — fallback to strategy default rules
+		// AI mode but AI did not provide drawdown_rules — use strategy defaults as an explicit
+		// safety fallback only. The prompt/validator should make this rare, but we still
+		// preserve otherwise-good entries instead of leaving positions unprotected.
 		if len(prot.DrawdownTakeProfit.Rules) > 0 {
 			logger.Warnf("[%s] drawdown AI mode but AI did not provide drawdown_rules; falling back to strategy default rules (%d rules)",
 				req.Symbol, len(prot.DrawdownTakeProfit.Rules))

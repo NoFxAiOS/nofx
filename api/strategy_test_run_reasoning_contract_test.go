@@ -13,6 +13,7 @@ func TestBreakEvenRouteRequiresStructuredOutput(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.RiskControl.MinRiskRewardRatio = 1.5
 	cfg.Protection.BreakEvenStop.Enabled = true
+	cfg.Protection.BreakEvenStop.Mode = store.ProtectionModeAI
 
 	decisions := []kernel.Decision{{
 		Symbol:          "BTCUSDT",
@@ -26,7 +27,7 @@ func TestBreakEvenRouteRequiresStructuredOutput(t *testing.T) {
 	if validationErr == nil {
 		t.Fatal("expected break-even structured output route to fail")
 	}
-	if !strings.Contains(validationErr.Error(), "requires break-even protection output") {
+	if !strings.Contains(validationErr.Error(), "requires AI break-even protection output") {
 		t.Fatalf("expected break-even route failure, got %v", validationErr)
 	}
 }

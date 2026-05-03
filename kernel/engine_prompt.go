@@ -187,7 +187,13 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 			sb.WriteString("- Every ladder rule must include a volatility/wick buffer using ATR or recent wick behavior; do not place stops/targets exactly on crowded structure/fib levels\n")
 			sb.WriteString("- `drawdown_rules` own profit-protection/trailing stages; derive min_profit_pct/max_drawdown_pct/close_ratio_pct from structural targets and volatility\n")
 			sb.WriteString("- Include structural_anchor on every ladder rule and reason_anchor on every drawdown rule\n")
-			sb.WriteString(fmt.Sprintf("- Strategy has %d default ladder rule(s) and %d default drawdown rule(s) only as reference; do not copy them unless structure justifies them\n", len(prot.LadderTPSL.Rules), len(prot.DrawdownTakeProfit.Rules)))
+			sb.WriteString(fmt.Sprintf("- Strategy has %d default ladder rule(s) and %d default drawdown rule(s) as operator fallback/reference values. Treat them as safety defaults and sizing priors only; adapt prices/stages to current structure, ATR/wicks, and entry RR instead of copying generic percentages.\n", len(prot.LadderTPSL.Rules), len(prot.DrawdownTakeProfit.Rules)))
+			for i, r := range prot.LadderTPSL.Rules {
+				sb.WriteString(fmt.Sprintf("  - Ladder reference %d: tp=%.2f%% close=%.0f%%, sl=%.2f%% close=%.0f%%\n", i+1, r.TakeProfitPct, r.TakeProfitCloseRatioPct, r.StopLossPct, r.StopLossCloseRatioPct))
+			}
+			for i, r := range prot.DrawdownTakeProfit.Rules {
+				sb.WriteString(fmt.Sprintf("  - Drawdown reference %d: min_profit=%.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+			}
 			sb.WriteString("\n")
 		} else {
 			sb.WriteString("### ⚠️ ACTIVE: Drawdown Take Profit is in AI mode for this strategy\n")
@@ -198,9 +204,9 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 				sb.WriteString("- Combined ownership mode is active: drawdown AI owns profit-taking / profit-protection, while full AI remains strategy-level stop-loss / fallback stop protection\n")
 				sb.WriteString("- In this combined mode, DO NOT output `mode=full` in the AI decision. Output only drawdown ownership fields and let strategy-level full stop protection merge at execution time\n")
 			}
-			sb.WriteString(fmt.Sprintf("- Strategy has %d default drawdown rule(s) as reference; your AI rules should be structurally justified\n", len(prot.DrawdownTakeProfit.Rules)))
+			sb.WriteString(fmt.Sprintf("- Strategy has %d default drawdown rule(s) as operator fallback/reference values. Use them as safety/sizing priors, but output AI stages anchored to current structure and ATR/wicks.\n", len(prot.DrawdownTakeProfit.Rules)))
 			for i, r := range prot.DrawdownTakeProfit.Rules {
-				sb.WriteString(fmt.Sprintf("  - Default rule %d: min_profit=%.1f%%, max_drawdown=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+				sb.WriteString(fmt.Sprintf("  - Drawdown reference %d: min_profit=%.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
 			}
 			sb.WriteString("\n")
 		}
@@ -268,7 +274,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- Every ladder rule MUST include `structural_anchor` or side-specific anchors, plus `volatility_buffer_pct` or `volatility_buffer_reason`.\n")
 	sb.WriteString("- `drawdown_rules`: at least 2 objects when drawdown/combined is active. Each must include `timeframe` or timeframe in `reason_anchor`, `min_profit_pct`, `max_drawdown_pct`, `close_ratio_pct`, `stage_name`, `reason_anchor`. `max_drawdown_pct` is percent-of-peak-profit giveback, not absolute price drawdown.\n")
 	sb.WriteString("- Drawdown structure should lock partial profit first, then leave runner inventory for higher targets: early stages close less than 60%, final/outer stage may close more but should preserve runner semantics when trend allows.\n")
-	sb.WriteString("- If you cannot produce a complete schema-valid protection_plan, do not open. Output wait/[] instead.\n\n")
+	sb.WriteString("- Fallback policy: fallback exists as exchange/runtime safety and may reference operator manual/default values if an otherwise good setup cannot place one leg natively. But the model's goal is a schema-valid, structure-anchored AI `protection_plan`; do NOT intentionally omit/underspecify protection to rely on fallback. If the market structure is too unclear to derive valid protection, then do not open. Output wait/[] instead.\n\n")
 	sb.WriteString("## Field Description\n\n")
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
 	sb.WriteString("- Optional reliability fields for every decision: `regime` (trend_up|trend_down|range|squeeze|chop|news_risk|no_trade), `setup_type` (trend_pullback|range_edge|breakout_retest|none), and `quality_score` with total/trend_alignment/structure_location/sr_fib_quality/derivatives_context/trigger_quality/net_rr. These fields are currently audit/shadow fields, but strong opens should include them.\n")

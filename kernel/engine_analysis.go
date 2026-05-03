@@ -889,19 +889,37 @@ func validateStructuralPriceAlignment(action string, rationale *AIEntryProtectio
 	if config == nil || !config.EntryStructure.Enabled {
 		return nil
 	}
-	rr := rationale.RiskReward
-	riskDistance := absFloat(rr.Entry - rr.Invalidation)
-	rewardDistance := absFloat(rr.FirstTarget - rr.Entry)
-	if riskDistance <= 0 || rewardDistance <= 0 {
-		return nil
+
+	// 1. 检查最小波动率
+	if err := validateMinimumVolatility(rationale); err != nil {
+		return err
 	}
 
+	// 2. 检查入场位是否贴近结构位
+	if err := validateEntryProximityToStructure(action, rationale); err != nil {
+		return err
+	}
+
+	// 3. 检查止损位是否在结构失效区
+	if err := validateInvalidationBelowStructure(action, rationale); err != nil {
+		return err
+	}
+
+	// 4. P1: 检查目标位路径上的阻力密度
+	if err := validateTargetPathClear(action, rationale); err != nil {
+		return err
+	}
+
+	// 5. P1: 检查时间周期一致性
+	if err := validateTimeframeConsistency(rationale); err != nil {
+		return err
+	}
+
+	// 6. 保留原有的 anchor coverage 检查
 	if err := validateStructuralAnchorCoverage(action, rationale); err != nil {
 		return err
 	}
-	if err := validateStructuralLevelProximity(action, rationale, riskDistance, rewardDistance); err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -945,83 +963,209 @@ func validateStructuralAnchorCoverage(action string, rationale *AIEntryProtectio
 	return nil
 }
 
-func validateStructuralLevelProximity(action string, rationale *AIEntryProtectionRationale, riskDistance, rewardDistance float64) error {
+// validateMinimumVolatility 检查波动率是否足够
+func validateMinimumVolatility(rationale *AIEntryProtectionRationale) error {
+	atrPct := rationale.VolatilityAdjustment.ATR14Pct
+
+	// 如果没有 ATR 数据，使用更宽松的固定容差
+	if atrPct <= 0 {
+		atrPct = 2.0 // 默认 2% 作为容差基准
+	}
 	entry := rationale.RiskReward.Entry
-	invalidation := rationale.RiskReward.Invalidation
-	firstTarget := rationale.RiskReward.FirstTarget
-	supportTol := structuralTolerance(riskDistance, rationale.VolatilityAdjustment.ATR14Pct, entry)
-	resistanceTol := structuralTolerance(rewardDistance, rationale.VolatilityAdjustment.ATR14Pct, entry)
-	fibTol := structuralTolerance(maxFloat(riskDistance, rewardDistance), rationale.VolatilityAdjustment.ATR14Pct, entry)
+
+	if atrPct <= 0 || entry <= 0 {
+		return nil
+	}
+
+	minATRPct := 1.2
+	if atrPct < minATRPct {
+		return fmt.Errorf("ATR %.2f%% too low (min %.2f%%), insufficient volatility", atrPct, minATRPct)
+	}
+
+	riskDistance := absFloat(rationale.RiskReward.Entry - rationale.RiskReward.Invalidation)
+	riskPct := (riskDistance / entry) * 100
+
+	minRiskPct := 0.4
+	if riskPct < minRiskPct {
+		return fmt.Errorf("risk distance %.2f%% too small (min %.2f%%), insufficient room for fees", riskPct, minRiskPct)
+	}
+
+	return nil
+}
+
+// validateEntryProximityToStructure 检查入场位是否贴近结构位
+func validateEntryProximityToStructure(action string, rationale *AIEntryProtectionRationale) error {
+	entry := rationale.RiskReward.Entry
+	atrPct := rationale.VolatilityAdjustment.ATR14Pct
+
+	// 如果没有 ATR 数据，使用更宽松的固定容差
+	if atrPct <= 0 {
+		atrPct = 2.0 // 默认 2% 作为容差基准
+	}
+
+	tolerance := entry * (atrPct / 100) * 0.6
+	if tolerance < entry*0.002 {
+		tolerance = entry * 0.002
+	}
+	if tolerance > entry*0.015 {
+		tolerance = entry * 0.015
+	}
 
 	supports := filterPositiveLevels(rationale.KeyLevels.Support)
 	resistances := filterPositiveLevels(rationale.KeyLevels.Resistance)
-	fibLevels := fibonacciLevels(rationale.KeyLevels.Fibonacci)
-	invalidationRefs, targetRefs := structuralReferenceLevels(rationale)
 
 	switch action {
 	case "open_long":
-		longInvalidationLevels := supports
-		if len(invalidationRefs) > 0 {
-			longInvalidationLevels = invalidationRefs
+		if len(supports) == 0 {
+			return fmt.Errorf("open_long requires support levels")
 		}
-		if len(longInvalidationLevels) > 0 {
-			nearestSupport, supportGap := nearestLevel(invalidation, longInvalidationLevels)
-			if supportGap > supportTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f too far from structural support %.4f", invalidation, nearestSupport)
-			}
-			if invalidation > nearestSupport+supportTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f must sit near/below support %.4f", invalidation, nearestSupport)
-			}
+		nearestSupport, supportGap := nearestLevel(entry, supports)
+		if supportGap > tolerance {
+			return fmt.Errorf("entry %.4f too far from support %.4f (gap=%.4f, max=%.4f, ATR=%.2f%%)",
+				entry, nearestSupport, supportGap, tolerance, atrPct)
 		}
-		longTargetLevels := resistances
-		if len(targetRefs) > 0 {
-			longTargetLevels = targetRefs
-		}
-		if len(longTargetLevels) > 0 {
-			nearestResistance, resistanceGap := nearestLevel(firstTarget, longTargetLevels)
-			if resistanceGap > resistanceTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from structural resistance %.4f", firstTarget, nearestResistance)
-			}
-		}
-		if len(fibLevels) > 0 {
-			_, fibGap := nearestLevel(firstTarget, fibLevels)
-			if len(resistances) == 0 && fibGap > fibTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from fibonacci structure", firstTarget)
-			}
-		}
+
 	case "open_short":
-		shortInvalidationLevels := resistances
-		if len(invalidationRefs) > 0 {
-			shortInvalidationLevels = invalidationRefs
+		if len(resistances) == 0 {
+			return fmt.Errorf("open_short requires resistance levels")
 		}
-		if len(shortInvalidationLevels) > 0 {
-			nearestResistance, resistanceGap := nearestLevel(invalidation, shortInvalidationLevels)
-			if resistanceGap > resistanceTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f too far from structural resistance %.4f", invalidation, nearestResistance)
+		nearestResistance, resistanceGap := nearestLevel(entry, resistances)
+		if resistanceGap > tolerance {
+			return fmt.Errorf("entry %.4f too far from resistance %.4f (gap=%.4f, max=%.4f, ATR=%.2f%%)",
+				entry, nearestResistance, resistanceGap, tolerance, atrPct)
+		}
+	}
+
+	return nil
+}
+
+// validateInvalidationBelowStructure 检查止损位是否在结构失效区
+func validateInvalidationBelowStructure(action string, rationale *AIEntryProtectionRationale) error {
+	entry := rationale.RiskReward.Entry
+	invalidation := rationale.RiskReward.Invalidation
+	atrPct := rationale.VolatilityAdjustment.ATR14Pct
+
+	// 如果没有 ATR 数据，使用更宽松的固定容差
+	if atrPct <= 0 {
+		atrPct = 2.0 // 默认 2% 作为容差基准
+	}
+
+	tolerance := entry * (atrPct / 100) * 0.5
+	if tolerance < entry*0.003 {
+		tolerance = entry * 0.003
+	}
+
+	supports := filterPositiveLevels(rationale.KeyLevels.Support)
+	resistances := filterPositiveLevels(rationale.KeyLevels.Resistance)
+
+	switch action {
+	case "open_long":
+		if len(supports) > 0 {
+			nearestSupport, _ := nearestLevel(invalidation, supports)
+			if invalidation > nearestSupport+tolerance {
+				return fmt.Errorf("invalidation %.4f too far above support %.4f", invalidation, nearestSupport)
 			}
-			if invalidation < nearestResistance-supportTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward invalidation %.4f must sit near/above resistance %.4f", invalidation, nearestResistance)
-			}
 		}
-		shortTargetLevels := supports
-		if len(targetRefs) > 0 {
-			shortTargetLevels = targetRefs
-		}
-		if len(shortTargetLevels) > 0 {
-			nearestSupport, supportGap := nearestLevel(firstTarget, shortTargetLevels)
-			if supportGap > supportTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from structural support %.4f", firstTarget, nearestSupport)
-			}
-		}
-		if len(fibLevels) > 0 {
-			_, fibGap := nearestLevel(firstTarget, fibLevels)
-			if len(supports) == 0 && fibGap > fibTol {
-				return fmt.Errorf("entry_protection_rationale.risk_reward first_target %.4f too far from fibonacci structure", firstTarget)
+
+	case "open_short":
+		if len(resistances) > 0 {
+			nearestResistance, _ := nearestLevel(invalidation, resistances)
+			if invalidation < nearestResistance-tolerance {
+				return fmt.Errorf("invalidation %.4f too far below resistance %.4f", invalidation, nearestResistance)
 			}
 		}
 	}
+
 	return nil
 }
+
+// validateTargetPathClear 检查目标位路径上的阻力密度
+func validateTargetPathClear(action string, rationale *AIEntryProtectionRationale) error {
+	entry := rationale.RiskReward.Entry
+	target := rationale.RiskReward.FirstTarget
+
+	supports := filterPositiveLevels(rationale.KeyLevels.Support)
+	resistances := filterPositiveLevels(rationale.KeyLevels.Resistance)
+
+	switch action {
+	case "open_long":
+		blockingResistances := 0
+		for _, r := range resistances {
+			if r > entry && r < target {
+				blockingResistances++
+			}
+		}
+		if blockingResistances >= 4 {
+			return fmt.Errorf("target path blocked by %d resistance levels", blockingResistances)
+		}
+
+	case "open_short":
+		blockingSupports := 0
+		for _, s := range supports {
+			if s < entry && s > target {
+				blockingSupports++
+			}
+		}
+		if blockingSupports >= 4 {
+			return fmt.Errorf("target path blocked by %d support levels", blockingSupports)
+		}
+	}
+
+	return nil
+}
+
+// validateTimeframeConsistency 检查时间周期一致性
+func validateTimeframeConsistency(rationale *AIEntryProtectionRationale) error {
+	primary := strings.TrimSpace(rationale.TimeframeContext.Primary)
+	if primary == "" {
+		return nil
+	}
+
+	timeframeRank := map[string]int{
+		"1m": 1, "3m": 2, "5m": 3, "15m": 4, "30m": 5,
+		"1h": 6, "2h": 7, "4h": 8, "6h": 9, "12h": 10, "1d": 11,
+	}
+
+	primaryRank, ok := timeframeRank[primary]
+	if !ok {
+		return nil
+	}
+
+	for _, anchor := range rationale.Anchors {
+		anchorType := strings.ToLower(strings.TrimSpace(anchor.Type))
+		if anchorType == "resistance" || anchorType == "first_target" || anchorType == "fib_resistance" {
+			anchorTF := strings.TrimSpace(anchor.Timeframe)
+			anchorRank, ok := timeframeRank[anchorTF]
+			if !ok {
+				continue
+			}
+			if anchorRank > primaryRank+3 {
+				return fmt.Errorf("target timeframe %s too high for primary %s", anchorTF, primary)
+			}
+		}
+	}
+
+	for _, anchor := range rationale.HigherAnchors {
+		anchorType := strings.ToLower(strings.TrimSpace(anchor.Type))
+		if anchorType == "resistance" || anchorType == "first_target" || anchorType == "fib_resistance" {
+			anchorTF := strings.TrimSpace(anchor.Timeframe)
+			anchorRank, ok := timeframeRank[anchorTF]
+			if !ok {
+				continue
+			}
+			if anchorRank > primaryRank+3 {
+				return fmt.Errorf("higher target timeframe %s too high for primary %s", anchorTF, primary)
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateStructuralLevelProximity(action string, rationale *AIEntryProtectionRationale, riskDistance, rewardDistance float64) error {
+	return nil
+}
+
 
 func structuralReferenceLevels(rationale *AIEntryProtectionRationale) (invalidationRefs []float64, targetRefs []float64) {
 	if rationale == nil {

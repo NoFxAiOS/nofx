@@ -119,16 +119,22 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	if decision != nil && len(decision.Decisions) > 0 {
 		filtered, rejected := FilterInvalidAIDecisionsWithStrategyAndCoT(decision.Decisions, config, decision.CoTTrace)
 		if len(rejected) > 0 {
+			for i := range rejected {
+				if rejected[i].Err != nil {
+					rejected[i].Reason = rejected[i].Err.Error()
+				}
+			}
+			decision.RejectedDecisions = rejected
 			for _, rej := range rejected {
 				if rej.Index >= 0 {
-					logger.Warnf("🚫 Protection route validation rejected decision #%d %s %s: %v", rej.Index+1, rej.Decision.Symbol, rej.Decision.Action, rej.Err)
+					logger.Warnf("🚫 Rejected decision #%d %s %s: %s", rej.Index+1, rej.Decision.Symbol, rej.Decision.Action, rej.Reason)
 				} else {
-					logger.Warnf("🚫 Protection route validation rejected AI response package: %v", rej.Err)
+					logger.Warnf("🚫 Rejected AI response package: %s", rej.Reason)
 				}
 			}
 			decision.Decisions = filtered
 			if len(decision.Decisions) == 0 {
-				logger.Warnf("🚫 Protection route validation rejected all open decisions; continuing with empty no-trade decision set")
+				logger.Warnf("🚫 All open decisions rejected; continuing with empty no-trade decision set")
 			}
 		}
 	}
@@ -521,12 +527,6 @@ func ValidateAIDecisionsWithStrategy(decisions []Decision, config *store.Strateg
 		return err
 	}
 	return validateAIDecisionRoutesWithStrategy(decisions, config)
-}
-
-type DecisionRouteRejection struct {
-	Index    int
-	Decision Decision
-	Err      error
 }
 
 func FilterInvalidAIDecisionsWithStrategyAndCoT(decisions []Decision, config *store.StrategyConfig, cotTrace string) ([]Decision, []DecisionRouteRejection) {

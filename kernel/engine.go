@@ -627,15 +627,23 @@ func (r *AIProtectionLadderRule) UnmarshalJSON(data []byte) error {
 
 // FullDecision AI's complete decision (including chain of thought)
 type FullDecision struct {
-	SystemPrompt        string     `json:"system_prompt"`
-	UserPrompt          string     `json:"user_prompt"`
-	CoTTrace            string     `json:"cot_trace"`
-	Decisions           []Decision `json:"decisions"`
-	RawResponse         string     `json:"raw_response"`
-	Timestamp           time.Time  `json:"timestamp"`
-	AIRequestDurationMs int64      `json:"ai_request_duration_ms,omitempty"`
-	ParseFallback       bool       `json:"parse_fallback,omitempty"`
-	ParseFallbackReason string     `json:"parse_fallback_reason,omitempty"`
+	SystemPrompt        string                    `json:"system_prompt"`
+	UserPrompt          string                    `json:"user_prompt"`
+	CoTTrace            string                    `json:"cot_trace"`
+	Decisions           []Decision                `json:"decisions"`
+	RejectedDecisions   []DecisionRouteRejection  `json:"rejected_decisions,omitempty"`
+	RawResponse         string                    `json:"raw_response"`
+	Timestamp           time.Time                 `json:"timestamp"`
+	AIRequestDurationMs int64                     `json:"ai_request_duration_ms,omitempty"`
+	ParseFallback       bool                      `json:"parse_fallback,omitempty"`
+	ParseFallbackReason string                    `json:"parse_fallback_reason,omitempty"`
+}
+
+type DecisionRouteRejection struct {
+	Index    int      `json:"index"`
+	Decision Decision `json:"decision"`
+	Err      error    `json:"-"`
+	Reason   string   `json:"reason"`
 }
 
 // QuantData quantitative data structure (fund flow, position changes, price changes)

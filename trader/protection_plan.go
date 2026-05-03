@@ -272,12 +272,7 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 	var ladderPlan *ProtectionPlan
 	if protection.LadderTPSL.Enabled && protectionFeatureUsesManual(protection.LadderTPSL.Mode) {
 		var err error
-		switch protection.LadderTPSL.Mode {
-		case store.ProtectionModeManual:
-			ladderPlan, err = buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-		case store.ProtectionModeAI:
-			ladderPlan, err = buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-		}
+		ladderPlan, err = buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
 		if err != nil {
 			return nil, err
 		}
@@ -300,16 +295,7 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 
 	// Build full plan, but suppress directions already covered by ladder.
 	if protection.FullTPSL.Enabled && protectionFeatureUsesManual(protection.FullTPSL.Mode) {
-		var (
-			fullPlan *ProtectionPlan
-			err      error
-		)
-		switch protection.FullTPSL.Mode {
-		case store.ProtectionModeManual:
-			fullPlan, err = buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-		case store.ProtectionModeAI:
-			fullPlan, err = buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-		}
+		fullPlan, err := buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
 		if err != nil {
 			return nil, err
 		}

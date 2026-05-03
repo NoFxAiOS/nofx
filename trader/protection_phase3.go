@@ -458,6 +458,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 				Timeframe:           rule.Timeframe,
 				MinProfitPct:        rule.MinProfitPct,
 				MaxDrawdownPct:      rule.MaxDrawdownPct,
+				MaxDrawdownAbsPct:   rule.MaxDrawdownAbsPct,
 				CloseRatioPct:       rule.CloseRatioPct,
 				PollIntervalSeconds: rule.PollIntervalSeconds,
 				ReasonAnchor:        rule.ReasonAnchor,

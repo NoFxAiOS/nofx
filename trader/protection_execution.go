@@ -56,6 +56,10 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		}
 	}
 
+	if at.config.StrategyConfig != nil && protectionRouteRequiresDecisionPlan(at.config.StrategyConfig.Protection, req.Decision.ProtectionPlan, plan) {
+		return fmt.Errorf("AI protection route is enabled but the opening decision did not materialize required protection_plan legs; refusing configured/default protection fallback")
+	}
+
 	// Structural fallback: if plan has no TP/SL orders, try generating from structural levels
 	if plan == nil || (len(plan.TakeProfitOrders) == 0 && !plan.NeedsTakeProfit && len(plan.StopLossOrders) == 0 && !plan.NeedsStopLoss) {
 		if mdata, err := at.getExecutionMarketData(req.Symbol); err == nil && mdata != nil {
@@ -154,6 +158,32 @@ func buildFallbackMaxLossPlan(entryPrice float64, action string, protection stor
 		return nil
 	}
 	return &ProtectionPlan{Mode: "fallback_max_loss", RequiresNativeOrders: true, FallbackMaxLossPrice: roundProtectionPrice(price)}
+}
+
+func protectionRouteRequiresDecisionPlan(protection store.ProtectionConfig, decisionPlan *kernel.AIProtectionPlan, materialized *ProtectionPlan) bool {
+	ladderAI := protection.LadderTPSL.Enabled && protection.LadderTPSL.Mode == store.ProtectionModeAI
+	drawdownAI := protection.DrawdownTakeProfit.Enabled && protection.DrawdownTakeProfit.Mode == store.ProtectionModeAI
+	fullAI := protection.FullTPSL.Enabled && protection.FullTPSL.Mode == store.ProtectionModeAI
+	if !ladderAI && !drawdownAI && !fullAI {
+		return false
+	}
+	if decisionPlan == nil || materialized == nil {
+		return true
+	}
+	mode := strings.ToLower(strings.TrimSpace(decisionPlan.Mode))
+	if ladderAI && drawdownAI {
+		return mode != "combined" || len(materialized.StopLossOrders) == 0 || len(materialized.DrawdownRules) < 2
+	}
+	if ladderAI {
+		return mode != "ladder" || len(materialized.StopLossOrders) == 0
+	}
+	if drawdownAI {
+		return mode != "drawdown" || len(materialized.DrawdownRules) < 2
+	}
+	if fullAI {
+		return mode != "full" || (!materialized.NeedsStopLoss && !materialized.NeedsTakeProfit)
+	}
+	return false
 }
 
 func preferDecisionProtectionPlan(configuredPlan, decisionPlan *ProtectionPlan) *ProtectionPlan {

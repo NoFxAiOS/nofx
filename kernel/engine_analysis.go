@@ -596,14 +596,13 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		}
 		if drawdownAI && ladderAI {
 			if d.ProtectionPlan == nil || planMode != "combined" {
-				logger.Warnf("decision #%d: combined AI protection_plan missing/invalid; open may continue with manual/fallback protection if execution accepts", i+1)
-				continue
+				return fmt.Errorf("decision #%d: current strategy route requires combined protection_plan for open actions (ladder_rules + drawdown_rules); refusing configured/default protection fallback", i+1)
 			}
 			if n := len(d.ProtectionPlan.LadderRules); n < 2 || n > 3 {
 				return fmt.Errorf("decision #%d: combined protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
 			}
-			if len(d.ProtectionPlan.DrawdownRules) == 0 {
-				return fmt.Errorf("decision #%d: combined protection_plan must contain drawdown_rules under current strategy route", i+1)
+			if len(d.ProtectionPlan.DrawdownRules) < 2 {
+				return fmt.Errorf("decision #%d: combined protection_plan must contain at least 2 drawdown_rules under current strategy route", i+1)
 			}
 			for j := range d.ProtectionPlan.LadderRules {
 				rule := &d.ProtectionPlan.LadderRules[j]
@@ -617,7 +616,9 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
 				}
 			}
-			warnDrawdownRulesStructure(i+1, d.ProtectionPlan.DrawdownRules)
+			if err := validateDrawdownRulesStructure(d.ProtectionPlan.DrawdownRules); err != nil {
+				return fmt.Errorf("decision #%d: %w", i+1, err)
+			}
 			continue
 		}
 		if ladderAI && !drawdownAI && !fullAI {
@@ -638,18 +639,19 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		}
 		if drawdownAI {
 			if d.ProtectionPlan == nil || planMode != "drawdown" {
-				logger.Warnf("decision #%d: drawdown AI protection_plan missing/invalid; open may continue with manual/fallback protection if execution accepts", i+1)
-				continue
+				return fmt.Errorf("decision #%d: current strategy route requires drawdown protection_plan for open actions; refusing configured/default drawdown fallback", i+1)
 			}
-			if len(d.ProtectionPlan.DrawdownRules) == 0 {
-				return fmt.Errorf("decision #%d: drawdown protection_plan must contain drawdown_rules under current strategy route", i+1)
+			if len(d.ProtectionPlan.DrawdownRules) < 2 {
+				return fmt.Errorf("decision #%d: drawdown protection_plan must contain at least 2 drawdown_rules under current strategy route", i+1)
 			}
 			for j, rule := range d.ProtectionPlan.DrawdownRules {
 				if strings.TrimSpace(rule.ReasonAnchor) == "" {
 					logger.Warnf("decision #%d drawdown_rule[%d]: missing reason_anchor (structural justification expected)", i+1, j)
 				}
 			}
-			warnDrawdownRulesStructure(i+1, d.ProtectionPlan.DrawdownRules)
+			if err := validateDrawdownRulesStructure(d.ProtectionPlan.DrawdownRules); err != nil {
+				return fmt.Errorf("decision #%d: %w", i+1, err)
+			}
 		}
 	}
 	return nil

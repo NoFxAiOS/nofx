@@ -283,6 +283,7 @@ func parseSSEChatCompletionResponse(body []byte) ([]byte, bool) {
 	}
 	var content strings.Builder
 	var usage json.RawMessage
+	seenSSE := false
 	for _, line := range strings.Split(trimmed, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, ":") {
@@ -295,6 +296,7 @@ func parseSSEChatCompletionResponse(body []byte) ([]byte, bool) {
 		if payload == "" || payload == "[DONE]" {
 			continue
 		}
+		seenSSE = true
 		var chunk struct {
 			Choices []struct {
 				Delta struct {
@@ -319,7 +321,7 @@ func parseSSEChatCompletionResponse(body []byte) ([]byte, bool) {
 			content.WriteString(choice.Message.Content)
 		}
 	}
-	if content.Len() == 0 {
+	if !seenSSE {
 		return nil, false
 	}
 	resp := map[string]any{

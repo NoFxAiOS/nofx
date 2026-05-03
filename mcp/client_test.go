@@ -552,6 +552,20 @@ func TestClient_ParseMCPResponseFull_ParsesSSEDataResponse(t *testing.T) {
 	}
 }
 
+func TestClient_ParseMCPResponseFull_ParsesSSEUsageOnlyAsEmptyContent(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	body := []byte("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":77268,\"completion_tokens\":0,\"total_tokens\":77268}}\n\ndata: [DONE]\n")
+	resp, err := c.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("expected usage-only SSE parse success, got %v", err)
+	}
+	if resp.Content != "" {
+		t.Fatalf("expected empty content, got %q", resp.Content)
+	}
+}
+
 func TestClient_CallWithRequestRetriesPlaintextProxyResponse(t *testing.T) {
 	mockHTTP := NewMockHTTPClient()
 	calls := 0

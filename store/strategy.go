@@ -63,21 +63,70 @@ type StrategyConfig struct {
 }
 
 type EntryStructureConfig struct {
-	Enabled                          bool `json:"enabled"`
-	RequirePrimaryTimeframe          bool `json:"require_primary_timeframe"`
-	RequireAdjacentTimeframes        bool `json:"require_adjacent_timeframes"`
-	RequireSupportResistance         bool `json:"require_support_resistance"`
-	RequireStructuralAnchors         bool `json:"require_structural_anchors"`
-	RequireFibonacci                 bool `json:"require_fibonacci"`
-	MaxSupportLevels                 int  `json:"max_support_levels,omitempty"`
-	MaxResistanceLevels              int  `json:"max_resistance_levels,omitempty"`
-	MaxAnchorCount                   int  `json:"max_anchor_count,omitempty"`
-	AuditPrimaryTimeframe            bool `json:"audit_primary_timeframe,omitempty"`
-	AuditAdjacentTimeframes          bool `json:"audit_adjacent_timeframes,omitempty"`
-	AuditSupportResistance           bool `json:"audit_support_resistance,omitempty"`
-	AuditStructuralAnchors           bool `json:"audit_structural_anchors,omitempty"`
-	AuditFibonacci                   bool `json:"audit_fibonacci,omitempty"`
-	RequireInvalidationTargetLinkage bool `json:"require_invalidation_target_linkage,omitempty"`
+	Enabled                          bool            `json:"enabled"`
+	RequirePrimaryTimeframe          bool            `json:"require_primary_timeframe"`
+	RequireAdjacentTimeframes        bool            `json:"require_adjacent_timeframes"`
+	RequireSupportResistance         bool            `json:"require_support_resistance"`
+	RequireStructuralAnchors         bool            `json:"require_structural_anchors"`
+	RequireFibonacci                 bool            `json:"require_fibonacci"`
+	MaxSupportLevels                 int             `json:"max_support_levels,omitempty"`
+	MaxResistanceLevels              int             `json:"max_resistance_levels,omitempty"`
+	MaxAnchorCount                   int             `json:"max_anchor_count,omitempty"`
+	AuditPrimaryTimeframe            bool            `json:"audit_primary_timeframe,omitempty"`
+	AuditAdjacentTimeframes          bool            `json:"audit_adjacent_timeframes,omitempty"`
+	AuditSupportResistance           bool            `json:"audit_support_resistance,omitempty"`
+	AuditStructuralAnchors           bool            `json:"audit_structural_anchors,omitempty"`
+	AuditFibonacci                   bool            `json:"audit_fibonacci,omitempty"`
+	RequireInvalidationTargetLinkage bool            `json:"require_invalidation_target_linkage,omitempty"`
+	EntryGate                        EntryGateConfig `json:"entry_gate,omitempty"`
+}
+
+// EntryGateConfig controls executable entry-quality gates that validate AI open proposals.
+// It is nested under EntryStructure so it composes with existing entry/protection gates.
+type EntryGateConfig struct {
+	Enabled                     bool    `json:"enabled,omitempty"`
+	MinATR14Pct                 float64 `json:"min_atr14_pct,omitempty"`
+	MinRiskDistancePct          float64 `json:"min_risk_distance_pct,omitempty"`
+	EntryProximityATRMul        float64 `json:"entry_proximity_atr_mul,omitempty"`
+	EntryProximityMinPct        float64 `json:"entry_proximity_min_pct,omitempty"`
+	EntryProximityMaxPct        float64 `json:"entry_proximity_max_pct,omitempty"`
+	InvalidationStructureATRMul float64 `json:"invalidation_structure_atr_mul,omitempty"`
+	InvalidationStructureMinPct float64 `json:"invalidation_structure_min_pct,omitempty"`
+	MaxBlockingLevels           int     `json:"max_blocking_levels,omitempty"`
+	MaxTargetTimeframeRankGap   int     `json:"max_target_timeframe_rank_gap,omitempty"`
+}
+
+func (c EntryGateConfig) WithDefaults() EntryGateConfig {
+	// Default enabled so existing EntryStructure strict mode keeps enforcing executable entry gates.
+	c.Enabled = true
+	if c.MinATR14Pct <= 0 {
+		c.MinATR14Pct = 1.2
+	}
+	if c.MinRiskDistancePct <= 0 {
+		c.MinRiskDistancePct = 0.4
+	}
+	if c.EntryProximityATRMul <= 0 {
+		c.EntryProximityATRMul = 0.6
+	}
+	if c.EntryProximityMinPct <= 0 {
+		c.EntryProximityMinPct = 0.2
+	}
+	if c.EntryProximityMaxPct <= 0 {
+		c.EntryProximityMaxPct = 1.5
+	}
+	if c.InvalidationStructureATRMul <= 0 {
+		c.InvalidationStructureATRMul = 0.5
+	}
+	if c.InvalidationStructureMinPct <= 0 {
+		c.InvalidationStructureMinPct = 0.3
+	}
+	if c.MaxBlockingLevels <= 0 {
+		c.MaxBlockingLevels = 4
+	}
+	if c.MaxTargetTimeframeRankGap <= 0 {
+		c.MaxTargetTimeframeRankGap = 3
+	}
+	return c
 }
 
 type StrategyControlPolicyMode string

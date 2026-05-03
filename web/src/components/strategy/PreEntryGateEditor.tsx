@@ -163,6 +163,55 @@ export function PreEntryGateEditor({ config, onChange, disabled, language }: Pre
             ② {ts(preEntryGate.entryStructure, language)}
           </h4>
         </div>
+
+        <div className="p-3 rounded-lg space-y-3" style={{ background: '#11161C', border: '1px solid #2B3139' }}>
+          <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}>
+            <input
+              type="checkbox"
+              checked={config.entry_structure?.entry_gate?.enabled ?? true}
+              onChange={(e) => update('entry_structure', {
+                ...(config.entry_structure || {}),
+                entry_gate: { ...(config.entry_structure?.entry_gate || {}), enabled: e.target.checked },
+              } as EntryStructureConfig)}
+              disabled={disabled}
+              className="h-4 w-4 accent-amber-500"
+            />
+            {isZh ? '启用 ATR / 入场位置门禁' : 'Enable ATR / entry-position gate'}
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              ['min_atr14_pct', isZh ? '最小 ATR14 %' : 'Min ATR14 %', 1.2, 0.1],
+              ['min_risk_distance_pct', isZh ? '最小止损距离 %' : 'Min risk distance %', 0.4, 0.05],
+              ['entry_proximity_atr_mul', isZh ? '入场贴近 ATR倍数' : 'Entry proximity ATR x', 0.6, 0.1],
+              ['entry_proximity_max_pct', isZh ? '入场最大偏离 %' : 'Max entry gap %', 1.5, 0.1],
+              ['invalidation_structure_atr_mul', isZh ? '止损结构 ATR倍数' : 'Invalidation ATR x', 0.5, 0.1],
+              ['max_blocking_levels', isZh ? '最多路径阻力/支撑层' : 'Max blocking levels', 4, 1],
+            ].map(([key, label, def, step]) => (
+              <div key={key as string}>
+                <label className="block text-[11px] mb-1" style={{ color: '#848E9C' }}>{label as string}</label>
+                <input
+                  type="number"
+                  value={(config.entry_structure?.entry_gate as any)?.[key as string] ?? def}
+                  step={step as number}
+                  min={0}
+                  onChange={(e) => update('entry_structure', {
+                    ...(config.entry_structure || {}),
+                    entry_gate: { ...(config.entry_structure?.entry_gate || {}), [key as string]: parseFloat(e.target.value) || 0 },
+                  } as EntryStructureConfig)}
+                  disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? true)}
+                  className="w-full px-3 py-2 rounded text-sm"
+                  style={inputStyle}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="text-[11px] leading-relaxed" style={{ color: '#F0B90B' }}>
+            {isZh
+              ? '门禁顺序：市场状态/窄波动 → 结构字段 → ATR/入场贴近 → 信心/RR → 保护计划。目标位只用于 RR 与保护分层，不再要求强贴近最近阻力/支撑。'
+              : 'Gate order: market state/narrow volatility → structure fields → ATR/entry proximity → confidence/RR → protection plan. Target is used for RR/protection tiers, not strict nearest S/R alignment.'}
+          </div>
+        </div>
+
         <EntryStructureEditor
           config={config.entry_structure}
           onChange={(entryStructure: EntryStructureConfig) => update('entry_structure', entryStructure)}

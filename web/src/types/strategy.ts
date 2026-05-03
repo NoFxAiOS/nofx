@@ -60,6 +60,20 @@ export interface EntryStructureConfig {
   audit_structural_anchors?: boolean;
   audit_fibonacci?: boolean;
   require_invalidation_target_linkage?: boolean;
+  entry_gate?: EntryGateConfig;
+}
+
+export interface EntryGateConfig {
+  enabled?: boolean;
+  min_atr14_pct?: number;
+  min_risk_distance_pct?: number;
+  entry_proximity_atr_mul?: number;
+  entry_proximity_min_pct?: number;
+  entry_proximity_max_pct?: number;
+  invalidation_structure_atr_mul?: number;
+  invalidation_structure_min_pct?: number;
+  max_blocking_levels?: number;
+  max_target_timeframe_rank_gap?: number;
 }
 
 export interface StrategyConfig {

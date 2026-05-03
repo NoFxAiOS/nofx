@@ -889,29 +889,36 @@ func validateStructuralPriceAlignment(action string, rationale *AIEntryProtectio
 	if config == nil || !config.EntryStructure.Enabled {
 		return nil
 	}
+	gate := config.EntryStructure.EntryGate.WithDefaults()
+	if !gate.Enabled {
+		if err := validateStructuralAnchorCoverage(action, rationale); err != nil {
+			return err
+		}
+		return nil
+	}
 
 	// 1. 检查最小波动率
-	if err := validateMinimumVolatility(rationale); err != nil {
+	if err := validateMinimumVolatility(rationale, gate); err != nil {
 		return err
 	}
 
 	// 2. 检查入场位是否贴近结构位
-	if err := validateEntryProximityToStructure(action, rationale); err != nil {
+	if err := validateEntryProximityToStructure(action, rationale, gate); err != nil {
 		return err
 	}
 
 	// 3. 检查止损位是否在结构失效区
-	if err := validateInvalidationBelowStructure(action, rationale); err != nil {
+	if err := validateInvalidationBelowStructure(action, rationale, gate); err != nil {
 		return err
 	}
 
 	// 4. P1: 检查目标位路径上的阻力密度
-	if err := validateTargetPathClear(action, rationale); err != nil {
+	if err := validateTargetPathClear(action, rationale, gate); err != nil {
 		return err
 	}
 
 	// 5. P1: 检查时间周期一致性
-	if err := validateTimeframeConsistency(rationale); err != nil {
+	if err := validateTimeframeConsistency(rationale, gate); err != nil {
 		return err
 	}
 
@@ -964,7 +971,7 @@ func validateStructuralAnchorCoverage(action string, rationale *AIEntryProtectio
 }
 
 // validateMinimumVolatility 检查波动率是否足够
-func validateMinimumVolatility(rationale *AIEntryProtectionRationale) error {
+func validateMinimumVolatility(rationale *AIEntryProtectionRationale, gate store.EntryGateConfig) error {
 	atrPct := rationale.VolatilityAdjustment.ATR14Pct
 
 	// 如果没有 ATR 数据，使用更宽松的固定容差
@@ -977,7 +984,7 @@ func validateMinimumVolatility(rationale *AIEntryProtectionRationale) error {
 		return nil
 	}
 
-	minATRPct := 1.2
+	minATRPct := gate.MinATR14Pct
 	if atrPct < minATRPct {
 		return fmt.Errorf("ATR %.2f%% too low (min %.2f%%), insufficient volatility", atrPct, minATRPct)
 	}
@@ -985,7 +992,7 @@ func validateMinimumVolatility(rationale *AIEntryProtectionRationale) error {
 	riskDistance := absFloat(rationale.RiskReward.Entry - rationale.RiskReward.Invalidation)
 	riskPct := (riskDistance / entry) * 100
 
-	minRiskPct := 0.4
+	minRiskPct := gate.MinRiskDistancePct
 	if riskPct < minRiskPct {
 		return fmt.Errorf("risk distance %.2f%% too small (min %.2f%%), insufficient room for fees", riskPct, minRiskPct)
 	}
@@ -994,7 +1001,7 @@ func validateMinimumVolatility(rationale *AIEntryProtectionRationale) error {
 }
 
 // validateEntryProximityToStructure 检查入场位是否贴近结构位
-func validateEntryProximityToStructure(action string, rationale *AIEntryProtectionRationale) error {
+func validateEntryProximityToStructure(action string, rationale *AIEntryProtectionRationale, gate store.EntryGateConfig) error {
 	entry := rationale.RiskReward.Entry
 	atrPct := rationale.VolatilityAdjustment.ATR14Pct
 
@@ -1003,12 +1010,12 @@ func validateEntryProximityToStructure(action string, rationale *AIEntryProtecti
 		atrPct = 2.0 // 默认 2% 作为容差基准
 	}
 
-	tolerance := entry * (atrPct / 100) * 0.6
-	if tolerance < entry*0.002 {
-		tolerance = entry * 0.002
+	tolerance := entry * (atrPct / 100) * gate.EntryProximityATRMul
+	if tolerance < entry*(gate.EntryProximityMinPct/100) {
+		tolerance = entry * (gate.EntryProximityMinPct / 100)
 	}
-	if tolerance > entry*0.015 {
-		tolerance = entry * 0.015
+	if tolerance > entry*(gate.EntryProximityMaxPct/100) {
+		tolerance = entry * (gate.EntryProximityMaxPct / 100)
 	}
 
 	supports := filterPositiveLevels(rationale.KeyLevels.Support)
@@ -1040,7 +1047,7 @@ func validateEntryProximityToStructure(action string, rationale *AIEntryProtecti
 }
 
 // validateInvalidationBelowStructure 检查止损位是否在结构失效区
-func validateInvalidationBelowStructure(action string, rationale *AIEntryProtectionRationale) error {
+func validateInvalidationBelowStructure(action string, rationale *AIEntryProtectionRationale, gate store.EntryGateConfig) error {
 	entry := rationale.RiskReward.Entry
 	invalidation := rationale.RiskReward.Invalidation
 	atrPct := rationale.VolatilityAdjustment.ATR14Pct
@@ -1050,9 +1057,9 @@ func validateInvalidationBelowStructure(action string, rationale *AIEntryProtect
 		atrPct = 2.0 // 默认 2% 作为容差基准
 	}
 
-	tolerance := entry * (atrPct / 100) * 0.5
-	if tolerance < entry*0.003 {
-		tolerance = entry * 0.003
+	tolerance := entry * (atrPct / 100) * gate.InvalidationStructureATRMul
+	if tolerance < entry*(gate.InvalidationStructureMinPct/100) {
+		tolerance = entry * (gate.InvalidationStructureMinPct / 100)
 	}
 
 	supports := filterPositiveLevels(rationale.KeyLevels.Support)
@@ -1080,7 +1087,7 @@ func validateInvalidationBelowStructure(action string, rationale *AIEntryProtect
 }
 
 // validateTargetPathClear 检查目标位路径上的阻力密度
-func validateTargetPathClear(action string, rationale *AIEntryProtectionRationale) error {
+func validateTargetPathClear(action string, rationale *AIEntryProtectionRationale, gate store.EntryGateConfig) error {
 	entry := rationale.RiskReward.Entry
 	target := rationale.RiskReward.FirstTarget
 
@@ -1095,7 +1102,7 @@ func validateTargetPathClear(action string, rationale *AIEntryProtectionRational
 				blockingResistances++
 			}
 		}
-		if blockingResistances >= 4 {
+		if blockingResistances >= gate.MaxBlockingLevels {
 			return fmt.Errorf("target path blocked by %d resistance levels", blockingResistances)
 		}
 
@@ -1106,7 +1113,7 @@ func validateTargetPathClear(action string, rationale *AIEntryProtectionRational
 				blockingSupports++
 			}
 		}
-		if blockingSupports >= 4 {
+		if blockingSupports >= gate.MaxBlockingLevels {
 			return fmt.Errorf("target path blocked by %d support levels", blockingSupports)
 		}
 	}
@@ -1115,7 +1122,7 @@ func validateTargetPathClear(action string, rationale *AIEntryProtectionRational
 }
 
 // validateTimeframeConsistency 检查时间周期一致性
-func validateTimeframeConsistency(rationale *AIEntryProtectionRationale) error {
+func validateTimeframeConsistency(rationale *AIEntryProtectionRationale, gate store.EntryGateConfig) error {
 	primary := strings.TrimSpace(rationale.TimeframeContext.Primary)
 	if primary == "" {
 		return nil
@@ -1139,7 +1146,7 @@ func validateTimeframeConsistency(rationale *AIEntryProtectionRationale) error {
 			if !ok {
 				continue
 			}
-			if anchorRank > primaryRank+3 {
+			if anchorRank > primaryRank+gate.MaxTargetTimeframeRankGap {
 				return fmt.Errorf("target timeframe %s too high for primary %s", anchorTF, primary)
 			}
 		}
@@ -1153,7 +1160,7 @@ func validateTimeframeConsistency(rationale *AIEntryProtectionRationale) error {
 			if !ok {
 				continue
 			}
-			if anchorRank > primaryRank+3 {
+			if anchorRank > primaryRank+gate.MaxTargetTimeframeRankGap {
 				return fmt.Errorf("higher target timeframe %s too high for primary %s", anchorTF, primary)
 			}
 		}
@@ -1165,7 +1172,6 @@ func validateTimeframeConsistency(rationale *AIEntryProtectionRationale) error {
 func validateStructuralLevelProximity(action string, rationale *AIEntryProtectionRationale, riskDistance, rewardDistance float64) error {
 	return nil
 }
-
 
 func structuralReferenceLevels(rationale *AIEntryProtectionRationale) (invalidationRefs []float64, targetRefs []float64) {
 	if rationale == nil {

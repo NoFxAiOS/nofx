@@ -494,6 +494,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 type UpdateAIControlsRequest struct {
 	AllowAIOpen    *bool  `json:"allow_ai_open"`
 	AllowAIClose   *bool  `json:"allow_ai_close"`
+	ClearSafeMode  *bool  `json:"clear_safe_mode"`
 	AIDecisionMode string `json:"ai_decision_mode"`
 }
 
@@ -507,7 +508,7 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
-	if req.AllowAIOpen == nil && req.AllowAIClose == nil && req.AIDecisionMode == "" {
+	if req.AllowAIOpen == nil && req.AllowAIClose == nil && req.AIDecisionMode == "" && (req.ClearSafeMode == nil || !*req.ClearSafeMode) {
 		SafeBadRequest(c, "No AI control fields provided")
 		return
 	}
@@ -546,6 +547,9 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 		at.SetAllowAIOpen(allowAIOpen)
 		at.SetAllowAIClose(allowAIClose)
 		at.SetAIDecisionMode(aiDecisionMode)
+		if req.ClearSafeMode != nil && *req.ClearSafeMode {
+			at.ClearSafeMode("manual clear via AI controls API")
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -553,6 +557,7 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 		"allow_ai_open":    allowAIOpen,
 		"allow_ai_close":   allowAIClose,
 		"ai_decision_mode": aiDecisionMode,
+		"clear_safe_mode":  req.ClearSafeMode != nil && *req.ClearSafeMode,
 	})
 }
 

@@ -220,6 +220,23 @@ export function TraderDashboardPage({
             setSavingAIControls(false)
         }
     }
+    const clearSafeMode = async () => {
+        if (!selectedTraderId) return
+        setSavingAIControls(true)
+        try {
+            await api.updateTraderAIControls(selectedTraderId, { clear_safe_mode: true })
+            notify.success('Safe mode cleared. Trader will retry AI on the next cycle.')
+            await Promise.all([
+                mutate(`${selectedTraderId}-status`),
+                mutate('public-traders'),
+            ])
+        } catch (err) {
+            notify.error(err instanceof Error ? err.message : 'Failed to clear safe mode')
+            throw err
+        } finally {
+            setSavingAIControls(false)
+        }
+    }
 
 
     // Get current exchange info for perp-dex wallet display
@@ -614,9 +631,20 @@ export function TraderDashboardPage({
                             </span>
                         )}
                         {status?.safe_mode_reason && (
-                            <span className="max-w-[280px] truncate" title={status.safe_mode_reason}>
+                            <span className="max-w-[720px] whitespace-normal break-words rounded border border-white/10 bg-black/20 px-2 py-1" title={status.safe_mode_reason}>
                                 Reason: <span className="text-nofx-text-main">{status.safe_mode_reason}</span>
                             </span>
+                        )}
+                        {status?.safe_mode && (
+                            <button
+                                type="button"
+                                disabled={savingAIControls}
+                                onClick={() => clearSafeMode().catch(() => undefined)}
+                                className="px-2 py-0.5 rounded border border-emerald-400/40 bg-emerald-400/10 text-emerald-300 font-semibold hover:bg-emerald-400/20 disabled:opacity-50"
+                                title="Clear safe mode and let the trader retry AI on the next cycle"
+                            >
+                                CLEAR SAFE MODE
+                            </button>
                         )}
                         {status && (
                             <div className="hidden md:contents">

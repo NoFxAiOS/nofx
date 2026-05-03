@@ -677,6 +677,18 @@ func (at *AutoTrader) SetProtectOnlyMode(enabled bool, reason string) {
 	at.safeModeReason = ""
 }
 
+// ClearSafeMode manually exits transient safe mode. Protect-only mode is also
+// cleared because this is an explicit operator recovery action.
+func (at *AutoTrader) ClearSafeMode(reason string) {
+	at.safeMode = false
+	at.safeModeReason = ""
+	at.consecutiveAIFailures = 0
+	if reason == "" {
+		reason = "manual safe-mode clear"
+	}
+	logger.Warnf("🛡️ [%s] SAFE MODE CLEARED — %s", at.name, reason)
+}
+
 // SetAllowAIClose updates whether AI can actively close positions
 func (at *AutoTrader) SetAllowAIClose(allow bool) {
 	at.allowAIClose = allow

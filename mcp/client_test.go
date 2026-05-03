@@ -538,6 +538,20 @@ func TestClient_ParseMCPResponseFull_InvalidJSONIncludesBodyPreview(t *testing.T
 	}
 }
 
+func TestClient_ParseMCPResponseFull_ParsesSSEDataResponse(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	body := []byte("data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\" world\"}}]}\n\ndata: [DONE]\n")
+	resp, err := c.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("expected SSE parse success, got %v", err)
+	}
+	if resp.Content != "hello world" {
+		t.Fatalf("unexpected SSE content %q", resp.Content)
+	}
+}
+
 func TestClient_CallWithRequestRetriesPlaintextProxyResponse(t *testing.T) {
 	mockHTTP := NewMockHTTPClient()
 	calls := 0

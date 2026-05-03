@@ -276,7 +276,72 @@ func (client *Client) ParseMCPResponse(body []byte) (string, error) {
 // the text content and any tool calls.
 // Handles API proxies that may return content in alternative fields
 // (e.g. reasoning_content, refusal) or return content as null.
+func parseSSEChatCompletionResponse(body []byte) ([]byte, bool) {
+	trimmed := strings.TrimSpace(string(body))
+	if !strings.HasPrefix(trimmed, "data:") {
+		return nil, false
+	}
+	var content strings.Builder
+	var usage json.RawMessage
+	for _, line := range strings.Split(trimmed, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, ":") {
+			continue
+		}
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content          string `json:"content"`
+					ReasoningContent string `json:"reasoning_content"`
+				} `json:"delta"`
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+			Usage json.RawMessage `json:"usage"`
+		}
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			return nil, false
+		}
+		if len(chunk.Usage) > 0 {
+			usage = chunk.Usage
+		}
+		for _, choice := range chunk.Choices {
+			content.WriteString(choice.Delta.Content)
+			content.WriteString(choice.Delta.ReasoningContent)
+			content.WriteString(choice.Message.Content)
+		}
+	}
+	if content.Len() == 0 {
+		return nil, false
+	}
+	resp := map[string]any{
+		"choices": []map[string]any{{"message": map[string]any{"content": content.String()}}},
+	}
+	if len(usage) > 0 {
+		var usageAny any
+		if json.Unmarshal(usage, &usageAny) == nil {
+			resp["usage"] = usageAny
+		}
+	}
+	out, err := json.Marshal(resp)
+	if err != nil {
+		return nil, false
+	}
+	return out, true
+}
+
 func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
+	if parsed, ok := parseSSEChatCompletionResponse(body); ok {
+		body = parsed
+	}
 	// First pass: use raw JSON to handle content:null and alternative fields
 	var raw struct {
 		Choices []struct {

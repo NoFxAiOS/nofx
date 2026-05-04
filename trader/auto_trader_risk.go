@@ -337,28 +337,35 @@ func (at *AutoTrader) restoreAIProtectionPlanForPositionWithEntry(symbol, side s
 	if at == nil || at.store == nil || symbol == "" || side == "" {
 		return nil
 	}
+	entryDecisionCycle := 0
+	entryPrice := fallbackEntryPrice
 	pos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side))
-	if err != nil || pos == nil {
-		return nil
-	}
-	if pos.EntryDecisionCycle <= 0 {
-		if inferred := at.store.Position().FindEntryDecisionCycleForPosition(at.id, symbol, strings.ToUpper(side), pos.EntryTime); inferred > 0 {
-			pos.EntryDecisionCycle = inferred
-			_ = at.store.Position().BackfillEntryDecisionCycle(pos.ID, inferred)
+	if err == nil && pos != nil {
+		entryDecisionCycle = pos.EntryDecisionCycle
+		if entryPrice <= 0 {
+			entryPrice = pos.EntryPrice
+		}
+		if entryDecisionCycle <= 0 {
+			if inferred := at.store.Position().FindEntryDecisionCycleForPosition(at.id, symbol, strings.ToUpper(side), pos.EntryTime); inferred > 0 {
+				entryDecisionCycle = inferred
+				_ = at.store.Position().BackfillEntryDecisionCycle(pos.ID, inferred)
+			}
 		}
 	}
-	if pos.EntryDecisionCycle <= 0 {
+	// If local position state is stale/missing but exchange still reports an active
+	// position, fall back to the latest matching open decision. This keeps mandatory
+	// ladder SL repair alive even when position sync marked a live position CLOSED.
+	if entryDecisionCycle <= 0 {
+		entryDecisionCycle = at.store.Position().FindEntryDecisionCycleForPosition(at.id, symbol, strings.ToUpper(side), 0)
+	}
+	if entryDecisionCycle <= 0 {
 		return nil
 	}
-	record, err := at.store.Decision().GetRecordByCycle(at.id, pos.EntryDecisionCycle)
+	record, err := at.store.Decision().GetRecordByCycle(at.id, entryDecisionCycle)
 	if err != nil || record == nil {
 		return nil
 	}
 	action := sideToOpenAction(side)
-	entryPrice := pos.EntryPrice
-	if entryPrice <= 0 {
-		entryPrice = fallbackEntryPrice
-	}
 	if entryPrice <= 0 {
 		entryPrice = recordActionPrice(record, symbol, action)
 	}

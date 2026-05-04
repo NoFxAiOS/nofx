@@ -354,6 +354,15 @@ type BreakEvenStopConfig struct {
 	TriggerMode  BreakEvenTriggerMode `json:"trigger_mode,omitempty"`
 	TriggerValue float64              `json:"trigger_value,omitempty"`
 	OffsetPct    float64              `json:"offset_pct,omitempty"`
+	Rules        []BreakEvenStopRule  `json:"rules,omitempty"`
+}
+
+type BreakEvenStopRule struct {
+	TriggerMode   BreakEvenTriggerMode `json:"trigger_mode,omitempty"`
+	TriggerValue  float64              `json:"trigger_value,omitempty"`
+	OffsetPct     float64              `json:"offset_pct,omitempty"`
+	CloseRatioPct float64              `json:"close_ratio_pct,omitempty"`
+	StageName     string               `json:"stage_name,omitempty"`
 }
 
 type RegimeTrendAlignmentMode string

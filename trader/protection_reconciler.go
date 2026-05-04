@@ -335,29 +335,23 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	markPrice, _ := at.getPositionMarkPrice(symbol, side)
 	currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
 
-	be := at.getActiveBreakEvenConfigForPlan(plan)
+	beRules := at.getActiveBreakEvenRules()
 	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
 	if at.isBreakEvenSuppressedByRunner(symbol, side) {
-		be = nil
+		beRules = nil
 	}
-	if be != nil && at.GetProtectionCapabilities().NativeStopLoss {
+	if len(beRules) > 0 && at.GetProtectionCapabilities().NativeStopLoss {
 		if prevBreakEvenArmed && fingerprintChanged {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even fingerprint changed, re-arming native stop", symbol, positionSide)
-			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
+			if err := at.applyBreakEvenStops(symbol, side, quantity, entryPrice, currentPnLPct, beRules); err != nil {
 				return result, fmt.Errorf("re-arm break-even native stop: %w", err)
 			}
-			at.setBreakEvenState(symbol, side, "armed")
-		} else if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
-			logger.Infof("🛠 Protection reconciler: %s %s break-even trigger met (%.2f%% >= %.2f%%), applying native stop", symbol, positionSide, currentPnLPct, be.TriggerValue)
-			// Mark as arming before placement so overlapping reconcile turns do not race and
-			// place duplicate native break-even stops for the same position snapshot.
-			at.setBreakEvenState(symbol, side, "arming")
-			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
+		} else if at.getBreakEvenState(symbol, side) != "armed" {
+			if err := at.applyBreakEvenStops(symbol, side, quantity, entryPrice, currentPnLPct, beRules); err != nil {
 				at.setBreakEvenState(symbol, side, "pending")
 				return result, fmt.Errorf("apply break-even native stop: %w", err)
 			}
-			at.setBreakEvenState(symbol, side, "armed")
 		}
 	}
 

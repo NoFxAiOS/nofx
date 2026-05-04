@@ -152,20 +152,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			logger.Infof("🟠 Drawdown monitor: %s %s drawdown entry fingerprint changed, clearing previous execution guard", symbol, side)
 		}
 
-		matchedBreakEven := at.getActiveBreakEvenConfig()
-		if matchedBreakEven != nil {
+		matchedBreakEvenRules := at.getActiveBreakEvenRules()
+		if len(matchedBreakEvenRules) > 0 {
 			if at.isBreakEvenSuppressedByRunner(symbol, side) {
 				logger.Infof("🟠 Break-even monitor: %s %s suppressed by runner semantics, skipping mechanical BE apply", symbol, side)
 			} else {
-				beState := at.getBreakEvenState(symbol, side)
-				if beState == "armed" || beState == "arming" {
-					logger.Infof("🟠 Break-even monitor: %s %s already %s, skipping duplicate apply", symbol, side, beState)
-				} else {
-					if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
-						logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
-					} else if currentPnLPct >= matchedBreakEven.TriggerValue {
-						at.setBreakEvenState(symbol, side, "armed")
-					}
+				if err := at.applyBreakEvenStops(symbol, side, quantity, entryPrice, currentPnLPct, matchedBreakEvenRules); err != nil {
+					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
 				}
 			}
 		}
@@ -1547,27 +1540,89 @@ func (at *AutoTrader) getActiveBreakEvenConfigForPlan(plan *ProtectionPlan) *sto
 }
 
 func (at *AutoTrader) getActiveBreakEvenConfig() *store.BreakEvenStopConfig {
-	if at.config.StrategyConfig == nil {
+	rules := at.getActiveBreakEvenRules()
+	if len(rules) == 0 || at == nil || at.config.StrategyConfig == nil {
 		return nil
 	}
+	cfg := at.config.StrategyConfig.Protection.BreakEvenStop
+	cfg.TriggerMode = rules[0].TriggerMode
+	cfg.TriggerValue = rules[0].TriggerValue
+	cfg.OffsetPct = rules[0].OffsetPct
+	return &cfg
+}
 
+func (at *AutoTrader) getActiveBreakEvenRules() []store.BreakEvenStopRule {
+	if at == nil || at.config.StrategyConfig == nil {
+		return nil
+	}
 	cfg := at.config.StrategyConfig.Protection.BreakEvenStop
 	if !cfg.Enabled {
 		return nil
 	}
-	if cfg.TriggerMode != store.BreakEvenTriggerProfitPct {
-		return nil
+	rules := cfg.Rules
+	if len(rules) == 0 && cfg.TriggerValue > 0 {
+		rules = []store.BreakEvenStopRule{{TriggerMode: cfg.TriggerMode, TriggerValue: cfg.TriggerValue, OffsetPct: cfg.OffsetPct, CloseRatioPct: 100, StageName: "BE1"}}
 	}
-	if cfg.TriggerValue <= 0 {
-		return nil
+	out := make([]store.BreakEvenStopRule, 0, len(rules))
+	remaining := 100.0
+	for _, rule := range rules {
+		if rule.TriggerMode == "" {
+			rule.TriggerMode = cfg.TriggerMode
+		}
+		if rule.TriggerMode != store.BreakEvenTriggerProfitPct || rule.TriggerValue <= 0 {
+			continue
+		}
+		if rule.OffsetPct < 0 {
+			rule.OffsetPct = 0
+		}
+		if rule.CloseRatioPct <= 0 {
+			rule.CloseRatioPct = 100
+		}
+		if rule.CloseRatioPct > remaining {
+			rule.CloseRatioPct = remaining
+		}
+		if rule.CloseRatioPct <= 0 {
+			continue
+		}
+		out = append(out, rule)
+		remaining -= rule.CloseRatioPct
 	}
-	if cfg.OffsetPct < 0 {
-		cfg.OffsetPct = 0
-	}
-	return &cfg
+	return out
 }
 
-func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPrice, currentPnLPct float64, cfg store.BreakEvenStopConfig) error {
+func (at *AutoTrader) applyBreakEvenStops(symbol, side string, quantity, entryPrice, currentPnLPct float64, rules []store.BreakEvenStopRule) error {
+	if len(rules) == 0 {
+		return nil
+	}
+	applied := false
+	for idx, rule := range rules {
+		if currentPnLPct < rule.TriggerValue {
+			continue
+		}
+		if rule.CloseRatioPct <= 0 {
+			rule.CloseRatioPct = 100
+		}
+		ruleQty := quantity * rule.CloseRatioPct / 100.0
+		if ruleQty <= 0 {
+			continue
+		}
+		cfg := store.BreakEvenStopConfig{Enabled: true, Mode: store.ProtectionModeManual, TriggerMode: rule.TriggerMode, TriggerValue: rule.TriggerValue, OffsetPct: rule.OffsetPct}
+		stage := rule.StageName
+		if stage == "" {
+			stage = fmt.Sprintf("BE%d", idx+1)
+		}
+		if err := at.applyBreakEvenStop(symbol, side, ruleQty, entryPrice, currentPnLPct, cfg, stage); err != nil {
+			return err
+		}
+		applied = true
+	}
+	if applied {
+		at.setBreakEvenState(symbol, side, "armed")
+	}
+	return nil
+}
+
+func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPrice, currentPnLPct float64, cfg store.BreakEvenStopConfig, stageName ...string) error {
 	if currentPnLPct < cfg.TriggerValue || entryPrice <= 0 || quantity <= 0 {
 		return nil
 	}
@@ -1580,6 +1635,10 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 		return fmt.Errorf("exchange %s does not support native stop loss for break-even", at.exchange)
 	}
 
+	stage := "BE"
+	if len(stageName) > 0 && stageName[0] != "" {
+		stage = stageName[0]
+	}
 	breakEvenPrice := calculateBreakEvenStopPrice(side, entryPrice, cfg.OffsetPct)
 	if breakEvenPrice <= 0 {
 		return fmt.Errorf("invalid break-even stop price calculated for %s %s", symbol, side)
@@ -1592,7 +1651,7 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 	if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
 		if hasMatchingProtectionOrder(openOrders, positionSide, false, breakEvenPrice) {
 			logger.Infof("🟠 Break-even stop already live: %s %s | stop=%.6f", symbol, side, breakEvenPrice)
-			at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct), 0, "armed", "", breakEvenPrice, 0, quantity)
+			at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%s", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct, stage), 0, "armed", "", breakEvenPrice, 0, quantity)
 			return nil
 		}
 	} else {
@@ -1635,9 +1694,9 @@ func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPri
 		return fmt.Errorf("break-even stop verification failed for %s %s at %.6f after %d attempts", symbol, side, breakEvenPrice, protectionVerifyMaxAttempts)
 	}
 
-	logger.Infof("🟠 Break-even stop applied: %s %s | trigger=%.2f%% current=%.2f%% stop=%.6f",
-		symbol, side, cfg.TriggerValue, currentPnLPct, breakEvenPrice)
-	at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct), 0, "armed", "", breakEvenPrice, 0, quantity)
+	logger.Infof("🟠 Break-even stop applied: %s %s | stage=%s trigger=%.2f%% current=%.2f%% qty=%.6f stop=%.6f",
+		symbol, side, stage, cfg.TriggerValue, currentPnLPct, quantity, breakEvenPrice)
+	at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%s", entryPrice, quantity, cfg.TriggerValue, cfg.OffsetPct, stage), 0, "armed", "", breakEvenPrice, 0, quantity)
 	return nil
 }
 

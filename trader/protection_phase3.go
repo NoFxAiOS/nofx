@@ -419,6 +419,15 @@ func clampAIDrawdownCloseRatio(rule store.DrawdownTakeProfitRule, cfg store.Draw
 		}
 	} else if isEarlyRule {
 		rule.CloseRatioPct = minPositive(rule.CloseRatioPct, maxFirstReduce)
+	} else if len(strings.TrimSpace(rule.StageName+rule.ReasonAnchor)) > 0 {
+		stageText := strings.ToLower(rule.StageName + " " + rule.ReasonAnchor)
+		if strings.Contains(stageText, "first") || strings.Contains(stageText, "第一") || strings.Contains(stageText, "t1") {
+			rule.CloseRatioPct = 65
+		} else if strings.Contains(stageText, "second") || strings.Contains(stageText, "第二") || strings.Contains(stageText, "t2") {
+			rule.CloseRatioPct = minPositive(rule.CloseRatioPct, 25)
+		} else if strings.Contains(stageText, "outer") || strings.Contains(stageText, "final") || strings.Contains(stageText, "最外") || strings.Contains(stageText, "t3") {
+			rule.CloseRatioPct = minPositive(rule.CloseRatioPct, 10)
+		}
 	}
 	if rule.RunnerKeepPct > 0 && rule.CloseRatioPct > 100-rule.RunnerKeepPct {
 		rule.CloseRatioPct = 100 - rule.RunnerKeepPct
@@ -432,7 +441,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 	}
 
 	mode := strings.ToLower(plan.Mode)
-	drawdownCfg := store.DrawdownTakeProfitConfig{EngineMode: store.DrawdownEngineModeAI, RunnerEnabled: true, MinRunnerKeepPct: 30, MaxFirstReducePct: 60}
+	drawdownCfg := store.DrawdownTakeProfitConfig{EngineMode: store.DrawdownEngineModeAI, RunnerEnabled: true, MinRunnerKeepPct: 30, MaxFirstReducePct: 65}
 	if len(cfgs) > 0 && cfgs[0] != nil {
 		drawdownCfg = cfgs[0].Protection.DrawdownTakeProfit
 	}

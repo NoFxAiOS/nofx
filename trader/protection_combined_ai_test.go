@@ -112,8 +112,8 @@ func TestBuildAIProtectionPlanClampsEarlyFullDrawdownClose(t *testing.T) {
 	if len(plan.DrawdownRules) != 2 {
 		t.Fatalf("expected drawdown rules, got %+v", plan.DrawdownRules)
 	}
-	if plan.DrawdownRules[0].CloseRatioPct != 60 {
-		t.Fatalf("expected early/full drawdown close to be clamped to 60%%, got %.2f", plan.DrawdownRules[0].CloseRatioPct)
+	if plan.DrawdownRules[0].CloseRatioPct != 65 {
+		t.Fatalf("expected early/full drawdown close to be clamped to 65%%, got %.2f", plan.DrawdownRules[0].CloseRatioPct)
 	}
 	if plan.DrawdownRules[1].CloseRatioPct != 70 {
 		t.Fatalf("expected runner drawdown to preserve 30%% runner, got %.2f", plan.DrawdownRules[1].CloseRatioPct)

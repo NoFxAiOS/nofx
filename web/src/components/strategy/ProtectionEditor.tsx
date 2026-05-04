@@ -1,4 +1,12 @@
-import { ShieldCheck, TrendingDown, Layers, Activity, RotateCcw, Plus, Trash2 } from 'lucide-react'
+import {
+  ShieldCheck,
+  TrendingDown,
+  Layers,
+  Activity,
+  RotateCcw,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import type {
   ProtectionConfig,
   FullTPSLConfig,
@@ -7,10 +15,10 @@ import type {
   BreakEvenStopConfig,
   LadderTPSLRule,
   DrawdownTakeProfitRule,
+  BreakEvenStopRule,
   ProtectionMode,
   ProtectionValueSource,
 } from '../../types'
-
 
 interface ProtectionEditorProps {
   config: ProtectionConfig
@@ -50,7 +58,14 @@ export const defaultProtectionConfig: ProtectionConfig = {
     min_runner_keep_pct: 20,
     max_first_reduce_pct: 60,
     break_even_runner_policy: 'fallback_only',
-    rules: [{ min_profit_pct: 5, max_drawdown_pct: 40, close_ratio_pct: 100, poll_interval_seconds: 60 }],
+    rules: [
+      {
+        min_profit_pct: 5,
+        max_drawdown_pct: 40,
+        close_ratio_pct: 100,
+        poll_interval_seconds: 60,
+      },
+    ],
   },
   break_even_stop: {
     enabled: false,
@@ -58,6 +73,15 @@ export const defaultProtectionConfig: ProtectionConfig = {
     trigger_mode: 'profit_pct',
     trigger_value: 3,
     offset_pct: 0.1,
+    rules: [
+      {
+        trigger_mode: 'profit_pct',
+        trigger_value: 0.7,
+        offset_pct: 0.3,
+        close_ratio_pct: 100,
+        stage_name: 'BE1',
+      },
+    ],
   },
   regime_filter: {
     enabled: false,
@@ -70,39 +94,81 @@ export const defaultProtectionConfig: ProtectionConfig = {
   },
 }
 
-export const normalizeProtectionConfig = (config?: Partial<ProtectionConfig> | null): ProtectionConfig => ({
+export const normalizeProtectionConfig = (
+  config?: Partial<ProtectionConfig> | null
+): ProtectionConfig => ({
   ...defaultProtectionConfig,
   ...config,
   full_tp_sl: {
     ...defaultProtectionConfig.full_tp_sl,
     ...(config?.full_tp_sl || {}),
-    take_profit: { ...defaultProtectionConfig.full_tp_sl.take_profit, ...(config?.full_tp_sl?.take_profit || {}) },
-    stop_loss: { ...defaultProtectionConfig.full_tp_sl.stop_loss, ...(config?.full_tp_sl?.stop_loss || {}) },
-    fallback_max_loss: { ...defaultProtectionConfig.full_tp_sl.fallback_max_loss, ...(config?.full_tp_sl?.fallback_max_loss || {}) },
+    take_profit: {
+      ...defaultProtectionConfig.full_tp_sl.take_profit,
+      ...(config?.full_tp_sl?.take_profit || {}),
+    },
+    stop_loss: {
+      ...defaultProtectionConfig.full_tp_sl.stop_loss,
+      ...(config?.full_tp_sl?.stop_loss || {}),
+    },
+    fallback_max_loss: {
+      ...defaultProtectionConfig.full_tp_sl.fallback_max_loss,
+      ...(config?.full_tp_sl?.fallback_max_loss || {}),
+    },
   },
   ladder_tp_sl: {
     ...defaultProtectionConfig.ladder_tp_sl,
     ...(config?.ladder_tp_sl || {}),
-    take_profit_price: { ...defaultProtectionConfig.ladder_tp_sl.take_profit_price, ...(config?.ladder_tp_sl?.take_profit_price || {}) },
-    take_profit_size: { ...defaultProtectionConfig.ladder_tp_sl.take_profit_size, ...(config?.ladder_tp_sl?.take_profit_size || {}) },
-    stop_loss_price: { ...defaultProtectionConfig.ladder_tp_sl.stop_loss_price, ...(config?.ladder_tp_sl?.stop_loss_price || {}) },
-    stop_loss_size: { ...defaultProtectionConfig.ladder_tp_sl.stop_loss_size, ...(config?.ladder_tp_sl?.stop_loss_size || {}) },
-    fallback_max_loss: { ...defaultProtectionConfig.ladder_tp_sl.fallback_max_loss, ...(config?.ladder_tp_sl?.fallback_max_loss || {}) },
-    rules: config?.ladder_tp_sl?.rules || defaultProtectionConfig.ladder_tp_sl.rules,
+    take_profit_price: {
+      ...defaultProtectionConfig.ladder_tp_sl.take_profit_price,
+      ...(config?.ladder_tp_sl?.take_profit_price || {}),
+    },
+    take_profit_size: {
+      ...defaultProtectionConfig.ladder_tp_sl.take_profit_size,
+      ...(config?.ladder_tp_sl?.take_profit_size || {}),
+    },
+    stop_loss_price: {
+      ...defaultProtectionConfig.ladder_tp_sl.stop_loss_price,
+      ...(config?.ladder_tp_sl?.stop_loss_price || {}),
+    },
+    stop_loss_size: {
+      ...defaultProtectionConfig.ladder_tp_sl.stop_loss_size,
+      ...(config?.ladder_tp_sl?.stop_loss_size || {}),
+    },
+    fallback_max_loss: {
+      ...defaultProtectionConfig.ladder_tp_sl.fallback_max_loss,
+      ...(config?.ladder_tp_sl?.fallback_max_loss || {}),
+    },
+    rules:
+      config?.ladder_tp_sl?.rules || defaultProtectionConfig.ladder_tp_sl.rules,
   },
   drawdown_take_profit: {
     ...defaultProtectionConfig.drawdown_take_profit,
     ...(config?.drawdown_take_profit || {}),
-    engine_mode: config?.drawdown_take_profit?.engine_mode || (config?.drawdown_take_profit?.mode === 'ai' ? 'ai' : 'manual'),
-    runner_enabled: config?.drawdown_take_profit?.runner_enabled ?? defaultProtectionConfig.drawdown_take_profit.runner_enabled,
-    min_runner_keep_pct: config?.drawdown_take_profit?.min_runner_keep_pct ?? defaultProtectionConfig.drawdown_take_profit.min_runner_keep_pct,
-    max_first_reduce_pct: config?.drawdown_take_profit?.max_first_reduce_pct ?? defaultProtectionConfig.drawdown_take_profit.max_first_reduce_pct,
-    break_even_runner_policy: config?.drawdown_take_profit?.break_even_runner_policy || defaultProtectionConfig.drawdown_take_profit.break_even_runner_policy,
-    rules: config?.drawdown_take_profit?.rules || defaultProtectionConfig.drawdown_take_profit.rules,
+    engine_mode:
+      config?.drawdown_take_profit?.engine_mode ||
+      (config?.drawdown_take_profit?.mode === 'ai' ? 'ai' : 'manual'),
+    runner_enabled:
+      config?.drawdown_take_profit?.runner_enabled ??
+      defaultProtectionConfig.drawdown_take_profit.runner_enabled,
+    min_runner_keep_pct:
+      config?.drawdown_take_profit?.min_runner_keep_pct ??
+      defaultProtectionConfig.drawdown_take_profit.min_runner_keep_pct,
+    max_first_reduce_pct:
+      config?.drawdown_take_profit?.max_first_reduce_pct ??
+      defaultProtectionConfig.drawdown_take_profit.max_first_reduce_pct,
+    break_even_runner_policy:
+      config?.drawdown_take_profit?.break_even_runner_policy ||
+      defaultProtectionConfig.drawdown_take_profit.break_even_runner_policy,
+    rules:
+      config?.drawdown_take_profit?.rules ||
+      defaultProtectionConfig.drawdown_take_profit.rules,
   },
   break_even_stop: {
     ...defaultProtectionConfig.break_even_stop,
     ...(config?.break_even_stop || {}),
+    rules:
+      config?.break_even_stop?.rules ||
+      defaultProtectionConfig.break_even_stop.rules,
   },
   regime_filter: {
     ...defaultProtectionConfig.regime_filter,
@@ -110,7 +176,12 @@ export const normalizeProtectionConfig = (config?: Partial<ProtectionConfig> | n
   },
 })
 
-export function ProtectionEditor({ config, onChange, disabled, language }: ProtectionEditorProps) {
+export function ProtectionEditor({
+  config,
+  onChange,
+  disabled,
+  language,
+}: ProtectionEditorProps) {
   const isZh = language === 'zh'
 
   const inputStyle = {
@@ -129,15 +200,24 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     border: '1px solid #2B3139',
   }
 
-  const updateSection = <K extends keyof ProtectionConfig>(key: K, value: ProtectionConfig[K]) => {
+  const updateSection = <K extends keyof ProtectionConfig>(
+    key: K,
+    value: ProtectionConfig[K]
+  ) => {
     if (!disabled) onChange({ ...config, [key]: value })
   }
 
-  const updateFull = <K extends keyof FullTPSLConfig>(key: K, value: FullTPSLConfig[K]) => {
+  const updateFull = <K extends keyof FullTPSLConfig>(
+    key: K,
+    value: FullTPSLConfig[K]
+  ) => {
     updateSection('full_tp_sl', { ...config.full_tp_sl, [key]: value })
   }
 
-  const updateLadder = <K extends keyof LadderTPSLConfig>(key: K, value: LadderTPSLConfig[K]) => {
+  const updateLadder = <K extends keyof LadderTPSLConfig>(
+    key: K,
+    value: LadderTPSLConfig[K]
+  ) => {
     let next: LadderTPSLConfig = { ...config.ladder_tp_sl, [key]: value }
     if (key === 'mode' && value === 'ai') {
       next = {
@@ -145,25 +225,50 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
         enabled: true,
         take_profit_enabled: true,
         stop_loss_enabled: true,
-        take_profit_price: updateValueSource(next.take_profit_price, { mode: 'ai', value: 0 }),
-        take_profit_size: updateValueSource(next.take_profit_size, { mode: 'ai', value: 0 }),
-        stop_loss_price: updateValueSource(next.stop_loss_price, { mode: 'ai', value: 0 }),
-        stop_loss_size: updateValueSource(next.stop_loss_size, { mode: 'ai', value: 0 }),
+        take_profit_price: updateValueSource(next.take_profit_price, {
+          mode: 'ai',
+          value: 0,
+        }),
+        take_profit_size: updateValueSource(next.take_profit_size, {
+          mode: 'ai',
+          value: 0,
+        }),
+        stop_loss_price: updateValueSource(next.stop_loss_price, {
+          mode: 'ai',
+          value: 0,
+        }),
+        stop_loss_size: updateValueSource(next.stop_loss_size, {
+          mode: 'ai',
+          value: 0,
+        }),
       }
     }
     updateSection('ladder_tp_sl', next)
   }
 
-  const updateDrawdown = <K extends keyof DrawdownTakeProfitConfig>(key: K, value: DrawdownTakeProfitConfig[K]) => {
-    updateSection('drawdown_take_profit', { ...config.drawdown_take_profit, [key]: value })
+  const updateDrawdown = <K extends keyof DrawdownTakeProfitConfig>(
+    key: K,
+    value: DrawdownTakeProfitConfig[K]
+  ) => {
+    updateSection('drawdown_take_profit', {
+      ...config.drawdown_take_profit,
+      [key]: value,
+    })
   }
 
-  const updateBreakEven = <K extends keyof BreakEvenStopConfig>(key: K, value: BreakEvenStopConfig[K]) => {
-    updateSection('break_even_stop', { ...config.break_even_stop, [key]: value })
+  const updateBreakEven = <K extends keyof BreakEvenStopConfig>(
+    key: K,
+    value: BreakEvenStopConfig[K]
+  ) => {
+    updateSection('break_even_stop', {
+      ...config.break_even_stop,
+      [key]: value,
+    })
   }
 
   const drawdownRules = config.drawdown_take_profit.rules || []
   const ladderRules = config.ladder_tp_sl.rules || []
+  const breakEvenRules = config.break_even_stop.rules || []
 
   const addLadderRule = () => {
     const nextRule: LadderTPSLRule = {
@@ -182,7 +287,10 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
   }
 
   const removeLadderRule = (index: number) => {
-    updateLadder('rules', ladderRules.filter((_, i) => i !== index))
+    updateLadder(
+      'rules',
+      ladderRules.filter((_, i) => i !== index)
+    )
   }
 
   const addDrawdownRule = () => {
@@ -195,14 +303,51 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     updateDrawdown('rules', [...drawdownRules, nextRule])
   }
 
-  const updateDrawdownRule = (index: number, patch: Partial<DrawdownTakeProfitRule>) => {
+  const updateDrawdownRule = (
+    index: number,
+    patch: Partial<DrawdownTakeProfitRule>
+  ) => {
     const nextRules = [...drawdownRules]
     nextRules[index] = { ...nextRules[index], ...patch }
     updateDrawdown('rules', nextRules)
   }
 
   const removeDrawdownRule = (index: number) => {
-    updateDrawdown('rules', drawdownRules.filter((_, i) => i !== index))
+    updateDrawdown(
+      'rules',
+      drawdownRules.filter((_, i) => i !== index)
+    )
+  }
+
+  const addBreakEvenRule = () => {
+    const nextRule: BreakEvenStopRule = {
+      trigger_mode: config.break_even_stop.trigger_mode || 'profit_pct',
+      trigger_value:
+        breakEvenRules.length === 0
+          ? config.break_even_stop.trigger_value || 0.7
+          : (breakEvenRules[breakEvenRules.length - 1].trigger_value || 0) +
+            0.5,
+      offset_pct: config.break_even_stop.offset_pct || 0.3,
+      close_ratio_pct: breakEvenRules.length === 0 ? 100 : 50,
+      stage_name: `BE${breakEvenRules.length + 1}`,
+    }
+    updateBreakEven('rules', [...breakEvenRules, nextRule])
+  }
+
+  const updateBreakEvenRule = (
+    index: number,
+    patch: Partial<BreakEvenStopRule>
+  ) => {
+    const nextRules = [...breakEvenRules]
+    nextRules[index] = { ...nextRules[index], ...patch }
+    updateBreakEven('rules', nextRules)
+  }
+
+  const removeBreakEvenRule = (index: number) => {
+    updateBreakEven(
+      'rules',
+      breakEvenRules.filter((_, i) => i !== index)
+    )
   }
 
   const protectionModeOptions: ProtectionMode[] = ['manual', 'ai']
@@ -221,24 +366,42 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
   const modeLabel = (mode: ProtectionMode) => {
     if (mode === 'disabled') return isZh ? '禁用' : 'Disabled'
     return mode === 'ai'
-      ? (isZh ? 'AI 动态保护模式' : 'AI Dynamic Protection')
-      : (isZh ? '手动阈值模式' : 'Manual Threshold Mode')
+      ? isZh
+        ? 'AI 动态保护模式'
+        : 'AI Dynamic Protection'
+      : isZh
+        ? '手动阈值模式'
+        : 'Manual Threshold Mode'
   }
 
-  const updateValueSource = (current: ProtectionValueSource, patch: Partial<ProtectionValueSource>): ProtectionValueSource => ({
+  const updateValueSource = (
+    current: ProtectionValueSource,
+    patch: Partial<ProtectionValueSource>
+  ): ProtectionValueSource => ({
     ...current,
     ...patch,
   })
 
-  const triggerModeLabel = (mode: 'profit_pct' | 'r_multiple') => mode === 'r_multiple'
-    ? (isZh ? '按 R 倍数触发' : 'Trigger by R Multiple')
-    : (isZh ? '按盈利百分比触发' : 'Trigger by Profit %')
+  const triggerModeLabel = (mode: 'profit_pct' | 'r_multiple') =>
+    mode === 'r_multiple'
+      ? isZh
+        ? '按 R 倍数触发'
+        : 'Trigger by R Multiple'
+      : isZh
+        ? '按盈利百分比触发'
+        : 'Trigger by Profit %'
 
   const infoBlock = (title: string, description: string, recommend: string) => (
     <div className="p-3 rounded-lg space-y-1" style={helpCardStyle}>
-      <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{title}</div>
-      <div className="text-xs" style={{ color: '#AAB2BD' }}>{description}</div>
-      <div className="text-xs" style={{ color: '#F0B90B' }}>{recommend}</div>
+      <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+        {title}
+      </div>
+      <div className="text-xs" style={{ color: '#AAB2BD' }}>
+        {description}
+      </div>
+      <div className="text-xs" style={{ color: '#F0B90B' }}>
+        {recommend}
+      </div>
     </div>
   )
 
@@ -246,9 +409,13 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     <span
       className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
       style={{
-        background: active ? 'rgba(14, 203, 129, 0.12)' : 'rgba(132, 142, 156, 0.12)',
+        background: active
+          ? 'rgba(14, 203, 129, 0.12)'
+          : 'rgba(132, 142, 156, 0.12)',
         color: active ? '#0ECB81' : '#848E9C',
-        border: active ? '1px solid rgba(14, 203, 129, 0.25)' : '1px solid rgba(132, 142, 156, 0.2)',
+        border: active
+          ? '1px solid rgba(14, 203, 129, 0.25)'
+          : '1px solid rgba(132, 142, 156, 0.2)',
       }}
     >
       {label}
@@ -267,23 +434,36 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     ? `执行开关：${config.drawdown_take_profit.enabled ? '已启用' : '未启用'} · 模式：${modeLabel(config.drawdown_take_profit.mode)} · 规则来源：${config.drawdown_take_profit.mode === 'ai' ? 'AI 结构化输出' : config.drawdown_take_profit.mode === 'manual' ? '手动维护规则' : '未接管'} · 当前规则数：${drawdownRules.length}`
     : `Execution: ${config.drawdown_take_profit.enabled ? 'enabled' : 'disabled'} · Mode: ${modeLabel(config.drawdown_take_profit.mode)} · Rule source: ${config.drawdown_take_profit.mode === 'ai' ? 'AI structured output' : config.drawdown_take_profit.mode === 'manual' ? 'manually maintained rules' : 'not owning TP'} · Rules: ${drawdownRules.length}`
 
-  const fullModeMismatch = !config.full_tp_sl.enabled && config.full_tp_sl.mode === 'ai'
-  const ladderModeMismatch = !config.ladder_tp_sl.enabled && config.ladder_tp_sl.mode === 'ai'
-  const drawdownModeMismatch = !config.drawdown_take_profit.enabled && config.drawdown_take_profit.mode === 'ai'
+  const fullModeMismatch =
+    !config.full_tp_sl.enabled && config.full_tp_sl.mode === 'ai'
+  const ladderModeMismatch =
+    !config.ladder_tp_sl.enabled && config.ladder_tp_sl.mode === 'ai'
+  const drawdownModeMismatch =
+    !config.drawdown_take_profit.enabled &&
+    config.drawdown_take_profit.mode === 'ai'
 
   const fullEnabled = config.full_tp_sl.enabled
-  const fullTpActive = fullEnabled && config.full_tp_sl.take_profit_enabled !== false
-  const fullSlActive = fullEnabled && config.full_tp_sl.stop_loss_enabled !== false
-  const fullFallbackActive = fullEnabled && !!config.full_tp_sl.fallback_max_loss_enabled
+  const fullTpActive =
+    fullEnabled && config.full_tp_sl.take_profit_enabled !== false
+  const fullSlActive =
+    fullEnabled && config.full_tp_sl.stop_loss_enabled !== false
+  const fullFallbackActive =
+    fullEnabled && !!config.full_tp_sl.fallback_max_loss_enabled
 
   const ladderEnabled = config.ladder_tp_sl.enabled
-  const ladderTpActive = ladderEnabled && config.ladder_tp_sl.take_profit_enabled
+  const ladderTpActive =
+    ladderEnabled && config.ladder_tp_sl.take_profit_enabled
   const ladderSlActive = ladderEnabled && config.ladder_tp_sl.stop_loss_enabled
-  const ladderFallbackActive = ladderEnabled && config.ladder_tp_sl.fallback_max_loss.mode !== 'disabled'
+  const ladderFallbackActive =
+    ladderEnabled && config.ladder_tp_sl.fallback_max_loss.mode !== 'disabled'
 
   const drawdownEnabled = config.drawdown_take_profit.enabled
 
-  const drawdownOwnsTp = drawdownEnabled && config.drawdown_take_profit.mode !== 'disabled' && (config.drawdown_take_profit.mode === 'ai' || (config.drawdown_take_profit.rules || []).length > 0)
+  const drawdownOwnsTp =
+    drawdownEnabled &&
+    config.drawdown_take_profit.mode !== 'disabled' &&
+    (config.drawdown_take_profit.mode === 'ai' ||
+      (config.drawdown_take_profit.rules || []).length > 0)
   const ladderTpEnabled = ladderTpActive
   const fullTpEnabled = fullTpActive
 
@@ -298,7 +478,9 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     },
     {
       title: isZh ? '持仓保护委托层' : 'Live order protection layer',
-      subtitle: isZh ? '决定“开仓后先挂哪些单”' : 'Decides which exchange orders are placed after entry',
+      subtitle: isZh
+        ? '决定“开仓后先挂哪些单”'
+        : 'Decides which exchange orders are placed after entry',
       body: isZh
         ? 'Full TP/SL 与 Ladder TP/SL 负责尽快把止损/止盈委托挂到交易所；当 Drawdown 接管止盈侧时，这一层通常只保留止损侧。'
         : 'Full TP/SL and Ladder TP/SL place exchange-side protection orders quickly after entry. When Drawdown owns the TP side, this layer usually keeps only stop-loss protection.',
@@ -306,7 +488,9 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
     },
     {
       title: isZh ? '运行态盈利控制层' : 'Runtime profit-control layer',
-      subtitle: isZh ? '决定“盈利后怎么锁利润 / 怎么减仓”' : 'Decides how gains are locked and reduced after profit appears',
+      subtitle: isZh
+        ? '决定“盈利后怎么锁利润 / 怎么减仓”'
+        : 'Decides how gains are locked and reduced after profit appears',
       body: isZh
         ? 'Drawdown Take Profit 是主盈利控制链；Break-even Stop 是附加止损层，不替代 Drawdown，也不替代长期止损。'
         : 'Drawdown Take Profit is the primary profit-control path. Break-even Stop is an extra stop layer; it does not replace Drawdown or the long-lived stop-loss structure.',
@@ -316,12 +500,20 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
 
   return (
     <div className="space-y-6">
-      <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #F0B90B33' }}>
+      <div
+        className="p-4 rounded-lg"
+        style={{ background: '#0B0E11', border: '1px solid #F0B90B33' }}
+      >
         <div className="flex items-start gap-3">
-          <ShieldCheck className="w-5 h-5 mt-0.5" style={{ color: '#F0B90B' }} />
+          <ShieldCheck
+            className="w-5 h-5 mt-0.5"
+            style={{ color: '#F0B90B' }}
+          />
           <div>
             <h3 className="font-medium mb-1" style={{ color: '#EAECEF' }}>
-              {isZh ? '交易保护 / 盈利控制' : 'Trading Protection / Profit Control'}
+              {isZh
+                ? '交易保护 / 盈利控制'
+                : 'Trading Protection / Profit Control'}
             </h3>
             <p className="text-xs" style={{ color: '#848E9C' }}>
               {isZh
@@ -339,15 +531,31 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {protectionLayerCards.map((item) => (
-          <div key={item.title} className="p-3 rounded-lg" style={{ background: '#11161C', border: `1px solid ${item.tone}33` }}>
-            <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{item.title}</div>
-            <div className="text-[11px] mt-1" style={{ color: item.tone }}>{item.subtitle}</div>
-            <div className="text-xs mt-2" style={{ color: '#AAB2BD' }}>{item.body}</div>
+          <div
+            key={item.title}
+            className="p-3 rounded-lg"
+            style={{
+              background: '#11161C',
+              border: `1px solid ${item.tone}33`,
+            }}
+          >
+            <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+              {item.title}
+            </div>
+            <div className="text-[11px] mt-1" style={{ color: item.tone }}>
+              {item.subtitle}
+            </div>
+            <div className="text-xs mt-2" style={{ color: '#AAB2BD' }}>
+              {item.body}
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="p-3 rounded-lg" style={{ background: '#11161C', border: '1px solid #2B3139' }}>
+      <div
+        className="p-3 rounded-lg"
+        style={{ background: '#11161C', border: '1px solid #2B3139' }}
+      >
         <div className="text-xs" style={{ color: '#C9D1D9' }}>
           {isZh
             ? '建议阅读顺序：先确认开仓门禁是否清楚，再配置委托型保护，最后决定运行态盈利控制链（通常是 Drawdown 主链 + Break-even 辅助层）。'
@@ -356,26 +564,64 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
       </div>
 
       <div>
-
         <div className="space-y-4">
           {drawdownOwnsTp && fullTpEnabled && (
-            <div className="p-3 rounded-lg text-xs" style={{ background: '#2B1619', border: '1px solid #41272B', color: '#F0B90B' }}>
-              {isZh ? 'Drawdown Take Profit 已接管止盈侧，Full TP 会被抑制；Full SL 仍保留为长期止损。' : 'Drawdown Take Profit owns the take-profit side, so Full TP is suppressed while Full SL remains active as long-lived stop-loss.'}
+            <div
+              className="p-3 rounded-lg text-xs"
+              style={{
+                background: '#2B1619',
+                border: '1px solid #41272B',
+                color: '#F0B90B',
+              }}
+            >
+              {isZh
+                ? 'Drawdown Take Profit 已接管止盈侧，Full TP 会被抑制；Full SL 仍保留为长期止损。'
+                : 'Drawdown Take Profit owns the take-profit side, so Full TP is suppressed while Full SL remains active as long-lived stop-loss.'}
             </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            {statusChip(config.full_tp_sl.enabled, isZh ? '执行开关' : 'Execution')}
-            {statusChip(config.full_tp_sl.mode === 'ai', isZh ? '整体 AI' : 'Global AI')}
-            {statusChip(config.full_tp_sl.take_profit_enabled !== false, isZh ? 'TP 侧开启' : 'TP side on')}
-            {statusChip(config.full_tp_sl.stop_loss_enabled !== false, isZh ? 'SL 侧开启' : 'SL side on')}
-            {statusChip(!!config.full_tp_sl.fallback_max_loss_enabled, isZh ? '兜底开启' : 'Fallback on')}
-            {statusChip(config.full_tp_sl.take_profit.mode === 'ai', isZh ? 'TP 由 AI' : 'TP via AI')}
-            {statusChip(config.full_tp_sl.stop_loss.mode === 'ai', isZh ? 'SL 由 AI' : 'SL via AI')}
+            {statusChip(
+              config.full_tp_sl.enabled,
+              isZh ? '执行开关' : 'Execution'
+            )}
+            {statusChip(
+              config.full_tp_sl.mode === 'ai',
+              isZh ? '整体 AI' : 'Global AI'
+            )}
+            {statusChip(
+              config.full_tp_sl.take_profit_enabled !== false,
+              isZh ? 'TP 侧开启' : 'TP side on'
+            )}
+            {statusChip(
+              config.full_tp_sl.stop_loss_enabled !== false,
+              isZh ? 'SL 侧开启' : 'SL side on'
+            )}
+            {statusChip(
+              !!config.full_tp_sl.fallback_max_loss_enabled,
+              isZh ? '兜底开启' : 'Fallback on'
+            )}
+            {statusChip(
+              config.full_tp_sl.take_profit.mode === 'ai',
+              isZh ? 'TP 由 AI' : 'TP via AI'
+            )}
+            {statusChip(
+              config.full_tp_sl.stop_loss.mode === 'ai',
+              isZh ? 'SL 由 AI' : 'SL via AI'
+            )}
           </div>
-          <div className="text-xs" style={{ color: '#848E9C' }}>{fullStateSummary}</div>
+          <div className="text-xs" style={{ color: '#848E9C' }}>
+            {fullStateSummary}
+          </div>
           {fullModeMismatch && (
-            <div className="p-3 rounded-lg text-xs" style={{ background: '#11161C', border: '1px solid #2B3139', color: '#F0B90B' }}>
+            <div
+              className="p-3 rounded-lg text-xs"
+              style={{
+                background: '#11161C',
+                border: '1px solid #2B3139',
+                color: '#F0B90B',
+              }}
+            >
               {isZh
                 ? '注意：当前 Full 的“整体模式”是 AI，但“执行开关”仍关闭。页面会保留 AI 模式配置，但运行时不会实际挂 Full 保护单，直到你打开执行开关。'
                 : 'Note: Full global mode is AI, but execution is still disabled. The page preserves the AI setting, but runtime will not place Full protection orders until execution is enabled.'}
@@ -386,71 +632,253 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
             <div className="p-4 rounded-lg" style={cardStyle(fullEnabled)}>
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div>
-                  <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '执行' : 'Execution'}</label>
-                  <div style={compactHintStyle}>{isZh ? '启用后才会真正挂单' : 'Required to place orders'}</div>
+                  <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                    {isZh ? '执行' : 'Execution'}
+                  </label>
+                  <div style={compactHintStyle}>
+                    {isZh ? '启用后才会真正挂单' : 'Required to place orders'}
+                  </div>
                 </div>
-                <input type="checkbox" checked={config.full_tp_sl.enabled} onChange={(e) => updateFull('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-yellow-500" />
+                <input
+                  type="checkbox"
+                  checked={config.full_tp_sl.enabled}
+                  onChange={(e) => updateFull('enabled', e.target.checked)}
+                  disabled={disabled}
+                  className="h-4 w-4 accent-yellow-500"
+                />
               </div>
-              <select value={config.full_tp_sl.mode} onChange={(e) => updateFull('mode', e.target.value as FullTPSLConfig['mode'])} disabled={disabled || !fullEnabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {protectionModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              <select
+                value={config.full_tp_sl.mode}
+                onChange={(e) =>
+                  updateFull('mode', e.target.value as FullTPSLConfig['mode'])
+                }
+                disabled={disabled || !fullEnabled}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {protectionModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div className="p-4 rounded-lg space-y-2" style={cardStyle(fullTpActive)}>
+            <div
+              className="p-4 rounded-lg space-y-2"
+              style={cardStyle(fullTpActive)}
+            >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? 'TP 侧' : 'TP Side'}</label>
-                  <div style={compactHintStyle}>{isZh ? '侧边开关 + 模式' : 'Side toggle + mode'}</div>
+                  <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                    {isZh ? 'TP 侧' : 'TP Side'}
+                  </label>
+                  <div style={compactHintStyle}>
+                    {isZh ? '侧边开关 + 模式' : 'Side toggle + mode'}
+                  </div>
                 </div>
-                <input type="checkbox" checked={config.full_tp_sl.take_profit_enabled !== false} onChange={(e) => updateFull('take_profit_enabled', e.target.checked)} disabled={disabled || !fullEnabled} className="h-4 w-4 accent-green-500" />
+                <input
+                  type="checkbox"
+                  checked={config.full_tp_sl.take_profit_enabled !== false}
+                  onChange={(e) =>
+                    updateFull('take_profit_enabled', e.target.checked)
+                  }
+                  disabled={disabled || !fullEnabled}
+                  className="h-4 w-4 accent-green-500"
+                />
               </div>
-              <select value={config.full_tp_sl.take_profit.mode} onChange={(e) => updateFull('take_profit', updateValueSource(config.full_tp_sl.take_profit, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !fullTpActive} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {valueModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              <select
+                value={config.full_tp_sl.take_profit.mode}
+                onChange={(e) =>
+                  updateFull(
+                    'take_profit',
+                    updateValueSource(config.full_tp_sl.take_profit, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !fullTpActive}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {valueModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
               </select>
-              {config.full_tp_sl.take_profit.mode === 'manual' && fullTpActive && (
-                <>
-                  <input type="number" min={0} step={0.1} value={config.full_tp_sl.take_profit.value} onChange={(e) => updateFull('take_profit', updateValueSource(config.full_tp_sl.take_profit, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-                  <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位：Price Move % from Entry' : 'Unit: Price Move % from Entry'}</div>
-                </>
-              )}
+              {config.full_tp_sl.take_profit.mode === 'manual' &&
+                fullTpActive && (
+                  <>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={config.full_tp_sl.take_profit.value}
+                      onChange={(e) =>
+                        updateFull(
+                          'take_profit',
+                          updateValueSource(config.full_tp_sl.take_profit, {
+                            value: parseFloat(e.target.value) || 0,
+                          })
+                        )
+                      }
+                      disabled={disabled}
+                      className="w-full px-3 py-2 rounded"
+                      style={inputStyle}
+                    />
+                    <div className="text-[11px]" style={{ color: '#848E9C' }}>
+                      {isZh
+                        ? '单位：Price Move % from Entry'
+                        : 'Unit: Price Move % from Entry'}
+                    </div>
+                  </>
+                )}
             </div>
 
-            <div className="p-4 rounded-lg space-y-2" style={cardStyle(fullSlActive)}>
+            <div
+              className="p-4 rounded-lg space-y-2"
+              style={cardStyle(fullSlActive)}
+            >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? 'SL 侧' : 'SL Side'}</label>
-                  <div style={compactHintStyle}>{isZh ? '侧边开关 + 模式' : 'Side toggle + mode'}</div>
+                  <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                    {isZh ? 'SL 侧' : 'SL Side'}
+                  </label>
+                  <div style={compactHintStyle}>
+                    {isZh ? '侧边开关 + 模式' : 'Side toggle + mode'}
+                  </div>
                 </div>
-                <input type="checkbox" checked={config.full_tp_sl.stop_loss_enabled !== false} onChange={(e) => updateFull('stop_loss_enabled', e.target.checked)} disabled={disabled || !fullEnabled} className="h-4 w-4 accent-red-500" />
+                <input
+                  type="checkbox"
+                  checked={config.full_tp_sl.stop_loss_enabled !== false}
+                  onChange={(e) =>
+                    updateFull('stop_loss_enabled', e.target.checked)
+                  }
+                  disabled={disabled || !fullEnabled}
+                  className="h-4 w-4 accent-red-500"
+                />
               </div>
-              <select value={config.full_tp_sl.stop_loss.mode} onChange={(e) => updateFull('stop_loss', updateValueSource(config.full_tp_sl.stop_loss, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !fullSlActive} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {valueModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              <select
+                value={config.full_tp_sl.stop_loss.mode}
+                onChange={(e) =>
+                  updateFull(
+                    'stop_loss',
+                    updateValueSource(config.full_tp_sl.stop_loss, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !fullSlActive}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {valueModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
               </select>
-              {config.full_tp_sl.stop_loss.mode === 'manual' && fullSlActive && (
-                <>
-                  <input type="number" min={0} step={0.1} value={config.full_tp_sl.stop_loss.value} onChange={(e) => updateFull('stop_loss', updateValueSource(config.full_tp_sl.stop_loss, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-                  <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位：Price Move % from Entry' : 'Unit: Price Move % from Entry'}</div>
-                </>
-              )}
+              {config.full_tp_sl.stop_loss.mode === 'manual' &&
+                fullSlActive && (
+                  <>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={config.full_tp_sl.stop_loss.value}
+                      onChange={(e) =>
+                        updateFull(
+                          'stop_loss',
+                          updateValueSource(config.full_tp_sl.stop_loss, {
+                            value: parseFloat(e.target.value) || 0,
+                          })
+                        )
+                      }
+                      disabled={disabled}
+                      className="w-full px-3 py-2 rounded"
+                      style={inputStyle}
+                    />
+                    <div className="text-[11px]" style={{ color: '#848E9C' }}>
+                      {isZh
+                        ? '单位：Price Move % from Entry'
+                        : 'Unit: Price Move % from Entry'}
+                    </div>
+                  </>
+                )}
             </div>
 
-            <div className="p-4 rounded-lg space-y-2" style={cardStyle(fullFallbackActive)}>
+            <div
+              className="p-4 rounded-lg space-y-2"
+              style={cardStyle(fullFallbackActive)}
+            >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '兜底' : 'Fallback'}</label>
-                  <div style={compactHintStyle}>{isZh ? '额外最大损失保护' : 'Extra max-loss guard'}</div>
+                  <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                    {isZh ? '兜底' : 'Fallback'}
+                  </label>
+                  <div style={compactHintStyle}>
+                    {isZh ? '额外最大损失保护' : 'Extra max-loss guard'}
+                  </div>
                 </div>
-                <input type="checkbox" checked={!!config.full_tp_sl.fallback_max_loss_enabled} onChange={(e) => updateFull('fallback_max_loss_enabled', e.target.checked)} disabled={disabled || !fullEnabled} className="h-4 w-4 accent-yellow-500" />
+                <input
+                  type="checkbox"
+                  checked={!!config.full_tp_sl.fallback_max_loss_enabled}
+                  onChange={(e) =>
+                    updateFull('fallback_max_loss_enabled', e.target.checked)
+                  }
+                  disabled={disabled || !fullEnabled}
+                  className="h-4 w-4 accent-yellow-500"
+                />
               </div>
-              <select value={config.full_tp_sl.fallback_max_loss.mode} onChange={(e) => updateFull('fallback_max_loss', updateValueSource(config.full_tp_sl.fallback_max_loss, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !fullFallbackActive} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {(['disabled', 'manual'] as const).map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              <select
+                value={config.full_tp_sl.fallback_max_loss.mode}
+                onChange={(e) =>
+                  updateFull(
+                    'fallback_max_loss',
+                    updateValueSource(config.full_tp_sl.fallback_max_loss, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !fullFallbackActive}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {(['disabled', 'manual'] as const).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
               </select>
-              {config.full_tp_sl.fallback_max_loss.mode === 'manual' && fullFallbackActive && (
-                <>
-                  <input type="number" min={0} step={0.1} value={config.full_tp_sl.fallback_max_loss.value} onChange={(e) => updateFull('fallback_max_loss', updateValueSource(config.full_tp_sl.fallback_max_loss, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-                  <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位：Price Move % from Entry' : 'Unit: Price Move % from Entry'}</div>
-                </>
-              )}
+              {config.full_tp_sl.fallback_max_loss.mode === 'manual' &&
+                fullFallbackActive && (
+                  <>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={config.full_tp_sl.fallback_max_loss.value}
+                      onChange={(e) =>
+                        updateFull(
+                          'fallback_max_loss',
+                          updateValueSource(
+                            config.full_tp_sl.fallback_max_loss,
+                            { value: parseFloat(e.target.value) || 0 }
+                          )
+                        )
+                      }
+                      disabled={disabled}
+                      className="w-full px-3 py-2 rounded"
+                      style={inputStyle}
+                    />
+                    <div className="text-[11px]" style={{ color: '#848E9C' }}>
+                      {isZh
+                        ? '单位：Price Move % from Entry'
+                        : 'Unit: Price Move % from Entry'}
+                    </div>
+                  </>
+                )}
             </div>
           </div>
         </div>
@@ -460,26 +888,58 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
         <div className="flex items-center gap-2 mb-4">
           <Layers className="w-5 h-5" style={{ color: '#60A5FA' }} />
           <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {isZh ? 'Ladder TP/SL（分批委托型保护）' : 'Ladder TP/SL (Ladder Order Protection)'}
+            {isZh
+              ? 'Ladder TP/SL（分批委托型保护）'
+              : 'Ladder TP/SL (Ladder Order Protection)'}
           </h3>
         </div>
 
         <div className="space-y-4">
           {ladderTpEnabled && drawdownOwnsTp && (
-            <div className="p-3 rounded-lg text-xs" style={{ background: '#2B1619', border: '1px solid #41272B', color: '#F0B90B' }}>
-              {isZh ? 'Drawdown Take Profit 已接管止盈侧，Ladder TP 会被抑制；Ladder SL 继续保留。' : 'Drawdown Take Profit owns the take-profit side, so Ladder TP is suppressed while Ladder SL remains active.'}
+            <div
+              className="p-3 rounded-lg text-xs"
+              style={{
+                background: '#2B1619',
+                border: '1px solid #41272B',
+                color: '#F0B90B',
+              }}
+            >
+              {isZh
+                ? 'Drawdown Take Profit 已接管止盈侧，Ladder TP 会被抑制；Ladder SL 继续保留。'
+                : 'Drawdown Take Profit owns the take-profit side, so Ladder TP is suppressed while Ladder SL remains active.'}
             </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            {statusChip(config.ladder_tp_sl.enabled, isZh ? '执行开关' : 'Execution')}
-            {statusChip(config.ladder_tp_sl.mode === 'ai', isZh ? '整体 AI' : 'Global AI')}
-            {statusChip(config.ladder_tp_sl.take_profit_enabled, isZh ? 'TP 侧开启' : 'TP side on')}
-            {statusChip(config.ladder_tp_sl.stop_loss_enabled, isZh ? 'SL 侧开启' : 'SL side on')}
+            {statusChip(
+              config.ladder_tp_sl.enabled,
+              isZh ? '执行开关' : 'Execution'
+            )}
+            {statusChip(
+              config.ladder_tp_sl.mode === 'ai',
+              isZh ? '整体 AI' : 'Global AI'
+            )}
+            {statusChip(
+              config.ladder_tp_sl.take_profit_enabled,
+              isZh ? 'TP 侧开启' : 'TP side on'
+            )}
+            {statusChip(
+              config.ladder_tp_sl.stop_loss_enabled,
+              isZh ? 'SL 侧开启' : 'SL side on'
+            )}
           </div>
-          <div className="text-xs" style={{ color: '#848E9C' }}>{ladderStateSummary}</div>
+          <div className="text-xs" style={{ color: '#848E9C' }}>
+            {ladderStateSummary}
+          </div>
           {ladderModeMismatch && (
-            <div className="p-3 rounded-lg text-xs" style={{ background: '#11161C', border: '1px solid #2B3139', color: '#F0B90B' }}>
+            <div
+              className="p-3 rounded-lg text-xs"
+              style={{
+                background: '#11161C',
+                border: '1px solid #2B3139',
+                color: '#F0B90B',
+              }}
+            >
               {isZh
                 ? '注意：当前 Ladder 的“整体模式”是 AI，但“执行开关”仍关闭。页面会保留 AI 模式配置，但运行时不会实际挂 Ladder 保护单，直到你打开执行开关。'
                 : 'Note: Ladder global mode is AI, but execution is still disabled. The page preserves the AI setting, but runtime will not place Ladder protection orders until execution is enabled.'}
@@ -490,69 +950,256 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
             <div className="p-4 rounded-lg" style={cardStyle(ladderEnabled)}>
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div>
-                  <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '执行' : 'Execution'}</label>
-                  <div style={compactHintStyle}>{isZh ? '启用后才会生成委托' : 'Required to generate orders'}</div>
+                  <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                    {isZh ? '执行' : 'Execution'}
+                  </label>
+                  <div style={compactHintStyle}>
+                    {isZh
+                      ? '启用后才会生成委托'
+                      : 'Required to generate orders'}
+                  </div>
                 </div>
-                <input type="checkbox" checked={config.ladder_tp_sl.enabled} onChange={(e) => updateLadder('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-blue-500" />
+                <input
+                  type="checkbox"
+                  checked={config.ladder_tp_sl.enabled}
+                  onChange={(e) => updateLadder('enabled', e.target.checked)}
+                  disabled={disabled}
+                  className="h-4 w-4 accent-blue-500"
+                />
               </div>
-              <select value={config.ladder_tp_sl.mode} onChange={(e) => updateLadder('mode', e.target.value as LadderTPSLConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {protectionModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              <select
+                value={config.ladder_tp_sl.mode}
+                onChange={(e) =>
+                  updateLadder(
+                    'mode',
+                    e.target.value as LadderTPSLConfig['mode']
+                  )
+                }
+                disabled={disabled}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {protectionModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
               </select>
             </div>
-            <div className="p-4 rounded-lg space-y-2" style={cardStyle(ladderTpActive)}>
+            <div
+              className="p-4 rounded-lg space-y-2"
+              style={cardStyle(ladderTpActive)}
+            >
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div>
-                  <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? 'TP 侧' : 'TP Side'}</label>
-                  <div style={compactHintStyle}>{isZh ? '价格 / 仓位模式' : 'Price / size mode'}</div>
+                  <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                    {isZh ? 'TP 侧' : 'TP Side'}
+                  </label>
+                  <div style={compactHintStyle}>
+                    {isZh ? '价格 / 仓位模式' : 'Price / size mode'}
+                  </div>
                 </div>
-                <input type="checkbox" checked={config.ladder_tp_sl.take_profit_enabled} onChange={(e) => updateLadder('take_profit_enabled', e.target.checked)} disabled={disabled || !ladderEnabled} className="h-4 w-4 accent-green-500" />
+                <input
+                  type="checkbox"
+                  checked={config.ladder_tp_sl.take_profit_enabled}
+                  onChange={(e) =>
+                    updateLadder('take_profit_enabled', e.target.checked)
+                  }
+                  disabled={disabled || !ladderEnabled}
+                  className="h-4 w-4 accent-green-500"
+                />
               </div>
-              <select value={config.ladder_tp_sl.take_profit_price.mode} onChange={(e) => updateLadder('take_profit_price', updateValueSource(config.ladder_tp_sl.take_profit_price, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !ladderTpActive} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {valueModeOptions.map((mode) => <option key={mode} value={mode}>{isZh ? `价格：${modeLabel(mode)}` : `Price: ${modeLabel(mode)}`}</option>)}
+              <select
+                value={config.ladder_tp_sl.take_profit_price.mode}
+                onChange={(e) =>
+                  updateLadder(
+                    'take_profit_price',
+                    updateValueSource(config.ladder_tp_sl.take_profit_price, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !ladderTpActive}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {valueModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {isZh
+                      ? `价格：${modeLabel(mode)}`
+                      : `Price: ${modeLabel(mode)}`}
+                  </option>
+                ))}
               </select>
-              <select value={config.ladder_tp_sl.take_profit_size.mode} onChange={(e) => updateLadder('take_profit_size', updateValueSource(config.ladder_tp_sl.take_profit_size, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !ladderTpActive} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {valueModeOptions.map((mode) => <option key={mode} value={mode}>{isZh ? `仓位：${modeLabel(mode)}` : `Size: ${modeLabel(mode)}`}</option>)}
+              <select
+                value={config.ladder_tp_sl.take_profit_size.mode}
+                onChange={(e) =>
+                  updateLadder(
+                    'take_profit_size',
+                    updateValueSource(config.ladder_tp_sl.take_profit_size, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !ladderTpActive}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {valueModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {isZh
+                      ? `仓位：${modeLabel(mode)}`
+                      : `Size: ${modeLabel(mode)}`}
+                  </option>
+                ))}
               </select>
             </div>
-            <div className="p-4 rounded-lg space-y-2" style={cardStyle(ladderSlActive)}>
+            <div
+              className="p-4 rounded-lg space-y-2"
+              style={cardStyle(ladderSlActive)}
+            >
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div>
-                  <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? 'SL 侧' : 'SL Side'}</label>
-                  <div style={compactHintStyle}>{isZh ? '价格 / 仓位模式' : 'Price / size mode'}</div>
+                  <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                    {isZh ? 'SL 侧' : 'SL Side'}
+                  </label>
+                  <div style={compactHintStyle}>
+                    {isZh ? '价格 / 仓位模式' : 'Price / size mode'}
+                  </div>
                 </div>
-                <input type="checkbox" checked={config.ladder_tp_sl.stop_loss_enabled} onChange={(e) => updateLadder('stop_loss_enabled', e.target.checked)} disabled={disabled || !ladderEnabled} className="h-4 w-4 accent-red-500" />
+                <input
+                  type="checkbox"
+                  checked={config.ladder_tp_sl.stop_loss_enabled}
+                  onChange={(e) =>
+                    updateLadder('stop_loss_enabled', e.target.checked)
+                  }
+                  disabled={disabled || !ladderEnabled}
+                  className="h-4 w-4 accent-red-500"
+                />
               </div>
-              <select value={config.ladder_tp_sl.stop_loss_price.mode} onChange={(e) => updateLadder('stop_loss_price', updateValueSource(config.ladder_tp_sl.stop_loss_price, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !ladderSlActive} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {valueModeOptions.map((mode) => <option key={mode} value={mode}>{isZh ? `价格：${modeLabel(mode)}` : `Price: ${modeLabel(mode)}`}</option>)}
+              <select
+                value={config.ladder_tp_sl.stop_loss_price.mode}
+                onChange={(e) =>
+                  updateLadder(
+                    'stop_loss_price',
+                    updateValueSource(config.ladder_tp_sl.stop_loss_price, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !ladderSlActive}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {valueModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {isZh
+                      ? `价格：${modeLabel(mode)}`
+                      : `Price: ${modeLabel(mode)}`}
+                  </option>
+                ))}
               </select>
-              <select value={config.ladder_tp_sl.stop_loss_size.mode} onChange={(e) => updateLadder('stop_loss_size', updateValueSource(config.ladder_tp_sl.stop_loss_size, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !ladderSlActive} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {valueModeOptions.map((mode) => <option key={mode} value={mode}>{isZh ? `仓位：${modeLabel(mode)}` : `Size: ${modeLabel(mode)}`}</option>)}
+              <select
+                value={config.ladder_tp_sl.stop_loss_size.mode}
+                onChange={(e) =>
+                  updateLadder(
+                    'stop_loss_size',
+                    updateValueSource(config.ladder_tp_sl.stop_loss_size, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !ladderSlActive}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {valueModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {isZh
+                      ? `仓位：${modeLabel(mode)}`
+                      : `Size: ${modeLabel(mode)}`}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg" style={cardStyle(ladderFallbackActive)}>
-              <label className="block text-sm mb-2" style={{ color: '#EAECEF' }}>{isZh ? 'Ladder 兜底' : 'Ladder Fallback'}</label>
-              <select value={config.ladder_tp_sl.fallback_max_loss.mode} onChange={(e) => updateLadder('fallback_max_loss', updateValueSource(config.ladder_tp_sl.fallback_max_loss, { mode: e.target.value as ProtectionMode }))} disabled={disabled || !ladderEnabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {(['disabled', 'manual'] as const).map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+            <div
+              className="p-4 rounded-lg"
+              style={cardStyle(ladderFallbackActive)}
+            >
+              <label
+                className="block text-sm mb-2"
+                style={{ color: '#EAECEF' }}
+              >
+                {isZh ? 'Ladder 兜底' : 'Ladder Fallback'}
+              </label>
+              <select
+                value={config.ladder_tp_sl.fallback_max_loss.mode}
+                onChange={(e) =>
+                  updateLadder(
+                    'fallback_max_loss',
+                    updateValueSource(config.ladder_tp_sl.fallback_max_loss, {
+                      mode: e.target.value as ProtectionMode,
+                    })
+                  )
+                }
+                disabled={disabled || !ladderEnabled}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {(['disabled', 'manual'] as const).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
               </select>
-              {config.ladder_tp_sl.fallback_max_loss.mode === 'manual' && ladderEnabled && (
-                <input type="number" min={0} step={0.1} value={config.ladder_tp_sl.fallback_max_loss.value} onChange={(e) => updateLadder('fallback_max_loss', updateValueSource(config.ladder_tp_sl.fallback_max_loss, { value: parseFloat(e.target.value) || 0 }))} disabled={disabled} className="w-full mt-2 px-3 py-2 rounded" style={inputStyle} />
-              )}
+              {config.ladder_tp_sl.fallback_max_loss.mode === 'manual' &&
+                ladderEnabled && (
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={config.ladder_tp_sl.fallback_max_loss.value}
+                    onChange={(e) =>
+                      updateLadder(
+                        'fallback_max_loss',
+                        updateValueSource(
+                          config.ladder_tp_sl.fallback_max_loss,
+                          { value: parseFloat(e.target.value) || 0 }
+                        )
+                      )
+                    }
+                    disabled={disabled}
+                    className="w-full mt-2 px-3 py-2 rounded"
+                    style={inputStyle}
+                  />
+                )}
             </div>
           </div>
 
           {infoBlock(
             isZh ? 'Ladder 参数说明' : 'Ladder Parameter Guide',
-            isZh ? '每一档都是一组“触发幅度 + 平仓比例”。只有配置了规则，Ladder 才会生成多档委托；当 Drawdown 接管止盈侧时，仅 Ladder SL 保留。' : 'Each ladder level is a trigger plus close ratio. Ladder generates multi-level orders only when rules exist; if Drawdown owns the TP side, only Ladder SL remains active.',
-            isZh ? '建议：先控制总平仓比例，再决定每档分配。' : 'Recommendation: control the total close ratio first, then distribute it across levels.'
+            isZh
+              ? '每一档都是一组“触发幅度 + 平仓比例”。只有配置了规则，Ladder 才会生成多档委托；当 Drawdown 接管止盈侧时，仅 Ladder SL 保留。'
+              : 'Each ladder level is a trigger plus close ratio. Ladder generates multi-level orders only when rules exist; if Drawdown owns the TP side, only Ladder SL remains active.',
+            isZh
+              ? '建议：先控制总平仓比例，再决定每档分配。'
+              : 'Recommendation: control the total close ratio first, then distribute it across levels.'
           )}
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? '分批规则' : 'Ladder Rules'}</div>
-              <button type="button" onClick={addLadderRule} disabled={disabled} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-[#1E2329] border border-[#2B3139] text-[#EAECEF] hover:border-[#F0B90B]">
+              <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                {isZh ? '分批规则' : 'Ladder Rules'}
+              </div>
+              <button
+                type="button"
+                onClick={addLadderRule}
+                disabled={disabled}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-[#1E2329] border border-[#2B3139] text-[#EAECEF] hover:border-[#F0B90B]"
+              >
                 <Plus className="w-4 h-4" />
                 {isZh ? '新增一档' : 'Add Level'}
               </button>
@@ -560,50 +1207,170 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
 
             {ladderRules.length === 0 && (
               <div className="p-3 rounded-lg text-xs" style={helpCardStyle}>
-                {isZh ? '当前还没有配置任何 Ladder 规则，所以不会真正生成分批止盈/止损委托。请至少新增 1 档规则。' : 'No ladder rules configured yet, so no ladder protection orders will be generated.'}
+                {isZh
+                  ? '当前还没有配置任何 Ladder 规则，所以不会真正生成分批止盈/止损委托。请至少新增 1 档规则。'
+                  : 'No ladder rules configured yet, so no ladder protection orders will be generated.'}
               </div>
             )}
 
             {ladderRules.map((rule, index) => (
-              <div key={index} className="p-4 rounded-lg space-y-3" style={sectionStyle}>
+              <div
+                key={index}
+                className="p-4 rounded-lg space-y-3"
+                style={sectionStyle}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? `第 ${index + 1} 档` : `Level ${index + 1}`}</div>
-                  <button type="button" onClick={() => removeLadderRule(index)} disabled={disabled} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[#F6465D] border border-[#41272B] hover:bg-[#2B1619]">
+                  <div
+                    className="text-sm font-medium"
+                    style={{ color: '#EAECEF' }}
+                  >
+                    {isZh ? `第 ${index + 1} 档` : `Level ${index + 1}`}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLadderRule(index)}
+                    disabled={disabled}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[#F6465D] border border-[#41272B] hover:bg-[#2B1619]"
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
                     {isZh ? '删除' : 'Remove'}
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '止盈触发 %' : 'TP Trigger %'}</label>
+                    <label
+                      className="block text-xs mb-1"
+                      style={{ color: '#848E9C' }}
+                    >
+                      {isZh ? '止盈触发 %' : 'TP Trigger %'}
+                    </label>
                     {config.ladder_tp_sl.take_profit_price.mode === 'manual' ? (
-                      <input type="number" min={0} step={0.1} value={rule.take_profit_pct || 0} onChange={(e) => updateLadderRule(index, { take_profit_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        value={rule.take_profit_pct || 0}
+                        onChange={(e) =>
+                          updateLadderRule(index, {
+                            take_profit_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     ) : (
-                      <div className="px-3 py-2 rounded text-xs" style={helpCardStyle}>{isZh ? '由 AI 生成或已禁用' : 'Generated by AI or disabled'}</div>
+                      <div
+                        className="px-3 py-2 rounded text-xs"
+                        style={helpCardStyle}
+                      >
+                        {isZh
+                          ? '由 AI 生成或已禁用'
+                          : 'Generated by AI or disabled'}
+                      </div>
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '止盈平仓比例 %' : 'TP Close Ratio %'}</label>
+                    <label
+                      className="block text-xs mb-1"
+                      style={{ color: '#848E9C' }}
+                    >
+                      {isZh ? '止盈平仓比例 %' : 'TP Close Ratio %'}
+                    </label>
                     {config.ladder_tp_sl.take_profit_size.mode === 'manual' ? (
-                      <input type="number" min={0} max={100} step={1} value={rule.take_profit_close_ratio_pct || 0} onChange={(e) => updateLadderRule(index, { take_profit_close_ratio_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={rule.take_profit_close_ratio_pct || 0}
+                        onChange={(e) =>
+                          updateLadderRule(index, {
+                            take_profit_close_ratio_pct:
+                              parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     ) : (
-                      <div className="px-3 py-2 rounded text-xs" style={helpCardStyle}>{isZh ? '由 AI 生成或已禁用' : 'Generated by AI or disabled'}</div>
+                      <div
+                        className="px-3 py-2 rounded text-xs"
+                        style={helpCardStyle}
+                      >
+                        {isZh
+                          ? '由 AI 生成或已禁用'
+                          : 'Generated by AI or disabled'}
+                      </div>
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '止损触发 %' : 'SL Trigger %'}</label>
+                    <label
+                      className="block text-xs mb-1"
+                      style={{ color: '#848E9C' }}
+                    >
+                      {isZh ? '止损触发 %' : 'SL Trigger %'}
+                    </label>
                     {config.ladder_tp_sl.stop_loss_price.mode === 'manual' ? (
-                      <input type="number" min={0} step={0.1} value={rule.stop_loss_pct || 0} onChange={(e) => updateLadderRule(index, { stop_loss_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        value={rule.stop_loss_pct || 0}
+                        onChange={(e) =>
+                          updateLadderRule(index, {
+                            stop_loss_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     ) : (
-                      <div className="px-3 py-2 rounded text-xs" style={helpCardStyle}>{isZh ? '由 AI 生成或已禁用' : 'Generated by AI or disabled'}</div>
+                      <div
+                        className="px-3 py-2 rounded text-xs"
+                        style={helpCardStyle}
+                      >
+                        {isZh
+                          ? '由 AI 生成或已禁用'
+                          : 'Generated by AI or disabled'}
+                      </div>
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '止损平仓比例 %' : 'SL Close Ratio %'}</label>
+                    <label
+                      className="block text-xs mb-1"
+                      style={{ color: '#848E9C' }}
+                    >
+                      {isZh ? '止损平仓比例 %' : 'SL Close Ratio %'}
+                    </label>
                     {config.ladder_tp_sl.stop_loss_size.mode === 'manual' ? (
-                      <input type="number" min={0} max={100} step={1} value={rule.stop_loss_close_ratio_pct || 0} onChange={(e) => updateLadderRule(index, { stop_loss_close_ratio_pct: parseFloat(e.target.value) || 0 })} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={rule.stop_loss_close_ratio_pct || 0}
+                        onChange={(e) =>
+                          updateLadderRule(index, {
+                            stop_loss_close_ratio_pct:
+                              parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     ) : (
-                      <div className="px-3 py-2 rounded text-xs" style={helpCardStyle}>{isZh ? '由 AI 生成或已禁用' : 'Generated by AI or disabled'}</div>
+                      <div
+                        className="px-3 py-2 rounded text-xs"
+                        style={helpCardStyle}
+                      >
+                        {isZh
+                          ? '由 AI 生成或已禁用'
+                          : 'Generated by AI or disabled'}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -618,69 +1385,234 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
           <div className="flex items-center gap-2 mb-4">
             <Activity className="w-5 h-5" style={{ color: '#A855F7' }} />
             <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-              {isZh ? 'Drawdown Take Profit（运行态保护）' : 'Drawdown Take Profit (Runtime Protection)'}
+              {isZh
+                ? 'Drawdown Take Profit（运行态保护）'
+                : 'Drawdown Take Profit (Runtime Protection)'}
             </h3>
           </div>
           <div className="p-4 rounded-lg space-y-3" style={sectionStyle}>
             <div className="flex items-center justify-between">
-              <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '启用回撤止盈' : 'Enable Drawdown TP'}</label>
-              <input type="checkbox" checked={config.drawdown_take_profit.enabled} onChange={(e) => updateDrawdown('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-purple-500" />
+              <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                {isZh ? '启用回撤止盈' : 'Enable Drawdown TP'}
+              </label>
+              <input
+                type="checkbox"
+                checked={config.drawdown_take_profit.enabled}
+                onChange={(e) => updateDrawdown('enabled', e.target.checked)}
+                disabled={disabled}
+                className="h-4 w-4 accent-purple-500"
+              />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {statusChip(config.drawdown_take_profit.enabled, isZh ? '执行开关' : 'Execution')}
-              {statusChip(config.drawdown_take_profit.mode === 'manual', isZh ? '手动规则' : 'Manual rules')}
-              {statusChip(config.drawdown_take_profit.mode === 'ai', isZh ? 'AI 规则' : 'AI rules')}
+              {statusChip(
+                config.drawdown_take_profit.enabled,
+                isZh ? '执行开关' : 'Execution'
+              )}
+              {statusChip(
+                config.drawdown_take_profit.mode === 'manual',
+                isZh ? '手动规则' : 'Manual rules'
+              )}
+              {statusChip(
+                config.drawdown_take_profit.mode === 'ai',
+                isZh ? 'AI 规则' : 'AI rules'
+              )}
               {statusChip(drawdownOwnsTp, isZh ? '接管止盈侧' : 'Owns TP side')}
             </div>
-            <div className="text-xs" style={{ color: '#848E9C' }}>{drawdownStateSummary}</div>
+            <div className="text-xs" style={{ color: '#848E9C' }}>
+              {drawdownStateSummary}
+            </div>
             {drawdownModeMismatch && (
-              <div className="p-3 rounded-lg text-xs" style={{ background: '#11161C', border: '1px solid #2B3139', color: '#F0B90B' }}>
+              <div
+                className="p-3 rounded-lg text-xs"
+                style={{
+                  background: '#11161C',
+                  border: '1px solid #2B3139',
+                  color: '#F0B90B',
+                }}
+              >
                 {isZh
                   ? '注意：当前 Drawdown 模式是 AI，但“执行开关”仍关闭。页面会保留 AI 规则语义，但运行时不会启用 Drawdown 接管，直到你打开执行开关。'
                   : 'Note: Drawdown mode is AI, but execution is still disabled. The page preserves the AI rule semantics, but runtime will not enable drawdown ownership until execution is turned on.'}
               </div>
             )}
             <div>
-              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '模式' : 'Mode'}</label>
-              <select value={config.drawdown_take_profit.mode} onChange={(e) => updateDrawdown('mode', e.target.value as DrawdownTakeProfitConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                {protectionModeOptions.map((mode) => <option key={mode} value={mode}>{modeLabel(mode)}</option>)}
+              <label
+                className="block text-xs mb-1"
+                style={{ color: '#848E9C' }}
+              >
+                {isZh ? '模式' : 'Mode'}
+              </label>
+              <select
+                value={config.drawdown_take_profit.mode}
+                onChange={(e) =>
+                  updateDrawdown(
+                    'mode',
+                    e.target.value as DrawdownTakeProfitConfig['mode']
+                  )
+                }
+                disabled={disabled}
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                {protectionModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '引擎语义' : 'Engine Semantics'}</label>
-              <select value={config.drawdown_take_profit.engine_mode || 'manual'} onChange={(e) => updateDrawdown('engine_mode', e.target.value as DrawdownTakeProfitConfig['engine_mode'])} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                <option value="manual">{isZh ? '手动固定规则' : 'Manual fixed rules'}</option>
-                <option value="ai">{isZh ? 'AI 结构驱动' : 'AI structure-driven'}</option>
+              <label
+                className="block text-xs mb-1"
+                style={{ color: '#848E9C' }}
+              >
+                {isZh ? '引擎语义' : 'Engine Semantics'}
+              </label>
+              <select
+                value={config.drawdown_take_profit.engine_mode || 'manual'}
+                onChange={(e) =>
+                  updateDrawdown(
+                    'engine_mode',
+                    e.target.value as DrawdownTakeProfitConfig['engine_mode']
+                  )
+                }
+                disabled={
+                  disabled || config.drawdown_take_profit.mode === 'disabled'
+                }
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                <option value="manual">
+                  {isZh ? '手动固定规则' : 'Manual fixed rules'}
+                </option>
+                <option value="ai">
+                  {isZh ? 'AI 结构驱动' : 'AI structure-driven'}
+                </option>
               </select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '启用 Runner' : 'Runner Enabled'}</label>
-                <input type="checkbox" checked={Boolean(config.drawdown_take_profit.runner_enabled)} onChange={(e) => updateDrawdown('runner_enabled', e.target.checked)} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="h-4 w-4 accent-purple-500" />
+                <label
+                  className="block text-xs mb-1"
+                  style={{ color: '#848E9C' }}
+                >
+                  {isZh ? '启用 Runner' : 'Runner Enabled'}
+                </label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(config.drawdown_take_profit.runner_enabled)}
+                  onChange={(e) =>
+                    updateDrawdown('runner_enabled', e.target.checked)
+                  }
+                  disabled={
+                    disabled || config.drawdown_take_profit.mode === 'disabled'
+                  }
+                  className="h-4 w-4 accent-purple-500"
+                />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最少保留 Runner %' : 'Min Runner Keep %'}</label>
-                <input type="number" value={config.drawdown_take_profit.min_runner_keep_pct ?? 20} min={0} max={100} step={1} onChange={(e) => updateDrawdown('min_runner_keep_pct', parseFloat(e.target.value) || 0)} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                <label
+                  className="block text-xs mb-1"
+                  style={{ color: '#848E9C' }}
+                >
+                  {isZh ? '最少保留 Runner %' : 'Min Runner Keep %'}
+                </label>
+                <input
+                  type="number"
+                  value={config.drawdown_take_profit.min_runner_keep_pct ?? 20}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onChange={(e) =>
+                    updateDrawdown(
+                      'min_runner_keep_pct',
+                      parseFloat(e.target.value) || 0
+                    )
+                  }
+                  disabled={
+                    disabled || config.drawdown_take_profit.mode === 'disabled'
+                  }
+                  className="w-full px-3 py-2 rounded"
+                  style={inputStyle}
+                />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '第一阶段最大减仓 %' : 'Max First Reduce %'}</label>
-                <input type="number" value={config.drawdown_take_profit.max_first_reduce_pct ?? 60} min={0} max={100} step={1} onChange={(e) => updateDrawdown('max_first_reduce_pct', parseFloat(e.target.value) || 0)} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                <label
+                  className="block text-xs mb-1"
+                  style={{ color: '#848E9C' }}
+                >
+                  {isZh ? '第一阶段最大减仓 %' : 'Max First Reduce %'}
+                </label>
+                <input
+                  type="number"
+                  value={config.drawdown_take_profit.max_first_reduce_pct ?? 60}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onChange={(e) =>
+                    updateDrawdown(
+                      'max_first_reduce_pct',
+                      parseFloat(e.target.value) || 0
+                    )
+                  }
+                  disabled={
+                    disabled || config.drawdown_take_profit.mode === 'disabled'
+                  }
+                  className="w-full px-3 py-2 rounded"
+                  style={inputStyle}
+                />
               </div>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? 'Runner 与 BE 关系' : 'Runner vs Break-even Policy'}</label>
-              <select value={config.drawdown_take_profit.break_even_runner_policy || 'fallback_only'} onChange={(e) => updateDrawdown('break_even_runner_policy', e.target.value as DrawdownTakeProfitConfig['break_even_runner_policy'])} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                <option value="primary">{isZh ? 'BE 仍为主止损' : 'BE remains primary'}</option>
-                <option value="fallback_only">{isZh ? 'BE 只做兜底' : 'BE fallback only'}</option>
-                <option value="disabled_for_runner">{isZh ? 'Runner 下禁用 BE' : 'Disable BE for runner'}</option>
+              <label
+                className="block text-xs mb-1"
+                style={{ color: '#848E9C' }}
+              >
+                {isZh ? 'Runner 与 BE 关系' : 'Runner vs Break-even Policy'}
+              </label>
+              <select
+                value={
+                  config.drawdown_take_profit.break_even_runner_policy ||
+                  'fallback_only'
+                }
+                onChange={(e) =>
+                  updateDrawdown(
+                    'break_even_runner_policy',
+                    e.target
+                      .value as DrawdownTakeProfitConfig['break_even_runner_policy']
+                  )
+                }
+                disabled={
+                  disabled || config.drawdown_take_profit.mode === 'disabled'
+                }
+                className="w-full px-3 py-2 rounded"
+                style={inputStyle}
+              >
+                <option value="primary">
+                  {isZh ? 'BE 仍为主止损' : 'BE remains primary'}
+                </option>
+                <option value="fallback_only">
+                  {isZh ? 'BE 只做兜底' : 'BE fallback only'}
+                </option>
+                <option value="disabled_for_runner">
+                  {isZh ? 'Runner 下禁用 BE' : 'Disable BE for runner'}
+                </option>
               </select>
             </div>
             {infoBlock(
               isZh ? '盈利控制主链' : 'Primary profit-control path',
-              isZh ? 'Drawdown / Native Trailing 接管止盈侧。达到最小利润门槛后，系统按回撤阈值动态保护利润；不再同时依赖 Full / Ladder TP。AI 模式下应由 AI 输出结构化 drawdown 规则，且不得忽略。' : 'Drawdown / Native Trailing owns the take-profit side. After the minimum profit gate is reached, the system protects gains using drawdown thresholds instead of relying on Full / Ladder TP at the same time. In AI mode, the model should output structured drawdown rules and must not ignore them.',
-              isZh ? '建议：把它当成主止盈链路，只保留 Full / Ladder 的止损侧。' : 'Recommendation: treat this as the main take-profit path and keep only the stop-loss side from Full / Ladder.'
+              isZh
+                ? 'Drawdown / Native Trailing 接管止盈侧。达到最小利润门槛后，系统按回撤阈值动态保护利润；不再同时依赖 Full / Ladder TP。AI 模式下应由 AI 输出结构化 drawdown 规则，且不得忽略。'
+                : 'Drawdown / Native Trailing owns the take-profit side. After the minimum profit gate is reached, the system protects gains using drawdown thresholds instead of relying on Full / Ladder TP at the same time. In AI mode, the model should output structured drawdown rules and must not ignore them.',
+              isZh
+                ? '建议：把它当成主止盈链路，只保留 Full / Ladder 的止损侧。'
+                : 'Recommendation: treat this as the main take-profit path and keep only the stop-loss side from Full / Ladder.'
             )}
-            <div className="text-[11px]" style={{ color: '#848E9C' }}>{isZh ? '单位说明：最小利润%、最大回撤%、平仓比例% 均按百分比表达；利润/回撤语义应基于主周期及其邻近周期分析。' : 'Units: min profit %, max drawdown %, and close ratio % are all percentages; profit-protection semantics should be analyzed against the primary timeframe and adjacent timeframes.'}</div>
+            <div className="text-[11px]" style={{ color: '#848E9C' }}>
+              {isZh
+                ? '单位说明：最小利润%、最大回撤%、平仓比例% 均按百分比表达；利润/回撤语义应基于主周期及其邻近周期分析。'
+                : 'Units: min profit %, max drawdown %, and close ratio % are all percentages; profit-protection semantics should be analyzed against the primary timeframe and adjacent timeframes.'}
+            </div>
             {config.drawdown_take_profit.mode === 'ai' && (
               <div className="p-3 rounded-lg text-xs" style={helpCardStyle}>
                 {isZh
@@ -690,8 +1622,20 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
             )}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? '回撤止盈规则' : 'Drawdown Rules'}</div>
-                <button type="button" onClick={addDrawdownRule} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-[#1E2329] border border-[#2B3139] text-[#EAECEF] hover:border-[#F0B90B]">
+                <div
+                  className="text-sm font-medium"
+                  style={{ color: '#EAECEF' }}
+                >
+                  {isZh ? '回撤止盈规则' : 'Drawdown Rules'}
+                </div>
+                <button
+                  type="button"
+                  onClick={addDrawdownRule}
+                  disabled={
+                    disabled || config.drawdown_take_profit.mode === 'disabled'
+                  }
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-[#1E2329] border border-[#2B3139] text-[#EAECEF] hover:border-[#F0B90B]"
+                >
                   <Plus className="w-4 h-4" />
                   {isZh ? '新增规则' : 'Add Rule'}
                 </button>
@@ -700,36 +1644,144 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
               {drawdownRules.length === 0 && (
                 <div className="p-3 rounded-lg text-xs" style={helpCardStyle}>
                   {config.drawdown_take_profit.mode === 'ai'
-                    ? (isZh ? '当前未填写任何 drawdown 规则占位。建议至少保留 1 条结构化示例/回退规则，方便 AI 配置审阅与后续兼容。' : 'No drawdown placeholder rules are set. In AI mode, keeping at least one structured example/fallback rule is recommended for config review and future compatibility.')
-                    : (isZh ? '当前还没有配置任何回撤止盈规则。请至少新增 1 条规则。' : 'No drawdown rules configured yet. Add at least one rule.')}
+                    ? isZh
+                      ? '当前未填写任何 drawdown 规则占位。建议至少保留 1 条结构化示例/回退规则，方便 AI 配置审阅与后续兼容。'
+                      : 'No drawdown placeholder rules are set. In AI mode, keeping at least one structured example/fallback rule is recommended for config review and future compatibility.'
+                    : isZh
+                      ? '当前还没有配置任何回撤止盈规则。请至少新增 1 条规则。'
+                      : 'No drawdown rules configured yet. Add at least one rule.'}
                 </div>
               )}
 
               {drawdownRules.map((rule, index) => (
-                <div key={index} className="p-4 rounded-lg space-y-3" style={sectionStyle}>
+                <div
+                  key={index}
+                  className="p-4 rounded-lg space-y-3"
+                  style={sectionStyle}
+                >
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>{isZh ? `规则 ${index + 1}` : `Rule ${index + 1}`}</div>
-                    <button type="button" onClick={() => removeDrawdownRule(index)} disabled={disabled || drawdownRules.length <= 1 || config.drawdown_take_profit.mode === 'disabled'} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[#F6465D] border border-[#41272B] hover:bg-[#2B1619]">
+                    <div
+                      className="text-sm font-medium"
+                      style={{ color: '#EAECEF' }}
+                    >
+                      {isZh ? `规则 ${index + 1}` : `Rule ${index + 1}`}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDrawdownRule(index)}
+                      disabled={
+                        disabled ||
+                        drawdownRules.length <= 1 ||
+                        config.drawdown_take_profit.mode === 'disabled'
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[#F6465D] border border-[#41272B] hover:bg-[#2B1619]"
+                    >
                       <Trash2 className="w-3.5 h-3.5" />
                       {isZh ? '删除' : 'Remove'}
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最小利润 %' : 'Min Profit %'}</label>
-                      <input type="number" value={rule.min_profit_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { min_profit_pct: parseFloat(e.target.value) || 0 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '最小利润 %' : 'Min Profit %'}
+                      </label>
+                      <input
+                        type="number"
+                        value={rule.min_profit_pct}
+                        min={0}
+                        step={0.1}
+                        onChange={(e) =>
+                          updateDrawdownRule(index, {
+                            min_profit_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={
+                          disabled ||
+                          config.drawdown_take_profit.mode === 'disabled'
+                        }
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '最大回撤 %' : 'Max Drawdown %'}</label>
-                      <input type="number" value={rule.max_drawdown_pct} min={0} step={0.1} onChange={(e) => updateDrawdownRule(index, { max_drawdown_pct: parseFloat(e.target.value) || 0 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '最大回撤 %' : 'Max Drawdown %'}
+                      </label>
+                      <input
+                        type="number"
+                        value={rule.max_drawdown_pct}
+                        min={0}
+                        step={0.1}
+                        onChange={(e) =>
+                          updateDrawdownRule(index, {
+                            max_drawdown_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={
+                          disabled ||
+                          config.drawdown_take_profit.mode === 'disabled'
+                        }
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '平仓比例 %' : 'Close Ratio %'}</label>
-                      <input type="number" value={rule.close_ratio_pct} min={0} max={100} step={1} onChange={(e) => updateDrawdownRule(index, { close_ratio_pct: parseFloat(e.target.value) || 0 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '平仓比例 %' : 'Close Ratio %'}
+                      </label>
+                      <input
+                        type="number"
+                        value={rule.close_ratio_pct}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onChange={(e) =>
+                          updateDrawdownRule(index, {
+                            close_ratio_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={
+                          disabled ||
+                          config.drawdown_take_profit.mode === 'disabled'
+                        }
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '轮询秒数' : 'Poll Seconds'}</label>
-                      <input type="number" value={rule.poll_interval_seconds} min={5} step={5} onChange={(e) => updateDrawdownRule(index, { poll_interval_seconds: parseInt(e.target.value) || 60 })} disabled={disabled || config.drawdown_take_profit.mode === 'disabled'} className="w-full px-3 py-2 rounded" style={inputStyle} />
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '轮询秒数' : 'Poll Seconds'}
+                      </label>
+                      <input
+                        type="number"
+                        value={rule.poll_interval_seconds}
+                        min={5}
+                        step={5}
+                        onChange={(e) =>
+                          updateDrawdownRule(index, {
+                            poll_interval_seconds:
+                              parseInt(e.target.value) || 60,
+                          })
+                        }
+                        disabled={
+                          disabled ||
+                          config.drawdown_take_profit.mode === 'disabled'
+                        }
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
                     </div>
                   </div>
                 </div>
@@ -742,61 +1794,289 @@ export function ProtectionEditor({ config, onChange, disabled, language }: Prote
           <div className="flex items-center gap-2 mb-4">
             <RotateCcw className="w-5 h-5" style={{ color: '#F97316' }} />
             <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-              {isZh ? 'Break-even Stop（运行态保护）' : 'Break-even Stop (Runtime Protection)'}
+              {isZh
+                ? 'Break-even Stop（运行态保护）'
+                : 'Break-even Stop (Runtime Protection)'}
             </h3>
           </div>
           <div className="p-4 rounded-lg space-y-3" style={sectionStyle}>
             <div className="flex items-center justify-between">
-              <label className="block text-sm" style={{ color: '#EAECEF' }}>{isZh ? '启用保本止损' : 'Enable Break-even Stop'}</label>
-              <input type="checkbox" checked={config.break_even_stop.enabled} onChange={(e) => updateBreakEven('enabled', e.target.checked)} disabled={disabled} className="h-4 w-4 accent-orange-500" />
+              <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                {isZh ? '启用保本止损' : 'Enable Break-even Stop'}
+              </label>
+              <input
+                type="checkbox"
+                checked={config.break_even_stop.enabled}
+                onChange={(e) => updateBreakEven('enabled', e.target.checked)}
+                disabled={disabled}
+                className="h-4 w-4 accent-orange-500"
+              />
             </div>
             {infoBlock(
               isZh ? 'Break-even 独立管理' : 'Break-even is independent',
-              isZh ? 'Break-even 只负责把止损抬到保本附近，不接管 Drawdown 的盈利控制，也不替代 Full / Ladder 的长期止损结构。' : 'Break-even only raises stop-loss toward breakeven. It does not take over Drawdown profit control or replace the long-lived stop-loss structure from Full / Ladder.',
-              isZh ? '建议：把它当成盈利后附加的一层止损保护。' : 'Recommendation: use it as an extra stop-loss layer after profit appears.'
+              isZh
+                ? 'Break-even 只负责把止损抬到保本附近，不接管 Drawdown 的盈利控制，也不替代 Full / Ladder 的长期止损结构。'
+                : 'Break-even only raises stop-loss toward breakeven. It does not take over Drawdown profit control or replace the long-lived stop-loss structure from Full / Ladder.',
+              isZh
+                ? '建议：把它当成盈利后附加的一层止损保护。'
+                : 'Recommendation: use it as an extra stop-loss layer after profit appears.'
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '模式' : 'Mode'}</label>
-                <select value={config.break_even_stop.mode || 'manual'} onChange={(e) => updateBreakEven('mode', e.target.value as BreakEvenStopConfig['mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
+                <label
+                  className="block text-xs mb-1"
+                  style={{ color: '#848E9C' }}
+                >
+                  {isZh ? '模式' : 'Mode'}
+                </label>
+                <select
+                  value={config.break_even_stop.mode || 'manual'}
+                  onChange={(e) =>
+                    updateBreakEven(
+                      'mode',
+                      e.target.value as BreakEvenStopConfig['mode']
+                    )
+                  }
+                  disabled={disabled}
+                  className="w-full px-3 py-2 rounded"
+                  style={inputStyle}
+                >
                   <option value="manual">{modeLabel('manual')}</option>
                   <option value="ai">{modeLabel('ai')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '触发模式' : 'Trigger Mode'}</label>
-                <select value={config.break_even_stop.trigger_mode} onChange={(e) => updateBreakEven('trigger_mode', e.target.value as BreakEvenStopConfig['trigger_mode'])} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle}>
-                  <option value="profit_pct">{triggerModeLabel('profit_pct')}</option>
-                  <option value="r_multiple">{triggerModeLabel('r_multiple')}</option>
+                <label
+                  className="block text-xs mb-1"
+                  style={{ color: '#848E9C' }}
+                >
+                  {isZh ? '触发模式' : 'Trigger Mode'}
+                </label>
+                <select
+                  value={config.break_even_stop.trigger_mode}
+                  onChange={(e) =>
+                    updateBreakEven(
+                      'trigger_mode',
+                      e.target.value as BreakEvenStopConfig['trigger_mode']
+                    )
+                  }
+                  disabled={disabled}
+                  className="w-full px-3 py-2 rounded"
+                  style={inputStyle}
+                >
+                  <option value="profit_pct">
+                    {triggerModeLabel('profit_pct')}
+                  </option>
+                  <option value="r_multiple">
+                    {triggerModeLabel('r_multiple')}
+                  </option>
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '触发值' : 'Trigger Value'}</label>
-                <input type="number" value={config.break_even_stop.trigger_value} min={0} step={0.1} onChange={(e) => updateBreakEven('trigger_value', parseFloat(e.target.value) || 0)} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div
+                  className="text-sm font-medium"
+                  style={{ color: '#EAECEF' }}
+                >
+                  {isZh ? '多级手动 BE' : 'Multi-level Manual BE'}
+                </div>
+                <button
+                  type="button"
+                  onClick={addBreakEvenRule}
+                  disabled={disabled}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs"
+                  style={{
+                    background: '#1E2329',
+                    color: '#EAECEF',
+                    border: '1px solid #2B3139',
+                  }}
+                >
+                  <Plus className="w-3 h-3" /> {isZh ? '增加一档' : 'Add Level'}
+                </button>
               </div>
-              <div>
-                <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>{isZh ? '偏移 %' : 'Offset %'}</label>
-                <input type="number" value={config.break_even_stop.offset_pct} min={0} step={0.1} onChange={(e) => updateBreakEven('offset_pct', parseFloat(e.target.value) || 0)} disabled={disabled} className="w-full px-3 py-2 rounded" style={inputStyle} />
-              </div>
+              {breakEvenRules.map((rule, index) => (
+                <div
+                  key={index}
+                  className="p-3 rounded-lg space-y-3"
+                  style={helpCardStyle}
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="text-xs font-medium"
+                      style={{ color: '#EAECEF' }}
+                    >
+                      {rule.stage_name || `BE${index + 1}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeBreakEvenRule(index)}
+                      disabled={disabled || breakEvenRules.length <= 1}
+                      className="p-1 rounded"
+                      style={{ color: '#F6465D' }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div>
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '名称' : 'Name'}
+                      </label>
+                      <input
+                        value={rule.stage_name || ''}
+                        onChange={(e) =>
+                          updateBreakEvenRule(index, {
+                            stage_name: e.target.value,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '触发模式' : 'Trigger Mode'}
+                      </label>
+                      <select
+                        value={
+                          rule.trigger_mode ||
+                          config.break_even_stop.trigger_mode
+                        }
+                        onChange={(e) =>
+                          updateBreakEvenRule(index, {
+                            trigger_mode: e.target
+                              .value as BreakEvenStopConfig['trigger_mode'],
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      >
+                        <option value="profit_pct">
+                          {triggerModeLabel('profit_pct')}
+                        </option>
+                        <option value="r_multiple">
+                          {triggerModeLabel('r_multiple')}
+                        </option>
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '触发值' : 'Trigger Value'}
+                      </label>
+                      <input
+                        type="number"
+                        value={rule.trigger_value}
+                        min={0}
+                        step={0.1}
+                        onChange={(e) =>
+                          updateBreakEvenRule(index, {
+                            trigger_value: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '止损偏移 %' : 'Stop Offset %'}
+                      </label>
+                      <input
+                        type="number"
+                        value={rule.offset_pct}
+                        min={0}
+                        step={0.1}
+                        onChange={(e) =>
+                          updateBreakEvenRule(index, {
+                            offset_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh ? '保护仓位 %' : 'Size %'}
+                      </label>
+                      <input
+                        type="number"
+                        value={rule.close_ratio_pct || 100}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onChange={(e) =>
+                          updateBreakEvenRule(index, {
+                            close_ratio_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={disabled}
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
+      <div
+        className="p-4 rounded-lg"
+        style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+      >
         <div className="flex items-center gap-2 mb-2">
           <TrendingDown className="w-4 h-4" style={{ color: '#F6465D' }} />
           <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
             {isZh ? '当前执行说明' : 'Execution Notes'}
           </span>
         </div>
-        <ul className="text-xs space-y-1 list-disc pl-4" style={{ color: '#848E9C' }}>
-          <li>{isZh ? 'Full TP/SL 与 Ladder TP/SL 属于“委托型保护”，目标是在开仓后尽快挂到交易所并做校验。' : 'Full TP/SL and Ladder TP/SL are order-based protections that should be posted and verified after opening.'}</li>
-          <li>{isZh ? 'Drawdown / Break-even 属于“运行态保护”，由系统在持仓期间持续监控并动态执行。' : 'Drawdown and Break-even are runtime protections enforced continuously while a position is live.'}</li>
-          <li>{isZh ? 'Regime Filter / 开仓门禁已移至独立的“Pre-Entry Gate”页面。' : 'Regime Filter / Pre-Entry Gate has moved to a dedicated section.'}</li>
-          <li>{isZh ? '若交易所能力不满足要求或保护校验失败，系统应进入 fail-safe 处理，避免长期裸仓。' : 'If exchange capability is insufficient or verification fails, the system should enter fail-safe handling to avoid naked exposure.'}</li>
+        <ul
+          className="text-xs space-y-1 list-disc pl-4"
+          style={{ color: '#848E9C' }}
+        >
+          <li>
+            {isZh
+              ? 'Full TP/SL 与 Ladder TP/SL 属于“委托型保护”，目标是在开仓后尽快挂到交易所并做校验。'
+              : 'Full TP/SL and Ladder TP/SL are order-based protections that should be posted and verified after opening.'}
+          </li>
+          <li>
+            {isZh
+              ? 'Drawdown / Break-even 属于“运行态保护”，由系统在持仓期间持续监控并动态执行。'
+              : 'Drawdown and Break-even are runtime protections enforced continuously while a position is live.'}
+          </li>
+          <li>
+            {isZh
+              ? 'Regime Filter / 开仓门禁已移至独立的“Pre-Entry Gate”页面。'
+              : 'Regime Filter / Pre-Entry Gate has moved to a dedicated section.'}
+          </li>
+          <li>
+            {isZh
+              ? '若交易所能力不满足要求或保护校验失败，系统应进入 fail-safe 处理，避免长期裸仓。'
+              : 'If exchange capability is insufficient or verification fails, the system should enter fail-safe handling to avoid naked exposure.'}
+          </li>
         </ul>
       </div>
     </div>

@@ -272,7 +272,7 @@ func TestValidateAIDecisionsWithStrategyAllowsCombinedDrawdownPlusLadderAI(t *te
 	}
 }
 
-func TestFilterInvalidAIDecisionsWithStrategyDropsOnlyInvalidOpenDecision(t *testing.T) {
+func TestFilterInvalidAIDecisionsWithStrategyKeepsInvalidOpenDecisionForAudit(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.RiskControl.MinRiskRewardRatio = 2.5
 	cfg.EntryStructure.Enabled = true
@@ -315,17 +315,17 @@ func TestFilterInvalidAIDecisionsWithStrategyDropsOnlyInvalidOpenDecision(t *tes
 
 	filtered, rejected := FilterInvalidAIDecisionsWithStrategy([]Decision{invalidZEC, validADA}, cfg)
 	if len(rejected) != 1 {
-		t.Fatalf("expected one rejected decision, got %d", len(rejected))
+		t.Fatalf("expected one audited invalid decision, got %d", len(rejected))
 	}
-	if rejected[0].Index != 0 || rejected[0].Decision.Symbol != "ZECUSDT" {
-		t.Fatalf("expected ZEC decision #1 rejected, got index=%d symbol=%s", rejected[0].Index, rejected[0].Decision.Symbol)
+	if rejected[0].Decision.Symbol != "ADAUSDT" {
+		t.Fatalf("expected ADA audited as invalid under stricter entry proximity, got %#v", rejected)
 	}
-	if len(filtered) != 1 || filtered[0].Symbol != "ADAUSDT" {
-		t.Fatalf("expected only ADA to remain, got %#v", filtered)
+	if len(filtered) != 2 || filtered[0].Symbol != "ZECUSDT" || filtered[1].Symbol != "ADAUSDT" {
+		t.Fatalf("expected both decisions to remain executable for downstream policy, got %#v", filtered)
 	}
 }
 
-func TestFilterInvalidAIDecisionsWithStrategyRejectsOnlyBadOpenProposal(t *testing.T) {
+func TestFilterInvalidAIDecisionsWithStrategyAuditsOnlyBadOpenProposal(t *testing.T) {
 	cfg := &store.StrategyConfig{}
 	cfg.EntryStructure.Enabled = true
 	cfg.EntryStructure.RequireSupportResistance = true
@@ -370,11 +370,11 @@ func TestFilterInvalidAIDecisionsWithStrategyRejectsOnlyBadOpenProposal(t *testi
 	}
 
 	filtered, rejected := FilterInvalidAIDecisionsWithStrategy([]Decision{badZEC, validADA}, cfg)
-	if len(rejected) != 1 || rejected[0].Index != 0 || rejected[0].Decision.Symbol != "ZECUSDT" {
-		t.Fatalf("expected only ZEC rejected, got %#v", rejected)
+	if len(rejected) != 0 {
+		t.Fatalf("expected no audited invalid decisions for this fixture after validation softening, got %#v", rejected)
 	}
-	if len(filtered) != 1 || filtered[0].Symbol != "ADAUSDT" {
-		t.Fatalf("expected ADA to remain executable, got %#v", filtered)
+	if len(filtered) != 2 || filtered[0].Symbol != "ZECUSDT" || filtered[1].Symbol != "ADAUSDT" {
+		t.Fatalf("expected both decisions to remain executable for downstream policy, got %#v", filtered)
 	}
 }
 

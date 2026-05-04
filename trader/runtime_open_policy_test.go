@@ -138,7 +138,7 @@ func TestApplyRuntimeOpenPolicyAuditOnlyFlagsLowNetRRWithoutBlocking(t *testing.
 	}
 }
 
-func TestApplyRuntimeOpenPolicyRecommendOnlyDowngradesTargetAlignmentMismatchToWait(t *testing.T) {
+func TestApplyRuntimeOpenPolicyRecommendOnlyFlagsTargetAlignmentMismatchWithoutDowngrade(t *testing.T) {
 	decision := &kernel.Decision{
 		Symbol:    "BTCUSDT",
 		Action:    "open_long",
@@ -167,19 +167,19 @@ func TestApplyRuntimeOpenPolicyRecommendOnlyDowngradesTargetAlignmentMismatchToW
 	result := applyRuntimeOpenPolicy(decision, nil, 1.5, "recommend_only", protection)
 
 	if result.Blocked {
-		t.Fatalf("recommend_only target mismatch should downgrade, not block: %+v", result)
+		t.Fatalf("recommend_only target mismatch should flag, not block: %+v", result)
 	}
-	if result.Decision != "downgraded_to_wait" || result.ReasonCode != "protection_target_before_first_target" {
-		t.Fatalf("expected target mismatch downgrade, got %+v", result)
+	if result.Decision != "accepted" || result.ReasonCode != "protection_target_before_first_target" {
+		t.Fatalf("expected target mismatch audit flag, got %+v", result)
 	}
-	if result.OriginalAction != "open_long" || result.FinalAction != "wait" {
-		t.Fatalf("expected original open/final wait audit fields, got %+v", result)
+	if result.OriginalAction != "open_long" || result.FinalAction != "open_long" {
+		t.Fatalf("expected original/final open audit fields, got %+v", result)
 	}
-	if decision.Action != "wait" {
-		t.Fatalf("expected executable action to be downgraded to wait, got %q", decision.Action)
+	if decision.Action != "open_long" {
+		t.Fatalf("expected executable action to be preserved, got %q", decision.Action)
 	}
-	if !strings.Contains(result.Reason, "configured target is before rationale first target") || !strings.Contains(decision.Reasoning, "configured target is before rationale first target") {
-		t.Fatalf("expected downgrade reason to be auditable, result=%+v reasoning=%q", result, decision.Reasoning)
+	if !strings.Contains(result.Reason, "configured target is before rationale first target") {
+		t.Fatalf("expected audit reason, result=%+v", result)
 	}
 }
 

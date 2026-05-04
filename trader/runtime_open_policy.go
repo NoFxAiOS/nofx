@@ -87,6 +87,17 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 		Protection:         firstRuntimeProtectionAlignment(protection),
 	}
 	if applyRuntimeProtectionAlignmentPolicy(decision, mode, &result) {
+		// Protection alignment is audit-only when the strategy explicitly runs in
+		// recommend_only. Keep the original open decision instead of silently
+		// converting it to wait; this preserves the principle that prompt/analysis
+		// constraints should be fixed before the final execution gate, not by hidden
+		// post-hoc downgrades.
+		if mode == store.StrategyControlPolicyModeRecommendOnly && result.Decision == "downgraded_to_wait" {
+			result.Decision = "accepted_with_warning"
+			result.FinalAction = result.OriginalAction
+			decision.Action = result.OriginalAction
+			appendRuntimePolicyNote(decision, result.Reason)
+		}
 		return result
 	}
 	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
@@ -171,14 +182,6 @@ func applyRuntimeProtectionAlignmentPolicy(decision *kernel.Decision, mode store
 		if len(result.Protection.PolicyReasons) > 0 {
 			reason = reason + ": " + strings.Join(result.Protection.PolicyReasons, ",")
 		}
-		if mode == store.StrategyControlPolicyModeRecommendOnly {
-			result.Decision = "downgraded_to_wait"
-			result.FinalAction = "wait"
-			result.Reason = fmt.Sprintf("runtime protection policy downgraded %s %s to wait: %s", result.OriginalAction, decision.Symbol, reason)
-			decision.Action = "wait"
-			decision.Reasoning = appendRuntimeDowngradeReasoning(decision.Reasoning, result.Reason)
-			return true
-		}
 		result.Reason = fmt.Sprintf("runtime protection policy %s %s %s: %s", runtimePolicyVerb(mode), result.OriginalAction, decision.Symbol, reason)
 		if mode == store.StrategyControlPolicyModeStrict {
 			result.Blocked = true
@@ -190,14 +193,6 @@ func applyRuntimeProtectionAlignmentPolicy(decision *kernel.Decision, mode store
 		return false
 	}
 	result.ReasonCode = "protection_target_before_first_target"
-	if mode == store.StrategyControlPolicyModeRecommendOnly {
-		result.Decision = "downgraded_to_wait"
-		result.FinalAction = "wait"
-		result.Reason = fmt.Sprintf("runtime protection policy downgraded %s %s to wait: configured target is before rationale first target", result.OriginalAction, decision.Symbol)
-		decision.Action = "wait"
-		decision.Reasoning = appendRuntimeDowngradeReasoning(decision.Reasoning, "runtime policy downgraded to wait: configured target is before rationale first target")
-		return true
-	}
 	result.Reason = fmt.Sprintf("runtime protection policy %s %s %s: configured target is before rationale first target", runtimePolicyVerb(mode), result.OriginalAction, decision.Symbol)
 	if mode == store.StrategyControlPolicyModeStrict {
 		result.Blocked = true

@@ -3,6 +3,8 @@ package kernel
 import (
 	"fmt"
 	"strings"
+
+	"nofx/logger"
 )
 
 func validateAIProtectionPlanCompletenessAndStructure(d Decision) error {
@@ -88,6 +90,13 @@ func validateAIDrawdownRulesCompleteness(d Decision) error {
 	allowedTF := allowedDrawdownTimeframes(d.EntryProtection)
 	for i, rule := range d.ProtectionPlan.DrawdownRules {
 		tf := strings.TrimSpace(rule.Timeframe)
+		// Normalize combined timeframe format (e.g., "15m/1h" -> "15m")
+		if strings.Contains(tf, "/") {
+			parts := strings.Split(tf, "/")
+			normalized := strings.TrimSpace(parts[0])
+			logger.Warnf("🟡 Drawdown rule[%d] timeframe '%s' contains combined format, normalized to '%s'", i, tf, normalized)
+			tf = normalized
+		}
 		if tf == "" {
 			if strings.TrimSpace(rule.ReasonAnchor) == "" {
 				return fmt.Errorf("protection_plan.drawdown_rules[%d] requires timeframe or reason_anchor timeframe reference", i)

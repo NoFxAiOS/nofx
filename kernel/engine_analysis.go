@@ -989,12 +989,14 @@ func validateMinimumVolatility(rationale *AIEntryProtectionRationale, gate store
 		return fmt.Errorf("ATR %.2f%% too low (min %.2f%%), insufficient volatility", atrPct, minATRPct)
 	}
 
-	riskDistance := absFloat(rationale.RiskReward.Entry - rationale.RiskReward.Invalidation)
-	riskPct := (riskDistance / entry) * 100
+	// Check reward distance (first_target to entry), not risk distance (stop loss)
+	// Stop loss should be close to structure, small distance is good
+	rewardDistance := absFloat(rationale.RiskReward.FirstTarget - rationale.RiskReward.Entry)
+	rewardPct := (rewardDistance / entry) * 100
 
-	minRiskPct := gate.MinRiskDistancePct
-	if riskPct < minRiskPct {
-		return fmt.Errorf("risk distance %.2f%% too small (min %.2f%%), insufficient room for fees", riskPct, minRiskPct)
+	minRewardPct := gate.MinRiskDistancePct // Reuse config for reward distance check
+	if rewardPct < minRewardPct {
+		return fmt.Errorf("first_target distance %.2f%% too small (min %.2f%%), insufficient room for fees", rewardPct, minRewardPct)
 	}
 
 	return nil
@@ -1378,6 +1380,9 @@ func validateLadderPlanStructuralAlignment(action string, rr AIRiskRewardRationa
 	targetTol := structuralTolerance(maxFloat(rewardDistance, entry*0.005), rationale.VolatilityAdjustment.ATR14Pct, entry)
 	stopTol := structuralTolerance(maxFloat(riskDistance, entry*0.005), rationale.VolatilityAdjustment.ATR14Pct, entry)
 
+	// Check if drawdown_rules present to skip ladder TP position allocation check
+	hasDrawdown := len(plan.DrawdownRules) > 0
+
 	for i, rule := range plan.LadderRules {
 		if rule.TakeProfitCloseRatioPct > 0 {
 			tpPrice := ladderRulePriceFromPctOrAbsolute(action, entry, rule.TakeProfitPct, rule.TakeProfitPrice, true)
@@ -1390,7 +1395,13 @@ func validateLadderPlanStructuralAlignment(action string, rr AIRiskRewardRationa
 			}
 			if len(targetRefs) > 0 {
 				nearest, gap := nearestLevel(unbufferedTPPrice, targetRefs)
-				if gap > targetTol {
+				// TP3 (ladder[2+]) allows deviation if close_ratio <= 20%
+				if i >= 2 && gap > targetTol {
+					if rule.TakeProfitCloseRatioPct > 20 {
+						return fmt.Errorf("protection_plan.ladder_rules[%d] take profit %.4f too far from structural target %.4f, and close_ratio %.1f%% exceeds 20%% limit for extended targets", i, tpPrice, nearest, rule.TakeProfitCloseRatioPct)
+					}
+					logger.Infof("🟡 Ladder[%d] TP %.4f deviates from structure %.4f (gap %.4f > tol %.4f) but close_ratio %.1f%% <= 20%%, allowing extended target", i, tpPrice, nearest, gap, targetTol, rule.TakeProfitCloseRatioPct)
+				} else if gap > targetTol {
 					return fmt.Errorf("protection_plan.ladder_rules[%d] take profit %.4f too far from structural/fibonacci target %.4f", i, tpPrice, nearest)
 				}
 			}
@@ -1407,11 +1418,25 @@ func validateLadderPlanStructuralAlignment(action string, rr AIRiskRewardRationa
 			if len(invalidationRefs) > 0 {
 				nearest, gap := nearestLevel(unbufferedSLPrice, invalidationRefs)
 				if gap > stopTol {
-					return fmt.Errorf("protection_plan.ladder_rules[%d] stop loss %.4f too far from structural invalidation %.4f", i, slPrice, nearest)
+					return fmt.Errorf("protection_plan.ladder_rules[%d] stop loss %.4f (unbuffered %.4f) too far from structural invalidation %.4f (gap %.4f > tol %.4f)", i, slPrice, unbufferedSLPrice, nearest, gap, stopTol)
 				}
 			}
 		}
 	}
+
+	// Skip ladder TP position allocation check if drawdown_rules present
+	if !hasDrawdown {
+		totalTPRatio := 0.0
+		for _, rule := range plan.LadderRules {
+			totalTPRatio += rule.TakeProfitCloseRatioPct
+		}
+		if totalTPRatio > 0 && totalTPRatio < 80 {
+			return fmt.Errorf("ladder TP total allocation %.1f%% < 80%% (no drawdown rules to compensate)", totalTPRatio)
+		}
+	} else {
+		logger.Infof("🟡 Drawdown rules present, skipping ladder TP position allocation check")
+	}
+
 	return nil
 }
 

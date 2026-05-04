@@ -253,36 +253,17 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 	}
 
 	// 1. Native drawdown/trailing should be armed as early as safely possible.
+	// Apply only exchange-native trailing drawdown here. Managed drawdown fallback uses
+	// conditional TP-style orders and must not be staged immediately after opening,
+	// because OKX conditional algo orders can cancel/replace same-symbol protection
+	// and wipe the mandatory ladder SL stack. If native trailing is unavailable or
+	// below safety floor, runtime drawdown monitoring will handle the managed close
+	// path when drawdown is actually triggered.
 	for _, rule := range drawdownRules {
 		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
 			continue
 		}
-		if rule.CloseRatioPct >= 99.999 {
-			_ = at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule)
-			continue
-		}
-
-		// For partial drawdown, prefer exchange-native trailing when supported.
-		// Only fall back to managed partial TP when native partial trailing is unavailable or fails.
-		if at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule) {
-			continue
-		}
-
-		candidate := buildManagedPartialDrawdownPlanCandidate(req.EntryPrice, req.Action, rule)
-		if candidate == nil {
-			continue
-		}
-		if at.canApplyManagedPartialDrawdownPlan(candidate) {
-			logger.Infof("  🛡 Applying managed partial drawdown: symbol=%s side=%s close=%.1f%%",
-				req.Symbol, req.PositionSide, rule.CloseRatioPct)
-			if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, candidate); err != nil {
-				// Verification failed but OKX may have accepted the orders. Cancel them to avoid orphans.
-				logger.Warnf("  ⚠️ Managed partial drawdown failed for %s %s: %v — cancelling orphaned orders", req.Symbol, req.PositionSide, err)
-				at.cancelOrphanedDrawdownOrders(req.Symbol, candidate)
-			} else {
-				at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "managed_partial_drawdown_armed")
-			}
-		}
+		_ = at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule)
 	}
 
 	// 2. Break-even should become ready immediately after open, but must only be

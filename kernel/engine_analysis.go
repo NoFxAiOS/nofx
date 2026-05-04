@@ -596,13 +596,14 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 		}
 		if drawdownAI && ladderAI {
 			if d.ProtectionPlan == nil || planMode != "combined" {
-				return fmt.Errorf("decision #%d: current strategy route requires combined protection_plan for open actions (ladder_rules + drawdown_rules); refusing configured/default protection fallback", i+1)
+				return fmt.Errorf("decision #%d: current strategy route requires combined protection_plan for open actions (ladder stop rules + drawdown_rules); refusing configured/default protection fallback", i+1)
 			}
-			if n := len(d.ProtectionPlan.LadderRules); n < 2 || n > 3 {
-				return fmt.Errorf("decision #%d: combined protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
-			}
+			// Drawdown owns profit-taking. Ladder rules are only required for the stop-loss side.
 			if len(d.ProtectionPlan.DrawdownRules) < 2 {
 				return fmt.Errorf("decision #%d: combined protection_plan must contain at least 2 drawdown_rules under current strategy route", i+1)
+			}
+			if n := len(d.ProtectionPlan.LadderRules); n > 3 {
+				return fmt.Errorf("decision #%d: combined protection_plan must not contain more than 3 ladder_rules under current strategy route", i+1)
 			}
 			for j := range d.ProtectionPlan.LadderRules {
 				rule := &d.ProtectionPlan.LadderRules[j]

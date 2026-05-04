@@ -1160,6 +1160,11 @@ func deriveProtectionAlignmentWithStrategy(decision *kernel.Decision, snapshot *
 	checked := protectionAlignmentChecks{}
 	hasSignal := len(alignment.Notes) > 0
 
+	drawdownOwnsProfit := false
+	if strategy != nil {
+		drawdownOwnsProfit = evaluateProtectionOwnerPolicy(strategy.Protection).UseDrawdownTP
+	}
+
 	// Prefer the concrete AI plan for AI-owned opens. Strategy snapshots may contain
 	// placeholder/reference percentages (for example 0.9/1.5 ladder defaults) that
 	// are not the orders the execution chain will place.
@@ -1169,10 +1174,15 @@ func deriveProtectionAlignmentWithStrategy(decision *kernel.Decision, snapshot *
 			checked.stop = true
 			hasSignal = true
 		}
-		if targetPrice, ok := deriveAIProtectionTargetPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
-			alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
-			checked.target = true
-			hasSignal = true
+		// When drawdown owns profit-taking, do not evaluate ladder/full static TP
+		// against first_target. Drawdown rules intentionally manage profit exits
+		// dynamically; static ladder TP may be absent or audit-only.
+		if !drawdownOwnsProfit {
+			if targetPrice, ok := deriveAIProtectionTargetPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
+				alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
+				checked.target = true
+				hasSignal = true
+			}
 		}
 		if triggerPrice, ok := deriveAIProtectionBreakEvenTriggerPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
 			alignment.BreakEvenBeforeTarget = (isLong && triggerPrice <= rr.FirstTarget) || (isShort && triggerPrice >= rr.FirstTarget)
@@ -1189,7 +1199,7 @@ func deriveProtectionAlignmentWithStrategy(decision *kernel.Decision, snapshot *
 				hasSignal = true
 			}
 		}
-		if !checked.target && shouldUseSnapshotTarget(snapshot) {
+		if !checked.target && !drawdownOwnsProfit && shouldUseSnapshotTarget(snapshot) {
 			if targetPrice, ok := deriveProtectionTargetPrice(snapshot, rr.Entry, isLong, isShort); ok {
 				alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
 				checked.target = true

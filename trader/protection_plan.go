@@ -282,6 +282,7 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 			ladderPlan.TakeProfitOrders = nil
 			ladderPlan.NeedsTakeProfit = false
 			ladderPlan.TakeProfitPrice = 0
+			// Preserve ladder SL: drawdown only owns TP, not SL
 		}
 	}
 

@@ -386,10 +386,24 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
-	if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming" || at.getProtectionState(symbol, side) == "managed_drawdown_armed") {
+	if !result.ExchangeVerified && hasMissingMandatoryLadderStops(openOrders, positionSide, plan) {
+		result.Summary = "mandatory ladder SL missing; dynamic protection cannot satisfy static ladder ownership"
+	} else if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming" || at.getProtectionState(symbol, side) == "managed_drawdown_armed") {
 		result.Summary = "dynamic protection owner armed; exchange static ownership not fully verified"
 	}
 	return result, nil
+}
+
+func hasMissingMandatoryLadderStops(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) bool {
+	if plan == nil || len(plan.StopLossOrders) == 0 {
+		return false
+	}
+	for _, target := range plan.StopLossOrders {
+		if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func isExecutableHeldStopPrice(side string, stopPrice, markPrice float64) bool {

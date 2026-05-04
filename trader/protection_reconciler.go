@@ -173,6 +173,9 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	if err != nil {
 		return result, fmt.Errorf("build configured plan: %w", err)
 	}
+	if aiPlan := at.restoreAIProtectionPlanForPositionWithEntry(symbol, side, entryPrice); aiPlan != nil {
+		plan = preferDecisionProtectionPlan(plan, aiPlan)
+	}
 	if !at.verifyLivePositionForProtection(symbol, side, "protection reconcile") {
 		result.Summary = "inactive position; protection state cleaned"
 		return result, nil

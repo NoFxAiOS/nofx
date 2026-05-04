@@ -282,7 +282,16 @@ func (at *AutoTrader) restoreAIDrawdownRulesForPositionWithEntry(symbol, side st
 		return nil
 	}
 	pos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side))
-	if err != nil || pos == nil || pos.EntryDecisionCycle <= 0 {
+	if err != nil || pos == nil {
+		return nil
+	}
+	if pos.EntryDecisionCycle <= 0 {
+		if inferred := at.store.Position().FindEntryDecisionCycleForPosition(at.id, symbol, strings.ToUpper(side), pos.EntryTime); inferred > 0 {
+			pos.EntryDecisionCycle = inferred
+			_ = at.store.Position().BackfillEntryDecisionCycle(pos.ID, inferred)
+		}
+	}
+	if pos.EntryDecisionCycle <= 0 {
 		return nil
 	}
 	record, err := at.store.Decision().GetRecordByCycle(at.id, pos.EntryDecisionCycle)
@@ -319,6 +328,64 @@ func (at *AutoTrader) restoreAIDrawdownRulesForPositionWithEntry(symbol, side st
 			}
 			at.setAIDrawdownRules(symbol, side, plan.DrawdownRules)
 			return plan.DrawdownRules
+		}
+	}
+	return nil
+}
+
+func (at *AutoTrader) restoreAIProtectionPlanForPositionWithEntry(symbol, side string, fallbackEntryPrice float64) *ProtectionPlan {
+	if at == nil || at.store == nil || symbol == "" || side == "" {
+		return nil
+	}
+	pos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side))
+	if err != nil || pos == nil {
+		return nil
+	}
+	if pos.EntryDecisionCycle <= 0 {
+		if inferred := at.store.Position().FindEntryDecisionCycleForPosition(at.id, symbol, strings.ToUpper(side), pos.EntryTime); inferred > 0 {
+			pos.EntryDecisionCycle = inferred
+			_ = at.store.Position().BackfillEntryDecisionCycle(pos.ID, inferred)
+		}
+	}
+	if pos.EntryDecisionCycle <= 0 {
+		return nil
+	}
+	record, err := at.store.Decision().GetRecordByCycle(at.id, pos.EntryDecisionCycle)
+	if err != nil || record == nil {
+		return nil
+	}
+	action := sideToOpenAction(side)
+	entryPrice := pos.EntryPrice
+	if entryPrice <= 0 {
+		entryPrice = fallbackEntryPrice
+	}
+	if entryPrice <= 0 {
+		entryPrice = recordActionPrice(record, symbol, action)
+	}
+	if entryPrice <= 0 {
+		return nil
+	}
+	for _, payload := range []string{record.DecisionJSON, record.RawResponse} {
+		if strings.TrimSpace(payload) == "" {
+			continue
+		}
+		var decisions []kernel.Decision
+		if err := json.Unmarshal([]byte(payload), &decisions); err != nil {
+			continue
+		}
+		for i := range decisions {
+			decision := decisions[i]
+			if !strings.EqualFold(decision.Symbol, symbol) || !strings.EqualFold(decision.Action, action) || decision.ProtectionPlan == nil {
+				continue
+			}
+			plan, err := buildAIProtectionPlan(entryPrice, decision.Action, decision.ProtectionPlan, at.config.StrategyConfig)
+			if err != nil || plan == nil {
+				continue
+			}
+			if len(plan.DrawdownRules) > 0 {
+				at.setAIDrawdownRules(symbol, side, plan.DrawdownRules)
+			}
+			return plan
 		}
 	}
 	return nil

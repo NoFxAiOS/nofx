@@ -87,17 +87,6 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 		Protection:         firstRuntimeProtectionAlignment(protection),
 	}
 	if applyRuntimeProtectionAlignmentPolicy(decision, mode, &result) {
-		// Protection alignment is audit-only when the strategy explicitly runs in
-		// recommend_only. Keep the original open decision instead of silently
-		// converting it to wait; this preserves the principle that prompt/analysis
-		// constraints should be fixed before the final execution gate, not by hidden
-		// post-hoc downgrades.
-		if mode == store.StrategyControlPolicyModeRecommendOnly && result.Decision == "downgraded_to_wait" {
-			result.Decision = "accepted_with_warning"
-			result.FinalAction = result.OriginalAction
-			decision.Action = result.OriginalAction
-			appendRuntimePolicyNote(decision, result.Reason)
-		}
 		return result
 	}
 	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
@@ -127,14 +116,6 @@ func applyRuntimeOpenPolicy(decision *kernel.Decision, snapshot *ExecutionConstr
 	result.EffectiveRRSource = effectiveRRSource
 	if effectiveRR > 0 && effectiveRR+0.02 < minRR {
 		result.ReasonCode = "runtime_rr_below_min"
-		if mode == store.StrategyControlPolicyModeRecommendOnly {
-			result.Decision = "downgraded_to_wait"
-			result.FinalAction = "wait"
-			result.Reason = fmt.Sprintf("runtime RR policy downgraded %s %s to wait: execution-aware rr %.2f below min %.2f", decision.Action, decision.Symbol, effectiveRR, minRR)
-			decision.Action = "wait"
-			decision.Reasoning = appendDowngradedToWaitReasoning(decision.Reasoning, effectiveRR, minRR)
-			return result
-		}
 		result.Reason = fmt.Sprintf("runtime RR policy %s %s %s: execution-aware rr %.2f below min %.2f", runtimePolicyVerb(mode), decision.Action, decision.Symbol, effectiveRR, minRR)
 		if mode == store.StrategyControlPolicyModeStrict {
 			result.Blocked = true

@@ -112,9 +112,10 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		return decision, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	// 6. Validate protection routes against strategy config (drawdown/ladder/break-even AI mode).
-	// Route validation failures are per-decision quality failures: reject only the bad
-	// open proposal and keep other valid candidates from the same AI response.
+	// 6. Audit protection routes against strategy config (drawdown/ladder/break-even AI mode).
+	// Route validation findings are recorded for review_context / decision audit only.
+	// They must not silently remove or downgrade open decisions; execution-side policy
+	// owns the final, explicit order-placement decision.
 	config := engine.GetConfig()
 	if decision != nil && len(decision.Decisions) > 0 {
 		filtered, rejected := FilterInvalidAIDecisionsWithStrategyAndCoT(decision.Decisions, config, decision.CoTTrace)
@@ -127,15 +128,12 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 			decision.RejectedDecisions = rejected
 			for _, rej := range rejected {
 				if rej.Index >= 0 {
-					logger.Warnf("🚫 Rejected decision #%d %s %s: %s", rej.Index+1, rej.Decision.Symbol, rej.Decision.Action, rej.Reason)
+					logger.Warnf("⚠️ Decision route audit #%d %s %s: %s", rej.Index+1, rej.Decision.Symbol, rej.Decision.Action, rej.Reason)
 				} else {
-					logger.Warnf("🚫 Rejected AI response package: %s", rej.Reason)
+					logger.Warnf("⚠️ AI response package audit: %s", rej.Reason)
 				}
 			}
 			decision.Decisions = filtered
-			if len(decision.Decisions) == 0 {
-				logger.Warnf("🚫 All open decisions rejected; continuing with empty no-trade decision set")
-			}
 		}
 	}
 

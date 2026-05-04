@@ -65,10 +65,7 @@ func applyRegimeStructureGatePolicy(result regimeStructureGateResult) runtimePol
 		return policy
 	}
 	switch effectiveRuntimePolicyMode(result.Mode) {
-	case store.StrategyControlPolicyModeRecommendOnly:
-		policy.Decision = "downgraded_to_wait"
-		policy.Reason = result.Reason
-	case store.StrategyControlPolicyModeAuditOnly:
+	case store.StrategyControlPolicyModeAuditOnly, store.StrategyControlPolicyModeRecommendOnly:
 		policy.Decision = "accepted"
 		policy.Reason = "audit only: " + result.Reason
 	default:

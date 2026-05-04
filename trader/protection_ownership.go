@@ -78,7 +78,7 @@ func evaluateProtectionOwnership(openOrders []OpenOrder, positionSide string, pl
 		state.Reasons = append(state.Reasons, fmt.Sprintf("unexpected protection orders sl=%d tp=%d", unexpectedSL, unexpectedTP))
 	}
 
-	state.Verified = state.StopOwner != "" && (!planRequiresProfitOwner(plan) || state.ProfitOwner != "") && unexpectedSL == 0 && unexpectedTP == 0
+	state.Verified = state.StopOwner != "" && !state.MissingStop && (!planRequiresProfitOwner(plan) || state.ProfitOwner != "") && unexpectedSL == 0 && unexpectedTP == 0
 	if state.Verified {
 		state.State = "protected"
 	} else if state.StopOwner != "" || state.ProfitOwner != "" {

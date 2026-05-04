@@ -134,7 +134,7 @@ func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPrimaryStopMissing
 	}
 }
 
-func TestDetectMissingProtectionAcceptsDegradedFullStopAndFallbackInsteadOfMissingLadderStops(t *testing.T) {
+func TestDetectMissingProtectionRequiresAllLadderStopsDespiteFullAndFallbackStops(t *testing.T) {
 	orders := []OpenOrder{
 		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
 		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
@@ -150,12 +150,12 @@ func TestDetectMissingProtectionAcceptsDegradedFullStopAndFallbackInsteadOfMissi
 	}
 
 	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
-	if missingSL || missingTP {
-		t.Fatalf("expected degraded full+fallback stop ownership to satisfy protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	if !missingSL || missingTP {
+		t.Fatalf("expected missing ladder SL tier to remain missing even with full/fallback stops, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
 }
 
-func TestDetectMissingProtectionAcceptsFallbackOnlyForDustRemainderLadder(t *testing.T) {
+func TestDetectMissingProtectionRequiresLadderStopsDespiteFallbackOnly(t *testing.T) {
 	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"}}
 	plan := &ProtectionPlan{
 		NeedsStopLoss:        true,
@@ -168,12 +168,12 @@ func TestDetectMissingProtectionAcceptsFallbackOnlyForDustRemainderLadder(t *tes
 	}
 
 	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
-	if missingSL || missingTP {
-		t.Fatalf("expected fallback-only degraded dust remainder ownership to satisfy stop protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	if !missingSL || missingTP {
+		t.Fatalf("expected fallback-only stop not to mask missing ladder SL tiers, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
 }
 
-func TestDetectMissingProtectionAcceptsTaggedFallbackWhenPlannedPriceDrifts(t *testing.T) {
+func TestDetectMissingProtectionRequiresLadderStopsDespiteTaggedFallbackPriceDrift(t *testing.T) {
 	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 2234.51184, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"}}
 	plan := &ProtectionPlan{
 		NeedsStopLoss:        true,
@@ -186,12 +186,12 @@ func TestDetectMissingProtectionAcceptsTaggedFallbackWhenPlannedPriceDrifts(t *t
 	}
 
 	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
-	if missingSL || missingTP {
-		t.Fatalf("expected tagged fallback owner to satisfy dust stop protection despite price drift, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	if !missingSL || missingTP {
+		t.Fatalf("expected tagged fallback not to mask missing ladder SL tiers, got missingSL=%v missingTP=%v", missingSL, missingTP)
 	}
 	ownership := evaluateProtectionOwnership(orders, "LONG", plan, false, false)
-	if ownership.StopOwner != "fallback" || !ownership.Verified {
-		t.Fatalf("expected fallback ownership verified, got %+v", ownership)
+	if ownership.StopOwner != "fallback" || ownership.Verified {
+		t.Fatalf("expected fallback visible but ownership degraded until ladder SL is restored, got %+v", ownership)
 	}
 }
 

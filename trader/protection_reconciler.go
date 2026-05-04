@@ -579,23 +579,19 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 	fullStopSatisfied := plan.NeedsStopLoss && plan.StopLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.StopLossPrice)
 	fullTPSatisfied := plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, true, plan.TakeProfitPrice)
 
-	// For stop-loss side, treat ladder plans as requiring ALL configured stop orders in the normal case.
-	// But if a full-position stop or fallback stop is already visible, accept that as a valid degraded
-	// execution state for dust remainders where ladder ownership can no longer be rebuilt.
-	// This avoids churn where tiny positions repeatedly cancel a valid fallback, fail to materialize
-	// non-executable ladder tiers, and then recreate the same fallback.
+	// Ladder SL is a hard static owner: every configured ladder stop tier must be
+	// visible. Break-even/full/fallback stops are independent overlays and must not
+	// satisfy or mask missing ladder SL tiers.
 	if len(plan.StopLossOrders) > 0 {
-		if !(breakEvenSatisfied || fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide)) {
-			for _, target := range plan.StopLossOrders {
-				if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
-					missingSL = true
-					break
-				}
+		for _, target := range plan.StopLossOrders {
+			if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
+				missingSL = true
+				break
 			}
 		}
 	} else if plan.NeedsStopLoss {
-		// For held positions, a visible break-even/fallback max-loss stop still counts as protected
-		// stop ownership even when tighter static ladder tiers are absent or intentionally handled by
+		// For non-ladder static stops, a visible break-even/fallback max-loss stop still counts as protected
+		// stop ownership even when tighter static stops are absent or intentionally handled by
 		// a dynamic owner. This avoids re-materializing static stops next to an armed break-even stop.
 		missingSL = !(breakEvenSatisfied || fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide))
 	}

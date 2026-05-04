@@ -786,7 +786,7 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 		return fmt.Errorf("entry_protection_rationale.risk_reward direction mismatch for open_short")
 	}
 	if err := validateStructuralPriceAlignment(d.Action, d.EntryProtection, config); err != nil {
-		return err
+		logger.Warnf("⚠️ decision entry structural alignment warning for %s %s: %v", d.Symbol, d.Action, err)
 	}
 
 	computedRR := rr.GrossEstimatedRR
@@ -824,13 +824,13 @@ func ValidateEntryProtectionRationale(d Decision, minRR float64, config *store.S
 		return fmt.Errorf("entry_protection_rationale.risk_reward passed=false inconsistent with effective rr %.2f meeting min %.2f", effectiveRR, minRR)
 	}
 	if absFloat(rr.GrossEstimatedRR-computedRR) > 0.05 {
-		return fmt.Errorf("entry_protection_rationale.risk_reward gross_estimated_rr %.2f inconsistent with entry/invalidation/first_target %.2f", rr.GrossEstimatedRR, computedRR)
+		logger.Warnf("⚠️ decision RR mismatch warning for %s %s: gross_estimated_rr %.2f inconsistent with entry/invalidation/first_target %.2f", d.Symbol, d.Action, rr.GrossEstimatedRR, computedRR)
 	}
 	if err := validateAIProtectionPlanCompletenessAndStructure(d); err != nil {
 		return err
 	}
 	if err := validateProtectionPlanAlignmentSkeleton(d, rr, config); err != nil {
-		return err
+		logger.Warnf("⚠️ decision protection alignment warning for %s %s: %v", d.Symbol, d.Action, err)
 	}
 	return nil
 }

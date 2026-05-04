@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -163,8 +164,59 @@ type AIEntryProtectionRationale struct {
 	DerivativesContext   AIEntryDerivativesContext   `json:"derivatives_context,omitempty"`
 	Anchors              []AIEntryProtectionAnchor   `json:"anchors,omitempty"`
 	HigherAnchors        []AIEntryProtectionAnchor   `json:"higher_timeframe_anchors,omitempty"`
-	TimeframeStructures  []AIEntryTimeframeStructure `json:"timeframe_structures,omitempty"`
+	TimeframeStructures  AIEntryTimeframeStructures  `json:"timeframe_structures,omitempty"`
 	AlignmentNotes       []string                    `json:"alignment_notes,omitempty"`
+}
+
+type AIEntryTimeframeStructures []AIEntryTimeframeStructure
+
+func (s *AIEntryTimeframeStructures) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		*s = nil
+		return nil
+	}
+	if len(data) > 0 && data[0] == '[' {
+		var arr []AIEntryTimeframeStructure
+		if err := json.Unmarshal(data, &arr); err != nil {
+			return err
+		}
+		*s = arr
+		return nil
+	}
+	if len(data) > 0 && data[0] == '{' {
+		var byTF map[string]struct {
+			Role       string                    `json:"role,omitempty"`
+			Support    []float64                 `json:"support,omitempty"`
+			Resistance []float64                 `json:"resistance,omitempty"`
+			Fibonacci  *AIEntryFibonacci         `json:"fibonacci,omitempty"`
+			Anchors    []AIEntryProtectionAnchor `json:"anchors,omitempty"`
+			ATR14Pct   float64                   `json:"atr14_pct,omitempty"`
+			Trend      string                    `json:"trend,omitempty"`
+			UsedFor    string                    `json:"used_for,omitempty"`
+			Notes      string                    `json:"notes,omitempty"`
+		}
+		if err := json.Unmarshal(data, &byTF); err != nil {
+			return err
+		}
+		out := make([]AIEntryTimeframeStructure, 0, len(byTF))
+		for tf, v := range byTF {
+			out = append(out, AIEntryTimeframeStructure{
+				Timeframe:  tf,
+				Role:       v.Role,
+				Support:    v.Support,
+				Resistance: v.Resistance,
+				Fibonacci:  v.Fibonacci,
+				Anchors:    v.Anchors,
+				ATR14Pct:   v.ATR14Pct,
+				Trend:      v.Trend,
+				UsedFor:    firstNonEmptyString(v.UsedFor, v.Notes),
+			})
+		}
+		*s = out
+		return nil
+	}
+	return fmt.Errorf("timeframe_structures must be array or object")
 }
 
 type AIEntryTimeframeStructure struct {
@@ -627,16 +679,16 @@ func (r *AIProtectionLadderRule) UnmarshalJSON(data []byte) error {
 
 // FullDecision AI's complete decision (including chain of thought)
 type FullDecision struct {
-	SystemPrompt        string                    `json:"system_prompt"`
-	UserPrompt          string                    `json:"user_prompt"`
-	CoTTrace            string                    `json:"cot_trace"`
-	Decisions           []Decision                `json:"decisions"`
-	RejectedDecisions   []DecisionRouteRejection  `json:"rejected_decisions,omitempty"`
-	RawResponse         string                    `json:"raw_response"`
-	Timestamp           time.Time                 `json:"timestamp"`
-	AIRequestDurationMs int64                     `json:"ai_request_duration_ms,omitempty"`
-	ParseFallback       bool                      `json:"parse_fallback,omitempty"`
-	ParseFallbackReason string                    `json:"parse_fallback_reason,omitempty"`
+	SystemPrompt        string                   `json:"system_prompt"`
+	UserPrompt          string                   `json:"user_prompt"`
+	CoTTrace            string                   `json:"cot_trace"`
+	Decisions           []Decision               `json:"decisions"`
+	RejectedDecisions   []DecisionRouteRejection `json:"rejected_decisions,omitempty"`
+	RawResponse         string                   `json:"raw_response"`
+	Timestamp           time.Time                `json:"timestamp"`
+	AIRequestDurationMs int64                    `json:"ai_request_duration_ms,omitempty"`
+	ParseFallback       bool                     `json:"parse_fallback,omitempty"`
+	ParseFallbackReason string                   `json:"parse_fallback_reason,omitempty"`
 }
 
 type DecisionRouteRejection struct {

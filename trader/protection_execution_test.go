@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"nofx/market"
 	tradertypes "nofx/trader/types"
 )
 
@@ -614,4 +615,24 @@ func (r *retryOnceProtectionTrader) GetClosedPnL(startTime time.Time, limit int)
 }
 func (r *retryOnceProtectionTrader) GetOpenOrders(symbol string) ([]tradertypes.OpenOrder, error) {
 	return r.inner.GetOpenOrders(symbol)
+}
+
+func TestGenerateStructuralLadderRulesSplitsStopAroundNearestStructure(t *testing.T) {
+	mdata := &market.Data{
+		StructuralLevels: []market.StructuralLevel{{Type: "resistance", Price: 0.05785, Timeframe: "15m"}, {Type: "support", Price: 0.05387, Timeframe: "15m"}},
+		TimeframeData:    map[string]*market.TimeframeSeriesData{"15m": {ATR14: 0.00097}},
+	}
+	_, sl := generateStructuralLadderRules(0.05683, false, mdata)
+	if len(sl) != 3 {
+		t.Fatalf("expected 3 split ladder stops, got %+v", sl)
+	}
+	if sl[0].Price == sl[1].Price || sl[1].Price == sl[2].Price {
+		t.Fatalf("expected distinct ladder stop prices, got %+v", sl)
+	}
+	if sl[0].CloseRatioPct+sl[1].CloseRatioPct < 75 {
+		t.Fatalf("expected at least 75%% close protection near structure, got %+v", sl)
+	}
+	if sl[2].CloseRatioPct > 25 {
+		t.Fatalf("expected far tier <=25%%, got %+v", sl)
+	}
 }

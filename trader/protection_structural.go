@@ -91,31 +91,83 @@ func generateStructuralLadderRules(entryPrice float64, isLong bool, mdata *marke
 		})
 	}
 
-	// Generate SL order from nearest support/resistance
+	// Generate SL ladder around the nearest support/resistance. Keep the same primary
+	// structure, but use distinct inside/near and outside/beyond buffers so multiple
+	// ladder SL legs are not just the same stop split into several quantities.
 	if len(slLevels) > 0 {
-		price := applyStructuralProtectionBuffer(entryPrice, slLevels[0], isLong, false, mdata)
-		slOrders = append(slOrders, ProtectionOrder{
-			Price:         roundProtectionPrice(price),
-			CloseRatioPct: 100,
-		})
+		base := slLevels[0]
+		for _, leg := range structuralLadderStopLegs(entryPrice, base, isLong, mdata) {
+			slOrders = append(slOrders, leg)
+		}
 	}
 
 	return tpOrders, slOrders
+}
+
+func structuralLadderStopLegs(entryPrice, base float64, isLong bool, mdata *market.Data) []ProtectionOrder {
+	if entryPrice <= 0 || base <= 0 {
+		return nil
+	}
+	atr := structuralATR(mdata)
+	if atr <= 0 {
+		atr = entryPrice * 0.003
+	}
+	insideBuffer := atr * 0.20
+	outsideBuffer := atr * 0.55
+	farBuffer := atr * 1.20
+	prices := make([]float64, 0, 3)
+	if isLong {
+		prices = append(prices, base-insideBuffer, base-outsideBuffer, base-farBuffer)
+	} else {
+		prices = append(prices, base+insideBuffer, base+outsideBuffer, base+farBuffer)
+	}
+	ratios := []float64{35, 40, 25}
+	out := make([]ProtectionOrder, 0, len(prices))
+	for i, price := range prices {
+		price = roundProtectionPrice(price)
+		if price <= 0 {
+			continue
+		}
+		if isLong && price >= entryPrice {
+			continue
+		}
+		if !isLong && price <= entryPrice {
+			continue
+		}
+		if len(out) > 0 && approximatelyEqualPrice(out[len(out)-1].Price, price) {
+			continue
+		}
+		out = append(out, ProtectionOrder{Price: price, CloseRatioPct: ratios[i]})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	if len(out) == 1 {
+		out[0].CloseRatioPct = 100
+	}
+	return out
+}
+
+func structuralATR(mdata *market.Data) float64 {
+	if mdata == nil {
+		return 0
+	}
+	if mdata.TimeframeData != nil {
+		if tf := mdata.TimeframeData["15m"]; tf != nil && tf.ATR14 > 0 {
+			return tf.ATR14
+		}
+	}
+	if mdata.IntradaySeries != nil && mdata.IntradaySeries.ATR14 > 0 {
+		return mdata.IntradaySeries.ATR14
+	}
+	return 0
 }
 
 func applyStructuralProtectionBuffer(entryPrice, price float64, isLong bool, takeProfit bool, mdata *market.Data) float64 {
 	if entryPrice <= 0 || price <= 0 || mdata == nil {
 		return price
 	}
-	atr := 0.0
-	if mdata.TimeframeData != nil {
-		if tf := mdata.TimeframeData["15m"]; tf != nil && tf.ATR14 > 0 {
-			atr = tf.ATR14
-		}
-	}
-	if atr <= 0 && mdata.IntradaySeries != nil && mdata.IntradaySeries.ATR14 > 0 {
-		atr = mdata.IntradaySeries.ATR14
-	}
+	atr := structuralATR(mdata)
 	if atr <= 0 {
 		return price
 	}

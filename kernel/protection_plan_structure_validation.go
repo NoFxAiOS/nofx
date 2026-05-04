@@ -2,6 +2,7 @@ package kernel
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"nofx/logger"
@@ -33,6 +34,7 @@ func validateAILadderRulesCompleteness(d Decision) error {
 	if d.EntryProtection != nil {
 		primary = strings.TrimSpace(d.EntryProtection.TimeframeContext.Primary)
 	}
+	var stopLegs []AIProtectionLadderRule
 	for i, rule := range d.ProtectionPlan.LadderRules {
 		anchorText := strings.TrimSpace(rule.StructuralAnchor + " " + rule.StopLossAnchor + " " + rule.TakeProfitAnchor)
 		if anchorText == "" {
@@ -75,6 +77,58 @@ func validateAILadderRulesCompleteness(d Decision) error {
 		if rule.VolatilityBufferPct <= 0 && strings.TrimSpace(rule.VolatilityBufferReason) == "" {
 			return fmt.Errorf("protection_plan.ladder_rules[%d] requires volatility_buffer_pct or volatility_buffer_reason", i)
 		}
+		if rule.StopLossPrice > 0 && rule.StopLossCloseRatioPct > 0 {
+			stopLegs = append(stopLegs, rule)
+		}
+	}
+	if err := validateAILadderStopDistribution(d, stopLegs); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateAILadderStopDistribution(d Decision, stopLegs []AIProtectionLadderRule) error {
+	if len(stopLegs) <= 1 {
+		return nil
+	}
+	entry := entryPriceForProtectionValidation(d)
+	if entry <= 0 {
+		return nil
+	}
+	total := 0.0
+	near := 0.0
+	far := 0.0
+	nearestStop := stopLegs[0].StopLossPrice
+	for _, leg := range stopLegs[1:] {
+		if math.Abs(leg.StopLossPrice-entry) < math.Abs(nearestStop-entry) {
+			nearestStop = leg.StopLossPrice
+		}
+	}
+	for i := range stopLegs {
+		leg := stopLegs[i]
+		total += leg.StopLossCloseRatioPct
+		for j := i + 1; j < len(stopLegs); j++ {
+			other := stopLegs[j]
+			base := math.Max(math.Abs(leg.StopLossPrice), math.Abs(other.StopLossPrice))
+			if base > 0 && math.Abs(leg.StopLossPrice-other.StopLossPrice)/base <= 0.001 {
+				return fmt.Errorf("protection_plan.ladder_rules stop_loss_price tiers must be distinct; %.8f and %.8f are near-identical", leg.StopLossPrice, other.StopLossPrice)
+			}
+		}
+		base := math.Max(math.Abs(leg.StopLossPrice), math.Abs(nearestStop))
+		if base > 0 && math.Abs(leg.StopLossPrice-nearestStop)/base <= 0.008 {
+			near += leg.StopLossCloseRatioPct
+		} else {
+			far += leg.StopLossCloseRatioPct
+		}
+	}
+	if total <= 0 {
+		return nil
+	}
+	if near < math.Min(75, total) {
+		return fmt.Errorf("protection_plan ladder SL must protect at least 75%% near the nearest primary structure; got %.1f%% near", near)
+	}
+	if far > 25.0001 {
+		return fmt.Errorf("protection_plan far ladder SL tier must be <=25%% size; got %.1f%%", far)
 	}
 	return nil
 }

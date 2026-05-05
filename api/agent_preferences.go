@@ -34,6 +34,11 @@ func (s *Server) handleGetAgentPreferences(c *gin.Context) {
 func (s *Server) handleCreateAgentPreference(c *gin.Context) {
 	uid := agent.SessionUserIDFromKey(c.GetString("user_id"))
 
+	// Cap body size BEFORE bind so a multi-MB Text payload can't reach
+	// json.Unmarshal. The post-bind rune-length check below is too late if the
+	// raw body is already huge.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8*1024)
+
 	var req agentPreferencePayload
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Text) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "text required"})

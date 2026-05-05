@@ -138,11 +138,13 @@ func main() {
 	server.SetTelegramReloadCh(telegramReloadCh)
 
 	// Start the NOFXi web agent on top of the current dev branch services.
+	// Lifecycle: agent must stop BEFORE traderManager (it calls into the
+	// manager from chat goroutines), so we stop it explicitly below instead
+	// of via defer.
 	nofxiAgent := nofxiagent.New(traderManager, st, nil, slog.Default())
 	agentWeb := nofxiagent.NewWebHandler(nofxiAgent, slog.Default())
 	server.RegisterAgentHandler(agentWeb)
 	nofxiAgent.Start()
-	defer nofxiAgent.Stop()
 
 	go func() {
 		if err := server.Start(); err != nil {
@@ -168,6 +170,10 @@ func main() {
 	}
 	logger.Info("✅ HTTP server stopped")
 
+	// Stop agent BEFORE traders — chat goroutines may still be calling into
+	// TraderManager, and tearing the manager down first risks nil-deref or
+	// write-to-closed-channel from in-flight requests.
+	nofxiAgent.Stop()
 	logger.Info("✅ NOFXi agent stopped")
 
 	// Stop all traders

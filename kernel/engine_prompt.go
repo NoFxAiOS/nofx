@@ -168,7 +168,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("### For drawdown mode=ai:\n")
 	sb.WriteString("- Each drawdown rule represents a profit protection stage. Design stages around structural targets:\n")
 	sb.WriteString("- You MUST output at least 2 `drawdown_rules` for every drawdown/combined protection plan:\n")
-	sb.WriteString("  - Stage 1 = partial profit lock near the first primary-timeframe structure: generous `max_drawdown_pct`, smaller `close_ratio_pct`, preserve runner size\n")
+	sb.WriteString("  - Stage 1 = lock the MAJORITY of the position near the first primary-timeframe structure: `close_ratio_pct` \u2265 50%% (target 65%%), `runner_keep_pct` \u2264 35%%, generous `max_drawdown_pct`\n")
 	sb.WriteString("  - Stage 2+ = outer runner/trend protection anchored to higher-timeframe structure: wider profit target, structurally justified drawdown tolerance, closes more only after trend extension or structure failure\n")
 	sb.WriteString("- The outer runner stage should use primary/higher timeframe trend structure and ATR, not lower-timeframe noise; allow normal retests/wicks so profitable positions can keep running\n")
 	sb.WriteString("- max_drawdown_pct MUST factor in ATR volatility: if ATR14 is 0.5%, a max_drawdown of 0.3% will trigger on normal noise. Use at least 1-2x ATR as minimum drawdown tolerance\n")
@@ -187,13 +187,14 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 			sb.WriteString("- Every ladder rule must include a volatility/wick buffer using ATR or recent wick behavior; do not place stops/targets exactly on crowded structure/fib levels\n")
 			sb.WriteString("- `drawdown_rules` own profit-protection/trailing stages; derive min_profit_pct/max_drawdown_pct/close_ratio_pct from structural targets and volatility\n")
 			sb.WriteString("- Include structural_anchor on every ladder rule and reason_anchor on every drawdown rule\n")
-			sb.WriteString(fmt.Sprintf("- Strategy has %d default ladder rule(s) and %d default drawdown rule(s) as operator fallback/reference values. Treat them as safety defaults and sizing priors only; adapt prices/stages to current structure, ATR/wicks, and entry RR instead of copying generic percentages.\n", len(prot.LadderTPSL.Rules), len(prot.DrawdownTakeProfit.Rules)))
+			sb.WriteString(fmt.Sprintf("- Strategy has %d default ladder rule(s) and %d default drawdown rule(s).\n", len(prot.LadderTPSL.Rules), len(prot.DrawdownTakeProfit.Rules)))
 			for i, r := range prot.LadderTPSL.Rules {
 				sb.WriteString(fmt.Sprintf("  - Ladder reference %d: tp=%.2f%% close=%.0f%%, sl=%.2f%% close=%.0f%%\n", i+1, r.TakeProfitPct, r.TakeProfitCloseRatioPct, r.StopLossPct, r.StopLossCloseRatioPct))
 			}
 			for i, r := range prot.DrawdownTakeProfit.Rules {
-				sb.WriteString(fmt.Sprintf("  - Drawdown reference %d: min_profit=%.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+				sb.WriteString(fmt.Sprintf("  - Drawdown tier %d (HARD CEILING): min_profit ≤ %.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
 			}
+			sb.WriteString(buildDrawdownTierConstraintPrompt(prot.DrawdownTakeProfit))
 			sb.WriteString("\n")
 		} else {
 			sb.WriteString("### ⚠️ ACTIVE: Drawdown Take Profit is in AI mode for this strategy\n")
@@ -204,10 +205,11 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 				sb.WriteString("- Combined ownership mode is active: drawdown AI owns profit-taking / profit-protection, while full AI remains strategy-level stop-loss / fallback stop protection\n")
 				sb.WriteString("- In this combined mode, DO NOT output `mode=full` in the AI decision. Output only drawdown ownership fields and let strategy-level full stop protection merge at execution time\n")
 			}
-			sb.WriteString(fmt.Sprintf("- Strategy has %d default drawdown rule(s) as operator fallback/reference values. Use them as safety/sizing priors, but output AI stages anchored to current structure and ATR/wicks.\n", len(prot.DrawdownTakeProfit.Rules)))
+			sb.WriteString(fmt.Sprintf("- Strategy has %d default drawdown rule(s).\n", len(prot.DrawdownTakeProfit.Rules)))
 			for i, r := range prot.DrawdownTakeProfit.Rules {
-				sb.WriteString(fmt.Sprintf("  - Drawdown reference %d: min_profit=%.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+				sb.WriteString(fmt.Sprintf("  - Drawdown tier %d (HARD CEILING): min_profit ≤ %.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
 			}
+			sb.WriteString(buildDrawdownTierConstraintPrompt(prot.DrawdownTakeProfit))
 			sb.WriteString("\n")
 		}
 	}
@@ -263,7 +265,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("<decision>\n")
 	sb.WriteString("[\n")
 	examplePositionSize := accountEquity * btcEthPosValueRatio
-	sb.WriteString(fmt.Sprintf("  {\"symbol\":\"BTCUSDT\",\"action\":\"open_short\",\"leverage\":%d,\"position_size_usd\":%.0f,\"stop_loss\":97000,\"take_profit\":91000,\"confidence\":85,\"risk_usd\":300,\"entry_protection_rationale\":{\"timeframe_context\":{\"primary\":\"15m\",\"lower\":[\"5m\"],\"higher\":[\"1h\"]},\"risk_reward\":{\"entry\":95000,\"invalidation\":97000,\"first_target\":91000,\"gross_estimated_rr\":2.0,\"net_estimated_rr\":1.8,\"min_required_rr\":%.1f,\"passed\":true},\"key_levels\":{\"support\":[91000],\"resistance\":[97000]},\"anchors\":[{\"type\":\"resistance\",\"timeframe\":\"15m\",\"price\":96000,\"reason\":\"primary rejection\"}]},\"protection_plan\":{\"mode\":\"combined\",\"ladder_rules\":[{\"take_profit_price\":93000,\"take_profit_close_ratio_pct\":35,\"stop_loss_price\":97000,\"stop_loss_close_ratio_pct\":50,\"structural_anchor\":\"15m support target / 15m invalidation resistance with ATR buffer\",\"volatility_buffer_reason\":\"ATR/wick buffer applied\"},{\"take_profit_price\":91000,\"take_profit_close_ratio_pct\":35,\"stop_loss_price\":98200,\"stop_loss_close_ratio_pct\":50,\"structural_anchor\":\"1h support extension / higher invalidation with ATR buffer\",\"volatility_buffer_reason\":\"ATR/wick buffer applied\"}],\"drawdown_rules\":[{\"timeframe\":\"15m\",\"min_profit_pct\":0.8,\"max_drawdown_pct\":60,\"close_ratio_pct\":35,\"runner_keep_pct\":65,\"stage_name\":\"partial_profit_lock\",\"reason_anchor\":\"15m first structural target\"},{\"timeframe\":\"1h\",\"min_profit_pct\":1.8,\"max_drawdown_pct\":55,\"close_ratio_pct\":45,\"runner_keep_pct\":20,\"stage_name\":\"runner_extension\",\"reason_anchor\":\"1h runner structure\"}]}}},\n", riskControl.BTCETHMaxLeverage, examplePositionSize, riskControl.MinRiskRewardRatio))
+	sb.WriteString(fmt.Sprintf("  {\"symbol\":\"BTCUSDT\",\"action\":\"open_short\",\"leverage\":%d,\"position_size_usd\":%.0f,\"stop_loss\":97000,\"take_profit\":91000,\"confidence\":85,\"risk_usd\":300,\"entry_protection_rationale\":{\"timeframe_context\":{\"primary\":\"15m\",\"lower\":[\"5m\"],\"higher\":[\"1h\"]},\"risk_reward\":{\"entry\":95000,\"invalidation\":97000,\"first_target\":91000,\"gross_estimated_rr\":2.0,\"net_estimated_rr\":1.8,\"min_required_rr\":%.1f,\"passed\":true},\"key_levels\":{\"support\":[91000],\"resistance\":[97000]},\"anchors\":[{\"type\":\"resistance\",\"timeframe\":\"15m\",\"price\":96000,\"reason\":\"primary rejection\"}]},\"protection_plan\":{\"mode\":\"combined\",\"ladder_rules\":[{\"take_profit_price\":93000,\"take_profit_close_ratio_pct\":35,\"stop_loss_price\":97000,\"stop_loss_close_ratio_pct\":50,\"structural_anchor\":\"15m support target / 15m invalidation resistance with ATR buffer\",\"volatility_buffer_reason\":\"ATR/wick buffer applied\"},{\"take_profit_price\":91000,\"take_profit_close_ratio_pct\":35,\"stop_loss_price\":98200,\"stop_loss_close_ratio_pct\":50,\"structural_anchor\":\"1h support extension / higher invalidation with ATR buffer\",\"volatility_buffer_reason\":\"ATR/wick buffer applied\"}],\"drawdown_rules\":[{\"timeframe\":\"15m\",\"min_profit_pct\":0.75,\"max_drawdown_pct\":60,\"close_ratio_pct\":65,\"runner_keep_pct\":35,\"stage_name\":\"partial_profit_lock\",\"reason_anchor\":\"15m first structural target (inside of nearest structure)\"},{\"timeframe\":\"1h\",\"min_profit_pct\":1.4,\"max_drawdown_pct\":55,\"close_ratio_pct\":80,\"runner_keep_pct\":20,\"stage_name\":\"runner_extension\",\"reason_anchor\":\"1h runner structure\"}]}}},\n", riskControl.BTCETHMaxLeverage, examplePositionSize, riskControl.MinRiskRewardRatio))
 	sb.WriteString("  {\"symbol\":\"ETHUSDT\",\"action\":\"wait\"}\n")
 	sb.WriteString("]\n")
 	sb.WriteString("</decision>\n\n")
@@ -1078,4 +1080,31 @@ func formatFloatSlice(values []float64) string {
 		strValues[i] = formatAIFloat(v)
 	}
 	return "[" + strings.Join(strValues, ", ") + "]"
+}
+
+// buildDrawdownTierConstraintPrompt generates hard constraints that bind AI
+// drawdown output to the strategy-configured tier ceilings and allocation rules.
+func buildDrawdownTierConstraintPrompt(cfg store.DrawdownTakeProfitConfig) string {
+	if !cfg.Enabled || len(cfg.Rules) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("### ⛔ Drawdown tier HARD CONSTRAINTS (violation = trade rejected):\n")
+	sb.WriteString("- Your AI drawdown_rules MUST match the strategy tier count and respect each tier's ceiling:\n")
+	for i, r := range cfg.Rules {
+		sb.WriteString(fmt.Sprintf("  - Tier %d: `min_profit_pct` MUST be ≤ %.2f%% (strategy ceiling). "+
+			"Pick a value slightly below this ceiling that corresponds to a reachable structural level "+
+			"on the INSIDE of the nearest structure (the easier-to-reach side). "+
+			"max_drawdown_pct ≈ %.0f%%, close_ratio_pct ≈ %.0f%%.\n",
+			i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+	}
+	sb.WriteString("- Tier 1 allocation rule: the FIRST drawdown tier must lock the MAJORITY of the position. "+
+		"Specifically: `close_ratio_pct` ≥ 50%% (lock at least half), `runner_keep_pct` ≤ 35%% (keep at most 35%% as runner). "+
+		"This ensures early profit protection is meaningful, not token.\n")
+	sb.WriteString("- Trigger placement rule: `min_profit_pct` should target the INSIDE of the nearest structural level "+
+		"(the side closer to entry / easier to reach), NOT the outside/beyond side. "+
+		"The goal is that the trigger is reachable under normal price action, not aspirational.\n")
+	sb.WriteString("- If the AI outputs `min_profit_pct` above the strategy ceiling for any tier, the backend will clamp it down. "+
+		"Design your structural anchors so the trigger naturally falls at or below the ceiling.\n")
+	return sb.String()
 }

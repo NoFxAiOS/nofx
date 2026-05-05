@@ -169,3 +169,76 @@ func TestAIDecisionLadderAbsolutePriceNotDoubleBuffered(t *testing.T) {
 		t.Fatalf("expected absolute AI ladder price unchanged, got %+v", plan.StopLossOrders)
 	}
 }
+
+func TestClampAIDrawdownTierCeilingsMinProfitPct(t *testing.T) {
+	cfg := store.DrawdownTakeProfitConfig{
+		Enabled:    true,
+		EngineMode: store.DrawdownEngineModeAI,
+		Rules: []store.DrawdownTakeProfitRule{
+			{MinProfitPct: 0.8, MaxDrawdownPct: 60, CloseRatioPct: 50},
+			{MinProfitPct: 1.5, MaxDrawdownPct: 55, CloseRatioPct: 80},
+			{MinProfitPct: 2.5, MaxDrawdownPct: 45, CloseRatioPct: 100},
+		},
+	}
+	// AI outputs min_profit_pct above strategy ceilings
+	rules := []store.DrawdownTakeProfitRule{
+		{MinProfitPct: 1.38, MaxDrawdownPct: 62, CloseRatioPct: 65, RunnerKeepPct: 35, StageName: "first"},
+		{MinProfitPct: 2.99, MaxDrawdownPct: 55, CloseRatioPct: 45, RunnerKeepPct: 20, StageName: "second"},
+		{MinProfitPct: 3.91, MaxDrawdownPct: 48, CloseRatioPct: 100, StageName: "third"},
+	}
+	clamped := clampAIDrawdownTierCeilings(rules, cfg)
+	if clamped[0].MinProfitPct > 0.8 {
+		t.Errorf("tier 1 min_profit_pct should be clamped to <=0.8, got %.4f", clamped[0].MinProfitPct)
+	}
+	if clamped[1].MinProfitPct > 1.5 {
+		t.Errorf("tier 2 min_profit_pct should be clamped to <=1.5, got %.4f", clamped[1].MinProfitPct)
+	}
+	if clamped[2].MinProfitPct > 2.5 {
+		t.Errorf("tier 3 min_profit_pct should be clamped to <=2.5, got %.4f", clamped[2].MinProfitPct)
+	}
+}
+
+func TestClampAIDrawdownTierCeilingsFirstTierAllocation(t *testing.T) {
+	cfg := store.DrawdownTakeProfitConfig{
+		Enabled:    true,
+		EngineMode: store.DrawdownEngineModeAI,
+		Rules: []store.DrawdownTakeProfitRule{
+			{MinProfitPct: 0.8, MaxDrawdownPct: 60, CloseRatioPct: 50},
+		},
+	}
+	// AI outputs first tier with only 35% close (too low)
+	rules := []store.DrawdownTakeProfitRule{
+		{MinProfitPct: 0.7, MaxDrawdownPct: 60, CloseRatioPct: 35, RunnerKeepPct: 65, StageName: "first"},
+		{MinProfitPct: 1.2, MaxDrawdownPct: 55, CloseRatioPct: 80, StageName: "second"},
+	}
+	clamped := clampAIDrawdownTierCeilings(rules, cfg)
+	if clamped[0].CloseRatioPct < 50 {
+		t.Errorf("tier 1 close_ratio_pct should be clamped up to >=50, got %.1f", clamped[0].CloseRatioPct)
+	}
+	if clamped[0].RunnerKeepPct > 35 {
+		t.Errorf("tier 1 runner_keep_pct should be clamped to <=35, got %.1f", clamped[0].RunnerKeepPct)
+	}
+}
+
+func TestClampAIDrawdownTierCeilingsAlreadyCompliant(t *testing.T) {
+	cfg := store.DrawdownTakeProfitConfig{
+		Enabled:    true,
+		EngineMode: store.DrawdownEngineModeAI,
+		Rules: []store.DrawdownTakeProfitRule{
+			{MinProfitPct: 0.8, MaxDrawdownPct: 60, CloseRatioPct: 50},
+			{MinProfitPct: 1.5, MaxDrawdownPct: 55, CloseRatioPct: 80},
+		},
+	}
+	// AI outputs compliant values
+	rules := []store.DrawdownTakeProfitRule{
+		{MinProfitPct: 0.75, MaxDrawdownPct: 60, CloseRatioPct: 65, RunnerKeepPct: 35, StageName: "first"},
+		{MinProfitPct: 1.4, MaxDrawdownPct: 55, CloseRatioPct: 80, StageName: "second"},
+	}
+	clamped := clampAIDrawdownTierCeilings(rules, cfg)
+	if clamped[0].MinProfitPct != 0.75 {
+		t.Errorf("compliant tier 1 should not be changed, got %.4f", clamped[0].MinProfitPct)
+	}
+	if clamped[1].MinProfitPct != 1.4 {
+		t.Errorf("compliant tier 2 should not be changed, got %.4f", clamped[1].MinProfitPct)
+	}
+}

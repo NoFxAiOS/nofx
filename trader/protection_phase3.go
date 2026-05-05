@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"nofx/kernel"
+	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
 	"sort"
@@ -435,6 +436,58 @@ func clampAIDrawdownCloseRatio(rule store.DrawdownTakeProfitRule, cfg store.Draw
 	return rule
 }
 
+// clampAIDrawdownTierCeilings enforces strategy-configured ceilings on AI drawdown rules:
+// 1. Each tier's min_profit_pct must be ≤ the corresponding strategy tier ceiling.
+// 2. The first tier must close ≥50% of the position (runner_keep ≤ 35%).
+// Rules are sorted by min_profit_pct ascending before matching to strategy tiers.
+func clampAIDrawdownTierCeilings(rules []store.DrawdownTakeProfitRule, cfg store.DrawdownTakeProfitConfig) []store.DrawdownTakeProfitRule {
+	if len(rules) == 0 || len(cfg.Rules) == 0 {
+		return rules
+	}
+
+	// Sort AI rules by min_profit_pct ascending for tier matching.
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i].MinProfitPct < rules[j].MinProfitPct
+	})
+
+	// Sort strategy config rules the same way.
+	cfgRules := make([]store.DrawdownTakeProfitRule, len(cfg.Rules))
+	copy(cfgRules, cfg.Rules)
+	sort.Slice(cfgRules, func(i, j int) bool {
+		return cfgRules[i].MinProfitPct < cfgRules[j].MinProfitPct
+	})
+
+	// Clamp each AI tier's min_profit_pct to the corresponding strategy ceiling.
+	for i := range rules {
+		if i < len(cfgRules) {
+			ceiling := cfgRules[i].MinProfitPct
+			if ceiling > 0 && rules[i].MinProfitPct > ceiling {
+				logger.Warnf("⚠️ Drawdown tier %d min_profit_pct %.4f exceeds strategy ceiling %.4f, clamping down",
+					i+1, rules[i].MinProfitPct, ceiling)
+				rules[i].MinProfitPct = ceiling
+			}
+		}
+	}
+
+	// Enforce first-tier allocation: close ≥50%, runner ≤35%.
+	if len(rules) > 0 {
+		if rules[0].CloseRatioPct < 50 {
+			logger.Warnf("⚠️ Drawdown tier 1 close_ratio_pct %.1f below minimum 50%%, clamping up", rules[0].CloseRatioPct)
+			rules[0].CloseRatioPct = 65 // default to 65% lock for first tier
+		}
+		if rules[0].RunnerKeepPct > 35 {
+			logger.Warnf("⚠️ Drawdown tier 1 runner_keep_pct %.1f exceeds 35%%, clamping down", rules[0].RunnerKeepPct)
+			rules[0].RunnerKeepPct = 35
+		}
+		// Ensure consistency: close + runner ≤ 100
+		if rules[0].RunnerKeepPct > 0 && rules[0].CloseRatioPct > 100-rules[0].RunnerKeepPct {
+			rules[0].CloseRatioPct = 100 - rules[0].RunnerKeepPct
+		}
+	}
+
+	return rules
+}
+
 func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIProtectionPlan, cfgs ...*store.StrategyConfig) (*ProtectionPlan, error) {
 	if plan == nil || entryPrice <= 0 {
 		return nil, nil
@@ -482,6 +535,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 				rules = append(rules, drawdownRule)
 			}
 		}
+		rules = clampAIDrawdownTierCeilings(rules, drawdownCfg)
 		return &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules}, nil
 	}
 
@@ -515,10 +569,11 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 					RunnerTargetMode:    rule.RunnerTargetMode,
 					RunnerTargetSource:  rule.RunnerTargetSource,
 				}, drawdownCfg)
-				if drawdownRule.CloseRatioPct > 0 {
+			if drawdownRule.CloseRatioPct > 0 {
 					rules = append(rules, drawdownRule)
 				}
 			}
+			rules = clampAIDrawdownTierCeilings(rules, drawdownCfg)
 			parts = append(parts, &ProtectionPlan{Mode: string(store.ProtectionModeAI), DrawdownRules: rules})
 		}
 		if be := buildAIBreakEvenConfig(plan); be != nil {

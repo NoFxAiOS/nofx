@@ -61,12 +61,18 @@ var (
 
 func DefaultConfig() *Config {
 	return &Config{
-		Language:            "zh",
-		WatchSymbols:        []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"},
-		EnableBriefs:        true,
-		EnableNews:          true,
-		EnableSentinel:      true,
-		AllowTradeExecution: false,
+		Language:       "zh",
+		WatchSymbols:   []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"},
+		EnableBriefs:   true,
+		EnableNews:     true,
+		EnableSentinel: true,
+		// Single-user local deployment (CLAUDE.md): the operator owns the
+		// instance, so chat-driven trades are enabled by default. Each
+		// trade still goes through a confirmation prompt (see
+		// handleTradeIntent → formatTradeConfirmation) and the risk caps
+		// in validateTradeAction (large-order gate, hard notional cap,
+		// leverage cap, equity-ratio cap) still apply.
+		AllowTradeExecution: true,
 		BriefTimes:          []int{8, 20},
 	}
 }
@@ -173,9 +179,30 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			}
 
 			httpClient := &http.Client{Timeout: 60 * time.Second}
-			client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
-			client.SetAPIKey(apiKey, customAPIURL, modelName)
-			a.log().Info("agent AI client selected", "store_user_id", candidateUserID, "model_id", model.ID, "model", modelName)
+			// Provider-aware construction: a bare mcp.NewClient() yields a
+			// generic OpenAI-compatible client whose BuildUrl appends
+			// "/chat/completions" to BaseURL. That bypasses Claw402Client's
+			// per-model endpoint mapping and x402 EIP-712 payment signing —
+			// requests then hit https://claw402.ai/chat/completions and
+			// upstream returns an HTML 404 ("invalid character '<' looking
+			// for beginning of value"). Use the registry so the registered
+			// factory (e.g. Claw402Client) is selected.
+			providerKey := strings.ToLower(strings.TrimSpace(model.Provider))
+			var client mcp.AIClient
+			if providerKey != "" {
+				client = mcp.NewAIClientByProvider(providerKey, mcp.WithHTTPClient(httpClient))
+			}
+			if client == nil {
+				client = mcp.NewClient(mcp.WithHTTPClient(httpClient))
+			}
+			// claw402 derives its URL from the model→endpoint map; passing a
+			// bare base URL here would overwrite that with the wrong path.
+			if providerKey == "claw402" {
+				client.SetAPIKey(apiKey, "", modelName)
+			} else {
+				client.SetAPIKey(apiKey, customAPIURL, modelName)
+			}
+			a.log().Info("agent AI client selected", "store_user_id", candidateUserID, "model_id", model.ID, "provider", providerKey, "model", modelName)
 			return client, modelName, true
 		}
 	}
@@ -421,8 +448,14 @@ func (a *Agent) handleMessageForStoreUser(ctx context.Context, storeUserID strin
 	if reply, handled := a.handleTradeConfirmation(ctx, userID, text, lang); handled {
 		return reply, nil
 	}
+	if reply, handled := a.handleTradeIntent(ctx, userID, text, lang); handled {
+		return reply, nil
+	}
 	if reply, handled := a.handleModelWalletBalanceQuestion(storeUserID, lang, text); handled {
 		return reply, nil
+	}
+	if reply, handled, err := a.handleManagementIntent(ctx, storeUserID, userID, lang, text, nil); handled || err != nil {
+		return reply, err
 	}
 
 	// Everything else goes through the planner and tool system.
@@ -471,11 +504,21 @@ func (a *Agent) handleMessageStreamForStoreUser(ctx context.Context, storeUserID
 		}
 		return reply, nil
 	}
+	if reply, handled := a.handleTradeIntent(ctx, userID, text, lang); handled {
+		if onEvent != nil {
+			onEvent(StreamEventTool, "trade_execution")
+			emitStreamText(onEvent, reply)
+		}
+		return reply, nil
+	}
 	if reply, handled := a.handleModelWalletBalanceQuestion(storeUserID, lang, text); handled {
 		if onEvent != nil {
 			emitStreamText(onEvent, reply)
 		}
 		return reply, nil
+	}
+	if reply, handled, err := a.handleManagementIntent(ctx, storeUserID, userID, lang, text, onEvent); handled || err != nil {
+		return reply, err
 	}
 	return a.thinkAndActStream(ctx, storeUserID, userID, lang, text, onEvent)
 }

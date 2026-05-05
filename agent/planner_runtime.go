@@ -3041,6 +3041,13 @@ func (a *Agent) executePlan(ctx context.Context, storeUserID string, userID int6
 				Summary:   reasoning,
 				CreatedAt: time.Now().UTC().Format(time.RFC3339),
 			})
+			// Stream the reasoning text to the user. Without this, the SSE
+			// stream only carries `step_start`/`step_complete` events for
+			// reason steps, so the UI shows the step's title but no actual
+			// analysis content — looks like an "answered nothing" reply.
+			if onEvent != nil && strings.TrimSpace(reasoning) != "" {
+				emitStreamText(onEvent, reasoning)
+			}
 		case planStepTypeAskUser:
 			question := strings.TrimSpace(step.Instruction)
 			if question == "" {

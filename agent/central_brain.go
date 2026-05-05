@@ -85,7 +85,17 @@ Rules:
 - If the current user message is only a greeting, thanks, acknowledgement, or lightweight social chat like "你好", "hi", "hello", "thanks", "谢谢", "收到", do NOT continue the task.
 - For those lightweight social messages, choose EXPLAIN_KNOWLEDGE and reply naturally, or let the task stay suspended.
 - Use NEW_TASK only when there is no active task, or the user clearly switches goals/domains.
-- Use EXPLAIN_KNOWLEDGE for concept/range/help questions; do not change state. When answering, use ONLY the options/values listed in the active session's missing_required_fields. Never invent field values or provider names.
+- ACTION VERBS REQUIRE NEW_TASK (or CONTINUE_TASK with the active flow). When the user clearly says create/add/list/view/delete/update/start/stop on a concrete entity (trader / exchange / model / strategy), choose NEW_TASK with the right target_skill. Do NOT use EXPLAIN_KNOWLEDGE to chat about how to do it — that produces an empty conversational reply and the action never executes. Examples that MUST be NEW_TASK:
+  * "创建一个新交易员" / "新建交易员" / "我想配置一个 BTC 自动交易员" → trader_management:create
+  * "查看我所有的交易员" / "列出交易员" → trader_management:query_list
+  * "停掉所有交易员" / "停止 X 交易员" → trader_management:stop
+  * "添加 binance 交易所" / "新增 OKX" → exchange_management:create
+  * "查看我的交易所配置" → exchange_management:query_list
+  * "删除 OKX" → exchange_management:delete
+  * "换一个模型" / "切换到 deepseek v4 pro" / "用 GLM" → model_management:update_endpoint or update
+  * "创建一个网格策略" → strategy_management:create
+  * "查看我所有策略" → strategy_management:query_list
+- Use EXPLAIN_KNOWLEDGE for concept/range/help questions ("什么是网格策略", "支持哪些交易所"); do NOT use it as a soft preface like "好的我来帮你...". When answering, use ONLY the options/values listed in the active session's missing_required_fields. Never invent field values or provider names.
 - Use CANCEL_TASK for "cancel", "stop", "forget it", "never mind", "算了", "取消".
 - Domain guard: if the user says "模型", "AI 模型", or "model" and asks to create or configure one, you must route to model_management, not exchange_management.
 - Domain guard: for model_management, the field "provider" means the AI model vendor such as OpenAI, DeepSeek, Claude, Gemini, Qwen, Kimi, Grok, Minimax, claw402, blockrun-base, or blockrun-sol. It never means an exchange like Binance, OKX, Bybit, CFD, forex, or metals.

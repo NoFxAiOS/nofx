@@ -228,15 +228,64 @@ Rules:
 - If the user answers the previous assistant question, choose continue_active.
 - If the user only says "你好", "hi", "谢谢", "收到", choose instant_reply + direct_answer unless it clearly answers a pending task.
 - If the user asks a read-only management query, prefer planned_agent unless the answer is already fully available in the provided context.
-- Use skill_tasks for clear management tasks such as creating/updating/deleting/configuring trader/model/exchange/strategy.
+- Use skill_tasks for clear management tasks such as creating/updating/deleting/configuring/listing trader/model/exchange/strategy. Examples that MUST be skill_tasks (not direct_answer): "创建一个新交易员", "查看我所有的交易员", "停掉所有交易员", "添加 binance 交易所", "删除 OKX", "查看我的交易所配置", "换一个模型", "用 deepseek v4 pro", "创建一个网格策略", "查看我所有策略". Do NOT respond conversationally to these; route to the relevant *_management skill so the action actually executes.
+- direct_answer is ONLY for: greetings, thanks, capability questions ("你能做什么"), product explanations, FAQ-style answers that need no tools, or when the user is asking a pure follow-up question with no action attached. NEVER use direct_answer to "let me help you with X" preface text — that becomes empty conversation; the user expects the action to happen.
 - If the user request contains multiple management operations, include multiple tasks and depends_on where a later task needs an earlier result.
 - If the request contains exactly one management operation, include exactly one task.
 - Use planned_agent for multi-step, tool-heavy, market/account, diagnosis, or ambiguous tasks.
+- Trading advice vs trader entity: when the user asks for a trading decision, market opinion, recommendation, "what should I do", "给我一个决策/建议/操作", "怎么做小仓位", or "帮我看看现在能不能进场", that is NOT trader_management. trader_management:create is only for setting up an automated trader entity (which requires name + bound exchange + bound model + bound strategy). Trading advice without explicit configuration intent must go to planned_agent (so it can pull market data and reply with a concrete recommendation), or direct_answer when no tool data is needed. Words like "执行", "进行", "使用 nofx" by themselves do not imply trader entity creation — only treat them as trader_management:create if the user explicitly mentions creating/configuring a trader, names a trader, or supplies trader bindings.
 - For model_management, "provider" means AI vendor, never an exchange.
 - Current references are context only. Do not copy them into extracted_data unless the user explicitly says this/current/that previous one.
 - extracted_data must contain only concrete facts from the current user message.
 - reply_to_user must be concise and in the user's language.
 - confidence should reflect how safe it is to execute this decision without the old router fallback.
+
+Worked examples (pay attention to business_action — explicit management verbs MUST trigger a skill, not direct_answer):
+
+Input: "你好"
+Output: {"topic_intent":"instant_reply","business_action":"direct_answer","reply_to_user":"你好！需要我帮你做点什么？","context_mode":"use_current","confidence":0.95}
+
+Input: "什么是网格策略"
+Output: {"topic_intent":"instant_reply","business_action":"direct_answer","reply_to_user":"网格策略是...","context_mode":"use_current","confidence":0.9}
+
+Input: "创建一个新交易员"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"trader_management:create","tasks":[],"context_mode":"fresh_context","extracted_data":{},"reply_to_user":"","confidence":0.95}
+
+Input: "查看我所有的交易员"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"trader_management:query_list","context_mode":"fresh_context","extracted_data":{},"reply_to_user":"","confidence":0.95}
+
+Input: "停掉所有交易员"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"trader_management:stop","context_mode":"fresh_context","extracted_data":{"bulk_scope":"all"},"reply_to_user":"","confidence":0.9}
+
+Input: "添加 binance 交易所"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"exchange_management:create","context_mode":"fresh_context","extracted_data":{"provider":"binance"},"reply_to_user":"","confidence":0.95}
+
+Input: "查看我的交易所配置"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"exchange_management:query_list","context_mode":"fresh_context","reply_to_user":"","confidence":0.95}
+
+Input: "删除 OKX"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"exchange_management:delete","context_mode":"fresh_context","extracted_data":{"provider":"okx"},"reply_to_user":"","confidence":0.9}
+
+Input: "换一个模型"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"model_management:update","context_mode":"fresh_context","reply_to_user":"","confidence":0.85}
+
+Input: "用 deepseek v4 pro"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"model_management:update","context_mode":"fresh_context","extracted_data":{"custom_model_name":"deepseek-v4-pro"},"reply_to_user":"","confidence":0.9}
+
+Input: "创建一个网格策略"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"strategy_management:create","context_mode":"fresh_context","extracted_data":{"strategy_type":"grid_trading"},"reply_to_user":"","confidence":0.95}
+
+Input: "查看我所有策略"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"strategy_management:query_list","context_mode":"fresh_context","reply_to_user":"","confidence":0.95}
+
+Input: "我的交易员怎么没下单"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"trader_diagnosis:query_detail","context_mode":"use_current","reply_to_user":"","confidence":0.85}
+
+Input: "binance 怎么连不上"
+Output: {"topic_intent":"start_new","business_action":"new_skill","target_skill":"exchange_diagnosis:query_detail","context_mode":"use_current","extracted_data":{"provider":"binance"},"reply_to_user":"","confidence":0.85}
+
+Input: "现在能不能进 BTC"
+Output: {"topic_intent":"start_new","business_action":"planned_agent","context_mode":"use_current","reply_to_user":"","confidence":0.8}
 
 Return JSON with this exact shape:
 {"topic_intent":"continue_active|start_new|resume_snapshot|cancel|instant_reply","business_action":"direct_answer|skill_tasks|new_skill|continue_skill|planned_agent|none","target_skill":"","tasks":[{"id":"task_1","skill":"","action":"","request":"","depends_on":[]}],"target_snapshot_id":"","context_mode":"use_current|fresh_context|resume_snapshot","extracted_data":{},"reply_to_user":"","confidence":0.0}`)

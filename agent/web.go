@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"nofx/safe"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -162,7 +163,10 @@ func (w *WebHandler) HandleChatStream(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	// 180s budget — multi-step planner with slow upstream LLMs (claw402
+	// v4-flash routinely takes 15-30s per round-trip) easily exceeds 120s
+	// when the agent decides to make 4-5 tool round-trips.
+	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
 	defer cancel()
 
 	resp, err := w.agent.HandleMessageStreamForStoreUser(ctx, storeUserIDFromContext(r.Context()), req.UserID, msg, func(event, data string) {
@@ -174,6 +178,15 @@ func (w *WebHandler) HandleChatStream(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 			w.logger.Info("agent stream cancelled", "user_id", req.UserID, "error", err)
+			// Tell the frontend WHY the stream ended. Without an error+done
+			// event the EventSource just sees EOF and the React layer falls
+			// back to "No response", which is actively misleading.
+			msg := "请求超时（上游模型响应过慢），请重试。"
+			if !strings.HasPrefix(strings.TrimSpace(req.Lang), "zh") {
+				msg = "Request timed out (upstream model too slow). Please retry."
+			}
+			writeSSE(rw, flusher, "error", msg)
+			writeSSE(rw, flusher, "done", msg)
 			return
 		}
 		w.logger.Error("agent HandleMessageStream failed", "error", err, "user_id", req.UserID)
@@ -181,7 +194,28 @@ func (w *WebHandler) HandleChatStream(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ctx.Err() != nil {
+		// Same as above — terminal context cancellation must surface to UI.
+		msg := "请求超时（上游模型响应过慢），请重试。"
+		if !strings.HasPrefix(strings.TrimSpace(req.Lang), "zh") {
+			msg = "Request timed out (upstream model too slow). Please retry."
+		}
+		writeSSE(rw, flusher, "error", msg)
+		writeSSE(rw, flusher, "done", msg)
 		return
+	}
+	// Some legacy/fallback paths can return ("", nil) when an upstream LLM call
+	// succeeded but produced no usable content (e.g. Anthropic Opus turn that
+	// got "internal orchestration json" recovery returning empty, or a planner
+	// fallback that swallowed the upstream failure). Without this guard the
+	// frontend shows an empty bubble and looks frozen — surface a generic
+	// retry hint so the user knows the turn ended.
+	if strings.TrimSpace(resp) == "" {
+		if strings.HasPrefix(strings.TrimSpace(req.Lang), "zh") {
+			resp = "上游模型这次没有返回任何内容，请重试，或在配置页换一个模型再试。"
+		} else {
+			resp = "The model returned no content this time. Please retry, or pick a different model in settings."
+		}
+		writeSSE(rw, flusher, "error", resp)
 	}
 	// Send final done event with complete response
 	writeSSE(rw, flusher, "done", resp)

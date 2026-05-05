@@ -38,7 +38,13 @@ func supportedModelProviders() []modelProviderSpec {
 			SupportsCustomModel:   true,
 			UsesWalletCredential:  true,
 			Recommended:           true,
-			RecommendedModelHints: []string{"deepseek", "glm-5", "gpt-5.4", "claude-opus", "qwen-max", "grok-4.1"},
+			// Note: claude-opus is intentionally omitted. The claw402 endpoint
+			// for it (/api/v1/ai/anthropic/messages/opus) speaks the Anthropic
+			// Messages API format, which the agent planner doesn't yet parse
+			// — every turn fails with "invalid next step decision json" and
+			// the user sees an empty/error bubble. Re-add once the agent
+			// runtime gains Anthropic-format response handling.
+			RecommendedModelHints: []string{"deepseek-v4-flash", "deepseek-v4-pro", "deepseek", "deepseek-reasoner", "glm-5", "gpt-5.4", "qwen-max", "grok-4.1", "kimi-k2.5"},
 		},
 		{
 			ID:                    "blockrun-base",

@@ -11,24 +11,32 @@ import (
 func (s *Server) RegisterAgentHandler(h *agent.WebHandler) {
 	// Chat requires auth — can trigger trades and access account data
 	s.router.POST("/api/agent/chat", s.authMiddleware(), func(c *gin.Context) {
+		// Single-user local deployment (see CLAUDE.md): every authenticated
+		// user is the operator of their own nofx-server instance, so chat
+		// must be able to trigger trades. Gating CanExecuteTrade on a
+		// literal user_id=="admin" string locked out non-admin local users.
 		isAdmin := c.GetString("user_id") == "admin"
 		ctx := agent.WithStoreUserID(c.Request.Context(), c.GetString("user_id"))
 		ctx = agent.WithSessionPolicy(ctx, agent.SessionPolicy{
 			Authenticated:           true,
 			IsAdmin:                 isAdmin,
-			CanExecuteTrade:         isAdmin,
+			CanExecuteTrade:         true,
 			CanViewSensitiveSecrets: false,
 		})
 		req := c.Request.WithContext(ctx)
 		h.HandleChat(c.Writer, req)
 	})
 	s.router.POST("/api/agent/chat/stream", s.authMiddleware(), func(c *gin.Context) {
+		// Single-user local deployment (see CLAUDE.md): every authenticated
+		// user is the operator of their own nofx-server instance, so chat
+		// must be able to trigger trades. Gating CanExecuteTrade on a
+		// literal user_id=="admin" string locked out non-admin local users.
 		isAdmin := c.GetString("user_id") == "admin"
 		ctx := agent.WithStoreUserID(c.Request.Context(), c.GetString("user_id"))
 		ctx = agent.WithSessionPolicy(ctx, agent.SessionPolicy{
 			Authenticated:           true,
 			IsAdmin:                 isAdmin,
-			CanExecuteTrade:         isAdmin,
+			CanExecuteTrade:         true,
 			CanViewSensitiveSecrets: false,
 		})
 		req := c.Request.WithContext(ctx)

@@ -145,15 +145,23 @@ func parseTradeCommand(text string) *TradeAction {
 		symbol += "USDT"
 	}
 
-	// Parse quantity (optional)
+	// Parse quantity (optional). When the user supplies a token in the quantity
+	// slot we MUST parse it successfully — silently falling back to 0 is
+	// dangerous for close_long/close_short (exchanges interpret 0 as "close
+	// entire position", which is rarely what a user typing a typo intended).
 	if len(words) >= 3 {
-		fmt.Sscanf(words[2], "%f", &quantity)
+		if _, err := fmt.Sscanf(words[2], "%f", &quantity); err != nil || quantity < 0 {
+			return nil
+		}
 	}
 
-	// Parse leverage (optional, "x10" or "10x")
+	// Parse leverage (optional, "x10" or "10x"). Same rule: if user supplied a
+	// token we cannot parse, refuse to interpret the command.
 	if len(words) >= 4 {
 		lev := strings.TrimSuffix(strings.TrimPrefix(words[3], "X"), "X")
-		fmt.Sscanf(lev, "%d", &leverage)
+		if _, err := fmt.Sscanf(lev, "%d", &leverage); err != nil || leverage < 0 {
+			return nil
+		}
 	}
 
 	if action == "" || symbol == "" {
@@ -373,6 +381,51 @@ func validateTradeAction(
 func isBTCETHSymbol(symbol string) bool {
 	symbol = strings.ToUpper(strings.TrimSpace(symbol))
 	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
+}
+
+// handleTradeIntent is a deterministic fast path for explicit trade verbs
+// ("做多 BTC 0.01", "long ETH 0.1", "平多 BTC", ...). It bypasses the LLM
+// router so unambiguous orders never get re-interpreted as "you want to
+// create a trader entity" or "let me analyse the market first".
+//
+// Returns (replyText, true) when handled, ("", false) when text is not a
+// trade command (caller should fall through to the LLM router).
+func (a *Agent) handleTradeIntent(ctx context.Context, userID int64, text, lang string) (string, bool) {
+	trade := parseTradeCommand(text)
+	if trade == nil {
+		return "", false
+	}
+	policy := sessionPolicyFromContext(ctx)
+	if !policy.Authenticated {
+		if lang == "zh" {
+			return "请先登录后再下单。", true
+		}
+		return "Please sign in before placing trades.", true
+	}
+	if !policy.CanExecuteTrade || a == nil || a.config == nil || !a.config.AllowTradeExecution {
+		if lang == "zh" {
+			return "当前账户没有交易权限。", true
+		}
+		return "Your account does not have trade permission.", true
+	}
+
+	wantStock, selectedTrader, underlyingTrader, err := a.resolveTradeExecutionContext(trade)
+	if err != nil {
+		if lang == "zh" {
+			return fmt.Sprintf("无法准备交易：%s\n请先在配置页绑定一个交易所并启用一个交易员。", err.Error()), true
+		}
+		return fmt.Sprintf("Cannot prepare trade: %s\nPlease bind an exchange and enable a trader in settings first.", err.Error()), true
+	}
+	if err := validateTradeAction(trade, wantStock, selectedTrader, underlyingTrader); err != nil {
+		if lang == "zh" {
+			return fmt.Sprintf("交易被风控拒绝：%s", err.Error()), true
+		}
+		return fmt.Sprintf("Trade rejected by risk check: %s", err.Error()), true
+	}
+
+	a.pending.Add(trade)
+	a.pending.CleanExpired()
+	return formatTradeConfirmation(trade, lang), true
 }
 
 // formatTradeConfirmation creates a confirmation message for a pending trade.

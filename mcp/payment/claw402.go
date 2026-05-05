@@ -65,6 +65,8 @@ var claw402ModelEndpoints = map[string]string{
 	// DeepSeek
 	"deepseek":          "/api/v1/ai/deepseek/chat",
 	"deepseek-reasoner": "/api/v1/ai/deepseek/chat/reasoner",
+	"deepseek-v4-flash": "/api/v1/ai/deepseek/v4-flash",
+	"deepseek-v4-pro":   "/api/v1/ai/deepseek/v4-pro",
 	// Qwen
 	"qwen-max":   "/api/v1/ai/qwen/chat/max",
 	"qwen-plus":  "/api/v1/ai/qwen/chat/plus",
@@ -178,6 +180,24 @@ func (c *Claw402Client) CallWithRequestFull(req *mcp.Request) (*mcp.LLMResponse,
 	return X402CallFull(c.Client, c.signPayment, "Claw402", req)
 }
 
+// CallWithRequest must run through the x402 payment flow too. Without this
+// override the embedded mcp.Client implementation issues a raw HTTP request
+// that gets a 402 "payment required" response and fails immediately —
+// payment-aware retry only kicks in for callers using CallWithRequestFull.
+// Reuse the full path and return its content so all 20+ agent callers
+// (planner, central_brain, workflow, llm_skill_router, memory, etc.) share
+// the same payment plumbing.
+func (c *Claw402Client) CallWithRequest(req *mcp.Request) (string, error) {
+	resp, err := c.CallWithRequestFull(req)
+	if err != nil {
+		return "", err
+	}
+	if resp == nil {
+		return "", nil
+	}
+	return resp.Content, nil
+}
+
 // walletAddress derives the EVM address from the configured private key.
 // Returns "" when no key has been set (client unconfigured).
 func (c *Claw402Client) walletAddress() string {
@@ -223,18 +243,83 @@ func (c *Claw402Client) signPayment(paymentHeaderB64 string) (string, error) {
 
 // ── Format overrides for Anthropic endpoints ─────────────────────────────────
 
+// stripMaxTokens removes per-call max_tokens caps from a body destined for
+// claw402. The gateway enforces a per-route default/floor/cap; sending a small
+// max_tokens here on a thinking model (Kimi K2.5, DeepSeek R1/V4) caused
+// reasoning tokens to consume the entire budget and left `delta.content`
+// empty, surfacing as "no content received".
+func stripMaxTokens(body map[string]any) map[string]any {
+	if body == nil {
+		return body
+	}
+	delete(body, "max_tokens")
+	delete(body, "max_completion_tokens")
+	return body
+}
+
+// thinkingEndpointSuffixes lists the path tails of claw402 routes that require
+// DeepSeek-style "thinking mode" — these models reject any history that
+// contains an assistant turn without a paired `reasoning_content` field
+// ("The reasoning_content in the thinking mode must be passed back to the
+// API."). We don't yet capture reasoning_content from streamed responses, so
+// we drop assistant turns from the request to keep multi-turn chat working.
+// Cost: the model loses literal recall of its prior replies, but the user's
+// own turns (which carry the conversational thread) remain.
+var thinkingEndpointSuffixes = []string{
+	"/v4-flash",
+	"/v4-pro",
+	"/chat/reasoner",
+}
+
+func (c *Claw402Client) isThinkingEndpoint() bool {
+	for _, suf := range thinkingEndpointSuffixes {
+		if strings.HasSuffix(c.BaseURL, suf) {
+			return true
+		}
+	}
+	return false
+}
+
+func dropAssistantHistory(body map[string]any) map[string]any {
+	if body == nil {
+		return body
+	}
+	raw, ok := body["messages"].([]map[string]any)
+	if !ok {
+		return body
+	}
+	filtered := raw[:0:0]
+	for _, m := range raw {
+		role, _ := m["role"].(string)
+		if role == "assistant" || role == "tool" {
+			continue
+		}
+		filtered = append(filtered, m)
+	}
+	body["messages"] = filtered
+	return body
+}
+
+func (c *Claw402Client) postProcessBody(body map[string]any) map[string]any {
+	body = stripMaxTokens(body)
+	if c.isThinkingEndpoint() {
+		body = dropAssistantHistory(body)
+	}
+	return body
+}
+
 func (c *Claw402Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildMCPRequestBody(systemPrompt, userPrompt)
 	}
-	return c.Client.BuildMCPRequestBody(systemPrompt, userPrompt)
+	return c.postProcessBody(c.Client.BuildMCPRequestBody(systemPrompt, userPrompt))
 }
 
 func (c *Claw402Client) BuildRequestBodyFromRequest(req *mcp.Request) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildRequestBodyFromRequest(req)
 	}
-	return c.Client.BuildRequestBodyFromRequest(req)
+	return c.postProcessBody(c.Client.BuildRequestBodyFromRequest(req))
 }
 
 func (c *Claw402Client) ParseMCPResponse(body []byte) (string, error) {

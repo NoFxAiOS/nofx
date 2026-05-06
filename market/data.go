@@ -51,10 +51,9 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 			return nil, fmt.Errorf("Failed to get 5-minute K-line from Hyperliquid: %v", err)
 		}
 	} else {
-		// Use CoinAnk for regular crypto assets with exchange-specific data
-		klines3m, err = getKlinesFromCoinAnk(symbol, "3m", exchange, 100)
+		klines3m, err = getKlines(symbol, "3m", exchange, 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk (%s): %v", exchange, err)
+			return nil, fmt.Errorf("failed to get 3m klines for %s (%s): %v", symbol, exchange, err)
 		}
 	}
 
@@ -71,9 +70,9 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 			return nil, fmt.Errorf("Failed to get 4-hour K-line from Hyperliquid: %v", err)
 		}
 	} else {
-		klines4h, err = getKlinesFromCoinAnk(symbol, "4h", exchange, 100)
+		klines4h, err = getKlines(symbol, "4h", exchange, 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk (%s): %v", exchange, err)
+			return nil, fmt.Errorf("failed to get 4h klines for %s (%s): %v", symbol, exchange, err)
 		}
 	}
 
@@ -86,7 +85,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Calculate current indicators (based on 3-minute latest data)
-	currentPrice := klines3m[len(klines3m)-1].Close
+	currentPrice := resolveCurrentPrice(klines3m, symbol, "3m")
 	currentEMA20 := calculateEMA(klines3m, 20)
 	currentMACD := calculateMACD(klines3m)
 	currentRSI7 := calculateRSI(klines3m, 7)
@@ -196,14 +195,14 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 				continue
 			}
 		} else {
-			// Use CoinAnk for regular crypto assets
+			
 			exSrc := exchange
 			if exSrc == "" {
 				exSrc = "binance"
 			}
-			klines, err = getKlinesFromCoinAnk(symbol, tf, exSrc, 200)
+			klines, err = getKlines(symbol, tf, exSrc, 200)
 			if err != nil {
-				logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
+				logger.Infof("⚠️ Failed to get %s %s klines: %v", symbol, tf, err)
 				continue
 			}
 		}
@@ -240,8 +239,25 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
 	}
 
-	// Calculate current indicators (based on primary timeframe latest data)
-	currentPrice := primaryKlines[len(primaryKlines)-1].Close
+	// Calculate current indicators (based on primary timeframe latest data).
+	// Guard against zero-volume carry-forward candles: when the latest K-line
+	// has no volume, its OHLC is just the previous close repeated by the data
+	// provider, not a real market price.
+	currentPrice := resolveCurrentPrice(primaryKlines, symbol, primaryTimeframe)
+
+	// Cross-check with exchange ticker for significant deviation.
+	// K-line close is periodic; ticker is real-time.
+	if tickerPrice := getTickerPrice(symbol, exchange); tickerPrice > 0 && currentPrice > 0 {
+		deviation := (currentPrice - tickerPrice) / tickerPrice * 100
+		if deviation < 0 {
+			deviation = -deviation
+		}
+		if deviation > 0.5 {
+			logger.Infof("⚠️ %s price deviation: kline=%.8f ticker=%.8f (%.2f%%), using ticker",
+				symbol, currentPrice, tickerPrice, deviation)
+			currentPrice = tickerPrice
+		}
+	}
 	currentEMA20 := calculateEMA(primaryKlines, 20)
 	currentMACD := calculateMACD(primaryKlines)
 	currentRSI7 := calculateRSI(primaryKlines, 7)
@@ -773,8 +789,7 @@ func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data,
 	}
 
 	symbol = Normalize(symbol)
-	current := primary[len(primary)-1]
-	currentPrice := current.Close
+	currentPrice := resolveCurrentPrice(primary, symbol, "primary")
 
 	data := &Data{
 		Symbol:            symbol,
@@ -813,6 +828,27 @@ func priceChangeFromSeries(series []Kline, duration time.Duration) float64 {
 		}
 	}
 	return 0
+}
+
+// resolveCurrentPrice picks the best available current price from K-lines.
+// If the last candle has zero volume (carry-forward from previous close by
+// the data provider, not a real market tick), fall back to the second-to-last
+// candle's close and log a warning.
+func resolveCurrentPrice(klines []Kline, symbol, timeframe string) float64 {
+	if len(klines) == 0 {
+		return 0
+	}
+	last := klines[len(klines)-1]
+	if last.Volume > 0 || len(klines) < 2 {
+		return last.Close
+	}
+	prev := klines[len(klines)-2]
+	if prev.Volume <= 0 {
+		return last.Close
+	}
+	logger.Infof("⚠️ %s %s last candle volume=0 (OHLC=%.8f, carry-forward), using prev close=%.8f as current price",
+		symbol, timeframe, last.Close, prev.Close)
+	return prev.Close
 }
 
 // isStaleData detects stale data (consecutive price freeze)

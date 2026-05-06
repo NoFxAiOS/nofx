@@ -621,6 +621,57 @@ func TestStrategyCreateUsesConfigPatch(t *testing.T) {
 	}
 }
 
+func TestStrategyCreateDraftPreservesTwoTurnNaturalLanguageRequirements(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-create-draft-two-turn.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	active := ActiveSkillSession{
+		SessionID:  "as_test",
+		UserID:     1,
+		SkillName:  "strategy_management",
+		ActionName: "create",
+		Goal:       "真的去创建一个趋势策略，交易BTC和ETH，15m，杠杆 5 倍",
+		CollectedFields: map[string]any{
+			"name": "BTCETH_15m_趋势",
+		},
+		LocalHistory: []chatMessage{
+			{Role: "user", Content: "真的去创建一个趋势策略，交易BTC和ETH，15m，杠杆 5 倍"},
+			{Role: "assistant", Content: "现在只差一个名称。"},
+			{Role: "user", Content: "BTCETH_15m_趋势"},
+		},
+	}
+	session := activeToLegacySkillSession(active)
+	reply := a.handleStrategyCreateSkill("default", 1, "zh", "BTCETH_15m_趋势", session)
+	if !strings.Contains(reply, "已创建策略") {
+		t.Fatalf("expected created reply, got: %s", reply)
+	}
+
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	if len(strategies) != 1 {
+		t.Fatalf("expected one strategy, got %d", len(strategies))
+	}
+	var cfg store.StrategyConfig
+	if err := json.Unmarshal([]byte(strategies[0].Config), &cfg); err != nil {
+		t.Fatalf("unmarshal config: %v", err)
+	}
+	if cfg.CoinSource.SourceType != "static" || cfg.CoinSource.UseAI500 || strings.Join(cfg.CoinSource.StaticCoins, ",") != "BTCUSDT,ETHUSDT" {
+		t.Fatalf("expected static BTC/ETH and AI500 disabled, got %+v", cfg.CoinSource)
+	}
+	if cfg.Indicators.Klines.PrimaryTimeframe != "15m" {
+		t.Fatalf("expected primary timeframe 15m, got %s", cfg.Indicators.Klines.PrimaryTimeframe)
+	}
+	if cfg.RiskControl.BTCETHMaxLeverage != 5 || cfg.RiskControl.AltcoinMaxLeverage != 5 {
+		t.Fatalf("expected leverage 5x, got btceth=%d alt=%d", cfg.RiskControl.BTCETHMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage)
+	}
+}
+
 func TestStrategyCreateAsksTypeBeforeUsingDefaultTemplateType(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "strategy-create-ask-type.db")
 	st, err := store.New(dbPath)
@@ -652,7 +703,59 @@ func TestStrategyCreateAsksTypeBeforeUsingDefaultTemplateType(t *testing.T) {
 	}
 }
 
-func TestStrategyCreateWaitsForGridConfigBeforeCreate(t *testing.T) {
+func TestStrategyCreateConfirmationStillRequiresType(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-create-confirm-no-type.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "create",
+		Fields: map[string]string{
+			"name": "我的策略",
+		},
+	}
+
+	reply := a.handleStrategyCreateSkill("default", 1, "zh", "确认创建", session)
+	if !strings.Contains(reply, "先选择策略类型") {
+		t.Fatalf("expected type question before create, got: %s", reply)
+	}
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	for _, strategy := range strategies {
+		if strategy.Name == "我的策略" {
+			t.Fatalf("strategy should not be created before type is known")
+		}
+	}
+}
+
+func TestStrategyCreateStandaloneNameCanContainStrategyWord(t *testing.T) {
+	active := ActiveSkillSession{
+		SessionID:       "as_test",
+		UserID:          1,
+		SkillName:       "strategy_management",
+		ActionName:      "create",
+		Goal:            "创建一个趋势策略，交易BTC和ETH，15m，杠杆 5 倍",
+		CollectedFields: map[string]any{},
+		LocalHistory: []chatMessage{
+			{Role: "user", Content: "创建一个趋势策略，交易BTC和ETH，15m，杠杆 5 倍"},
+			{Role: "assistant", Content: "现在只差一个名称。"},
+			{Role: "user", Content: "趋势策略A"},
+		},
+	}
+
+	session := activeToLegacySkillSession(active)
+	if got := fieldValue(session, "name"); got != "趋势策略A" {
+		t.Fatalf("expected standalone strategy name to be preserved, got %q", got)
+	}
+}
+
+func TestStrategyCreateProposesGridDefaultsBeforeCreate(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "strategy-grid-create-draft.db")
 	st, err := store.New(dbPath)
 	if err != nil {
@@ -670,8 +773,8 @@ func TestStrategyCreateWaitsForGridConfigBeforeCreate(t *testing.T) {
 	}
 
 	reply := a.handleStrategyCreateSkill("default", 1, "zh", "grid_trading", session)
-	if !strings.Contains(reply, "先不创建空模板") || !strings.Contains(reply, "交易对") {
-		t.Fatalf("expected grid config collection prompt, got: %s", reply)
+	if !strings.Contains(reply, "配置整理好了") || !strings.Contains(reply, "BTCUSDT") || !strings.Contains(reply, "ATR 动态范围") {
+		t.Fatalf("expected grid default confirmation draft, got: %s", reply)
 	}
 	strategies, err := st.Strategy().List("default")
 	if err != nil {
@@ -681,6 +784,63 @@ func TestStrategyCreateWaitsForGridConfigBeforeCreate(t *testing.T) {
 		if strategy.Name == "我的网格策略" {
 			t.Fatalf("strategy should not be created before grid config is ready")
 		}
+	}
+}
+
+func TestStrategyCreateConfirmationFillsMissingGridDefaults(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-grid-create-confirm-defaults.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "create",
+		Fields: map[string]string{
+			"name":                        "餐巾纸",
+			"strategy_type":               "grid_trading",
+			"symbol":                      "BTCUSDT",
+			"awaiting_final_confirmation": "true",
+		},
+	}
+
+	reply := a.handleStrategyCreateSkill("default", 1, "zh", "好的，就这样", session)
+	if !strings.Contains(reply, "已创建策略") {
+		t.Fatalf("expected strategy to be created after confirmation with defaults, got: %s", reply)
+	}
+	for _, want := range []string{"总投入：1000.00 USDT", "网格数量：10", "杠杆：5倍", "价格范围：ATR 自动计算"} {
+		if !strings.Contains(reply, want) {
+			t.Fatalf("expected create reply to report actual defaulted value %q, got: %s", want, reply)
+		}
+	}
+	for _, unexpected := range []string{"系统已自动收敛", "最大持仓数", "最低置信度"} {
+		if strings.Contains(reply, unexpected) {
+			t.Fatalf("create reply should not expose internal clamp detail %q, got: %s", unexpected, reply)
+		}
+	}
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	var cfg store.StrategyConfig
+	for _, strategy := range strategies {
+		if strategy.Name == "餐巾纸" {
+			if err := json.Unmarshal([]byte(strategy.Config), &cfg); err != nil {
+				t.Fatalf("unmarshal config: %v", err)
+			}
+			break
+		}
+	}
+	if cfg.GridConfig == nil {
+		t.Fatalf("expected grid config")
+	}
+	if cfg.GridConfig.Symbol != "BTCUSDT" || cfg.GridConfig.GridCount <= 0 || cfg.GridConfig.TotalInvestment <= 0 || cfg.GridConfig.Leverage <= 0 {
+		t.Fatalf("expected explicit symbol and defaulted grid fields, got %+v", cfg.GridConfig)
+	}
+	if !cfg.GridConfig.UseATRBounds || cfg.GridConfig.Distribution == "" || cfg.GridConfig.MaxDrawdownPct <= 0 {
+		t.Fatalf("expected defaulted optional grid fields, got %+v", cfg.GridConfig)
 	}
 }
 
@@ -761,6 +921,10 @@ func TestStrategyCreateReadyConfigRequiresFinalConfirmation(t *testing.T) {
 	}
 
 	session.CollectedFields["awaiting_final_confirmation"] = true
+	if _, blocked := guardStrategyCreateBeforeFinalConfirmation("zh", session); !blocked {
+		t.Fatalf("same-turn awaiting flag without prior assistant confirmation should still be blocked")
+	}
+	session.LocalHistory = append(session.LocalHistory, chatMessage{Role: "assistant", Content: reply})
 	if _, blocked := guardStrategyCreateBeforeFinalConfirmation("zh", session); blocked {
 		t.Fatalf("already-confirmable session should not be blocked")
 	}
@@ -823,6 +987,34 @@ func TestStrategyCreateCreatesGridAfterConfigPatch(t *testing.T) {
 	}
 }
 
+func TestManageStrategyToolCreateRequiresConfirmation(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-tool-create-confirmation.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	resp := a.toolManageStrategy("default", `{"action":"create","name":"未确认网格","lang":"zh","config":{"strategy_type":"grid_trading","grid_config":{"symbol":"BTCUSDT","total_investment":200,"use_atr_bounds":true}}}`)
+	if !strings.Contains(resp, "requires_confirmation") {
+		t.Fatalf("expected tool create to require confirmation, got: %s", resp)
+	}
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	for _, strategy := range strategies {
+		if strategy.Name == "未确认网格" {
+			t.Fatalf("unconfirmed tool call should not create strategy")
+		}
+	}
+
+	resp = a.toolManageStrategy("default", `{"action":"create","name":"已确认网格","lang":"zh","confirmed":true,"allow_clamped_update":true,"config":{"strategy_type":"grid_trading","grid_config":{"symbol":"BTCUSDT","total_investment":200,"use_atr_bounds":true}}}`)
+	if strings.Contains(resp, `"error"`) {
+		t.Fatalf("expected confirmed create to succeed, got: %s", resp)
+	}
+}
+
 func TestStrategyCreateGridPatchInfersStrategyType(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "strategy-grid-create-infers-type.db")
 	st, err := store.New(dbPath)
@@ -870,6 +1062,65 @@ func TestStrategyCreateGridPatchInfersStrategyType(t *testing.T) {
 	}
 	if cfg.StrategyType != "grid_trading" || cfg.GridConfig == nil || cfg.GridConfig.Symbol != "BTCUSDT" {
 		t.Fatalf("expected grid patch to infer grid_trading, got %+v", cfg)
+	}
+}
+
+func TestStrategyCreateGridPatchKeepsBackendGridDefaults(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "strategy-grid-create-defaults.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	a := New(nil, st, DefaultConfig(), slog.Default())
+
+	patch := map[string]any{
+		"strategy_type": "grid_trading",
+		"grid_config": map[string]any{
+			"symbol":           "ETHUSDT",
+			"grid_count":       20,
+			"total_investment": 500,
+			"leverage":         3,
+		},
+	}
+	rawPatch, _ := json.Marshal(patch)
+	session := skillSession{
+		Name:   "strategy_management",
+		Action: "create",
+		Fields: map[string]string{
+			"name":                         "餐巾纸",
+			strategyCreateConfigPatchField: string(rawPatch),
+		},
+	}
+
+	reply := a.handleStrategyCreateSkill("default", 1, "zh", "确认创建", session)
+	if !strings.Contains(reply, "已创建策略") {
+		t.Fatalf("expected create reply, got: %s", reply)
+	}
+
+	strategies, err := st.Strategy().List("default")
+	if err != nil {
+		t.Fatalf("list strategies: %v", err)
+	}
+	var cfg store.StrategyConfig
+	for _, strategy := range strategies {
+		if strategy.Name == "餐巾纸" {
+			if err := json.Unmarshal([]byte(strategy.Config), &cfg); err != nil {
+				t.Fatalf("unmarshal config: %v", err)
+			}
+			break
+		}
+	}
+	if cfg.GridConfig == nil {
+		t.Fatalf("expected grid config")
+	}
+	if !cfg.GridConfig.UseATRBounds || cfg.GridConfig.ATRMultiplier != 2 || cfg.GridConfig.Distribution != "gaussian" {
+		t.Fatalf("expected grid defaults for bounds/distribution, got %+v", cfg.GridConfig)
+	}
+	if cfg.GridConfig.MaxDrawdownPct != 15 || cfg.GridConfig.StopLossPct != 5 || cfg.GridConfig.DailyLossLimitPct != 10 || !cfg.GridConfig.UseMakerOnly {
+		t.Fatalf("expected grid risk defaults, got %+v", cfg.GridConfig)
+	}
+	if cfg.GridConfig.DirectionBiasRatio != 0.7 {
+		t.Fatalf("expected direction bias default, got %+v", cfg.GridConfig)
 	}
 }
 

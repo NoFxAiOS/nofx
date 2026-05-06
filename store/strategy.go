@@ -143,6 +143,9 @@ func MergeStrategyConfig(base StrategyConfig, patch map[string]any) (StrategyCon
 	}
 
 	normalizeStrategyConfigPatch(patch)
+	if fmt.Sprint(patch["strategy_type"]) == "grid_trading" {
+		ensureDefaultGridConfigMap(mergedMap)
+	}
 	mergeJSONMaps(mergedMap, patch)
 
 	mergedJSON, err := json.Marshal(mergedMap)
@@ -155,6 +158,45 @@ func MergeStrategyConfig(base StrategyConfig, patch map[string]any) (StrategyCon
 		return StrategyConfig{}, err
 	}
 	return merged, nil
+}
+
+func DefaultGridStrategyConfig() GridStrategyConfig {
+	return GridStrategyConfig{
+		Symbol:                "BTCUSDT",
+		GridCount:             10,
+		TotalInvestment:       1000,
+		Leverage:              5,
+		UpperPrice:            0,
+		LowerPrice:            0,
+		UseATRBounds:          true,
+		ATRMultiplier:         2.0,
+		Distribution:          "gaussian",
+		MaxDrawdownPct:        15,
+		StopLossPct:           5,
+		DailyLossLimitPct:     10,
+		UseMakerOnly:          true,
+		EnableDirectionAdjust: false,
+		DirectionBiasRatio:    0.7,
+	}
+}
+
+func ensureDefaultGridConfigMap(config map[string]any) {
+	if config == nil {
+		return
+	}
+	if existing, ok := config["grid_config"].(map[string]any); ok && len(existing) > 0 {
+		return
+	}
+	defaultGrid := DefaultGridStrategyConfig()
+	raw, err := json.Marshal(defaultGrid)
+	if err != nil {
+		return
+	}
+	var gridMap map[string]any
+	if err := json.Unmarshal(raw, &gridMap); err != nil {
+		return
+	}
+	config["grid_config"] = gridMap
 }
 
 func normalizeStrategyConfigPatch(patch map[string]any) {

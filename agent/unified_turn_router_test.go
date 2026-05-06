@@ -171,7 +171,7 @@ func TestExecuteUnifiedTurnDecisionContinueActiveDoesNotHandOffToPlanner(t *test
 	if !handled {
 		t.Fatal("expected active session continuation to be handled")
 	}
-	if !strings.Contains(answer, "先不创建空模板") || strings.Contains(answer, "交易机器人") || strings.Contains(answer, "AI模型和交易所") {
+	if !strings.Contains(answer, "配置整理好了") || !strings.Contains(answer, "BTCUSDT") || strings.Contains(answer, "交易机器人") || strings.Contains(answer, "AI模型和交易所") {
 		t.Fatalf("expected strategy session to continue without planner/trader handoff, got: %s", answer)
 	}
 	if _, ok := a.getActiveSkillSession(userID); !ok {
@@ -195,6 +195,28 @@ func TestGuardUnexecutedActiveTaskCompletionBlocksCreationClaim(t *testing.T) {
 	_, blocked = guardUnexecutedActiveTaskCompletion("zh", session, "我建议先用 BTCUSDT 做新手网格策略。")
 	if blocked {
 		t.Fatalf("non-completion proposal should not be blocked")
+	}
+}
+
+func TestGuardUnsupportedAsyncPromiseBlocksFakeDiagnosisProgress(t *testing.T) {
+	reply, blocked := guardUnsupportedAsyncPromise("zh", "诊断还在进行中，请再稍等一下。我马上分析完“小小”的历史交易记录，找到亏损原因后会立刻告诉您。")
+	if !blocked {
+		t.Fatal("expected fake async diagnosis progress to be blocked")
+	}
+	for _, want := range []string{"没有后台异步任务", "当前回复"} {
+		if !strings.Contains(reply, want) {
+			t.Fatalf("expected guarded reply to contain %q, got: %s", want, reply)
+		}
+	}
+
+	_, blocked = guardUnsupportedAsyncPromise("zh", "我需要策略名称和历史记录范围，才能开始诊断。")
+	if blocked {
+		t.Fatal("missing-info diagnosis reply should not be blocked")
+	}
+
+	_, blocked = guardUnsupportedAsyncPromise("zh", "好的，参数已确认，正在为您创建“餐巾纸”网格策略。")
+	if !blocked {
+		t.Fatal("expected fake async strategy create progress to be blocked")
 	}
 }
 

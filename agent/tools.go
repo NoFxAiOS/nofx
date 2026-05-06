@@ -1893,6 +1893,7 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		IsPublic      *bool          `json:"is_public"`
 		ConfigVisible *bool          `json:"config_visible"`
 		AllowClamped  bool           `json:"allow_clamped_update"`
+		Confirmed     bool           `json:"confirmed"`
 		Config        map[string]any `json:"config"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
@@ -1918,6 +1919,9 @@ func (a *Agent) toolManageStrategy(storeUserID, argsJSON string) string {
 		name := strings.TrimSpace(args.Name)
 		if name == "" {
 			return `{"error":"name is required for create"}`
+		}
+		if !args.Confirmed {
+			return `{"error":"strategy create requires explicit chat confirmation before execution. Present the strategy config summary to the user and ask them to reply 确认创建; do not claim the strategy was created.","requires_confirmation":true}`
 		}
 		if lockedField, ok := strategyConfigContainsLockedField(args.Config); ok {
 			return fmt.Sprintf(`{"error":"%s"}`, strategyLockedFieldError("zh", lockedField))

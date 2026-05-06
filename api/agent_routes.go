@@ -16,7 +16,7 @@ func (s *Server) RegisterAgentHandler(h *agent.WebHandler) {
 		ctx = agent.WithSessionPolicy(ctx, agent.SessionPolicy{
 			Authenticated:           true,
 			IsAdmin:                 isAdmin,
-			CanExecuteTrade:         isAdmin,
+			CanExecuteTrade:         true,
 			CanViewSensitiveSecrets: false,
 		})
 		req := c.Request.WithContext(ctx)
@@ -28,7 +28,7 @@ func (s *Server) RegisterAgentHandler(h *agent.WebHandler) {
 		ctx = agent.WithSessionPolicy(ctx, agent.SessionPolicy{
 			Authenticated:           true,
 			IsAdmin:                 isAdmin,
-			CanExecuteTrade:         isAdmin,
+			CanExecuteTrade:         true,
 			CanViewSensitiveSecrets: false,
 		})
 		req := c.Request.WithContext(ctx)

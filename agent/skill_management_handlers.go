@@ -349,7 +349,8 @@ const strategyCreateDraftConfigField = "strategy_create_draft_config"
 const strategyCreateConfigPatchField = "config_patch"
 
 func applyStrategyCreateIntentToConfig(cfg *store.StrategyConfig, text, lang string) []string {
-	return nil
+	draft := applyStrategyDraftText(strategyDraft{}, text)
+	return applyStrategyDraftToConfig(cfg, draft)
 }
 
 func marshalStrategyCreateDraft(cfg store.StrategyConfig) string {
@@ -396,6 +397,10 @@ func strategyCreateConfigFromSession(session skillSession, lang string) (store.S
 		}
 		cfg = merged
 	}
+	if draftRaw := strings.TrimSpace(fieldValue(session, strategyCreateDraftIntentField)); draftRaw != "" {
+		applyStrategyDraftToConfig(&cfg, unmarshalStrategyDraft(draftRaw))
+	}
+	applyStrategyCreateTypeDefaults(&cfg)
 	beforeClamp := cfg
 	cfg.ClampLimits()
 	if strings.TrimSpace(cfg.StrategyType) == "" {
@@ -406,6 +411,76 @@ func strategyCreateConfigFromSession(session skillSession, lang string) (store.S
 	_ = json.Unmarshal(rawCfg, &configMap)
 	removeLockedStrategyCreateFields(configMap)
 	return cfg, configMap, store.StrategyClampWarnings(beforeClamp, cfg, cfg.Language), nil
+}
+
+func resolveStrategyCreateName(session *skillSession, text string) string {
+	if session == nil {
+		return ""
+	}
+	name := strings.TrimSpace(fieldValue(*session, "name"))
+	if name == "" {
+		if draft := unmarshalStrategyDraft(fieldValue(*session, strategyCreateDraftIntentField)); strings.TrimSpace(draft.Name) != "" {
+			name = strings.TrimSpace(draft.Name)
+		}
+	}
+	if name == "" {
+		if inferred := inferStandaloneStrategyName(text); inferred != "" {
+			name = inferred
+		}
+	}
+	if name != "" {
+		setField(session, "name", name)
+	}
+	return name
+}
+
+func applyStrategyCreateTypeDefaults(cfg *store.StrategyConfig) {
+	if cfg == nil {
+		return
+	}
+	switch strings.TrimSpace(cfg.StrategyType) {
+	case "grid_trading":
+		defaultGrid := store.DefaultGridStrategyConfig()
+		if cfg.GridConfig == nil {
+			cfg.GridConfig = &defaultGrid
+			return
+		}
+		if strings.TrimSpace(cfg.GridConfig.Symbol) == "" {
+			cfg.GridConfig.Symbol = defaultGrid.Symbol
+		}
+		if cfg.GridConfig.GridCount <= 0 {
+			cfg.GridConfig.GridCount = defaultGrid.GridCount
+		}
+		if cfg.GridConfig.TotalInvestment <= 0 {
+			cfg.GridConfig.TotalInvestment = defaultGrid.TotalInvestment
+		}
+		if cfg.GridConfig.Leverage <= 0 {
+			cfg.GridConfig.Leverage = defaultGrid.Leverage
+		}
+		if cfg.GridConfig.ATRMultiplier <= 0 {
+			cfg.GridConfig.ATRMultiplier = defaultGrid.ATRMultiplier
+		}
+		if strings.TrimSpace(cfg.GridConfig.Distribution) == "" {
+			cfg.GridConfig.Distribution = defaultGrid.Distribution
+		}
+		if cfg.GridConfig.MaxDrawdownPct <= 0 {
+			cfg.GridConfig.MaxDrawdownPct = defaultGrid.MaxDrawdownPct
+		}
+		if cfg.GridConfig.StopLossPct <= 0 {
+			cfg.GridConfig.StopLossPct = defaultGrid.StopLossPct
+		}
+		if cfg.GridConfig.DailyLossLimitPct <= 0 {
+			cfg.GridConfig.DailyLossLimitPct = defaultGrid.DailyLossLimitPct
+		}
+		if cfg.GridConfig.DirectionBiasRatio <= 0 {
+			cfg.GridConfig.DirectionBiasRatio = defaultGrid.DirectionBiasRatio
+		}
+		if cfg.GridConfig.UpperPrice <= 0 && cfg.GridConfig.LowerPrice <= 0 {
+			cfg.GridConfig.UseATRBounds = true
+		}
+	case "":
+		cfg.StrategyType = "ai_trading"
+	}
 }
 
 func removeLockedStrategyCreateFields(configMap map[string]any) {
@@ -424,7 +499,12 @@ func strategyCreateConfirmationReply(text string) bool {
 	if lower == "" {
 		return false
 	}
-	return isYesReply(text) || lower == "确认创建" || lower == "创建吧" || lower == "就按这个创建" || lower == "按这个创建" || lower == "确认应用" || lower == "应用" || lower == "就按这个应用"
+	for _, exact := range []string{"确认创建", "创建吧", "就按这个创建", "按这个创建", "确认应用", "就按这个应用"} {
+		if lower == exact {
+			return true
+		}
+	}
+	return false
 }
 
 func strategyCreateDefaultConfigReply(text string) bool {
@@ -441,6 +521,9 @@ func strategyCreateDefaultConfigReply(text string) bool {
 func explicitStrategyCreateType(session skillSession) string {
 	if value := strings.TrimSpace(fieldValue(session, "strategy_type")); value != "" {
 		return value
+	}
+	if draft := unmarshalStrategyDraft(fieldValue(session, strategyCreateDraftIntentField)); draft.StrategyKind != "" || len(draft.Symbols) > 0 || draft.Timeframe != "" || draft.Leverage > 0 {
+		return "ai_trading"
 	}
 	patchRaw := strings.TrimSpace(fieldValue(session, strategyCreateConfigPatchField))
 	if patchRaw == "" {
@@ -460,18 +543,15 @@ func explicitStrategyCreateType(session skillSession) string {
 }
 
 func strategyCreateConfigReady(session skillSession, cfg store.StrategyConfig, text string) (bool, string) {
-	if strategyCreateDefaultConfigReply(text) {
-		return true, ""
-	}
 	strategyType := explicitStrategyCreateType(session)
-	if !strategyCreateHasExplicitConfigBeyondType(session) {
-		if strategyType == "" {
-			return false, "strategy_type"
-		}
-		return false, strategyType
-	}
 	if strategyType == "" {
 		return false, "strategy_type"
+	}
+	if strategyCreateDefaultConfigReply(text) || strategyCreateConfirmationReply(text) || strategyCreateFinalConfirmationReady(session) {
+		return true, ""
+	}
+	if !strategyCreateHasExplicitConfigBeyondType(session) {
+		return false, strategyType
 	}
 	switch strategyType {
 	case "grid_trading":
@@ -496,6 +576,10 @@ func strategyCreateConfigReady(session skillSession, cfg store.StrategyConfig, t
 	}
 }
 
+func strategyCreateFinalConfirmationReady(session skillSession) bool {
+	return strings.EqualFold(strings.TrimSpace(fieldValue(session, "awaiting_final_confirmation")), "true")
+}
+
 func strategyCreateHasExplicitConfigBeyondType(session skillSession) bool {
 	for _, key := range manualStrategyEditableFieldKeys() {
 		switch key {
@@ -505,6 +589,9 @@ func strategyCreateHasExplicitConfigBeyondType(session skillSession) bool {
 		if strings.TrimSpace(fieldValue(session, key)) != "" {
 			return true
 		}
+	}
+	if draft := unmarshalStrategyDraft(fieldValue(session, strategyCreateDraftIntentField)); len(draft.Symbols) > 0 || draft.Timeframe != "" || draft.Leverage > 0 || draft.CoinSourceIntent != "" {
+		return true
 	}
 	patchRaw := strings.TrimSpace(fieldValue(session, strategyCreateConfigPatchField))
 	if patchRaw == "" {
@@ -526,35 +613,18 @@ func formatStrategyCreateConfigNeeded(lang, strategyType string) string {
 	if lang == "zh" {
 		switch strategyType {
 		case "grid_trading":
-			return strings.Join([]string{
-				"好的，先不创建空模板。网格策略需要先把核心配置补齐，之后我再调用 create 落库。",
-				"需要确认这些配置：",
-				"- 交易对：BTCUSDT、ETHUSDT、SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT",
-				"- 网格数量、总投入、杠杆",
-				"- 价格区间：用 ATR 动态边界，或手动给上边界/下边界",
-				"- 网格分布：uniform、gaussian、pyramid",
-				"- 风控：最大回撤、止损、每日亏损限制、是否只挂 maker 单、是否启用方向偏置",
-				"你可以一次性告诉我这些参数；如果想先用默认值，也可以明确说“用默认配置创建”。",
-			}, "\n")
+			return "我先按一套安全默认网格参数整理完整草稿，不逐项问你。你可以直接改任何一项，或者确认后我创建。"
 		case "ai_trading":
-			return strings.Join([]string{
-				"好的，先不创建空模板。AI 策略需要先把核心配置补齐，之后我再调用 create 落库。",
-				"需要确认这些配置：",
-				"- 选币来源：static、ai500、oi_top、oi_low",
-				"- K 线主周期和多周期",
-				"- 风控：杠杆、最小置信度、最小盈亏比",
-				"- 提示词方向：角色定义、交易频率、入场标准、决策流程",
-				"你可以一次性告诉我这些参数；如果想先用默认值，也可以明确说“用默认配置创建”。",
-			}, "\n")
+			return "我先按一套安全默认 AI 策略参数整理完整草稿，不逐项问你。你可以直接改任何一项，或者确认后我创建。"
 		default:
 			return "先选择策略类型：grid_trading（网格策略）或 ai_trading（AI 策略）。类型确认后我会继续收集对应配置，配置好后再创建。"
 		}
 	}
 	switch strategyType {
 	case "grid_trading":
-		return "I will not create an empty template yet. For a grid strategy, please provide symbol, grid count, total investment, leverage, boundary mode/prices, distribution, and risk settings. Say “use defaults” if you want the remaining fields defaulted before creation."
+		return "I prepared a complete safe default grid draft instead of asking field by field. You can change any field or confirm to create it."
 	case "ai_trading":
-		return "I will not create an empty template yet. For an AI strategy, please provide coin source, timeframes, risk settings, and prompt direction. Say “use defaults” if you want the remaining fields defaulted before creation."
+		return "I prepared a complete safe default AI draft instead of asking field by field. You can change any field or confirm to create it."
 	default:
 		return "Choose the strategy type first: grid_trading or ai_trading. I will collect the matching config before creating it."
 	}
@@ -956,7 +1026,7 @@ func formatTraderCreateDraftSummary(lang string, session skillSession) string {
 }
 
 func (a *Agent) continueStrategyCreateDraft(storeUserID string, userID int64, lang, text string, session skillSession) string {
-	name := fieldValue(session, "name")
+	name := resolveStrategyCreateName(&session, text)
 	if actionRequiresSlot("strategy_management", "create", "name") && strings.TrimSpace(name) == "" {
 		setSkillDAGStep(&session, "resolve_name")
 		a.saveSkillSession(userID, session)
@@ -984,15 +1054,22 @@ func (a *Agent) continueStrategyCreateDraft(storeUserID string, userID int64, la
 	setSkillDAGStep(&session, "await_create_confirmation")
 	session.Phase = "draft_create"
 
-	if strategyCreateConfirmationReply(text) {
+	if strategyCreateConfirmationReply(text) || strategyCreateFinalConfirmationReady(session) {
 		if ready, missingKind := strategyCreateConfigReady(session, cfg, text); !ready {
+			if missingKind != "strategy_type" {
+				setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
+				setField(&session, "awaiting_final_confirmation", "true")
+				a.saveSkillSession(userID, session)
+				return formatStrategyCreateFinalConfirmation(lang, session, cfg)
+			}
 			a.saveSkillSession(userID, session)
 			return formatStrategyCreateConfigNeeded(lang, missingKind)
 		}
 		args := map[string]any{
-			"action": "create",
-			"name":   name,
-			"lang":   defaultIfEmpty(lang, "zh"),
+			"action":    "create",
+			"name":      name,
+			"lang":      defaultIfEmpty(lang, "zh"),
+			"confirmed": true,
 		}
 		rawCfg, _ := json.Marshal(cfg)
 		var configMap map[string]any
@@ -1009,10 +1086,11 @@ func (a *Agent) continueStrategyCreateDraft(storeUserID string, userID int64, la
 			return "That create request did not go through: " + errMsg
 		}
 		a.clearSkillSession(userID)
+		a.rememberReferencesFromToolResult(userID, "manage_strategy", resp)
 		if lang == "zh" {
-			return fmt.Sprintf("已按当前草稿创建策略“%s”。后续如果还想继续细化参数，直接告诉我就行。", name)
+			return formatCreatedStrategyReply(lang, name, cfg, warnings)
 		}
-		return fmt.Sprintf("Created strategy %q from the current draft.", name)
+		return formatCreatedStrategyReply(lang, name, cfg, warnings)
 	}
 
 	a.saveSkillSession(userID, session)
@@ -1869,7 +1947,7 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		}
 		return "Cancelled the current strategy creation flow."
 	}
-	name := fieldValue(session, "name")
+	name := resolveStrategyCreateName(&session, text)
 	hasDescriptiveDraftIntent := session.Phase == "draft_create"
 	if hasDescriptiveDraftIntent {
 		return a.continueStrategyCreateDraft(storeUserID, userID, lang, text, session)
@@ -1899,6 +1977,11 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		setField(&session, strategyCreateDraftConfigField, marshalStrategyCreateDraft(cfg))
 		setSkillDAGStep(&session, "collect_config")
 		session.Phase = "draft_create"
+		if missingKind != "strategy_type" {
+			setField(&session, "awaiting_final_confirmation", "true")
+			a.saveSkillSession(userID, session)
+			return formatStrategyCreateFinalConfirmation(lang, session, cfg)
+		}
 		a.saveSkillSession(userID, session)
 		return formatStrategyCreateConfigNeeded(lang, missingKind)
 	}
@@ -1909,6 +1992,7 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 		"name":                 name,
 		"lang":                 defaultIfEmpty(lang, "zh"),
 		"allow_clamped_update": true,
+		"confirmed":            true,
 	}
 	if len(configMap) > 0 {
 		args["config"] = configMap
@@ -1924,18 +2008,77 @@ func (a *Agent) handleStrategyCreateSkill(storeUserID string, userID int64, lang
 	}
 	a.clearSkillSession(userID)
 	a.rememberReferencesFromToolResult(userID, "manage_strategy", resp)
+	return formatCreatedStrategyReply(lang, name, cfg, warnings)
+}
+
+func formatCreatedStrategyReply(lang, name string, cfg store.StrategyConfig, warnings []string) string {
+	name = defaultIfEmpty(strings.TrimSpace(name), "未命名策略")
+	if lang != "zh" {
+		name = defaultIfEmpty(strings.TrimSpace(name), "unnamed strategy")
+	}
+	_ = warnings
 	if lang == "zh" {
-		reply := fmt.Sprintf("已创建策略“%s”，并已按你的需求生成配置。", name)
-		if len(warnings) > 0 {
-			reply += "\n有些值超出安全范围，系统已自动收敛：\n- " + strings.Join(warnings, "\n- ")
+		lines := []string{fmt.Sprintf("已创建策略“%s”。实际保存配置如下：", name)}
+		if cfg.StrategyType == "grid_trading" && cfg.GridConfig != nil {
+			grid := cfg.GridConfig
+			lines = append(lines,
+				"- 类型：网格策略",
+				fmt.Sprintf("- 交易对：%s", defaultIfEmpty(grid.Symbol, "未设置")),
+				fmt.Sprintf("- 网格数量：%d", grid.GridCount),
+				fmt.Sprintf("- 总投入：%.2f USDT", grid.TotalInvestment),
+				fmt.Sprintf("- 杠杆：%d倍", grid.Leverage),
+				fmt.Sprintf("- 分布方式：%s", defaultIfEmpty(grid.Distribution, "未设置")),
+			)
+			if grid.UseATRBounds {
+				lines = append(lines, fmt.Sprintf("- 价格范围：ATR 自动计算（倍数 %.2f）", grid.ATRMultiplier))
+			} else {
+				lines = append(lines, fmt.Sprintf("- 价格范围：%.2f ～ %.2f USDT", grid.LowerPrice, grid.UpperPrice))
+			}
+			lines = append(lines,
+				fmt.Sprintf("- 最大回撤：%.2f%%", grid.MaxDrawdownPct),
+				fmt.Sprintf("- 止损：%.2f%%", grid.StopLossPct),
+				fmt.Sprintf("- 日亏损限制：%.2f%%", grid.DailyLossLimitPct),
+				fmt.Sprintf("- 只挂 Maker：%t", grid.UseMakerOnly),
+			)
+		} else {
+			lines = append(lines,
+				"- 类型：AI 策略",
+				fmt.Sprintf("- 选币来源：%s", defaultIfEmpty(cfg.CoinSource.SourceType, "未设置")),
+				fmt.Sprintf("- 静态币种：%s", strings.Join(cfg.CoinSource.StaticCoins, ", ")),
+				fmt.Sprintf("- 主周期：%s", defaultIfEmpty(cfg.Indicators.Klines.PrimaryTimeframe, "未设置")),
+				fmt.Sprintf("- BTC/ETH 最大杠杆：%d倍", cfg.RiskControl.BTCETHMaxLeverage),
+				fmt.Sprintf("- 山寨币最大杠杆：%d倍", cfg.RiskControl.AltcoinMaxLeverage),
+				fmt.Sprintf("- 最小置信度：%d", cfg.RiskControl.MinConfidence),
+				fmt.Sprintf("- 最小盈亏比：%.2f", cfg.RiskControl.MinRiskRewardRatio),
+			)
 		}
-		return reply
+		return strings.Join(lines, "\n")
 	}
-	reply := fmt.Sprintf("Created strategy %q with a config generated from your requirements.", name)
-	if len(warnings) > 0 {
-		reply += "\nSome values were clamped to product safety limits:\n- " + strings.Join(warnings, "\n- ")
+
+	lines := []string{fmt.Sprintf("Created strategy %q with this saved config:", name)}
+	if cfg.StrategyType == "grid_trading" && cfg.GridConfig != nil {
+		grid := cfg.GridConfig
+		lines = append(lines,
+			"- Type: grid strategy",
+			fmt.Sprintf("- Symbol: %s", defaultIfEmpty(grid.Symbol, "unset")),
+			fmt.Sprintf("- Grid count: %d", grid.GridCount),
+			fmt.Sprintf("- Total investment: %.2f USDT", grid.TotalInvestment),
+			fmt.Sprintf("- Leverage: %dx", grid.Leverage),
+			fmt.Sprintf("- Distribution: %s", defaultIfEmpty(grid.Distribution, "unset")),
+		)
+		if grid.UseATRBounds {
+			lines = append(lines, fmt.Sprintf("- Price range: ATR auto bounds (multiplier %.2f)", grid.ATRMultiplier))
+		} else {
+			lines = append(lines, fmt.Sprintf("- Price range: %.2f - %.2f USDT", grid.LowerPrice, grid.UpperPrice))
+		}
+	} else {
+		lines = append(lines,
+			"- Type: AI strategy",
+			fmt.Sprintf("- Coin source: %s", defaultIfEmpty(cfg.CoinSource.SourceType, "unset")),
+			fmt.Sprintf("- Primary timeframe: %s", defaultIfEmpty(cfg.Indicators.Klines.PrimaryTimeframe, "unset")),
+		)
 	}
-	return reply
+	return strings.Join(lines, "\n")
 }
 
 func (a *Agent) handleSimpleEntitySkill(storeUserID string, userID int64, lang, text string, session skillSession, skillName, action string, options []traderSkillOption) (string, bool) {

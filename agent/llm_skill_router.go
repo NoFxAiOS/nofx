@@ -305,6 +305,9 @@ func (a *Agent) executeUnifiedTurnDecision(ctx context.Context, storeUserID stri
 		if decision.TopicIntent == "instant_reply" && a.hasAnyActiveContext(userID) {
 			return a.replyToActiveFlowInstantReply(ctx, userID, lang, text, onEvent), true, nil
 		}
+		if guarded, blocked := guardUnsupportedAsyncPromise(lang, decision.ReplyToUser); blocked {
+			decision.ReplyToUser = guarded
+		}
 		emitBrainReply(onEvent, decision.ReplyToUser)
 		a.recordSkillInteraction(userID, text, decision.ReplyToUser)
 		a.runPostResponseMaintenanceAsync(userID)

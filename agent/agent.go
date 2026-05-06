@@ -66,7 +66,7 @@ func DefaultConfig() *Config {
 		EnableBriefs:        true,
 		EnableNews:          true,
 		EnableSentinel:      true,
-		AllowTradeExecution: false,
+		AllowTradeExecution: true,
 		BriefTimes:          []int{8, 20},
 	}
 }

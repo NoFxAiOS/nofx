@@ -86,6 +86,7 @@ Rules:
 - For those lightweight social messages, choose EXPLAIN_KNOWLEDGE and reply naturally, or let the task stay suspended.
 - Use NEW_TASK only when there is no active task, or the user clearly switches goals/domains.
 - Use EXPLAIN_KNOWLEDGE for concept/range/help questions; do not change state. When answering, use ONLY the options/values listed in the active session's missing_required_fields. Never invent field values or provider names.
+- For diagnosis, create, update, delete, start, stop, activation, duplication, or historical-performance analysis tasks, never reply only with a future promise such as "I'll do it now", "please wait", "diagnosis is running", or "I'll tell you later". If the next step is execution, choose the corresponding skill/planned execution. If execution is impossible, say exactly what information or data is missing.
 - Use CANCEL_TASK for "cancel", "stop", "forget it", "never mind", "算了", "取消".
 - Domain guard: if the user says "模型", "AI 模型", or "model" and asks to create or configure one, you must route to model_management, not exchange_management.
 - Domain guard: for model_management, the field "provider" means the AI model vendor such as OpenAI, DeepSeek, Claude, Gemini, Qwen, Kimi, Grok, Minimax, claw402, blockrun-base, or blockrun-sol. It never means an exchange like Binance, OKX, Bybit, CFD, forex, or metals.
@@ -230,6 +231,9 @@ func (a *Agent) executeBrainDecision(ctx context.Context, storeUserID string, us
 		if reply == "" {
 			return "", false, nil
 		}
+		if guarded, blocked := guardUnsupportedAsyncPromise(lang, reply); blocked {
+			reply = guarded
+		}
 		emitBrainReply(onEvent, reply)
 		a.recordSkillInteraction(userID, text, reply)
 		return reply, true, nil
@@ -310,6 +314,9 @@ func (a *Agent) driveActiveSession(ctx context.Context, storeUserID string, user
 		if reply == "" {
 			reply = a.askForMissingFields(lang, session)
 		}
+		if guarded, blocked := guardUnsupportedAsyncPromise(lang, reply); blocked {
+			reply = guarded
+		}
 		if len(missingRequiredFields(session)) == 0 && actionNeedsConfirmation(session.SkillName, session.ActionName) {
 			session.LegacyPhase = "await_confirmation"
 			session.CollectedFields["phase"] = "await_confirmation"
@@ -360,6 +367,17 @@ func (a *Agent) driveActiveSession(ctx context.Context, storeUserID string, user
 			return reply, true, nil
 		}
 
+		if shouldTrustDeterministicSkillReply(outcome) {
+			answer := strings.TrimSpace(outcome.UserMessage)
+			if answer == "" {
+				return "", false, nil
+			}
+			a.clearActiveSkillSession(userID)
+			emitBrainReply(onEvent, answer)
+			a.recordSkillInteraction(userID, text, answer)
+			return answer, true, nil
+		}
+
 		review, err := a.reviewTaskCompletion(ctx, userID, lang, text, outcome)
 		if err != nil {
 			review = taskReviewDecision{Route: "complete", Answer: outcome.UserMessage}
@@ -408,8 +426,10 @@ Return JSON only.
 Rules:
 - Think from the current user message, previous assistant proposal, and active history.
 - If concrete strategy settings can be determined, write them into extracted_data.config_patch as a StrategyConfig-shaped JSON patch.
-- If the previous assistant already asked the user to confirm a concrete creation proposal and the current user confirms it, set extracted_data.awaiting_final_confirmation=true too.
-- If the user is asking you to design settings but has not confirmed creation yet, use route ask_user, provide a concise final confirmation reply, and include the designed config in extracted_data.config_patch plus extracted_data.awaiting_final_confirmation=true.
+- If the previous assistant already asked the user to confirm a concrete creation proposal in chat and the current user confirms it, set extracted_data.awaiting_final_confirmation=true too.
+- For strategy creation, after the initial strategy type is known, do not ask field-by-field. Propose one complete draft using user-provided values plus safe defaults for anything still unspecified.
+- If the user is asking you to design settings but has not confirmed creation yet, use route ask_user, provide a concise chat confirmation reply, and include the designed config in extracted_data.config_patch plus extracted_data.awaiting_final_confirmation=true.
+- Strategy creation is chat-executable. Do not tell the user to click a web/app button, open a page, or manually create it elsewhere.
 - Do not claim the strategy was created. This step only repairs state or asks for more information.
 - If there is not enough information to determine a config, ask one natural follow-up question.
 
@@ -491,7 +511,7 @@ func guardStrategyCreateBeforeFinalConfirmation(lang string, session ActiveSkill
 	if session.SkillName != "strategy_management" || session.ActionName != "create" {
 		return "", false
 	}
-	if activeFieldBool(session.CollectedFields["awaiting_final_confirmation"]) {
+	if activeFieldBool(session.CollectedFields["awaiting_final_confirmation"]) && strategyCreateHasPriorConfirmationPrompt(session) {
 		return "", false
 	}
 	legacy := activeToLegacySkillSession(session)
@@ -503,6 +523,26 @@ func guardStrategyCreateBeforeFinalConfirmation(lang string, session ActiveSkill
 		return "", false
 	}
 	return formatStrategyCreateFinalConfirmation(lang, legacy, cfg), true
+}
+
+func strategyCreateHasPriorConfirmationPrompt(session ActiveSkillSession) bool {
+	for i := len(session.LocalHistory) - 1; i >= 0; i-- {
+		msg := session.LocalHistory[i]
+		if msg.Role != "assistant" {
+			continue
+		}
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			continue
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(content, "确认创建") ||
+			strings.Contains(content, "确认后我再创建") ||
+			strings.Contains(content, "配置整理好了") ||
+			strings.Contains(lower, "confirm") ||
+			strings.Contains(lower, "create it")
+	}
+	return false
 }
 
 func activeFieldBool(v any) bool {
@@ -527,6 +567,29 @@ func guardUnexecutedActiveTaskCompletion(lang string, session ActiveSkillSession
 		return "还没有真正执行完成。刚才只是继续当前配置流程；需要实际执行时，我会调用对应工具后再基于真实结果回复。", true
 	}
 	return "It has not actually been executed yet. The previous step only prepared or confirmed the draft; I need to run the structured tool before claiming completion.", true
+}
+
+func guardUnsupportedAsyncPromise(lang, reply string) (string, bool) {
+	lower := strings.ToLower(strings.TrimSpace(reply))
+	if lower == "" {
+		return "", false
+	}
+	promiseSignals := []string{
+		"请稍等", "稍等片刻", "再稍等", "马上", "稍后", "立刻告诉", "数据一出来", "一两分钟",
+		"还在进行", "正在进行", "正在为", "正在帮", "一直在帮", "诊断中", "分析中",
+		"please wait", "give me a moment", "still running", "i'll let you know", "i will let you know",
+	}
+	taskSignals := []string{
+		"诊断", "分析", "历史交易", "历史表现", "亏损原因", "创建", "修改", "删除", "启动", "停止",
+		"diagnos", "analyz", "history", "performance", "loss", "create", "update", "delete", "start", "stop",
+	}
+	if !containsAny(lower, promiseSignals) || !containsAny(lower, taskSignals) {
+		return "", false
+	}
+	if lang == "zh" {
+		return "我需要纠正一下：我没有后台异步任务在运行，也不会稍后自动推送结果。诊断/创建/修改/启动这类任务必须在当前回复里实际执行并给出真实结果；如果还不能执行，我应该直接说明缺少哪个对象、时间范围或数据。", true
+	}
+	return "I need to correct that: there is no background task running, and I will not automatically push a later result. Diagnosis/create/update/start tasks must actually execute and return a real result in the current response; if execution is not possible, I should state which target, range, or data is missing.", true
 }
 
 func isMutatingActiveTask(session ActiveSkillSession) bool {
@@ -601,12 +664,17 @@ Rules:
 - Use contextual memory from the active task history and current references.
 - Prefer "execute_skill" when the user has already given enough information to act.
 - Prefer "ask_user" only when something truly necessary is still missing.
+- For strategy_management:create, the only normal first fork is strategy type: AI strategy or grid strategy. After that, do not collect fields one by one; produce a complete recommended draft from user-provided values plus safe defaults, then ask the user to confirm or change any item.
 - For strategy_management:create/update_config: every turn, reason about whether any config fields can now be determined from the user's message and conversation history. If yes, write them into extracted_data.config_patch.
 - For strategy_management:create: when the user asks you to design/recommend settings, think as the strategy designer, produce a concrete recommended config in your reply, and also put the same structured config into extracted_data.config_patch. Do not ask the user to fill fields you can reasonably choose for them.
-- For strategy_management:create: once the structured config is sufficient to create, ask for one final confirmation and set extracted_data.awaiting_final_confirmation=true. Do not execute create in that same turn.
-- For strategy_management:create: choose execute_skill only when awaiting_final_confirmation is already true and the current user message confirms the final summary. If the user changes a number, update config_patch and ask for final confirmation again.
+- For strategy_management:create: clearly distinguish user-provided fields from your recommended/defaulted fields. Never say a value is "already filled", "user provided", or "already configured" unless it appears in Current collected fields or the current user message. For values you choose, say "我建议/我先按安全默认值".
+- For strategy_management:create grid_trading: never infer "current BTC/ETH/SOL price" or explicit upper/lower grid bounds from memory. If no fresh market tool observation is present, recommend ATR auto bounds instead and set grid_config.use_atr_bounds=true with upper_price/lower_price omitted or 0. Only recommend numeric upper_price/lower_price as "based on current price" when the price was actually fetched in this task.
+- For strategy_management:create: once the structured config is sufficient to create, ask for one chat confirmation reply (for example, "回复“确认创建”") and set extracted_data.awaiting_final_confirmation=true. Do not execute create in that same turn.
+- For strategy_management:create: choose execute_skill only when awaiting_final_confirmation is already true and the current user message confirms the chat summary. If the user changes a number, update config_patch and ask for chat confirmation again.
+- For strategy_management:create: the confirmation happens in chat. Never tell the user to click a web/app button, find a page button, or manually create it elsewhere.
 - For strategy_management:create: if the previous assistant reply said the strategy was not actually created yet and that the next step is to call the structured create tool, then a user request to continue/proceed means execute the current skill when the structured config is ready. Do not answer with another promise such as "I will create it now"; choose execute_skill.
 - For any mutating task, a reply that only promises future execution ("now I will create/update/start it", "result soon") is not a valid finish_task or ask_user outcome. If execution is the next step, choose execute_skill.
+- For diagnosis, create, update, delete, start, stop, query/history, and performance-analysis tasks, never answer with only "马上处理 / 请稍等 / 诊断中 / I'll tell you later". NOFXi has no background chat job that will later push an answer. Choose execute_skill/planned_agent when enough information exists; otherwise ask for the missing target/range/data.
 - Never choose finish_task for an unfinished mutating active task by claiming it was created/updated/deleted/started/stopped. Only a real skill/tool execution outcome can support that claim.
 - If the user says they do not understand the current form, choices, or required information, choose "ask_user" and explain the current pending question in plain language before asking the next easiest question. Cover the relevant concepts from the previous assistant reply; do not collapse the answer to only the first missing field.
 - For beginner/confusion replies, give a safe recommended path when the domain supports one, but do not execute or create anything unless the user confirms after the explanation.
@@ -677,6 +745,20 @@ func (a *Agent) executeActiveSkillSession(storeUserID string, userID int64, lang
 		return outcome, nextSession, true, true
 	}
 	return outcome, ActiveSkillSession{}, false, true
+}
+
+func shouldTrustDeterministicSkillReply(outcome skillOutcome) bool {
+	if outcome.Status != skillOutcomeSuccess || !outcome.GoalAchieved {
+		return false
+	}
+	switch outcome.Skill {
+	case "strategy_management", "trader_management", "model_management", "exchange_management":
+		switch outcome.Action {
+		case "create", "update", "update_name", "update_bindings", "configure_strategy", "configure_exchange", "configure_model", "update_status", "update_endpoint", "update_config", "update_prompt", "delete", "start", "stop", "activate", "duplicate":
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Agent) askForMissingFields(lang string, session ActiveSkillSession) string {
@@ -756,6 +838,15 @@ func activeToLegacySkillSession(s ActiveSkillSession) skillSession {
 			}
 		default:
 			legacy.Fields[k] = str
+		}
+	}
+	if s.SkillName == "strategy_management" && s.ActionName == "create" {
+		draft := buildStrategyDraftFromActiveSession(s)
+		if legacy.Fields["name"] == "" && strings.TrimSpace(draft.Name) != "" {
+			legacy.Fields["name"] = strings.TrimSpace(draft.Name)
+		}
+		if draftRaw := marshalStrategyDraft(draft); draftRaw != "{}" {
+			legacy.Fields[strategyCreateDraftIntentField] = draftRaw
 		}
 	}
 	return legacy

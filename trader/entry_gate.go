@@ -308,9 +308,15 @@ func evaluateStructuralFitGate(input entryGateInput) []EntryGateCheck {
 		systemRegime := market.InferExecutionRegimePublic(data)
 		crossFailed := isRegimeCrossValidationFailed(d.Regime, systemRegime)
 		exempt := false
+		exemptReason := ""
 		if crossFailed {
-			setup := strings.ToLower(strings.TrimSpace(d.SetupType))
-			exempt = setup == "breakout_retest" && isTrendAlignedWithRegime(d.Action, systemRegime)
+			// Exempt 1: trade direction aligns with the system-detected trend.
+			// AI might mis-label regime as "range" but if it's opening long in a
+			// trend_up market, the direction is correct — don't block.
+			if isTrendAlignedWithRegime(d.Action, systemRegime) {
+				exempt = true
+				exemptReason = fmt.Sprintf("trade %s aligns with system trend %s", d.Action, systemRegime)
+			}
 		}
 		passed := !crossFailed || exempt
 		check := EntryGateCheck{
@@ -318,16 +324,16 @@ func evaluateStructuralFitGate(input entryGateInput) []EntryGateCheck {
 			Stage:    string(EntryGateStageStructuralFit),
 			Passed:   passed,
 			Enforced: true,
-			Values:   fmt.Sprintf("ai_regime=%s system_regime=%s", d.Regime, systemRegime),
+			Values:   fmt.Sprintf("ai_regime=%s system_regime=%s action=%s", d.Regime, systemRegime, d.Action),
 		}
 		if passed {
 			if exempt {
-				check.Detail = fmt.Sprintf("AI says %s, system sees %s — exempted as breakout_retest aligned with %s", d.Regime, systemRegime, systemRegime)
+				check.Detail = fmt.Sprintf("AI says %s, system sees %s — exempted: %s", d.Regime, systemRegime, exemptReason)
 			} else {
 				check.Detail = fmt.Sprintf("AI regime %s consistent with system regime %s", d.Regime, systemRegime)
 			}
 		} else {
-			check.Detail = fmt.Sprintf("AI claims regime=%s but system detects %s — cross-validation failed", d.Regime, systemRegime)
+			check.Detail = fmt.Sprintf("AI claims regime=%s but system detects %s, and trade %s opposes trend — cross-validation failed", d.Regime, systemRegime, d.Action)
 		}
 		checks = append(checks, check)
 	}

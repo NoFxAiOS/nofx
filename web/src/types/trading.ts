@@ -395,6 +395,15 @@ export interface DecisionActionControlOutcome {
   no_order_placed?: boolean
 }
 
+export interface EntryGateCheckRecord {
+  code: string
+  stage: string
+  passed: boolean
+  detail: string
+  values?: string
+  enforced: boolean
+}
+
 export interface DecisionActionQualityGate {
   shadow_mode?: boolean
   decision?: string
@@ -405,6 +414,8 @@ export interface DecisionActionQualityGate {
   confidence?: number
   quality_total?: number
   net_rr?: number
+  blocked_stage?: string
+  gate_checks?: EntryGateCheckRecord[]
 }
 
 export interface DecisionActionExecutionQuality {

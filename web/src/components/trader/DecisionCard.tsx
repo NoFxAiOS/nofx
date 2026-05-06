@@ -377,7 +377,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
         toneColors={toneColors}
       />
 
-      {/* Error Message */}
+      {/* Gate Attribution — detailed check-by-check breakdown */}
       {action.error && (
         <div
           className="mt-3 rounded p-2 text-xs"
@@ -388,7 +388,32 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           }}
         >
           ❌ {action.error}
-          {control && (
+          {review?.quality_gate?.gate_checks && review.quality_gate.gate_checks.length > 0 ? (
+            <div className="mt-2 space-y-1" style={{ color: '#e0e0e0' }}>
+              {review.quality_gate.blocked_stage && (
+                <div style={{ color: '#F6465D', fontWeight: 600 }}>
+                  blocked at stage: {review.quality_gate.blocked_stage}
+                </div>
+              )}
+              {review.quality_gate.gate_checks.map((gc, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    color: gc.passed ? '#6b7280' : gc.enforced ? '#F6465D' : '#f59e0b',
+                    paddingLeft: '0.5rem',
+                    borderLeft: gc.passed ? '2px solid #374151' : gc.enforced ? '2px solid #F6465D' : '2px solid #f59e0b',
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>
+                    {gc.passed ? '✓' : gc.enforced ? '✗' : '⚠'} {gc.code}
+                  </span>
+                  {!gc.passed && !gc.enforced && <span style={{ color: '#9ca3af' }}> (shadow)</span>}
+                  {gc.detail && <div style={{ color: gc.passed ? '#6b7280' : '#d1d5db', paddingLeft: '0.75rem' }}>{gc.detail}</div>}
+                  {gc.values && !gc.passed && <div style={{ color: '#9ca3af', paddingLeft: '0.75rem', fontFamily: 'monospace', fontSize: '10px' }}>{gc.values}</div>}
+                </div>
+              ))}
+            </div>
+          ) : control ? (
             <div className="mt-2 space-y-1" style={{ color: '#FCD5DA' }}>
               {control.failed_checks && control.failed_checks.length > 0 && (
                 <div>checks: {control.failed_checks.join(', ')}</div>
@@ -402,17 +427,9 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
                   {control.regime_allowed && control.regime_allowed.length > 0 ? ` | allowed: ${control.regime_allowed.join(', ')}` : ''}
                 </div>
               )}
-              {(control.regime_primary_timeframe || control.regime_atr14_pct || control.regime_funding_rate || control.regime_trend_aligned !== undefined) && (
-                <div>
-                  {control.regime_primary_timeframe ? `tf=${control.regime_primary_timeframe}` : ''}
-                  {control.regime_atr14_pct ? ` | atr14=${control.regime_atr14_pct.toFixed(2)}%` : ''}
-                  {control.regime_funding_rate ? ` | funding=${control.regime_funding_rate.toFixed(6)}` : ''}
-                  {control.regime_trend_aligned !== undefined && control.regime_trend_aligned !== null ? ` | trendAligned=${control.regime_trend_aligned ? 'yes' : 'no'}` : ''}
-                </div>
-              )}
               {control.no_order_placed && <div>no order placed</div>}
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

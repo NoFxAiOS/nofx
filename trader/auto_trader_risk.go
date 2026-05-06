@@ -1678,8 +1678,6 @@ func (at *AutoTrader) applyBreakEvenStops(symbol, side string, quantity, entryPr
 	if len(rules) == 0 {
 		return nil
 	}
-	// Find the highest satisfied tier — later tiers have higher offset (better protection).
-	// Only apply that one to avoid redundant exchange API calls.
 	bestIdx := -1
 	for idx, rule := range rules {
 		if currentPnLPct >= rule.TriggerValue {
@@ -1697,11 +1695,44 @@ func (at *AutoTrader) applyBreakEvenStops(symbol, side string, quantity, entryPr
 	if ruleQty <= 0 {
 		return nil
 	}
-	cfg := store.BreakEvenStopConfig{Enabled: true, Mode: store.ProtectionModeManual, TriggerMode: rule.TriggerMode, TriggerValue: rule.TriggerValue, OffsetPct: rule.OffsetPct}
+
 	stage := rule.StageName
 	if stage == "" {
 		stage = fmt.Sprintf("BE%d", bestIdx+1)
 	}
+
+	newBEPrice := calculateBreakEvenStopPrice(side, entryPrice, rule.OffsetPct)
+	if newBEPrice <= 0 {
+		return nil
+	}
+
+	// Check if a higher-tier BE upgrade is needed by comparing the new price
+	// against the currently armed stop. Skip if already at this tier or better.
+	positionSide := strings.ToUpper(side)
+	if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
+		if hasMatchingProtectionOrder(openOrders, positionSide, false, newBEPrice) {
+			logger.Infof("🟠 Break-even stop already live: %s %s | stop=%.6f", symbol, side, newBEPrice)
+			at.persistDynamicProtectionRecordWithDetails(symbol, side, "break_even_stop", fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%s", entryPrice, quantity, rule.TriggerValue, rule.OffsetPct, stage), 0, "armed", "", newBEPrice, 0, ruleQty)
+			return nil
+		}
+		// A BE order exists at a different (lower) price — cancel it before upgrading.
+		for _, o := range openOrders {
+			if strings.Contains(o.ClientOrderID, "break_even_stop") && strings.EqualFold(o.PositionSide, positionSide) {
+				if o.OrderID != "" {
+					logger.Infof("🔄 Upgrading break-even: cancelling old BE order %s for %s %s before placing %s at %.6f", o.OrderID, symbol, side, stage, newBEPrice)
+					if cancelTrader, ok := at.trader.(interface {
+						CancelAlgoOrderByID(symbol string, algoID string) error
+					}); ok {
+						if err := cancelTrader.CancelAlgoOrderByID(symbol, o.OrderID); err != nil {
+							logger.Warnf("⚠️ Failed to cancel old BE order %s: %v", o.OrderID, err)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	cfg := store.BreakEvenStopConfig{Enabled: true, Mode: store.ProtectionModeManual, TriggerMode: rule.TriggerMode, TriggerValue: rule.TriggerValue, OffsetPct: rule.OffsetPct}
 	if err := at.applyBreakEvenStop(symbol, side, ruleQty, entryPrice, currentPnLPct, cfg, stage); err != nil {
 		return err
 	}

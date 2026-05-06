@@ -407,6 +407,8 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
           const breakEvenTriggerPct = Number(rt?.current_break_even_trigger_pct ?? 0)
           const breakEvenGapPct = Number(rt?.next_break_even_gap_pct ?? 0)
           const breakEvenSuppressedByRunner = Boolean(rt?.break_even_suppressed_by_runner ?? runnerState?.break_even_suppressed ?? nextTier?.break_even_suppressed_by_runner)
+          const liveBreakEvenStopPrice = Number(rt?.live_break_even_stop_price ?? 0)
+          const breakEvenOrderDetected = Boolean(rt?.break_even_order_detected)
           const plannedLadderStopCount = Number(rt?.planned_ladder_stop_count ?? 0)
           const plannedLadderTakeProfitCount = Number(rt?.planned_ladder_take_profit_count ?? 0)
           const liveLadderStopCount = Number(rt?.live_ladder_stop_count ?? 0)
@@ -504,10 +506,10 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                               {row.closeRatioPct > 0 && row.closeRatioPct < 100 ? <span className="text-nofx-text-muted ml-1">({row.closeRatioPct.toFixed(0)}%)</span> : null}
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono text-nofx-text-main">
-                              {row.bucket === 'trailing' && row.callbackRate > 0 ? `cb ${(row.callbackRate * 100).toFixed(2)}%` : formatPrice(row.triggerPrice)}
+                              {formatPrice(row.triggerPrice)}
                             </td>
                             <td className={`py-1.5 px-3 text-right font-mono ${deltaColor}`}>
-                              {row.bucket === 'trailing' && row.callbackRate > 0 ? '—' : formatSignedPercent(row.deltaPct)}
+                              {row.bucket === 'trailing' && row.callbackRate > 0 ? `cb ${(row.callbackRate * 100).toFixed(2)}%` : formatSignedPercent(row.deltaPct)}
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono text-nofx-text-main">
                               {row.closeRatioPct > 0 ? `${row.closeRatioPct.toFixed(0)}%` : '—'}
@@ -566,15 +568,23 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                       const tf = tier.anchor_timeframe || anchor?.timeframe || '—'
                       const anchorPrice = Number(tier.anchor_price ?? anchor?.price ?? 0)
                       const anchorType = String(anchor?.anchor_type || tier.anchor_source || '')
+                      const isSatisfied = Boolean(tier.is_satisfied)
+                      const isTriggered = Boolean(tier.is_triggered)
+                      const tierBorder = isTriggered ? 'border-nofx-red/40 bg-nofx-red/[0.06]' : isSatisfied ? 'border-nofx-green/30 bg-nofx-green/[0.06]' : 'border-white/10 bg-black/20'
+                      const tierBadge = isTriggered ? { label: language === 'zh' ? '已触发' : 'Triggered', cls: 'text-nofx-red border-nofx-red/30' } : isSatisfied ? { label: language === 'zh' ? '已激活' : 'Active', cls: 'text-nofx-green border-nofx-green/30' } : { label: language === 'zh' ? '等待中' : 'Pending', cls: 'text-nofx-text-muted border-white/10' }
                       return (
-                        <div key={`${symbol}-${side}-tier-${tier.index}`} className="rounded-md border border-white/10 bg-black/20 p-2 space-y-1">
+                        <div key={`${symbol}-${side}-tier-${tier.index}`} className={`rounded-md border p-2 space-y-1 ${tierBorder}`}>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-nofx-text-main font-semibold">T{tier.index} {tier.stage_name || ''}</span>
-                            <span className="text-nofx-text-muted">{tf}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[9px] ${tierBadge.cls}`}>{tierBadge.label}</span>
+                              <span className="text-nofx-text-muted">{tf}</span>
+                            </div>
                           </div>
                           <KV label={language === 'zh' ? '利润 / 回撤' : 'Profit / DD'} value={`${Number(tier.min_profit_pct || 0).toFixed(2)}% / ${Number(tier.max_drawdown_pct || 0).toFixed(0)}%`} />
                           <KV label={language === 'zh' ? '仓位' : 'Close'} value={`${Number(tier.close_ratio_pct || 0).toFixed(0)}%${tier.runner_keep_pct ? ` · runner keep ${Number(tier.runner_keep_pct).toFixed(0)}%` : ''}`} />
-                          <KV label={language === 'zh' ? '触发 / 回调' : 'Activation / CB'} value={`${formatPrice(Number(tier.activation_price || tier.planned_activation_price || 0))} · ${(Number(tier.callback_rate || 0) * 100).toFixed(2)}%`} />
+                          <KV label={language === 'zh' ? '触发价' : 'Activation'} value={formatPrice(Number(tier.activation_price || tier.planned_activation_price || 0))} />
+                          <KV label={language === 'zh' ? '回调' : 'Callback'} value={`${(Number(tier.callback_rate || 0) * 100).toFixed(2)}%`} />
                           <KV label={language === 'zh' ? '结构位' : 'Anchor'} value={anchorPrice > 0 ? `${tf} · ${compactSourceLabel(anchorType, language)} · ${formatPrice(anchorPrice)}` : '—'} />
                           {anchor?.used_for && <KV label={language === 'zh' ? '用途' : 'Use'} value={compactSourceLabel(anchor.used_for, language)} />}
                           {(tier.reason_anchor || anchor?.reason) && <div className="text-[10px] text-nofx-text-muted leading-snug line-clamp-2">{tier.reason_anchor || anchor?.reason}</div>}
@@ -601,7 +611,7 @@ export function PositionProtectionPanel({ traderId, positions, language, exchang
                   {/* Right: Break-even + Structure */}
                   <div className="space-y-1.5">
                     <div className="text-[11px] font-medium text-nofx-text-muted uppercase tracking-wide mb-1">{language === 'zh' ? '保本 & 结构' : 'Break-even & Structure'}</div>
-                    <KV label={language === 'zh' ? '保本' : 'Break-even'} value={`${position.break_even_state || 'idle'}${breakEvenTriggerPct > 0 ? ` | ${language === 'zh' ? '触发' : 'trig'}: ${breakEvenTriggerPct.toFixed(2)}% | ${language === 'zh' ? '差' : 'gap'}: ${breakEvenGapPct.toFixed(2)}%` : ''}`} />
+                    <KV label={language === 'zh' ? '保本' : 'Break-even'} value={`${position.break_even_state || 'idle'}${liveBreakEvenStopPrice > 0 ? ` · ${formatPrice(liveBreakEvenStopPrice)}` : ''}${breakEvenTriggerPct > 0 ? ` · ${language === 'zh' ? '档' : 'tier'}: ${breakEvenTriggerPct.toFixed(2)}%` : ''}${breakEvenGapPct > 0 ? ` · ${language === 'zh' ? '差' : 'gap'}: ${breakEvenGapPct.toFixed(2)}%` : ''}${breakEvenOrderDetected ? '' : (position.break_even_state === 'armed' ? ` · ${language === 'zh' ? '⚠️未落单' : '⚠️not on exchange'}` : '')}`} />
                     {breakEvenSuppressedByRunner && <KV label={language === 'zh' ? 'Runner 抑制' : 'Runner suppressed'} value={language === 'zh' ? '是' : 'yes'} />}
                     <KV label={language === 'zh' ? '结构' : 'Structure'} value={`${compactSourceLabel(structureHealth, language)}${structurePrimaryTf ? ` · ${structurePrimaryTf}` : ''}`} />
                     {structureDriftReason && <KV label={language === 'zh' ? '偏离' : 'Drift'} value={compactSourceLabel(structureDriftReason, language)} />}

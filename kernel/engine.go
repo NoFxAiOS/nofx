@@ -1190,7 +1190,7 @@ func (e *StrategyEngine) getHyperMainCoins(limit int) ([]CandidateCoin, error) {
 func (e *StrategyEngine) FetchMarketData(symbol string) (*market.Data, error) {
 	exchangeSrc := e.config.CoinSource.ExchangeSource
 	if exchangeSrc == "" {
-		exchangeSrc = "binance" // backward compat: existing behavior defaults to binance
+		exchangeSrc = "okx"
 	}
 	return market.GetWithExchange(symbol, exchangeSrc)
 }

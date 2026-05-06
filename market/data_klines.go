@@ -455,6 +455,11 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 
 // GetBoxData fetches 1h klines and calculates box data for a symbol
 func GetBoxData(symbol string) (*BoxData, error) {
+	return GetBoxDataWithExchange(symbol, "okx")
+}
+
+// GetBoxDataWithExchange fetches 1h klines from the specified exchange and calculates box data
+func GetBoxDataWithExchange(symbol, exchange string) (*BoxData, error) {
 	symbol = Normalize(symbol)
 
 	// Fetch 500 1h klines
@@ -464,7 +469,7 @@ func GetBoxData(symbol string) (*BoxData, error) {
 	if IsXyzDexAsset(symbol) {
 		klines, err = getKlinesFromHyperliquid(symbol, "1h", LongBoxPeriod)
 	} else {
-		klines, err = getKlines(symbol, "1h", "binance", LongBoxPeriod)
+		klines, err = getKlines(symbol, "1h", exchange, LongBoxPeriod)
 	}
 
 	if err != nil {

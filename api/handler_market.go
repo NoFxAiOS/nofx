@@ -132,7 +132,11 @@ func (s *Server) handleCoinData(c *gin.Context) {
 	}
 
 	timeframes := []string{"5m", "15m", "1h", "4h"}
-	data, err := market.GetWithTimeframes(symbol, timeframes, "15m", 100)
+	exchange := c.Query("exchange")
+	if exchange == "" {
+		exchange = "okx"
+	}
+	data, err := market.GetWithTimeframesExchange(symbol, timeframes, "15m", 100, exchange)
 	if err != nil {
 		SafeInternalError(c, "Get coin data", err)
 		return

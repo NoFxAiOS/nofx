@@ -96,7 +96,7 @@ func main() {
 	// go market.NewWSMonitor(150).Start(nil)
 	// logger.Info("📊 WebSocket market monitor started")
 	// time.Sleep(500 * time.Millisecond)
-	logger.Info("📊 Using CoinAnk API for all market data (WebSocket cache disabled)")
+	logger.Info("📊 Market data: exchange API (primary) → Binance (secondary) → CoinAnk (fallback)")
 
 	// Create TraderManager
 	traderManager := manager.NewTraderManager()

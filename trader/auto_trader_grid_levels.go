@@ -282,7 +282,7 @@ func (at *AutoTrader) autoAdjustGrid() {
 	// Use the same logic as InitializeGrid() - either ATR-based or default percentage
 	if gridConfig.UseATRBounds {
 		// Try to get ATR for bound calculation
-		mktData, err := market.GetWithTimeframes(gridConfig.Symbol, []string{"4h"}, "4h", 20)
+		mktData, err := market.GetWithTimeframesExchange(gridConfig.Symbol, []string{"4h"}, "4h", 20, at.exchange)
 		if err != nil {
 			logger.Warnf("[Grid] Failed to get market data for ATR during adjust: %v, using default bounds", err)
 			at.calculateDefaultBoundsLocked(currentPrice, gridConfig)

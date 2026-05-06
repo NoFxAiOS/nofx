@@ -35,8 +35,12 @@ func (at *AutoTrader) getExecutionMarketData(symbol string) (*market.Data, error
 			klineCount = 30
 		}
 
-		logger.Infof("  📊 Execution market data uses strategy timeframes: %v (primary=%s, count=%d)", timeframes, primaryTimeframe, klineCount)
-		return market.GetWithTimeframes(symbol, timeframes, primaryTimeframe, klineCount)
+		exchangeSrc := cfg.CoinSource.ExchangeSource
+		if exchangeSrc == "" {
+			exchangeSrc = at.exchange
+		}
+		logger.Infof("  📊 Execution market data uses strategy timeframes: %v (primary=%s, count=%d, exchange=%s)", timeframes, primaryTimeframe, klineCount, exchangeSrc)
+		return market.GetWithTimeframesExchange(symbol, timeframes, primaryTimeframe, klineCount, exchangeSrc)
 	}
 
 	// Legacy fallback when no strategy engine is available.

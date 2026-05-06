@@ -799,12 +799,16 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		klineCount = 30
 	}
 
-	fmt.Printf("📊 Using timeframes: %v, primary: %s, kline count: %d\n", timeframes, primaryTimeframe, klineCount)
+	exchangeSrc := req.Config.CoinSource.ExchangeSource
+	if exchangeSrc == "" {
+		exchangeSrc = "okx"
+	}
+	fmt.Printf("📊 Using timeframes: %v, primary: %s, kline count: %d, exchange: %s\n", timeframes, primaryTimeframe, klineCount, exchangeSrc)
 
 	// Get real market data (using multiple timeframes)
 	marketDataMap := make(map[string]*market.Data)
 	for _, coin := range candidates {
-		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframesExchange(coin.Symbol, timeframes, primaryTimeframe, klineCount, exchangeSrc)
 		if err != nil {
 			// If getting data for a coin fails, log but continue
 			fmt.Printf("⚠️  Failed to get market data for %s: %v\n", coin.Symbol, err)

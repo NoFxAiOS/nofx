@@ -176,7 +176,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	// Resolve exchange source for K-line data
 	exchangeSrc := config.CoinSource.ExchangeSource
 	if exchangeSrc == "" {
-		exchangeSrc = "binance"
+		exchangeSrc = "okx"
 	}
 
 	// 1. First fetch data for position coins (must fetch)

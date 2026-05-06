@@ -25,9 +25,9 @@ var (
 	frCacheTTL     = 1 * time.Hour
 )
 
-// Get retrieves market data for the specified token (uses Binance data by default)
+// Get retrieves market data for the specified token (uses OKX data by default)
 func Get(symbol string) (*Data, error) {
-	return GetWithExchange(symbol, "binance")
+	return GetWithExchange(symbol, "okx")
 }
 
 // GetWithExchange retrieves market data for the specified token using exchange-specific data
@@ -145,9 +145,9 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 // timeframes: list of timeframes, e.g. ["5m", "15m", "1h", "4h"]
 // primaryTimeframe: primary timeframe (used for calculating current indicators), defaults to timeframes[0]
 // count: number of K-lines for each timeframe
-// Defaults to Binance exchange.
+// Defaults to OKX exchange.
 func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*Data, error) {
-	return GetWithTimeframesExchange(symbol, timeframes, primaryTimeframe, count, "binance")
+	return GetWithTimeframesExchange(symbol, timeframes, primaryTimeframe, count, "okx")
 }
 
 // GetWithTimeframesExchange is like GetWithTimeframes but allows specifying the exchange.
@@ -198,7 +198,7 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 			
 			exSrc := exchange
 			if exSrc == "" {
-				exSrc = "binance"
+				exSrc = "okx"
 			}
 			klines, err = getKlines(symbol, tf, exSrc, 200)
 			if err != nil {

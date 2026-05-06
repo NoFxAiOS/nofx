@@ -14,6 +14,11 @@ import (
 // Private/Reserved IP ranges that should be blocked to prevent SSRF
 var privateIPBlocks []*net.IPNet
 
+// trustedInternalDomainSuffixes are explicitly allowed to resolve to private/internal IPs.
+var trustedInternalDomainSuffixes = []string{
+	".olares.com",
+}
+
 func init() {
 	// Initialize private IP blocks
 	// These ranges should not be accessible via user-controlled URLs
@@ -80,6 +85,28 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
+func isTrustedInternalDomain(host string) bool {
+	lowerHost := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if lowerHost == "" {
+		return false
+	}
+
+	for _, suffix := range trustedInternalDomainSuffixes {
+		s := strings.ToLower(strings.TrimSpace(suffix))
+		if s == "" {
+			continue
+		}
+
+		trimmed := strings.TrimPrefix(s, ".")
+		// Accept exact domain and all subdomains.
+		if lowerHost == trimmed || strings.HasSuffix(lowerHost, s) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ValidateURL checks if a URL is safe to request (not pointing to internal networks)
 // Returns an error if the URL is potentially dangerous
 func ValidateURL(rawURL string) error {
@@ -103,6 +130,9 @@ func ValidateURL(rawURL string) error {
 	host := parsedURL.Hostname()
 	if host == "" {
 		return &SSRFError{URL: rawURL, Reason: "empty hostname"}
+	}
+	if isTrustedInternalDomain(host) {
+		return nil
 	}
 
 	// Block localhost and common internal hostnames
@@ -167,6 +197,9 @@ func SafeHTTPClient(timeout time.Duration) *http.Client {
 			host, _, err := net.SplitHostPort(addr)
 			if err != nil {
 				host = addr
+			}
+			if isTrustedInternalDomain(host) {
+				return dialer.DialContext(ctx, network, addr)
 			}
 
 			// Resolve and check the IP

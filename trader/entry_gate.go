@@ -350,8 +350,8 @@ func evaluateStructuralFitGate(input entryGateInput) []EntryGateCheck {
 				Code:     "protection_target_before_first_target",
 				Stage:    string(EntryGateStageStructuralFit),
 				Passed:   false,
-				Enforced: isStrictMode(input.PolicyMode),
-				Detail:   fmt.Sprintf("configured TP target is before AI's first target — strategy target closer than AI rationale suggests"),
+				Enforced: false,
+				Detail:   fmt.Sprintf("configured TP target is before AI's first target — informational only, does not block"),
 			}
 			if d.EntryProtection != nil {
 				rr := d.EntryProtection.RiskReward

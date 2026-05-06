@@ -6,6 +6,7 @@ import (
 	"math"
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 	"nofx/wallet"
 	"strings"
@@ -418,22 +419,36 @@ func (at *AutoTrader) runCycle() error {
 			plannedLadderTiers = len(d.ProtectionPlan.LadderRules)
 		}
 		executionQuality := buildExecutionQualityContext(constraintSnapshot, d.PositionSizeUSD, plannedLadderTiers)
-		policy := applyRuntimeOpenPolicy(&d, constraintSnapshot, at.getMinRiskRewardRatio(), policyMode, protectionAlignment)
-		regimeStructureGate := evaluateRegimeStructureGate(&d, ctx.MarketDataMap[d.Symbol], policyMode)
-		if !regimeStructureGate.Allowed {
-			regimePolicy := applyRegimeStructureGatePolicy(regimeStructureGate)
-			policy.RegimeStructureGate = &regimeStructureGate
-			if regimePolicy.Reason != "" && policy.Reason == "" {
-				policy.Reason = regimePolicy.Reason
-			}
-			if regimePolicy.Blocked || regimePolicy.Decision == "downgraded_to_wait" {
-				policy.Blocked = regimePolicy.Blocked
-				policy.Decision = regimePolicy.Decision
-				policy.Reason = regimePolicy.Reason
+
+		// ── Consolidated Entry Gate: 3-stage pipeline ──
+		gateResult := evaluateEntryGate(entryGateInput{
+			Decision:        &d,
+			MarketData:      ctx.MarketDataMap[d.Symbol],
+			StrategyConfig:  at.config.StrategyConfig,
+			PolicyMode:      policyMode,
+			MinRR:           at.getMinRiskRewardRatio(),
+			MinConfidence:   at.getMinConfidence(),
+			ConstraintSnap:  constraintSnapshot,
+			ProtectionAlign: protectionAlignment,
+		})
+		gateResult.Regime = classifyProtectionRegime(ctx.MarketDataMap[d.Symbol])
+		if ctx.MarketDataMap[d.Symbol] != nil {
+			gateResult.SystemRegime = market.InferExecutionRegimePublic(ctx.MarketDataMap[d.Symbol])
+			gateResult.ATR14Pct = computeATR14Pct(ctx.MarketDataMap[d.Symbol])
+			gateResult.FundingRate = ctx.MarketDataMap[d.Symbol].FundingRate
+		}
+		if d.EntryProtection != nil {
+			gateResult.EffectiveRR = d.EntryProtection.RiskReward.NetEstimatedRR
+			if gateResult.EffectiveRR <= 0 {
+				gateResult.EffectiveRR = d.EntryProtection.RiskReward.GrossEstimatedRR
 			}
 		}
-		if policy.Reason != "" {
-			appendRuntimePolicyNote(&d, policy.Reason)
+
+		if !gateResult.Allowed {
+			blockReason := entryGateResultToBlockReason(gateResult)
+			appendRuntimePolicyNote(&d, blockReason)
+			logger.Infof("🚫 Entry gate blocked %s %s: %s", d.Symbol, d.Action, blockReason)
+			logger.Infof("   Gate checks: %s", entryGateChecksLog(gateResult))
 		}
 
 		actionRecord := store.DecisionAction{
@@ -458,27 +473,15 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		if actionRecord.ReviewContext != nil {
-			actionRecord.ReviewContext.Control = buildRuntimePolicyControlOutcome(policy)
-			actionRecord.ReviewContext.QualityGate = evaluateShadowQualityGate(&d, ctx.MarketDataMap[d.Symbol], at.getMinRiskRewardRatio(), at.getMinConfidence())
+			actionRecord.ReviewContext.Control = entryGateResultToControlOutcome(gateResult, &d)
+			actionRecord.ReviewContext.QualityGate = entryGateResultToQualityGate(gateResult, &d)
 			attachExecutionQualityToReview(actionRecord.ReviewContext, executionQuality)
 		}
 
-		// Phase 4: Quality gate enforcement — block if critical checks fail
-		if !policy.Blocked && actionRecord.ReviewContext != nil && actionRecord.ReviewContext.QualityGate != nil {
-			qg := actionRecord.ReviewContext.QualityGate
-			if !qg.Passed && HasEnforcedFailure(qg.FailedChecks) {
-				policy.Blocked = true
-				policy.Reason = fmt.Sprintf("quality gate enforced for %s %s: %s", d.Symbol, d.Action, strings.Join(qg.FailedChecks, ", "))
-			}
-		}
-
-		if policy.Blocked {
-			logger.Infof("🚫 %s", policy.Reason)
-			actionRecord.Error = policy.Reason
-			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("🚫 %s %s blocked: %s", d.Symbol, policy.OriginalAction, policy.Reason))
-		} else if policy.Decision == "downgraded_to_wait" {
-			actionRecord.Success = true
-			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("⏸ %s %s downgraded to wait: %s", d.Symbol, policy.OriginalAction, policy.Reason))
+		if !gateResult.Allowed {
+			blockReason := entryGateResultToBlockReason(gateResult)
+			actionRecord.Error = blockReason
+			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("🚫 %s %s blocked: %s", d.Symbol, d.Action, blockReason))
 		} else if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
 			logger.Infof("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
 			actionRecord.Error = err.Error()
@@ -486,7 +489,6 @@ func (at *AutoTrader) runCycle() error {
 		} else {
 			actionRecord.Success = true
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("✓ %s %s succeeded", d.Symbol, d.Action))
-			// Brief delay after successful execution
 			time.Sleep(1 * time.Second)
 		}
 

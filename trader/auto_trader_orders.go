@@ -131,11 +131,6 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	if err != nil {
 		return err
 	}
-	regimeGate := at.evaluateDecisionRegimeGate(decision, marketData)
-	if !regimeGate.Allowed {
-		at.applyRegimeGateToActionRecord(decision, actionRecord, regimeGate)
-		return fmt.Errorf("regime filter blocked open_long for %s: %s", decision.Symbol, regimeGate.Reason)
-	}
 
 	// Get balance (needed for multiple checks)
 	balance, err := at.trader.GetBalance()
@@ -154,7 +149,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	} else if eq, ok := balance["totalWalletBalance"].(float64); ok && eq > 0 {
 		equity = eq
 	} else {
-		equity = availableBalance // Fallback to available balance
+		equity = availableBalance
 	}
 
 	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
@@ -163,15 +158,12 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
-	// ⚠️ Auto-adjust position size if insufficient margin
-	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
-	//        = positionSize * (1.01/leverage + 0.001)
+	// Auto-adjust position size if insufficient margin
 	marginFactor := 1.01/float64(decision.Leverage) + 0.001
 	maxAffordablePositionSize := availableBalance / marginFactor
 
 	actualPositionSize := decision.PositionSizeUSD
 	if actualPositionSize > maxAffordablePositionSize {
-		// Use 98% of max to leave buffer for price fluctuation
 		adjustedSize := maxAffordablePositionSize * 0.98
 		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
 			actualPositionSize, maxAffordablePositionSize, adjustedSize)
@@ -272,11 +264,6 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	if err != nil {
 		return err
 	}
-	regimeGate := at.evaluateDecisionRegimeGate(decision, marketData)
-	if !regimeGate.Allowed {
-		at.applyRegimeGateToActionRecord(decision, actionRecord, regimeGate)
-		return fmt.Errorf("regime filter blocked open_short for %s: %s", decision.Symbol, regimeGate.Reason)
-	}
 
 	// Get balance (needed for multiple checks)
 	balance, err := at.trader.GetBalance()
@@ -295,7 +282,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	} else if eq, ok := balance["totalWalletBalance"].(float64); ok && eq > 0 {
 		equity = eq
 	} else {
-		equity = availableBalance // Fallback to available balance
+		equity = availableBalance
 	}
 
 	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
@@ -304,15 +291,12 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
-	// ⚠️ Auto-adjust position size if insufficient margin
-	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
-	//        = positionSize * (1.01/leverage + 0.001)
+	// Auto-adjust position size if insufficient margin
 	marginFactor := 1.01/float64(decision.Leverage) + 0.001
 	maxAffordablePositionSize := availableBalance / marginFactor
 
 	actualPositionSize := decision.PositionSizeUSD
 	if actualPositionSize > maxAffordablePositionSize {
-		// Use 98% of max to leave buffer for price fluctuation
 		adjustedSize := maxAffordablePositionSize * 0.98
 		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
 			actualPositionSize, maxAffordablePositionSize, adjustedSize)

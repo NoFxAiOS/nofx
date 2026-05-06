@@ -127,15 +127,27 @@ type DecisionActionReviewContext struct {
 // shadow rollout this does not block orders; it lets us measure how often AI
 // decisions would fail stricter reliability rules before hard enforcement.
 type DecisionActionQualityGate struct {
-	ShadowMode   bool     `json:"shadow_mode,omitempty"`
-	Decision     string   `json:"decision,omitempty"`
-	Passed       bool     `json:"passed"`
-	FailedChecks []string `json:"failed_checks,omitempty"`
-	Regime       string   `json:"regime,omitempty"`
-	SetupType    string   `json:"setup_type,omitempty"`
-	Confidence   int      `json:"confidence,omitempty"`
-	QualityTotal int      `json:"quality_total,omitempty"`
-	NetRR        float64  `json:"net_rr,omitempty"`
+	ShadowMode      bool                   `json:"shadow_mode,omitempty"`
+	Decision        string                 `json:"decision,omitempty"`
+	Passed          bool                   `json:"passed"`
+	FailedChecks    []string               `json:"failed_checks,omitempty"`
+	Regime          string                 `json:"regime,omitempty"`
+	SetupType       string                 `json:"setup_type,omitempty"`
+	Confidence      int                    `json:"confidence,omitempty"`
+	QualityTotal    int                    `json:"quality_total,omitempty"`
+	NetRR           float64                `json:"net_rr,omitempty"`
+	BlockedStage    string                 `json:"blocked_stage,omitempty"`
+	GateChecks      []EntryGateCheckRecord `json:"gate_checks,omitempty"`
+}
+
+// EntryGateCheckRecord stores one check result with full attribution detail.
+type EntryGateCheckRecord struct {
+	Code     string `json:"code"`
+	Stage    string `json:"stage"`
+	Passed   bool   `json:"passed"`
+	Detail   string `json:"detail"`
+	Values   string `json:"values,omitempty"`
+	Enforced bool   `json:"enforced"`
 }
 
 // DecisionActionTimeframeContext stores compact structural timeframe evidence for entry audit.

@@ -13,10 +13,10 @@ import (
 
 // Private/Reserved IP ranges that should be blocked to prevent SSRF
 var privateIPBlocks []*net.IPNet
+var allowedPrivateCIDRs []*net.IPNet
 
-// trustedInternalDomainSuffixes are explicitly allowed to resolve to private/internal IPs.
-var trustedInternalDomainSuffixes = []string{
-	".olares.com",
+var builtinAllowedPrivateCIDRs = []string{
+	"10.233.0.0/16",
 }
 
 func init() {
@@ -42,6 +42,9 @@ func init() {
 			privateIPBlocks = append(privateIPBlocks, block)
 		}
 	}
+
+	// Built-in allowlist for Olares k8s service network.
+	allowedPrivateCIDRs = parseCIDRList(strings.Join(builtinAllowedPrivateCIDRs, ","))
 }
 
 // SSRFError represents a Server-Side Request Forgery attempt
@@ -85,25 +88,36 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
-func isTrustedInternalDomain(host string) bool {
-	lowerHost := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
-	if lowerHost == "" {
-		return false
+func parseCIDRList(raw string) []*net.IPNet {
+	if strings.TrimSpace(raw) == "" {
+		return nil
 	}
 
-	for _, suffix := range trustedInternalDomainSuffixes {
-		s := strings.ToLower(strings.TrimSpace(suffix))
-		if s == "" {
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';'
+	})
+
+	var cidrs []*net.IPNet
+	for _, part := range parts {
+		cidr := strings.TrimSpace(part)
+		if cidr == "" {
 			continue
 		}
+		_, network, err := net.ParseCIDR(cidr)
+		if err == nil {
+			cidrs = append(cidrs, network)
+		}
+	}
 
-		trimmed := strings.TrimPrefix(s, ".")
-		// Accept exact domain and all subdomains.
-		if lowerHost == trimmed || strings.HasSuffix(lowerHost, s) {
+	return cidrs
+}
+
+func isAllowedPrivateIP(ip net.IP) bool {
+	for _, cidr := range allowedPrivateCIDRs {
+		if cidr.Contains(ip) {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -130,9 +144,6 @@ func ValidateURL(rawURL string) error {
 	host := parsedURL.Hostname()
 	if host == "" {
 		return &SSRFError{URL: rawURL, Reason: "empty hostname"}
-	}
-	if isTrustedInternalDomain(host) {
-		return nil
 	}
 
 	// Block localhost and common internal hostnames
@@ -164,7 +175,9 @@ func ValidateURL(rawURL string) error {
 		ip := net.ParseIP(host)
 		if ip != nil {
 			if isPrivateIP(ip) {
-				return &SSRFError{URL: rawURL, Reason: "resolves to private IP address"}
+				if !isAllowedPrivateIP(ip) {
+					return &SSRFError{URL: rawURL, Reason: "resolves to private IP address"}
+				}
 			}
 			return nil // It's a valid public IP
 		}
@@ -176,7 +189,9 @@ func ValidateURL(rawURL string) error {
 	// Check all resolved IPs
 	for _, ipAddr := range ips {
 		if isPrivateIP(ipAddr.IP) {
-			return &SSRFError{URL: rawURL, Reason: fmt.Sprintf("resolves to private IP: %s", ipAddr.IP)}
+			if !isAllowedPrivateIP(ipAddr.IP) {
+				return &SSRFError{URL: rawURL, Reason: fmt.Sprintf("resolves to private IP: %s", ipAddr.IP)}
+			}
 		}
 	}
 
@@ -198,9 +213,6 @@ func SafeHTTPClient(timeout time.Duration) *http.Client {
 			if err != nil {
 				host = addr
 			}
-			if isTrustedInternalDomain(host) {
-				return dialer.DialContext(ctx, network, addr)
-			}
 
 			// Resolve and check the IP
 			ips, err := net.LookupIP(host)
@@ -210,7 +222,9 @@ func SafeHTTPClient(timeout time.Duration) *http.Client {
 
 			for _, ip := range ips {
 				if isPrivateIP(ip) {
-					return nil, fmt.Errorf("SSRF protection: blocked connection to private IP %s", ip)
+					if !isAllowedPrivateIP(ip) {
+						return nil, fmt.Errorf("SSRF protection: blocked connection to private IP %s", ip)
+					}
 				}
 			}
 

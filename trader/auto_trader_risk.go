@@ -650,25 +650,35 @@ func (at *AutoTrader) getDrawdownArmRulesForSelectedRule(entryPrice, quantity fl
 func (at *AutoTrader) getDrawdownArmRules(currentPnLPct, entryPrice, quantity float64, symbol, side string, rules []store.DrawdownTakeProfitRule) []store.DrawdownTakeProfitRule {
 	armedFingerprints := at.getArmedDrawdownRuleFingerprintsForPosition(symbol, side, entryPrice, quantity)
 	openOrders, _ := at.trader.GetOpenOrders(symbol)
-	matched := make([]store.DrawdownTakeProfitRule, 0, len(rules))
+
+	// Find the highest satisfied tier — tiers only upgrade, never downgrade.
+	var bestRule store.DrawdownTakeProfitRule
+	hasBest := false
 	for _, rule := range rules {
 		rule = normalizeDrawdownRule(rule)
 		if !isDrawdownRuleSatisfied(currentPnLPct, rule) {
 			logger.Infof("🟣 Drawdown arm pending: %s %s profit %.4f below min %.4f (close=%.1f%%)", symbol, side, currentPnLPct, rule.MinProfitPct, rule.CloseRatioPct)
 			continue
 		}
-		fingerprint := stableDrawdownRuleFingerprint(entryPrice, rule)
-		if _, ok := armedFingerprints[fingerprint]; ok {
-			if at.hasMatchingNativeTrailingOrderForRule(symbol, side, entryPrice, rule, openOrders) {
-				logger.Infof("🟣 Drawdown arm skipped: %s %s already armed fingerprint=%s", symbol, side, fingerprint)
-				continue
-			}
-			logger.Infof("⚠️ Drawdown arm record stale: %s %s fingerprint=%s has no matching exchange trailing order, re-arming", symbol, side, fingerprint)
+		if !hasBest || rule.MinProfitPct > bestRule.MinProfitPct {
+			bestRule = rule
+			hasBest = true
 		}
-		logger.Infof("🟣 Drawdown arm eligible: %s %s profit %.4f >= min %.4f close=%.1f%% fingerprint=%s", symbol, side, currentPnLPct, rule.MinProfitPct, rule.CloseRatioPct, fingerprint)
-		matched = append(matched, rule)
 	}
-	return matched
+	if !hasBest {
+		return nil
+	}
+
+	fingerprint := stableDrawdownRuleFingerprint(entryPrice, bestRule)
+	if _, ok := armedFingerprints[fingerprint]; ok {
+		if at.hasMatchingNativeTrailingOrderForRule(symbol, side, entryPrice, bestRule, openOrders) {
+			logger.Infof("🟣 Drawdown arm skipped: %s %s highest tier already armed fingerprint=%s (min=%.4f close=%.1f%%)", symbol, side, fingerprint, bestRule.MinProfitPct, bestRule.CloseRatioPct)
+			return nil
+		}
+		logger.Infof("⚠️ Drawdown arm record stale: %s %s fingerprint=%s has no matching exchange trailing order, re-arming highest tier (min=%.4f close=%.1f%%)", symbol, side, fingerprint, bestRule.MinProfitPct, bestRule.CloseRatioPct)
+	}
+	logger.Infof("🟣 Drawdown arm eligible: %s %s profit %.4f >= min %.4f close=%.1f%% fingerprint=%s (highest satisfied tier)", symbol, side, currentPnLPct, bestRule.MinProfitPct, bestRule.CloseRatioPct, fingerprint)
+	return []store.DrawdownTakeProfitRule{bestRule}
 }
 
 func sideToOpenAction(side string) string {

@@ -325,14 +325,28 @@ func inferExecutionRegime(data *Data, structure *MarketStructureBrief, derivativ
 		return "range_edge"
 	}
 	if data != nil {
-		if data.PriceChange1h > 0.8 && data.PriceChange4h > 1.2 {
+		// Dual-path trend detection: catches both sharp moves and slow grinds
+		if data.PriceChange4h > 0.8 && data.PriceChange1h > 0.3 {
 			return "trend_up"
 		}
-		if data.PriceChange1h < -0.8 && data.PriceChange4h < -1.2 {
+		if data.PriceChange4h > 0.5 && data.PriceChange1h > 0 && data.CurrentEMA20 > 0 && data.CurrentPrice > data.CurrentEMA20*1.002 {
+			return "trend_up"
+		}
+		if data.PriceChange4h < -0.8 && data.PriceChange1h < -0.3 {
+			return "trend_down"
+		}
+		if data.PriceChange4h < -0.5 && data.PriceChange1h < 0 && data.CurrentEMA20 > 0 && data.CurrentPrice < data.CurrentEMA20*0.998 {
 			return "trend_down"
 		}
 	}
 	return "balanced"
+}
+
+// InferExecutionRegimePublic exposes regime inference for cross-validation by
+// the quality gate evaluator. It uses only price/EMA data (no derivatives/quant)
+// to provide a baseline directional regime classification.
+func InferExecutionRegimePublic(data *Data) string {
+	return inferExecutionRegime(data, nil, nil, nil, nil)
 }
 
 func regimeNotes(derivatives *DerivativesContext, quant *QuantContext) []string {

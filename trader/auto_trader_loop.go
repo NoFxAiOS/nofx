@@ -463,6 +463,15 @@ func (at *AutoTrader) runCycle() error {
 			attachExecutionQualityToReview(actionRecord.ReviewContext, executionQuality)
 		}
 
+		// Phase 4: Quality gate enforcement — block if critical checks fail
+		if !policy.Blocked && actionRecord.ReviewContext != nil && actionRecord.ReviewContext.QualityGate != nil {
+			qg := actionRecord.ReviewContext.QualityGate
+			if !qg.Passed && HasEnforcedFailure(qg.FailedChecks) {
+				policy.Blocked = true
+				policy.Reason = fmt.Sprintf("quality gate enforced for %s %s: %s", d.Symbol, d.Action, strings.Join(qg.FailedChecks, ", "))
+			}
+		}
+
 		if policy.Blocked {
 			logger.Infof("🚫 %s", policy.Reason)
 			actionRecord.Error = policy.Reason
@@ -614,10 +623,18 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		})
 	}
 
-	// Clean up closed position records
+	// Clean up closed position records and trigger cooldown for stop-loss exits
 	for key := range at.positionFirstSeenTime {
 		if !currentPositionKeys[key] {
 			delete(at.positionFirstSeenTime, key)
+			// Trigger cooldown if the position closed at a loss
+			symbol, _ := splitPositionKey(key)
+			if symbol != "" {
+				if lastTrade, err := at.store.Position().GetLastClosedTrade(at.id, symbol); err == nil && lastTrade != nil && lastTrade.RealizedPnL < 0 {
+					at.cooldownManager.SetCooldown(symbol)
+					logger.Infof("⏳ [%s] Entry cooldown set for %s (%.2f USDT loss)", at.name, symbol, lastTrade.RealizedPnL)
+				}
+			}
 		}
 	}
 

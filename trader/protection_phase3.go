@@ -190,14 +190,6 @@ func isStrongCounterTrend(action string, data *market.Data) bool {
 		return false
 	}
 	counterScore := 0
-	atrPct := 0.0
-	if data.CurrentPrice > 0 {
-		if data.IntradaySeries != nil && data.IntradaySeries.ATR14 > 0 {
-			atrPct = data.IntradaySeries.ATR14 / data.CurrentPrice * 100
-		} else if data.LongerTermContext != nil && data.LongerTermContext.ATR14 > 0 {
-			atrPct = data.LongerTermContext.ATR14 / data.CurrentPrice * 100
-		}
-	}
 	switch action {
 	case "open_long":
 		if data.CurrentPrice < data.CurrentEMA20 {
@@ -212,11 +204,6 @@ func isStrongCounterTrend(action string, data *market.Data) bool {
 		if data.CurrentMACD < 0 {
 			counterScore++
 		}
-		// Allow shallow-retest / support-bounce longs in range regimes unless the setup
-		// is extremely counter-trend and momentum remains broadly negative.
-		if counterScore == 3 && atrPct > 0 && atrPct <= 1.2 && data.PriceChange1h > -1.2 {
-			return false
-		}
 	case "open_short":
 		if data.CurrentPrice > data.CurrentEMA20 {
 			counterScore++
@@ -230,11 +217,8 @@ func isStrongCounterTrend(action string, data *market.Data) bool {
 		if data.CurrentMACD > 0 {
 			counterScore++
 		}
-		if counterScore == 3 && atrPct > 0 && atrPct <= 1.2 && data.PriceChange1h < 1.2 {
-			return false
-		}
 	}
-	return counterScore >= 4
+	return counterScore >= 3
 }
 
 func isTrendAligned(action string, data *market.Data) bool {
@@ -698,7 +682,17 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 
 	remainingTakeProfitRatio := 100.0
 	remainingStopLossRatio := 100.0
-	for _, rule := range rules {
+	lastSLIndex := -1
+	for i := len(rules) - 1; i >= 0; i-- {
+		if rules[i].StopLossCloseRatioPct > 0 {
+			price := resolveAIDecisionLadderPrice(entryPrice, action, rules[i].StopLossPct, rules[i].StopLossPrice, rules[i].VolatilityBufferPct, false)
+			if price > 0 && isExecutableStopLossPrice(entryPrice, action, price) {
+				lastSLIndex = i
+				break
+			}
+		}
+	}
+	for i, rule := range rules {
 		if rule.TakeProfitCloseRatioPct > 0 && remainingTakeProfitRatio > 0 {
 			price := resolveAIDecisionLadderPrice(entryPrice, action, rule.TakeProfitPct, rule.TakeProfitPrice, rule.VolatilityBufferPct, true)
 			if price > 0 && isExecutableTakeProfitPrice(entryPrice, action, price) {
@@ -708,10 +702,13 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 			}
 		}
 
-		if rule.StopLossCloseRatioPct > 0 && remainingStopLossRatio > 0 {
+		if rule.StopLossCloseRatioPct > 0 && (remainingStopLossRatio > 0 || i == lastSLIndex) {
 			price := resolveAIDecisionLadderPrice(entryPrice, action, rule.StopLossPct, rule.StopLossPrice, rule.VolatilityBufferPct, false)
 			if price > 0 && isExecutableStopLossPrice(entryPrice, action, price) {
 				closeRatio := minPositive(rule.StopLossCloseRatioPct, remainingStopLossRatio)
+				if i == lastSLIndex {
+					closeRatio = 100
+				}
 				plan.StopLossOrders = append(plan.StopLossOrders, ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio})
 				remainingStopLossRatio -= closeRatio
 			}

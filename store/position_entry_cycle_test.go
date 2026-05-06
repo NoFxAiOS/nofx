@@ -120,3 +120,21 @@ func TestFindEntryDecisionCycleForPositionHandlesPrettyJSON(t *testing.T) {
 		t.Fatalf("expected cycle 30, got %d; decisions=%s", got, strings.ReplaceAll(decisions, "\n", " "))
 	}
 }
+
+func TestFindEntryDecisionCycleForPositionRejectsCrossObjectMatch(t *testing.T) {
+	s := newTestPositionStore(t)
+	// Cycle 10: has XAGUSDT hold + ZECUSDT open_long — should NOT match XAGUSDT open_long
+	decoyDecisions := `[{"action":"open_long","symbol":"ZECUSDT"},{"action":"hold","symbol":"XAGUSDT"}]`
+	if err := s.db.Create(&DecisionRecordDB{TraderID: "trader-1", CycleNumber: 10, Timestamp: time.UnixMilli(500).UTC(), CreatedAt: time.UnixMilli(500).UTC(), Success: true, Decisions: decoyDecisions}).Error; err != nil {
+		t.Fatalf("create decoy record: %v", err)
+	}
+	// Cycle 20: has the actual XAGUSDT open_long
+	realDecisions := `[{"action":"open_long","symbol":"XAGUSDT"}]`
+	if err := s.db.Create(&DecisionRecordDB{TraderID: "trader-1", CycleNumber: 20, Timestamp: time.UnixMilli(1500).UTC(), CreatedAt: time.UnixMilli(1500).UTC(), Success: true, Decisions: realDecisions}).Error; err != nil {
+		t.Fatalf("create real record: %v", err)
+	}
+	got := s.FindEntryDecisionCycleForPosition("trader-1", "XAGUSDT", "LONG", time.UnixMilli(2000).UnixMilli())
+	if got != 20 {
+		t.Fatalf("expected cycle 20 (actual open_long), got %d — cross-object false match", got)
+	}
+}

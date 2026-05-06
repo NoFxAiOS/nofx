@@ -405,13 +405,18 @@ func (s *PositionStore) FindEntryDecisionCycleForPosition(traderID, symbol, side
 	if entryTimeMs > 0 {
 		entryTime = time.UnixMilli(entryTimeMs).UTC()
 	}
-	likeSymbol := fmt.Sprintf("%%\"symbol\":\"%s\"%%", symbol)
-	likeAction := fmt.Sprintf("%%\"action\":\"%s\"%%", action)
+	// Use combined patterns to ensure symbol+action are in the same JSON object.
+	// Separate LIKE clauses would match different objects in the same array.
+	combinedAS := fmt.Sprintf("%%\"action\":\"%s\",\"symbol\":\"%s\"%%", action, symbol)
+	combinedSA := fmt.Sprintf("%%\"symbol\":\"%s\",\"action\":\"%s\"%%", symbol, action)
+
+	// Strip all whitespace (spaces, newlines, tabs) for matching pretty-printed JSON.
+	stripped := "REPLACE(REPLACE(REPLACE(decisions, ' ', ''), char(10), ''), char(13), '')"
 
 	query := func() *gorm.DB {
 		q := s.db.Model(&DecisionRecordDB{}).
 			Where("trader_id = ? AND success = ?", traderID, true).
-			Where("REPLACE(decisions, ' ', '') LIKE ? AND REPLACE(decisions, ' ', '') LIKE ?", likeSymbol, likeAction)
+			Where(fmt.Sprintf("(%s LIKE ? OR %s LIKE ?)", stripped, stripped), combinedAS, combinedSA)
 		return q
 	}
 

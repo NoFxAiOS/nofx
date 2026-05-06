@@ -8,6 +8,7 @@ import (
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/store"
+	"sort"
 	"strings"
 	"time"
 )
@@ -45,6 +46,21 @@ func adjustNativeDrawdownCallbackRatio(entryPrice float64, side string, rule sto
 		return adjustment, nil
 	}
 	return adjustment, nativeDrawdownRejection{CallbackRatio: callbackRatio, SafetyFloor: minNativeDrawdownCallbackRatio, Reason: "below_native_safety_floor"}
+}
+
+func calculateImmediateTrailingCallback(entryPrice float64, side string, ladderSLOrders []ProtectionOrder) (float64, bool) {
+	if entryPrice <= 0 || len(ladderSLOrders) == 0 {
+		return 0, false
+	}
+	firstSL := ladderSLOrders[0].Price
+	if firstSL <= 0 {
+		return 0, false
+	}
+	callback := math.Abs(entryPrice-firstSL) / entryPrice
+	if callback < minNativeDrawdownCallbackRatio {
+		return 0, false
+	}
+	return callback, true
 }
 
 func (at *AutoTrader) startDrawdownMonitor() {
@@ -437,12 +453,8 @@ func (at *AutoTrader) getActiveDrawdownRulesForPosition(symbol, side string) []s
 			if restored := at.restoreAIDrawdownRulesForPositionWithEntry(symbol, side, 0); len(restored) > 0 {
 				return restored
 			}
-			return nil
+			// AI restore failed — fall through to configured fallback rules
 		}
-	}
-
-	if cfg.Mode == store.ProtectionModeAI && (symbol != "" || side != "") {
-		return nil
 	}
 
 	if len(cfg.Rules) == 0 {
@@ -1260,6 +1272,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					if err := binanceTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, binanceCallbackPercent, partialQty); err == nil {
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.4f close=%.1f%% qty=%.4f", symbol, side, activationPrice, binanceCallbackPercent, rule.CloseRatioPct, partialQty)
+						at.cancelImmediateTrailing(symbol, side)
 						return true
 					} else {
 						logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s, binance): %v", symbol, side, err)
@@ -1281,6 +1294,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					if err := bitgetTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, bitgetCallbackPercent, partialQty); err == nil {
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.4f close=%.1f%% qty=%.4f", symbol, side, activationPrice, bitgetCallbackPercent, rule.CloseRatioPct, partialQty)
+						at.cancelImmediateTrailing(symbol, side)
 						return true
 					} else {
 						logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s, bitget): %v", symbol, side, err)
@@ -1371,6 +1385,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 								at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 								at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_partial_trailing", stableDrawdownRuleFingerprint(entryPrice, rule), rule.CloseRatioPct, "armed", newOrderID, activationPrice, okxCallbackRatio, partialQty)
 								logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
+								at.cancelImmediateTrailing(symbol, side)
 								return true
 							}
 							logger.Infof("❌ Native partial trailing drawdown verify failed (%s %s, okx): new tier not visible after placement", symbol, side)
@@ -1380,6 +1395,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 					} else if err := okxTrader.SetTrailingStopLoss(symbol, positionSide, activationPrice, okxCallbackRatio, partialQty); err == nil {
 						at.setProtectionState(symbol, side, "native_partial_trailing_armed")
 						logger.Infof("🟣 Native partial trailing drawdown armed: %s %s | activation=%.6f callback=%.6f close=%.1f%% qty=%.4f", symbol, side, activationPrice, okxCallbackRatio, rule.CloseRatioPct, partialQty)
+						at.cancelImmediateTrailing(symbol, side)
 						return true
 					} else {
 						logger.Infof("❌ Native partial trailing drawdown apply failed (%s %s, okx): %v", symbol, side, err)
@@ -1515,6 +1531,7 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 		at.persistDynamicProtectionRecordWithDetails(symbol, side, "native_trailing", stableDrawdownRuleFingerprint(entryPrice, rule), rule.CloseRatioPct, "armed", placedOrderID, activationPrice, priceBasedCallbackRatio, 0)
 		logger.Infof("🟣 Native trailing drawdown armed: %s %s | activation=%.6f callbackRatio=%.6f", symbol, side, activationPrice, priceBasedCallbackRatio)
 	}
+	at.cancelImmediateTrailing(symbol, side)
 	return true
 }
 
@@ -1638,7 +1655,6 @@ func (at *AutoTrader) getActiveBreakEvenRules() []store.BreakEvenStopRule {
 		rules = []store.BreakEvenStopRule{{TriggerMode: cfg.TriggerMode, TriggerValue: cfg.TriggerValue, OffsetPct: cfg.OffsetPct, CloseRatioPct: 100, StageName: "BE1"}}
 	}
 	out := make([]store.BreakEvenStopRule, 0, len(rules))
-	remaining := 100.0
 	for _, rule := range rules {
 		if rule.TriggerMode == "" {
 			rule.TriggerMode = cfg.TriggerMode
@@ -1652,15 +1668,9 @@ func (at *AutoTrader) getActiveBreakEvenRules() []store.BreakEvenStopRule {
 		if rule.CloseRatioPct <= 0 {
 			rule.CloseRatioPct = 100
 		}
-		if rule.CloseRatioPct > remaining {
-			rule.CloseRatioPct = remaining
-		}
-		if rule.CloseRatioPct <= 0 {
-			continue
-		}
 		out = append(out, rule)
-		remaining -= rule.CloseRatioPct
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TriggerValue < out[j].TriggerValue })
 	return out
 }
 
@@ -1668,31 +1678,34 @@ func (at *AutoTrader) applyBreakEvenStops(symbol, side string, quantity, entryPr
 	if len(rules) == 0 {
 		return nil
 	}
-	applied := false
+	// Find the highest satisfied tier — later tiers have higher offset (better protection).
+	// Only apply that one to avoid redundant exchange API calls.
+	bestIdx := -1
 	for idx, rule := range rules {
-		if currentPnLPct < rule.TriggerValue {
-			continue
+		if currentPnLPct >= rule.TriggerValue {
+			bestIdx = idx
 		}
-		if rule.CloseRatioPct <= 0 {
-			rule.CloseRatioPct = 100
-		}
-		ruleQty := quantity * rule.CloseRatioPct / 100.0
-		if ruleQty <= 0 {
-			continue
-		}
-		cfg := store.BreakEvenStopConfig{Enabled: true, Mode: store.ProtectionModeManual, TriggerMode: rule.TriggerMode, TriggerValue: rule.TriggerValue, OffsetPct: rule.OffsetPct}
-		stage := rule.StageName
-		if stage == "" {
-			stage = fmt.Sprintf("BE%d", idx+1)
-		}
-		if err := at.applyBreakEvenStop(symbol, side, ruleQty, entryPrice, currentPnLPct, cfg, stage); err != nil {
-			return err
-		}
-		applied = true
 	}
-	if applied {
-		at.setBreakEvenState(symbol, side, "armed")
+	if bestIdx < 0 {
+		return nil
 	}
+	rule := rules[bestIdx]
+	if rule.CloseRatioPct <= 0 {
+		rule.CloseRatioPct = 100
+	}
+	ruleQty := quantity * rule.CloseRatioPct / 100.0
+	if ruleQty <= 0 {
+		return nil
+	}
+	cfg := store.BreakEvenStopConfig{Enabled: true, Mode: store.ProtectionModeManual, TriggerMode: rule.TriggerMode, TriggerValue: rule.TriggerValue, OffsetPct: rule.OffsetPct}
+	stage := rule.StageName
+	if stage == "" {
+		stage = fmt.Sprintf("BE%d", bestIdx+1)
+	}
+	if err := at.applyBreakEvenStop(symbol, side, ruleQty, entryPrice, currentPnLPct, cfg, stage); err != nil {
+		return err
+	}
+	at.setBreakEvenState(symbol, side, "armed")
 	return nil
 }
 

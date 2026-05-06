@@ -1073,3 +1073,61 @@ func TestApplyNativeTrailingDrawdownBelowSafetyFloorArmsManagedFullFallback(t *t
 		t.Fatalf("native trailing should not be placed below safety floor, got %d", fake.trailingCalls)
 	}
 }
+
+func TestGetActiveBreakEvenRulesReturnsAllTiers(t *testing.T) {
+	at := &AutoTrader{
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
+			Protection: store.ProtectionConfig{
+				BreakEvenStop: store.BreakEvenStopConfig{
+					Enabled:     true,
+					Mode:        "manual",
+					TriggerMode: store.BreakEvenTriggerProfitPct,
+					Rules: []store.BreakEvenStopRule{
+						{TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 0.7, OffsetPct: 0.3, CloseRatioPct: 100, StageName: "BE1"},
+						{TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 1.9, OffsetPct: 0.6, CloseRatioPct: 50, StageName: "BE2"},
+						{TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 3.5, OffsetPct: 0.9, CloseRatioPct: 30, StageName: "BE3"},
+						{TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 5.5, OffsetPct: 1.8, CloseRatioPct: 30, StageName: "BE4"},
+					},
+				},
+			},
+		}},
+	}
+	rules := at.getActiveBreakEvenRules()
+	if len(rules) != 4 {
+		t.Fatalf("expected 4 breakeven rules, got %d", len(rules))
+	}
+	for i, expected := range []string{"BE1", "BE2", "BE3", "BE4"} {
+		if rules[i].StageName != expected {
+			t.Fatalf("rule[%d] stage=%s, want %s", i, rules[i].StageName, expected)
+		}
+	}
+}
+
+func TestApplyBreakEvenStopsOnlyAppliesHighestSatisfiedTier(t *testing.T) {
+	fake := &fakeProtectionTrader{
+		positions: []map[string]interface{}{{"symbol": "BTCUSDT", "side": "long", "positionAmt": 1.0}},
+	}
+	at := &AutoTrader{
+		exchange:              "okx",
+		trader:                fake,
+		config:                AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}},
+		protectionState:       map[string]string{},
+		breakEvenState:        map[string]string{},
+		breakEvenFingerprints: map[string]string{},
+		peakPnLCache:          map[string]float64{},
+	}
+	rules := []store.BreakEvenStopRule{
+		{TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 0.7, OffsetPct: 0.3, CloseRatioPct: 100, StageName: "BE1"},
+		{TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 1.9, OffsetPct: 0.6, CloseRatioPct: 50, StageName: "BE2"},
+		{TriggerMode: store.BreakEvenTriggerProfitPct, TriggerValue: 3.5, OffsetPct: 0.9, CloseRatioPct: 30, StageName: "BE3"},
+	}
+	// PnL at 2.0% — satisfies BE1 (0.7%) and BE2 (1.9%), not BE3 (3.5%)
+	err := at.applyBreakEvenStops("BTCUSDT", "long", 1.0, 50000, 2.0, rules)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should only call setStopLoss once (for BE2, the highest satisfied tier)
+	if fake.setStopLossCalls != 1 {
+		t.Fatalf("expected 1 stop loss call (highest tier), got %d", fake.setStopLossCalls)
+	}
+}

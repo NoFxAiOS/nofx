@@ -252,6 +252,17 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 		drawdownRules = nil
 	}
 
+	side := strings.ToLower(req.PositionSide)
+
+	// 0. Immediate trailing: 50% partial trailing at entry for immediate drawdown protection.
+	// Acts as first line of defense against bad entries or fast reversals. Canceled when
+	// the formal drawdown tier trailing arms successfully.
+	if plan != nil && len(plan.StopLossOrders) > 0 && len(drawdownRules) > 0 {
+		if immediateCallback, ok := calculateImmediateTrailingCallback(req.EntryPrice, side, plan.StopLossOrders); ok {
+			at.placeImmediateTrailing(req.Symbol, side, req.EntryPrice, immediateCallback)
+		}
+	}
+
 	// 1. Native drawdown/trailing should be armed as early as safely possible.
 	// Apply only exchange-native trailing drawdown here. Managed drawdown fallback uses
 	// conditional TP-style orders and must not be staged immediately after opening,
@@ -263,7 +274,7 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
 			continue
 		}
-		_ = at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule)
+		_ = at.applyNativeTrailingDrawdown(req.Symbol, side, req.EntryPrice, rule)
 	}
 
 	// 2. Break-even should become ready immediately after open, but must only be
@@ -272,13 +283,86 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 	if be := at.getActiveBreakEvenConfigForPlan(plan); be != nil && be.TriggerValue > 0 {
 		if plan != nil && plan.BreakEvenConfig != nil {
 			at.breakEvenStateMutex.Lock()
-			at.breakEvenSource[positionKey(req.Symbol, strings.ToLower(req.PositionSide))] = "ai_decision"
+			at.breakEvenSource[positionKey(req.Symbol, side)] = "ai_decision"
 			at.breakEvenStateMutex.Unlock()
 		}
-		at.setBreakEvenState(req.Symbol, strings.ToLower(req.PositionSide), "pending")
+		at.setBreakEvenState(req.Symbol, side, "pending")
 	}
 
 	return nil
+}
+
+func (at *AutoTrader) placeImmediateTrailing(symbol, side string, entryPrice, callbackRatio float64) {
+	if !at.supportsNativeTrailingStop() {
+		return
+	}
+	positionSide := strings.ToUpper(side)
+	activationPrice := entryPrice
+	if strings.ToLower(side) == "long" {
+		activationPrice = entryPrice * 1.0001
+	} else {
+		activationPrice = entryPrice * 0.9999
+	}
+
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		logger.Warnf("⚠️ Immediate trailing: failed to get positions for %s %s: %v", symbol, side, err)
+		return
+	}
+	var quantity float64
+	for _, pos := range positions {
+		ps, _ := pos["symbol"].(string)
+		pd, _ := pos["side"].(string)
+		if ps != symbol || !strings.EqualFold(pd, side) {
+			continue
+		}
+		quantity, _ = pos["positionAmt"].(float64)
+		if quantity < 0 {
+			quantity = -quantity
+		}
+		break
+	}
+	if quantity <= 0 {
+		logger.Warnf("⚠️ Immediate trailing: no position found for %s %s", symbol, side)
+		return
+	}
+	partialQty := quantity * 0.5
+
+	tagged, ok := at.trader.(interface {
+		SetTrailingStopLossTaggedWithID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error)
+	})
+	if !ok {
+		return
+	}
+
+	orderID, err := tagged.SetTrailingStopLossTaggedWithID(symbol, positionSide, activationPrice, callbackRatio, partialQty, "immediate_trailing")
+	if err != nil {
+		logger.Warnf("⚠️ Immediate trailing placement failed for %s %s: %v", symbol, side, err)
+		return
+	}
+	at.setImmediateTrailingOrderID(symbol, side, orderID)
+	logger.Infof("🛡 Immediate trailing armed: %s %s | activation=%.6f callback=%.6f qty=%.4f orderID=%s",
+		symbol, side, activationPrice, callbackRatio, partialQty, orderID)
+}
+
+func (at *AutoTrader) cancelImmediateTrailing(symbol, side string) {
+	orderID := at.getImmediateTrailingOrderID(symbol, side)
+	if orderID == "" {
+		return
+	}
+	canceler, ok := at.trader.(interface {
+		CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error
+	})
+	if !ok {
+		at.clearImmediateTrailingOrderID(symbol, side)
+		return
+	}
+	if err := canceler.CancelTrailingStopOrdersByIDs(symbol, []string{orderID}); err != nil {
+		logger.Warnf("⚠️ Failed to cancel immediate trailing for %s %s (orderID=%s): %v", symbol, side, orderID, err)
+	} else {
+		logger.Infof("🛡 Immediate trailing canceled (replaced by tier trailing): %s %s orderID=%s", symbol, side, orderID)
+	}
+	at.clearImmediateTrailingOrderID(symbol, side)
 }
 
 func (at *AutoTrader) canApplyManagedPartialDrawdownPlan(plan *ProtectionPlan) bool {

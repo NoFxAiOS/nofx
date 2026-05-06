@@ -103,6 +103,11 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📈 Open long: %s", decision.Symbol)
 
+	// [CODE ENFORCED] Post-loss cooldown check
+	if cooling, remaining := at.cooldownManager.IsCoolingDown(decision.Symbol); cooling {
+		return fmt.Errorf("⏳ entry cooldown active for %s (%v remaining after stop-loss)", decision.Symbol, remaining.Round(time.Minute))
+	}
+
 	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
 	if err != nil {
@@ -179,6 +184,11 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		return err
 	}
 
+	// [CODE ENFORCED] Entry price deviation check
+	if err := enforceEntryPriceDeviation(decision, marketData.CurrentPrice, "long"); err != nil {
+		return err
+	}
+
 	// Calculate quantity with adjusted position size
 	quantity := actualPositionSize / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
@@ -233,6 +243,11 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 // executeOpenShortWithRecord executes open short position and records detailed information
 func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📉 Open short: %s", decision.Symbol)
+
+	// [CODE ENFORCED] Post-loss cooldown check
+	if cooling, remaining := at.cooldownManager.IsCoolingDown(decision.Symbol); cooling {
+		return fmt.Errorf("⏳ entry cooldown active for %s (%v remaining after stop-loss)", decision.Symbol, remaining.Round(time.Minute))
+	}
 
 	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
@@ -307,6 +322,11 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 
 	// [CODE ENFORCED] Minimum position size check
 	if err := at.enforceMinPositionSize(decision.PositionSizeUSD, decision.Symbol); err != nil {
+		return err
+	}
+
+	// [CODE ENFORCED] Entry price deviation check
+	if err := enforceEntryPriceDeviation(decision, marketData.CurrentPrice, "short"); err != nil {
 		return err
 	}
 

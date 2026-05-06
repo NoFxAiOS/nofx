@@ -227,7 +227,7 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		merged.TakeProfitPrice = 0
 	}
 
-	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 && merged.FallbackMaxLossPrice == 0 && len(merged.DrawdownRules) == 0 {
+	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 && merged.FallbackMaxLossPrice == 0 && len(merged.DrawdownRules) == 0 && merged.BreakEvenConfig == nil {
 		return nil
 	}
 	return merged

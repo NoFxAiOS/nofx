@@ -872,6 +872,33 @@ func (at *AutoTrader) clearProtectionState(symbol, side string) {
 	delete(at.protectionState, symbol+"_"+strings.ToLower(side))
 }
 
+func (at *AutoTrader) setImmediateTrailingOrderID(symbol, side, orderID string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.immediateTrailingIDs == nil {
+		at.immediateTrailingIDs = make(map[string]string)
+	}
+	at.immediateTrailingIDs[symbol+"_"+strings.ToLower(side)] = orderID
+}
+
+func (at *AutoTrader) getImmediateTrailingOrderID(symbol, side string) string {
+	at.protectionStateMutex.RLock()
+	defer at.protectionStateMutex.RUnlock()
+	if at.immediateTrailingIDs == nil {
+		return ""
+	}
+	return at.immediateTrailingIDs[symbol+"_"+strings.ToLower(side)]
+}
+
+func (at *AutoTrader) clearImmediateTrailingOrderID(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.immediateTrailingIDs == nil {
+		return
+	}
+	delete(at.immediateTrailingIDs, symbol+"_"+strings.ToLower(side))
+}
+
 func (at *AutoTrader) setBreakEvenState(symbol, side, state string) {
 	at.breakEvenStateMutex.Lock()
 	defer at.breakEvenStateMutex.Unlock()

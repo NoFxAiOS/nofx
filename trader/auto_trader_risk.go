@@ -401,6 +401,18 @@ func (at *AutoTrader) restoreAIProtectionPlanForPositionWithEntry(symbol, side s
 			if !strings.EqualFold(decision.Symbol, symbol) || !strings.EqualFold(decision.Action, action) || decision.ProtectionPlan == nil {
 				continue
 			}
+			decisionEntryPrice := 0.0
+			if decision.EntryProtection != nil && decision.EntryProtection.RiskReward.Entry > 0 {
+				decisionEntryPrice = decision.EntryProtection.RiskReward.Entry
+			}
+			if decisionEntryPrice > 0 && entryPrice > 0 {
+				deviation := math.Abs(decisionEntryPrice-entryPrice) / entryPrice
+				if deviation > 0.005 {
+					logger.Warnf("⚠️ restoreAIProtectionPlan: cycle %d decision entry %.4f deviates %.2f%% from position entry %.4f; skipping stale plan",
+						entryDecisionCycle, decisionEntryPrice, deviation*100, entryPrice)
+					continue
+				}
+			}
 			plan, err := buildAIProtectionPlan(entryPrice, decision.Action, decision.ProtectionPlan, at.config.StrategyConfig)
 			if err != nil || plan == nil {
 				continue

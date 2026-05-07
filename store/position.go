@@ -421,8 +421,14 @@ func (s *PositionStore) FindEntryDecisionCycleForPosition(traderID, symbol, side
 	}
 
 	if !entryTime.IsZero() {
+		// The decision record is written AFTER the order executes (AI response →
+		// parse → execute order → record decision), so the decision timestamp is
+		// typically 5-30 s after the position entry_time. Extend the search window
+		// slightly past entry_time so the correct cycle is found on the first pass.
+		postEntryGrace := entryTime.Add(90 * time.Second)
+
 		var cycle int
-		query().Where("timestamp <= ? OR created_at <= ?", entryTime, entryTime).
+		query().Where("timestamp <= ? OR created_at <= ?", postEntryGrace, postEntryGrace).
 			Order("cycle_number DESC").
 			Limit(1).
 			Select("cycle_number").
@@ -435,7 +441,7 @@ func (s *PositionStore) FindEntryDecisionCycleForPosition(traderID, symbol, side
 		// If no pre-entry match exists, use the nearest same-symbol/side open decision
 		// after the observed position time, bounded to avoid stale historical matches.
 		windowEnd := entryTime.Add(6 * time.Hour)
-		query().Where("(timestamp > ? AND timestamp <= ?) OR (created_at > ? AND created_at <= ?)", entryTime, windowEnd, entryTime, windowEnd).
+		query().Where("(timestamp > ? AND timestamp <= ?) OR (created_at > ? AND created_at <= ?)", postEntryGrace, windowEnd, postEntryGrace, windowEnd).
 			Order("timestamp ASC, created_at ASC, cycle_number ASC").
 			Limit(1).
 			Select("cycle_number").

@@ -9,12 +9,14 @@ import (
 func TestFindEntryDecisionCycleForPositionMatchesSymbolAndSideBeforeEntry(t *testing.T) {
 	s := newTestPositionStore(t)
 	traderID := "trader-1"
-	entryTime := time.UnixMilli(2000).UTC()
+	now := time.Now().UTC()
+	entryTime := now
 	records := []DecisionRecordDB{
-		{TraderID: traderID, CycleNumber: 10, Timestamp: time.UnixMilli(1000).UTC(), CreatedAt: time.UnixMilli(1000).UTC(), Success: true, Decisions: `[{"symbol":"ETHUSDT","action":"open_long"}]`},
-		{TraderID: traderID, CycleNumber: 11, Timestamp: time.UnixMilli(1500).UTC(), CreatedAt: time.UnixMilli(1500).UTC(), Success: true, Decisions: `[{"symbol":"BTCUSDT","action":"open_short"}]`},
-		{TraderID: traderID, CycleNumber: 12, Timestamp: time.UnixMilli(1800).UTC(), CreatedAt: time.UnixMilli(1800).UTC(), Success: true, Decisions: `[{"symbol":"BTCUSDT","action":"open_long"}]`},
-		{TraderID: traderID, CycleNumber: 13, Timestamp: time.UnixMilli(2500).UTC(), CreatedAt: time.UnixMilli(2500).UTC(), Success: true, Decisions: `[{"symbol":"BTCUSDT","action":"open_long"}]`},
+		{TraderID: traderID, CycleNumber: 10, Timestamp: now.Add(-60 * time.Second), CreatedAt: now.Add(-60 * time.Second), Success: true, Decisions: `[{"symbol":"ETHUSDT","action":"open_long"}]`},
+		{TraderID: traderID, CycleNumber: 11, Timestamp: now.Add(-30 * time.Second), CreatedAt: now.Add(-30 * time.Second), Success: true, Decisions: `[{"symbol":"BTCUSDT","action":"open_short"}]`},
+		{TraderID: traderID, CycleNumber: 12, Timestamp: now.Add(-10 * time.Second), CreatedAt: now.Add(-10 * time.Second), Success: true, Decisions: `[{"symbol":"BTCUSDT","action":"open_long"}]`},
+		// Cycle 13: a DIFFERENT decision 3 minutes after entry — must NOT be matched
+		{TraderID: traderID, CycleNumber: 13, Timestamp: now.Add(3 * time.Minute), CreatedAt: now.Add(3 * time.Minute), Success: true, Decisions: `[{"symbol":"BTCUSDT","action":"open_long"}]`},
 	}
 	for _, record := range records {
 		if err := s.db.Create(&record).Error; err != nil {
@@ -25,6 +27,29 @@ func TestFindEntryDecisionCycleForPositionMatchesSymbolAndSideBeforeEntry(t *tes
 	got := s.FindEntryDecisionCycleForPosition(traderID, "BTCUSDT", "LONG", entryTime.UnixMilli())
 	if got != 12 {
 		t.Fatalf("expected cycle 12, got %d", got)
+	}
+}
+
+func TestFindEntryDecisionCycleForPositionGracePeriodMatchesPostEntryDecision(t *testing.T) {
+	s := newTestPositionStore(t)
+	traderID := "trader-1"
+	now := time.Now().UTC()
+	entryTime := now
+	records := []DecisionRecordDB{
+		// Stale cycle from a previous day — should NOT be matched
+		{TraderID: traderID, CycleNumber: 100, Timestamp: now.Add(-24 * time.Hour), CreatedAt: now.Add(-24 * time.Hour), Success: true, Decisions: `[{"symbol":"ETHUSDT","action":"open_short"}]`},
+		// Correct cycle: decision recorded 15s after execution (typical AI response delay)
+		{TraderID: traderID, CycleNumber: 659, Timestamp: now.Add(15 * time.Second), CreatedAt: now.Add(15 * time.Second), Success: true, Decisions: `[{"symbol":"ETHUSDT","action":"open_short"}]`},
+	}
+	for _, record := range records {
+		if err := s.db.Create(&record).Error; err != nil {
+			t.Fatalf("create decision record: %v", err)
+		}
+	}
+
+	got := s.FindEntryDecisionCycleForPosition(traderID, "ETHUSDT", "SHORT", entryTime.UnixMilli())
+	if got != 659 {
+		t.Fatalf("expected cycle 659 (15s post-entry grace), got %d", got)
 	}
 }
 

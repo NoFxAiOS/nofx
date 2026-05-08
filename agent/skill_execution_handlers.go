@@ -331,6 +331,12 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 }
 
 func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if session.TargetRef == nil && session.Action != "query" && session.Action != "query_list" && session.Action != "create" {
+		if lang == "zh" {
+			return "请先告诉我你要操作哪个交易员。"
+		}
+		return "Please specify which trader you want to manage."
+	}
 	switch session.Action {
 	case "query", "query_list":
 		return formatReadFastPathResponse(lang, "list_traders", a.toolListTraders(storeUserID))
@@ -507,6 +513,12 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 }
 
 func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if session.TargetRef == nil && session.Action != "query" && session.Action != "query_list" && session.Action != "create" {
+		if lang == "zh" {
+			return "请先告诉我你要操作哪个交易所配置。"
+		}
+		return "Please specify which exchange config you want to manage."
+	}
 	switch session.Action {
 	case "query_detail":
 		if detail, ok := a.describeExchange(storeUserID, lang, session.TargetRef); ok {
@@ -624,6 +636,12 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 }
 
 func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if session.TargetRef == nil && session.Action != "query" && session.Action != "query_list" && session.Action != "create" {
+		if lang == "zh" {
+			return "请先告诉我你要操作哪个模型配置。"
+		}
+		return "Please specify which model config you want to manage."
+	}
 	switch session.Action {
 	case "query_detail":
 		if detail, ok := a.describeModel(storeUserID, lang, session.TargetRef); ok {
@@ -803,6 +821,12 @@ func normalizeModelName(name string) string {
 }
 
 func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if session.TargetRef == nil && session.Action != "query" && session.Action != "query_list" && session.Action != "create" {
+		if lang == "zh" {
+			return "请先告诉我你要操作哪个策略。"
+		}
+		return "Please specify which strategy you want to manage."
+	}
 	switch session.Action {
 	case "query", "query_list":
 		return formatReadFastPathResponse(lang, "get_strategies", a.toolGetStrategies(storeUserID))

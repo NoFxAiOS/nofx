@@ -471,7 +471,62 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 		}
 	}
 
-	// 3d. Short-specific: non-trending regime requires higher confidence
+	// 3d. ATR-relative SL and reward distance
+	if d.EntryProtection != nil && input.StrategyConfig != nil {
+		gate := input.StrategyConfig.EntryStructure.EntryGate
+		rr := d.EntryProtection.RiskReward
+		atrPct := d.EntryProtection.VolatilityAdjustment.ATR14Pct
+		if atrPct <= 0 && input.MarketData != nil {
+			atrPct = computeATR14Pct(input.MarketData)
+		}
+		if atrPct > 0 && rr.Entry > 0 && rr.Invalidation > 0 && rr.FirstTarget > 0 {
+			atrAbs := rr.Entry * (atrPct / 100)
+
+			slDist := math.Abs(rr.Entry - rr.Invalidation)
+			slATRMul := slDist / atrAbs
+			minSLMul := gate.MinSLDistanceATRMul
+			if minSLMul <= 0 {
+				minSLMul = 1.2
+			}
+			slPassed := slATRMul >= minSLMul
+			slCheck := EntryGateCheck{
+				Code:     "sl_distance_below_atr_min",
+				Stage:    string(EntryGateStageConfidenceRisk),
+				Passed:   slPassed,
+				Enforced: true,
+				Values:   fmt.Sprintf("sl_atr_mul=%.2f min=%.1f sl_dist=%.4f atr14=%.4f atr_pct=%.2f%%", slATRMul, minSLMul, slDist, atrAbs, atrPct),
+			}
+			if slPassed {
+				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 >= min %.1fx — sufficient room for volatility", slATRMul, minSLMul)
+			} else {
+				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 < min %.1fx — structure too shallow, will be swept by normal noise", slATRMul, minSLMul)
+			}
+			checks = append(checks, slCheck)
+
+			rewardDist := math.Abs(rr.FirstTarget - rr.Entry)
+			rewardATRMul := rewardDist / atrAbs
+			minRewardMul := gate.MinRewardATRMul
+			if minRewardMul <= 0 {
+				minRewardMul = 1.8
+			}
+			rewardPassed := rewardATRMul >= minRewardMul
+			rewardCheck := EntryGateCheck{
+				Code:     "reward_distance_below_atr_min",
+				Stage:    string(EntryGateStageConfidenceRisk),
+				Passed:   rewardPassed,
+				Enforced: true,
+				Values:   fmt.Sprintf("reward_atr_mul=%.2f min=%.1f reward_dist=%.4f atr14=%.4f", rewardATRMul, minRewardMul, rewardDist, atrAbs),
+			}
+			if rewardPassed {
+				rewardCheck.Detail = fmt.Sprintf("target distance %.2fx ATR14 >= min %.1fx — target beyond noise range", rewardATRMul, minRewardMul)
+			} else {
+				rewardCheck.Detail = fmt.Sprintf("target distance %.2fx ATR14 < min %.1fx — target within noise, find higher-TF structural target", rewardATRMul, minRewardMul)
+			}
+			checks = append(checks, rewardCheck)
+		}
+	}
+
+	// 3e. Short-specific: non-trending regime requires higher confidence
 	if data := input.MarketData; data != nil {
 		regime := classifyProtectionRegime(data)
 		if isShortAction(d.Action) && !isTrendDownRegime(regime) {
@@ -495,7 +550,7 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 		}
 	}
 
-	// 3e. Unsupported setup type (shadow)
+	// 3f. Unsupported setup type (shadow)
 	if d.SetupType != "" && d.SetupType != "trend_pullback" && d.SetupType != "range_edge" && d.SetupType != "breakout_retest" {
 		check := EntryGateCheck{
 			Code:     "unsupported_setup_type",

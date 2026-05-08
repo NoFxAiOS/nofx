@@ -371,6 +371,29 @@ export const preEntryGate = {
   minConfidence: { zh: 'AI信心门槛', en: 'AI Confidence Threshold' },
   minRiskReward: { zh: '最低盈亏比', en: 'Min Risk-Reward Ratio' },
   enableRegimeFilter: { zh: '启用开仓门禁', en: 'Enable Pre-Entry Gate' },
+  enableEntryGate: { zh: '启用 ATR / 入场位置门禁', en: 'Enable ATR / Entry Position Gate' },
+  // Group A: Volatility Gate
+  volatilityGate: { zh: '波动率门禁', en: 'Volatility Gate' },
+  volatilityGateDesc: { zh: '过滤波动率过低的币种，避免手续费吃掉利润', en: 'Filter low-volatility coins where fees eat profits' },
+  volatilityGateExample: { zh: '例：ATR14=0.8% 的横盘币种会被拒绝开仓', en: 'e.g. ATR14=0.8% sideways coin will be rejected' },
+  minAtr14Pct: { zh: '最小 ATR14 %', en: 'Min ATR14 %' },
+  // Group B: Entry Precision
+  entryPrecision: { zh: '入场精度', en: 'Entry Precision' },
+  entryPrecisionDesc: { zh: '确保入场价格贴近关键结构位，不追高/追低', en: 'Ensure entry price is near key structure, no chasing' },
+  entryPrecisionExample: { zh: '例：当前价距支撑位超过 0.6×ATR 或 1.5% 时拒绝做多', en: 'e.g. reject long if price is >0.6×ATR or >1.5% from support' },
+  entryProximityAtr: { zh: '入场贴近 ATR 倍数', en: 'Entry proximity ATR x' },
+  entryProximityMaxPct: { zh: '入场最大偏离 %', en: 'Max entry gap %' },
+  // Group C: Stop Loss Quality
+  stopQuality: { zh: '止损质量', en: 'Stop Loss Quality' },
+  stopQualityDesc: { zh: '确保止损位有足够空间且锚定在结构位', en: 'Ensure stop has enough room and anchors to structure' },
+  stopQualityExample: { zh: '例：止损距离 <0.4% 太窄容易被扫；止损应在 0.5×ATR 以外的结构位', en: 'e.g. <0.4% stop is too tight; stop should be >0.5×ATR beyond structure' },
+  minRiskDistancePct: { zh: '最小止损距离 %', en: 'Min risk distance %' },
+  invalidationAtr: { zh: '止损结构 ATR 倍数', en: 'Invalidation ATR x' },
+  // Group D: Path Clarity
+  pathClarity: { zh: '路径清晰度', en: 'Path Clarity' },
+  pathClarityDesc: { zh: '入场到目标之间不能有太多阻力/支撑层阻挡', en: 'Not too many S/R levels blocking the path to target' },
+  pathClarityExample: { zh: '例：做多时上方有 5 层阻力 → 拒绝（目标难以到达）', en: 'e.g. 5 resistance levels above → reject (target unreachable)' },
+  maxBlockingLevels: { zh: '最多路径阻力/支撑层', en: 'Max blocking levels' },
 };
 
 // ============================================================================

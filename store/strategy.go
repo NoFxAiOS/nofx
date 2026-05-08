@@ -87,6 +87,8 @@ type EntryGateConfig struct {
 	Enabled                     bool    `json:"enabled,omitempty"`
 	MinATR14Pct                 float64 `json:"min_atr14_pct,omitempty"`
 	MinRiskDistancePct          float64 `json:"min_risk_distance_pct,omitempty"`
+	MinSLDistanceATRMul         float64 `json:"min_sl_distance_atr_mul,omitempty"`
+	MinRewardATRMul             float64 `json:"min_reward_atr_mul,omitempty"`
 	EntryProximityATRMul        float64 `json:"entry_proximity_atr_mul,omitempty"`
 	EntryProximityMinPct        float64 `json:"entry_proximity_min_pct,omitempty"`
 	EntryProximityMaxPct        float64 `json:"entry_proximity_max_pct,omitempty"`
@@ -104,6 +106,12 @@ func (c EntryGateConfig) WithDefaults() EntryGateConfig {
 	}
 	if c.MinRiskDistancePct <= 0 {
 		c.MinRiskDistancePct = 0.4
+	}
+	if c.MinSLDistanceATRMul <= 0 {
+		c.MinSLDistanceATRMul = 1.2
+	}
+	if c.MinRewardATRMul <= 0 {
+		c.MinRewardATRMul = 1.8
 	}
 	if c.EntryProximityATRMul <= 0 {
 		c.EntryProximityATRMul = 0.6

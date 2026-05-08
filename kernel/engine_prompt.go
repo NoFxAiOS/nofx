@@ -68,6 +68,15 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("## Mode: Scalping\n- Focus on short-term momentum, smaller profit targets but require quick action\n- If price doesn't move as expected within two bars, immediately reduce position or stop-loss\n\n")
 	}
 
+	// 2b. Trading philosophy — what kind of trades we seek
+	sb.WriteString("## Core Trading Philosophy\n\n")
+	sb.WriteString("We seek trades with STRUCTURAL DEPTH and real risk-reward, not micro-scalps on noise.\n")
+	sb.WriteString("- A good trade: entry near a tested support, SL below a deeper support (different level), TP at higher-TF resistance. RR ≥ 1.5:1 after fees.\n")
+	sb.WriteString("- A bad trade: entry in the middle of a range, SL 0.3% below (within one ATR), TP 0.8% above (also within one ATR). This is gambling, not trading.\n")
+	sb.WriteString("- If the only available structure is within 1× ATR of current price, there is NO trade. Output wait.\n")
+	sb.WriteString("- Patience is alpha. Waiting for price to reach a real structural level with depth behind it produces far better expectancy than forcing entries on shallow setups.\n")
+	sb.WriteString("- Every open must justify: (1) why THIS level is structural (not just a micro-wick), (2) where the DEEPER invalidation is, (3) where the HIGHER-TF target is.\n\n")
+
 	// 3. Hard constraints (risk control)
 	btcEthPosValueRatio := riskControl.BTCETHMaxPositionValueRatio
 	if btcEthPosValueRatio <= 0 {
@@ -147,13 +156,36 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("# 🏗️ Structural Analysis Requirements\n\n")
 	sb.WriteString("You receive auto-detected support/resistance levels and Fibonacci retracements for EACH timeframe in the market data.\n")
 	sb.WriteString("Higher timeframes (1h, 4h) provide stronger structural levels; lower timeframes (5m, 15m) provide precision.\n\n")
+
+	// ATR-relative scale requirement
+	entryGate := e.config.EntryStructure.EntryGate
+	minSLATR := entryGate.MinSLDistanceATRMul
+	if minSLATR <= 0 {
+		minSLATR = 1.2
+	}
+	minRewardATR := entryGate.MinRewardATRMul
+	if minRewardATR <= 0 {
+		minRewardATR = 1.8
+	}
+	sb.WriteString("## ⚠️ ATR-Relative Scale Requirement (HARD — trades violating this WILL be rejected)\n\n")
+	sb.WriteString(fmt.Sprintf("- **Stop loss** MUST be at least **%.1f× ATR14** away from entry price\n", minSLATR))
+	sb.WriteString(fmt.Sprintf("- **First target** MUST be at least **%.1f× ATR14** away from entry price\n", minRewardATR))
+	sb.WriteString("- Structures within 0.5× ATR14 of current price are **NOISE**, not tradeable levels\n")
+	sb.WriteString("- If the nearest structural invalidation is closer than the ATR minimum, you MUST either:\n")
+	sb.WriteString("  (a) Find a DEEPER invalidation on the primary timeframe (a real swing low/high, not a micro-wick)\n")
+	sb.WriteString("  (b) Wait for price to pull back closer to a deeper structure before entering\n")
+	sb.WriteString("  (c) Skip the trade entirely — output wait/[]\n")
+	sb.WriteString("- Do NOT chase micro-profits (0.3-0.8% targets on 1%+ ATR coins). That is knife-edge trading with negative expectancy after fees\n")
+	sb.WriteString("- Use PRIMARY timeframe (15m) swing structure, not 3m/5m micro-structures that get swept every candle\n")
+	sb.WriteString("- A good trade has structural DEPTH: entry near S1, SL below S2 (a different, deeper support), TP at R1 on a higher timeframe\n\n")
+
 	sb.WriteString("## How to use multi-timeframe structural data:\n\n")
 	sb.WriteString("1. **Entry positioning**: Open positions near support (long) or resistance (short), not in no-man's land\n")
 	sb.WriteString("2. **Protection planning — MUST use multi-timeframe structure**:\n")
-	sb.WriteString("   - **Stop Loss**: Place beyond the nearest structural invalidation level on the PRIMARY timeframe. Add ATR-based buffer (0.3-0.5x ATR) to avoid stop-hunts/wicks. Ladder SL tiers must use distinct prices around the same nearest primary structure: at least 75% total size close to the structure using inside/near-buffer and outside/beyond-buffer tiers; any farther tier must be <=25%.\n")
-	sb.WriteString("   - **Take Profit / Ladder TP**: Align with resistance/fib levels (longs) or support/fib levels (shorts). Use HIGHER timeframe levels for major targets, lower timeframe for partial exits\n")
-	sb.WriteString("   - **Drawdown rules**: Each profit stage's min_profit_pct should correspond to a structural level distance from entry. max_drawdown_pct is percentage-of-peak-profit giveback (exchange trailing semantics), e.g. 55 means allow 55% of peak profit to be given back before closing; it is NOT 0.55% absolute price/profit drawdown.\n")
-	sb.WriteString("   - **Break-even trigger**: Set trigger_value near the first structural level past entry, with offset beyond the nearest support/resistance\n")
+	sb.WriteString(fmt.Sprintf("   - **Stop Loss**: Place beyond the nearest structural invalidation level on the PRIMARY timeframe. The invalidation MUST be a real swing point (not a micro-wick), and the total SL distance from entry MUST be ≥ %.1f× ATR14. Add 0.3-0.5× ATR buffer beyond the structure to survive stop-hunts. Ladder SL tiers must use distinct prices around the same nearest primary structure: at least 75%% total size close to the structure using inside/near-buffer and outside/beyond-buffer tiers; any farther tier must be <=25%%.\n", minSLATR))
+	sb.WriteString(fmt.Sprintf("   - **Take Profit / Ladder TP**: Align with resistance/fib levels (longs) or support/fib levels (shorts). First target MUST be ≥ %.1f× ATR14 from entry. Use HIGHER timeframe levels for major targets, lower timeframe for partial exits\n", minRewardATR))
+	sb.WriteString("   - **Drawdown rules**: Each profit stage's min_profit_pct should correspond to a structural level distance from entry, and must be at least 1.0× ATR14 for the first tier (otherwise normal retracement will trigger it prematurely). max_drawdown_pct is percentage-of-peak-profit giveback (exchange trailing semantics), e.g. 55 means allow 55% of peak profit to be given back before closing; it is NOT 0.55% absolute price/profit drawdown.\n")
+	sb.WriteString("   - **Break-even trigger**: Set trigger_value near the first structural level past entry, with offset beyond the nearest support/resistance. Must be at least 1.0× ATR14 from entry to avoid triggering on normal noise\n")
 	sb.WriteString("3. **Volatility buffer**: All SL/TP/drawdown thresholds must account for typical wick range. Use ATR14 from the relevant timeframe as the volatility gauge. A stop placed exactly at a structural level WILL get swept — always add buffer\n")
 	sb.WriteString("4. **Cross-validation**: Auto-detected levels are hints. Confirm with volume, price action, and multi-timeframe alignment\n")
 	sb.WriteString("5. **structural_key_levels in output**: When opening, include a `structural_key_levels` array listing the structural levels that influenced your entry/TP/SL/drawdown decisions, with the timeframe each came from\n")
@@ -171,7 +203,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("  - Stage 1 = lock the MAJORITY of the position near the first primary-timeframe structure: `close_ratio_pct` \u2265 50%% (target 65%%), `runner_keep_pct` \u2264 35%%, generous `max_drawdown_pct`\n")
 	sb.WriteString("  - Stage 2+ = outer runner/trend protection anchored to higher-timeframe structure: wider profit target, structurally justified drawdown tolerance, closes more only after trend extension or structure failure\n")
 	sb.WriteString("- The outer runner stage should use primary/higher timeframe trend structure and ATR, not lower-timeframe noise; allow normal retests/wicks so profitable positions can keep running\n")
-	sb.WriteString("- max_drawdown_pct MUST factor in ATR volatility: if ATR14 is 0.5%, a max_drawdown of 0.3% will trigger on normal noise. Use at least 1-2x ATR as minimum drawdown tolerance\n")
+	sb.WriteString("- max_drawdown_pct MUST factor in ATR volatility: if ATR14 is 0.5%, a max_drawdown of 0.3% will trigger on normal noise. Use at least 1.5-2× ATR as minimum drawdown tolerance so normal retracements don't prematurely close profitable positions\n")
 	sb.WriteString("- Include `reason_anchor` field referencing the specific structural level + timeframe that justifies each stage\n")
 	sb.WriteString("- Use the exact field name `close_ratio_pct` in drawdown_rules; do NOT use `close_ratio`\n")
 	sb.WriteString("- DO NOT use arbitrary round percentages — derive from actual structural distances\n\n")
@@ -957,6 +989,10 @@ func (e *StrategyEngine) formatMarketContextV2(symbol string, data *market.Data)
 	if ctx.RegimeRules.ProtectionGuidance != "" {
 		sb.WriteString(fmt.Sprintf("  protection_guidance=%s\n", ctx.RegimeRules.ProtectionGuidance))
 	}
+	if ctx.RegimeRules.RegimeReversalRisk {
+		sb.WriteString(fmt.Sprintf("  ⚠️ REGIME REVERSAL RISK: %s\n", ctx.RegimeRules.ReversalRiskReason))
+		sb.WriteString("  → If opening in the trend direction, you MUST explain in reasoning why the trend has NOT reversed (e.g., price still above EMA20, higher-TF structure intact)\n")
+	}
 	if ctx.Derivatives != nil {
 		sb.WriteString(fmt.Sprintf("  derivatives: funding_bias=%s squeeze_risk=%s oi_1h=%.2f%% volume_z=%.2f\n", ctx.Derivatives.FundingBias, ctx.Derivatives.SqueezeRisk, ctx.Derivatives.OIChange1hPct, ctx.Derivatives.VolumeZScore))
 	}
@@ -1104,6 +1140,9 @@ func buildDrawdownTierConstraintPrompt(cfg store.DrawdownTakeProfitConfig) strin
 	sb.WriteString("- Trigger placement rule: `min_profit_pct` should target the INSIDE of the nearest structural level "+
 		"(the side closer to entry / easier to reach), NOT the outside/beyond side. "+
 		"The goal is that the trigger is reachable under normal price action, not aspirational.\n")
+	sb.WriteString("- ATR-relative rule: Tier 1 `min_profit_pct` should be at least 1.0× ATR14 from entry. "+
+		"If ATR14 is 1.0%%, a min_profit_pct of 0.5%% will trigger on normal retracement noise and prematurely close a winning trade. "+
+		"Design tiers around structural distances that exceed normal volatility.\n")
 	sb.WriteString("- If the AI outputs `min_profit_pct` above the strategy ceiling for any tier, the backend will clamp it down. "+
 		"Design your structural anchors so the trigger naturally falls at or below the ceiling.\n")
 	return sb.String()

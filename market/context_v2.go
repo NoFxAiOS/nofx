@@ -1,6 +1,9 @@
 package market
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // DerivativesContext summarizes free derivatives/crowding signals for a symbol.
 // It is intentionally compact so it can be stored in decision review context and
@@ -38,13 +41,15 @@ type MarketContextV2 struct {
 }
 
 type RegimeEntryGuidance struct {
-	Regime             string   `json:"regime,omitempty"`
-	AllowedSetups      []string `json:"allowed_setups,omitempty"`
-	StructureMode      string   `json:"structure_mode,omitempty"`
-	FibonacciMode      string   `json:"fibonacci_mode,omitempty"`
-	RequiredAnchors    []string `json:"required_anchors,omitempty"`
-	ProtectionGuidance string   `json:"protection_guidance,omitempty"`
-	Notes              []string `json:"notes,omitempty"`
+	Regime              string   `json:"regime,omitempty"`
+	AllowedSetups       []string `json:"allowed_setups,omitempty"`
+	StructureMode       string   `json:"structure_mode,omitempty"`
+	FibonacciMode       string   `json:"fibonacci_mode,omitempty"`
+	RequiredAnchors     []string `json:"required_anchors,omitempty"`
+	ProtectionGuidance  string   `json:"protection_guidance,omitempty"`
+	RegimeReversalRisk  bool     `json:"regime_reversal_risk,omitempty"`
+	ReversalRiskReason  string   `json:"reversal_risk_reason,omitempty"`
+	Notes               []string `json:"notes,omitempty"`
 }
 
 // MarketStructureBrief is a compact structural summary suitable for review context.
@@ -308,6 +313,23 @@ func BuildRegimeEntryGuidance(data *Data, structure *MarketStructureBrief, deriv
 		g.ProtectionGuidance = "balanced ladder/drawdown; avoid arbitrary round percentages"
 	}
 	g.Notes = regimeNotes(derivatives, quant)
+
+	// Detect regime reversal risk: trending regime but recent price action contradicts
+	if data != nil {
+		switch regime {
+		case "trend_up":
+			if data.PriceChange1h < -0.3 {
+				g.RegimeReversalRisk = true
+				g.ReversalRiskReason = fmt.Sprintf("regime=trend_up but 1h change=%.2f%% (bearish). Trend may be reversing — require extra justification for longs", data.PriceChange1h)
+			}
+		case "trend_down":
+			if data.PriceChange1h > 0.3 {
+				g.RegimeReversalRisk = true
+				g.ReversalRiskReason = fmt.Sprintf("regime=trend_down but 1h change=+%.2f%% (bullish). Trend may be reversing — require extra justification for shorts", data.PriceChange1h)
+			}
+		}
+	}
+
 	return g
 }
 
@@ -332,10 +354,17 @@ func inferExecutionRegime(data *Data, structure *MarketStructureBrief, derivativ
 		if data.PriceChange4h > 0.5 && data.PriceChange1h > 0 && data.CurrentEMA20 > 0 && data.CurrentPrice > data.CurrentEMA20*1.002 {
 			return "trend_up"
 		}
+		// Strong 4h trend persists even if 1h starts pulling back (reversal risk scenario)
+		if data.PriceChange4h > 1.5 {
+			return "trend_up"
+		}
 		if data.PriceChange4h < -0.8 && data.PriceChange1h < -0.3 {
 			return "trend_down"
 		}
 		if data.PriceChange4h < -0.5 && data.PriceChange1h < 0 && data.CurrentEMA20 > 0 && data.CurrentPrice < data.CurrentEMA20*0.998 {
+			return "trend_down"
+		}
+		if data.PriceChange4h < -1.5 {
 			return "trend_down"
 		}
 	}

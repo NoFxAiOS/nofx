@@ -171,3 +171,35 @@ func TestComputeOIDeltaScoresSeparatesIncreaseAndDecrease(t *testing.T) {
 		t.Fatalf("unexpected decrease scores: ok=%v %+v", ok, dec)
 	}
 }
+
+func TestRegimeReversalRiskDetection(t *testing.T) {
+	// trend_up but 1h is bearish => reversal risk
+	data := &Data{CurrentPrice: 100, PriceChange1h: -0.5, PriceChange4h: 1.6, FundingRate: 0.0001}
+	ctx := BuildMarketContextV2("BTCUSDT", data, nil, "15m")
+	if ctx.RegimeRules == nil {
+		t.Fatal("expected regime rules")
+	}
+	if ctx.RegimeRules.Regime != "trend_up" {
+		t.Fatalf("expected trend_up, got %s", ctx.RegimeRules.Regime)
+	}
+	if !ctx.RegimeRules.RegimeReversalRisk {
+		t.Fatal("expected RegimeReversalRisk=true for trend_up with bearish 1h")
+	}
+
+	// trend_up with bullish 1h => no reversal risk
+	data2 := &Data{CurrentPrice: 100, PriceChange1h: 0.8, PriceChange4h: 1.6, FundingRate: 0.0001}
+	ctx2 := BuildMarketContextV2("BTCUSDT", data2, nil, "15m")
+	if ctx2.RegimeRules.RegimeReversalRisk {
+		t.Fatal("expected no reversal risk for aligned trend_up")
+	}
+
+	// trend_down but 1h is bullish => reversal risk
+	data3 := &Data{CurrentPrice: 100, PriceChange1h: 0.5, PriceChange4h: -1.6, FundingRate: 0.0001}
+	ctx3 := BuildMarketContextV2("BTCUSDT", data3, nil, "15m")
+	if ctx3.RegimeRules.Regime != "trend_down" {
+		t.Fatalf("expected trend_down, got %s", ctx3.RegimeRules.Regime)
+	}
+	if !ctx3.RegimeRules.RegimeReversalRisk {
+		t.Fatal("expected RegimeReversalRisk=true for trend_down with bullish 1h")
+	}
+}

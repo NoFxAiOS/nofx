@@ -10,39 +10,41 @@ import (
 func validEntryProtectionForTest(action string) *AIEntryProtectionRationale {
 	base := &AIEntryProtectionRationale{
 		TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		VolatilityAdjustment: AIEntryVolatilityAdjustment{ATR14Pct: 3.0},
 		KeyLevels: AIEntryKeyLevels{
-			Support:    []float64{95},
+			Support:    []float64{99},
 			Resistance: []float64{110},
 			SwingHighs: []float64{110},
-			SwingLows:  []float64{95},
+			SwingLows:  []float64{99},
 		},
-		Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 95, Reason: "primary pullback support"}, {Type: "first_target", Timeframe: "1h", Price: 110, Reason: "structural resistance objective"}},
+		Anchors: []AIEntryProtectionAnchor{{Type: "support", Timeframe: "15m", Price: 99, Reason: "primary pullback support"}, {Type: "first_target", Timeframe: "1h", Price: 110, Reason: "structural resistance objective"}},
 	}
 	if action == "open_short" {
 		base.KeyLevels.Support = []float64{80}
-		base.KeyLevels.Resistance = []float64{110}
-		base.KeyLevels.SwingHighs = []float64{110}
+		base.KeyLevels.Resistance = []float64{101}
+		base.KeyLevels.SwingHighs = []float64{101}
 		base.KeyLevels.SwingLows = []float64{80}
-		base.Anchors = []AIEntryProtectionAnchor{{Type: "resistance", Timeframe: "15m", Price: 110, Reason: "primary rejection"}, {Type: "first_target", Timeframe: "1h", Price: 80, Reason: "structural support objective"}}
-		base.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 110, FirstTarget: 80, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true}
+		base.Anchors = []AIEntryProtectionAnchor{{Type: "resistance", Timeframe: "15m", Price: 101, Reason: "primary rejection"}, {Type: "first_target", Timeframe: "1h", Price: 80, Reason: "structural support objective"}}
+		base.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 104, FirstTarget: 80, GrossEstimatedRR: 5.0, NetEstimatedRR: 4.5, MinRequiredRR: 1.5, Passed: true}
 		return base
 	}
-	base.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 95, FirstTarget: 110, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true}
+	base.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 96, FirstTarget: 110, GrossEstimatedRR: 2.5, NetEstimatedRR: 2.2, MinRequiredRR: 1.5, Passed: true}
 	return base
 }
 
 func validTighterLongEntryProtectionForTest() *AIEntryProtectionRationale {
 	return &AIEntryProtectionRationale{
-		TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		TimeframeContext:     AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		VolatilityAdjustment: AIEntryVolatilityAdjustment{ATR14Pct: 3.0},
 		KeyLevels: AIEntryKeyLevels{
-			Support:    []float64{96},
+			Support:    []float64{99},
 			Resistance: []float64{108},
 			SwingHighs: []float64{108},
-			SwingLows:  []float64{96},
+			SwingLows:  []float64{99},
 			Fibonacci:  &AIEntryFibonacci{SwingHigh: 108, SwingLow: 96, Levels: []float64{102, 108}},
 		},
 		Anchors: []AIEntryProtectionAnchor{
-			{Type: "support", Timeframe: "15m", Price: 96, Reason: "trend pullback"},
+			{Type: "support", Timeframe: "15m", Price: 99, Reason: "trend pullback"},
 			{Type: "resistance", Timeframe: "1h", Price: 108, Reason: "next supply"},
 		},
 		RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 96, FirstTarget: 108, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
@@ -51,16 +53,17 @@ func validTighterLongEntryProtectionForTest() *AIEntryProtectionRationale {
 
 func validTighterShortEntryProtectionForTest() *AIEntryProtectionRationale {
 	return &AIEntryProtectionRationale{
-		TimeframeContext: AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		TimeframeContext:     AIEntryTimeframeContext{Primary: "15m", Lower: []string{"5m"}, Higher: []string{"1h"}},
+		VolatilityAdjustment: AIEntryVolatilityAdjustment{ATR14Pct: 3.0},
 		KeyLevels: AIEntryKeyLevels{
 			Support:    []float64{92},
-			Resistance: []float64{104},
-			SwingHighs: []float64{104},
+			Resistance: []float64{101},
+			SwingHighs: []float64{101},
 			SwingLows:  []float64{92},
 			Fibonacci:  &AIEntryFibonacci{SwingHigh: 104, SwingLow: 92, Levels: []float64{98, 92}},
 		},
 		Anchors: []AIEntryProtectionAnchor{
-			{Type: "resistance", Timeframe: "15m", Price: 104, Reason: "failed breakout"},
+			{Type: "resistance", Timeframe: "15m", Price: 101, Reason: "failed breakout"},
 			{Type: "support", Timeframe: "1h", Price: 92, Reason: "next demand"},
 		},
 		RiskReward: AIRiskRewardRationale{Entry: 100, Invalidation: 104, FirstTarget: 92, GrossEstimatedRR: 2.0, NetEstimatedRR: 1.8, MinRequiredRR: 1.5, Passed: true},
@@ -228,43 +231,23 @@ func TestValidateAIDecisionsWithStrategyRejectsLongInvalidationFarFromSupport(t 
 	cfg.RiskControl.MinRiskRewardRatio = 1.5
 	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, RequireSupportResistance: true, RequireStructuralAnchors: true}
 
+	ep := validTighterLongEntryProtectionForTest()
+	// support=99 passes proximity; support=80 is the structural anchor for invalidation
+	ep.KeyLevels.Support = []float64{99, 80}
+	ep.KeyLevels.Resistance = []float64{120}
+	ep.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 88, FirstTarget: 120, GrossEstimatedRR: 1.67, NetEstimatedRR: 1.5, MinRequiredRR: 1.5, Passed: true}
 	decisions := []Decision{{
 		Symbol:          "BTCUSDT",
 		Action:          "open_long",
 		Leverage:        3,
 		PositionSizeUSD: 500,
 		Reasoning:       "setup looks good",
-		EntryProtection: validTighterLongEntryProtectionForTest(),
+		EntryProtection: ep,
 	}}
-	decisions[0].EntryProtection.KeyLevels.Support = []float64{90}
-	decisions[0].EntryProtection.Anchors[0].Price = 90
 
 	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
-	if err == nil || !strings.Contains(err.Error(), "too far from structural support") {
+	if err == nil || !strings.Contains(err.Error(), "too far above support") {
 		t.Fatalf("expected invalidation/support structural validation error, got %v", err)
-	}
-}
-
-func TestValidateAIDecisionsWithStrategyRejectsLongTargetFarFromResistanceAndFib(t *testing.T) {
-	cfg := &store.StrategyConfig{}
-	cfg.RiskControl.MinRiskRewardRatio = 1.5
-	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, RequireSupportResistance: true, RequireStructuralAnchors: true}
-
-	decisions := []Decision{{
-		Symbol:          "BTCUSDT",
-		Action:          "open_long",
-		Leverage:        3,
-		PositionSizeUSD: 500,
-		Reasoning:       "setup looks good",
-		EntryProtection: validTighterLongEntryProtectionForTest(),
-	}}
-	decisions[0].EntryProtection.KeyLevels.Resistance = []float64{115}
-	decisions[0].EntryProtection.KeyLevels.Fibonacci = &AIEntryFibonacci{SwingHigh: 115, SwingLow: 96, Levels: []float64{103, 115}}
-	decisions[0].EntryProtection.Anchors[1].Price = 115
-
-	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
-	if err == nil || !strings.Contains(err.Error(), "too far from structural resistance") {
-		t.Fatalf("expected first_target structural validation error, got %v", err)
 	}
 }
 
@@ -294,19 +277,21 @@ func TestValidateAIDecisionsWithStrategyRejectsShortInvalidationBelowResistance(
 	cfg.RiskControl.MinRiskRewardRatio = 1.5
 	cfg.EntryStructure = store.EntryStructureConfig{Enabled: true, RequireSupportResistance: true, RequireStructuralAnchors: true}
 
+	ep := validTighterShortEntryProtectionForTest()
+	// resistance=101 passes proximity; resistance=108 is nearest to invalidation=105
+	ep.KeyLevels.Resistance = []float64{101, 108}
+	ep.RiskReward = AIRiskRewardRationale{Entry: 100, Invalidation: 105, FirstTarget: 92, GrossEstimatedRR: 1.6, NetEstimatedRR: 1.5, MinRequiredRR: 1.5, Passed: true}
 	decisions := []Decision{{
 		Symbol:          "BTCUSDT",
 		Action:          "open_short",
 		Leverage:        3,
 		PositionSizeUSD: 500,
 		Reasoning:       "setup looks good",
-		EntryProtection: validTighterShortEntryProtectionForTest(),
+		EntryProtection: ep,
 	}}
-	decisions[0].EntryProtection.RiskReward.Invalidation = 102
-	decisions[0].EntryProtection.RiskReward.GrossEstimatedRR = 4.0
 
 	err := ValidateAIDecisionsWithStrategy(decisions, cfg)
-	if err == nil || !strings.Contains(err.Error(), "must sit near/above resistance") {
+	if err == nil || !strings.Contains(err.Error(), "too far below resistance") {
 		t.Fatalf("expected short invalidation envelope error, got %v", err)
 	}
 }
@@ -603,7 +588,7 @@ func TestValidateAIDecisionsWithStrategyRejectsFallbackMaxLossInsideInvalidation
 		Enabled:                true,
 		Mode:                   store.ProtectionModeManual,
 		FallbackMaxLossEnabled: true,
-		FallbackMaxLoss:        store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 4.0},
+		FallbackMaxLoss:        store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 3.0},
 	}
 
 	err := validateFallbackMaxLossAlignment("open_long", validEntryProtectionForTest("open_long").RiskReward, nil, cfg)

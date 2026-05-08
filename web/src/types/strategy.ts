@@ -68,14 +68,24 @@ export interface EntryStructureConfig {
 
 export interface EntryGateConfig {
   enabled?: boolean
+  // Group toggles
+  volatility_gate_enabled?: boolean
+  entry_precision_enabled?: boolean
+  stop_quality_enabled?: boolean
+  path_clarity_enabled?: boolean
+  // Volatility gate
   min_atr14_pct?: number
-  min_risk_distance_pct?: number
+  // Entry precision
   entry_proximity_atr_mul?: number
-  entry_proximity_min_pct?: number
   entry_proximity_max_pct?: number
+  // Stop loss quality
+  min_risk_distance_pct?: number
   invalidation_structure_atr_mul?: number
-  invalidation_structure_min_pct?: number
+  // Path clarity
   max_blocking_levels?: number
+  // Legacy compat
+  entry_proximity_min_pct?: number
+  invalidation_structure_min_pct?: number
   max_target_timeframe_rank_gap?: number
 }
 

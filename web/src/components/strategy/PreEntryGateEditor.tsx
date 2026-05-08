@@ -1,5 +1,5 @@
 import { Filter, Shield, Radio, Layers } from 'lucide-react'
-import type { RegimeFilterConfig, EntryStructureConfig, StrategyControlPolicyMode } from '../../types'
+import type { RegimeFilterConfig, EntryStructureConfig, EntryGateConfig, StrategyControlPolicyMode } from '../../types'
 import { EntryStructureEditor } from './EntryStructureEditor'
 import { preEntryGate, ts } from '../../i18n/strategy-translations'
 
@@ -37,11 +37,76 @@ const policyModes: { value: StrategyControlPolicyMode; labelKey: 'strict' | 'aud
   { value: 'recommend_only', labelKey: 'recommendOnly', descKey: 'recommendOnlyDesc', color: '#0ECB81' },
 ]
 
+function EntryGateGroup({ enabled, onToggle, masterDisabled, title, description, example, color, children }: {
+  enabled: boolean
+  onToggle: (v: boolean) => void
+  masterDisabled: boolean
+  title: string
+  description: string
+  example: string
+  color: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="p-3 rounded-lg space-y-2" style={{ background: '#11161C', border: `1px solid ${masterDisabled ? '#2B3139' : color}33`, opacity: masterDisabled ? 0.5 : 1 }}>
+      <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: '#EAECEF' }}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onToggle(e.target.checked)}
+          disabled={masterDisabled}
+          className="h-4 w-4 accent-amber-500"
+        />
+        <span className="font-medium">{title}</span>
+      </label>
+      <div className="text-[11px] leading-relaxed" style={{ color: '#848E9C' }}>{description}</div>
+      <div className="text-[11px] leading-relaxed italic" style={{ color: '#5E6673' }}>{example}</div>
+      {enabled && !masterDisabled && (
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EntryGateInput({ label, value, step, disabled, onChange }: {
+  label: string
+  value: number
+  step: number
+  disabled: boolean
+  onChange: (v: number) => void
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] mb-1" style={{ color: '#848E9C' }}>{label}</label>
+      <input
+        type="number"
+        value={value}
+        step={step}
+        min={0}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        disabled={disabled}
+        className="w-full px-3 py-2 rounded text-sm"
+        style={inputStyle}
+      />
+    </div>
+  )
+}
+
 export function PreEntryGateEditor({ config, onChange, disabled, language }: PreEntryGateEditorProps) {
   const isZh = language === 'zh'
 
   const update = <K extends keyof RegimeFilterConfig>(key: K, value: RegimeFilterConfig[K]) => {
     if (!disabled) onChange({ ...config, [key]: value })
+  }
+
+  const updateEntryGate = (key: keyof EntryGateConfig, value: number | boolean) => {
+    if (disabled) return
+    update('entry_structure', {
+      ...(config.entry_structure || {}),
+      entry_gate: { ...(config.entry_structure?.entry_gate || {}), [key]: value },
+    } as EntryStructureConfig)
   }
 
   const toggleRegime = (regime: string) => {
@@ -164,11 +229,12 @@ export function PreEntryGateEditor({ config, onChange, disabled, language }: Pre
           </h4>
         </div>
 
-        <div className="p-3 rounded-lg space-y-3" style={{ background: '#11161C', border: '1px solid #2B3139' }}>
+        {/* Master toggle */}
+        <div className="p-3 rounded-lg" style={{ background: '#11161C', border: '1px solid #2B3139' }}>
           <label className="flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}>
             <input
               type="checkbox"
-              checked={config.entry_structure?.entry_gate?.enabled ?? true}
+              checked={config.entry_structure?.entry_gate?.enabled ?? false}
               onChange={(e) => update('entry_structure', {
                 ...(config.entry_structure || {}),
                 entry_gate: { ...(config.entry_structure?.entry_gate || {}), enabled: e.target.checked },
@@ -176,41 +242,104 @@ export function PreEntryGateEditor({ config, onChange, disabled, language }: Pre
               disabled={disabled}
               className="h-4 w-4 accent-amber-500"
             />
-            {isZh ? '启用 ATR / 入场位置门禁' : 'Enable ATR / entry-position gate'}
+            {ts(preEntryGate.enableEntryGate, language)}
           </label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              ['min_atr14_pct', isZh ? '最小 ATR14 %' : 'Min ATR14 %', 1.2, 0.1],
-              ['min_risk_distance_pct', isZh ? '最小止损距离 %' : 'Min risk distance %', 0.4, 0.05],
-              ['entry_proximity_atr_mul', isZh ? '入场贴近 ATR倍数' : 'Entry proximity ATR x', 0.6, 0.1],
-              ['entry_proximity_max_pct', isZh ? '入场最大偏离 %' : 'Max entry gap %', 1.5, 0.1],
-              ['invalidation_structure_atr_mul', isZh ? '止损结构 ATR倍数' : 'Invalidation ATR x', 0.5, 0.1],
-              ['max_blocking_levels', isZh ? '最多路径阻力/支撑层' : 'Max blocking levels', 4, 1],
-            ].map(([key, label, def, step]) => (
-              <div key={key as string}>
-                <label className="block text-[11px] mb-1" style={{ color: '#848E9C' }}>{label as string}</label>
-                <input
-                  type="number"
-                  value={(config.entry_structure?.entry_gate as any)?.[key as string] ?? def}
-                  step={step as number}
-                  min={0}
-                  onChange={(e) => update('entry_structure', {
-                    ...(config.entry_structure || {}),
-                    entry_gate: { ...(config.entry_structure?.entry_gate || {}), [key as string]: parseFloat(e.target.value) || 0 },
-                  } as EntryStructureConfig)}
-                  disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? true)}
-                  className="w-full px-3 py-2 rounded text-sm"
-                  style={inputStyle}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="text-[11px] leading-relaxed" style={{ color: '#F0B90B' }}>
+          <div className="text-[11px] mt-2 leading-relaxed" style={{ color: '#F0B90B' }}>
             {isZh
               ? '门禁顺序：市场状态/窄波动 → 结构字段 → ATR/入场贴近 → 信心/RR → 保护计划。目标位只用于 RR 与保护分层，不再要求强贴近最近阻力/支撑。'
               : 'Gate order: market state/narrow volatility → structure fields → ATR/entry proximity → confidence/RR → protection plan. Target is used for RR/protection tiers, not strict nearest S/R alignment.'}
           </div>
         </div>
+
+        {/* Group A: Volatility Gate */}
+        <EntryGateGroup
+          enabled={config.entry_structure?.entry_gate?.volatility_gate_enabled ?? true}
+          onToggle={(v) => updateEntryGate('volatility_gate_enabled', v)}
+          masterDisabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false)}
+          title={ts(preEntryGate.volatilityGate, language)}
+          description={ts(preEntryGate.volatilityGateDesc, language)}
+          example={ts(preEntryGate.volatilityGateExample, language)}
+          color="#38BDF8"
+        >
+          <EntryGateInput
+            label={ts(preEntryGate.minAtr14Pct, language)}
+            value={(config.entry_structure?.entry_gate?.min_atr14_pct) ?? 1.2}
+            step={0.1}
+            disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false) || !(config.entry_structure?.entry_gate?.volatility_gate_enabled ?? true)}
+            onChange={(v) => updateEntryGate('min_atr14_pct', v)}
+          />
+        </EntryGateGroup>
+
+        {/* Group B: Entry Precision */}
+        <EntryGateGroup
+          enabled={config.entry_structure?.entry_gate?.entry_precision_enabled ?? true}
+          onToggle={(v) => updateEntryGate('entry_precision_enabled', v)}
+          masterDisabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false)}
+          title={ts(preEntryGate.entryPrecision, language)}
+          description={ts(preEntryGate.entryPrecisionDesc, language)}
+          example={ts(preEntryGate.entryPrecisionExample, language)}
+          color="#A855F7"
+        >
+          <EntryGateInput
+            label={ts(preEntryGate.entryProximityAtr, language)}
+            value={(config.entry_structure?.entry_gate?.entry_proximity_atr_mul) ?? 0.6}
+            step={0.1}
+            disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false) || !(config.entry_structure?.entry_gate?.entry_precision_enabled ?? true)}
+            onChange={(v) => updateEntryGate('entry_proximity_atr_mul', v)}
+          />
+          <EntryGateInput
+            label={ts(preEntryGate.entryProximityMaxPct, language)}
+            value={(config.entry_structure?.entry_gate?.entry_proximity_max_pct) ?? 1.5}
+            step={0.1}
+            disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false) || !(config.entry_structure?.entry_gate?.entry_precision_enabled ?? true)}
+            onChange={(v) => updateEntryGate('entry_proximity_max_pct', v)}
+          />
+        </EntryGateGroup>
+
+        {/* Group C: Stop Loss Quality */}
+        <EntryGateGroup
+          enabled={config.entry_structure?.entry_gate?.stop_quality_enabled ?? true}
+          onToggle={(v) => updateEntryGate('stop_quality_enabled', v)}
+          masterDisabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false)}
+          title={ts(preEntryGate.stopQuality, language)}
+          description={ts(preEntryGate.stopQualityDesc, language)}
+          example={ts(preEntryGate.stopQualityExample, language)}
+          color="#0ECB81"
+        >
+          <EntryGateInput
+            label={ts(preEntryGate.minRiskDistancePct, language)}
+            value={(config.entry_structure?.entry_gate?.min_risk_distance_pct) ?? 0.4}
+            step={0.05}
+            disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false) || !(config.entry_structure?.entry_gate?.stop_quality_enabled ?? true)}
+            onChange={(v) => updateEntryGate('min_risk_distance_pct', v)}
+          />
+          <EntryGateInput
+            label={ts(preEntryGate.invalidationAtr, language)}
+            value={(config.entry_structure?.entry_gate?.invalidation_structure_atr_mul) ?? 0.5}
+            step={0.1}
+            disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false) || !(config.entry_structure?.entry_gate?.stop_quality_enabled ?? true)}
+            onChange={(v) => updateEntryGate('invalidation_structure_atr_mul', v)}
+          />
+        </EntryGateGroup>
+
+        {/* Group D: Path Clarity */}
+        <EntryGateGroup
+          enabled={config.entry_structure?.entry_gate?.path_clarity_enabled ?? true}
+          onToggle={(v) => updateEntryGate('path_clarity_enabled', v)}
+          masterDisabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false)}
+          title={ts(preEntryGate.pathClarity, language)}
+          description={ts(preEntryGate.pathClarityDesc, language)}
+          example={ts(preEntryGate.pathClarityExample, language)}
+          color="#F0B90B"
+        >
+          <EntryGateInput
+            label={ts(preEntryGate.maxBlockingLevels, language)}
+            value={(config.entry_structure?.entry_gate?.max_blocking_levels) ?? 4}
+            step={1}
+            disabled={disabled || !(config.entry_structure?.entry_gate?.enabled ?? false) || !(config.entry_structure?.entry_gate?.path_clarity_enabled ?? true)}
+            onChange={(v) => updateEntryGate('max_blocking_levels', v)}
+          />
+        </EntryGateGroup>
 
         <EntryStructureEditor
           config={config.entry_structure}

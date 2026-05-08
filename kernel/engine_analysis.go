@@ -903,6 +903,11 @@ func validateStructuralPriceAlignment(action string, rationale *AIEntryProtectio
 		return err
 	}
 
+	// 1b. 检查 SL/TP 距离是否在 ATR 尺度上有意义
+	if err := validateATRRelativeDistances(rationale, gate); err != nil {
+		return err
+	}
+
 	// 2. 检查入场位是否贴近结构位
 	if err := validateEntryProximityToStructure(action, rationale, gate); err != nil {
 		return err
@@ -998,6 +1003,44 @@ func validateMinimumVolatility(rationale *AIEntryProtectionRationale, gate store
 	minRewardPct := gate.MinRiskDistancePct // Reuse config for reward distance check
 	if rewardPct < minRewardPct {
 		return fmt.Errorf("first_target distance %.2f%% too small (min %.2f%%), insufficient room for fees", rewardPct, minRewardPct)
+	}
+
+	return nil
+}
+
+// validateATRRelativeDistances checks that SL and TP distances are meaningful
+// relative to the instrument's volatility (ATR14). This prevents trades where
+// the structure is within normal noise range.
+func validateATRRelativeDistances(rationale *AIEntryProtectionRationale, gate store.EntryGateConfig) error {
+	atrPct := rationale.VolatilityAdjustment.ATR14Pct
+	if atrPct <= 0 {
+		return nil
+	}
+	entry := rationale.RiskReward.Entry
+	invalidation := rationale.RiskReward.Invalidation
+	firstTarget := rationale.RiskReward.FirstTarget
+	if entry <= 0 || invalidation <= 0 || firstTarget <= 0 {
+		return nil
+	}
+
+	atrAbs := entry * (atrPct / 100)
+
+	// Check SL distance relative to ATR
+	slDistance := absFloat(entry - invalidation)
+	slATRMul := slDistance / atrAbs
+	minSLMul := gate.MinSLDistanceATRMul
+	if minSLMul > 0 && slATRMul < minSLMul {
+		return fmt.Errorf("SL distance %.4f = %.2fx ATR14 (need ≥%.1fx). Structure too shallow for this volatility — find deeper primary-TF invalidation or skip",
+			slDistance, slATRMul, minSLMul)
+	}
+
+	// Check reward distance relative to ATR
+	rewardDistance := absFloat(firstTarget - entry)
+	rewardATRMul := rewardDistance / atrAbs
+	minRewardMul := gate.MinRewardATRMul
+	if minRewardMul > 0 && rewardATRMul < minRewardMul {
+		return fmt.Errorf("target distance %.4f = %.2fx ATR14 (need ≥%.1fx). Target within noise range — find higher-TF structural target or skip",
+			rewardDistance, rewardATRMul, minRewardMul)
 	}
 
 	return nil

@@ -374,9 +374,9 @@ type OIHistoryItem struct {
 
 // GetOpenInterestHistory fetches OI history from OKX rubik stats endpoint
 func (o *OKXAPIClient) GetOpenInterestHistory(symbol, period string) ([]OIHistoryItem, error) {
-	base := strings.TrimSuffix(strings.ToUpper(symbol), "USDT")
+	okxSymbol := binanceToOKXSymbol(symbol)
 	data, err := o.doGet("/api/v5/rubik/stat/contracts/open-interest-history", map[string]string{
-		"ccy":    base,
+		"instId": okxSymbol,
 		"period": period,
 	})
 	if err != nil {

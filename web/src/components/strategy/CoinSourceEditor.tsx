@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle } from 'lucide-react'
+import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle, ChevronDown, ChevronRight, Globe, BarChart3 } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 import { coinSource, ts } from '../../i18n/strategy-translations'
 
@@ -21,11 +21,19 @@ export function CoinSourceEditor({
 
   const sourceTypes = [
     { value: 'static', icon: List, color: '#848E9C' },
+    { value: 'market', icon: BarChart3, color: '#34d399' },
+  ] as const
+
+  const legacySourceTypes = [
     { value: 'ai500', icon: Database, color: '#F0B90B' },
     { value: 'oi_top', icon: TrendingUp, color: '#0ECB81' },
     { value: 'oi_low', icon: TrendingDown, color: '#F6465D' },
     { value: 'mixed', icon: Shuffle, color: '#60a5fa' },
   ] as const
+
+  const [showLegacySources, setShowLegacySources] = useState(
+    () => ['ai500', 'oi_top', 'oi_low', 'mixed'].includes(config.source_type)
+  )
 
   // Calculate mixed mode summary
   const getMixedSummary = () => {
@@ -33,7 +41,7 @@ export function CoinSourceEditor({
     let totalLimit = 0
 
     if (config.use_ai500) {
-      sources.push(`AI500(${config.ai500_limit || 10})`)
+      sources.push(`${ts(coinSource.ai500, language)}(${config.ai500_limit || 10})`)
       totalLimit += config.ai500_limit || 10
     }
     if (config.use_oi_top) {
@@ -132,14 +140,7 @@ export function CoinSourceEditor({
     })
   }
 
-  // NofxOS badge component
-  const NofxOSBadge = () => (
-    <span
-      className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30"
-    >
-      NofxOS
-    </span>
-  )
+  // NofxOS badge component (legacy)
 
   return (
     <div className="space-y-6">
@@ -148,8 +149,11 @@ export function CoinSourceEditor({
         <label className="block text-sm font-medium mb-3 text-nofx-text">
           {ts(coinSource.sourceType, language)}
         </label>
-        <div className="grid grid-cols-5 gap-2">
-          {sourceTypes.map(({ value, icon: Icon, color }) => (
+                <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
+          {sourceTypes.map(({ value, icon: Icon, color }) => {
+            const nameEntry = coinSource[value as keyof typeof coinSource]
+            const descEntry = coinSource[`${value}Desc` as keyof typeof coinSource]
+            return (
             <button
               key={value}
               onClick={() =>
@@ -164,15 +168,78 @@ export function CoinSourceEditor({
             >
               <Icon className="w-6 h-6 mx-auto mb-2" style={{ color }} />
               <div className="text-sm font-medium text-nofx-text">
-                {ts(coinSource[value as keyof typeof coinSource], language)}
+                {nameEntry ? ts(nameEntry, language) : value}
               </div>
               <div className="text-xs mt-1 text-nofx-text-muted">
-                {ts(coinSource[`${value}Desc` as keyof typeof coinSource], language)}
+                {descEntry ? ts(descEntry, language) : ''}
               </div>
             </button>
-          ))}
+            )
+          })}
+        </div>
+
+        {/* Legacy NofxOS source types (collapsed) */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowLegacySources(!showLegacySources)}
+            className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-400 transition-colors"
+          >
+            {showLegacySources ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            <span>NofxOS {language === 'zh' ? '数据源（旧版）' : 'Sources (Legacy)'}</span>
+          </button>
+          {showLegacySources && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+              {legacySourceTypes.map(({ value, icon: Icon, color }) => {
+                const nameEntry = coinSource[value as keyof typeof coinSource]
+                return (
+                  <button
+                    key={value}
+                    onClick={() =>
+                      !disabled &&
+                      onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
+                    }
+                    disabled={disabled}
+                    className={`p-3 rounded-lg border transition-all ${config.source_type === value
+                      ? 'ring-2 ring-nofx-gold bg-nofx-gold/10'
+                      : 'hover:bg-white/5 bg-nofx-bg opacity-60'
+                      } border-nofx-gold/20`}
+                  >
+                    <Icon className="w-5 h-5 mx-auto mb-1" style={{ color }} />
+                    <div className="text-xs font-medium text-nofx-text">
+                      {nameEntry ? ts(nameEntry, language) : value}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Exchange Source Selector */}
+      {config.source_type !== 'static' && (
+        <div className="flex items-center gap-3">
+          <Globe className="w-4 h-4 text-nofx-text-muted" />
+          <span className="text-sm text-nofx-text">{ts(coinSource.exchangeSource, language)}</span>
+          <div className="flex gap-2">
+            {(['binance', 'okx'] as const).map((ex) => (
+              <button
+                key={ex}
+                onClick={() => !disabled && onChange({ ...config, exchange_source: ex })}
+                disabled={disabled}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  (config.exchange_source || 'okx') === ex
+                    ? 'bg-nofx-gold/20 text-nofx-gold border border-nofx-gold/50'
+                    : 'bg-nofx-bg text-nofx-text-muted border border-nofx-border hover:border-nofx-gold/30'
+                }`}
+              >
+                {ex === 'binance' ? 'Binance' : 'OKX'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Static Coins - only for static mode */}
       {config.source_type === 'static' && (
@@ -284,9 +351,8 @@ export function CoinSourceEditor({
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-nofx-gold" />
               <span className="text-sm font-medium text-nofx-text">
-                AI500 {ts(coinSource.dataSourceConfig, language)}
+                {ts(coinSource.ai500, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
-              <NofxOSBadge />
             </div>
           </div>
 
@@ -326,7 +392,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {ts(coinSource.nofxosNote, language)}
+              {ts(coinSource.ai500Desc, language)}
             </p>
           </div>
         </div>
@@ -334,16 +400,13 @@ export function CoinSourceEditor({
 
       {/* OI Top Options - only for oi_top mode */}
       {config.source_type === 'oi_top' && (
-        <div
-          className="p-4 rounded-lg bg-nofx-success/5 border border-nofx-success/20"
-        >
+        <div className="p-4 rounded-lg bg-nofx-success/5 border border-nofx-success/20">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-nofx-success" />
               <span className="text-sm font-medium text-nofx-text">
                 {ts(coinSource.oiIncreaseTitle, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
-              <NofxOSBadge />
             </div>
           </div>
 
@@ -383,7 +446,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {ts(coinSource.nofxosNote, language)}
+              {ts(coinSource.oi_topDesc, language)}
             </p>
           </div>
         </div>
@@ -391,16 +454,13 @@ export function CoinSourceEditor({
 
       {/* OI Low Options - only for oi_low mode */}
       {config.source_type === 'oi_low' && (
-        <div
-          className="p-4 rounded-lg bg-nofx-danger/5 border border-nofx-danger/20"
-        >
+        <div className="p-4 rounded-lg bg-nofx-danger/5 border border-nofx-danger/20">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingDown className="w-4 h-4 text-nofx-danger" />
               <span className="text-sm font-medium text-nofx-text">
                 {ts(coinSource.oiDecreaseTitle, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
-              <NofxOSBadge />
             </div>
           </div>
 
@@ -440,7 +500,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {ts(coinSource.nofxosNote, language)}
+              {ts(coinSource.oi_lowDesc, language)}
             </p>
           </div>
         </div>
@@ -477,8 +537,7 @@ export function CoinSourceEditor({
                   onClick={(e) => e.stopPropagation()}
                 />
                 <Database className="w-4 h-4 text-nofx-gold" />
-                <span className="text-sm font-medium text-nofx-text">AI500</span>
-                <NofxOSBadge />
+                <span className="text-sm font-medium text-nofx-text">{ts(coinSource.ai500, language)}</span>
               </div>
               {config.use_ai500 && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
@@ -688,6 +747,82 @@ export function CoinSourceEditor({
           })()}
         </div>
       )}
+
+            {/* Market source config */}
+      {config.source_type === 'market' && (
+        <div className="space-y-3">
+          <div className="text-sm font-medium text-nofx-text">{ts(coinSource.marketConfig, language)}</div>
+          <div>
+            <label className="block text-sm text-nofx-text-muted mb-2">{ts(coinSource.marketList, language)}</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'hot' as const, label: coinSource.marketListHot, icon: Zap, color: '#F0B90B' },
+                { value: 'oi_top' as const, label: coinSource.marketListOITop, icon: TrendingUp, color: '#0ECB81' },
+                { value: 'oi_low' as const, label: coinSource.marketListOILow, icon: TrendingDown, color: '#F6465D' },
+              ].map(({ value, label, icon: Icon, color }) => {
+                const lists = config.market_lists || (config.market_list ? [config.market_list] : ['hot'])
+                const isSelected = lists.includes(value)
+                return (
+                  <button
+                    key={value}
+                    onClick={() => {
+                      if (disabled) return
+                      let newLists: typeof lists
+                      if (isSelected) {
+                        newLists = lists.filter(l => l !== value)
+                        if (newLists.length === 0) return // must keep at least one
+                      } else {
+                        newLists = [...lists, value]
+                      }
+                      onChange({ ...config, market_lists: newLists, market_list: undefined })
+                    }}
+                    disabled={disabled}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-all ${
+                      isSelected
+                        ? 'ring-1 ring-nofx-gold bg-nofx-gold/10 border-nofx-gold/40'
+                        : 'hover:bg-white/5 bg-nofx-bg border-nofx-border opacity-60'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" style={{ color }} />
+                    <span className="text-nofx-text">{ts(label, language)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-nofx-text-muted mb-1">{ts(coinSource.marketLimit, language)}</label>
+            <input
+              type="number"
+              value={config.market_limit || 20}
+              onChange={(e) => onChange({ ...config, market_limit: parseInt(e.target.value) || 20 })}
+              min={1}
+              max={50}
+              disabled={disabled}
+              className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-border text-nofx-text text-sm"
+            />
+            <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
+              {language === 'zh' ? '每个分类取前 N 个币种，去重后合并' : 'Top N per category, merged and deduplicated'}
+            </p>
+            <div className="mt-3 rounded-lg border border-nofx-border bg-nofx-bg p-3 text-xs text-nofx-text-muted space-y-1.5">
+              <div className="font-medium text-nofx-text">
+                {language === 'zh' ? '筛选与打分机制' : 'Filtering & scoring'}
+              </div>
+              <p>
+                {language === 'zh'
+                  ? '三类市场榜单共用质量过滤：低成交额、低 OI 深度、极端 24h 涨跌会被过滤；榜单结果缓存 180 秒，与当前 AI 分析周期对齐。'
+                  : 'All market lists share a quality filter: low volume, shallow OI, and extreme 24h moves are filtered; list results are cached for 180s to match the current AI cycle.'}
+              </p>
+              <p>
+                {language === 'zh'
+                  ? 'Hot 总排行综合 T=可交易价值、L=流动性、OI=持仓深度、A=活跃度、M=动量；OI 增减榜以 OI 变化为主轴，同时叠加可交易价值评分。'
+                  : 'Hot ranking blends T=tradability, L=liquidity, OI=depth, A=activity, and M=momentum; OI increase/decrease lists are led by OI change and adjusted by tradability scores.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

@@ -233,3 +233,119 @@ func ExportCalculateDonchian(klines []Kline, period int) (float64, float64) {
 func ExportCalculateBoxData(klines []Kline, currentPrice float64) *BoxData {
 	return calculateBoxData(klines, currentPrice)
 }
+
+// CalculateCVD computes Cumulative Volume Delta from kline data over the last
+// `periods` candles. For each candle we approximate taker flow from price action:
+// if close > open → buyer dominant, if close < open → seller dominant.
+func CalculateCVD(klines []Kline, periods int) float64 {
+	if len(klines) == 0 || periods <= 0 {
+		return 0
+	}
+	start := len(klines) - periods
+	if start < 0 {
+		start = 0
+	}
+	cvd := 0.0
+	for _, k := range klines[start:] {
+		hl := k.High - k.Low
+		if hl == 0 {
+			continue
+		}
+		var buyVol float64
+		if k.Close >= k.Open {
+			buyVol = k.Volume * (k.Close - k.Low) / hl
+		} else {
+			buyVol = k.Volume * (1 - (k.High-k.Close)/hl)
+		}
+		sellVol := k.Volume - buyVol
+		cvd += buyVol - sellVol
+	}
+	return cvd
+}
+
+// CalculateVWAP computes Volume-Weighted Average Price from kline data.
+// typical_price = (high + low + close) / 3
+func CalculateVWAP(klines []Kline) float64 {
+	if len(klines) == 0 {
+		return 0
+	}
+	sumPV := 0.0
+	sumV := 0.0
+	for _, k := range klines {
+		typical := (k.High + k.Low + k.Close) / 3
+		sumPV += typical * k.Volume
+		sumV += k.Volume
+	}
+	if sumV == 0 {
+		return 0
+	}
+	return sumPV / sumV
+}
+
+// CalculateOIGrowthRate computes OI growth rate percentage.
+// Returns 0 when pastOI is zero to avoid division by zero.
+func CalculateOIGrowthRate(currentOI, pastOI float64) float64 {
+	if pastOI == 0 {
+		return 0
+	}
+	return (currentOI - pastOI) / pastOI * 100
+}
+
+// ClassifyFundingTrend analyzes funding rate history to determine trend.
+// Thresholds: |rate| >= 0.001 -> extreme; rising/falling from first vs last half averages.
+func ClassifyFundingTrend(history []float64) string {
+	if len(history) == 0 {
+		return "stable"
+	}
+	last := history[len(history)-1]
+	if last >= 0.001 {
+		return "extreme_positive"
+	}
+	if last <= -0.001 {
+		return "extreme_negative"
+	}
+	if len(history) < 2 {
+		return "stable"
+	}
+	mid := len(history) / 2
+	var early, late float64
+	for _, v := range history[:mid] {
+		early += v
+	}
+	for _, v := range history[mid:] {
+		late += v
+	}
+	early /= float64(mid)
+	late /= float64(len(history) - mid)
+	diff := late - early
+	const threshold = 0.00005
+	if diff > threshold {
+		return "rising"
+	}
+	if diff < -threshold {
+		return "falling"
+	}
+	return "stable"
+}
+
+// CalculateTakerDelta computes normalized taker buy/sell delta in [-1, 1].
+func CalculateTakerDelta(takerBuyVol, takerSellVol float64) float64 {
+	total := takerBuyVol + takerSellVol
+	if total == 0 {
+		return 0
+	}
+	return (takerBuyVol - takerSellVol) / total
+}
+
+// CalculateDepthChangeRate computes the rate of change in depth imbalance.
+// Returns 0 when previousImbalance is zero.
+func CalculateDepthChangeRate(currentImbalance, previousImbalance float64) float64 {
+	if previousImbalance == 0 {
+		return 0
+	}
+	abs := previousImbalance
+	if abs < 0 {
+		abs = -abs
+	}
+	return (currentImbalance - previousImbalance) / abs * 100
+}

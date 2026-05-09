@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { DecisionRecord, DecisionAction } from '../../types'
 import { t, type Language } from '../../i18n/translations'
+import { formatTimeframeTrail, formatCompactLevelList, formatRiskRewardLinkage, formatAlignmentNotes } from './reviewContextSummary'
+import { CompactEntryRationaleBlock } from './CompactEntryRationaleBlock'
 
 interface DecisionCardProps {
   decision: DecisionRecord
@@ -42,11 +44,65 @@ function getConfidenceColor(confidence: number | undefined): string {
   return '#F6465D'
 }
 
+function formatControlDecisionLabel(decision?: string): { label: string; tone: 'danger' | 'warn' | 'neutral' } | null {
+  const normalized = String(decision || '').trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === 'rejected') return { label: 'rejected', tone: 'danger' }
+  if (normalized === 'downgraded_to_wait') return { label: 'downgraded to wait', tone: 'warn' }
+  if (normalized === 'accepted') return { label: 'accepted', tone: 'neutral' }
+  return { label: normalized.replace(/_/g, ' '), tone: 'neutral' }
+}
+
+function toneColors(tone: 'danger' | 'warn' | 'neutral') {
+  if (tone === 'danger') return { border: '1px solid rgba(246, 70, 93, 0.25)', bg: 'rgba(246, 70, 93, 0.12)', color: '#FCA5A5' }
+  if (tone === 'warn') return { border: '1px solid rgba(240, 185, 11, 0.25)', bg: 'rgba(240, 185, 11, 0.12)', color: '#FCD34D' }
+  return { border: '1px solid rgba(56, 189, 248, 0.25)', bg: 'rgba(56, 189, 248, 0.12)', color: '#7DD3FC' }
+}
+
+function formatControlCheck(check?: string): string {
+  switch (String(check || '').toLowerCase()) {
+    case 'runtime_rr_below_min':
+      return 'runtime RR below min'
+    case 'protection_alignment_mismatch':
+      return 'protection alignment mismatch'
+    case 'stop_inside_invalidation':
+      return 'stop above invalidation'
+    case 'target_before_first_target':
+      return 'target before first target'
+    case 'break_even_after_target':
+      return 'break-even after target'
+    case 'fallback_inside_invalidation':
+      return 'fallback above invalidation'
+    case 'regime_not_allowed':
+      return 'regime not allowed'
+    case 'funding_above_max':
+      return 'funding above max'
+    case 'atr_above_max':
+      return 'ATR above max'
+    case 'trend_misaligned':
+      return 'trend misaligned'
+    default:
+      return String(check || 'check_failed').replace(/_/g, ' ')
+  }
+}
+
 // Single Action Card Component
 function ActionCard({ action, language, onSymbolClick }: { action: DecisionAction; language: Language; onSymbolClick?: (symbol: string) => void }) {
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
   const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
+  const control = action.review_context?.control
+  const controlStatus = formatControlDecisionLabel(control?.decision)
+  const review = action.review_context
+  const support = review?.key_levels?.support || []
+  const resistance = review?.key_levels?.resistance || []
+  const fibLevels = review?.key_levels?.fibonacci?.levels || []
+  const anchors = review?.anchors || []
+  const timeframeTrail = formatTimeframeTrail(review)
+  const rrSummary = formatRiskRewardLinkage(review?.risk_reward, true)
+  const supportSummary = formatCompactLevelList(review?.key_levels?.support)
+  const resistanceSummary = formatCompactLevelList(review?.key_levels?.resistance)
+  const alignmentNotes = formatAlignmentNotes(review, 2)
 
   return (
     <div
@@ -200,7 +256,128 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
         </div>
       )}
 
-      {/* Error Message */}
+      {/* Compact audit badges */}
+      {(controlStatus || control?.no_order_placed || (control?.failed_checks && control.failed_checks.length > 0) || control?.regime_current || (control?.regime_allowed && control.regime_allowed.length > 0) || control?.regime_trend_aligned !== undefined) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {controlStatus && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors(controlStatus.tone)}
+            >
+              {controlStatus.label}
+            </span>
+          )}
+          {control?.no_order_placed && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('danger')}
+            >
+              no order placed
+            </span>
+          )}
+          {control?.failed_checks?.slice(0, 4).map((check) => (
+            <span
+              key={check}
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('danger')}
+            >
+              failed · {formatControlCheck(check)}
+            </span>
+          ))}
+          {control?.regime_current && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('warn')}
+            >
+              regime {control.regime_current}
+            </span>
+          )}
+          {control?.regime_allowed?.slice(0, 3).map((regime) => (
+            <span
+              key={`allowed-${regime}`}
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('neutral')}
+            >
+              allowed {regime}
+            </span>
+          ))}
+          {control?.regime_trend_aligned !== undefined && control?.regime_trend_aligned !== null && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors(control.regime_trend_aligned ? 'neutral' : 'danger')}
+            >
+              trend {control.regime_trend_aligned ? 'aligned' : 'misaligned'}
+            </span>
+          )}
+          {control?.regime_atr14_pct ? (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('warn')}
+            >
+              ATR {control.regime_atr14_pct.toFixed(2)}%
+            </span>
+          ) : null}
+          {control?.regime_primary_timeframe ? (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={toneColors('neutral')}
+            >
+              tf {control.regime_primary_timeframe}
+            </span>
+          ) : null}
+        </div>
+      )}
+
+      {/* Compact structure summary */}
+      {(review?.timeframe_context?.primary || support.length > 0 || resistance.length > 0 || fibLevels.length > 0 || anchors.length > 0) && (
+        <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '1px solid #2B3139' }}>
+          <div className="text-[11px]" style={{ color: '#848E9C' }}>
+            structure audit
+          </div>
+          <div className="flex flex-wrap gap-1.5 text-[10px]">
+            {review?.timeframe_context?.primary && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5" style={toneColors('neutral')}>
+                tf {review.timeframe_context.primary}
+              </span>
+            )}
+            {support.slice(0, 2).map((level) => (
+              <span key={`s-${level}`} className="inline-flex items-center rounded-full px-2 py-0.5" style={{ border: '1px solid rgba(14, 203, 129, 0.25)', background: 'rgba(14, 203, 129, 0.12)', color: '#86EFAC' }}>
+                S {formatPrice(level)}
+              </span>
+            ))}
+            {resistance.slice(0, 2).map((level) => (
+              <span key={`r-${level}`} className="inline-flex items-center rounded-full px-2 py-0.5" style={{ border: '1px solid rgba(246, 70, 93, 0.25)', background: 'rgba(246, 70, 93, 0.12)', color: '#FDA4AF' }}>
+                R {formatPrice(level)}
+              </span>
+            ))}
+            {fibLevels.length > 0 && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5" style={{ border: '1px solid rgba(168, 85, 247, 0.25)', background: 'rgba(168, 85, 247, 0.12)', color: '#D8B4FE' }}>
+                fib {fibLevels.length} levels
+              </span>
+            )}
+            {anchors.length > 0 && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5" style={toneColors('neutral')}>
+                anchors {anchors.length}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Entry rationale summary */}
+      <CompactEntryRationaleBlock
+        language={language}
+        timeframeTrail={timeframeTrail}
+        rrSummary={rrSummary}
+        supportSummary={supportSummary}
+        resistanceSummary={resistanceSummary}
+        fibLevels={fibLevels}
+        anchors={anchors}
+        alignmentNotes={alignmentNotes}
+        toneColors={toneColors}
+      />
+
+      {/* Gate Attribution — detailed check-by-check breakdown */}
       {action.error && (
         <div
           className="mt-3 rounded p-2 text-xs"
@@ -211,6 +388,48 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           }}
         >
           ❌ {action.error}
+          {review?.quality_gate?.gate_checks && review.quality_gate.gate_checks.length > 0 ? (
+            <div className="mt-2 space-y-1" style={{ color: '#e0e0e0' }}>
+              {review.quality_gate.blocked_stage && (
+                <div style={{ color: '#F6465D', fontWeight: 600 }}>
+                  blocked at stage: {review.quality_gate.blocked_stage}
+                </div>
+              )}
+              {review.quality_gate.gate_checks.map((gc, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    color: gc.passed ? '#6b7280' : gc.enforced ? '#F6465D' : '#f59e0b',
+                    paddingLeft: '0.5rem',
+                    borderLeft: gc.passed ? '2px solid #374151' : gc.enforced ? '2px solid #F6465D' : '2px solid #f59e0b',
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>
+                    {gc.passed ? '✓' : gc.enforced ? '✗' : '⚠'} {gc.code}
+                  </span>
+                  {!gc.passed && !gc.enforced && <span style={{ color: '#9ca3af' }}> (shadow)</span>}
+                  {gc.detail && <div style={{ color: gc.passed ? '#6b7280' : '#d1d5db', paddingLeft: '0.75rem' }}>{gc.detail}</div>}
+                  {gc.values && !gc.passed && <div style={{ color: '#9ca3af', paddingLeft: '0.75rem', fontFamily: 'monospace', fontSize: '10px' }}>{gc.values}</div>}
+                </div>
+              ))}
+            </div>
+          ) : control ? (
+            <div className="mt-2 space-y-1" style={{ color: '#FCD5DA' }}>
+              {control.failed_checks && control.failed_checks.length > 0 && (
+                <div>checks: {control.failed_checks.join(', ')}</div>
+              )}
+              {control.reasons && control.reasons.length > 0 && (
+                <div>reason: {control.reasons.join(' | ')}</div>
+              )}
+              {(control.regime_current || (control.regime_allowed && control.regime_allowed.length > 0)) && (
+                <div>
+                  regime: {control.regime_current || '-'}
+                  {control.regime_allowed && control.regime_allowed.length > 0 ? ` | allowed: ${control.regime_allowed.join(', ')}` : ''}
+                </div>
+              )}
+              {control.no_order_placed && <div>no order placed</div>}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
@@ -286,6 +505,9 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
 
       {/* AI Control Snapshot */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(168, 85, 247, 0.12)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.25)' }}>
+          AI Open: {decision.allow_ai_open === false ? 'OFF' : 'ON'}
+        </div>
         <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: 'rgba(240, 185, 11, 0.12)', color: '#F0B90B', border: '1px solid rgba(240,185,11,0.25)' }}>
           AI Close: {decision.allow_ai_close === false ? 'OFF' : 'ON'}
         </div>

@@ -4,11 +4,18 @@ import { useLanguage } from '../../contexts/LanguageContext'
 import { t, type Language } from '../../i18n/translations'
 import { MetricTooltip } from '../common/MetricTooltip'
 import { formatPrice, formatQuantity } from '../../utils/format'
+import { formatCompactLevelList, formatTimeframeTrail, formatFibSummary, formatRiskRewardLinkage, formatAlignmentNotes } from './reviewContextSummary'
+import { CompactEntryRationaleBlock } from './CompactEntryRationaleBlock'
 import type {
   HistoricalPosition,
   TraderStats,
   SymbolStats,
   DirectionStats,
+  DecisionAction,
+  DecisionReviewRef,
+  DecisionActionReviewContext,
+  EntryStructureAuditConfig,
+  EntryReviewSummary,
 } from '../../types'
 
 interface PositionHistoryProps {
@@ -46,6 +53,698 @@ function formatDate(dateStr: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+type CloseSourcePresentation = {
+  label: string
+  detail?: string
+  confidence: 'high' | 'medium' | 'low'
+  group: 'ai' | 'protection' | 'sync' | 'manual' | 'unknown'
+}
+
+function summarizeCloseSource(rawSource?: string, rawReason?: string, orderType?: string, hasDecisionCycle?: boolean, hasReview?: boolean): CloseSourcePresentation {
+  const source = String(rawSource || '').toLowerCase()
+  const reason = String(rawReason || '').toLowerCase()
+  const type = String(orderType || '').toUpperCase()
+  const merged = `${source} ${reason}`.trim()
+
+  if (merged.includes('managed_drawdown')) return { label: 'Protection · Managed drawdown', confidence: 'high', group: 'protection' }
+  if (merged.includes('native_trailing') || merged.includes('trailing')) return { label: 'Protection · Native trailing', confidence: 'high', group: 'protection' }
+  if (merged.includes('break_even')) return { label: 'Protection · Break-even stop', confidence: 'high', group: 'protection' }
+  if (merged.includes('ladder_tp')) return { label: 'Protection · Ladder TP', confidence: 'high', group: 'protection' }
+  if (merged.includes('ladder_sl')) return { label: 'Protection · Ladder SL', confidence: 'high', group: 'protection' }
+  if (merged.includes('full_tp')) return { label: 'Protection · Full TP', confidence: 'high', group: 'protection' }
+  if (merged.includes('full_sl')) return { label: 'Protection · Full SL', confidence: 'high', group: 'protection' }
+  if (merged.includes('manual')) return { label: 'Manual close', confidence: 'high', group: 'manual' }
+  if (source === 'sync') return { label: 'Exchange sync attribution', confidence: 'low', group: 'sync' }
+
+  if (merged.includes('ai_close') || merged === 'close_long' || merged === 'close_short' || merged.includes('close_long') || merged.includes('close_short') || type === 'AI_CLOSE') {
+    if (hasDecisionCycle || hasReview) {
+      return { label: 'AI proactive close', detail: 'decision-linked', confidence: 'medium', group: 'ai' }
+    }
+    return { label: 'AI/sync close attribution', detail: 'not decision-linked', confidence: 'low', group: 'sync' }
+  }
+
+  if (!source && !reason) return { label: 'Unknown close source', confidence: 'low', group: 'unknown' }
+  return { label: rawSource || rawReason || 'Unknown close source', confidence: 'low', group: 'unknown' }
+}
+
+function getCloseSourceBadgeStyle(presentation: CloseSourcePresentation) {
+  switch (presentation.group) {
+    case 'ai':
+      return { background: 'rgba(96,165,250,0.14)', color: '#60A5FA', border: '1px solid rgba(96,165,250,0.3)' }
+    case 'protection':
+      return { background: 'rgba(168,85,247,0.14)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.3)' }
+    case 'manual':
+      return { background: 'rgba(14,203,129,0.14)', color: '#0ECB81', border: '1px solid rgba(14,203,129,0.3)' }
+    case 'sync':
+      return { background: 'rgba(251,191,36,0.14)', color: '#F0B90B', border: '1px solid rgba(251,191,36,0.3)' }
+    default:
+      return { background: 'rgba(132,142,156,0.14)', color: '#AAB2BD', border: '1px solid rgba(132,142,156,0.25)' }
+  }
+}
+
+function summarizeCloseEventFlow(closeEvents: HistoricalPosition['close_events'] | undefined) {
+  const events = closeEvents || []
+  if (events.length === 0) return null
+  const sources = new Map<string, number>()
+  let linkedDecisionCount = 0
+  let totalRatio = 0
+  for (const event of events) {
+    const hasReview = Boolean(event.decision_review?.review_context)
+    const presentation = summarizeCloseSource(event.execution_source, event.close_reason, event.execution_type, Boolean(event.decision_cycle), hasReview)
+    sources.set(presentation.label, (sources.get(presentation.label) || 0) + 1)
+    if (event.decision_cycle || hasReview) linkedDecisionCount += 1
+    totalRatio += Number(event.close_ratio_pct || 0)
+  }
+  return {
+    eventCount: events.length,
+    linkedDecisionCount,
+    totalRatio,
+    sourceBreakdown: Array.from(sources.entries()).map(([label, count]) => `${label} × ${count}`),
+    isFragmentedSyncLike: events.length >= 3 && linkedDecisionCount === 0,
+  }
+}
+
+function findPrimaryOpenDecision(review?: DecisionReviewRef): DecisionAction | undefined {
+  if (review?.matched_decision) return review.matched_decision
+  return (review?.decisions || []).find((decision) => {
+    const action = String(decision.action || '').toLowerCase()
+    return action === 'open_long' || action === 'open_short'
+  })
+}
+
+function formatCompactRr(value?: number | null): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return '—'
+  return `${value.toFixed(value >= 10 ? 1 : 2)}R`
+}
+
+type EntryLinkageStatus = {
+  label: string
+  tone: 'neutral' | 'warn' | 'danger'
+  invalidLinked: boolean
+  targetLinked: boolean
+  invalidSource?: 'support' | 'swing_low' | 'fibonacci'
+  targetSource?: 'resistance' | 'swing_high' | 'fibonacci'
+}
+
+function pickNearestLinkSource(target: number, tolerance: number, sources: Array<{ kind: 'support' | 'resistance' | 'swing_low' | 'swing_high' | 'fibonacci'; values: number[] }>): 'support' | 'resistance' | 'swing_low' | 'swing_high' | 'fibonacci' | undefined {
+  let best: { kind: 'support' | 'resistance' | 'swing_low' | 'swing_high' | 'fibonacci'; dist: number } | null = null
+  for (const source of sources) {
+    for (const value of source.values) {
+      const dist = Math.abs(value - target)
+      if (dist > tolerance) continue
+      if (!best || dist < best.dist) {
+        best = { kind: source.kind, dist }
+      }
+    }
+  }
+  return best?.kind
+}
+
+function getEntryLinkageStatus(audit: EntryStructureAuditConfig | undefined, summary: EntryReviewSummary | undefined): EntryLinkageStatus | null {
+  if (!audit?.require_invalidation_target_linkage || !summary) return null
+  const rr = summary.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
+  const levels = summary.key_levels as { support?: number[]; resistance?: number[]; swing_lows?: number[]; swing_highs?: number[]; fibonacci?: { swing_low?: number; swing_high?: number; levels?: number[] } } | undefined
+  if (!rr?.entry || !rr?.invalidation || !rr?.first_target) return { label: 'linkage missing', tone: 'danger', invalidLinked: false, targetLinked: false }
+  const supports = (levels?.support || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const resistances = (levels?.resistance || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const swingLows = (levels?.swing_lows || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const swingHighs = (levels?.swing_highs || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  const fibLevels = (levels?.fibonacci?.levels || []).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  if (levels?.fibonacci?.swing_low) fibLevels.push(levels.fibonacci.swing_low)
+  if (levels?.fibonacci?.swing_high) fibLevels.push(levels.fibonacci.swing_high)
+  const riskDist = Math.abs(rr.entry - rr.invalidation)
+  const targetDist = Math.abs(rr.first_target - rr.entry)
+  const tol = Math.max(0.0001, Math.min(Math.max(riskDist, targetDist) * 0.35, Math.max(rr.entry, rr.first_target, rr.invalidation) * 0.02))
+  const invalidation = rr.invalidation
+  const firstTarget = rr.first_target
+  const invalidAnchors = [...supports, ...swingLows, ...fibLevels]
+  const targetAnchors = [...resistances, ...swingHighs, ...fibLevels]
+  const invalidLinked = invalidAnchors.some((v) => Math.abs(v - invalidation) <= tol)
+  const targetLinked = targetAnchors.some((v) => Math.abs(v - firstTarget) <= tol)
+  const invalidSource = pickNearestLinkSource(invalidation, tol, [
+    { kind: 'support', values: supports },
+    { kind: 'swing_low', values: swingLows },
+    { kind: 'fibonacci', values: fibLevels },
+  ]) as 'support' | 'swing_low' | 'fibonacci' | undefined
+  const targetSource = pickNearestLinkSource(firstTarget, tol, [
+    { kind: 'resistance', values: resistances },
+    { kind: 'swing_high', values: swingHighs },
+    { kind: 'fibonacci', values: fibLevels },
+  ]) as 'resistance' | 'swing_high' | 'fibonacci' | undefined
+  if (invalidLinked && targetLinked) return { label: 'linked', tone: 'neutral', invalidLinked, targetLinked, invalidSource, targetSource }
+  if (invalidLinked || targetLinked) return { label: 'partial linkage', tone: 'warn', invalidLinked, targetLinked, invalidSource, targetSource }
+  return { label: 'linkage missing', tone: 'danger', invalidLinked, targetLinked, invalidSource, targetSource }
+}
+
+export function getDecisionAuditSnapshot(review?: DecisionReviewRef) {
+  const decision = findPrimaryOpenDecision(review)
+  const ctx = decision?.review_context
+  const rr = ctx?.risk_reward
+  const control = ctx?.control
+  const executionConstraintItems = formatExecutionConstraintItems(ctx?.execution_constraints)
+  const executionQualityItems = formatExecutionQualityItems(ctx?.extra?.execution_quality)
+  const actionAudit = formatActionAudit(control)
+  const normalizedDecision = String(control?.decision || '').toLowerCase()
+  const controlStatus = normalizedDecision
+    ? {
+        label: formatControlDecisionLabel(normalizedDecision),
+        tone: normalizedDecision === 'rejected' ? 'danger' : normalizedDecision === 'overridden' || isDowngradedDecision(normalizedDecision) ? 'warn' : 'neutral' as const,
+      }
+    : null
+  const controlBadges = [
+    control?.effective_rr && Number.isFinite(control.effective_rr)
+      ? { label: `eff ${formatCompactRr(control.effective_rr)} · ${formatControlRrSource(control.effective_rr_source)}` }
+      : null,
+    control?.constraints_merged ? { label: 'constraints merged', tone: 'warn' as const } : null,
+    control?.runtime_rr_recomputed ? { label: 'runtime RR', tone: 'warn' as const } : null,
+    control?.no_order_placed ? { label: 'no order placed', tone: 'danger' as const } : null,
+  ].filter(Boolean) as { label: string; tone?: 'warn' | 'danger' }[]
+
+  const timeframeTrail = formatTimeframeTrail(ctx)
+  const fibSummary = formatFibSummary(ctx?.key_levels)
+  const rrLinkage = formatRiskRewardLinkage(rr)
+  const entryLinkageStatus = getEntryLinkageStatus({ require_invalidation_target_linkage: true }, ctx as unknown as EntryReviewSummary | undefined)
+  const entryLinkageSources = [
+    entryLinkageStatus?.invalidSource ? `invalid↔${entryLinkageStatus.invalidSource}` : '',
+    entryLinkageStatus?.targetSource ? `target↔${entryLinkageStatus.targetSource}` : '',
+  ].filter(Boolean)
+
+  return {
+    decision,
+    ctx,
+    rr,
+    control,
+    actionAudit,
+    controlStatus,
+    controlBadges,
+    failedChecks: (control?.failed_checks || []).map((check) => formatControlCheck(check)).slice(0, 4),
+    support: formatCompactLevelList(ctx?.key_levels?.support),
+    resistance: formatCompactLevelList(ctx?.key_levels?.resistance),
+    swingHighs: formatCompactLevelList(ctx?.key_levels?.swing_highs),
+    swingLows: formatCompactLevelList(ctx?.key_levels?.swing_lows),
+    fibSummary,
+    rrLinkage,
+    entryLinkageStatus,
+    entryLinkageSources,
+    timeframeTrail,
+    alignmentNotes: formatAlignmentNotes(ctx, 3),
+    anchors: ctx?.anchors || [],
+    executionConstraintItems,
+    executionQualityItems,
+  }
+}
+
+function formatOptionalNumber(value?: number | null, maxDecimals = 8): string | undefined {
+  if (value === undefined || value === null || !Number.isFinite(value) || value <= 0) return undefined
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: maxDecimals,
+    minimumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatFeeRate(value?: number | null): string | undefined {
+  if (value === undefined || value === null || !Number.isFinite(value) || value <= 0) return undefined
+  return `${(value * 100).toFixed(3)}%`
+}
+
+function formatProtectionPolicyReason(reason?: string): string {
+  switch (String(reason || '').toLowerCase()) {
+    case 'stop_inside_invalidation':
+      return 'stop > invalidation'
+    case 'target_before_first_target':
+      return 'target < 1st target'
+    case 'break_even_after_target':
+      return 'BE after target'
+    case 'fallback_inside_invalidation':
+      return 'fallback > invalidation'
+    default:
+      return reason || 'policy mismatch'
+  }
+}
+
+function formatProtectionPolicyStatus(protection?: DecisionActionReviewContext['protection']): {
+  label: string
+  tone: 'neutral' | 'warn' | 'danger'
+} | null {
+  if (!protection?.policy_status) return null
+  switch (protection.policy_status) {
+    case 'aligned':
+      return { label: 'policy aligned', tone: 'neutral' }
+    case 'recomputed':
+      return { label: 'policy recomputed', tone: 'warn' }
+    case 'rejected':
+      return { label: 'policy rejected', tone: 'danger' }
+    default:
+      return {
+        label: `policy ${protection.policy_status}`,
+        tone: protection.policy_rejected ? 'danger' : protection.policy_override ? 'warn' : 'neutral',
+      }
+  }
+}
+
+function formatExecutionConstraintItems(constraints?: DecisionActionReviewContext['execution_constraints']): { label: string; tone?: 'cost' }[] {
+  if (!constraints) return []
+  const items: { label: string; tone?: 'cost' }[] = []
+  const pushNumber = (prefix: string, value?: number | null, maxDecimals = 8) => {
+    const formatted = formatOptionalNumber(value, maxDecimals)
+    if (formatted) items.push({ label: `${prefix} ${formatted}` })
+  }
+
+  pushNumber('tick', constraints.tick_size)
+  pushNumber('qty', constraints.qty_step_size)
+  pushNumber('min', constraints.min_qty)
+  pushNumber('ctVal', constraints.contract_value)
+  pushNumber('last', constraints.last_price, 4)
+
+  const fee = formatFeeRate(constraints.taker_fee_rate ?? constraints.maker_fee_rate)
+  if (fee) items.push({ label: `fee ${fee}`, tone: 'cost' })
+  const slippage = formatOptionalNumber(constraints.estimated_slippage_bps, 2)
+  if (slippage) items.push({ label: `slip ${slippage}bps`, tone: 'cost' })
+
+  return items
+}
+
+function formatExecutionQualityItems(quality?: DecisionActionReviewContext['extra'] extends infer E ? E extends { execution_quality?: infer Q } ? Q : never : never): { label: string; tone?: 'cost' | 'warn' | 'danger' }[] {
+  if (!quality || typeof quality !== 'object') return []
+  const q = quality as NonNullable<DecisionActionReviewContext['extra']>['execution_quality']
+  if (!q) return []
+  const items: { label: string; tone?: 'cost' | 'warn' | 'danger' }[] = []
+  if (q.grade) {
+    items.push({ label: `exec ${q.grade}`, tone: q.grade === 'D' ? 'danger' : q.grade === 'C' ? 'warn' : undefined })
+  }
+  const spread = formatOptionalNumber(q.spread_bps, 2)
+  if (spread) items.push({ label: `spread ${spread}bps`, tone: 'cost' })
+  const slip = formatOptionalNumber(q.estimated_slippage_bps, 2)
+  if (slip) items.push({ label: `slip ${slip}bps`, tone: 'cost' })
+  const minOrder = formatOptionalNumber(q.min_order_notional_usdt, 2)
+  if (minOrder) items.push({ label: `min order ${minOrder} USDT` })
+  if (q.ladder_tiers_feasible) items.push({ label: `ladder feasible ${q.ladder_tiers_feasible}` })
+  if (q.partial_close_feasible === false) items.push({ label: 'partial weak', tone: 'warn' })
+  if (q.reason) items.push({ label: q.reason, tone: q.grade === 'D' ? 'danger' : q.grade === 'C' ? 'warn' : undefined })
+  return items
+}
+
+function formatControlDecisionLabel(decision?: string): string {
+  switch (String(decision || '').toLowerCase()) {
+    case 'accepted':
+      return 'accepted'
+    case 'rejected':
+      return 'rejected'
+    case 'downgraded':
+    case 'downgraded_to_wait':
+      return 'downgraded to wait'
+    case 'overridden':
+      return 'overridden'
+    default:
+      return decision || 'control'
+  }
+}
+
+function isDowngradedDecision(decision?: string): boolean {
+  const normalized = String(decision || '').toLowerCase()
+  return normalized === 'downgraded' || normalized === 'downgraded_to_wait'
+}
+
+function formatControlRrSource(source?: string): string {
+  switch (String(source || '').toLowerCase()) {
+    case 'net':
+      return 'net'
+    case 'gross':
+      return 'gross'
+    case 'execution_recomputed_net':
+      return 'runtime net'
+    case 'execution_recomputed_gross':
+      return 'runtime gross'
+    default:
+      return source || 'system'
+  }
+}
+
+function formatControlCheck(check?: string): string {
+  switch (String(check || '').toLowerCase()) {
+    case 'runtime_rr_below_min':
+      return 'runtime RR below min'
+    case 'protection_alignment_mismatch':
+      return 'protection alignment mismatch'
+    case 'stop_inside_invalidation':
+      return 'stop above invalidation'
+    case 'target_before_first_target':
+      return 'target before first target'
+    case 'break_even_after_target':
+      return 'break-even after target'
+    case 'fallback_inside_invalidation':
+      return 'fallback above invalidation'
+    default:
+      return String(check || 'check_failed').replace(/_/g, ' ')
+  }
+}
+
+function formatActionLabel(action?: string): string {
+  switch (String(action || '').toLowerCase()) {
+    case 'wait':
+      return 'wait'
+    case 'open_long':
+      return 'open long'
+    case 'open_short':
+      return 'open short'
+    case 'close_long':
+      return 'close long'
+    case 'close_short':
+      return 'close short'
+    default:
+      return action || 'action'
+  }
+}
+
+function formatActionAudit(control?: DecisionActionReviewContext['control']): string | null {
+  if (!control) return null
+  const original = String(control.original_action || '').trim()
+  const final = String(control.final_action || '').trim()
+  if (!original && !final) return null
+  if (original && final && original !== final) {
+    return `${formatActionLabel(original)} → ${formatActionLabel(final)}`
+  }
+  return formatActionLabel(final || original)
+}
+
+function DecisionAuditPanel({ review }: { review?: DecisionReviewRef }) {
+  const audit = getDecisionAuditSnapshot(review)
+  const protection = audit.ctx?.protection
+  const policyStatus = formatProtectionPolicyStatus(protection)
+  const policyReasons = protection?.policy_reasons || []
+  if (
+    !audit.ctx &&
+    !audit.rr &&
+    audit.support.length === 0 &&
+    audit.resistance.length === 0 &&
+    audit.swingHighs.length === 0 &&
+    audit.swingLows.length === 0 &&
+    audit.fibSummary.length === 0 &&
+    audit.rrLinkage.length === 0 &&
+    audit.timeframeTrail.length === 0 &&
+    audit.alignmentNotes.length === 0 &&
+    audit.executionConstraintItems.length === 0 &&
+    audit.executionQualityItems.length === 0 &&
+    !policyStatus &&
+    !audit.controlStatus &&
+    !audit.actionAudit &&
+    audit.controlBadges.length === 0 &&
+    audit.failedChecks.length === 0
+  ) {
+    return null
+  }
+
+  const pass = audit.rr?.passed
+  const passCls = pass
+    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+    : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] text-nofx-text-muted">Entry audit</span>
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${passCls}`}>
+          RR {formatCompactRr(audit.rr?.net_estimated_rr ?? audit.rr?.gross_estimated_rr)}
+        </span>
+        {audit.entryLinkageStatus ? (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
+            audit.entryLinkageStatus.tone === 'danger'
+              ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+              : audit.entryLinkageStatus.tone === 'warn'
+                ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+          }`}>
+            linkage {audit.entryLinkageStatus.label}
+          </span>
+        ) : null}
+        {audit.controlStatus ? (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
+            audit.controlStatus.tone === 'danger'
+              ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+              : audit.controlStatus.tone === 'warn'
+                ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-200'
+          }`}>
+            {audit.controlStatus.label}
+          </span>
+        ) : null}
+        {policyStatus ? (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${
+            policyStatus.tone === 'danger'
+              ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+              : policyStatus.tone === 'warn'
+                ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+          }`}>
+            {policyStatus.label}
+          </span>
+        ) : null}
+        {audit.ctx?.min_risk_reward ? (
+          <span className="inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-nofx-text-muted">
+            min {formatCompactRr(audit.ctx.min_risk_reward)}
+          </span>
+        ) : null}
+        {typeof pass === 'boolean' ? (
+          <span className="inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-nofx-text-main">
+            {pass ? 'pass' : 'fail'}
+          </span>
+        ) : null}
+        {audit.ctx?.primary_timeframe ? (
+          <span className="inline-flex items-center rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">
+            {audit.ctx.primary_timeframe}
+          </span>
+        ) : null}
+      </div>
+
+      {audit.timeframeTrail.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.timeframeTrail.map((item, idx) => (
+            <span key={`tf-${idx}`} className="inline-flex items-center rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.controlBadges.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.controlBadges.map((item, idx) => (
+            <span
+              key={`control-badge-${idx}`}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 ${
+                item.tone === 'danger'
+                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                  : item.tone === 'warn'
+                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                    : 'border-sky-500/20 bg-sky-500/10 text-sky-200'
+              }`}
+            >
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.actionAudit ? (
+        <div className="text-[10px] text-nofx-text-muted">
+          action {audit.actionAudit}
+        </div>
+      ) : null}
+
+      {audit.failedChecks.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.failedChecks.map((check, idx) => (
+            <span key={`failed-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-rose-200">
+              failed · {check}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {(audit.support.length > 0 || audit.resistance.length > 0 || audit.swingHighs.length > 0 || audit.swingLows.length > 0) && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.support.map((value, idx) => (
+            <span key={`s-${idx}`} className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">
+              S {value}
+            </span>
+          ))}
+          {audit.resistance.map((value, idx) => (
+            <span key={`r-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-rose-200">
+              R {value}
+            </span>
+          ))}
+          {audit.swingLows.map((value, idx) => (
+            <span key={`sl-${idx}`} className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-emerald-100">
+              swing low {value}
+            </span>
+          ))}
+          {audit.swingHighs.map((value, idx) => (
+            <span key={`sh-${idx}`} className="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/5 px-2 py-0.5 text-rose-100">
+              swing high {value}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <CompactEntryRationaleBlock
+        language={'en'}
+        timeframeTrail={audit.timeframeTrail}
+        rrSummary={audit.rrLinkage}
+        supportSummary={audit.support}
+        resistanceSummary={audit.resistance}
+        fibLevels={audit.fibSummary.length > 0 ? audit.fibSummary.map(() => 1) : []}
+        anchors={audit.anchors}
+        alignmentNotes={audit.alignmentNotes}
+        toneColors={(tone) => {
+          if (tone === 'danger') return { border: '1px solid rgba(246, 70, 93, 0.25)', bg: 'rgba(246, 70, 93, 0.12)', color: '#FCA5A5' }
+          if (tone === 'warn') return { border: '1px solid rgba(240, 185, 11, 0.25)', bg: 'rgba(240, 185, 11, 0.12)', color: '#FCD34D' }
+          return { border: '1px solid rgba(56, 189, 248, 0.25)', bg: 'rgba(56, 189, 248, 0.12)', color: '#7DD3FC' }
+        }}
+      />
+
+      {audit.entryLinkageSources.length > 0 && (
+        <div className="text-[10px] text-nofx-text-muted">
+          Linkage sources: {audit.entryLinkageSources.join(' · ')}
+        </div>
+      )}
+
+      {policyReasons.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {policyReasons.map((reason, idx) => (
+            <span key={`policy-${idx}`} className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-amber-200">
+              {formatProtectionPolicyReason(reason)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.executionConstraintItems.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.executionConstraintItems.map((item, idx) => (
+            <span
+              key={`exec-${idx}`}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 ${
+                item.tone === 'cost'
+                  ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                  : 'border-slate-500/20 bg-slate-500/10 text-slate-200'
+              }`}
+            >
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.executionQualityItems.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          {audit.executionQualityItems.map((item, idx) => (
+            <span
+              key={`exec-quality-${idx}`}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 ${
+                item.tone === 'danger'
+                  ? 'border-red-500/20 bg-red-500/10 text-red-200'
+                  : item.tone === 'warn' || item.tone === 'cost'
+                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                    : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-200'
+              }`}
+            >
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {audit.anchors.length > 0 && (
+        <details className="text-[11px] text-nofx-text-muted">
+          <summary className="cursor-pointer select-none">anchors ({audit.anchors.length})</summary>
+          <div className="mt-2 space-y-1">
+            {audit.anchors.slice(0, 5).map((anchor, idx) => (
+              <div key={idx} className="rounded border border-white/10 bg-white/5 px-2 py-1.5">
+                <span className="text-nofx-text-main">{anchor.type || 'anchor'}</span>
+                {anchor.timeframe ? <span>{` · ${anchor.timeframe}`}</span> : null}
+                {anchor.price ? <span>{` · ${formatPrice(anchor.price)}`}</span> : null}
+                {anchor.reason ? <span>{` · ${anchor.reason}`}</span> : null}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}
+
+function formatReviewContextSummary(reviewContext?: Record<string, unknown>): string {
+  if (!reviewContext) return '—'
+
+  const safeMode = reviewContext.safe_mode
+  const safeModeReason = reviewContext.safe_mode_reason
+  const aiDecisionMode = reviewContext.ai_decision_mode
+  const candidateCount = reviewContext.candidate_count
+  const positionCount = reviewContext.position_count
+  const marginUsedPct = reviewContext.margin_used_pct
+
+  const parts: string[] = []
+  if (typeof aiDecisionMode === 'string' && aiDecisionMode) parts.push(`mode=${aiDecisionMode}`)
+  if (typeof candidateCount === 'number') parts.push(`candidates=${candidateCount}`)
+  if (typeof positionCount === 'number') parts.push(`positions=${positionCount}`)
+  if (typeof marginUsedPct === 'number') parts.push(`margin=${marginUsedPct.toFixed(1)}%`)
+  if (typeof safeMode === 'boolean') parts.push(`safe=${safeMode ? 'on' : 'off'}`)
+  if (typeof safeModeReason === 'string' && safeModeReason) parts.push(`reason=${safeModeReason}`)
+
+  return parts.length > 0 ? parts.join(' | ') : '—'
+}
+
+function formatProtectionSourceLabel(source?: string): string {
+  switch (String(source || '').toLowerCase()) {
+    case 'ai_decision':
+      return 'AI'
+    case 'strategy':
+      return 'Strategy'
+    case 'none':
+      return 'None'
+    default:
+      return source || '—'
+  }
+}
+
+function formatProtectionBadge(sourceLabel: string, modeLabel?: string, kind?: 'full' | 'ladder' | 'drawdown' | 'break_even') {
+  const colorMap = {
+    full: { bg: 'rgba(14, 203, 129, 0.10)', border: '1px solid rgba(14, 203, 129, 0.22)', color: '#8CF4C4' },
+    ladder: { bg: 'rgba(59, 130, 246, 0.10)', border: '1px solid rgba(59, 130, 246, 0.22)', color: '#93C5FD' },
+    drawdown: { bg: 'rgba(168, 85, 247, 0.10)', border: '1px solid rgba(168, 85, 247, 0.22)', color: '#D8B4FE' },
+    break_even: { bg: 'rgba(249, 115, 22, 0.10)', border: '1px solid rgba(249, 115, 22, 0.22)', color: '#FDBA74' },
+  } as const
+  return {
+    label: modeLabel ? `${sourceLabel} · ${modeLabel}` : sourceLabel,
+    style: colorMap[kind || 'full'],
+  }
+}
+
+function formatProtectionSummary(snapshot?: HistoricalPosition['protection_snapshot']): { label: string; style: React.CSSProperties }[] {
+  if (!snapshot) return []
+  const parts: { label: string; style: React.CSSProperties }[] = []
+  if (snapshot.full_tp_sl?.enabled) {
+    parts.push(formatProtectionBadge('Full', snapshot.full_tp_sl.mode || 'manual', 'full'))
+  }
+  if (snapshot.ladder_tp_sl?.enabled) {
+    parts.push(formatProtectionBadge('Ladder', snapshot.ladder_tp_sl.mode || 'manual', 'ladder'))
+  }
+  if (snapshot.drawdown && snapshot.drawdown.length > 0) {
+    const first = snapshot.drawdown[0]
+    const extras = [
+      first.stage ? first.stage.replace(/_/g, ' ') : '',
+      first.runner_mode_active ? `runner ${typeof first.runner_keep_pct === 'number' ? `${first.runner_keep_pct}%` : 'on'}` : '',
+      first.break_even_suppressed_by_runner ? 'BE suppressed' : '',
+    ].filter(Boolean)
+    const detail = [first.mode || 'manual', formatProtectionSourceLabel(first.source), ...extras].join(' · ')
+    parts.push(formatProtectionBadge('Drawdown', detail, 'drawdown'))
+  }
+  if (snapshot.break_even?.enabled) {
+    parts.push(formatProtectionBadge('Break-even', formatProtectionSourceLabel(snapshot.break_even.source), 'break_even'))
+  }
+  return parts
 }
 
 // Stats Card Component with formula tooltip
@@ -244,36 +943,6 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
   const sideColor = isLong ? '#0ECB81' : '#F6465D'
   const pnlColor = isProfitable ? '#0ECB81' : '#F6465D'
 
-  const formatExecutionSourceLabel = (value: string): string => {
-    const v = String(value || '').toLowerCase()
-    if (v === 'ai_close_long' || v === 'ai_close_short') return v
-    if (v === 'managed_drawdown') return 'Managed Drawdown'
-    if (v === 'emergency_protection_close') return 'Emergency Protection Close'
-    if (v === 'ladder_tp') return 'Ladder TP'
-    if (v === 'ladder_sl') return 'Ladder SL'
-    if (v === 'full_tp') return 'Full TP'
-    if (v === 'full_sl') return 'Full SL'
-    if (v === 'close_long' || v === 'close_short') return `AI ${v}`
-    if (v.includes('native_trailing') || v.includes('trailing')) return 'Native Trailing'
-    if (v.includes('break_even')) return 'Break-even Stop'
-    if (v.includes('take_profit') || v === 'tp') return 'Take Profit'
-    if (v.includes('stop_loss') || v === 'sl') return 'Stop Loss'
-    if (v.includes('manual')) return 'Manual'
-    if (v === 'sync') return 'Exchange Sync'
-    if (v === 'unknown' || v === '') return 'Unknown'
-    return value
-  }
-
-  const getExecutionSourceBadgeStyle = (value: string) => {
-    const v = String(value || '').toLowerCase()
-    if (v.includes('ai_close')) return { background: 'rgba(96,165,250,0.14)', color: '#60A5FA', border: '1px solid rgba(96,165,250,0.3)' }
-    if (v.includes('native_trailing')) return { background: 'rgba(168,85,247,0.14)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.3)' }
-    if (v.includes('break_even')) return { background: 'rgba(251,191,36,0.14)', color: '#F0B90B', border: '1px solid rgba(251,191,36,0.3)' }
-    if (v === 'ladder_tp' || v === 'full_tp' || v.includes('take_profit')) return { background: 'rgba(14,203,129,0.14)', color: '#0ECB81', border: '1px solid rgba(14,203,129,0.3)' }
-    if (v === 'ladder_sl' || v === 'full_sl' || v.includes('stop_loss') || v === 'managed_drawdown' || v === 'emergency_protection_close') return { background: 'rgba(246,70,93,0.14)', color: '#F6465D', border: '1px solid rgba(246,70,93,0.3)' }
-    return { background: 'rgba(132,142,156,0.14)', color: '#AAB2BD', border: '1px solid rgba(132,142,156,0.25)' }
-  }
-
 
   // Calculate holding time
   const entryTime = position.entry_time ? new Date(position.entry_time).getTime() : 0
@@ -297,7 +966,20 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
 
   const closeRatioPct = position.close_ratio_pct || 0
   const closeValueUsdt = position.close_value_usdt || (exitPrice * displayQty)
-  const executionSource = formatExecutionSourceLabel(position.execution_source || position.close_reason || 'unknown')
+  const executionSourcePresentation = summarizeCloseSource(
+    position.execution_source,
+    position.close_reason,
+    position.execution_order_type,
+    Boolean(position.exit_decision_cycle),
+    Boolean(position.exit_decision_review?.review_context)
+  )
+  const executionSource = executionSourcePresentation.label
+  const closeFlowSummary = summarizeCloseEventFlow(position.close_events)
+  const entryReviewSummary = position.entry_review_summary
+  const entryTf = entryReviewSummary?.timeframe_context as { primary?: string; lower?: string[]; higher?: string[] } | undefined
+  const entryRR = entryReviewSummary?.risk_reward as { entry?: number; invalidation?: number; first_target?: number } | undefined
+  const entryLevels = entryReviewSummary?.key_levels as { support?: number[]; resistance?: number[] } | undefined
+  const linkageStatus = getEntryLinkageStatus(position.entry_structure_audit, position.entry_review_summary)
   const executionOrderType = position.execution_order_type || 'unknown'
 
   return (
@@ -387,13 +1069,85 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托来源 / Source'}</div>
-                <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(position.execution_source || position.close_reason || 'unknown')}>
-                {executionSource}
-              </div>
+                <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getCloseSourceBadgeStyle(executionSourcePresentation)}>
+                  {executionSource}
+                </div>
+                {executionSourcePresentation.detail ? (
+                  <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                    {executionSourcePresentation.detail} · confidence {executionSourcePresentation.confidence}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                    confidence {executionSourcePresentation.confidence}
+                  </div>
+                )}
+                <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                  raw: {position.execution_source || position.close_reason || 'unknown'}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {formatProtectionSummary(position.protection_snapshot).map((item, idx) => (
+                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={item.style}>
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div>
                 <div style={{ color: '#848E9C' }}>{'委托类型 / Order Type'}</div>
                 <div className="font-mono" style={{ color: '#EAECEF' }}>{executionOrderType}</div>
+                {closeFlowSummary && (
+                  <div className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] space-y-1" style={{ color: '#EAECEF' }}>
+                    <div style={{ color: '#848E9C' }}>{'平仓流摘要 / Close Flow Summary'}</div>
+                    <div>{`events=${closeFlowSummary.eventCount} | linked=${closeFlowSummary.linkedDecisionCount} | ratio=${closeFlowSummary.totalRatio.toFixed(2)}%`}</div>
+                    <div>{closeFlowSummary.sourceBreakdown.join(' · ') || '—'}</div>
+                    {closeFlowSummary.isFragmentedSyncLike && (
+                      <div style={{ color: '#F0B90B' }}>{'This looks like fragmented exchange sync, not multiple independent AI decisions.'}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ color: '#848E9C' }}>{'入场 / 出场决策周期'}</div>
+                <div className="font-mono" style={{ color: '#EAECEF' }}>
+                  {`${position.entry_decision_cycle || '—'} / ${position.exit_decision_cycle || '—'}`}
+                </div>
+              </div>
+              <div>
+                <div style={{ color: '#848E9C' }}>{'复盘上下文 / Review Context'}</div>
+                <div className="text-[11px] leading-5" style={{ color: '#EAECEF' }}>
+                  {formatReviewContextSummary(position.exit_decision_review?.review_context || position.entry_decision_review?.review_context)}
+                </div>
+                {entryReviewSummary && (
+                  <div className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[11px] space-y-1" style={{ color: '#EAECEF' }}>
+                    <div style={{ color: '#848E9C' }}>{'开仓结构摘要 / Entry Structure Summary'}</div>
+                    <div>
+                      TF: {entryTf?.primary || '—'}
+                      {entryTf?.lower?.length ? ` | lower ${entryTf.lower.join(', ')}` : ''}
+                      {entryTf?.higher?.length ? ` | higher ${entryTf.higher.join(', ')}` : ''}
+                    </div>
+                    <div>
+                      RR: entry {entryRR?.entry ?? '—'} / invalidation {entryRR?.invalidation ?? '—'} / target {entryRR?.first_target ?? '—'}
+                    </div>
+                    <div>
+                      Levels: S {entryLevels?.support?.join(', ') || '—'} | R {entryLevels?.resistance?.join(', ') || '—'}
+                    </div>
+                    {linkageStatus && (
+                      <div>
+                        Linkage: <span style={{ color: linkageStatus.tone === 'danger' ? '#F6465D' : linkageStatus.tone === 'warn' ? '#F0B90B' : '#0ECB81' }}>{linkageStatus.label}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {formatProtectionSummary(position.exit_decision_review?.protection_snapshot || position.entry_decision_review?.protection_snapshot).map((item, idx) => (
+                    <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={item.style}>
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <DecisionAuditPanel review={position.entry_decision_review || position.exit_decision_review} />
+                </div>
               </div>
               <div>
                 <div style={{ color: '#848E9C' }}>{'成交比例 / Close Ratio'}</div>
@@ -409,15 +1163,39 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
               <div>
                 <div className="text-xs mb-2" style={{ color: '#848E9C' }}>{'分段平仓事件 / Close Event Flow'}</div>
                 <div className="space-y-2">
-                  {position.close_events.map((event) => (
-                    <div key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+                  {position.close_events.map((event) => {
+                    const eventPresentation = summarizeCloseSource(
+                      event.execution_source,
+                      event.close_reason,
+                      event.execution_type,
+                      Boolean(event.decision_cycle),
+                      Boolean(event.decision_review?.review_context)
+                    )
+                    return (
+                    <div key={event.id} className="rounded-lg border border-white/10 bg-white/5 p-3 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs">
                       <div>
                         <div style={{ color: '#848E9C' }}>{'原因 / Reason'}</div>
-                        <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getExecutionSourceBadgeStyle(event.execution_source || event.close_reason)}>{formatExecutionSourceLabel(event.execution_source || event.close_reason)}</div>
+                        <div className="px-2 py-1 rounded text-[11px] font-semibold inline-flex" style={getCloseSourceBadgeStyle(eventPresentation)}>{eventPresentation.label}</div>
+                        <div className="mt-1 text-[11px]" style={{ color: '#848E9C' }}>
+                          {`raw=${event.execution_source || event.close_reason || 'unknown'} | confidence=${eventPresentation.confidence}`}
+                        </div>
+                        {event.protection_status ? (
+                          <div className="mt-2">
+                            <span className="px-2 py-1 rounded text-[11px] font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: '#C9D1D9', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              {`Protection: ${event.protection_status}`}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                       <div>
                         <div style={{ color: '#848E9C' }}>{'类型 / Type'}</div>
                         <div className="font-mono" style={{ color: '#EAECEF' }}>{event.execution_type || 'unknown'}</div>
+                        <div className="mt-1 text-[11px] font-mono" style={{ color: '#848E9C' }}>
+                          {`trade=${event.exchange_order_id || '—'}`}
+                        </div>
+                        <div className="mt-1 text-[11px] font-mono" style={{ color: '#848E9C' }}>
+                          {`parent=${event.parent_order_id || '—'}`}
+                        </div>
                       </div>
                       <div>
                         <div style={{ color: '#848E9C' }}>{'数量 / Ratio'}</div>
@@ -428,11 +1206,31 @@ function PositionRow({ position, onSymbolClick }: { position: HistoricalPosition
                         <div className="font-mono" style={{ color: '#EAECEF' }}>{`${formatPrice(event.execution_price)} / ${formatNumber(event.close_value_usdt)}`}</div>
                       </div>
                       <div>
+                        <div style={{ color: '#848E9C' }}>{'决策周期 / Cycle'}</div>
+                        <div className="font-mono" style={{ color: '#EAECEF' }}>{event.decision_cycle || '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#848E9C' }}>{'复盘上下文 / Review'}</div>
+                        <div className="text-[11px] leading-5" style={{ color: '#EAECEF' }}>
+                          {formatReviewContextSummary(event.decision_review?.review_context)}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {formatProtectionSummary(event.decision_review?.protection_snapshot).map((item, idx) => (
+                            <span key={idx} className="px-2 py-1 rounded text-[11px] font-medium" style={item.style}>
+                              {item.label}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-2">
+                          <DecisionAuditPanel review={event.decision_review} />
+                        </div>
+                      </div>
+                      <div>
                         <div style={{ color: '#848E9C' }}>{'PnL / Time'}</div>
                         <div className="font-mono" style={{ color: '#EAECEF' }}>{`${event.realized_pnl_delta >= 0 ? '+' : ''}${formatNumber(event.realized_pnl_delta)} / ${formatDate(event.event_time)}`}</div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             )}

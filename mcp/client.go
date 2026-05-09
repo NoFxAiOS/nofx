@@ -30,12 +30,15 @@ var (
 		"connection refused",
 		"temporary failure",
 		"no such host",
-		"stream error",   // HTTP/2 stream error
-		"INTERNAL_ERROR", // Server internal error
-		"status 502",     // Bad Gateway
-		"status 503",     // Service Unavailable
-		"status 520",     // Cloudflare origin error
-		"status 524",     // Cloudflare timeout
+		"stream error",                 // HTTP/2 stream error
+		"INTERNAL_ERROR",               // Server internal error
+		"status 502",                   // Bad Gateway
+		"status 503",                   // Service Unavailable
+		"status 520",                   // Cloudflare origin error
+		"status 524",                   // Cloudflare timeout
+		"failed to parse response",     // upstream/proxy occasionally returns plaintext/HTML with 200
+		"body preview: do request",     // observed ltcraft proxy transient plaintext response
+		"body preview: <!doctype html", // observed proxy/cloudflare HTML with 200
 	}
 
 	// TokenUsageCallback is called after each AI request with token usage info
@@ -273,7 +276,74 @@ func (client *Client) ParseMCPResponse(body []byte) (string, error) {
 // the text content and any tool calls.
 // Handles API proxies that may return content in alternative fields
 // (e.g. reasoning_content, refusal) or return content as null.
+func parseSSEChatCompletionResponse(body []byte) ([]byte, bool) {
+	trimmed := strings.TrimSpace(string(body))
+	if !strings.HasPrefix(trimmed, "data:") {
+		return nil, false
+	}
+	var content strings.Builder
+	var usage json.RawMessage
+	seenSSE := false
+	for _, line := range strings.Split(trimmed, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, ":") {
+			continue
+		}
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+		seenSSE = true
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content          string `json:"content"`
+					ReasoningContent string `json:"reasoning_content"`
+				} `json:"delta"`
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+			Usage json.RawMessage `json:"usage"`
+		}
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			return nil, false
+		}
+		if len(chunk.Usage) > 0 {
+			usage = chunk.Usage
+		}
+		for _, choice := range chunk.Choices {
+			content.WriteString(choice.Delta.Content)
+			content.WriteString(choice.Delta.ReasoningContent)
+			content.WriteString(choice.Message.Content)
+		}
+	}
+	if !seenSSE {
+		return nil, false
+	}
+	resp := map[string]any{
+		"choices": []map[string]any{{"message": map[string]any{"content": content.String()}}},
+	}
+	if len(usage) > 0 {
+		var usageAny any
+		if json.Unmarshal(usage, &usageAny) == nil {
+			resp["usage"] = usageAny
+		}
+	}
+	out, err := json.Marshal(resp)
+	if err != nil {
+		return nil, false
+	}
+	return out, true
+}
+
 func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
+	if parsed, ok := parseSSEChatCompletionResponse(body); ok {
+		body = parsed
+	}
 	// First pass: use raw JSON to handle content:null and alternative fields
 	var raw struct {
 		Choices []struct {
@@ -287,7 +357,7 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 	}
 
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w — body preview: %s", err, sanitizeResponsePreview(body, 300))
 	}
 
 	if len(raw.Choices) == 0 {
@@ -373,6 +443,18 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 		Content:   content,
 		ToolCalls: toolCalls,
 	}, nil
+}
+
+func sanitizeResponsePreview(body []byte, limit int) string {
+	preview := strings.TrimSpace(string(body))
+	preview = strings.Join(strings.Fields(preview), " ")
+	if preview == "" {
+		return "<empty>"
+	}
+	if limit > 0 && len(preview) > limit {
+		preview = preview[:limit] + "..."
+	}
+	return preview
 }
 
 func (client *Client) BuildUrl() string {

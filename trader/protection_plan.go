@@ -3,8 +3,142 @@ package trader
 import (
 	"fmt"
 	"math"
+
+	"nofx/kernel"
 	"nofx/store"
 )
+
+func isManualValue(src store.ProtectionValueSource) bool {
+	return src.Mode == store.ProtectionValueModeManual && src.Value > 0
+}
+
+func isAIValue(src store.ProtectionValueSource) bool {
+	return src.Mode == store.ProtectionValueModeAI
+}
+
+func isDisabledValue(src store.ProtectionValueSource) bool {
+	return src.Mode == "" || src.Mode == store.ProtectionValueModeDisabled
+}
+
+func resolveFullTakeProfit(full store.FullTPSLConfig, aiValue float64) (pricePct float64, ok bool) {
+	if !full.Enabled || full.Mode == store.ProtectionModeDisabled || isDisabledValue(full.TakeProfit) {
+		return 0, false
+	}
+	switch full.TakeProfit.Mode {
+	case store.ProtectionValueModeManual:
+		pricePct = full.TakeProfit.Value
+	case store.ProtectionValueModeAI:
+		pricePct = aiValue
+	}
+	if pricePct <= 0 {
+		return 0, false
+	}
+	return pricePct, true
+}
+
+func resolveFullStopLoss(full store.FullTPSLConfig, aiValue float64) (pricePct float64, ok bool) {
+	if !full.Enabled || full.Mode == store.ProtectionModeDisabled || isDisabledValue(full.StopLoss) {
+		return 0, false
+	}
+	switch full.StopLoss.Mode {
+	case store.ProtectionValueModeManual:
+		pricePct = full.StopLoss.Value
+	case store.ProtectionValueModeAI:
+		pricePct = aiValue
+	}
+	if pricePct <= 0 {
+		return 0, false
+	}
+	return pricePct, true
+}
+
+func resolveFallbackMaxLoss(full store.FullTPSLConfig) (pricePct float64, ok bool) {
+	if full.FallbackMaxLoss.Mode != store.ProtectionValueModeManual || full.FallbackMaxLoss.Value <= 0 {
+		return 0, false
+	}
+	return full.FallbackMaxLoss.Value, true
+}
+
+func resolveLadderFallbackMaxLoss(ladder store.LadderTPSLConfig) (pricePct float64, ok bool) {
+	if !ladder.Enabled || ladder.Mode == store.ProtectionModeDisabled || ladder.FallbackMaxLoss.Mode != store.ProtectionValueModeManual || ladder.FallbackMaxLoss.Value <= 0 {
+		return 0, false
+	}
+	return ladder.FallbackMaxLoss.Value, true
+}
+
+func enabledManualLadderTakeProfit(ladder store.LadderTPSLConfig) bool {
+	return ladder.Enabled && ladder.Mode == store.ProtectionModeManual && ladder.TakeProfitEnabled && !isDisabledValue(ladder.TakeProfitPrice) && !isDisabledValue(ladder.TakeProfitSize)
+}
+
+func enabledManualLadderStopLoss(ladder store.LadderTPSLConfig) bool {
+	return ladder.Enabled && ladder.Mode == store.ProtectionModeManual && ladder.StopLossEnabled && !isDisabledValue(ladder.StopLossPrice) && !isDisabledValue(ladder.StopLossSize)
+}
+
+func resolveLadderTakeProfitRule(rule store.LadderTPSLRule, ladder store.LadderTPSLConfig, aiRule *kernel.AIProtectionLadderRule) (pricePct float64, closeRatioPct float64, ok bool) {
+	if !enabledManualLadderTakeProfit(ladder) {
+		return 0, 0, false
+	}
+
+	switch ladder.TakeProfitPrice.Mode {
+	case store.ProtectionValueModeManual:
+		pricePct = rule.TakeProfitPct
+	case store.ProtectionValueModeAI:
+		if aiRule != nil {
+			pricePct = aiRule.TakeProfitPct
+		}
+	}
+
+	switch ladder.TakeProfitSize.Mode {
+	case store.ProtectionValueModeManual:
+		closeRatioPct = rule.TakeProfitCloseRatioPct
+	case store.ProtectionValueModeAI:
+		if aiRule != nil {
+			closeRatioPct = aiRule.TakeProfitCloseRatioPct
+		}
+	}
+
+	if pricePct <= 0 || closeRatioPct <= 0 {
+		return 0, 0, false
+	}
+	return pricePct, closeRatioPct, true
+}
+
+func resolveLadderStopLossRule(rule store.LadderTPSLRule, ladder store.LadderTPSLConfig, aiRule *kernel.AIProtectionLadderRule) (pricePct float64, closeRatioPct float64, ok bool) {
+	if !enabledManualLadderStopLoss(ladder) {
+		return 0, 0, false
+	}
+
+	switch ladder.StopLossPrice.Mode {
+	case store.ProtectionValueModeManual:
+		pricePct = rule.StopLossPct
+	case store.ProtectionValueModeAI:
+		if aiRule != nil && aiRule.StopLossPct > 0 {
+			pricePct = aiRule.StopLossPct
+		} else if ladder.Mode == store.ProtectionModeManual {
+			// Existing-position reconciliation must not leave stops unmaterialized
+			// just because the opening AI rationale is gone after restart. In manual
+			// ladder mode, configured rule values are the deterministic fallback for
+			// held-position stop ownership.
+			pricePct = rule.StopLossPct
+		}
+	}
+
+	switch ladder.StopLossSize.Mode {
+	case store.ProtectionValueModeManual:
+		closeRatioPct = rule.StopLossCloseRatioPct
+	case store.ProtectionValueModeAI:
+		if aiRule != nil && aiRule.StopLossCloseRatioPct > 0 {
+			closeRatioPct = aiRule.StopLossCloseRatioPct
+		} else if ladder.Mode == store.ProtectionModeManual {
+			closeRatioPct = rule.StopLossCloseRatioPct
+		}
+	}
+
+	if pricePct <= 0 || closeRatioPct <= 0 {
+		return 0, 0, false
+	}
+	return pricePct, closeRatioPct, true
+}
 
 // roundProtectionPrice normalizes protection prices to a stable decimal scale
 // before they are compared, logged, or passed into exchange-specific formatting.
@@ -28,15 +162,20 @@ type ProtectionOrder struct {
 // ProtectionPlan is the normalized execution representation produced from strategy config
 // (and later AI protection plans) before hitting exchange adapters.
 type ProtectionPlan struct {
-	Mode                 string
-	NeedsStopLoss        bool
-	NeedsTakeProfit      bool
-	StopLossPrice        float64
-	TakeProfitPrice      float64
-	StopLossOrders       []ProtectionOrder
-	TakeProfitOrders     []ProtectionOrder
-	RequiresNativeOrders bool
-	RequiresPartialClose bool
+	Mode                        string
+	NeedsStopLoss               bool
+	NeedsTakeProfit             bool
+	StopLossPrice               float64
+	TakeProfitPrice             float64
+	FallbackMaxLossPrice        float64
+	StopLossOrders              []ProtectionOrder
+	TakeProfitOrders            []ProtectionOrder
+	DrawdownRules               []store.DrawdownTakeProfitRule
+	BreakEvenConfig             *store.BreakEvenStopConfig
+	RequiresNativeOrders        bool
+	RequiresPartialClose        bool
+	DrawdownRunnerState         *DrawdownRunnerState
+	BreakEvenSuppressedByRunner bool
 }
 
 // mergeProtectionPlans combines multiple protection plans into a single target exchange protection set.
@@ -55,6 +194,18 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		merged.NeedsTakeProfit = merged.NeedsTakeProfit || plan.NeedsTakeProfit
 		merged.StopLossOrders = append(merged.StopLossOrders, plan.StopLossOrders...)
 		merged.TakeProfitOrders = append(merged.TakeProfitOrders, plan.TakeProfitOrders...)
+		if len(plan.DrawdownRules) > 0 {
+			merged.DrawdownRules = append(merged.DrawdownRules, plan.DrawdownRules...)
+		}
+		if merged.BreakEvenConfig == nil && plan.BreakEvenConfig != nil {
+			cfg := *plan.BreakEvenConfig
+			merged.BreakEvenConfig = &cfg
+		}
+		if merged.DrawdownRunnerState == nil && plan.DrawdownRunnerState != nil {
+			state := *plan.DrawdownRunnerState
+			merged.DrawdownRunnerState = &state
+		}
+		merged.BreakEvenSuppressedByRunner = merged.BreakEvenSuppressedByRunner || plan.BreakEvenSuppressedByRunner
 		merged.RequiresNativeOrders = merged.RequiresNativeOrders || plan.RequiresNativeOrders
 		merged.RequiresPartialClose = merged.RequiresPartialClose || plan.RequiresPartialClose
 		if merged.StopLossPrice == 0 && plan.StopLossPrice > 0 {
@@ -62,6 +213,9 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		}
 		if merged.TakeProfitPrice == 0 && plan.TakeProfitPrice > 0 {
 			merged.TakeProfitPrice = plan.TakeProfitPrice
+		}
+		if merged.FallbackMaxLossPrice == 0 && plan.FallbackMaxLossPrice > 0 {
+			merged.FallbackMaxLossPrice = plan.FallbackMaxLossPrice
 		}
 	}
 
@@ -73,33 +227,52 @@ func mergeProtectionPlans(plans ...*ProtectionPlan) *ProtectionPlan {
 		merged.TakeProfitPrice = 0
 	}
 
-	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 {
+	if !merged.NeedsStopLoss && !merged.NeedsTakeProfit && len(merged.StopLossOrders) == 0 && len(merged.TakeProfitOrders) == 0 && merged.FallbackMaxLossPrice == 0 && len(merged.DrawdownRules) == 0 && merged.BreakEvenConfig == nil {
 		return nil
 	}
 	return merged
 }
 
+func protectionFeatureUsesAI(mode store.ProtectionMode) bool {
+	return mode == store.ProtectionModeAI
+}
+
+func protectionFeatureUsesManual(mode store.ProtectionMode) bool {
+	return mode == "" || mode == store.ProtectionModeManual
+}
+
+func buildConfiguredBreakEvenPlan(be store.BreakEvenStopConfig) *ProtectionPlan {
+	if !be.Enabled || !protectionFeatureUsesManual(be.Mode) {
+		return nil
+	}
+	if be.TriggerMode != store.BreakEvenTriggerProfitPct || be.TriggerValue <= 0 {
+		return nil
+	}
+	cfg := be
+	if cfg.OffsetPct < 0 {
+		cfg.OffsetPct = 0
+	}
+	return &ProtectionPlan{Mode: string(store.ProtectionModeManual), BreakEvenConfig: &cfg}
+}
+
 // BuildConfiguredProtectionPlan creates a normalized protection plan from strategy configuration.
-// Unlike BuildManualProtectionPlan, it can also materialize AI-mode strategy protection config
-// when the runtime decision does not provide a concrete decision.ProtectionPlan payload yet.
+// It intentionally materializes only manual/default protections. AI-owned ladder/full/drawdown
+// legs must come from the decision protection_plan; if they are unusable, execution falls back
+// to manual/fallback safety instead of mixing stale configured AI reference percentages in.
 func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action string) (*ProtectionPlan, error) {
 	if at.config.StrategyConfig == nil {
 		return nil, nil
 	}
 
 	protection := at.config.StrategyConfig.Protection
-	drawdownEnabled := protection.DrawdownTakeProfit.Enabled && len(protection.DrawdownTakeProfit.Rules) > 0
+	ownerPolicy := evaluateProtectionOwnerPolicy(protection)
+	drawdownEnabled := ownerPolicy.UseDrawdownTP && len(protection.DrawdownTakeProfit.Rules) > 0
 
 	// Build ladder plan first so we know which directions it covers.
 	var ladderPlan *ProtectionPlan
-	if protection.LadderTPSL.Enabled {
+	if protection.LadderTPSL.Enabled && protectionFeatureUsesManual(protection.LadderTPSL.Mode) {
 		var err error
-		switch protection.LadderTPSL.Mode {
-		case store.ProtectionModeManual:
-			ladderPlan, err = buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-		case store.ProtectionModeAI:
-			ladderPlan, err = buildAILadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
-		}
+		ladderPlan, err = buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL)
 		if err != nil {
 			return nil, err
 		}
@@ -109,6 +282,7 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 			ladderPlan.TakeProfitOrders = nil
 			ladderPlan.NeedsTakeProfit = false
 			ladderPlan.TakeProfitPrice = 0
+			// Preserve ladder SL: drawdown only owns TP, not SL
 		}
 	}
 
@@ -121,15 +295,8 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 	}
 
 	// Build full plan, but suppress directions already covered by ladder.
-	if protection.FullTPSL.Enabled {
-		var fullPlan *ProtectionPlan
-		var err error
-		switch protection.FullTPSL.Mode {
-		case store.ProtectionModeManual:
-			fullPlan, err = buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-		case store.ProtectionModeAI:
-			fullPlan, err = buildAIFullProtectionPlan(entryPrice, action, protection.FullTPSL)
-		}
+	if protection.FullTPSL.Enabled && protectionFeatureUsesManual(protection.FullTPSL.Mode) {
+		fullPlan, err := buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
 		if err != nil {
 			return nil, err
 		}
@@ -149,10 +316,14 @@ func (at *AutoTrader) BuildConfiguredProtectionPlan(entryPrice float64, action s
 				fullPlan.TakeProfitPrice = 0
 			}
 			// Only merge if full plan still has something to contribute.
-			if fullPlan.NeedsStopLoss || fullPlan.NeedsTakeProfit {
+			if fullPlan.NeedsStopLoss || fullPlan.NeedsTakeProfit || fullPlan.FallbackMaxLossPrice > 0 {
 				plans = append(plans, fullPlan)
 			}
 		}
+	}
+
+	if bePlan := buildConfiguredBreakEvenPlan(protection.BreakEvenStop); bePlan != nil {
+		plans = append(plans, bePlan)
 	}
 
 	return mergeProtectionPlans(plans...), nil
@@ -190,8 +361,8 @@ func buildManualFullProtectionPlan(entryPrice float64, action string, full store
 
 	plan := &ProtectionPlan{Mode: string(full.Mode), RequiresNativeOrders: true}
 
-	if full.StopLoss.Enabled && full.StopLoss.PriceMovePct > 0 {
-		move := full.StopLoss.PriceMovePct / 100.0
+	if stopLossPct, ok := resolveFullStopLoss(full, 0); ok {
+		move := stopLossPct / 100.0
 		if isLong {
 			plan.StopLossPrice = entryPrice * (1 - move)
 		} else {
@@ -201,8 +372,17 @@ func buildManualFullProtectionPlan(entryPrice float64, action string, full store
 		plan.NeedsStopLoss = true
 	}
 
-	if full.TakeProfit.Enabled && full.TakeProfit.PriceMovePct > 0 {
-		move := full.TakeProfit.PriceMovePct / 100.0
+	if fallbackPct, ok := resolveFallbackMaxLoss(full); ok {
+		move := fallbackPct / 100.0
+		if isLong {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 - move))
+		} else {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 + move))
+		}
+	}
+
+	if takeProfitPct, ok := resolveFullTakeProfit(full, 0); ok {
+		move := takeProfitPct / 100.0
 		if isLong {
 			plan.TakeProfitPrice = entryPrice * (1 + move)
 		} else {
@@ -212,7 +392,7 @@ func buildManualFullProtectionPlan(entryPrice float64, action string, full store
 		plan.NeedsTakeProfit = true
 	}
 
-	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit {
+	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit && plan.FallbackMaxLossPrice == 0 {
 		return nil, nil
 	}
 
@@ -242,9 +422,9 @@ func buildManualLadderProtectionPlan(entryPrice float64, action string, ladder s
 	remainingTakeProfitRatio := 100.0
 	remainingStopLossRatio := 100.0
 	for _, rule := range ladder.Rules {
-		if ladder.TakeProfitEnabled && rule.TakeProfitPct > 0 && rule.TakeProfitCloseRatioPct > 0 && remainingTakeProfitRatio > 0 {
-			closeRatio := minPositive(rule.TakeProfitCloseRatioPct, remainingTakeProfitRatio)
-			move := rule.TakeProfitPct / 100.0
+		if pricePct, closeRatioPct, ok := resolveLadderTakeProfitRule(rule, ladder, nil); ok && remainingTakeProfitRatio > 0 {
+			closeRatio := minPositive(closeRatioPct, remainingTakeProfitRatio)
+			move := pricePct / 100.0
 			price := entryPrice
 			if isLong {
 				price = entryPrice * (1 + move)
@@ -259,9 +439,9 @@ func buildManualLadderProtectionPlan(entryPrice float64, action string, ladder s
 			remainingTakeProfitRatio -= closeRatio
 		}
 
-		if ladder.StopLossEnabled && rule.StopLossPct > 0 && rule.StopLossCloseRatioPct > 0 && remainingStopLossRatio > 0 {
-			closeRatio := minPositive(rule.StopLossCloseRatioPct, remainingStopLossRatio)
-			move := rule.StopLossPct / 100.0
+		if pricePct, closeRatioPct, ok := resolveLadderStopLossRule(rule, ladder, nil); ok && remainingStopLossRatio > 0 {
+			closeRatio := minPositive(closeRatioPct, remainingStopLossRatio)
+			move := pricePct / 100.0
 			price := entryPrice
 			if isLong {
 				price = entryPrice * (1 - move)
@@ -277,9 +457,18 @@ func buildManualLadderProtectionPlan(entryPrice float64, action string, ladder s
 		}
 	}
 
+	if fallbackPct, ok := resolveLadderFallbackMaxLoss(ladder); ok {
+		move := fallbackPct / 100.0
+		if isLong {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 - move))
+		} else {
+			plan.FallbackMaxLossPrice = roundProtectionPrice(entryPrice * (1 + move))
+		}
+	}
+
 	plan.NeedsStopLoss = len(plan.StopLossOrders) > 0
 	plan.NeedsTakeProfit = len(plan.TakeProfitOrders) > 0
-	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit {
+	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit && plan.FallbackMaxLossPrice == 0 {
 		return nil, nil
 	}
 

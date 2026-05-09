@@ -35,13 +35,53 @@ func (at *AutoTrader) getExecutionMarketData(symbol string) (*market.Data, error
 			klineCount = 30
 		}
 
-		logger.Infof("  📊 Execution market data uses strategy timeframes: %v (primary=%s, count=%d)", timeframes, primaryTimeframe, klineCount)
-		return market.GetWithTimeframes(symbol, timeframes, primaryTimeframe, klineCount)
+		exchangeSrc := cfg.CoinSource.ExchangeSource
+		if exchangeSrc == "" {
+			exchangeSrc = at.exchange
+		}
+		logger.Infof("  📊 Execution market data uses strategy timeframes: %v (primary=%s, count=%d, exchange=%s)", timeframes, primaryTimeframe, klineCount, exchangeSrc)
+		return market.GetWithTimeframesExchange(symbol, timeframes, primaryTimeframe, klineCount, exchangeSrc)
 	}
 
 	// Legacy fallback when no strategy engine is available.
 	logger.Infof("  ⚠️ Strategy engine unavailable, falling back to legacy execution market data path")
 	return market.GetWithExchange(symbol, at.exchange)
+}
+
+func (at *AutoTrader) applyRegimeGateToActionRecord(decision *kernel.Decision, actionRecord *store.DecisionAction, gate regimeGateResult) {
+	if actionRecord == nil || gate.Allowed {
+		return
+	}
+	if actionRecord.ReviewContext == nil {
+		actionRecord.ReviewContext = buildDecisionActionReviewContext(decision, at.getMinRiskRewardRatio(), nil)
+		if actionRecord.ReviewContext == nil {
+			actionRecord.ReviewContext = &store.DecisionActionReviewContext{}
+		}
+	}
+	control := actionRecord.ReviewContext.Control
+	if control == nil {
+		control = &store.DecisionActionControlOutcome{}
+		actionRecord.ReviewContext.Control = control
+	}
+	control.Decision = "rejected"
+	control.OriginalAction = decision.Action
+	control.FinalAction = decision.Action
+	control.NoOrderPlaced = true
+	if gate.Reason != "" {
+		control.Reasons = append(control.Reasons, gate.Reason)
+	}
+	if gate.ReasonCode != "" {
+		control.FailedChecks = append(control.FailedChecks, gate.ReasonCode)
+	}
+	control.RegimeCurrent = gate.CurrentRegime
+	control.RegimeAllowed = append([]string{}, gate.AllowedRegimes...)
+	control.RegimePrimaryTimeframe = gate.PrimaryTimeframe
+	control.RegimeATR14Pct = gate.ATR14Pct
+	control.RegimeFundingRate = gate.FundingRate
+	if gate.TrendAligned != nil {
+		aligned := *gate.TrendAligned
+		control.RegimeTrendAligned = &aligned
+	}
 }
 
 // executeDecisionWithRecord executes AI decision and records detailed information
@@ -67,6 +107,11 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📈 Open long: %s", decision.Symbol)
 
+	// [CODE ENFORCED] Post-loss cooldown check
+	if cooling, remaining := at.cooldownManager.IsCoolingDown(decision.Symbol); cooling {
+		return fmt.Errorf("⏳ entry cooldown active for %s (%v remaining after stop-loss)", decision.Symbol, remaining.Round(time.Minute))
+	}
+
 	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
 	if err != nil {
@@ -90,9 +135,6 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	if err != nil {
 		return err
 	}
-	if !at.allowDecisionByRegime(decision, marketData) {
-		return fmt.Errorf("regime filter blocked open_long for %s", decision.Symbol)
-	}
 
 	// Get balance (needed for multiple checks)
 	balance, err := at.trader.GetBalance()
@@ -111,7 +153,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	} else if eq, ok := balance["totalWalletBalance"].(float64); ok && eq > 0 {
 		equity = eq
 	} else {
-		equity = availableBalance // Fallback to available balance
+		equity = availableBalance
 	}
 
 	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
@@ -120,15 +162,12 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
-	// ⚠️ Auto-adjust position size if insufficient margin
-	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
-	//        = positionSize * (1.01/leverage + 0.001)
+	// Auto-adjust position size if insufficient margin
 	marginFactor := 1.01/float64(decision.Leverage) + 0.001
 	maxAffordablePositionSize := availableBalance / marginFactor
 
 	actualPositionSize := decision.PositionSizeUSD
 	if actualPositionSize > maxAffordablePositionSize {
-		// Use 98% of max to leave buffer for price fluctuation
 		adjustedSize := maxAffordablePositionSize * 0.98
 		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
 			actualPositionSize, maxAffordablePositionSize, adjustedSize)
@@ -137,7 +176,20 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	}
 
 	// [CODE ENFORCED] Minimum position size check
-	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
+	if err := at.enforceMinPositionSize(decision.PositionSizeUSD, decision.Symbol); err != nil {
+		return err
+	}
+
+	// [CODE ENFORCED] Entry price deviation check
+	if err := enforceEntryPriceDeviation(decision, marketData.CurrentPrice, "long"); err != nil {
+		return err
+	}
+
+	// [CODE ENFORCED] Leverage cap
+	decision.Leverage = at.enforceLeverageCap(decision.Leverage, decision.Symbol)
+
+	// [CODE ENFORCED] Max margin usage
+	if err := at.enforceMaxMarginUsage(decision.PositionSizeUSD, decision.Leverage, equity); err != nil {
 		return err
 	}
 
@@ -196,6 +248,11 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📉 Open short: %s", decision.Symbol)
 
+	// [CODE ENFORCED] Post-loss cooldown check
+	if cooling, remaining := at.cooldownManager.IsCoolingDown(decision.Symbol); cooling {
+		return fmt.Errorf("⏳ entry cooldown active for %s (%v remaining after stop-loss)", decision.Symbol, remaining.Round(time.Minute))
+	}
+
 	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
 	if err != nil {
@@ -219,9 +276,6 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	if err != nil {
 		return err
 	}
-	if !at.allowDecisionByRegime(decision, marketData) {
-		return fmt.Errorf("regime filter blocked open_short for %s", decision.Symbol)
-	}
 
 	// Get balance (needed for multiple checks)
 	balance, err := at.trader.GetBalance()
@@ -240,7 +294,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	} else if eq, ok := balance["totalWalletBalance"].(float64); ok && eq > 0 {
 		equity = eq
 	} else {
-		equity = availableBalance // Fallback to available balance
+		equity = availableBalance
 	}
 
 	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
@@ -249,15 +303,12 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
-	// ⚠️ Auto-adjust position size if insufficient margin
-	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
-	//        = positionSize * (1.01/leverage + 0.001)
+	// Auto-adjust position size if insufficient margin
 	marginFactor := 1.01/float64(decision.Leverage) + 0.001
 	maxAffordablePositionSize := availableBalance / marginFactor
 
 	actualPositionSize := decision.PositionSizeUSD
 	if actualPositionSize > maxAffordablePositionSize {
-		// Use 98% of max to leave buffer for price fluctuation
 		adjustedSize := maxAffordablePositionSize * 0.98
 		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
 			actualPositionSize, maxAffordablePositionSize, adjustedSize)
@@ -266,7 +317,20 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	}
 
 	// [CODE ENFORCED] Minimum position size check
-	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
+	if err := at.enforceMinPositionSize(decision.PositionSizeUSD, decision.Symbol); err != nil {
+		return err
+	}
+
+	// [CODE ENFORCED] Entry price deviation check
+	if err := enforceEntryPriceDeviation(decision, marketData.CurrentPrice, "short"); err != nil {
+		return err
+	}
+
+	// [CODE ENFORCED] Leverage cap
+	decision.Leverage = at.enforceLeverageCap(decision.Leverage, decision.Symbol)
+
+	// [CODE ENFORCED] Max margin usage
+	if err := at.enforceMaxMarginUsage(decision.PositionSizeUSD, decision.Leverage, equity); err != nil {
 		return err
 	}
 

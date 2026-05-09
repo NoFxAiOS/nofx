@@ -166,6 +166,14 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 
 // CloseLong closes long position
 func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+	return t.closeLongWithTag(symbol, quantity, "")
+}
+
+func (t *OKXTrader) CloseLongTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
+	return t.closeLongWithTag(symbol, quantity, reasonTag)
+}
+
+func (t *OKXTrader) closeLongWithTag(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
 	// Get instrument info for contract conversion
@@ -232,7 +240,7 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		"ordType": "market",
 		"sz":      szStr,
 		"clOrdId": genOkxClOrdID(),
-		"tag":     okxTag,
+		"tag":     okxReasonTag(reasonTag),
 	}
 
 	// Only add posSide in dual mode (long_short_mode)
@@ -277,6 +285,14 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 
 // CloseShort closes short position
 func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+	return t.closeShortWithTag(symbol, quantity, "")
+}
+
+func (t *OKXTrader) CloseShortTagged(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
+	return t.closeShortWithTag(symbol, quantity, reasonTag)
+}
+
+func (t *OKXTrader) closeShortWithTag(symbol string, quantity float64, reasonTag string) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
 	// Get instrument info for contract conversion
@@ -343,7 +359,7 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		"ordType": "market",
 		"sz":      szStr,
 		"clOrdId": genOkxClOrdID(),
-		"tag":     okxTag,
+		"tag":     okxReasonTag(reasonTag),
 	}
 
 	// Only add posSide in dual mode (long_short_mode)
@@ -389,6 +405,48 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 	}, nil
 }
 
+// ValidateProtectionQuantity checks whether a base-asset quantity can produce a valid
+// OKX contract size after lot-size rounding. It is intentionally stricter than
+// FormatQuantity so protection planning can degrade before sending impossible orders.
+func (t *OKXTrader) ValidateProtectionQuantity(symbol string, quantity float64) error {
+	inst, err := t.getInstrument(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to get instrument info: %w", err)
+	}
+	if inst.CtVal <= 0 {
+		return fmt.Errorf("invalid instrument contract value")
+	}
+	contracts := quantity / inst.CtVal
+	if inst.MinSz > 0 && contracts < inst.MinSz {
+		return fmt.Errorf("quantity %.8f below min contracts %.8f", contracts, inst.MinSz)
+	}
+	if inst.LotSz > 0 && contracts < inst.LotSz {
+		return fmt.Errorf("quantity %.8f below lot size %.8f", contracts, inst.LotSz)
+	}
+	formatted := t.formatSize(contracts, inst)
+	formattedContracts, err := strconv.ParseFloat(formatted, 64)
+	if err != nil || formattedContracts <= 0 {
+		return fmt.Errorf("quantity %.8f rounds to invalid contract size %q", contracts, formatted)
+	}
+	if inst.MinSz > 0 && formattedContracts < inst.MinSz {
+		return fmt.Errorf("quantity %.8f rounds below min contracts %.8f", formattedContracts, inst.MinSz)
+	}
+	return nil
+}
+
+func normalizeOKXCallbackRatio(callbackRatio float64) float64 {
+	if callbackRatio <= 0 {
+		return 0
+	}
+	if callbackRatio > 1 {
+		return callbackRatio / 100.0
+	}
+	if callbackRatio >= 0.1 {
+		return callbackRatio / 100.0
+	}
+	return callbackRatio
+}
+
 // SetTrailingStopLoss sets a native trailing stop on OKX advance algo orders
 func (t *OKXTrader) SetTrailingStopLoss(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64) error {
 	return t.setTrailingStopLossWithTag(symbol, positionSide, activationPrice, callbackRate, quantity, "")
@@ -398,18 +456,31 @@ func (t *OKXTrader) SetTrailingStopLossTagged(symbol string, positionSide string
 	return t.setTrailingStopLossWithTag(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
 }
 
+func (t *OKXTrader) SetTrailingStopLossTaggedWithID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error) {
+	return t.setTrailingStopLossWithTagReturningID(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
+}
+
 func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) error {
+	_, err := t.setTrailingStopLossWithTagReturningID(symbol, positionSide, activationPrice, callbackRate, quantity, reasonTag)
+	return err
+}
+
+func (t *OKXTrader) setTrailingStopLossWithTagReturningID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error) {
 	instId := t.convertSymbol(symbol)
 
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return fmt.Errorf("failed to get instrument info: %w", err)
+		return "", fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
 	if quantity <= 0 {
+		// Trailing stops are often armed immediately after an entry fill. Avoid using
+		// a stale pre-entry position cache, otherwise OKX drawdown arming can miss the
+		// just-opened position and fail with "no active position found".
+		t.InvalidatePositionCache()
 		positions, err := t.GetPositions()
 		if err != nil {
-			return fmt.Errorf("failed to get positions for trailing stop: %w", err)
+			return "", fmt.Errorf("failed to get positions for trailing stop: %w", err)
 		}
 
 		for _, pos := range positions {
@@ -425,7 +496,7 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 		}
 	}
 	if quantity <= 0 {
-		return fmt.Errorf("no active position found for trailing stop: %s %s", symbol, positionSide)
+		return "", fmt.Errorf("no active position found for trailing stop: %s %s", symbol, positionSide)
 	}
 
 	sz := quantity / inst.CtVal
@@ -445,14 +516,14 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 		"posSide":       posSide,
 		"ordType":       "move_order_stop",
 		"sz":            szStr,
-		"activePx":      fmt.Sprintf("%.8f", activationPrice),
+		"activePx":      t.formatPrice(activationPrice, inst),
 		"callbackRatio": strconv.FormatFloat(callbackRate, 'f', -1, 64),
 		"tag":           okxReasonTag(reasonTag),
 	}
 
 	resp, err := t.doRequest("POST", okxAdvanceAlgoPath, body)
 	if err != nil {
-		return fmt.Errorf("failed to set trailing stop loss: %w", err)
+		return "", fmt.Errorf("failed to set trailing stop loss: %w", err)
 	}
 
 	var orders []struct {
@@ -462,21 +533,21 @@ func (t *OKXTrader) setTrailingStopLossWithTag(symbol string, positionSide strin
 	}
 	if err := json.Unmarshal(resp, &orders); err == nil && len(orders) > 0 {
 		if orders[0].SCode != "0" {
-			return fmt.Errorf("OKX trailing stop rejected: code=%s msg=%s", orders[0].SCode, orders[0].SMsg)
+			return "", fmt.Errorf("OKX trailing stop rejected: code=%s msg=%s", orders[0].SCode, orders[0].SMsg)
 		}
 		logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s algoId=%s", symbol, activationPrice, callbackRate, quantity, szStr, orders[0].AlgoId)
-		// Safety: after the new trailing order is confirmed by OKX, remove older trailing orders
-		// for the same symbol to avoid duplicate native trailing protection.
-		if orders[0].AlgoId != "" {
+		// Safety: for full trailing, keep a single live trailing order per symbol.
+		// For partial trailing drawdown, multiple tiers must be allowed to coexist.
+		if orders[0].AlgoId != "" && quantity <= 0 {
 			if err := t.cancelOtherTrailingStopOrders(symbol, orders[0].AlgoId); err != nil {
 				logger.Infof("  ⚠️ Failed to prune older OKX trailing stop orders for %s: %v", symbol, err)
 			}
 		}
-		return nil
+		return orders[0].AlgoId, nil
 	}
 
 	logger.Infof("  ✓ [OKX] Trailing stop set: %s activation=%.4f callback=%.4f qty=%.4f sz=%s resp=%s", symbol, activationPrice, callbackRate, quantity, szStr, string(resp))
-	return nil
+	return "", nil
 }
 
 func (t *OKXTrader) cancelOtherTrailingStopOrders(symbol string, keepAlgoID string) error {
@@ -545,6 +616,79 @@ func (t *OKXTrader) CancelTrailingStopOrders(symbol string) error {
 	return nil
 }
 
+func (t *OKXTrader) CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error {
+	if len(orderIDs) == 0 {
+		return nil
+	}
+	instId := t.convertSymbol(symbol)
+	set := make(map[string]struct{}, len(orderIDs))
+	for _, id := range orderIDs {
+		if id != "" {
+			set[id] = struct{}{}
+		}
+	}
+	path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=move_order_stop", okxAlgoPendingPath, instId)
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get trailing stop algo orders: %w", err)
+	}
+	var orders []struct {
+		AlgoId string `json:"algoId"`
+		InstId string `json:"instId"`
+	}
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return fmt.Errorf("failed to parse trailing stop algo orders: %w", err)
+	}
+	for _, order := range orders {
+		if _, ok := set[order.AlgoId]; !ok {
+			continue
+		}
+		body := []map[string]interface{}{{"algoId": order.AlgoId, "instId": order.InstId}}
+		if _, err := t.doRequest("POST", okxCancelAdvanceAlgoPath, body); err != nil {
+			return fmt.Errorf("failed to cancel targeted OKX trailing stop algo %s: %w", order.AlgoId, err)
+		}
+	}
+	return nil
+}
+
+func (t *OKXTrader) cancelAlgoOrdersByTag(symbol string, ordType string, reasonTag string) error {
+	instId := t.convertSymbol(symbol)
+	tag := okxReasonTag(reasonTag)
+	path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=%s", okxAlgoPendingPath, instId, ordType)
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get algo orders for cleanup: %w", err)
+	}
+
+	var orders []struct {
+		AlgoId string `json:"algoId"`
+		InstId string `json:"instId"`
+		Tag    string `json:"tag"`
+	}
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return fmt.Errorf("failed to parse algo orders for cleanup: %w", err)
+	}
+
+	for _, order := range orders {
+		if strings.TrimSpace(order.Tag) != tag {
+			continue
+		}
+		body := []map[string]interface{}{{"algoId": order.AlgoId, "instId": order.InstId}}
+		if _, err := t.doRequest("POST", okxCancelAlgoPath, body); err != nil {
+			return fmt.Errorf("failed to cancel tagged algo order %s: %w", order.AlgoId, err)
+		}
+	}
+	return nil
+}
+
+func (t *OKXTrader) CancelStopLossOrdersTagged(symbol string, reasonTag string) error {
+	return t.cancelAlgoOrdersByTag(symbol, "conditional", reasonTag)
+}
+
+func (t *OKXTrader) CancelTakeProfitOrdersTagged(symbol string, reasonTag string) error {
+	return t.cancelAlgoOrdersByTag(symbol, "conditional", reasonTag)
+}
+
 // SetStopLoss sets stop loss order
 func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	return t.setStopLossWithTag(symbol, positionSide, quantity, stopPrice, "")
@@ -587,12 +731,16 @@ func (t *OKXTrader) setStopLossWithTag(symbol string, positionSide string, quant
 		"tag":         okxReasonTag(reasonTag),
 	}
 
-	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
+	resp, err := t.doRequest("POST", okxAlgoOrderPath, body)
 	if err != nil {
 		return fmt.Errorf("failed to set stop loss: %w", err)
 	}
+	algoID, err := parseOKXAlgoOrderResponse(resp, "stop loss")
+	if err != nil {
+		return err
+	}
 
-	logger.Infof("  Stop loss price set: %.4f", stopPrice)
+	logger.Infof("  Stop loss price set: %.4f algoId=%s", stopPrice, algoID)
 	return nil
 }
 
@@ -638,12 +786,30 @@ func (t *OKXTrader) setTakeProfitWithTag(symbol string, positionSide string, qua
 		"tag":         okxReasonTag(reasonTag),
 	}
 
-	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
+	resp, err := t.doRequest("POST", okxAlgoOrderPath, body)
 	if err != nil {
 		return fmt.Errorf("failed to set take profit: %w", err)
 	}
+	algoID, err := parseOKXAlgoOrderResponse(resp, "take profit")
+	if err != nil {
+		return err
+	}
 
-	logger.Infof("  Take profit price set: %.4f", takeProfitPrice)
+	logger.Infof("  Take profit price set: %.4f algoId=%s", takeProfitPrice, algoID)
+	return nil
+}
+
+func (t *OKXTrader) CancelAlgoOrderByID(symbol string, algoID string) error {
+	algoID = strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(algoID, "_sl"), "_tp"))
+	if algoID == "" {
+		return nil
+	}
+	instId := t.convertSymbol(symbol)
+	body := []map[string]interface{}{{"algoId": algoID, "instId": instId}}
+	if _, err := t.doRequest("POST", okxCancelAlgoPath, body); err != nil {
+		return fmt.Errorf("failed to cancel algo order %s: %w", algoID, err)
+	}
+	logger.Infof("  ✓ Canceled algo order by id for %s: %s", symbol, algoID)
 	return nil
 }
 
@@ -936,9 +1102,9 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 	algoPath := fmt.Sprintf("%s?instId=%s&instType=SWAP&ordType=conditional", okxAlgoPendingPath, instId)
 	algoData, err := t.doRequest("GET", algoPath, nil)
 	if err != nil {
-		logger.Warnf("[OKX] Failed to get algo orders: %v", err)
+		return nil, fmt.Errorf("failed to get OKX conditional algo orders for %s: %w", symbol, err)
 	}
-	if err == nil && algoData != nil {
+	if algoData != nil {
 		var algoOrders []struct {
 			AlgoId      string `json:"algoId"`
 			InstId      string `json:"instId"`
@@ -1034,6 +1200,7 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 			ActivePx      string `json:"activePx"`
 			CallbackRatio string `json:"callbackRatio"`
 			Sz            string `json:"sz"`
+			Tag           string `json:"tag"`
 		}
 		if err := json.Unmarshal(trailingData, &trailingOrders); err == nil {
 			for _, order := range trailingOrders {
@@ -1041,22 +1208,33 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]types.OpenOrder, error) {
 				quantity := quantityContracts * ctVal
 				activePx, _ := strconv.ParseFloat(order.ActivePx, 64)
 				callbackRatio, _ := strconv.ParseFloat(order.CallbackRatio, 64)
+				// OKX returns callbackRatio in percentage units (for example "0.55" means
+				// 0.55%). Internally OpenOrder.CallbackRate is a decimal ratio, matching
+				// the value we pass when placing trailing orders (0.0055). Normalizing here
+				// prevents equivalent-order detection from missing live native trailing
+				// orders and re-placing the same tier every monitor/reconcile pass.
+				callbackRate := normalizeOKXCallbackRatio(callbackRatio)
 				side := strings.ToUpper(order.Side)
 				positionSide := strings.ToUpper(order.PosSide)
 				if positionSide == "NET" {
 					positionSide = "BOTH"
 				}
 				result = append(result, types.OpenOrder{
-					OrderID:      order.AlgoId,
-					Symbol:       symbol,
-					Side:         side,
-					PositionSide: positionSide,
-					Type:         "TRAILING_STOP_MARKET",
-					Price:        0,
-					StopPrice:    activePx,
-					CallbackRate: callbackRatio,
-					Quantity:     quantity,
-					Status:       "NEW",
+					OrderID:         order.AlgoId,
+					Symbol:          symbol,
+					Side:            side,
+					PositionSide:    positionSide,
+					Type:            "TRAILING_STOP_MARKET",
+					Price:           0,
+					StopPrice:       activePx,
+					ActivationPrice: activePx,
+					CallbackRate:    callbackRate,
+					CallbackRatePct: callbackRatio,
+					Quantity:        quantity,
+					Status:          "NEW",
+					ClientOrderID:   order.Tag,
+					ProtectionRole:  protectionReasonFromTag(order.Tag),
+					ParentOrderID:   order.AlgoId,
 				})
 			}
 		}

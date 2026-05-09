@@ -30,6 +30,7 @@ type Trader struct {
 	IsRunning           bool      `gorm:"column:is_running;default:false" json:"is_running"`
 	IsCrossMargin       bool      `gorm:"column:is_cross_margin;default:true" json:"is_cross_margin"`
 	ShowInCompetition   bool      `gorm:"column:show_in_competition;default:true" json:"show_in_competition"`
+	AllowAIOpen         bool      `gorm:"column:allow_ai_open;default:true" json:"allow_ai_open"`
 	AllowAIClose        bool      `gorm:"column:allow_ai_close;default:true" json:"allow_ai_close"`
 	AIDecisionMode      string    `gorm:"column:ai_decision_mode;default:balanced" json:"ai_decision_mode"`
 	CreatedAt           time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
@@ -65,6 +66,7 @@ func (s *TraderStore) initTables() error {
 		var tableExists int64
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'traders'`).Scan(&tableExists)
 		if tableExists > 0 {
+			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS allow_ai_open BOOLEAN DEFAULT true`)
 			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS allow_ai_close BOOLEAN DEFAULT true`)
 			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS ai_decision_mode TEXT DEFAULT 'balanced'`)
 			return nil
@@ -94,11 +96,17 @@ func (s *TraderStore) List(userID string) ([]*Trader, error) {
 	return traders, nil
 }
 
-// UpdateStatus updates trader running status
+// UpdateStatus updates trader running status. This should be used only by explicit
+// frontend start/stop controls, not by normal process restarts.
 func (s *TraderStore) UpdateStatus(userID, id string, isRunning bool) error {
 	return s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Update("is_running", isRunning).Error
+}
+
+// ForceAllRunning marks every configured trader as running for normal service boot.
+func (s *TraderStore) ForceAllRunning() error {
+	return s.db.Model(&Trader{}).Where("1 = 1").Update("is_running", true).Error
 }
 
 // UpdateShowInCompetition updates trader competition visibility
@@ -106,6 +114,20 @@ func (s *TraderStore) UpdateShowInCompetition(userID, id string, showInCompetiti
 	return s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Update("show_in_competition", showInCompetition).Error
+}
+
+// UpdateAIExecutionControls updates AI open/close execution gates and decision style.
+func (s *TraderStore) UpdateAIExecutionControls(userID, id string, allowAIOpen, allowAIClose bool, aiDecisionMode string) error {
+	if aiDecisionMode == "" {
+		aiDecisionMode = "balanced"
+	}
+	return s.db.Model(&Trader{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]interface{}{
+			"allow_ai_open":    allowAIOpen,
+			"allow_ai_close":   allowAIClose,
+			"ai_decision_mode": aiDecisionMode,
+		}).Error
 }
 
 // Update updates trader configuration
@@ -120,6 +142,7 @@ func (s *TraderStore) Update(trader *Trader) error {
 		"strategy_id":         trader.StrategyID,
 		"is_cross_margin":     trader.IsCrossMargin,
 		"show_in_competition": trader.ShowInCompetition,
+		"allow_ai_open":       trader.AllowAIOpen,
 		"allow_ai_close":      trader.AllowAIClose,
 		"ai_decision_mode":    trader.AIDecisionMode,
 	}
@@ -259,6 +282,16 @@ func (s *TraderStore) ListAll() ([]*Trader, error) {
 func (s *TraderStore) ListByExchangeID(userID, exchangeID string) ([]*Trader, error) {
 	var traders []*Trader
 	err := s.db.Where("user_id = ? AND exchange_id = ?", userID, exchangeID).Find(&traders).Error
+	if err != nil {
+		return nil, err
+	}
+	return traders, nil
+}
+
+// ListByStrategyID gets traders that use a specific strategy
+func (s *TraderStore) ListByStrategyID(userID, strategyID string) ([]*Trader, error) {
+	var traders []*Trader
+	err := s.db.Where("user_id = ? AND strategy_id = ?", userID, strategyID).Find(&traders).Error
 	if err != nil {
 		return nil, err
 	}

@@ -69,6 +69,10 @@ type OKXTrader struct {
 	instrumentsCacheTime  time.Time
 	instrumentsCacheMutex sync.RWMutex
 
+	// Rate-limit backoff state
+	rateLimitMutex sync.Mutex
+	rateLimitUntil time.Time
+
 	// Cache duration
 	cacheDuration time.Duration
 }
@@ -238,6 +242,7 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {
+		t.waitForRateLimitBackoff()
 		timestamp := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 		signature := t.sign(timestamp, method, path, string(bodyBytes))
 
@@ -286,6 +291,13 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 		// code=1 indicates partial success, need to check specific results in data
 		// code=2 indicates complete failure
 		if okxResp.Code != "0" && okxResp.Code != "1" {
+			if okxResp.Code == "50011" && attempt < 3 {
+				delay := time.Duration(attempt) * 2 * time.Second
+				t.noteRateLimitBackoff(delay)
+				logger.Infof("⚠️ OKX rate limit retry %d/3 for %s %s after %s", attempt, method, path, delay)
+				time.Sleep(delay)
+				continue
+			}
 			return nil, fmt.Errorf("OKX API error: code=%s, msg=%s", okxResp.Code, okxResp.Msg)
 		}
 
@@ -293,6 +305,30 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 	}
 
 	return nil, fmt.Errorf("request failed after retries: %w", lastErr)
+}
+
+func (t *OKXTrader) waitForRateLimitBackoff() {
+	t.rateLimitMutex.Lock()
+	until := t.rateLimitUntil
+	t.rateLimitMutex.Unlock()
+	if until.IsZero() {
+		return
+	}
+	if delay := time.Until(until); delay > 0 {
+		time.Sleep(delay)
+	}
+}
+
+func (t *OKXTrader) noteRateLimitBackoff(delay time.Duration) {
+	if delay <= 0 {
+		return
+	}
+	t.rateLimitMutex.Lock()
+	until := time.Now().Add(delay)
+	if until.After(t.rateLimitUntil) {
+		t.rateLimitUntil = until
+	}
+	t.rateLimitMutex.Unlock()
 }
 
 func shouldRetryOKXError(err error) bool {

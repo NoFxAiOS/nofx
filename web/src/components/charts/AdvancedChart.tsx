@@ -52,6 +52,7 @@ interface AdvancedChartProps {
   height?: number
   exchange?: string // Exchange type: binance, bybit, okx, bitget, hyperliquid, aster, lighter
   onSymbolChange?: (symbol: string) => void // Symbol change callback
+  autoRefresh?: boolean
 }
 
 // Indicator configuration
@@ -102,6 +103,7 @@ export function AdvancedChart({
   height = 550,
   exchange = 'binance', // Default to binance
   onSymbolChange: _onSymbolChange, // Available for future use
+  autoRefresh = true,
 }: AdvancedChartProps) {
   void _onSymbolChange // Prevent unused warning
   const { language } = useLanguage()
@@ -736,6 +738,10 @@ export function AdvancedChart({
     }
 
     loadData(false) // Initial load
+
+    if (!autoRefresh) {
+      return
+    }
 
     // Real-time auto-refresh (every 5 seconds)
     const refreshInterval = setInterval(() => loadData(true), 5000)

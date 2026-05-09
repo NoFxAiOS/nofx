@@ -17,6 +17,45 @@ type Data struct {
 	LongerTermContext *LongerTermData
 	// Multi-timeframe data (new)
 	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
+	// Market sentiment fields
+	LongShortRatio     *float64          `json:"long_short_ratio,omitempty"`
+	TopTraderRatio     *float64          `json:"top_trader_ratio,omitempty"`
+	TakerBuySellRatio  *float64          `json:"taker_buy_sell_ratio,omitempty"`
+	DepthBidTotal      *float64          `json:"depth_bid_total,omitempty"`
+	DepthAskTotal      *float64          `json:"depth_ask_total,omitempty"`
+	DepthImbalance     *float64          `json:"depth_imbalance,omitempty"`
+	FibonacciLevels    *FibonacciLevels  `json:"fibonacci_levels,omitempty"`
+	StructuralLevels   []StructuralLevel `json:"structural_levels,omitempty"`
+	QuantContext       *QuantContext     `json:"quant_context,omitempty"`
+	FundingRateHistory []float64         // last 8 funding rates (newest first)
+	OIHistory1h        float64           // OI value from 1h ago
+	OIHistory4h        float64           // OI value from 4h ago
+}
+
+type QuantContext struct {
+	InstitutionFuture1h float64 `json:"institution_future_1h,omitempty"`
+	InstitutionFuture4h float64 `json:"institution_future_4h,omitempty"`
+	InstitutionSpot1h   float64 `json:"institution_spot_1h,omitempty"`
+	RetailFuture1h      float64 `json:"retail_future_1h,omitempty"`
+	OIChange1hPct       float64 `json:"oi_change_1h_pct,omitempty"`
+	OIChange4hPct       float64 `json:"oi_change_4h_pct,omitempty"`
+	OIChange1hValue     float64 `json:"oi_change_1h_value,omitempty"`
+	FlowBias            string  `json:"flow_bias,omitempty"`
+	CrowdingRisk        string  `json:"crowding_risk,omitempty"`
+	Interpretation      string  `json:"interpretation,omitempty"`
+	DataQuality         string  `json:"data_quality,omitempty"`
+}
+
+type ExchangeFlowContext struct {
+	FundingBias    string  `json:"funding_bias,omitempty"`
+	LongShortSkew  string  `json:"long_short_skew,omitempty"`
+	TakerFlowBias  string  `json:"taker_flow_bias,omitempty"`
+	DepthBias      string  `json:"depth_bias,omitempty"`
+	DepthTotalUSDT float64 `json:"depth_total_usdt,omitempty"`
+	DepthImbalance float64 `json:"depth_imbalance,omitempty"`
+	CrowdingRisk   string  `json:"crowding_risk,omitempty"`
+	DataQuality    string  `json:"data_quality,omitempty"`
+	Interpretation string  `json:"interpretation,omitempty"`
 }
 
 // KlineBar single kline bar with OHLCV data
@@ -45,6 +84,9 @@ type TimeframeSeriesData struct {
 	BOLLUpper  []float64 `json:"boll_upper"`  // Upper band
 	BOLLMiddle []float64 `json:"boll_middle"` // Middle band (SMA)
 	BOLLLower  []float64 `json:"boll_lower"`  // Lower band
+	// Structural analysis per timeframe
+	FibonacciLevels  *FibonacciLevels  `json:"fibonacci_levels,omitempty"`
+	StructuralLevels []StructuralLevel `json:"structural_levels,omitempty"`
 }
 
 // OIData Open Interest data
@@ -206,15 +248,17 @@ type BoxData struct {
 	CurrentPrice float64 `json:"current_price"`
 }
 
-// RegimeLevel represents the ranging classification level
+// RegimeLevel represents the market regime classification
 type RegimeLevel string
 
 const (
-	RegimeLevelNarrow   RegimeLevel = "narrow"   // narrow range oscillation
-	RegimeLevelStandard RegimeLevel = "standard" // standard oscillation
-	RegimeLevelWide     RegimeLevel = "wide"     // wide range oscillation
-	RegimeLevelVolatile RegimeLevel = "volatile" // extreme volatility
-	RegimeLevelTrending RegimeLevel = "trending" // trending
+	RegimeLevelNarrow       RegimeLevel = "narrow"        // narrow range oscillation
+	RegimeLevelStandard     RegimeLevel = "standard"      // standard oscillation
+	RegimeLevelWide         RegimeLevel = "wide"          // wide range oscillation
+	RegimeLevelVolatile     RegimeLevel = "volatile"      // extreme volatility
+	RegimeLevelTrending     RegimeLevel = "trending"      // strong directional trend (legacy / either direction)
+	RegimeLevelTrendingUp   RegimeLevel = "trending_up"   // confirmed uptrend
+	RegimeLevelTrendingDown RegimeLevel = "trending_down" // confirmed downtrend
 )
 
 // BreakoutLevel represents which box level has been broken
@@ -231,11 +275,11 @@ const (
 type GridDirection string
 
 const (
-	GridDirectionNeutral   GridDirection = "neutral"     // 50% buy + 50% sell
-	GridDirectionLong      GridDirection = "long"        // 100% buy
-	GridDirectionShort     GridDirection = "short"       // 100% sell
-	GridDirectionLongBias  GridDirection = "long_bias"   // 70% buy + 30% sell (default)
-	GridDirectionShortBias GridDirection = "short_bias"  // 30% buy + 70% sell (default)
+	GridDirectionNeutral   GridDirection = "neutral"    // 50% buy + 50% sell
+	GridDirectionLong      GridDirection = "long"       // 100% buy
+	GridDirectionShort     GridDirection = "short"      // 100% sell
+	GridDirectionLongBias  GridDirection = "long_bias"  // 70% buy + 30% sell (default)
+	GridDirectionShortBias GridDirection = "short_bias" // 30% buy + 70% sell (default)
 )
 
 // GetBuySellRatio returns the buy and sell ratio for this direction
@@ -259,4 +303,19 @@ func (d GridDirection) GetBuySellRatio(biasRatio float64) (buyRatio, sellRatio f
 	default:
 		return 0.5, 0.5
 	}
+}
+
+// DerivativesEnriched holds computed derivatives indicators derived from kline
+// and order-book snapshots. Fields are optional: zero value means not computed.
+type DerivativesEnriched struct {
+	CVD1h           float64   `json:"cvd_1h,omitempty"`            // 1h Cumulative Volume Delta (positive = buyer dominant)
+	CVD4h           float64   `json:"cvd_4h,omitempty"`            // 4h CVD
+	OIGrowthRate1h  float64   `json:"oi_growth_rate_1h,omitempty"` // 1h OI growth rate %
+	OIGrowthRate4h  float64   `json:"oi_growth_rate_4h,omitempty"` // 4h OI growth rate %
+	FundingTrend    string    `json:"funding_trend,omitempty"`     // "rising" / "falling" / "stable" / "extreme_positive" / "extreme_negative"
+	FundingHistory  []float64 `json:"funding_history,omitempty"`   // Last 8 funding rates
+	VWAP            float64   `json:"vwap,omitempty"`              // Intraday VWAP
+	PriceVsVWAP     float64   `json:"price_vs_vwap,omitempty"`     // (price - VWAP) / VWAP × 100%
+	TakerDelta      float64   `json:"taker_delta,omitempty"`       // (buy-sell)/total, [-1, 1]
+	DepthChangeRate float64   `json:"depth_change_rate,omitempty"` // Depth imbalance change rate
 }

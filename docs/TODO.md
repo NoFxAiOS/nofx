@@ -1,90 +1,20 @@
-# NOFX 待办清单
 
-## P0 - 接管基线
-- [x] 克隆仓库并建立接管分支
-- [x] 完成首轮结构扫描
-- [x] 建立中文接管文档骨架
-- [x] 验证后端测试基线
-- [x] 安装前端依赖并验证前端测试/构建
-- [x] 建立接管结项总文档（阶段性）
-- [x] 建立项目记忆归档总表（阶段性）
-- [x] 梳理启动链、决策链、交易链、风控链到完整收口版
-- [x] 输出交易系统可信性/风险边界收口说明
-- [x] 输出交易保护与盈利控制统一方案设计 v1
 
-## P1 - 架构认知
-- [x] 输出中文架构骨架
-- [x] 输出模块索引
-- [x] 输出更完整的中文架构说明（收口版已增强）
-- [x] 输出模块级职责说明
-- [x] 输出 API ↔ 前端页面映射正式版
-- [x] 输出核心数据表/实体关系说明
-
-## P1 - 开发治理
-- [x] 建立 `DECISIONS.md`
-- [x] 建立 `TEST_PLAN.md`
-- [x] 建立 `ACCEPTANCE.md`
-- [x] 建立 `RISKS.md`
-- [x] 建立 `CHANGE_IMPACT.md`
-- [x] 建立伏羲执行工作流文档
-- [x] 更新任务模板与验收模板为长期使用版
-
-## P1 - 中文化收口
-- [x] 为关键入口补首轮中文注释：`main.go`
-- [x] 为关键入口补首轮中文注释：`api/server.go`
-- [x] 为关键入口补首轮中文注释：`manager/trader_manager.go`
-- [x] 为关键入口补首轮中文注释：`trader/*` 主入口（已补主循环/风控主链首轮）
-- [x] 为关键入口补首轮中文注释：`kernel/*` 主入口（已补 engine / position validate / prompt builder 首轮）
-
-- [ ] **P1: 交易复盘与数据积累基础设施（一期）**
-  - [x] 盘清当前现有数据渠道（decision / order / fill / position / close-event / equity / config）
-  - [x] 输出《交易复盘与数据积累方案 V1》
-  - [x] 数据模型文档补充 `position_close_events` 与真相源分层
-  - [ ] 最小连接键补强：decision ↔ position / close-event ↔ decision
-  - [x] 最小结构化环境快照：第一版 `review_context`（safe mode / ai close gate / ai mode / candidate count / equity / margin）
-  - [ ] 设计 review 输出模型（先定义，不急着全实现）
-
-## P2 - 持续优化与二次开发前准备
-- [x] 清理首轮外部问题
-- [x] 完成首轮低风险性能优化
-- [x] 推进首轮前端 API 收束
-- [x] 继续统一剩余散落 API 调用（已完成一轮 chart / strategy studio / wallet config 收束）
-- [x] 确认收益相关核心指标与口径
-- [x] 确认稳定性指标（错误率、恢复时间、状态一致性）
-- [x] 确认是否存在测试网 / mock / replay 数据支持（已完成盘点，结论为“部分具备但不完整”）
-- [x] 识别首个低风险高价值二次开发任务
-- [x] Phase 1: 交易所能力矩阵抽象（首轮骨架）
-- [x] Phase 1: protection 配置结构落库（代码结构与默认值已落地）
-- [x] Phase 1: 手动 Full TP/SL UI + 执行闭环（前后端首轮已打通）
-- [x] Phase 1: 开仓后保护单闭环确认与失败平仓（首轮最小闭环已接入）
-- [x] Phase 2: Ladder TP/SL + Drawdown Take Profit + Break-even Stop（手动 ladder 执行链、drawdown 配置驱动执行、break-even 运行态执行均已落地并通过当前自动化基线）
-- [x] Phase 3: AI protection mode + Regime Filter
-- [x] Phase 3 收口补强：protection setup 重试 + 失败统一平仓保护
-- [x] Phase 3 收口补强：Drawdown Take Profit 前端多规则编辑闭环
-- [x] Phase 3 收口补强：OKX / NOFXOS 网络健壮性补强
-- [x] 验证闭环启动：统一 fake trader harness + protection lifecycle test 骨架 + replay/paper-trading 推进方案
-- [x] 下一阶段：继续深化 replay / paper-trading / simulation 验证闭环（已完成多场景覆盖、short 侧、多步价格推进、负收益、regime filter 阻断、错误路径、protection 生命周期集成测试深化）
-
-## P0 - 保护机制实战闭环（2026-04-11~12 推进中）
-- [x] 修复委托单检测反复下单（验证延迟重试 + 价格容差 + reconciler 冷却期）
-- [x] 修复 Full + Ladder TP/SL 不能共存（Ladder 优先 → Full 只补缺方向）
-- [x] 移动止盈止损代码路径从 stub 接入实际执行
-- [x] Break-even 生命周期完善（fingerprint re-arm + 委托验证）
-- [x] 修复保护单无限累积 bug（reconciler 自动清理重复单 + 孤儿单取消）
-- [ ] **P0: Drawdown 原生能力收口**
-  - [x] 纠正 partial drawdown 语义：从伪 native 正名为 managed
-  - [x] generic cleanup 不误清 native trailing
-  - [x] capability 模型拆细：新增 native full / native partial trailing 能力位
-  - [x] 三家 trailing 接口签名扩展为支持按 quantity 下单（为 partial native 铺路）
-  - [x] 运行态优先尝试 native partial trailing，多档可按 `close_ratio_pct` 计算 quantity 下单
-  - [x] trailing runtime 已补 activation/callback/source 展示链
-  - [x] 统一执行原则：native trailing 一旦挂上，不因市价波动改 activePx；只有掉单/查不到时才 re-arm
-  - [ ] 核定 OKX/Binance/Bitget 对 partial trailing close 的真实交易所语义边界（实盘/API 文档验证）
-  - [x] native armed 后彻底禁用本地 fallback 接管执行
-- [ ] **P1: 持仓保护执行面板前后端交付**
-  - [x] 发现并接管现有 `PositionProtectionPanel` 骨架
-  - [x] 前端状态语义升级：补齐 `managed_partial_drawdown_armed` / `native_partial_trailing`
-  - [x] 执行模式文案升级：明确区分 native full / native partial / managed partial
-  - [x] 面板说明文案纠偏：不再把 managed partial 误述为 native trailing
-  - [x] 后端补充 trailing 元信息（activation / callback / source）供面板展示
-  - [ ] 执行面板支持“多档原生跟踪委托”逐档展示
+- [x] 已明确“一次交付目标”：后续 coding 任务默认自主推进到可交付再汇报，不再把普通推进步骤、一般阻塞、模型瞬时波动反复抛回给用户。
+- [x] 在当前 `nofxmax` 主线上按一次交付模式继续：已完成对 Drawdown / Break-even / protection 真实执行层问题的一轮集中收口，并形成交付总结 `docs/PROTECTION_EXECUTION_DELIVERY_2026-04-20.md`。
+- [~] 基于当前交付结果，进入下一轮新任务：真实持仓验收 / 保护摘要可视化 / fixture 产物取舍。
+  - [x] 保护摘要可视化：运行态摘要已补齐 drawdown stage / break-even live order / trailing count / ladder planned-vs-live / degradation summary / full-fallback state。
+  - [x] 保护摘要验收样例：已补 `trader/position_protection_runtime_test.go` 与 `web/src/components/trader/PositionProtectionPanel.test.tsx`，锁住 ladder→full / fallback live / partial TP degradation 展示语义。
+  - [~] 真实持仓验收：已完成 ADA 异常样本回溯与修复，确认问题主因是 drawdown partial close 重复 re-fire 与 OKX sync close source 扁平化；对应修复为 `705037bc` / `52219aa1`。仍需继续对活跃 symbol 做实盘核对（基础保护 / break-even / drawdown stage / cleanup）。
+  - [ ] fixture 产物取舍：`docs/fixtures/protection-test-run-last-result.json` / `docs/fixtures/protection-test-run-open-bias-fixture.json` 是否入库仍待决定。
+- protection 配置闭环补充：
+  - [x] `PUT /api/strategies/:id` → `GET /api/strategies/:id` API 级回读验证已补齐，确认 Full/Ladder/fallback 深层字段不会因局部更新被冲掉
+  - [x] 运行态配置来源已核清：Trader 优先读取自身 `strategy_id` 对应的 strategy；`active strategy` 只在 trader 未绑定 strategy_id 时作为 fallback
+  - [x] `GET /api/trader/config/:id` 已补回 `strategy_name`，避免 trader 配置弹窗只拿到 `strategy_id` 导致“看起来没绑对策略”的误判
+  - [x] 前端主要 trader 更新路径已核查：编辑 trader 与 dashboard 保存 AI 控制项时，都会显式回传 `strategy_id`
+  - [x] 已修复旧版 protection value 结构兼容问题：旧数据中的 `{"enabled":...}` 现在会在反序列化时迁移为新结构 `mode/value`，避免策略页回填时误显示为默认 manual
+  - [x] 已补 UI 状态摘要与提示，明确区分“执行开关 enabled”与“整体/子项 mode”，减少“AI 模式已保留但尚未启用执行”被误读成“回到手动”
+  - [ ] Protection AI mode 真实环境差异继续深挖：前端保存 payload 与 API legacy upgrade 测试均已锁住，但真实 strategy raw JSON 仍出现旧 shape；需继续抓真实 PUT incoming/merged config 日志，定位未覆盖路径
+- 执行层实盘主线（恢复优先级）:
+  - [~] Drawdown 多档委托生命周期：已补 live-position gate + full-close cleanup 回调，先卡住“平仓后继续补写保护”的主入口；仍需继续确认是否做到“新单确认成功后再撤旧单”，以及是否还存在保护空窗 / 重复单 / 孤儿单清理不彻底
+  - [ ] Break-even 实盘委托可观测性：补强日志/状态面，明确 break-even 何时触发、是否下单、是否被交易所拒绝、是否被其他保护链抑制

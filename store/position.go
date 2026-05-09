@@ -106,18 +106,21 @@ type TraderPosition struct {
 	Quantity           float64 `gorm:"column:quantity;not null" json:"quantity"`
 	EntryPrice         float64 `gorm:"column:entry_price;not null" json:"entry_price"`
 	EntryOrderID       string  `gorm:"column:entry_order_id;default:''" json:"entry_order_id"`
+	EntryDecisionCycle int     `gorm:"column:entry_decision_cycle;default:0" json:"entry_decision_cycle"`
 	EntryTime          int64   `gorm:"column:entry_time;not null;index:idx_positions_entry" json:"entry_time"` // Unix milliseconds UTC
-	ExitPrice          float64 `gorm:"column:exit_price;default:0" json:"exit_price"`
-	ExitOrderID        string  `gorm:"column:exit_order_id;default:''" json:"exit_order_id"`
-	ExitTime           int64   `gorm:"column:exit_time;index:idx_positions_exit" json:"exit_time"` // Unix milliseconds UTC, 0 means not set
-	RealizedPnL        float64 `gorm:"column:realized_pnl;default:0" json:"realized_pnl"`
-	Fee                float64 `gorm:"column:fee;default:0" json:"fee"`
-	Leverage           int     `gorm:"column:leverage;default:1" json:"leverage"`
-	Status             string  `gorm:"column:status;default:OPEN;index:idx_positions_status" json:"status"`
-	CloseReason        string  `gorm:"column:close_reason;default:''" json:"close_reason"`
-	Source             string  `gorm:"column:source;default:system" json:"source"`
-	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
-	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
+
+	ExitPrice         float64 `gorm:"column:exit_price;default:0" json:"exit_price"`
+	ExitOrderID       string  `gorm:"column:exit_order_id;default:''" json:"exit_order_id"`
+	ExitDecisionCycle int     `gorm:"column:exit_decision_cycle;default:0" json:"exit_decision_cycle"`
+	ExitTime          int64   `gorm:"column:exit_time;index:idx_positions_exit" json:"exit_time"` // Unix milliseconds UTC, 0 means not set
+	RealizedPnL       float64 `gorm:"column:realized_pnl;default:0" json:"realized_pnl"`
+	Fee               float64 `gorm:"column:fee;default:0" json:"fee"`
+	Leverage          int     `gorm:"column:leverage;default:1" json:"leverage"`
+	Status            string  `gorm:"column:status;default:OPEN;index:idx_positions_status" json:"status"`
+	CloseReason       string  `gorm:"column:close_reason;default:''" json:"close_reason"`
+	Source            string  `gorm:"column:source;default:system" json:"source"`
+	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
+	UpdatedAt         int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
 }
 
 // TableName returns the table name
@@ -142,26 +145,56 @@ func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID s
 		return reason, source, executionType
 	}
 
-	var ord TraderOrder
-	if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, exchangeOrderID).First(&ord).Error; err == nil {
+	lookupOrder := func(id string) (*TraderOrder, bool) {
+		if id == "" {
+			return nil, false
+		}
+		var ord TraderOrder
+		if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, id).First(&ord).Error; err == nil {
+			return &ord, true
+		}
+		return nil, false
+	}
+
+	ord, ok := lookupOrder(exchangeOrderID)
+	if !ok {
+		var fill TraderFill
+		if err := s.db.Where("exchange_id = ? AND exchange_trade_id = ?", pos.ExchangeID, exchangeOrderID).First(&fill).Error; err == nil {
+			if parent, found := lookupOrder(fill.ExchangeOrderID); found {
+				ord = parent
+				ok = true
+			}
+		}
+	}
+	if ok && ord != nil && ord.ParentOrderID != "" {
+		if parent, found := lookupOrder(ord.ParentOrderID); found {
+			ord = parent
+		}
+	}
+
+	if ok && ord != nil {
 		tagLower := strings.ToLower(ord.ClientOrderID)
+		actionLower := strings.ToLower(ord.OrderAction)
 		switch {
-		case strings.Contains(tagLower, "break_even"):
+		case strings.Contains(tagLower, "break_even") || strings.Contains(actionLower, "break_even"):
 			reason = "break_even_stop"
 			source = "break_even_stop"
-		case strings.Contains(tagLower, "native_trailing"):
+		case strings.Contains(tagLower, "native_trailing") || strings.Contains(actionLower, "native_trailing"):
 			reason = "native_trailing"
 			source = "native_trailing"
-		case strings.Contains(tagLower, "ladder_tp"):
+		case strings.Contains(tagLower, "managed_drawdown") || strings.Contains(actionLower, "managed_drawdown"):
+			reason = "managed_drawdown"
+			source = "managed_drawdown"
+		case strings.Contains(tagLower, "ladder_tp") || strings.Contains(actionLower, "ladder_tp"):
 			reason = "ladder_tp"
 			source = "ladder_tp"
-		case strings.Contains(tagLower, "ladder_sl"):
+		case strings.Contains(tagLower, "ladder_sl") || strings.Contains(actionLower, "ladder_sl"):
 			reason = "ladder_sl"
 			source = "ladder_sl"
-		case strings.Contains(tagLower, "full_tp"):
+		case strings.Contains(tagLower, "full_tp") || strings.Contains(actionLower, "full_tp"):
 			reason = "full_tp"
 			source = "full_tp"
-		case strings.Contains(tagLower, "full_sl"):
+		case strings.Contains(tagLower, "full_sl") || strings.Contains(actionLower, "full_sl") || strings.Contains(tagLower, "fallback_maxloss") || strings.Contains(actionLower, "fallback_maxloss"):
 			reason = "full_sl"
 			source = "full_sl"
 		}
@@ -193,7 +226,7 @@ func (s *PositionStore) deriveCloseReason(pos *TraderPosition, exchangeOrderID s
 				reason = "full_sl"
 				source = "full_sl"
 			}
-		case strings.HasPrefix(strings.ToLower(ord.OrderAction), "close_"):
+		case strings.HasPrefix(actionLower, "close_"):
 			if reason == "" || reason == "close_long" || reason == "close_short" {
 				reason = ord.OrderAction
 				source = ord.OrderAction
@@ -221,6 +254,21 @@ func (s *PositionStore) logCloseEvent(pos *TraderPosition, closeReason, executio
 	if baseQty > 0 {
 		closeRatioPct = closeQty / baseQty * 100
 	}
+	decisionCycle := pos.ExitDecisionCycle
+	if decisionCycle == 0 {
+		decisionCycle = pos.EntryDecisionCycle
+	}
+	parentOrderID := ""
+	if exchangeOrderID != "" && s.db != nil {
+		var fill TraderFill
+		if err := s.db.Where("exchange_id = ? AND exchange_trade_id = ?", pos.ExchangeID, exchangeOrderID).First(&fill).Error; err == nil {
+			parentOrderID = fill.ExchangeOrderID
+		}
+		var ord TraderOrder
+		if err := s.db.Where("exchange_id = ? AND exchange_order_id = ?", pos.ExchangeID, exchangeOrderID).First(&ord).Error; err == nil && ord.ParentOrderID != "" {
+			parentOrderID = ord.ParentOrderID
+		}
+	}
 	event := &PositionCloseEvent{
 		PositionID:       pos.ID,
 		TraderID:         pos.TraderID,
@@ -230,7 +278,9 @@ func (s *PositionStore) logCloseEvent(pos *TraderPosition, closeReason, executio
 		CloseReason:      closeReason,
 		ExecutionSource:  executionSource,
 		ExecutionType:    executionType,
+		DecisionCycle:    decisionCycle,
 		ExchangeOrderID:  exchangeOrderID,
+		ParentOrderID:    parentOrderID,
 		CloseQuantity:    closeQty,
 		CloseRatioPct:    closeRatioPct,
 		ExecutionPrice:   executionPrice,
@@ -281,6 +331,9 @@ func (s *PositionStore) InitTables() error {
 				}
 			}
 
+			s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN IF NOT EXISTS entry_decision_cycle INTEGER DEFAULT 0`)
+			s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN IF NOT EXISTS exit_decision_cycle INTEGER DEFAULT 0`)
+
 			// Just ensure index exists
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_positions_exchange_pos_unique ON trader_positions(exchange_id, exchange_position_id) WHERE exchange_position_id != ''`)
 			return nil
@@ -316,18 +369,123 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 	return s.db.Create(pos).Error
 }
 
+func (s *PositionStore) GetLatestDecisionCycle(traderID string) int {
+	return s.GetLatestSuccessfulDecisionCycle(traderID)
+}
+
+func (s *PositionStore) GetLatestSuccessfulDecisionCycle(traderID string) int {
+	if s.db == nil || traderID == "" {
+		return 0
+	}
+	var cycle int
+	s.db.Model(&DecisionRecordDB{}).
+		Where("trader_id = ? AND success = ?", traderID, true).
+		Select("COALESCE(MAX(cycle_number), 0)").
+		Scan(&cycle)
+	return cycle
+}
+
+func (s *PositionStore) FindEntryDecisionCycleForPosition(traderID, symbol, side string, entryTimeMs int64) int {
+	if s.db == nil || traderID == "" || symbol == "" {
+		return 0
+	}
+	sideLower := strings.ToLower(strings.TrimSpace(side))
+	action := ""
+	switch sideLower {
+	case "long":
+		action = "open_long"
+	case "short":
+		action = "open_short"
+	}
+	if action == "" {
+		return 0
+	}
+
+	entryTime := time.Time{}
+	if entryTimeMs > 0 {
+		entryTime = time.UnixMilli(entryTimeMs).UTC()
+	}
+	// Use combined patterns to ensure symbol+action are in the same JSON object.
+	// Separate LIKE clauses would match different objects in the same array.
+	combinedAS := fmt.Sprintf("%%\"action\":\"%s\",\"symbol\":\"%s\"%%", action, symbol)
+	combinedSA := fmt.Sprintf("%%\"symbol\":\"%s\",\"action\":\"%s\"%%", symbol, action)
+
+	// Strip all whitespace (spaces, newlines, tabs) for matching pretty-printed JSON.
+	stripped := "REPLACE(REPLACE(REPLACE(decisions, ' ', ''), char(10), ''), char(13), '')"
+
+	query := func() *gorm.DB {
+		q := s.db.Model(&DecisionRecordDB{}).
+			Where("trader_id = ? AND success = ?", traderID, true).
+			Where(fmt.Sprintf("(%s LIKE ? OR %s LIKE ?)", stripped, stripped), combinedAS, combinedSA)
+		return q
+	}
+
+	if !entryTime.IsZero() {
+		// The decision record is written AFTER the order executes (AI response →
+		// parse → execute order → record decision), so the decision timestamp is
+		// typically 5-30 s after the position entry_time. Extend the search window
+		// slightly past entry_time so the correct cycle is found on the first pass.
+		postEntryGrace := entryTime.Add(90 * time.Second)
+
+		var cycle int
+		query().Where("timestamp <= ? OR created_at <= ?", postEntryGrace, postEntryGrace).
+			Order("cycle_number DESC").
+			Limit(1).
+			Select("cycle_number").
+			Scan(&cycle)
+		if cycle > 0 {
+			return cycle
+		}
+
+		// Exchange sync can create the local position after the order/decision timestamp.
+		// If no pre-entry match exists, use the nearest same-symbol/side open decision
+		// after the observed position time, bounded to avoid stale historical matches.
+		windowEnd := entryTime.Add(6 * time.Hour)
+		query().Where("(timestamp > ? AND timestamp <= ?) OR (created_at > ? AND created_at <= ?)", postEntryGrace, windowEnd, postEntryGrace, windowEnd).
+			Order("timestamp ASC, created_at ASC, cycle_number ASC").
+			Limit(1).
+			Select("cycle_number").
+			Scan(&cycle)
+		return cycle
+	}
+
+	var cycle int
+	query().Order("cycle_number DESC").
+		Limit(1).
+		Select("cycle_number").
+		Scan(&cycle)
+	return cycle
+}
+
+func (s *PositionStore) BackfillEntryDecisionCycle(positionID int64, cycle int) error {
+	if s.db == nil || positionID <= 0 || cycle <= 0 {
+		return nil
+	}
+	return s.db.Model(&TraderPosition{}).
+		Where("id = ?", positionID).
+		Updates(map[string]interface{}{
+			"entry_decision_cycle": cycle,
+			"updated_at":           time.Now().UTC().UnixMilli(),
+		}).Error
+}
+
 // ClosePosition closes position
 func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID string, realizedPnL float64, fee float64, closeReason string) error {
 	nowMs := time.Now().UTC().UnixMilli()
+	var pos TraderPosition
+	if err := s.db.First(&pos, id).Error; err != nil {
+		return err
+	}
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"exit_price":    exitPrice,
-		"exit_order_id": exitOrderID,
-		"exit_time":     nowMs,
-		"realized_pnl":  realizedPnL,
-		"fee":           fee,
-		"status":        "CLOSED",
-		"close_reason":  closeReason,
-		"updated_at":    nowMs,
+		"exit_price":          exitPrice,
+		"exit_order_id":       exitOrderID,
+		"exit_decision_cycle": s.GetLatestDecisionCycle(pos.TraderID),
+		"exit_time":           nowMs,
+		"realized_pnl":        realizedPnL,
+		"fee":                 fee,
+		"status":              "CLOSED",
+		"close_reason":        closeReason,
+		"updated_at":          nowMs,
 	}).Error
 }
 
@@ -392,14 +550,15 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 	const QUANTITY_TOLERANCE = 0.0001
 	if newQty <= QUANTITY_TOLERANCE {
 		if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-			"quantity":     0,
-			"fee":          newFee,
-			"exit_price":   newExitPrice,
-			"realized_pnl": newPnL,
-			"status":       "CLOSED",
-			"exit_time":    nowMs,
-			"close_reason": reason,
-			"updated_at":   nowMs,
+			"quantity":            0,
+			"fee":                 newFee,
+			"exit_price":          newExitPrice,
+			"exit_decision_cycle": s.GetLatestDecisionCycle(pos.TraderID),
+			"realized_pnl":        newPnL,
+			"status":              "CLOSED",
+			"exit_time":           nowMs,
+			"close_reason":        reason,
+			"updated_at":          nowMs,
 		}).Error; err != nil {
 			return err
 		}
@@ -443,15 +602,16 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 	reason, source, execType := s.deriveCloseReason(&pos, exitOrderID, closeReason, pos.Quantity, exitPrice)
 
 	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"quantity":      quantity,
-		"exit_price":    exitPrice,
-		"exit_order_id": exitOrderID,
-		"exit_time":     exitTimeMs,
-		"realized_pnl":  totalRealizedPnL,
-		"fee":           totalFee,
-		"status":        "CLOSED",
-		"close_reason":  reason,
-		"updated_at":    time.Now().UTC().UnixMilli(),
+		"quantity":            quantity,
+		"exit_price":          exitPrice,
+		"exit_order_id":       exitOrderID,
+		"exit_decision_cycle": s.GetLatestDecisionCycle(pos.TraderID),
+		"exit_time":           exitTimeMs,
+		"realized_pnl":        totalRealizedPnL,
+		"fee":                 totalFee,
+		"status":              "CLOSED",
+		"close_reason":        reason,
+		"updated_at":          time.Now().UTC().UnixMilli(),
 	}).Error; err != nil {
 		return err
 	}
@@ -543,6 +703,121 @@ func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*Trade
 		}
 	}
 	return positions, nil
+}
+
+// GetRecentlyClosedSyncAbsentPosition returns the most recent position closed via
+// sync_absent_from_exchange for the same symbol/side within the specified delay window.
+func (s *PositionStore) GetRecentlyClosedSyncAbsentPosition(traderID, symbol, side string, tradeTimeMs int64, maxDelay time.Duration) (*TraderPosition, error) {
+	if s.db == nil || traderID == "" || symbol == "" || side == "" || tradeTimeMs <= 0 {
+		return nil, nil
+	}
+	if maxDelay <= 0 {
+		maxDelay = 2 * time.Minute
+	}
+	minExitTime := tradeTimeMs - maxDelay.Milliseconds()
+	var pos TraderPosition
+	err := s.db.Where("trader_id = ? AND symbol = ? AND side = ? AND status = ? AND close_reason = ? AND exit_time > 0 AND exit_time <= ? AND exit_time >= ?",
+		traderID, symbol, side, "CLOSED", "sync_absent_from_exchange", tradeTimeMs, minExitTime).
+		Order("exit_time DESC, id DESC").
+		First(&pos).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query recently closed sync-absent position: %w", err)
+	}
+	if pos.EntryQuantity == 0 {
+		pos.EntryQuantity = pos.Quantity
+	}
+	return &pos, nil
+}
+
+// ApplyLateCloseFillToClosedPosition backfills a close fill that arrived after the
+// local position had already been marked closed. This preserves close-event and PnL
+// accounting for short sync gaps without reopening the position.
+func (s *PositionStore) ApplyLateCloseFillToClosedPosition(id int64, closeQty float64, exitPrice float64, addFee float64, addPnL float64, closeReason string, executionSource string, executionType string, exchangeOrderID string, eventTimeMs int64) error {
+	if s.db == nil || id <= 0 || closeQty <= 0 {
+		return nil
+	}
+	var pos TraderPosition
+	if err := s.db.First(&pos, id).Error; err != nil {
+		return fmt.Errorf("failed to get closed position: %w", err)
+	}
+	if pos.Status != "CLOSED" {
+		return fmt.Errorf("position %d is not closed", id)
+	}
+	entryQty := pos.EntryQuantity
+	if entryQty <= 0 {
+		entryQty = pos.Quantity
+	}
+	if entryQty <= 0 {
+		return nil
+	}
+
+	events, err := NewPositionCloseEventStore(s.db).ListByPositionID(id)
+	if err != nil {
+		return err
+	}
+	closedBefore := 0.0
+	recordedCloseValue := 0.0
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		closedBefore += event.CloseQuantity
+		recordedCloseValue += event.ExecutionPrice * event.CloseQuantity
+	}
+	remaining := entryQty - closedBefore
+	if remaining <= 0 {
+		return nil
+	}
+	appliedQty := closeQty
+	if appliedQty > remaining {
+		appliedQty = remaining
+	}
+	if appliedQty <= 0 {
+		return nil
+	}
+
+	recordedExitPrice := pos.ExitPrice
+	if closedBefore > 0 {
+		recordedExitPrice = recordedCloseValue / closedBefore
+	} else if recordedExitPrice == 0 {
+		recordedExitPrice = pos.EntryPrice
+	}
+	newClosedQty := closedBefore + appliedQty
+	newExitPrice := exitPrice
+	if newClosedQty > 0 {
+		newExitPrice = adaptivePriceRound((recordedExitPrice*closedBefore+exitPrice*appliedQty)/newClosedQty, recordedExitPrice, exitPrice, pos.EntryPrice)
+	}
+	nowMs := time.Now().UTC().UnixMilli()
+	if eventTimeMs == 0 {
+		eventTimeMs = nowMs
+	}
+	reason, source, execType := s.deriveCloseReason(&pos, exchangeOrderID, closeReason, appliedQty, exitPrice)
+	if closeReason != "" {
+		reason = closeReason
+	}
+	if executionSource != "" {
+		source = executionSource
+	}
+	if executionType != "" {
+		execType = executionType
+	}
+
+	updates := map[string]interface{}{
+		"realized_pnl": pos.RealizedPnL + addPnL,
+		"fee":          pos.Fee + addFee,
+		"exit_price":   newExitPrice,
+		"updated_at":   nowMs,
+	}
+	if pos.ExitTime == 0 || eventTimeMs > pos.ExitTime {
+		updates["exit_time"] = eventTimeMs
+	}
+	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+	return s.logCloseEvent(&pos, reason, source, execType, exchangeOrderID, appliedQty, exitPrice, addFee, addPnL, eventTimeMs)
 }
 
 // GetAllOpenPositions gets all traders' open positions
@@ -661,4 +936,59 @@ func (s *PositionStore) ClosePositionWithAccurateData(id int64, exitPrice float6
 		"close_reason":  closeReason,
 		"updated_at":    time.Now().UTC().UnixMilli(),
 	}).Error
+}
+
+func (s *PositionStore) MarkOpenPositionsAbsentFromExchangeClosed(traderID string, livePositions map[string]float64, closeReason string) (int64, error) {
+	if traderID == "" {
+		return 0, nil
+	}
+	if closeReason == "" {
+		closeReason = "sync_absent_from_exchange"
+	}
+	openPositions, err := s.GetOpenPositions(traderID)
+	if err != nil {
+		return 0, err
+	}
+	nowMs := time.Now().UTC().UnixMilli()
+	var updated int64
+	for _, pos := range openPositions {
+		key := positionPresenceKey(pos.Symbol, pos.Side)
+		liveQty, ok := livePositions[key]
+		if ok && quantitiesEquivalent(pos.Quantity, liveQty) {
+			continue
+		}
+		res := s.db.Model(&TraderPosition{}).Where("id = ? AND status = ?", pos.ID, "OPEN").Updates(map[string]interface{}{
+			"quantity":     0,
+			"exit_price":   pos.EntryPrice,
+			"exit_time":    nowMs,
+			"status":       "CLOSED",
+			"close_reason": closeReason,
+			"updated_at":   nowMs,
+		})
+		if res.Error != nil {
+			return updated, res.Error
+		}
+		updated += res.RowsAffected
+	}
+	return updated, nil
+}
+
+func positionPresenceKey(symbol, side string) string {
+	return strings.ToUpper(strings.TrimSpace(symbol)) + "|" + normalizePositionSideForStore(side)
+}
+
+func normalizePositionSideForStore(side string) string {
+	side = strings.ToUpper(strings.TrimSpace(side))
+	switch side {
+	case "LONG", "BUY":
+		return "LONG"
+	case "SHORT", "SELL":
+		return "SHORT"
+	default:
+		return side
+	}
+}
+
+func quantitiesEquivalent(a, b float64) bool {
+	return math.Abs(a-b) <= math.Max(0.00000001, math.Max(math.Abs(a), math.Abs(b))*0.0001)
 }

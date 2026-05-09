@@ -33,6 +33,7 @@ type CreateTraderRequest struct {
 	IsCrossMargin       *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
 	ShowInCompetition   *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
 	AllowAIClose        *bool   `json:"allow_ai_close"`
+	AllowAIOpen         *bool   `json:"allow_ai_open"`
 	AIDecisionMode      string  `json:"ai_decision_mode"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
@@ -56,6 +57,7 @@ type UpdateTraderRequest struct {
 	IsCrossMargin       *bool   `json:"is_cross_margin"`
 	ShowInCompetition   *bool   `json:"show_in_competition"`
 	AllowAIClose        *bool   `json:"allow_ai_close"`
+	AllowAIOpen         *bool   `json:"allow_ai_open"`
 	AIDecisionMode      string  `json:"ai_decision_mode"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
@@ -113,6 +115,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	showInCompetition := true // Default to show in competition
 	if req.ShowInCompetition != nil {
 		showInCompetition = *req.ShowInCompetition
+	}
+
+	allowAIOpen := true
+	if req.AllowAIOpen != nil {
+		allowAIOpen = *req.AllowAIOpen
 	}
 
 	allowAIClose := true
@@ -280,6 +287,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		AllowAIOpen:          allowAIOpen,
 		AllowAIClose:         allowAIClose,
 		AIDecisionMode:       aiDecisionMode,
 		ScanIntervalMinutes:  scanIntervalMinutes,
@@ -357,6 +365,11 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		showInCompetition = *req.ShowInCompetition
 	}
 
+	allowAIOpen := existingTrader.AllowAIOpen
+	if req.AllowAIOpen != nil {
+		allowAIOpen = *req.AllowAIOpen
+	}
+
 	allowAIClose := existingTrader.AllowAIClose
 	if req.AllowAIClose != nil {
 		allowAIClose = *req.AllowAIClose
@@ -419,6 +432,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		AllowAIOpen:          allowAIOpen,
 		AllowAIClose:         allowAIClose,
 		AIDecisionMode:       aiDecisionMode,
 		ScanIntervalMinutes:  scanIntervalMinutes,
@@ -448,6 +462,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	s.traderManager.RemoveTrader(traderID)
 
 	// Reload traders into memory with fresh config
+	logger.Infof("[reload.trigger] source=update_trader trader_id=%s user_id=%s", traderID, userID)
 	err = s.traderManager.LoadUserTradersFromStore(s.store, userID)
 	if err != nil {
 		logger.Infof("⚠️ Failed to reload user traders into memory: %v", err)
@@ -472,6 +487,77 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		"trader_name": req.Name,
 		"ai_model":    req.AIModelID,
 		"message":     "Trader updated successfully",
+	})
+}
+
+// UpdateAIControlsRequest updates runtime AI open/close gates and decision style.
+type UpdateAIControlsRequest struct {
+	AllowAIOpen    *bool  `json:"allow_ai_open"`
+	AllowAIClose   *bool  `json:"allow_ai_close"`
+	ClearSafeMode  *bool  `json:"clear_safe_mode"`
+	AIDecisionMode string `json:"ai_decision_mode"`
+}
+
+// handleUpdateTraderAIControls updates AI execution gates without reloading/restarting the trader.
+func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Param("id")
+
+	var req UpdateAIControlsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SafeBadRequest(c, "Invalid request parameters")
+		return
+	}
+	if req.AllowAIOpen == nil && req.AllowAIClose == nil && req.AIDecisionMode == "" && (req.ClearSafeMode == nil || !*req.ClearSafeMode) {
+		SafeBadRequest(c, "No AI control fields provided")
+		return
+	}
+	if req.AIDecisionMode != "" && req.AIDecisionMode != "conservative" && req.AIDecisionMode != "balanced" && req.AIDecisionMode != "aggressive" {
+		SafeBadRequest(c, "Invalid AI decision mode")
+		return
+	}
+
+	fullCfg, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil || fullCfg == nil || fullCfg.Trader == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist or no access permission"})
+		return
+	}
+
+	allowAIOpen := fullCfg.Trader.AllowAIOpen
+	allowAIClose := fullCfg.Trader.AllowAIClose
+	aiDecisionMode := fullCfg.Trader.AIDecisionMode
+	if aiDecisionMode == "" {
+		aiDecisionMode = "balanced"
+	}
+	if req.AllowAIOpen != nil {
+		allowAIOpen = *req.AllowAIOpen
+	}
+	if req.AllowAIClose != nil {
+		allowAIClose = *req.AllowAIClose
+	}
+	if req.AIDecisionMode != "" {
+		aiDecisionMode = req.AIDecisionMode
+	}
+	if err := s.store.Trader().UpdateAIExecutionControls(userID, traderID, allowAIOpen, allowAIClose, aiDecisionMode); err != nil {
+		SafeInternalError(c, "Failed to update AI controls", err)
+		return
+	}
+
+	if at, getErr := s.traderManager.GetTrader(traderID); getErr == nil && at != nil {
+		at.SetAllowAIOpen(allowAIOpen)
+		at.SetAllowAIClose(allowAIClose)
+		at.SetAIDecisionMode(aiDecisionMode)
+		if req.ClearSafeMode != nil && *req.ClearSafeMode {
+			at.ClearSafeMode("manual clear via AI controls API")
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"trader_id":        traderID,
+		"allow_ai_open":    allowAIOpen,
+		"allow_ai_close":   allowAIClose,
+		"ai_decision_mode": aiDecisionMode,
+		"clear_safe_mode":  req.ClearSafeMode != nil && *req.ClearSafeMode,
 	})
 }
 
@@ -520,7 +606,8 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	if existingTrader != nil {
 		status := existingTrader.GetStatus()
 		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Trader is already running"})
+			safeModeReason, _ := status["safe_mode_reason"].(string)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Trader is already running", "safe_mode": status["safe_mode"], "safe_mode_reason": safeModeReason})
 			return
 		}
 		// Trader exists but is stopped - remove from memory to reload fresh config
@@ -530,6 +617,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 
 	// Load trader from database (always reload to get latest config)
 	logger.Infof("🔄 Loading trader %s from database...", traderID)
+	logger.Infof("[reload.trigger] source=start_trader trader_id=%s user_id=%s", traderID, userID)
 	if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
 		logger.Infof("❌ Failed to load user traders: %v", loadErr)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load trader: " + loadErr.Error()})
@@ -575,6 +663,11 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	}
 
 	// Start trader
+	protectOnly := strings.EqualFold(c.Query("mode"), "protect_only") || strings.EqualFold(c.Query("mode"), "protect-only") || c.Query("protect_only") == "true"
+	if protectOnly {
+		trader.SetProtectOnlyMode(true, "protect-only mode requested via start API")
+		logger.Warnf("🛡️  Starting trader %s in protect-only mode: AI opens/closes follow allow_ai_open/allow_ai_close gates", traderID)
+	}
 	go func() {
 		logger.Infof("▶️  Starting trader %s (%s)", traderID, trader.GetName())
 		if err := trader.Run(); err != nil {
@@ -617,7 +710,10 @@ func (s *Server) handleStopTrader(c *gin.Context) {
 		return
 	}
 
-	// Stop trader
+	logger.Warnf("⏹ Frontend stop requested for trader %s by user=%s remote=%s user_agent=%q", traderID, userID, c.ClientIP(), c.GetHeader("User-Agent"))
+
+	// Stop trader. Normal service restarts do not use this path; only the frontend/API
+	// stop control should persist is_running=false.
 	trader.Stop()
 
 	// Update running status in database

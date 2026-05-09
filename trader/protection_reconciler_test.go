@@ -1,7 +1,10 @@
 package trader
 
 import (
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"nofx/store"
 	tradertypes "nofx/trader/types"
@@ -9,8 +12,11 @@ import (
 
 type fakeReconcileTrader struct {
 	fakeOrderProtectionTrader
-	positions      []map[string]interface{}
-	cooldownBypass bool
+	positions             []map[string]interface{}
+	cancelStopOrdersCalls []string
+	cancelTrailingCalls   []string
+	cancelStopLossCalls   []string
+	cancelTakeProfitCalls []string
 }
 
 func (f *fakeReconcileTrader) GetPositions() ([]map[string]interface{}, error) {
@@ -45,7 +51,234 @@ func (f *fakeReconcileTrader) SetTakeProfit(symbol string, positionSide string, 
 	return nil
 }
 
-func TestProtectionReconciler_RearmsBreakEvenOnQuantityChange(t *testing.T) {
+func (f *fakeReconcileTrader) CancelStopOrders(symbol string) error {
+	f.cancelStopOrdersCalls = append(f.cancelStopOrdersCalls, symbol)
+	filtered := f.openOrders[:0]
+	for _, order := range f.openOrders {
+		if order.Symbol == symbol && (looksLikeStopLoss(order) || strings.Contains(strings.ToUpper(order.Type), "TRAILING")) {
+			continue
+		}
+		filtered = append(filtered, order)
+	}
+	f.openOrders = filtered
+	return nil
+}
+
+func (f *fakeReconcileTrader) CancelTrailingStopOrders(symbol string) error {
+	f.cancelTrailingCalls = append(f.cancelTrailingCalls, symbol)
+	filtered := f.openOrders[:0]
+	for _, order := range f.openOrders {
+		if order.Symbol == symbol && strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			continue
+		}
+		filtered = append(filtered, order)
+	}
+	f.openOrders = filtered
+	return nil
+}
+
+func (f *fakeReconcileTrader) CancelStopLossOrders(symbol string) error {
+	f.cancelStopLossCalls = append(f.cancelStopLossCalls, symbol)
+	filtered := f.openOrders[:0]
+	for _, order := range f.openOrders {
+		if order.Symbol == symbol && looksLikeStopLoss(order) {
+			continue
+		}
+		filtered = append(filtered, order)
+	}
+	f.openOrders = filtered
+	return nil
+}
+
+func (f *fakeReconcileTrader) CancelTakeProfitOrders(symbol string) error {
+	f.cancelTakeProfitCalls = append(f.cancelTakeProfitCalls, symbol)
+	filtered := f.openOrders[:0]
+	for _, order := range f.openOrders {
+		if order.Symbol == symbol && looksLikeTakeProfit(order) {
+			continue
+		}
+		filtered = append(filtered, order)
+	}
+	f.openOrders = filtered
+	return nil
+}
+
+func TestDetectMissingProtectionDoesNotRequireFallbackInAdditionToPrimaryStop(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
+	if missingSL {
+		t.Fatal("did not expect missingSL when primary stop is already present")
+	}
+	if missingTP {
+		t.Fatal("did not expect take-profit to be missing")
+	}
+}
+
+func TestDetectMissingProtectionAcceptsFallbackMaxLossStopWhenPrimaryStopMissing(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
+	if missingSL || missingTP {
+		t.Fatalf("expected fallback stop to satisfy stop protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
+func TestDetectMissingProtectionRequiresAllLadderStopsDespiteFullAndFallbackStops(t *testing.T) {
+	orders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
+	}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 98, CloseRatioPct: 50},
+			{Price: 96, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
+	if !missingSL || missingTP {
+		t.Fatalf("expected missing ladder SL tier to remain missing even with full/fallback stops, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
+func TestDetectMissingProtectionRequiresLadderStopsDespiteFallbackOnly(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        98,
+		FallbackMaxLossPrice: 95,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 98, CloseRatioPct: 50},
+			{Price: 96, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
+	if !missingSL || missingTP {
+		t.Fatalf("expected fallback-only stop not to mask missing ladder SL tiers, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
+func TestDetectMissingProtectionRequiresLadderStopsDespiteTaggedFallbackPriceDrift(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 2234.51184, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        2273.51256,
+		FallbackMaxLossPrice: 2235.80,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 2273.51256, CloseRatioPct: 50},
+			{Price: 2259.74760, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
+	if !missingSL || missingTP {
+		t.Fatalf("expected tagged fallback not to mask missing ladder SL tiers, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+	ownership := evaluateProtectionOwnership(orders, "LONG", plan, false, false)
+	if ownership.StopOwner != "fallback" || ownership.Verified {
+		t.Fatalf("expected fallback visible but ownership degraded until ladder SL is restored, got %+v", ownership)
+	}
+}
+
+func TestDetectMissingProtectionDoesNotAcceptUntaggedPriceDriftAsFallback(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 2200.00, Quantity: 0.001, ClientOrderID: "manual_sl_1"}}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        2273.51256,
+		FallbackMaxLossPrice: 2235.80,
+		StopLossOrders:       []ProtectionOrder{{Price: 2273.51256, CloseRatioPct: 100}},
+	}
+
+	missingSL, _ := detectMissingProtection(orders, "LONG", plan, false)
+	if !missingSL {
+		t.Fatal("expected untagged drifting stop not to satisfy fallback ownership")
+	}
+}
+
+func TestDetectMissingProtectionAcceptsDegradedFullTakeProfitInsteadOfMissingLadderTP(t *testing.T) {
+	orders := []OpenOrder{{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 110}}
+	plan := &ProtectionPlan{
+		NeedsTakeProfit: true,
+		TakeProfitPrice: 110,
+		TakeProfitOrders: []ProtectionOrder{
+			{Price: 105, CloseRatioPct: 50},
+			{Price: 110, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
+	if missingSL || missingTP {
+		t.Fatalf("expected degraded full TP ownership to satisfy protection, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
+func TestProtectionReconciler_DoesNotReapplyWhenDustRemainderAlreadyHasFullStopAndFallback(t *testing.T) {
+	orders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 4780, Quantity: 0.001, ClientOrderID: "full_sl_1"},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 4750, Quantity: 0.001, ClientOrderID: "fallback_maxloss_sl_1"},
+	}
+	plan := &ProtectionPlan{
+		NeedsStopLoss:        true,
+		StopLossPrice:        4780,
+		FallbackMaxLossPrice: 4750,
+		StopLossOrders: []ProtectionOrder{
+			{Price: 4780, CloseRatioPct: 50},
+			{Price: 4776, CloseRatioPct: 50},
+		},
+	}
+
+	missingSL, missingTP := detectMissingProtection(orders, "LONG", plan, false)
+	if missingSL || missingTP {
+		t.Fatalf("expected degraded dust remainder stop ownership to be accepted, got missingSL=%v missingTP=%v", missingSL, missingTP)
+	}
+}
+
+func TestIsExecutableHeldStopPrice(t *testing.T) {
+	if isExecutableHeldStopPrice("short", 2.5709, 2.60) {
+		t.Fatal("expected short stop below current mark to be non-executable")
+	}
+	if !isExecutableHeldStopPrice("short", 2.6754, 2.60) {
+		t.Fatal("expected short stop above current mark to be executable")
+	}
+	if isExecutableHeldStopPrice("long", 105, 100) {
+		t.Fatal("expected long stop above current mark to be non-executable")
+	}
+	if !isExecutableHeldStopPrice("long", 95, 100) {
+		t.Fatal("expected long stop below current mark to be executable")
+	}
+}
+
+func TestIsExecutableHeldTakeProfitPrice(t *testing.T) {
+	if isExecutableHeldTakeProfitPrice("short", 105, 100) {
+		t.Fatal("expected short TP above current mark to be non-executable")
+	}
+	if !isExecutableHeldTakeProfitPrice("short", 95, 100) {
+		t.Fatal("expected short TP below current mark to be executable")
+	}
+	if isExecutableHeldTakeProfitPrice("long", 95, 100) {
+		t.Fatal("expected long TP below current mark to be non-executable")
+	}
+	if !isExecutableHeldTakeProfitPrice("long", 105, 100) {
+		t.Fatal("expected long TP above current mark to be executable")
+	}
+}
+
+func TestProtectionReconciler_DoesNotReapplyBreakEvenWhenAlreadyArmedAndFingerprintStable(t *testing.T) {
 	ft := &fakeReconcileTrader{
 		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
 			openOrders: []tradertypes.OpenOrder{},
@@ -86,22 +319,216 @@ func TestProtectionReconciler_RearmsBreakEvenOnQuantityChange(t *testing.T) {
 		t.Fatalf("expected initial break-even stop placement, got %d", len(ft.stopLossOrders))
 	}
 
-	// Simulate resized position: quantity changes while break-even remained armed.
-	ft.positions = []map[string]interface{}{
-		{
+	before := len(ft.stopLossOrders)
+	at.reconcilePositionProtections()
+	if len(ft.stopLossOrders) != before {
+		t.Fatalf("expected no duplicate break-even placement when already armed, got %d stop-loss orders", len(ft.stopLossOrders))
+	}
+}
+
+func TestCleanupInactiveProtectionState_CancelsOrphanedOrdersAndClearsLocalState(t *testing.T) {
+	ft := &fakeReconcileTrader{
+		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
+			openOrders: []tradertypes.OpenOrder{
+				{Symbol: "BTCUSDT", PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98, Quantity: 1},
+				{Symbol: "BTCUSDT", PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 105, Quantity: 1},
+				{Symbol: "BTCUSDT", PositionSide: "LONG", Type: "TRAILING_STOP_MARKET", StopPrice: 104, CallbackRate: 0.02, Quantity: 1},
+			},
+		},
+	}
+
+	at := &AutoTrader{
+		trader:                ft,
+		protectionState:       map[string]string{"BTCUSDT_long": "native_trailing_armed"},
+		breakEvenState:        map[string]string{"BTCUSDT_long": "armed"},
+		breakEvenFingerprints: map[string]string{"BTCUSDT_long": "100.00000000|1.00000000"},
+		peakPnLCache:          map[string]float64{"BTCUSDT_long": 8.5},
+		protectionStateMutex:  sync.RWMutex{},
+		breakEvenStateMutex:   sync.RWMutex{},
+		peakPnLCacheMutex:     sync.RWMutex{},
+	}
+
+	reconcileCooldownMutex.Lock()
+	reconcileCooldowns["BTCUSDT_long"] = time.Now()
+	reconcileCooldownMutex.Unlock()
+
+	at.cleanupInactiveProtectionState(map[string]struct{}{})
+
+	if len(ft.cancelStopOrdersCalls) != 1 || ft.cancelStopOrdersCalls[0] != "BTCUSDT" {
+		t.Fatalf("expected orphan stop cleanup for BTCUSDT, got %+v", ft.cancelStopOrdersCalls)
+	}
+	if len(ft.cancelTrailingCalls) != 1 || ft.cancelTrailingCalls[0] != "BTCUSDT" {
+		t.Fatalf("expected orphan trailing cleanup for BTCUSDT, got %+v", ft.cancelTrailingCalls)
+	}
+	if got := at.getProtectionState("BTCUSDT", "long"); got != "" {
+		t.Fatalf("expected protection state cleared, got %q", got)
+	}
+	if got := at.getBreakEvenState("BTCUSDT", "long"); got != "" {
+		t.Fatalf("expected break-even state cleared, got %q", got)
+	}
+	if _, ok := at.GetPeakPnLCache()["BTCUSDT_long"]; ok {
+		t.Fatal("expected peak cache cleared for inactive position")
+	}
+	reconcileCooldownMutex.RLock()
+	_, cooldownExists := reconcileCooldowns["BTCUSDT_long"]
+	reconcileCooldownMutex.RUnlock()
+	if cooldownExists {
+		t.Fatal("expected reconcile cooldown cleared for inactive position")
+	}
+}
+
+func TestCleanupInactiveProtectionState_DoesNotCancelOrdersWhenOppositeSideStillActive(t *testing.T) {
+	ft := &fakeReconcileTrader{}
+	at := &AutoTrader{
+		trader:                ft,
+		protectionState:       map[string]string{"BTCUSDT_long": "native_trailing_armed", "BTCUSDT_short": "exchange_protection_verified"},
+		breakEvenState:        map[string]string{"BTCUSDT_long": "armed", "BTCUSDT_short": "armed"},
+		breakEvenFingerprints: map[string]string{"BTCUSDT_long": "100|1", "BTCUSDT_short": "100|1"},
+		drawdownRunnerState:   map[string]DrawdownRunnerState{"BTCUSDT_long": {StageName: "runner"}, "BTCUSDT_short": {StageName: "runner"}},
+		peakPnLCache:          map[string]float64{"BTCUSDT_long": 4.2, "BTCUSDT_short": 3.1},
+	}
+
+	active := map[string]struct{}{"BTCUSDT_short": {}}
+	at.cleanupInactiveProtectionState(active)
+
+	if len(ft.cancelStopOrdersCalls) != 0 || len(ft.cancelTrailingCalls) != 0 {
+		t.Fatalf("expected no orphan order cleanup while opposite side still active, got stop=%v trailing=%v", ft.cancelStopOrdersCalls, ft.cancelTrailingCalls)
+	}
+	if got := at.getProtectionState("BTCUSDT", "short"); got == "" {
+		t.Fatal("expected active short protection state to remain")
+	}
+	if got := at.getProtectionState("BTCUSDT", "long"); got != "" {
+		t.Fatalf("expected inactive long protection state cleared, got %q", got)
+	}
+	if got := at.getBreakEvenState("BTCUSDT", "short"); got == "" {
+		t.Fatal("expected active short break-even state to remain")
+	}
+	if got := at.getBreakEvenState("BTCUSDT", "long"); got != "" {
+		t.Fatalf("expected inactive long break-even state cleared, got %q", got)
+	}
+	if state := at.getDrawdownRunnerState("BTCUSDT", "short"); state == nil {
+		t.Fatal("expected active short runner state to remain")
+	}
+	if state := at.getDrawdownRunnerState("BTCUSDT", "long"); state != nil {
+		t.Fatal("expected inactive long runner state cleared")
+	}
+	cache := at.GetPeakPnLCache()
+	if _, ok := cache["BTCUSDT_short"]; !ok {
+		t.Fatal("expected active short peak cache to remain")
+	}
+	if _, ok := cache["BTCUSDT_long"]; ok {
+		t.Fatal("expected inactive long peak cache cleared")
+	}
+}
+
+func TestProtectionReconciler_SkipsBreakEvenWhenRunnerSuppressesIt(t *testing.T) {
+	ft := &fakeReconcileTrader{
+		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
+			openOrders: []tradertypes.OpenOrder{},
+		},
+		positions: []map[string]interface{}{{
 			"symbol":      "BTCUSDT",
 			"side":        "long",
 			"entryPrice":  100.0,
-			"positionAmt": 1.5,
+			"positionAmt": 1.0,
 			"markPrice":   106.0,
+		}},
+	}
+
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   ft,
+		config: AutoTraderConfig{
+			StrategyConfig: &store.StrategyConfig{
+				Protection: store.ProtectionConfig{
+					BreakEvenStop: store.BreakEvenStopConfig{
+						Enabled:      true,
+						TriggerMode:  store.BreakEvenTriggerProfitPct,
+						TriggerValue: 5,
+						OffsetPct:    0,
+					},
+				},
+			},
 		},
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
+		drawdownRunnerState:   map[string]DrawdownRunnerState{"BTCUSDT_long": {StageName: "lock_first_profit", RunnerKeepPct: 30, RunnerStopMode: "structure", BreakEvenSuppressedByRunner: true}},
 	}
-	before := len(ft.stopLossOrders)
+
 	at.reconcilePositionProtections()
-	if len(ft.stopLossOrders) != before+1 {
-		t.Fatalf("expected break-even to re-arm on quantity change, got %d stop-loss orders", len(ft.stopLossOrders))
+	if len(ft.stopLossOrders) != 0 {
+		t.Fatalf("expected no break-even stop placement when runner suppresses it, got %d", len(ft.stopLossOrders))
 	}
-	if ft.stopLossOrders[len(ft.stopLossOrders)-1].quantity != 1.5 {
-		t.Fatalf("expected re-armed stop to use updated quantity 1.5, got %.2f", ft.stopLossOrders[len(ft.stopLossOrders)-1].quantity)
+}
+
+func TestDetectUnexpectedProtectionOrdersDoesNotCountMatchingFallbackAsUnexpected(t *testing.T) {
+	plan := &ProtectionPlan{FallbackMaxLossPrice: 90.027}
+	orders := []OpenOrder{{PositionSide: "SHORT", Type: "STOP_MARKET", StopPrice: 90.027}}
+	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(orders, "SHORT", plan, false, false)
+	if unexpectedSL != 0 || unexpectedTP != 0 {
+		t.Fatalf("expected matching fallback not to be unexpected, got sl=%d tp=%d", unexpectedSL, unexpectedTP)
+	}
+}
+
+func TestProtectionReconcilerStagesMissingStopBeforeCleanup(t *testing.T) {
+	ft := &fakeReconcileTrader{
+		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
+			openOrders: []tradertypes.OpenOrder{{Symbol: "BTCUSDT", PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95, Quantity: 1}},
+		},
+		positions: []map[string]interface{}{{"symbol": "BTCUSDT", "side": "long", "positionAmt": 1.0, "entryPrice": 100.0, "markPrice": 100.0}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   ft,
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
+			Protection: store.ProtectionConfig{FullTPSL: store.FullTPSLConfig{Enabled: true, Mode: store.ProtectionModeManual, StopLossEnabled: true, StopLoss: store.ProtectionValueSource{Mode: store.ProtectionValueModeManual, Value: 2}}},
+		}},
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
+		drawdownState:         make(map[string]string),
+	}
+
+	result, err := at.reconcileProtectionForPosition("BTCUSDT", "long", 1, 100)
+	if err != nil {
+		t.Fatalf("reconcile protection: %v", err)
+	}
+	if !result.ExchangeVerified {
+		t.Fatalf("expected exchange protection verified, got %+v", result)
+	}
+	if len(ft.cancelStopOrdersCalls) != 0 {
+		t.Fatalf("expected no pre-placement stop cleanup, got calls=%v", ft.cancelStopOrdersCalls)
+	}
+	if len(ft.openOrders) < 2 {
+		t.Fatalf("expected existing stop preserved and replacement staged, got %+v", ft.openOrders)
+	}
+}
+
+func TestProtectionReconcilerPreservesGenericTPUntilDynamicOwnerArmed(t *testing.T) {
+	ft := &fakeReconcileTrader{
+		fakeOrderProtectionTrader: fakeOrderProtectionTrader{
+			openOrders: []tradertypes.OpenOrder{{Symbol: "BTCUSDT", PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 105, Quantity: 1}},
+		},
+		positions: []map[string]interface{}{{"symbol": "BTCUSDT", "side": "long", "positionAmt": 1.0, "entryPrice": 100.0, "markPrice": 100.0}},
+	}
+	at := &AutoTrader{
+		exchange: "okx",
+		trader:   ft,
+		config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{
+			Protection: store.ProtectionConfig{
+				LadderTPSL:         store.LadderTPSLConfig{Enabled: true, Mode: store.ProtectionModeManual, TakeProfitEnabled: true, Rules: []store.LadderTPSLRule{{TakeProfitPct: 5, TakeProfitCloseRatioPct: 100}}},
+				DrawdownTakeProfit: store.DrawdownTakeProfitConfig{Enabled: true, Rules: []store.DrawdownTakeProfitRule{{MinProfitPct: 5, MaxDrawdownPct: 30, CloseRatioPct: 100}}},
+			},
+		}},
+		protectionState:       make(map[string]string),
+		breakEvenState:        make(map[string]string),
+		breakEvenFingerprints: make(map[string]string),
+		drawdownState:         make(map[string]string),
+	}
+
+	_, _ = at.reconcileProtectionForPosition("BTCUSDT", "long", 1, 100)
+	if len(ft.cancelTakeProfitCalls) != 0 {
+		t.Fatalf("expected generic TP preserved until dynamic owner armed, got calls=%v", ft.cancelTakeProfitCalls)
 	}
 }

@@ -173,26 +173,22 @@ func formatOIRankingZH(data *OIRankingData) string {
 
 	if len(data.TopPositions) > 0 {
 		sb.WriteString("### 持仓增加榜\n")
-		sb.WriteString("资金流入，趋势延续或新仓建立信号:\n\n")
-		sb.WriteString("| 排名 | 币种 | 持仓变化(USDT) | OI变化% | 价格变化% |\n")
-		sb.WriteString("|------|------|----------------|---------|----------|\n")
+		sb.WriteString("资金流入，趋势延续或新仓建立信号:\n")
 		for _, pos := range data.TopPositions {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | %+.2f%% | %+.2f%% |\n",
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s oi_delta_usdt=%s oi_delta_pct=%s price_delta_pct=%s\n",
 				pos.Rank, pos.Symbol, formatValue(pos.OIDeltaValue),
-				pos.OIDeltaPercent, pos.PriceDeltaPercent))
+				formatSignedPlainNumber(pos.OIDeltaPercent), formatSignedPlainNumber(pos.PriceDeltaPercent)))
 		}
 		sb.WriteString("\n")
 	}
 
 	if len(data.LowPositions) > 0 {
 		sb.WriteString("### 持仓减少榜\n")
-		sb.WriteString("资金流出，趋势反转或仓位平仓信号:\n\n")
-		sb.WriteString("| 排名 | 币种 | 持仓变化(USDT) | OI变化% | 价格变化% |\n")
-		sb.WriteString("|------|------|----------------|---------|----------|\n")
+		sb.WriteString("资金流出，趋势反转或仓位平仓信号:\n")
 		for _, pos := range data.LowPositions {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | %+.2f%% | %+.2f%% |\n",
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s oi_delta_usdt=%s oi_delta_pct=%s price_delta_pct=%s\n",
 				pos.Rank, pos.Symbol, formatValue(pos.OIDeltaValue),
-				pos.OIDeltaPercent, pos.PriceDeltaPercent))
+				formatSignedPlainNumber(pos.OIDeltaPercent), formatSignedPlainNumber(pos.PriceDeltaPercent)))
 		}
 		sb.WriteString("\n")
 	}
@@ -208,26 +204,22 @@ func formatOIRankingEN(data *OIRankingData) string {
 
 	if len(data.TopPositions) > 0 {
 		sb.WriteString("### OI Increase Ranking\n")
-		sb.WriteString("Capital inflow signals - trend continuation or new positions:\n\n")
-		sb.WriteString("| Rank | Symbol | OI Change (USDT) | OI Change % | Price Change % |\n")
-		sb.WriteString("|------|--------|------------------|-------------|----------------|\n")
+		sb.WriteString("Capital inflow signals - trend continuation or new positions:\n")
 		for _, pos := range data.TopPositions {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | %+.2f%% | %+.2f%% |\n",
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s oi_delta_usdt=%s oi_delta_pct=%s price_delta_pct=%s\n",
 				pos.Rank, pos.Symbol, formatValue(pos.OIDeltaValue),
-				pos.OIDeltaPercent, pos.PriceDeltaPercent))
+				formatSignedPlainNumber(pos.OIDeltaPercent), formatSignedPlainNumber(pos.PriceDeltaPercent)))
 		}
 		sb.WriteString("\n")
 	}
 
 	if len(data.LowPositions) > 0 {
 		sb.WriteString("### OI Decrease Ranking\n")
-		sb.WriteString("Capital outflow signals - trend reversal or position closing:\n\n")
-		sb.WriteString("| Rank | Symbol | OI Change (USDT) | OI Change % | Price Change % |\n")
-		sb.WriteString("|------|--------|------------------|-------------|----------------|\n")
+		sb.WriteString("Capital outflow signals - trend reversal or position closing:\n")
 		for _, pos := range data.LowPositions {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | %+.2f%% | %+.2f%% |\n",
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s oi_delta_usdt=%s oi_delta_pct=%s price_delta_pct=%s\n",
 				pos.Rank, pos.Symbol, formatValue(pos.OIDeltaValue),
-				pos.OIDeltaPercent, pos.PriceDeltaPercent))
+				formatSignedPlainNumber(pos.OIDeltaPercent), formatSignedPlainNumber(pos.PriceDeltaPercent)))
 		}
 		sb.WriteString("\n")
 	}

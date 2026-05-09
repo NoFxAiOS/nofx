@@ -106,16 +106,22 @@ type Trader interface {
 
 // OpenOrder represents a pending order on the exchange
 type OpenOrder struct {
-	OrderID      string  `json:"order_id"`
-	Symbol       string  `json:"symbol"`
-	Side         string  `json:"side"`          // BUY/SELL
-	PositionSide string  `json:"position_side"` // LONG/SHORT
-	Type         string  `json:"type"`          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET
-	Price        float64 `json:"price"`         // Order price (for limit orders)
-	StopPrice    float64 `json:"stop_price"`    // Trigger price (for stop orders)
-	CallbackRate float64 `json:"callback_rate"`
-	Quantity     float64 `json:"quantity"`
-	Status       string  `json:"status"` // NEW
+	OrderID          string  `json:"order_id"`
+	Symbol           string  `json:"symbol"`
+	Side             string  `json:"side"`          // BUY/SELL
+	PositionSide     string  `json:"position_side"` // LONG/SHORT
+	Type             string  `json:"type"`          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET
+	Price            float64 `json:"price"`         // Order price (for limit orders)
+	StopPrice        float64 `json:"stop_price"`    // Trigger price (for stop orders)
+	CallbackRate     float64 `json:"callback_rate"`
+	Quantity         float64 `json:"quantity"`
+	Status           string  `json:"status"` // NEW
+	ClientOrderID    string  `json:"client_order_id,omitempty"`
+	ProtectionRole   string  `json:"protection_role,omitempty"`
+	ActivationPrice  float64 `json:"activation_price,omitempty"`
+	CallbackRatePct  float64 `json:"callback_rate_pct,omitempty"`
+	ParentOrderID    string  `json:"parent_order_id,omitempty"`
+	ProtectionStatus string  `json:"protection_status,omitempty"`
 }
 
 // LimitOrderRequest represents a limit order request for grid trading

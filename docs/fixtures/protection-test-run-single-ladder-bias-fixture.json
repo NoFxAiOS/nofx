@@ -1,0 +1,95 @@
+{
+  "name": "protection-test-run-single-ladder-bias",
+  "description": "Single-symbol control fixture intended to bias the model toward ladder protection_plan output.",
+  "prompt_variant": "aggressive",
+  "config": {
+    "strategy_type": "ai_trading",
+    "language": "zh",
+    "coin_source": {
+      "source_type": "static",
+      "static_coins": ["BTCUSDT"],
+      "excluded_coins": [],
+      "use_ai500": false,
+      "ai500_limit": 0,
+      "use_oi_top": false,
+      "oi_top_limit": 0,
+      "use_oi_low": false,
+      "oi_low_limit": 0
+    },
+    "indicators": {
+      "enable_ema": true,
+      "ema_periods": [20, 50, 200],
+      "enable_macd": true,
+      "enable_rsi": true,
+      "rsi_periods": [14],
+      "enable_atr": true,
+      "atr_periods": [14],
+      "enable_boll": false,
+      "boll_periods": [],
+      "enable_volume": true,
+      "enable_oi": true,
+      "enable_funding_rate": true,
+      "enable_quant_data": false,
+      "enable_oi_ranking": false,
+      "enable_net_flow_ranking": false,
+      "enable_price_ranking": false,
+      "nofxos_api_key": "",
+      "klines": {
+        "primary_timeframe": "15m",
+        "longer_timeframe": "4h",
+        "enable_multi_timeframe": true,
+        "selected_timeframes": ["15m", "1h", "4h"],
+        "primary_count": 60
+      }
+    },
+    "risk_control": {
+      "btc_eth_max_leverage": 5,
+      "altcoin_max_leverage": 3,
+      "btc_eth_position_value_ratio": 0.25,
+      "altcoin_position_value_ratio": 0.1,
+      "max_positions": 1,
+      "min_confidence": 55,
+      "max_margin_usage": 0.9
+    },
+    "protection": {
+      "full_tp_sl": {
+        "enabled": true,
+        "mode": "ai",
+        "take_profit": { "mode": "ai", "value": 0 },
+        "stop_loss": { "mode": "ai", "value": 0 },
+        "fallback_max_loss": { "mode": "manual", "value": 10 }
+      },
+      "ladder_tp_sl": {
+        "enabled": true,
+        "mode": "ai",
+        "take_profit_enabled": true,
+        "stop_loss_enabled": true,
+        "take_profit_price": { "mode": "ai", "value": 0 },
+        "take_profit_size": { "mode": "ai", "value": 0 },
+        "stop_loss_price": { "mode": "ai", "value": 0 },
+        "stop_loss_size": { "mode": "ai", "value": 0 },
+        "fallback_max_loss": { "mode": "manual", "value": 12 },
+        "rules": [
+          {"take_profit_pct": 2.5, "take_profit_close_ratio_pct": 35, "stop_loss_pct": 1.2, "stop_loss_close_ratio_pct": 20},
+          {"take_profit_pct": 5.5, "take_profit_close_ratio_pct": 65, "stop_loss_pct": 2.8, "stop_loss_close_ratio_pct": 80}
+        ]
+      },
+      "drawdown_take_profit": {"enabled": false, "rules": []},
+      "break_even_stop": {"enabled": false, "trigger_mode": "profit_pct", "trigger_value": 3, "offset_pct": 0.1},
+      "regime_filter": {"enabled": false, "allowed_regimes": ["standard", "wide"], "block_high_funding": false, "max_funding_rate_abs": 0.01, "block_high_volatility": false, "max_atr14_pct": 3, "require_trend_alignment": false}
+    },
+    "prompt_sections": {
+      "role_definition": "你现在处于 protection_plan 分段管理控制实验模式。",
+      "trading_frequency": "本轮只分析一个候选币。若存在可执行 open 方案，优先给出分段止盈止损的管理方案，而不是简单单段出场。",
+      "entry_standards": "如果 BTCUSDT 存在顺趋势回踩或延续 setup，优先给出一个 open 方案，并考虑用分段 TP/SL 管理不同阶段的收益与风险。",
+      "decision_process": "当 action 为 open_long/open_short 时，本轮优先输出 ladder protection_plan，除非你能明确证明单段统一 full 更优；若最终仍选择 wait，必须说明为什么连分段管理也无法支持开仓。"
+    },
+    "custom_prompt": "这是一个 ladder 控制实验：若开仓，优先使用 ladder protection_plan，并给出至少两档分段规则。只有在非常明确地认为单段 full 更优时，才允许改用 full。"
+  },
+  "expected_checks": [
+    "prefer open_long/open_short over wait when setup is explainable",
+    "prefer protection_plan.mode=ladder when an open action is chosen",
+    "ladder mode should include at least two ladder_rules",
+    "if model still chooses full, reasoning should explicitly explain why ladder is not suitable"
+  ]
+}

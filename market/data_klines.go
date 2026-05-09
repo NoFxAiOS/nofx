@@ -12,7 +12,53 @@ import (
 	"time"
 )
 
-// Note: Kline data now uses free/open API (coinank_api.Kline) which doesn't require authentication
+// getKlines fetches K-line data with exchange-native API as primary source.
+// Priority: OKX direct → Binance direct → CoinAnk (third-party aggregator).
+func getKlines(symbol, interval, exchange string, limit int) ([]Kline, error) {
+	ex := strings.ToLower(exchange)
+
+	// 1. Try exchange-native API first
+	if ex == "okx" {
+		okx := NewOKXAPIClient()
+		klines, err := okx.GetKlines(symbol, interval, limit)
+		if err == nil && len(klines) > 0 {
+			return klines, nil
+		}
+		logger.Warnf("⚠️ OKX direct klines failed for %s %s: %v, falling back to CoinAnk(okx)", symbol, interval, err)
+		return getKlinesFromCoinAnk(symbol, interval, "okx", limit)
+	}
+
+	// 2. Non-OKX: try Binance direct API first
+	binance := NewAPIClient()
+	klines, err := binance.GetKlines(symbol, interval, limit)
+	if err == nil && len(klines) > 0 {
+		return klines, nil
+	}
+	logger.Warnf("⚠️ Binance direct klines failed for %s %s: %v, trying CoinAnk", symbol, interval, err)
+
+	// 3. CoinAnk as last-resort fallback
+	return getKlinesFromCoinAnk(symbol, interval, exchange, limit)
+}
+
+// getTickerPrice fetches real-time ticker price from the exchange.
+// Returns 0 if unavailable (non-fatal).
+func getTickerPrice(symbol, exchange string) float64 {
+	ex := strings.ToLower(exchange)
+	if ex == "okx" {
+		okx := NewOKXAPIClient()
+		if t, err := okx.GetTicker(symbol); err == nil {
+			if p, err := strconv.ParseFloat(t.LastPrice, 64); err == nil && p > 0 {
+				return p
+			}
+		}
+		return 0
+	}
+	binance := NewAPIClient()
+	if p, err := binance.GetCurrentPrice(symbol); err == nil && p > 0 {
+		return p
+	}
+	return 0
+}
 
 // getKlinesFromCoinAnk fetches kline data from CoinAnk API (replacement for WSMonitorCli)
 func getKlinesFromCoinAnk(symbol, interval, exchange string, limit int) ([]Kline, error) {
@@ -409,6 +455,11 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 
 // GetBoxData fetches 1h klines and calculates box data for a symbol
 func GetBoxData(symbol string) (*BoxData, error) {
+	return GetBoxDataWithExchange(symbol, "okx")
+}
+
+// GetBoxDataWithExchange fetches 1h klines from the specified exchange and calculates box data
+func GetBoxDataWithExchange(symbol, exchange string) (*BoxData, error) {
 	symbol = Normalize(symbol)
 
 	// Fetch 500 1h klines
@@ -418,7 +469,7 @@ func GetBoxData(symbol string) (*BoxData, error) {
 	if IsXyzDexAsset(symbol) {
 		klines, err = getKlinesFromHyperliquid(symbol, "1h", LongBoxPeriod)
 	} else {
-		klines, err = getKlinesFromCoinAnk(symbol, "1h", "binance", LongBoxPeriod)
+		klines, err = getKlines(symbol, "1h", exchange, LongBoxPeriod)
 	}
 
 	if err != nil {

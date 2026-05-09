@@ -30,6 +30,7 @@ type DecisionRecordDB struct {
 	ProtectionSnapshot  string    `gorm:"column:protection_snapshot;default:''"`
 	ReviewContext       string    `gorm:"column:review_context;default:''"`
 	AllowAIClose        bool      `gorm:"column:allow_ai_close;default:true"`
+	AllowAIOpen         bool      `gorm:"column:allow_ai_open;default:true"`
 	AIDecisionMode      string    `gorm:"column:ai_decision_mode;default:'balanced'"`
 	Success             bool      `gorm:"default:false"`
 	ErrorMessage        string    `gorm:"column:error_message;default:''"`
@@ -61,6 +62,7 @@ type DecisionRecord struct {
 	ProtectionSnapshot  *ProtectionSnapshot    `json:"protection_snapshot,omitempty"`
 	ReviewContext       map[string]interface{} `json:"review_context,omitempty"`
 	AllowAIClose        bool                   `json:"allow_ai_close"`
+	AllowAIOpen         bool                   `json:"allow_ai_open"`
 	AIDecisionMode      string                 `json:"ai_decision_mode"`
 }
 
@@ -88,19 +90,176 @@ type PositionSnapshot struct {
 
 // DecisionAction decision action
 type DecisionAction struct {
-	Action     string    `json:"action"`
-	Symbol     string    `json:"symbol"`
-	Quantity   float64   `json:"quantity"`
-	Leverage   int       `json:"leverage"`
-	Price      float64   `json:"price"`
-	StopLoss   float64   `json:"stop_loss,omitempty"`   // Stop loss price
-	TakeProfit float64   `json:"take_profit,omitempty"` // Take profit price
-	Confidence int       `json:"confidence,omitempty"`  // AI confidence (0-100)
-	Reasoning  string    `json:"reasoning,omitempty"`   // Brief reasoning
-	OrderID    int64     `json:"order_id"`
-	Timestamp  time.Time `json:"timestamp"`
-	Success    bool      `json:"success"`
-	Error      string    `json:"error"`
+	Action        string                       `json:"action"`
+	Symbol        string                       `json:"symbol"`
+	Quantity      float64                      `json:"quantity"`
+	Leverage      int                          `json:"leverage"`
+	Price         float64                      `json:"price"`
+	StopLoss      float64                      `json:"stop_loss,omitempty"`   // Stop loss price
+	TakeProfit    float64                      `json:"take_profit,omitempty"` // Take profit price
+	Confidence    int                          `json:"confidence,omitempty"`  // AI confidence (0-100)
+	Reasoning     string                       `json:"reasoning,omitempty"`   // Brief reasoning
+	ReviewContext *DecisionActionReviewContext `json:"review_context,omitempty"`
+	OrderID       int64                        `json:"order_id"`
+	Timestamp     time.Time                    `json:"timestamp"`
+	Success       bool                         `json:"success"`
+	Error         string                       `json:"error"`
+}
+
+// DecisionActionReviewContext captures compact, structured rationale for a single action.
+type DecisionActionReviewContext struct {
+	PrimaryTimeframe     string                              `json:"primary_timeframe,omitempty"`
+	TimeframeContext     *DecisionActionTimeframeContext     `json:"timeframe_context,omitempty"`
+	MinRiskReward        float64                             `json:"min_risk_reward,omitempty"`
+	RiskReward           *DecisionActionRiskRewardSummary    `json:"risk_reward,omitempty"`
+	KeyLevels            *DecisionActionKeyLevels            `json:"key_levels,omitempty"`
+	Anchors              []DecisionActionReasonAnchor        `json:"anchors,omitempty"`
+	HigherAnchors        []DecisionActionReasonAnchor        `json:"higher_timeframe_anchors,omitempty"`
+	TimeframeStructures  []DecisionActionTimeframeStructure  `json:"timeframe_structures,omitempty"`
+	Protection           *DecisionActionProtectionAlignment  `json:"protection,omitempty"`
+	Control              *DecisionActionControlOutcome       `json:"control,omitempty"`
+	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
+	QualityGate          *DecisionActionQualityGate          `json:"quality_gate,omitempty"`
+	Extra                map[string]interface{}              `json:"extra,omitempty"`
+}
+
+// DecisionActionQualityGate stores record-only v2 trade-quality checks. During
+// shadow rollout this does not block orders; it lets us measure how often AI
+// decisions would fail stricter reliability rules before hard enforcement.
+type DecisionActionQualityGate struct {
+	ShadowMode      bool                   `json:"shadow_mode,omitempty"`
+	Decision        string                 `json:"decision,omitempty"`
+	Passed          bool                   `json:"passed"`
+	FailedChecks    []string               `json:"failed_checks,omitempty"`
+	Regime          string                 `json:"regime,omitempty"`
+	SetupType       string                 `json:"setup_type,omitempty"`
+	Confidence      int                    `json:"confidence,omitempty"`
+	QualityTotal    int                    `json:"quality_total,omitempty"`
+	NetRR           float64                `json:"net_rr,omitempty"`
+	BlockedStage    string                 `json:"blocked_stage,omitempty"`
+	GateChecks      []EntryGateCheckRecord `json:"gate_checks,omitempty"`
+}
+
+// EntryGateCheckRecord stores one check result with full attribution detail.
+type EntryGateCheckRecord struct {
+	Code     string `json:"code"`
+	Stage    string `json:"stage"`
+	Passed   bool   `json:"passed"`
+	Detail   string `json:"detail"`
+	Values   string `json:"values,omitempty"`
+	Enforced bool   `json:"enforced"`
+}
+
+// DecisionActionTimeframeContext stores compact structural timeframe evidence for entry audit.
+type DecisionActionTimeframeContext struct {
+	Primary string   `json:"primary,omitempty"`
+	Lower   []string `json:"lower,omitempty"`
+	Higher  []string `json:"higher,omitempty"`
+}
+
+// DecisionActionControlOutcome stores compact system policy outcome metadata.
+type DecisionActionControlOutcome struct {
+	Decision                   string   `json:"decision,omitempty"`
+	OriginalAction             string   `json:"original_action,omitempty"`
+	FinalAction                string   `json:"final_action,omitempty"`
+	Reasons                    []string `json:"reasons,omitempty"`
+	FailedChecks               []string `json:"failed_checks,omitempty"`
+	ConstraintsMerged          bool     `json:"constraints_merged,omitempty"`
+	RuntimeRRRecomputed        bool     `json:"runtime_rr_recomputed,omitempty"`
+	AIGrossRR                  float64  `json:"ai_gross_rr,omitempty"`
+	AINetRR                    float64  `json:"ai_net_rr,omitempty"`
+	RuntimeGrossRR             float64  `json:"runtime_gross_rr,omitempty"`
+	RuntimeNetRR               float64  `json:"runtime_net_rr,omitempty"`
+	EffectiveRR                float64  `json:"effective_rr,omitempty"`
+	EffectiveRRSource          string   `json:"effective_rr_source,omitempty"`
+	ExecutionConstraintSources []string `json:"execution_constraint_sources,omitempty"`
+	RegimeCurrent              string   `json:"regime_current,omitempty"`
+	RegimeAllowed              []string `json:"regime_allowed,omitempty"`
+	RegimePrimaryTimeframe     string   `json:"regime_primary_timeframe,omitempty"`
+	RegimeATR14Pct             float64  `json:"regime_atr14_pct,omitempty"`
+	RegimeFundingRate          float64  `json:"regime_funding_rate,omitempty"`
+	RegimeTrendAligned         *bool    `json:"regime_trend_aligned,omitempty"`
+	RegimeStructureCurrent     string   `json:"regime_structure_current,omitempty"`
+	RegimeStructureAllowed     []string `json:"regime_structure_allowed,omitempty"`
+	NoOrderPlaced              bool     `json:"no_order_placed,omitempty"`
+}
+
+// DecisionActionExecutionConstraints stores compact execution-relevant venue constraints.
+type DecisionActionExecutionConstraints struct {
+	TickSize             float64 `json:"tick_size,omitempty"`
+	PricePrecision       int     `json:"price_precision,omitempty"`
+	QtyStepSize          float64 `json:"qty_step_size,omitempty"`
+	QtyPrecision         int     `json:"qty_precision,omitempty"`
+	MinQty               float64 `json:"min_qty,omitempty"`
+	MinNotional          float64 `json:"min_notional,omitempty"`
+	ContractValue        float64 `json:"contract_value,omitempty"`
+	MarkPrice            float64 `json:"mark_price,omitempty"`
+	LastPrice            float64 `json:"last_price,omitempty"`
+	BestBid              float64 `json:"best_bid,omitempty"`
+	BestAsk              float64 `json:"best_ask,omitempty"`
+	SpreadBps            float64 `json:"spread_bps,omitempty"`
+	TakerFeeRate         float64 `json:"taker_fee_rate,omitempty"`
+	MakerFeeRate         float64 `json:"maker_fee_rate,omitempty"`
+	EstimatedSlippageBps float64 `json:"estimated_slippage_bps,omitempty"`
+}
+
+// DecisionActionRiskRewardSummary stores gross/net RR and pass/fail metadata.
+type DecisionActionRiskRewardSummary struct {
+	Entry            float64 `json:"entry,omitempty"`
+	Invalidation     float64 `json:"invalidation,omitempty"`
+	FirstTarget      float64 `json:"first_target,omitempty"`
+	GrossEstimatedRR float64 `json:"gross_estimated_rr,omitempty"`
+	NetEstimatedRR   float64 `json:"net_estimated_rr,omitempty"`
+	Passed           bool    `json:"passed"`
+}
+
+// DecisionActionKeyLevels stores compact key support/resistance levels for audit UI.
+type DecisionActionKeyLevels struct {
+	Support    []float64                       `json:"support,omitempty"`
+	Resistance []float64                       `json:"resistance,omitempty"`
+	SwingHighs []float64                       `json:"swing_highs,omitempty"`
+	SwingLows  []float64                       `json:"swing_lows,omitempty"`
+	Fibonacci  *DecisionActionFibonacciSummary `json:"fibonacci,omitempty"`
+}
+
+type DecisionActionTimeframeStructure struct {
+	Timeframe  string                          `json:"timeframe,omitempty"`
+	Role       string                          `json:"role,omitempty"`
+	Support    []float64                       `json:"support,omitempty"`
+	Resistance []float64                       `json:"resistance,omitempty"`
+	Fibonacci  *DecisionActionFibonacciSummary `json:"fibonacci,omitempty"`
+	Anchors    []DecisionActionReasonAnchor    `json:"anchors,omitempty"`
+	ATR14Pct   float64                         `json:"atr14_pct,omitempty"`
+	Trend      string                          `json:"trend,omitempty"`
+	UsedFor    string                          `json:"used_for,omitempty"`
+}
+
+// DecisionActionFibonacciSummary stores compact fibonacci structural anchors when configured.
+type DecisionActionFibonacciSummary struct {
+	SwingHigh float64   `json:"swing_high,omitempty"`
+	SwingLow  float64   `json:"swing_low,omitempty"`
+	Levels    []float64 `json:"levels,omitempty"`
+}
+
+// DecisionActionReasonAnchor stores a compact rationale anchor.
+type DecisionActionReasonAnchor struct {
+	Type      string  `json:"type,omitempty"`
+	Timeframe string  `json:"timeframe,omitempty"`
+	Price     float64 `json:"price,omitempty"`
+	Reason    string  `json:"reason,omitempty"`
+}
+
+// DecisionActionProtectionAlignment stores compact protection alignment audit notes.
+type DecisionActionProtectionAlignment struct {
+	StopBeyondInvalidation bool     `json:"stop_beyond_invalidation,omitempty"`
+	TargetAligned          bool     `json:"target_aligned,omitempty"`
+	BreakEvenBeforeTarget  bool     `json:"break_even_before_target,omitempty"`
+	FallbackWithinEnvelope bool     `json:"fallback_within_envelope,omitempty"`
+	PolicyStatus           string   `json:"policy_status,omitempty"`
+	PolicyOverride         bool     `json:"policy_override,omitempty"`
+	PolicyRejected         bool     `json:"policy_rejected,omitempty"`
+	PolicyReasons          []string `json:"policy_reasons,omitempty"`
+	Notes                  []string `json:"notes,omitempty"`
 }
 
 // ProtectionSnapshot captures the active protection configuration at decision time
@@ -111,12 +270,18 @@ type ProtectionSnapshot struct {
 	BreakEven  *ProtectionSnapshotBreakEven `json:"break_even,omitempty"`
 }
 
+type ProtectionSnapshotValueSource struct {
+	Mode  string  `json:"mode,omitempty"`
+	Value float64 `json:"value,omitempty"`
+}
+
 // ProtectionSnapshotFullTPSL full take-profit / stop-loss snapshot
 type ProtectionSnapshotFullTPSL struct {
-	Enabled       bool    `json:"enabled"`
-	Mode          string  `json:"mode"`
-	TakeProfitPct float64 `json:"take_profit_pct,omitempty"`
-	StopLossPct   float64 `json:"stop_loss_pct,omitempty"`
+	Enabled         bool                          `json:"enabled"`
+	Mode            string                        `json:"mode"`
+	TakeProfit      ProtectionSnapshotValueSource `json:"take_profit,omitempty"`
+	StopLoss        ProtectionSnapshotValueSource `json:"stop_loss,omitempty"`
+	FallbackMaxLoss ProtectionSnapshotValueSource `json:"fallback_max_loss,omitempty"`
 }
 
 // ProtectionSnapshotLadder ladder TP/SL snapshot with concrete rules
@@ -125,28 +290,43 @@ type ProtectionSnapshotLadder struct {
 	Mode              string                         `json:"mode"`
 	TakeProfitEnabled bool                           `json:"take_profit_enabled"`
 	StopLossEnabled   bool                           `json:"stop_loss_enabled"`
+	TakeProfitPrice   ProtectionSnapshotValueSource  `json:"take_profit_price,omitempty"`
+	TakeProfitSize    ProtectionSnapshotValueSource  `json:"take_profit_size,omitempty"`
+	StopLossPrice     ProtectionSnapshotValueSource  `json:"stop_loss_price,omitempty"`
+	StopLossSize      ProtectionSnapshotValueSource  `json:"stop_loss_size,omitempty"`
+	FallbackMaxLoss   ProtectionSnapshotValueSource  `json:"fallback_max_loss,omitempty"`
 	Rules             []ProtectionSnapshotLadderRule `json:"rules,omitempty"`
 }
 
 // ProtectionSnapshotLadderRule a single ladder rule with concrete values
 type ProtectionSnapshotLadderRule struct {
 	TakeProfitPct           float64 `json:"take_profit_pct,omitempty"`
+	TakeProfitPrice         float64 `json:"take_profit_price,omitempty"`
 	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`
 	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
+	StopLossPrice           float64 `json:"stop_loss_price,omitempty"`
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
+	StructuralAnchor        string  `json:"structural_anchor,omitempty"`
+	TakeProfitAnchor        string  `json:"take_profit_anchor,omitempty"`
+	StopLossAnchor          string  `json:"stop_loss_anchor,omitempty"`
+	VolatilityBufferPct     float64 `json:"volatility_buffer_pct,omitempty"`
 }
 
 // ProtectionSnapshotDrawdown drawdown take-profit rule snapshot
 type ProtectionSnapshotDrawdown struct {
-	MinProfitPct   float64 `json:"min_profit_pct"`
-	MaxDrawdownPct float64 `json:"max_drawdown_pct"`
-	CloseRatioPct  float64 `json:"close_ratio_pct"`
-	PollIntervalS  int     `json:"poll_interval_s"`
+	Mode              string  `json:"mode,omitempty"`
+	Source            string  `json:"source,omitempty"`
+	MinProfitPct      float64 `json:"min_profit_pct"`
+	MaxDrawdownPct    float64 `json:"max_drawdown_pct"`
+	MaxDrawdownAbsPct float64 `json:"max_drawdown_abs_profit_pct,omitempty"`
+	CloseRatioPct     float64 `json:"close_ratio_pct"`
+	PollIntervalS     int     `json:"poll_interval_s"`
 }
 
 // ProtectionSnapshotBreakEven break-even stop snapshot
 type ProtectionSnapshotBreakEven struct {
 	Enabled      bool    `json:"enabled"`
+	Source       string  `json:"source,omitempty"`
 	TriggerMode  string  `json:"trigger_mode"`
 	TriggerValue float64 `json:"trigger_value"`
 	OffsetPct    float64 `json:"offset_pct"`
@@ -177,6 +357,7 @@ func (s *DecisionStore) initTables() error {
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS protection_snapshot TEXT DEFAULT ''`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS review_context TEXT DEFAULT ''`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS allow_ai_close BOOLEAN DEFAULT true`)
+			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS allow_ai_open BOOLEAN DEFAULT true`)
 			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS ai_decision_mode TEXT DEFAULT 'balanced'`)
 			return nil
 		}
@@ -200,6 +381,7 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 		ErrorMessage:        db.ErrorMessage,
 		AIRequestDurationMs: db.AIRequestDurationMs,
 		AllowAIClose:        db.AllowAIClose,
+		AllowAIOpen:         db.AllowAIOpen,
 		AIDecisionMode:      db.AIDecisionMode,
 	}
 	json.Unmarshal([]byte(db.CandidateCoins), &record.CandidateCoins)
@@ -215,6 +397,12 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 		var rc map[string]interface{}
 		if err := json.Unmarshal([]byte(db.ReviewContext), &rc); err == nil {
 			record.ReviewContext = rc
+			if v, ok := rc["allow_ai_open"].(bool); ok {
+				record.AllowAIOpen = v
+			}
+			if v, ok := rc["allow_ai_close"].(bool); ok {
+				record.AllowAIClose = v
+			}
 		}
 	}
 	return record
@@ -260,6 +448,7 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		ProtectionSnapshot:  protectionSnapshotJSON,
 		ReviewContext:       reviewContextJSON,
 		AllowAIClose:        record.AllowAIClose,
+		AllowAIOpen:         record.AllowAIOpen,
 		AIDecisionMode:      record.AIDecisionMode,
 		Success:             record.Success,
 		ErrorMessage:        record.ErrorMessage,
@@ -316,6 +505,21 @@ func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 	}
 
 	return records, nil
+}
+
+func (s *DecisionStore) GetRecordByCycle(traderID string, cycleNumber int) (*DecisionRecord, error) {
+	if traderID == "" || cycleNumber <= 0 {
+		return nil, nil
+	}
+	var dbRecord DecisionRecordDB
+	err := s.db.Where("trader_id = ? AND cycle_number = ?", traderID, cycleNumber).First(&dbRecord).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query decision record by cycle: %w", err)
+	}
+	return dbRecord.toRecord(), nil
 }
 
 // GetRecordsByDate gets all records for a specified trader on a specified date

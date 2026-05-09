@@ -105,6 +105,7 @@ func (s *Server) handleCompetition(c *gin.Context) {
 	userID := c.GetString("user_id")
 
 	// Ensure user's traders are loaded into memory
+	logger.Infof("[reload.trigger] source=competition user_id=%s", userID)
 	err := s.traderManager.LoadUserTradersFromStore(s.store, userID)
 	if err != nil {
 		logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, err)

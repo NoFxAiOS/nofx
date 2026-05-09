@@ -3,6 +3,7 @@ package kernel
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ============================================================================
@@ -84,11 +85,22 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "open_long|open_short|close_long|close_short|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
-    "stop_loss": 42000,
-    "take_profit": 48000,
+    "protection_plan": {
+      "mode": "full|ladder",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3,
+      "ladder_rules": [
+        {
+          "take_profit_pct": 3,
+          "take_profit_close_ratio_pct": 40,
+          "stop_loss_pct": 1.5,
+          "stop_loss_close_ratio_pct": 25
+        }
+      ]
+    },
     "confidence": 85,
     "reasoning": "详细的推理过程，说明为什么做出这个决策"
   }
@@ -99,16 +111,17 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 
 - **symbol**: 交易对（必需）
 - **action**: 动作类型（必需）
-  - HOLD: 持有当前仓位
-  - PARTIAL_CLOSE: 部分平仓
-  - FULL_CLOSE: 全部平仓
-  - ADD_POSITION: 在现有仓位上加仓
-  - OPEN_NEW: 开设新仓位
-  - WAIT: 等待，不采取任何行动
+  - open_long: 开新多仓
+  - open_short: 开新空仓
+  - close_long: 平已有多仓
+  - close_short: 平已有空仓
+  - hold: 保持当前仓位不变
+  - wait: 该币种本轮不操作
 - **leverage**: 杠杆倍数（开新仓时必需）
 - **position_size_usd**: 仓位大小（USDT，开新仓时必需）
-- **stop_loss**: 止损价格（开新仓时建议提供）
-- **take_profit**: 止盈价格（开新仓时建议提供）
+- **stop_loss**: 直接止损价（可选，仅当你不使用 protection_plan 时）
+- **take_profit**: 直接止盈价（可选，仅当你不使用 protection_plan 时）
+- **protection_plan**: 可选的结构化保护计划。mode=full/ladder 都优先提供结构绝对价 take_profit_price/stop_loss_price，同时给等价百分比；百分比只是审计/显示值，不是结构止损来源
 - **confidence**: 信心度（0-100）
 - **reasoning**: 推理过程（必需，必须详细说明决策依据）
 
@@ -157,19 +170,52 @@ func (pb *PromptBuilder) getDecisionRequirementsZH() string {
 [
   {
     "symbol": "PIPPINUSDT",
-    "action": "PARTIAL_CLOSE",
+    "action": "close_long",
     "confidence": 85,
-    "reasoning": "当前PnL +2.96%，接近历史峰值+2.99%（回撤仅0.03%）。建议部分平仓锁定利润，因为：1) 持仓时间仅11分钟，已获得3%收益；2) 5分钟K线显示价格接近短期阻力位；3) 成交量开始萎缩，上涨动能减弱。建议平仓50%，剩余仓位设置跟踪止盈在峰值回撤20%处。"
+    "reasoning": "当前多仓已接近短期阻力且上涨动能减弱，优先锁定已有利润。本动作是平仓，不要附带 protection_plan。"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "action": "open_long",
+    "leverage": 3,
+    "position_size_usd": 500,
+    "confidence": 78,
+    "protection_plan": {
+      "mode": "full",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3
+    },
+    "reasoning": "BTCUSDT 在主趋势方向上完成回踩确认，适合统一 TP/SL 的单段管理，因此使用 full protection_plan，并且用百分比字段表达止盈止损，而不是直接价格。"
+  },
+  {
+    "symbol": "XRPUSDT",
+    "action": "open_long",
+    "leverage": 2,
+    "position_size_usd": 400,
+    "confidence": 74,
+    "protection_plan": {
+      "mode": "drawdown",
+      "drawdown_rules": [
+        {"timeframe":"5m","min_profit_pct":2.5,"max_drawdown_pct":35,"close_ratio_pct":20,"poll_interval_seconds":30,"reason_anchor":"5m micro swing near local resistance"},
+        {"timeframe":"15m","min_profit_pct":4.5,"max_drawdown_pct":30,"close_ratio_pct":50,"poll_interval_seconds":60,"reason_anchor":"15m primary trend profit protection"}
+      ]
+    },
+    "reasoning": "XRPUSDT 与 15m 主趋势和 5m 延续结构一致，适合使用 drawdown protection_plan；规则参考主周期、邻近周期、支撑阻力、斐波那契和当前波动率。"
   },
   {
     "symbol": "HUSDT",
-    "action": "OPEN_NEW",
+    "action": "open_long",
     "leverage": 3,
     "position_size_usd": 500,
-    "stop_loss": 0.1560,
-    "take_profit": 0.1720,
     "confidence": 75,
-    "reasoning": "HUSDT在5分钟时间框架突破关键阻力位0.1630，持仓量1小时内增加+1.57M (+0.89%)，配合价格上涨+4.92%，符合'OI增加+价格上涨'的强多头模式。15分钟和1小时时间框架均呈现上涨趋势，多周期共振。建议开仓做多，止损设在突破点下方-5%，止盈目标+8%。"
+    "protection_plan": {
+      "mode": "ladder",
+      "ladder_rules": [
+        {"take_profit_pct": 3, "take_profit_close_ratio_pct": 40, "stop_loss_pct": 1.5, "stop_loss_close_ratio_pct": 25},
+        {"take_profit_pct": 6, "take_profit_close_ratio_pct": 60, "stop_loss_pct": 3.0, "stop_loss_close_ratio_pct": 75}
+      ]
+    },
+    "reasoning": "HUSDT 在低周期突破且多周期共振明显，更适合分段止盈止损管理，因此使用 ladder protection_plan。"
   }
 ]
 ` + "```" + `
@@ -219,11 +265,57 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "open_long|open_short|close_long|close_short|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
-    "stop_loss": 42000,
-    "take_profit": 48000,
+    "protection_plan": {
+      "mode": "full|ladder|drawdown",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3,
+      "drawdown_rules": [
+        {
+          "timeframe": "15m",
+          "min_profit_pct": 4,
+          "max_drawdown_pct": 55,
+          "close_ratio_pct": 50,
+          "poll_interval_seconds": 60,
+          "reason_anchor": "primary timeframe structure"
+        }
+      ],
+      "ladder_rules": [
+        {
+          "take_profit_pct": 3,
+          "take_profit_close_ratio_pct": 40,
+          "stop_loss_pct": 1.5,
+          "stop_loss_close_ratio_pct": 25
+        }
+      ]
+    },
+    "entry_protection_rationale": {
+      "timeframe_context": {
+        "primary": "15m",
+        "lower": ["5m"],
+        "higher": ["1h"]
+      },
+      "risk_reward": {
+        "entry": 42000,
+        "invalidation": 41400,
+        "first_target": 43200,
+        "gross_estimated_rr": 2.0,
+        "net_estimated_rr": 1.8,
+        "min_required_rr": 1.5,
+        "passed": true
+      },
+      "anchors": [
+        {
+          "type": "support",
+          "timeframe": "15m",
+          "price": 41850,
+          "reason": "breakout retest"
+        }
+      ],
+      "alignment_notes": ["stop remains beyond invalidation"]
+    },
     "confidence": 85,
     "reasoning": "Detailed reasoning explaining why this decision was made"
   }
@@ -234,16 +326,23 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 
 - **symbol**: Trading pair (required)
 - **action**: Action type (required)
-  - HOLD: Hold current position
-  - PARTIAL_CLOSE: Partially close position
-  - FULL_CLOSE: Fully close position
-  - ADD_POSITION: Add to existing position
-  - OPEN_NEW: Open new position
-  - WAIT: Wait, take no action
-- **leverage**: Leverage multiplier (required for new positions)
-- **position_size_usd**: Position size in USDT (required for new positions)
-- **stop_loss**: Stop-loss price (recommended for new positions)
-- **take_profit**: Take-profit price (recommended for new positions)
+  - open_long: Open new long position
+  - open_short: Open new short position
+  - close_long: Close an existing long position
+  - close_short: Close an existing short position
+  - hold: Keep current position unchanged
+  - wait: No action for this symbol
+- **leverage**: Leverage multiplier (required for open_long/open_short)
+- **position_size_usd**: Position size in USDT (required for open_long/open_short)
+- **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
+- **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
+- **protection_plan**: Optional structured protection plan. Use mode=full/ladder with structural absolute prices plus equivalent pct where applicable, or mode=drawdown/combined with at least 2 drawdown_rules. When drawdown_rules are present, drawdown owns TP/profit-taking; do not output ladder take_profit_price/take_profit_close_ratio_pct unless explicitly needed for audit, and prefer ladder stop-loss side only. In drawdown_rules, max_drawdown_pct is peak-profit giveback percentage: 55 means give back 55% of peak profit; do not output 0.55 unless you truly mean 0.55% of peak profit.
+- **entry_protection_rationale**: Required for open_long/open_short. Must include structured timeframe/key-level/RR rationale. At minimum include risk_reward.entry, risk_reward.invalidation, risk_reward.first_target, risk_reward.gross_estimated_rr, and preferably risk_reward.net_estimated_rr plus structural anchors.
+  - Opening decisions MUST include a first-target anchor. Use either anchors[].type="first_target", or structural_key_levels[].used_for="first_target"/"tp1"/"take_profit", with the target price and reason.
+  - If you do not have a concrete higher-timeframe anchor, leave timeframe_context.higher empty/omitted. If timeframe_context.higher is present, you MUST include higher_timeframe_anchors or timeframe_structures with explicit higher-TF price anchors for runner/drawdown context.
+  - gross_estimated_rr must equal abs(first_target-entry)/abs(entry-invalidation). Do not invent or round it upward; if computed RR is below the minimum, output wait/[] instead.
+- Treat entry structure as compact evidence rather than indicator dumping: use the minimum support/resistance, timeframe, anchor, and fibonacci fields needed to justify entry/invalidation/first target.
+- If strategy entry-structure requirements demand primary timeframe / adjacent timeframes / support-resistance / anchors / fibonacci and you cannot support them from available market data, do not force an open action; return wait or [] instead.
 - **confidence**: Confidence level (0-100)
 - **reasoning**: Detailed reasoning (required, must explain decision basis)
 
@@ -292,19 +391,49 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
 [
   {
     "symbol": "PIPPINUSDT",
-    "action": "PARTIAL_CLOSE",
+    "action": "close_long",
     "confidence": 85,
-    "reasoning": "Current PnL +2.96%, near historical peak +2.99% (only 0.03% pullback). Suggest partial close to lock profits because: 1) Only 11 minutes holding time with 3% gain; 2) 5M chart shows price approaching short-term resistance; 3) Volume declining, upward momentum weakening. Recommend closing 50%, set trailing stop at 20% pullback from peak for remainder."
+    "reasoning": "The existing long is close to short-term resistance and momentum is weakening. Close the long to lock profit. Because this is a close action, do not attach protection_plan."
+  },
+  {
+    "symbol": "BTCUSDT",
+    "action": "open_long",
+    "leverage": 3,
+    "position_size_usd": 500,
+    "confidence": 78,
+    "protection_plan": {
+      "mode": "full",
+      "take_profit_pct": 8,
+      "stop_loss_pct": 3
+    },
+    "entry_protection_rationale": {
+      "timeframe_context": {"primary": "15m", "lower": ["5m"], "higher": ["1h"]},
+      "risk_reward": {"entry": 62000, "invalidation": 61200, "first_target": 63600, "gross_estimated_rr": 2.0, "net_estimated_rr": 1.8, "min_required_rr": 1.5, "passed": true},
+      "anchors": [{"type": "support", "timeframe": "15m", "price": 61850, "reason": "pullback confirmation"}],
+      "alignment_notes": ["full stop remains beyond invalidation"]
+    },
+    "reasoning": "BTCUSDT completed a pullback confirmation in the primary trend direction, so a single unified TP/SL structure is sufficient and full protection_plan is appropriate. The entry_protection_rationale records the key support anchor and confirms RR stays above the minimum threshold even after costs. Express TP/SL as percentage fields rather than absolute prices."
   },
   {
     "symbol": "HUSDT",
-    "action": "OPEN_NEW",
+    "action": "open_long",
     "leverage": 3,
     "position_size_usd": 500,
-    "stop_loss": 0.1560,
-    "take_profit": 0.1720,
     "confidence": 75,
-    "reasoning": "HUSDT broke key resistance 0.1630 on 5M timeframe. OI increased +1.57M (+0.89%) in 1H paired with price +4.92%, matching 'OI up + price up' strong bullish pattern. Both 15M and 1H timeframes show uptrend, multi-timeframe resonance confirmed. Recommend long entry, stop-loss -5% below breakout, target +8% profit."
+    "protection_plan": {
+      "mode": "ladder",
+      "ladder_rules": [
+        {"take_profit_pct": 3, "take_profit_close_ratio_pct": 40, "stop_loss_pct": 1.5, "stop_loss_close_ratio_pct": 25},
+        {"take_profit_pct": 6, "take_profit_close_ratio_pct": 60, "stop_loss_pct": 3.0, "stop_loss_close_ratio_pct": 75}
+      ]
+    },
+    "entry_protection_rationale": {
+      "timeframe_context": {"primary": "5m", "lower": ["3m"], "higher": ["15m"]},
+      "risk_reward": {"entry": 1.2, "invalidation": 1.15, "first_target": 1.32, "gross_estimated_rr": 2.4, "net_estimated_rr": 2.1, "min_required_rr": 1.5, "passed": true},
+      "anchors": [{"type": "support", "timeframe": "5m", "price": 1.18, "reason": "breakout base"}],
+      "alignment_notes": ["first ladder target remains before the final target"]
+    },
+    "reasoning": "HUSDT shows a low-timeframe breakout with multi-timeframe alignment, so staged TP/SL management is more suitable and ladder protection_plan is preferred. The entry_protection_rationale captures the breakout base, invalidation, and RR logic for the open_long decision."
   }
 ]
 ` + "```" + `
@@ -334,23 +463,30 @@ func FormatDecisionExample(lang Language) string {
 // ValidateDecisionFormat validates that the decision format is correct
 func ValidateDecisionFormat(decisions []Decision) error {
 	if len(decisions) == 0 {
-		return fmt.Errorf("decision list cannot be empty")
+		return nil
 	}
+	return validateDecisionFormatInternal(decisions, false)
+}
 
+func validateDecisionFormatInternal(decisions []Decision, allowEmptyReasoning bool) error {
 	for i, d := range decisions {
-		// Required field checks
 		if d.Symbol == "" {
 			return fmt.Errorf("decision #%d: symbol cannot be empty", i+1)
 		}
 		if d.Action == "" {
 			return fmt.Errorf("decision #%d: action cannot be empty", i+1)
 		}
-		if d.Reasoning == "" {
+		if d.Reasoning == "" && !allowEmptyReasoning {
 			return fmt.Errorf("decision #%d: reasoning cannot be empty", i+1)
 		}
 
-		// Action type validation
 		validActions := map[string]bool{
+			"open_long":     true,
+			"open_short":    true,
+			"close_long":    true,
+			"close_short":   true,
+			"hold":          true,
+			"wait":          true,
 			"HOLD":          true,
 			"PARTIAL_CLOSE": true,
 			"FULL_CLOSE":    true,
@@ -362,16 +498,146 @@ func ValidateDecisionFormat(decisions []Decision) error {
 			return fmt.Errorf("decision #%d: invalid action type: %s", i+1, d.Action)
 		}
 
-		// Required parameters for opening new positions
-		if d.Action == "OPEN_NEW" {
+		isOpenAction := d.Action == "open_long" || d.Action == "open_short" || d.Action == "OPEN_NEW"
+		if isOpenAction {
 			if d.Leverage == 0 {
-				return fmt.Errorf("decision #%d: OPEN_NEW action requires leverage", i+1)
+				return fmt.Errorf("decision #%d: open action requires leverage", i+1)
 			}
 			if d.PositionSizeUSD == 0 {
-				return fmt.Errorf("decision #%d: OPEN_NEW action requires position_size_usd", i+1)
+				return fmt.Errorf("decision #%d: open action requires position_size_usd", i+1)
 			}
 		}
-	}
 
+		if d.ProtectionPlan != nil {
+			if !isOpenAction {
+				return fmt.Errorf("decision #%d: protection_plan is only allowed for open actions", i+1)
+			}
+			switch d.ProtectionPlan.Mode {
+			case "full":
+				if len(d.ProtectionPlan.LadderRules) > 0 {
+					return fmt.Errorf("decision #%d: full protection_plan must not include ladder_rules", i+1)
+				}
+				if len(d.ProtectionPlan.DrawdownRules) > 0 {
+					return fmt.Errorf("decision #%d: full protection_plan must not include drawdown_rules", i+1)
+				}
+				if d.ProtectionPlan.TakeProfitPct <= 0 && d.ProtectionPlan.TakeProfitPrice <= 0 && d.ProtectionPlan.StopLossPct <= 0 && d.ProtectionPlan.StopLossPrice <= 0 {
+					return fmt.Errorf("decision #%d: full protection_plan requires take_profit_pct/take_profit_price or stop_loss_pct/stop_loss_price", i+1)
+				}
+			case "ladder":
+				if len(d.ProtectionPlan.DrawdownRules) > 0 {
+					return fmt.Errorf("decision #%d: ladder protection_plan must not include drawdown_rules", i+1)
+				}
+				if len(d.ProtectionPlan.LadderRules) == 0 {
+					return fmt.Errorf("decision #%d: ladder protection_plan requires ladder_rules", i+1)
+				}
+				for j, rule := range d.ProtectionPlan.LadderRules {
+					if rule.TakeProfitPct <= 0 && rule.TakeProfitPrice <= 0 && rule.StopLossPct <= 0 && rule.StopLossPrice <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct/take_profit_price or stop_loss_pct/stop_loss_price", i+1, j)
+					}
+					if rule.TakeProfitCloseRatioPct < 0 || rule.TakeProfitCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid take_profit_close_ratio_pct", i+1, j)
+					}
+					if rule.StopLossCloseRatioPct < 0 || rule.StopLossCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid stop_loss_close_ratio_pct", i+1, j)
+					}
+					if (rule.TakeProfitPct > 0 || rule.TakeProfitPrice > 0) && rule.TakeProfitCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] take_profit_pct requires positive take_profit_close_ratio_pct", i+1, j)
+					}
+					if (rule.StopLossPct > 0 || rule.StopLossPrice > 0) && rule.StopLossCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] stop_loss_pct requires positive stop_loss_close_ratio_pct", i+1, j)
+					}
+				}
+			case "drawdown":
+				if len(d.ProtectionPlan.LadderRules) > 0 || d.ProtectionPlan.TakeProfitPct > 0 || d.ProtectionPlan.StopLossPct > 0 {
+					return fmt.Errorf("decision #%d: drawdown protection_plan must only include drawdown_rules", i+1)
+				}
+				if len(d.ProtectionPlan.DrawdownRules) == 0 {
+					return fmt.Errorf("decision #%d: drawdown protection_plan requires drawdown_rules", i+1)
+				}
+				if len(d.ProtectionPlan.DrawdownRules) < 2 {
+					return fmt.Errorf("decision #%d: drawdown protection_plan requires at least 2 drawdown_rules: first stage partial profit lock, outer stage runner/trend protection", i+1)
+				}
+				for j, rule := range d.ProtectionPlan.DrawdownRules {
+					if rule.MinProfitPct <= 0 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] requires positive min_profit_pct", i+1, j)
+					}
+					if rule.MaxDrawdownPct <= 0 || rule.MaxDrawdownPct > 100 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] has invalid max_drawdown_pct", i+1, j)
+					}
+					if rule.CloseRatioPct <= 0 || rule.CloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] has invalid close_ratio_pct", i+1, j)
+					}
+					if rule.PollIntervalSeconds > 0 && rule.PollIntervalSeconds < 5 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] poll_interval_seconds must be >= 5", i+1, j)
+					}
+				}
+			case "combined":
+				if len(d.ProtectionPlan.LadderRules) == 0 || len(d.ProtectionPlan.DrawdownRules) == 0 {
+					return fmt.Errorf("decision #%d: combined protection_plan requires both ladder_rules and drawdown_rules", i+1)
+				}
+				if len(d.ProtectionPlan.DrawdownRules) < 2 {
+					return fmt.Errorf("decision #%d: combined protection_plan requires at least 2 drawdown_rules: first stage partial profit lock, outer stage runner/trend protection", i+1)
+				}
+				if d.ProtectionPlan.TakeProfitPct > 0 || d.ProtectionPlan.StopLossPct > 0 {
+					return fmt.Errorf("decision #%d: combined protection_plan must not include full take_profit_pct/stop_loss_pct", i+1)
+				}
+				for j, rule := range d.ProtectionPlan.LadderRules {
+					if rule.TakeProfitPct <= 0 && rule.TakeProfitPrice <= 0 && rule.StopLossPct <= 0 && rule.StopLossPrice <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] requires take_profit_pct/take_profit_price or stop_loss_pct/stop_loss_price", i+1, j)
+					}
+					if rule.TakeProfitCloseRatioPct < 0 || rule.TakeProfitCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid take_profit_close_ratio_pct", i+1, j)
+					}
+					if rule.StopLossCloseRatioPct < 0 || rule.StopLossCloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] has invalid stop_loss_close_ratio_pct", i+1, j)
+					}
+					if (rule.TakeProfitPct > 0 || rule.TakeProfitPrice > 0) && rule.TakeProfitCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] take_profit_pct requires positive take_profit_close_ratio_pct", i+1, j)
+					}
+					if (rule.StopLossPct > 0 || rule.StopLossPrice > 0) && rule.StopLossCloseRatioPct <= 0 {
+						return fmt.Errorf("decision #%d: ladder_rules[%d] stop_loss_pct requires positive stop_loss_close_ratio_pct", i+1, j)
+					}
+				}
+				for j, rule := range d.ProtectionPlan.DrawdownRules {
+					if rule.MinProfitPct <= 0 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] requires positive min_profit_pct", i+1, j)
+					}
+					if rule.MaxDrawdownPct <= 0 || rule.MaxDrawdownPct > 100 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] has invalid max_drawdown_pct", i+1, j)
+					}
+					if rule.CloseRatioPct <= 0 || rule.CloseRatioPct > 100 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] has invalid close_ratio_pct", i+1, j)
+					}
+					if rule.PollIntervalSeconds > 0 && rule.PollIntervalSeconds < 5 {
+						return fmt.Errorf("decision #%d: drawdown_rules[%d] poll_interval_seconds must be >= 5", i+1, j)
+					}
+				}
+			case "break_even":
+				if d.ProtectionPlan.BreakEvenTrigger == "" || d.ProtectionPlan.BreakEvenValue <= 0 {
+					return fmt.Errorf("decision #%d: break_even protection_plan requires trigger mode and positive trigger value", i+1)
+				}
+				if d.ProtectionPlan.BreakEvenTrigger != "profit_pct" && d.ProtectionPlan.BreakEvenTrigger != "r_multiple" {
+					return fmt.Errorf("decision #%d: break_even protection_plan has invalid trigger mode", i+1)
+				}
+				if d.ProtectionPlan.BreakEvenOffset < 0 {
+					return fmt.Errorf("decision #%d: break_even protection_plan offset must be >= 0", i+1)
+				}
+				if len(d.ProtectionPlan.LadderRules) > 0 || len(d.ProtectionPlan.DrawdownRules) > 0 || d.ProtectionPlan.TakeProfitPct > 0 || d.ProtectionPlan.StopLossPct > 0 {
+					return fmt.Errorf("decision #%d: break_even protection_plan must not mix ladder/drawdown/full thresholds", i+1)
+				}
+			case "":
+				return fmt.Errorf("decision #%d: protection_plan.mode cannot be empty", i+1)
+			default:
+				return fmt.Errorf("decision #%d: invalid protection_plan.mode: %s", i+1, d.ProtectionPlan.Mode)
+			}
+		}
+		if !isOpenAction && d.EntryProtection != nil {
+			return fmt.Errorf("decision #%d: entry_protection_rationale is only allowed for open actions", i+1)
+		}
+	}
 	return nil
+}
+
+func ValidateDecisionFormatWithCoT(decisions []Decision, cotTrace string) error {
+	return validateDecisionFormatInternal(decisions, strings.TrimSpace(cotTrace) != "")
 }

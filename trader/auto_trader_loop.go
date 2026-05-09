@@ -3,8 +3,10 @@ package trader
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 	"nofx/wallet"
 	"strings"
@@ -39,11 +41,13 @@ func (at *AutoTrader) runCycle() error {
 	record := &store.DecisionRecord{
 		ExecutionLog:   []string{},
 		Success:        true,
+		AllowAIOpen:    at.GetAllowAIOpen(),
 		AllowAIClose:   at.GetAllowAIClose(),
 		AIDecisionMode: at.GetAIDecisionMode(),
 		ReviewContext: map[string]interface{}{
 			"safe_mode":        at.safeMode,
 			"safe_mode_reason": at.safeModeReason,
+			"allow_ai_open":    at.GetAllowAIOpen(),
 			"allow_ai_close":   at.GetAllowAIClose(),
 			"ai_decision_mode": at.GetAIDecisionMode(),
 		},
@@ -58,10 +62,20 @@ func (at *AutoTrader) runCycle() error {
 		if protCfg.FullTPSL.Enabled {
 			hasProtection = true
 			ps.FullTPSL = &store.ProtectionSnapshotFullTPSL{
-				Enabled:       true,
-				Mode:          string(protCfg.FullTPSL.Mode),
-				TakeProfitPct: protCfg.FullTPSL.TakeProfit.PriceMovePct,
-				StopLossPct:   protCfg.FullTPSL.StopLoss.PriceMovePct,
+				Enabled: true,
+				Mode:    string(protCfg.FullTPSL.Mode),
+				TakeProfit: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.FullTPSL.TakeProfit.Mode),
+					Value: protCfg.FullTPSL.TakeProfit.Value,
+				},
+				StopLoss: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.FullTPSL.StopLoss.Mode),
+					Value: protCfg.FullTPSL.StopLoss.Value,
+				},
+				FallbackMaxLoss: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.FullTPSL.FallbackMaxLoss.Mode),
+					Value: protCfg.FullTPSL.FallbackMaxLoss.Value,
+				},
 			}
 		}
 
@@ -72,6 +86,26 @@ func (at *AutoTrader) runCycle() error {
 				Mode:              string(protCfg.LadderTPSL.Mode),
 				TakeProfitEnabled: protCfg.LadderTPSL.TakeProfitEnabled,
 				StopLossEnabled:   protCfg.LadderTPSL.StopLossEnabled,
+				TakeProfitPrice: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.TakeProfitPrice.Mode),
+					Value: protCfg.LadderTPSL.TakeProfitPrice.Value,
+				},
+				TakeProfitSize: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.TakeProfitSize.Mode),
+					Value: protCfg.LadderTPSL.TakeProfitSize.Value,
+				},
+				StopLossPrice: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.StopLossPrice.Mode),
+					Value: protCfg.LadderTPSL.StopLossPrice.Value,
+				},
+				StopLossSize: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.StopLossSize.Mode),
+					Value: protCfg.LadderTPSL.StopLossSize.Value,
+				},
+				FallbackMaxLoss: store.ProtectionSnapshotValueSource{
+					Mode:  string(protCfg.LadderTPSL.FallbackMaxLoss.Mode),
+					Value: protCfg.LadderTPSL.FallbackMaxLoss.Value,
+				},
 			}
 			for _, r := range protCfg.LadderTPSL.Rules {
 				ladder.Rules = append(ladder.Rules, store.ProtectionSnapshotLadderRule{
@@ -86,12 +120,16 @@ func (at *AutoTrader) runCycle() error {
 
 		if protCfg.DrawdownTakeProfit.Enabled && len(protCfg.DrawdownTakeProfit.Rules) > 0 {
 			hasProtection = true
+			drawdownSource := "strategy"
 			for _, r := range protCfg.DrawdownTakeProfit.Rules {
 				ps.Drawdown = append(ps.Drawdown, store.ProtectionSnapshotDrawdown{
-					MinProfitPct:   r.MinProfitPct,
-					MaxDrawdownPct: r.MaxDrawdownPct,
-					CloseRatioPct:  r.CloseRatioPct,
-					PollIntervalS:  r.PollIntervalSeconds,
+					Mode:              string(protCfg.DrawdownTakeProfit.Mode),
+					Source:            drawdownSource,
+					MinProfitPct:      r.MinProfitPct,
+					MaxDrawdownPct:    r.MaxDrawdownPct,
+					MaxDrawdownAbsPct: r.MaxDrawdownAbsPct,
+					CloseRatioPct:     r.CloseRatioPct,
+					PollIntervalS:     r.PollIntervalSeconds,
 				})
 			}
 		}
@@ -100,6 +138,7 @@ func (at *AutoTrader) runCycle() error {
 			hasProtection = true
 			ps.BreakEven = &store.ProtectionSnapshotBreakEven{
 				Enabled:      true,
+				Source:       at.getBreakEvenConfigSource("", ""),
 				TriggerMode:  string(protCfg.BreakEvenStop.TriggerMode),
 				TriggerValue: protCfg.BreakEvenStop.TriggerValue,
 				OffsetPct:    protCfg.BreakEvenStop.OffsetPct,
@@ -176,6 +215,9 @@ func (at *AutoTrader) runCycle() error {
 	// 5. Use strategy engine to call AI for decision
 	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
 	decisionVariant := at.GetAIDecisionMode()
+	if !at.GetAllowAIOpen() {
+		decisionVariant = decisionVariant + "|no_open"
+	}
 	if !at.GetAllowAIClose() {
 		decisionVariant = decisionVariant + "|no_close"
 	}
@@ -187,6 +229,7 @@ func (at *AutoTrader) runCycle() error {
 		record.ExecutionLog = append(record.ExecutionLog,
 			fmt.Sprintf("AI call duration: %d ms", record.AIRequestDurationMs))
 	}
+	at.attachMarketContextV2Review(record, ctx)
 
 	// Save chain of thought, decisions, and input prompt even if there's an error (for debugging)
 	if aiDecision != nil {
@@ -194,6 +237,18 @@ func (at *AutoTrader) runCycle() error {
 		record.InputPrompt = aiDecision.UserPrompt
 		record.CoTTrace = aiDecision.CoTTrace
 		record.RawResponse = aiDecision.RawResponse // Save raw AI response for debugging
+		if aiDecision.ParseFallback {
+			fallbackMsg := "AI decision parser used safe fallback"
+			if aiDecision.ParseFallbackReason != "" {
+				fallbackMsg = fmt.Sprintf("AI decision parser used safe fallback: %s", aiDecision.ParseFallbackReason)
+			}
+			record.ExecutionLog = append(record.ExecutionLog, fallbackMsg)
+			if record.ReviewContext == nil {
+				record.ReviewContext = map[string]interface{}{}
+			}
+			record.ReviewContext["parse_fallback"] = true
+			record.ReviewContext["parse_fallback_reason"] = aiDecision.ParseFallbackReason
+		}
 		if len(aiDecision.Decisions) > 0 {
 			decisionJSON, _ := json.MarshalIndent(aiDecision.Decisions, "", "  ")
 			record.DecisionJSON = string(decisionJSON)
@@ -255,7 +310,7 @@ func (at *AutoTrader) runCycle() error {
 		logger.Infof("✅ [%s] AI recovered after %d consecutive failures", at.name, at.consecutiveAIFailures)
 	}
 	at.consecutiveAIFailures = 0
-	if at.safeMode {
+	if at.safeMode && !strings.HasPrefix(at.safeModeReason, "protect-only") {
 		logger.Infof("🛡️ [%s] SAFE MODE DEACTIVATED — AI is working again. Resuming normal trading.", at.name)
 		at.safeMode = false
 		at.safeModeReason = ""
@@ -307,20 +362,25 @@ func (at *AutoTrader) runCycle() error {
 		return nil
 	}
 
-	// Safe mode: filter out open positions, only allow close/hold
+	// Protection safe mode is independent from AI open/close permissions.
+	// It keeps monitors/reconcilers active and no longer blocks model actions by itself;
+	// allow_ai_open / allow_ai_close are the explicit execution gates.
 	if at.safeMode {
-		filtered := make([]kernel.Decision, 0)
+		logger.Infof("🛡️ [%s] Safe/protect mode active; AI execution is controlled by allow_ai_open=%v allow_ai_close=%v", at.name, at.GetAllowAIOpen(), at.GetAllowAIClose())
+	}
+
+	// AI open gate: blocks open_long / open_short generated by the model.
+	// This gate is the source of truth for AI open permission; protection/safe mode remains independent.
+	if !at.GetAllowAIOpen() {
+		filtered := make([]kernel.Decision, 0, len(sortedDecisions))
 		for _, d := range sortedDecisions {
 			if d.Action == "open_long" || d.Action == "open_short" {
-				logger.Warnf("🛡️ [%s] Safe mode: BLOCKED %s %s (no new positions allowed)", at.name, d.Action, d.Symbol)
+				logger.Warnf("🚫 [%s] AI open disabled: BLOCKED %s %s", at.name, d.Action, d.Symbol)
 				continue
 			}
 			filtered = append(filtered, d)
 		}
 		sortedDecisions = filtered
-		if len(sortedDecisions) == 0 {
-			logger.Infof("🛡️ [%s] Safe mode: all decisions were open positions, nothing to execute", at.name)
-		}
 	}
 
 	// AI close gate: only blocks close_long / close_short generated by the model.
@@ -348,6 +408,49 @@ func (at *AutoTrader) runCycle() error {
 			break
 		}
 
+		constraintSnapshot := at.collectExecutionConstraintsSnapshot(d.Symbol)
+		policyMode := store.StrategyControlPolicyModeStrict
+		if at.config.StrategyConfig != nil {
+			policyMode = at.config.StrategyConfig.StrategyControlPolicy.EffectiveMode()
+		}
+		protectionAlignment := deriveProtectionAlignmentWithStrategy(&d, record.ProtectionSnapshot, at.config.StrategyConfig)
+		plannedLadderTiers := 0
+		if d.ProtectionPlan != nil {
+			plannedLadderTiers = len(d.ProtectionPlan.LadderRules)
+		}
+		executionQuality := buildExecutionQualityContext(constraintSnapshot, d.PositionSizeUSD, plannedLadderTiers)
+
+		// ── Consolidated Entry Gate: 3-stage pipeline ──
+		gateResult := evaluateEntryGate(entryGateInput{
+			Decision:        &d,
+			MarketData:      ctx.MarketDataMap[d.Symbol],
+			StrategyConfig:  at.config.StrategyConfig,
+			PolicyMode:      policyMode,
+			MinRR:           at.getMinRiskRewardRatio(),
+			MinConfidence:   at.getMinConfidence(),
+			ConstraintSnap:  constraintSnapshot,
+			ProtectionAlign: protectionAlignment,
+		})
+		gateResult.Regime = classifyProtectionRegime(ctx.MarketDataMap[d.Symbol])
+		if ctx.MarketDataMap[d.Symbol] != nil {
+			gateResult.SystemRegime = market.InferExecutionRegimePublic(ctx.MarketDataMap[d.Symbol])
+			gateResult.ATR14Pct = computeATR14Pct(ctx.MarketDataMap[d.Symbol])
+			gateResult.FundingRate = ctx.MarketDataMap[d.Symbol].FundingRate
+		}
+		if d.EntryProtection != nil {
+			gateResult.EffectiveRR = d.EntryProtection.RiskReward.NetEstimatedRR
+			if gateResult.EffectiveRR <= 0 {
+				gateResult.EffectiveRR = d.EntryProtection.RiskReward.GrossEstimatedRR
+			}
+		}
+
+		if !gateResult.Allowed {
+			blockReason := entryGateResultToBlockReason(gateResult)
+			appendRuntimePolicyNote(&d, blockReason)
+			logger.Infof("🚫 Entry gate blocked %s %s: %s", d.Symbol, d.Action, blockReason)
+			logger.Infof("   Gate checks: %s", entryGateChecksLog(gateResult))
+		}
+
 		actionRecord := store.DecisionAction{
 			Action:     d.Action,
 			Symbol:     d.Symbol,
@@ -358,23 +461,40 @@ func (at *AutoTrader) runCycle() error {
 			TakeProfit: d.TakeProfit,
 			Confidence: d.Confidence,
 			Reasoning:  d.Reasoning,
-			Timestamp:  time.Now().UTC(),
-			Success:    false,
+			ReviewContext: buildDecisionActionReviewContext(
+				&d,
+				at.getMinRiskRewardRatio(),
+				record.ProtectionSnapshot,
+				constraintSnapshot,
+				protectionAlignment,
+			),
+			Timestamp: time.Now().UTC(),
+			Success:   false,
 		}
 
-		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
+		if actionRecord.ReviewContext != nil {
+			actionRecord.ReviewContext.Control = entryGateResultToControlOutcome(gateResult, &d)
+			actionRecord.ReviewContext.QualityGate = entryGateResultToQualityGate(gateResult, &d)
+			attachExecutionQualityToReview(actionRecord.ReviewContext, executionQuality)
+		}
+
+		if !gateResult.Allowed {
+			blockReason := entryGateResultToBlockReason(gateResult)
+			actionRecord.Error = blockReason
+			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("🚫 %s %s blocked: %s", d.Symbol, d.Action, blockReason))
+		} else if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
 			logger.Infof("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
 			actionRecord.Error = err.Error()
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("❌ %s %s failed: %v", d.Symbol, d.Action, err))
 		} else {
 			actionRecord.Success = true
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("✓ %s %s succeeded", d.Symbol, d.Action))
-			// Brief delay after successful execution
 			time.Sleep(1 * time.Second)
 		}
 
 		record.Decisions = append(record.Decisions, actionRecord)
 	}
+	attachQualityGateReviewSummary(record)
 
 	// 9. Save decision record
 	if err := at.saveDecision(record); err != nil {
@@ -505,10 +625,18 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		})
 	}
 
-	// Clean up closed position records
+	// Clean up closed position records and trigger cooldown for stop-loss exits
 	for key := range at.positionFirstSeenTime {
 		if !currentPositionKeys[key] {
 			delete(at.positionFirstSeenTime, key)
+			// Trigger cooldown if the position closed at a loss
+			symbol, _ := splitPositionKey(key)
+			if symbol != "" {
+				if lastTrade, err := at.store.Position().GetLastClosedTrade(at.id, symbol); err == nil && lastTrade != nil && lastTrade.RealizedPnL < 0 {
+					at.cooldownManager.SetCooldown(symbol)
+					logger.Infof("⏳ [%s] Entry cooldown set for %s (%.2f USDT loss)", at.name, symbol, lastTrade.RealizedPnL)
+				}
+			}
 		}
 	}
 
@@ -564,6 +692,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		},
 		Positions:      positionInfos,
 		CandidateCoins: candidateCoins,
+		Indicators:     strategyConfig.Indicators,
 	}
 
 	// 7. Add recent closed trades (if store is available)
@@ -642,6 +771,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 		logger.Infof("📊 [%s] Fetching quantitative data for %d symbols...", at.name, len(symbols))
 		ctx.QuantDataMap = at.strategyEngine.FetchQuantDataBatch(symbols)
+		attachQuantContextToMarketData(ctx.MarketDataMap, ctx.QuantDataMap)
+		ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_quant", len(ctx.QuantDataMap) > 0, "unavailable/deprecated or no symbols returned; continuing without quant netflow")
 		logger.Infof("📊 [%s] Successfully fetched quantitative data for %d symbols", at.name, len(ctx.QuantDataMap))
 	}
 
@@ -650,8 +781,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		logger.Infof("📊 [%s] Fetching OI ranking data...", at.name)
 		ctx.OIRankingData = at.strategyEngine.FetchOIRankingData()
 		if ctx.OIRankingData != nil {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_oi_ranking", true, "")
 			logger.Infof("📊 [%s] OI ranking data ready: %d top, %d low positions",
 				at.name, len(ctx.OIRankingData.TopPositions), len(ctx.OIRankingData.LowPositions))
+		} else {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_oi_ranking", false, "unavailable; continuing with exchange OI/funding")
 		}
 	}
 
@@ -660,8 +794,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		logger.Infof("💰 [%s] Fetching NetFlow ranking data...", at.name)
 		ctx.NetFlowRankingData = at.strategyEngine.FetchNetFlowRankingData()
 		if ctx.NetFlowRankingData != nil {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_netflow_ranking", true, "")
 			logger.Infof("💰 [%s] NetFlow ranking data ready: inst_in=%d, inst_out=%d",
 				at.name, len(ctx.NetFlowRankingData.InstitutionFutureTop), len(ctx.NetFlowRankingData.InstitutionFutureLow))
+		} else {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_netflow_ranking", false, "unavailable; continuing without market-wide netflow")
 		}
 	}
 
@@ -670,8 +807,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		logger.Infof("📈 [%s] Fetching Price ranking data...", at.name)
 		ctx.PriceRankingData = at.strategyEngine.FetchPriceRankingData()
 		if ctx.PriceRankingData != nil {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_price_ranking", true, "")
 			logger.Infof("📈 [%s] Price ranking data ready for %d durations",
 				at.name, len(ctx.PriceRankingData.Durations))
+		} else {
+			ctx.OptionalDataStates = recordOptionalDataState(ctx.OptionalDataStates, "nofxos_price_ranking", false, "unavailable; continuing with exchange price/klines")
 		}
 	}
 
@@ -680,6 +820,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 // sortDecisionsByPriority sorts decisions: close positions first, then open positions, finally hold/wait
 // This avoids position stacking overflow when changing positions
+
 func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 	if len(decisions) <= 1 {
 		return decisions
@@ -746,4 +887,678 @@ func (at *AutoTrader) checkClaw402Balance() {
 		logger.Infof("💰 [%s] USDC Balance: $%.2f | Daily AI cost: ~$%.2f | Runway: ~%.1f days",
 			at.name, balance, dailyCost, runway)
 	}
+}
+
+func (at *AutoTrader) getMinRiskRewardRatio() float64 {
+	if at != nil && at.config.StrategyConfig != nil {
+		if v := at.config.StrategyConfig.RiskControl.MinRiskRewardRatio; v > 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+func (at *AutoTrader) getMinConfidence() int {
+	if at != nil && at.config.StrategyConfig != nil {
+		if v := at.config.StrategyConfig.RiskControl.MinConfidence; v > 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, snapshot *store.ProtectionSnapshot, executionSnapshot ...interface{}) *store.DecisionActionReviewContext {
+	ctx := &store.DecisionActionReviewContext{}
+	var protectionOverride *store.DecisionActionProtectionAlignment
+	if len(executionSnapshot) > 0 {
+		if snap, ok := executionSnapshot[0].(*ExecutionConstraintsSnapshot); ok {
+			ctx.ExecutionConstraints = mapExecutionConstraintsToActionReview(snap)
+		}
+	}
+	if len(executionSnapshot) > 1 {
+		if alignment, ok := executionSnapshot[1].(*store.DecisionActionProtectionAlignment); ok {
+			protectionOverride = alignment
+		}
+	}
+	if minRR > 0 {
+		ctx.MinRiskReward = minRR
+	}
+	if decision == nil {
+		if reviewContextIsEmpty(ctx) {
+			return nil
+		}
+		return ctx
+	}
+	if decision.EntryProtection != nil {
+		ep := decision.EntryProtection
+		if ep.TimeframeContext.Primary != "" {
+			ctx.PrimaryTimeframe = ep.TimeframeContext.Primary
+		}
+		ctx.TimeframeContext = compactTimeframeContext(ep.TimeframeContext)
+		rr := ep.RiskReward
+		if rr.Entry > 0 || rr.Invalidation > 0 || rr.FirstTarget > 0 || rr.GrossEstimatedRR > 0 || rr.NetEstimatedRR > 0 || rr.Passed {
+			riskReward := &store.DecisionActionRiskRewardSummary{
+				Entry:            rr.Entry,
+				Invalidation:     rr.Invalidation,
+				FirstTarget:      rr.FirstTarget,
+				GrossEstimatedRR: rr.GrossEstimatedRR,
+				NetEstimatedRR:   rr.NetEstimatedRR,
+				Passed:           rr.Passed,
+			}
+			if !riskReward.Passed && minRR > 0 {
+				effectiveRR := rr.GrossEstimatedRR
+				if rr.NetEstimatedRR > 0 {
+					effectiveRR = rr.NetEstimatedRR
+				}
+				if effectiveRR > 0 && effectiveRR >= minRR {
+					riskReward.Passed = true
+				}
+			}
+			ctx.RiskReward = riskReward
+		}
+		ctx.KeyLevels = compactKeyLevels(ep.KeyLevels)
+		if len(ep.Anchors) > 0 {
+			ctx.Anchors = compactReasonAnchors(ep.Anchors)
+		}
+		if len(ep.HigherAnchors) > 0 {
+			ctx.HigherAnchors = compactReasonAnchors(ep.HigherAnchors)
+		}
+		if len(ep.TimeframeStructures) > 0 {
+			ctx.TimeframeStructures = compactTimeframeStructures(ep.TimeframeStructures)
+		}
+		if protectionOverride != nil {
+			ctx.Protection = protectionOverride
+		} else {
+			ctx.Protection = deriveProtectionAlignment(decision, snapshot)
+		}
+	}
+	if reviewContextIsEmpty(ctx) {
+		return nil
+	}
+	return ctx
+}
+
+func attachProtectionPlanAudit(ctx *store.DecisionActionReviewContext, decision *kernel.Decision) {
+	if ctx == nil || decision == nil || decision.ProtectionPlan == nil || len(decision.ProtectionPlan.LadderRules) == 0 {
+		return
+	}
+	rules := make([]store.ProtectionSnapshotLadderRule, 0, len(decision.ProtectionPlan.LadderRules))
+	for _, r := range decision.ProtectionPlan.LadderRules {
+		rules = append(rules, store.ProtectionSnapshotLadderRule{
+			TakeProfitPct:           r.TakeProfitPct,
+			TakeProfitPrice:         r.TakeProfitPrice,
+			TakeProfitCloseRatioPct: r.TakeProfitCloseRatioPct,
+			StopLossPct:             r.StopLossPct,
+			StopLossPrice:           r.StopLossPrice,
+			StopLossCloseRatioPct:   r.StopLossCloseRatioPct,
+			StructuralAnchor:        r.StructuralAnchor,
+			TakeProfitAnchor:        r.TakeProfitAnchor,
+			StopLossAnchor:          r.StopLossAnchor,
+			VolatilityBufferPct:     r.VolatilityBufferPct,
+		})
+	}
+	if ctx.Extra == nil {
+		ctx.Extra = map[string]interface{}{}
+	}
+	ctx.Extra["ai_ladder_plan"] = rules
+}
+
+func buildRuntimePolicyControlOutcome(policy runtimePolicyResult) *store.DecisionActionControlOutcome {
+	if !policy.Blocked && policy.Reason == "" && !policy.ConstraintsMerged && !policy.RRRecomputed && policy.AIGrossRR == 0 && policy.AINetRR == 0 && policy.RuntimeGrossRR == 0 && policy.RuntimeNetRR == 0 && policy.EffectiveRR == 0 && len(policy.ConstraintsSources) == 0 && policy.OriginalAction == "" && policy.FinalAction == "" {
+		return nil
+	}
+	out := &store.DecisionActionControlOutcome{
+		Decision:                   "accepted",
+		OriginalAction:             policy.OriginalAction,
+		FinalAction:                policy.FinalAction,
+		ConstraintsMerged:          policy.ConstraintsMerged,
+		RuntimeRRRecomputed:        policy.RRRecomputed,
+		AIGrossRR:                  policy.AIGrossRR,
+		AINetRR:                    policy.AINetRR,
+		RuntimeGrossRR:             policy.RuntimeGrossRR,
+		RuntimeNetRR:               policy.RuntimeNetRR,
+		EffectiveRR:                policy.EffectiveRR,
+		EffectiveRRSource:          policy.EffectiveRRSource,
+		ExecutionConstraintSources: policy.ConstraintsSources,
+	}
+	if policy.Decision != "" {
+		out.Decision = policy.Decision
+	}
+	if policy.Blocked || policy.Decision == "downgraded_to_wait" {
+		out.NoOrderPlaced = true
+	}
+	if policy.Reason != "" {
+		out.Reasons = []string{policy.Reason}
+	}
+	if policy.ReasonCode != "" {
+		out.FailedChecks = []string{policy.ReasonCode}
+	}
+	if policy.RegimeStructureGate != nil {
+		out.RegimeStructureCurrent = policy.RegimeStructureGate.Regime
+		out.RegimeStructureAllowed = append([]string(nil), policy.RegimeStructureGate.AllowedSetups...)
+		if policy.RegimeStructureGate.Reason != "" {
+			out.FailedChecks = appendMissing(out.FailedChecks, "regime_structure_mismatch")
+		}
+	}
+	return out
+}
+
+func compactTimeframeContext(tf kernel.AIEntryTimeframeContext) *store.DecisionActionTimeframeContext {
+	if tf.Primary == "" && len(tf.Lower) == 0 && len(tf.Higher) == 0 {
+		return nil
+	}
+	return &store.DecisionActionTimeframeContext{
+		Primary: tf.Primary,
+		Lower:   compactStringList(tf.Lower, 3),
+		Higher:  compactStringList(tf.Higher, 3),
+	}
+}
+
+func compactStringList(values []string, limit int) []string {
+	compact := make([]string, 0, minInt(len(values), limit))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		compact = append(compact, value)
+		if len(compact) >= limit {
+			break
+		}
+	}
+	return compact
+}
+
+func compactKeyLevels(levels kernel.AIEntryKeyLevels) *store.DecisionActionKeyLevels {
+	ctx := &store.DecisionActionKeyLevels{
+		Support:    compactLevelList(levels.Support),
+		Resistance: compactLevelList(levels.Resistance),
+		SwingHighs: compactLevelList(levels.SwingHighs),
+		SwingLows:  compactLevelList(levels.SwingLows),
+	}
+	if levels.Fibonacci != nil {
+		fibLevels := compactLevelList(levels.Fibonacci.Levels)
+		if levels.Fibonacci.SwingHigh > 0 || levels.Fibonacci.SwingLow > 0 || len(fibLevels) > 0 {
+			ctx.Fibonacci = &store.DecisionActionFibonacciSummary{
+				SwingHigh: levels.Fibonacci.SwingHigh,
+				SwingLow:  levels.Fibonacci.SwingLow,
+				Levels:    fibLevels,
+			}
+		}
+	}
+	if len(ctx.Support) == 0 && len(ctx.Resistance) == 0 && len(ctx.SwingHighs) == 0 && len(ctx.SwingLows) == 0 && ctx.Fibonacci == nil {
+		return nil
+	}
+	return ctx
+}
+
+func compactLevelList(levels []float64) []float64 {
+	compact := make([]float64, 0, 2)
+	for _, level := range levels {
+		if !isFinitePositive(level) {
+			continue
+		}
+		compact = append(compact, level)
+		if len(compact) >= 2 {
+			break
+		}
+	}
+	return compact
+}
+
+func compactTimeframeStructures(structures []kernel.AIEntryTimeframeStructure) []store.DecisionActionTimeframeStructure {
+	compact := make([]store.DecisionActionTimeframeStructure, 0, minInt(len(structures), 3))
+	for _, structure := range structures {
+		if strings.TrimSpace(structure.Timeframe) == "" {
+			continue
+		}
+		fib := (*store.DecisionActionFibonacciSummary)(nil)
+		if structure.Fibonacci != nil {
+			levels := compactLevelList(structure.Fibonacci.Levels)
+			if structure.Fibonacci.SwingHigh > 0 || structure.Fibonacci.SwingLow > 0 || len(levels) > 0 {
+				fib = &store.DecisionActionFibonacciSummary{SwingHigh: structure.Fibonacci.SwingHigh, SwingLow: structure.Fibonacci.SwingLow, Levels: levels}
+			}
+		}
+		compact = append(compact, store.DecisionActionTimeframeStructure{
+			Timeframe:  structure.Timeframe,
+			Role:       structure.Role,
+			Support:    compactLevelList(structure.Support),
+			Resistance: compactLevelList(structure.Resistance),
+			Fibonacci:  fib,
+			Anchors:    compactReasonAnchors(structure.Anchors),
+			ATR14Pct:   structure.ATR14Pct,
+			Trend:      structure.Trend,
+			UsedFor:    structure.UsedFor,
+		})
+		if len(compact) >= 3 {
+			break
+		}
+	}
+	return compact
+}
+
+func compactReasonAnchors(anchors []kernel.AIEntryProtectionAnchor) []store.DecisionActionReasonAnchor {
+	compact := make([]store.DecisionActionReasonAnchor, 0, minInt(len(anchors), 3))
+	for _, anchor := range anchors {
+		if anchor.Type == "" && anchor.Timeframe == "" && anchor.Price <= 0 && anchor.Reason == "" {
+			continue
+		}
+		compact = append(compact, store.DecisionActionReasonAnchor{
+			Type:      anchor.Type,
+			Timeframe: anchor.Timeframe,
+			Price:     anchor.Price,
+			Reason:    anchor.Reason,
+		})
+		if len(compact) >= 3 {
+			break
+		}
+	}
+	return compact
+}
+
+func deriveProtectionAlignment(decision *kernel.Decision, snapshot *store.ProtectionSnapshot) *store.DecisionActionProtectionAlignment {
+	return deriveProtectionAlignmentWithStrategy(decision, snapshot, nil)
+}
+
+func deriveProtectionAlignmentWithStrategy(decision *kernel.Decision, snapshot *store.ProtectionSnapshot, strategy *store.StrategyConfig) *store.DecisionActionProtectionAlignment {
+	if decision == nil || decision.EntryProtection == nil {
+		return nil
+	}
+	rr := decision.EntryProtection.RiskReward
+	if rr.Entry <= 0 || rr.Invalidation <= 0 || rr.FirstTarget <= 0 {
+		if len(decision.EntryProtection.AlignmentNotes) == 0 {
+			return nil
+		}
+		return &store.DecisionActionProtectionAlignment{Notes: compactNotes(decision.EntryProtection.AlignmentNotes, 3)}
+	}
+	isLong := decision.Action == "open_long"
+	isShort := decision.Action == "open_short"
+	alignment := &store.DecisionActionProtectionAlignment{
+		Notes: compactNotes(decision.EntryProtection.AlignmentNotes, 3),
+	}
+	checked := protectionAlignmentChecks{}
+	hasSignal := len(alignment.Notes) > 0
+
+	drawdownOwnsProfit := false
+	if strategy != nil {
+		drawdownOwnsProfit = evaluateProtectionOwnerPolicy(strategy.Protection).UseDrawdownTP
+	}
+
+	// Prefer the concrete AI plan for AI-owned opens. Strategy snapshots may contain
+	// placeholder/reference percentages (for example 0.9/1.5 ladder defaults) that
+	// are not the orders the execution chain will place.
+	if decision.ProtectionPlan != nil {
+		if stopPrice, ok := deriveAIProtectionStopPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
+			alignment.StopBeyondInvalidation = (isLong && stopPrice <= rr.Invalidation) || (isShort && stopPrice >= rr.Invalidation)
+			checked.stop = true
+			hasSignal = true
+		}
+		// When drawdown owns profit-taking, do not evaluate ladder/full static TP
+		// against first_target. Drawdown rules intentionally manage profit exits
+		// dynamically; static ladder TP may be absent or audit-only.
+		if !drawdownOwnsProfit {
+			if targetPrice, ok := deriveAIProtectionTargetPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
+				alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
+				checked.target = true
+				hasSignal = true
+			}
+		}
+		if triggerPrice, ok := deriveAIProtectionBreakEvenTriggerPrice(decision.ProtectionPlan, rr.Entry, isLong, isShort); ok {
+			alignment.BreakEvenBeforeTarget = (isLong && triggerPrice <= rr.FirstTarget) || (isShort && triggerPrice >= rr.FirstTarget)
+			checked.breakEven = true
+			hasSignal = true
+		}
+	}
+
+	if snapshot != nil {
+		if !checked.stop && shouldUseSnapshotStop(snapshot) {
+			if stopPrice, ok := deriveProtectionStopPrice(snapshot, rr.Entry, isLong, isShort); ok {
+				alignment.StopBeyondInvalidation = (isLong && stopPrice <= rr.Invalidation) || (isShort && stopPrice >= rr.Invalidation)
+				checked.stop = true
+				hasSignal = true
+			}
+		}
+		if !checked.target && !drawdownOwnsProfit && shouldUseSnapshotTarget(snapshot) {
+			if targetPrice, ok := deriveProtectionTargetPrice(snapshot, rr.Entry, isLong, isShort); ok {
+				alignment.TargetAligned = (isLong && targetPrice >= rr.FirstTarget) || (isShort && targetPrice <= rr.FirstTarget)
+				checked.target = true
+				hasSignal = true
+			}
+		}
+		if !checked.breakEven && snapshot.BreakEven != nil && snapshot.BreakEven.Enabled {
+			triggerPrice, ok := deriveBreakEvenTriggerPrice(snapshot.BreakEven, rr.Entry, isLong, isShort)
+			if ok {
+				alignment.BreakEvenBeforeTarget = (isLong && triggerPrice <= rr.FirstTarget) || (isShort && triggerPrice >= rr.FirstTarget)
+				checked.breakEven = true
+				hasSignal = true
+			}
+		}
+		if fallbackPrice, ok := deriveFallbackMaxLossPriceWithStrategy(snapshot, rr.Entry, isLong, isShort, strategy); ok {
+			alignment.FallbackWithinEnvelope = (isLong && fallbackPrice <= rr.Invalidation) || (isShort && fallbackPrice >= rr.Invalidation)
+			checked.fallback = true
+			hasSignal = true
+		}
+	}
+	alignment.PolicyStatus, alignment.PolicyOverride, alignment.PolicyRejected, alignment.PolicyReasons = deriveProtectionPolicyTransparency(alignment, checked)
+	if alignment.PolicyStatus != "" {
+		hasSignal = true
+	}
+	if !hasSignal {
+		return nil
+	}
+	return alignment
+}
+
+type protectionAlignmentChecks struct {
+	stop      bool
+	target    bool
+	breakEven bool
+	fallback  bool
+}
+
+func deriveProtectionPolicyTransparency(alignment *store.DecisionActionProtectionAlignment, checked protectionAlignmentChecks) (status string, override bool, rejected bool, reasons []string) {
+	if alignment == nil {
+		return "", false, false, nil
+	}
+	reasons = make([]string, 0, 4)
+	criticalReasons := 0
+	if checked.stop && !alignment.StopBeyondInvalidation {
+		reasons = append(reasons, "stop_inside_invalidation")
+		criticalReasons++
+	}
+	if checked.target && !alignment.TargetAligned {
+		reasons = append(reasons, "target_before_first_target")
+		criticalReasons++
+	}
+	if checked.breakEven && !alignment.BreakEvenBeforeTarget {
+		reasons = append(reasons, "break_even_after_target")
+	}
+	if checked.fallback && !alignment.FallbackWithinEnvelope {
+		reasons = append(reasons, "fallback_inside_invalidation")
+		criticalReasons++
+	}
+
+	switch {
+	case len(reasons) == 0:
+		return "aligned", false, false, nil
+	case criticalReasons >= 2:
+		return "rejected", true, true, reasons
+	default:
+		return "recomputed", true, false, reasons
+	}
+}
+
+func shouldUseSnapshotStop(snapshot *store.ProtectionSnapshot) bool {
+	if snapshot == nil {
+		return false
+	}
+	if snapshot.FullTPSL != nil && !strings.EqualFold(snapshot.FullTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	if snapshot.LadderTPSL != nil && !strings.EqualFold(snapshot.LadderTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	return false
+}
+
+func shouldUseSnapshotTarget(snapshot *store.ProtectionSnapshot) bool {
+	if snapshot == nil {
+		return false
+	}
+	if snapshot.FullTPSL != nil && !strings.EqualFold(snapshot.FullTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	if snapshot.LadderTPSL != nil && !strings.EqualFold(snapshot.LadderTPSL.Mode, string(store.ProtectionModeAI)) {
+		return true
+	}
+	return false
+}
+
+func deriveAIProtectionStopPrice(plan *kernel.AIProtectionPlan, entry float64, isLong, isShort bool) (float64, bool) {
+	if plan == nil || entry <= 0 {
+		return 0, false
+	}
+	if plan.StopLossPrice > 0 {
+		return plan.StopLossPrice, true
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.StopLossPrice > 0 {
+			return rule.StopLossPrice, true
+		}
+	}
+	if plan.StopLossPct > 0 {
+		return pctOffsetPrice(entry, plan.StopLossPct, isLong, isShort, false)
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.StopLossPct > 0 {
+			return pctOffsetPrice(entry, rule.StopLossPct, isLong, isShort, false)
+		}
+	}
+	return 0, false
+}
+
+func deriveAIProtectionTargetPrice(plan *kernel.AIProtectionPlan, entry float64, isLong, isShort bool) (float64, bool) {
+	if plan == nil || entry <= 0 {
+		return 0, false
+	}
+	if plan.TakeProfitPrice > 0 {
+		return plan.TakeProfitPrice, true
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.TakeProfitPrice > 0 {
+			return rule.TakeProfitPrice, true
+		}
+	}
+	if plan.TakeProfitPct > 0 {
+		return pctOffsetPrice(entry, plan.TakeProfitPct, isLong, isShort, true)
+	}
+	for _, rule := range plan.LadderRules {
+		if rule.TakeProfitPct > 0 {
+			return pctOffsetPrice(entry, rule.TakeProfitPct, isLong, isShort, true)
+		}
+	}
+	return 0, false
+}
+
+func deriveAIProtectionBreakEvenTriggerPrice(plan *kernel.AIProtectionPlan, entry float64, isLong, isShort bool) (float64, bool) {
+	if plan == nil || entry <= 0 || plan.BreakEvenValue <= 0 {
+		return 0, false
+	}
+	switch strings.ToLower(strings.TrimSpace(plan.BreakEvenTrigger)) {
+	case "profit_pct", "pnl_pct", "percent", "pct", "price_change_pct":
+		return pctOffsetPrice(entry, plan.BreakEvenValue, isLong, isShort, true)
+	case "price":
+		return plan.BreakEvenValue, true
+	case "r_multiple":
+		riskPct := 0.0
+		if stopPrice, ok := deriveAIProtectionStopPrice(plan, entry, isLong, isShort); ok {
+			riskPct = protectionPctFromEntry(entry, stopPrice)
+		}
+		if riskPct <= 0 {
+			return 0, false
+		}
+		return pctOffsetPrice(entry, plan.BreakEvenValue*riskPct, isLong, isShort, true)
+	default:
+		return 0, false
+	}
+}
+
+func protectionPctFromEntry(entry, price float64) float64 {
+	if entry <= 0 || price <= 0 {
+		return 0
+	}
+	pct := (price - entry) / entry * 100
+	if pct < 0 {
+		return -pct
+	}
+	return pct
+}
+
+func deriveProtectionStopPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
+	if snapshot == nil || entry <= 0 {
+		return 0, false
+	}
+	if snapshot.FullTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.FullTPSL.StopLoss, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+	}
+	if snapshot.LadderTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.LadderTPSL.StopLossPrice, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+		for _, rule := range snapshot.LadderTPSL.Rules {
+			if price, ok := pctOffsetPrice(entry, rule.StopLossPct, isLong, isShort, false); ok {
+				return price, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func deriveProtectionTargetPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
+	if snapshot == nil || entry <= 0 {
+		return 0, false
+	}
+	if snapshot.FullTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.FullTPSL.TakeProfit, entry, isLong, isShort, true); ok {
+			return price, true
+		}
+	}
+	if snapshot.LadderTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.LadderTPSL.TakeProfitPrice, entry, isLong, isShort, true); ok {
+			return price, true
+		}
+		for _, rule := range snapshot.LadderTPSL.Rules {
+			if price, ok := pctOffsetPrice(entry, rule.TakeProfitPct, isLong, isShort, true); ok {
+				return price, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func deriveFallbackMaxLossPrice(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool) (float64, bool) {
+	return deriveFallbackMaxLossPriceWithStrategy(snapshot, entry, isLong, isShort, nil)
+}
+
+func deriveFallbackMaxLossPriceWithStrategy(snapshot *store.ProtectionSnapshot, entry float64, isLong, isShort bool, strategy *store.StrategyConfig) (float64, bool) {
+	if snapshot == nil || entry <= 0 {
+		return 0, false
+	}
+	if snapshot.FullTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.FullTPSL.FallbackMaxLoss, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+	}
+	if snapshot.LadderTPSL != nil {
+		if price, ok := valueSourceToAbsolutePrice(snapshot.LadderTPSL.FallbackMaxLoss, entry, isLong, isShort, false); ok {
+			return price, true
+		}
+	}
+	if strategy != nil {
+		fallbackPct := 0.0
+		if pct, ok := resolveLadderFallbackMaxLoss(strategy.Protection.LadderTPSL); ok {
+			fallbackPct = pct
+		}
+		if pct, ok := resolveFallbackMaxLoss(strategy.Protection.FullTPSL); ok && pct > fallbackPct {
+			fallbackPct = pct
+		}
+		if fallbackPct > 0 {
+			return pctOffsetPrice(entry, fallbackPct, isLong, isShort, false)
+		}
+	}
+	return 0, false
+}
+
+func deriveBreakEvenTriggerPrice(be *store.ProtectionSnapshotBreakEven, entry float64, isLong, isShort bool) (float64, bool) {
+	if be == nil || !be.Enabled || entry <= 0 || be.TriggerValue <= 0 {
+		return 0, false
+	}
+	switch be.TriggerMode {
+	case "profit_pct", "pnl_pct", "percent", "pct":
+		return pctOffsetPrice(entry, be.TriggerValue, isLong, isShort, true)
+	case "price":
+		return be.TriggerValue, be.TriggerValue > 0
+	default:
+		return 0, false
+	}
+}
+
+func valueSourceToAbsolutePrice(src store.ProtectionSnapshotValueSource, entry float64, isLong, isShort bool, favorable bool) (float64, bool) {
+	if entry <= 0 {
+		return 0, false
+	}
+	mode := src.Mode
+	if mode == "" {
+		mode = "price"
+	}
+	switch mode {
+	case "price", "absolute":
+		return src.Value, src.Value > 0
+	case "manual":
+		return pctOffsetPrice(entry, src.Value, isLong, isShort, favorable)
+	case "percent", "pct", "profit_pct", "loss_pct", "offset_pct":
+		return pctOffsetPrice(entry, src.Value, isLong, isShort, favorable)
+	default:
+		return 0, false
+	}
+}
+
+func pctOffsetPrice(entry, pct float64, isLong, isShort bool, favorable bool) (float64, bool) {
+	if entry <= 0 || pct <= 0 {
+		return 0, false
+	}
+	multiplier := pct / 100.0
+	switch {
+	case isLong && favorable:
+		return entry * (1 + multiplier), true
+	case isLong && !favorable:
+		return entry * (1 - multiplier), true
+	case isShort && favorable:
+		return entry * (1 - multiplier), true
+	case isShort && !favorable:
+		return entry * (1 + multiplier), true
+	default:
+		return 0, false
+	}
+}
+
+func compactNotes(notes []string, limit int) []string {
+	compact := make([]string, 0, minInt(len(notes), limit))
+	for _, note := range notes {
+		note = strings.TrimSpace(note)
+		if note == "" {
+			continue
+		}
+		compact = append(compact, note)
+		if len(compact) >= limit {
+			break
+		}
+	}
+	return compact
+}
+
+func reviewContextIsEmpty(ctx *store.DecisionActionReviewContext) bool {
+	if ctx == nil {
+		return true
+	}
+	return ctx.PrimaryTimeframe == "" &&
+		ctx.MinRiskReward == 0 &&
+		ctx.RiskReward == nil &&
+		ctx.KeyLevels == nil &&
+		len(ctx.Anchors) == 0 &&
+		ctx.Protection == nil &&
+		ctx.ExecutionConstraints == nil
+}
+
+func isFinitePositive(v float64) bool {
+	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

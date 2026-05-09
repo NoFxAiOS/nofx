@@ -175,6 +175,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	}
 
 	// Reload traders into memory
+	logger.Infof("[reload.trigger] source=sync_balance trader_id=%s user_id=%s", traderID, userID)
 	err = s.traderManager.LoadUserTradersFromStore(s.store, userID)
 	if err != nil {
 		logger.Infof("⚠️ Failed to reload user traders into memory: %v", err)

@@ -29,6 +29,7 @@ import {
   Download,
   Upload,
   Globe,
+  AlertTriangle,
 } from 'lucide-react'
 import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { confirmToast, notify } from '../lib/notify'
@@ -38,12 +39,53 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
-import { ProtectionEditor, defaultProtectionConfig } from '../components/strategy/ProtectionEditor'
+import { ProtectionEditor, defaultProtectionConfig, normalizeProtectionConfig } from '../components/strategy/ProtectionEditor'
+import { normalizeEntryStructureConfig } from '../components/strategy/EntryStructureEditor'
+import { PreEntryGateEditor } from '../components/strategy/PreEntryGateEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 import { getJson, sendJson } from '../lib/httpClient'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
+
+export function buildStrategySavePayload(
+  selectedStrategy: Pick<Strategy, 'name' | 'description' | 'is_public' | 'config_visible'>,
+  editingConfig: StrategyConfig,
+  language: 'zh' | 'en'
+) {
+  const normalizedProtection = normalizeProtectionConfig(editingConfig.protection)
+
+  const protection = {
+    ...normalizedProtection,
+    drawdown_take_profit: {
+      ...normalizedProtection.drawdown_take_profit,
+      mode: normalizedProtection.drawdown_take_profit.mode || (normalizedProtection.drawdown_take_profit.enabled ? 'manual' : 'disabled'),
+    },
+  }
+
+  if (protection.drawdown_take_profit.mode === 'ai') {
+    protection.drawdown_take_profit.engine_mode = 'ai'
+  }
+
+  const configWithLanguage = {
+    ...editingConfig,
+    language,
+    protection,
+    strategy_control_policy: {
+      ...editingConfig.strategy_control_policy,
+      mode: editingConfig.strategy_control_policy?.mode || 'strict',
+    },
+    entry_structure: normalizeEntryStructureConfig(editingConfig.entry_structure),
+  }
+
+  return {
+    name: selectedStrategy.name,
+    description: selectedStrategy.description,
+    config: configWithLanguage,
+    is_public: selectedStrategy.is_public,
+    config_visible: selectedStrategy.config_visible,
+  }
+}
 
 export function StrategyStudioPage() {
   const { token } = useAuth()
@@ -66,6 +108,7 @@ export function StrategyStudioPage() {
     gridConfig: true,
     coinSource: true,
     indicators: false,
+    preEntryGate: false,
     riskControl: false,
     protection: false,
     promptSections: false,
@@ -91,6 +134,8 @@ export function StrategyStudioPage() {
     ai_response?: string
     reasoning?: string
     decisions?: unknown[]
+    parsed_decisions?: unknown[]
+    parse_error?: string
     error?: string
     duration_ms?: number
   } | null>(null)
@@ -129,7 +174,12 @@ export function StrategyStudioPage() {
         ...strategy,
         config: {
           ...strategy.config,
-          protection: strategy.config?.protection || defaultProtectionConfig,
+          protection: normalizeProtectionConfig(strategy.config?.protection),
+          entry_structure: normalizeEntryStructureConfig(strategy.config?.entry_structure),
+          strategy_control_policy: {
+            ...strategy.config?.strategy_control_policy,
+            mode: strategy.config?.strategy_control_policy?.mode || 'strict',
+          },
         },
       }))
       setStrategies(normalizedStrategies)
@@ -180,7 +230,12 @@ export function StrategyStudioPage() {
             ...prev,
             language: language as 'zh' | 'en',
             prompt_sections: defaultConfig.prompt_sections,
-            protection: prev.protection || defaultProtectionConfig,
+            protection: normalizeProtectionConfig(prev.protection),
+            entry_structure: normalizeEntryStructureConfig(prev.entry_structure),
+            strategy_control_policy: {
+              ...prev.strategy_control_policy,
+              mode: prev.strategy_control_policy?.mode || 'strict',
+            },
           }
         })
         setHasChanges(true)
@@ -199,8 +254,11 @@ export function StrategyStudioPage() {
       const defaultConfig = await getJson<StrategyConfig>(
         `${API_BASE}/api/strategies/default-config?lang=${language}`
       )
-      if (!defaultConfig.protection) {
-        defaultConfig.protection = defaultProtectionConfig
+      defaultConfig.protection = normalizeProtectionConfig(defaultConfig.protection || defaultProtectionConfig)
+      defaultConfig.entry_structure = normalizeEntryStructureConfig(defaultConfig.entry_structure)
+      defaultConfig.strategy_control_policy = {
+        ...defaultConfig.strategy_control_policy,
+        mode: defaultConfig.strategy_control_policy?.mode || 'strict',
       }
 
       const result = await sendJson<{ id?: string }>(`${API_BASE}/api/strategies`, {
@@ -358,20 +416,9 @@ export function StrategyStudioPage() {
     if (!token || !selectedStrategy || !editingConfig) return
     setIsSaving(true)
     try {
-      // Always sync the config language with the current interface language
-      const configWithLanguage = {
-        ...editingConfig,
-        language: language as 'zh' | 'en',
-      }
       await sendJson(`${API_BASE}/api/strategies/${selectedStrategy.id}`, {
         method: 'PUT',
-        data: {
-          name: selectedStrategy.name,
-          description: selectedStrategy.description,
-          config: configWithLanguage,
-          is_public: selectedStrategy.is_public,
-          config_visible: selectedStrategy.config_visible,
-        },
+        data: buildStrategySavePayload(selectedStrategy, editingConfig, language as 'zh' | 'en'),
       })
       setHasChanges(false)
       notify.success(tr('strategySaved'))
@@ -396,6 +443,7 @@ export function StrategyStudioPage() {
     setHasChanges(true)
   }
 
+
   // Fetch prompt preview
   const fetchPromptPreview = async () => {
     if (!token || !editingConfig) return
@@ -409,7 +457,10 @@ export function StrategyStudioPage() {
       }>(`${API_BASE}/api/strategies/preview-prompt`, {
         method: 'POST',
         data: {
-          config: editingConfig,
+          config: {
+            ...editingConfig,
+            protection: normalizeProtectionConfig(editingConfig.protection),
+          },
           account_equity: 1000,
           prompt_variant: selectedVariant,
         },
@@ -434,12 +485,17 @@ export function StrategyStudioPage() {
         ai_response?: string
         reasoning?: string
         decisions?: unknown[]
+        parsed_decisions?: unknown[]
+        parse_error?: string
         error?: string
         duration_ms?: number
       }>(`${API_BASE}/api/strategies/test-run`, {
         method: 'POST',
         data: {
-          config: editingConfig,
+          config: {
+            ...editingConfig,
+            protection: normalizeProtectionConfig(editingConfig.protection),
+          },
           prompt_variant: selectedVariant,
           ai_model_id: selectedModelId,
           run_real_ai: true,
@@ -456,6 +512,42 @@ export function StrategyStudioPage() {
   }
 
   const tr = (key: string) => t(`strategyStudio.${key}`, language)
+
+  const formatDecisionTitle = (decision: any, index: number) => {
+    const symbol = decision?.symbol || `#${index + 1}`
+    const action = decision?.action || 'unknown'
+    return `${symbol} · ${action}`
+  }
+
+  const renderProtectionPlanSummary = (decision: any) => {
+    const plan = decision?.protection_plan
+    if (!plan) return null
+    const mode = plan.mode || 'unknown'
+    return (
+      <div className="mt-2 p-2 rounded border border-yellow-500/20 bg-yellow-500/5">
+        <div className="text-[11px] font-medium text-yellow-300">Protection Plan · {mode}</div>
+        {mode === 'full' && (
+          <div className="mt-1 text-[11px] text-nofx-text-muted">
+            TP%: {String(plan.take_profit_pct ?? '-')} · SL%: {String(plan.stop_loss_pct ?? '-')}
+          </div>
+        )}
+        {mode === 'ladder' && Array.isArray(plan.ladder_rules) && (
+          <div className="mt-1 space-y-1">
+            {plan.ladder_rules.map((rule: any, idx: number) => {
+              const tpPrice = rule.take_profit_price ?? rule.tp_level ?? rule.tp_price
+              const slPrice = rule.stop_loss_price ?? rule.sl_level ?? rule.sl_price
+              const buffer = rule.volatility_buffer_pct ?? rule.buffer_pct
+              return (
+                <div key={idx} className="text-[11px] text-nofx-text-muted">
+                  #{idx + 1} TP {tpPrice ? `${String(tpPrice)} / ` : ''}{String(rule.take_profit_pct ?? '-')}% / {String(rule.take_profit_close_ratio_pct ?? '-')}% · SL {slPrice ? `${String(slPrice)} / ` : ''}{String(rule.stop_loss_pct ?? '-')}% / {String(rule.stop_loss_close_ratio_pct ?? '-')}%{buffer ? ` · buffer ${String(buffer)}%` : ''}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -537,6 +629,53 @@ export function StrategyStudioPage() {
       ),
     },
     {
+      key: 'preEntryGate' as const,
+      icon: Shield,
+      color: '#38BDF8',
+      title: language === 'zh' ? '\u5f00\u4ed3\u95e8\u7981 / Pre-Entry Gate' : 'Pre-Entry Gate',
+      forStrategyType: 'ai_trading' as const,
+      content: editingConfig && (
+        <PreEntryGateEditor
+          config={{
+            ...normalizeProtectionConfig(editingConfig.protection).regime_filter,
+            min_confidence: normalizeProtectionConfig(editingConfig.protection).regime_filter.min_confidence ?? editingConfig.risk_control.min_confidence,
+            min_risk_reward_ratio: normalizeProtectionConfig(editingConfig.protection).regime_filter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
+            policy_mode: normalizeProtectionConfig(editingConfig.protection).regime_filter.policy_mode ?? (editingConfig.strategy_control_policy?.mode as 'strict' | 'audit_only' | 'recommend_only' | undefined) ?? 'strict',
+            entry_structure: normalizeProtectionConfig(editingConfig.protection).regime_filter.entry_structure ?? editingConfig.entry_structure,
+          }}
+          onChange={(regimeFilter) => {
+            // Must do a single setEditingConfig to avoid stale closure overwrites
+            if (!editingConfig) return
+            const currentProtection = normalizeProtectionConfig(editingConfig.protection)
+            setEditingConfig({
+              ...editingConfig,
+              protection: {
+                ...currentProtection,
+                regime_filter: regimeFilter,
+              },
+              risk_control: {
+                ...editingConfig.risk_control,
+                min_confidence: regimeFilter.min_confidence ?? editingConfig.risk_control.min_confidence,
+                min_risk_reward_ratio: regimeFilter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
+              },
+              ...(regimeFilter.policy_mode ? {
+                strategy_control_policy: {
+                  ...editingConfig.strategy_control_policy,
+                  mode: regimeFilter.policy_mode,
+                },
+              } : {}),
+              ...(regimeFilter.entry_structure ? {
+                entry_structure: regimeFilter.entry_structure,
+              } : {}),
+            })
+            setHasChanges(true)
+          }}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    {
       key: 'protection' as const,
       icon: Shield,
       color: '#F0B90B',
@@ -544,7 +683,7 @@ export function StrategyStudioPage() {
       forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <ProtectionEditor
-          config={editingConfig.protection || defaultProtectionConfig}
+          config={normalizeProtectionConfig(editingConfig.protection)}
           onChange={(protection) => updateConfig('protection', protection)}
           disabled={selectedStrategy?.is_default}
           language={language}
@@ -1087,6 +1226,50 @@ export function StrategyStudioPage() {
                               style={{ maxHeight: '200px' }}
                             >
                               {aiTestResult.reasoning}
+                            </pre>
+                          </div>
+                        )}
+
+                        {aiTestResult.parsed_decisions && aiTestResult.parsed_decisions.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Activity className="w-3 h-3 text-green-500" />
+                              <span className="text-xs font-medium text-nofx-text">Parsed Decisions</span>
+                            </div>
+                            {aiTestResult.parsed_decisions.map((decision: any, index: number) => (
+                              <div key={index} className="p-2 rounded-lg bg-nofx-bg border border-green-500/20">
+                                <div className="text-xs font-medium text-nofx-text">{formatDecisionTitle(decision, index)}</div>
+                                <div className="mt-1 text-[11px] text-nofx-text-muted">
+                                  Leverage: {String(decision?.leverage ?? '-')} · Size: {String(decision?.position_size_usd ?? '-')} · Confidence: {String(decision?.confidence ?? '-')}
+                                </div>
+                                {decision?.reasoning && (
+                                  <div className="mt-1 text-[11px] text-nofx-text-muted whitespace-pre-wrap">
+                                    {decision.reasoning}
+                                  </div>
+                                )}
+                                {renderProtectionPlanSummary(decision)}
+                              </div>
+                            ))}
+                            <details className="p-2 rounded-lg bg-nofx-bg border border-green-500/20">
+                              <summary className="cursor-pointer text-[11px] text-green-400">Raw Parsed Decision JSON</summary>
+                              <pre className="mt-2 text-[10px] font-mono overflow-auto text-nofx-text" style={{ maxHeight: '220px' }}>
+                                {JSON.stringify(aiTestResult.parsed_decisions, null, 2)}
+                              </pre>
+                            </details>
+                          </div>
+                        )}
+
+                        {aiTestResult.parse_error && (
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                              <span className="text-xs font-medium text-yellow-400">Parse Error</span>
+                            </div>
+                            <pre
+                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-yellow-500/30 text-yellow-300"
+                              style={{ maxHeight: '160px' }}
+                            >
+                              {aiTestResult.parse_error}
                             </pre>
                           </div>
                         )}

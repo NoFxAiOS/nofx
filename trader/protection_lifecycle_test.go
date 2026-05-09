@@ -41,10 +41,11 @@ func TestAllowDecisionByRegimeBlocksTrendMismatch(t *testing.T) {
 		RequireTrendAlignment: true,
 	}
 
+	// Strong downtrend: all 4 factors bearish → regime = trending_down, open_long blocked
 	decision := &kernel.Decision{Symbol: "BTCUSDT", Action: "open_long"}
-	data := &market.Data{CurrentPrice: 90, CurrentEMA20: 100, PriceChange4h: -2}
+	data := &market.Data{CurrentPrice: 90, CurrentEMA20: 100, PriceChange4h: -3, PriceChange1h: -2, CurrentMACD: -0.5}
 	if at.allowDecisionByRegime(decision, data) {
-		t.Fatal("expected decision to be blocked by trend alignment")
+		t.Fatal("expected open_long to be blocked in trending_down regime")
 	}
 }
 
@@ -56,8 +57,9 @@ func TestAllowDecisionByRegimeAllowsAlignedLong(t *testing.T) {
 		RequireTrendAlignment: true,
 	}
 
+	// Strong uptrend: price > EMA20, 4h positive, 1h positive → trending_up, long allowed
 	decision := &kernel.Decision{Symbol: "BTCUSDT", Action: "open_long"}
-	data := &market.Data{CurrentPrice: 105, CurrentEMA20: 100, PriceChange4h: 2}
+	data := &market.Data{CurrentPrice: 105, CurrentEMA20: 100, PriceChange4h: 2, PriceChange1h: 1, CurrentMACD: 0.3}
 	if !at.allowDecisionByRegime(decision, data) {
 		t.Fatal("expected aligned long to be allowed")
 	}
@@ -71,8 +73,9 @@ func TestAllowDecisionByRegimeAllowsAlignedShort(t *testing.T) {
 		RequireTrendAlignment: true,
 	}
 
+	// Strong downtrend: price < EMA20, 4h negative, 1h negative → trending_down, short allowed
 	decision := &kernel.Decision{Symbol: "ETHUSDT", Action: "open_short"}
-	data := &market.Data{CurrentPrice: 95, CurrentEMA20: 100, PriceChange4h: -3}
+	data := &market.Data{CurrentPrice: 95, CurrentEMA20: 100, PriceChange4h: -3, PriceChange1h: -1, CurrentMACD: -0.2}
 	if !at.allowDecisionByRegime(decision, data) {
 		t.Fatal("expected aligned short to be allowed")
 	}
@@ -90,14 +93,140 @@ func TestAllowDecisionByRegimePassesCloseActionsTrendCheck(t *testing.T) {
 	for _, action := range []string{"close_long", "close_short"} {
 		decision := &kernel.Decision{Symbol: "BTCUSDT", Action: action}
 		// Trend is misaligned for opens, but close should still pass
-		data := &market.Data{CurrentPrice: 50, CurrentEMA20: 100, PriceChange4h: -20}
+		data := &market.Data{CurrentPrice: 50, CurrentEMA20: 100, PriceChange4h: -20, PriceChange1h: -10, CurrentMACD: -5}
 		if !at.allowDecisionByRegime(decision, data) {
 			t.Fatalf("expected %s to pass trend alignment check", action)
 		}
 	}
 }
 
-// --- Protection lifecycle tests ---
+func TestTrendAlignmentDirectionalRegimes(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"narrow", "standard", "wide", "trending"},
+		RequireTrendAlignment: true,
+	}
+
+	// Uptrend regime: long allowed, short blocked
+	upData := &market.Data{CurrentPrice: 110, CurrentEMA20: 100, PriceChange4h: 3, PriceChange1h: 1.5, CurrentMACD: 0.5}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, upData) {
+		t.Fatal("expected open_long allowed in trending_up")
+	}
+	if at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, upData) {
+		t.Fatal("expected open_short blocked in trending_up")
+	}
+
+	// Downtrend regime: short allowed, long blocked
+	downData := &market.Data{CurrentPrice: 90, CurrentEMA20: 100, PriceChange4h: -3, PriceChange1h: -1.5, CurrentMACD: -0.5}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, downData) {
+		t.Fatal("expected open_short allowed in trending_down")
+	}
+	if at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, downData) {
+		t.Fatal("expected open_long blocked in trending_down")
+	}
+}
+
+func TestTrendAlignmentRangeRegimeAllowsBothDirections(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"narrow", "standard", "wide", "trending"},
+		RequireTrendAlignment: true,
+	}
+
+	// Range regime (no strong trend): both directions should be allowed
+	// Price slightly below EMA20, 4h slightly negative, but 1h positive — mixed signals = range
+	rangeData := &market.Data{CurrentPrice: 99, CurrentEMA20: 100, PriceChange4h: -0.3, PriceChange1h: 0.5, CurrentMACD: 0.0001}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, rangeData) {
+		t.Fatal("expected open_long allowed in range regime with mixed signals")
+	}
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, rangeData) {
+		t.Fatal("expected open_short allowed in range regime with mixed signals")
+	}
+}
+
+func TestTrendAlignmentRangeRegimeBlocksStrongCounterTrend(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"narrow", "standard", "wide", "trending"},
+		RequireTrendAlignment: true,
+	}
+
+	// Range regime but 3 of 4 factors bearish (not enough for trending_down classification)
+	// Should block open_long as strong counter-trend
+	data := &market.Data{CurrentPrice: 98, CurrentEMA20: 100, PriceChange4h: -0.8, PriceChange1h: -0.5, CurrentMACD: -0.1}
+	if at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_long"}, data) {
+		t.Fatal("expected open_long blocked in range regime with 3+ counter-trend factors")
+	}
+	// But open_short should be fine in this scenario
+	if !at.allowDecisionByRegime(&kernel.Decision{Symbol: "X", Action: "open_short"}, data) {
+		t.Fatal("expected open_short allowed in range regime when factors align")
+	}
+}
+
+func TestTrendAlignmentAllowsConfiguredRangeEdgeReversalException(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"trending", "trending_down"},
+		RequireTrendAlignment: true,
+		TrendAlignmentMode:    store.RegimeTrendAlignmentAllowRangeEdgeReversal,
+	}
+
+	data := &market.Data{
+		CurrentPrice:  82.94,
+		CurrentEMA20:  83.14,
+		PriceChange4h: -2.1,
+		PriceChange1h: -0.8,
+		CurrentMACD:   -0.03,
+		IntradaySeries: &market.IntradayData{
+			ATR14: 0.09,
+		},
+		TimeframeData: map[string]*market.TimeframeSeriesData{
+			"15m": {
+				BOLLLower: []float64{82.86},
+				BOLLUpper: []float64{83.49},
+			},
+		},
+	}
+	decision := &kernel.Decision{Symbol: "SOLUSDT", Action: "open_long", SetupType: "range_edge"}
+	if !at.allowDecisionByRegime(decision, data) {
+		t.Fatal("expected configured range_edge reversal exception to allow structurally plausible support-bounce long")
+	}
+}
+
+func TestTrendAlignmentStrictStillBlocksRangeEdgeReversal(t *testing.T) {
+	at := &AutoTrader{config: AutoTraderConfig{StrategyConfig: &store.StrategyConfig{}}}
+	at.config.StrategyConfig.Protection.RegimeFilter = store.RegimeFilterConfig{
+		Enabled:               true,
+		AllowedRegimes:        []string{"trending", "trending_down"},
+		RequireTrendAlignment: true,
+		TrendAlignmentMode:    store.RegimeTrendAlignmentStrict,
+	}
+
+	data := &market.Data{
+		CurrentPrice:  82.94,
+		CurrentEMA20:  83.14,
+		PriceChange4h: -2.1,
+		PriceChange1h: -0.8,
+		CurrentMACD:   -0.03,
+		IntradaySeries: &market.IntradayData{
+			ATR14: 0.09,
+		},
+		TimeframeData: map[string]*market.TimeframeSeriesData{
+			"15m": {
+				BOLLLower: []float64{82.86},
+				BOLLUpper: []float64{83.49},
+			},
+		},
+	}
+	decision := &kernel.Decision{Symbol: "SOLUSDT", Action: "open_long", SetupType: "range_edge"}
+	if at.allowDecisionByRegime(decision, data) {
+		t.Fatal("expected strict trend alignment to keep blocking counter-trend range_edge long")
+	}
+}
 
 func TestFakeTraderProtectionLifecycle(t *testing.T) {
 	fake := testutil.NewFakeTrader()
@@ -172,38 +301,72 @@ func TestProtectionTakeProfitSetupFailure(t *testing.T) {
 	}
 }
 
-func TestProtectionRetryRecovery(t *testing.T) {
-	fake := testutil.NewFakeTrader()
-	callCount := 0
-	originalSetSL := fake.SetStopLossErr
-	_ = originalSetSL
-
-	// Simulate first attempt fails, second succeeds
-	fake.SetStopLossErr = errors.New("transient failure")
-	at := &AutoTrader{trader: fake, exchange: "binance"}
+func TestDetectMissingProtectionTreatsSingleLadderStopAsRequired(t *testing.T) {
 	plan := &ProtectionPlan{
-		Mode:          "manual",
-		NeedsStopLoss: true,
-		StopLossPrice: 98,
+		StopLossOrders: []ProtectionOrder{{Price: 98, CloseRatioPct: 100}},
 	}
-
-	// First call should fail
-	err := at.placeAndVerifyProtectionPlan("BTCUSDT", "LONG", 1, plan)
-	if err == nil {
-		t.Fatal("expected first attempt to fail")
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 100.2}, // break-even style stop, not the configured ladder stop
 	}
-	callCount++
-
-	// Clear error for retry
-	fake.SetStopLossErr = nil
-	err = at.placeAndVerifyProtectionPlan("BTCUSDT", "LONG", 1, plan)
-	if err != nil {
-		t.Fatalf("expected retry to succeed, got %v", err)
+	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan, false)
+	if !missingSL {
+		t.Fatal("expected single configured ladder stop to be treated as missing when only unrelated stop exists")
 	}
-	callCount++
+	if missingTP {
+		t.Fatal("did not expect TP to be missing for stop-only plan")
+	}
+}
 
-	if callCount != 2 {
-		t.Fatalf("expected 2 attempts, got %d", callCount)
+func TestDetectMissingProtectionTreatsSingleLadderTakeProfitAsRequired(t *testing.T) {
+	plan := &ProtectionPlan{
+		TakeProfitOrders: []ProtectionOrder{{Price: 105, CloseRatioPct: 100}},
+	}
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 110},
+	}
+	missingSL, missingTP := detectMissingProtection(openOrders, "LONG", plan, false)
+	if missingTP != true {
+		t.Fatal("expected single configured ladder TP to be treated as missing when only unrelated TP exists")
+	}
+	if missingSL {
+		t.Fatal("did not expect SL to be missing for take-profit-only plan")
+	}
+}
+
+func TestDetectUnexpectedProtectionOrdersFlagsUnplannedStopsAndTakeProfits(t *testing.T) {
+	plan := &ProtectionPlan{
+		StopLossOrders:       []ProtectionOrder{{Price: 98, CloseRatioPct: 50}},
+		TakeProfitOrders:     []ProtectionOrder{{Price: 105, CloseRatioPct: 50}},
+		FallbackMaxLossPrice: 95,
+	}
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 95},
+		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 105},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 101.2, OrderID: "4c363c81edc5bcde_old_be_stop"}, // stray bot break-even-like stop without armed state
+		{PositionSide: "LONG", Type: "TAKE_PROFIT_MARKET", StopPrice: 111, OrderID: "4c363c81edc5bcde_old_tp"},
+	}
+	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(openOrders, "LONG", plan, false, false)
+	if unexpectedSL != 1 {
+		t.Fatalf("expected 1 unexpected stop, got %d", unexpectedSL)
+	}
+	if unexpectedTP != 1 {
+		t.Fatalf("expected 1 unexpected take-profit, got %d", unexpectedTP)
+	}
+}
+
+func TestDetectUnexpectedProtectionOrdersAllowsBreakEvenAndTrailingWhenArmed(t *testing.T) {
+	plan := &ProtectionPlan{
+		StopLossOrders: []ProtectionOrder{{Price: 98, CloseRatioPct: 100}},
+	}
+	openOrders := []OpenOrder{
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 98},
+		{PositionSide: "LONG", Type: "STOP_MARKET", StopPrice: 100.2}, // break-even
+		{PositionSide: "LONG", Type: "TRAILING_STOP_MARKET", StopPrice: 106, CallbackRate: 0.001},
+	}
+	unexpectedSL, unexpectedTP := detectUnexpectedProtectionOrders(openOrders, "LONG", plan, true, true)
+	if unexpectedSL != 0 || unexpectedTP != 0 {
+		t.Fatalf("expected no unexpected orders when break-even/trailing are armed, got SL=%d TP=%d", unexpectedSL, unexpectedTP)
 	}
 }
 
@@ -336,13 +499,13 @@ func TestBuildManualFullProtectionPlanLong(t *testing.T) {
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
 		Enabled: true,
 		Mode:    store.ProtectionModeManual,
-		StopLoss: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 5,
+		StopLoss: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 5,
 		},
-		TakeProfit: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 10,
+		TakeProfit: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 10,
 		},
 	}
 
@@ -369,13 +532,13 @@ func TestBuildManualFullProtectionPlanShort(t *testing.T) {
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
 		Enabled: true,
 		Mode:    store.ProtectionModeManual,
-		StopLoss: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 5,
+		StopLoss: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 5,
 		},
-		TakeProfit: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 10,
+		TakeProfit: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 10,
 		},
 	}
 
@@ -414,9 +577,9 @@ func TestBuildManualProtectionPlanInvalidEntry(t *testing.T) {
 	at.config.StrategyConfig.Protection.FullTPSL = store.FullTPSLConfig{
 		Enabled: true,
 		Mode:    store.ProtectionModeManual,
-		StopLoss: store.ProtectionThresholdRule{
-			Enabled:      true,
-			PriceMovePct: 5,
+		StopLoss: store.ProtectionValueSource{
+			Mode:  store.ProtectionValueModeManual,
+			Value: 5,
 		},
 	}
 

@@ -34,20 +34,54 @@ func TestDecisionStore_LogDecisionProtectionSnapshotRoundTrip(t *testing.T) {
 		CandidateCoins: []string{"BTC", "ETH"},
 		ExecutionLog:   []string{"built context", "saved decision"},
 		Decisions: []DecisionAction{{
-			Action:    "open_long",
-			Symbol:    "BTCUSDT",
-			Quantity:  0.1,
-			Leverage:  5,
-			Price:     65000,
+			Action:   "open_long",
+			Symbol:   "BTCUSDT",
+			Quantity: 0.1,
+			Leverage: 5,
+			Price:    65000,
+			ReviewContext: &DecisionActionReviewContext{
+				PrimaryTimeframe: "15m",
+				MinRiskReward:    1.5,
+				RiskReward: &DecisionActionRiskRewardSummary{
+					Entry:            65000,
+					Invalidation:     64200,
+					FirstTarget:      66600,
+					GrossEstimatedRR: 2.0,
+					NetEstimatedRR:   1.82,
+					Passed:           true,
+				},
+				KeyLevels: &DecisionActionKeyLevels{
+					Support:    []float64{64650, 64200},
+					Resistance: []float64{66600, 67200},
+				},
+				Anchors: []DecisionActionReasonAnchor{{
+					Type:      "support",
+					Timeframe: "15m",
+					Price:     64650,
+					Reason:    "breakout retest",
+				}},
+				Protection: &DecisionActionProtectionAlignment{
+					StopBeyondInvalidation: true,
+					TargetAligned:          true,
+					BreakEvenBeforeTarget:  true,
+					Notes:                  []string{"full stop beyond invalidation"},
+				},
+			},
 			Timestamp: ts,
 			Success:   true,
 		}},
 		ProtectionSnapshot: &ProtectionSnapshot{
 			FullTPSL: &ProtectionSnapshotFullTPSL{
-				Enabled:       true,
-				Mode:          "full",
-				TakeProfitPct: 12.5,
-				StopLossPct:   4.5,
+				Enabled: true,
+				Mode:    "full",
+				TakeProfit: ProtectionSnapshotValueSource{
+					Mode:  "manual",
+					Value: 12.5,
+				},
+				StopLoss: ProtectionSnapshotValueSource{
+					Mode:  "manual",
+					Value: 4.5,
+				},
 			},
 			LadderTPSL: &ProtectionSnapshotLadder{
 				Enabled:           true,
@@ -96,7 +130,7 @@ func TestDecisionStore_LogDecisionProtectionSnapshotRoundTrip(t *testing.T) {
 	if got.ProtectionSnapshot == nil {
 		t.Fatal("expected protection snapshot to round-trip")
 	}
-	if got.ProtectionSnapshot.FullTPSL == nil || got.ProtectionSnapshot.FullTPSL.TakeProfitPct != 12.5 {
+	if got.ProtectionSnapshot.FullTPSL == nil || got.ProtectionSnapshot.FullTPSL.TakeProfit.Value != 12.5 {
 		t.Fatalf("unexpected full_tp_sl snapshot: %+v", got.ProtectionSnapshot.FullTPSL)
 	}
 	if got.ProtectionSnapshot.LadderTPSL == nil || len(got.ProtectionSnapshot.LadderTPSL.Rules) != 1 {
@@ -107,6 +141,15 @@ func TestDecisionStore_LogDecisionProtectionSnapshotRoundTrip(t *testing.T) {
 	}
 	if got.ProtectionSnapshot.BreakEven == nil || got.ProtectionSnapshot.BreakEven.TriggerMode != "profit_pct" {
 		t.Fatalf("unexpected break-even snapshot: %+v", got.ProtectionSnapshot.BreakEven)
+	}
+	if len(got.Decisions) != 1 || got.Decisions[0].ReviewContext == nil {
+		t.Fatalf("expected decision action review context to round-trip: %+v", got.Decisions)
+	}
+	if got.Decisions[0].ReviewContext.PrimaryTimeframe != "15m" {
+		t.Fatalf("unexpected primary timeframe: %+v", got.Decisions[0].ReviewContext)
+	}
+	if got.Decisions[0].ReviewContext.RiskReward == nil || got.Decisions[0].ReviewContext.RiskReward.NetEstimatedRR != 1.82 {
+		t.Fatalf("unexpected risk reward review context: %+v", got.Decisions[0].ReviewContext)
 	}
 }
 
@@ -129,5 +172,55 @@ func TestDecisionRecordDB_ToRecordWithoutProtectionSnapshot(t *testing.T) {
 	}
 	if record.ProtectionSnapshot != nil {
 		t.Fatalf("expected nil protection snapshot, got %+v", record.ProtectionSnapshot)
+	}
+}
+
+func TestDecisionStore_GetRecordByCyclePreservesActionReviewContext(t *testing.T) {
+	db := openDecisionTestDB(t)
+	store := NewDecisionStore(db)
+	if err := store.initTables(); err != nil {
+		t.Fatalf("initTables failed: %v", err)
+	}
+
+	ts := time.Date(2026, 4, 23, 12, 0, 0, 0, time.UTC)
+	record := &DecisionRecord{
+		TraderID:    "trader-ctx",
+		CycleNumber: 42,
+		Timestamp:   ts,
+		Decisions: []DecisionAction{
+			{
+				Action: "open_long",
+				Symbol: "BTCUSDT",
+				ReviewContext: &DecisionActionReviewContext{
+					PrimaryTimeframe: "15m",
+					RiskReward: &DecisionActionRiskRewardSummary{
+						Entry:        100,
+						Invalidation: 95,
+						FirstTarget:  110,
+						Passed:       true,
+					},
+				},
+				Timestamp: ts,
+				Success:   true,
+			},
+		},
+		Success: true,
+	}
+	if err := store.LogDecision(record); err != nil {
+		t.Fatalf("LogDecision failed: %v", err)
+	}
+
+	got, err := store.GetRecordByCycle("trader-ctx", 42)
+	if err != nil {
+		t.Fatalf("GetRecordByCycle failed: %v", err)
+	}
+	if got == nil || len(got.Decisions) != 1 || got.Decisions[0].ReviewContext == nil {
+		t.Fatalf("expected review context on action round-trip, got %+v", got)
+	}
+	if got.Decisions[0].ReviewContext.PrimaryTimeframe != "15m" {
+		t.Fatalf("unexpected primary timeframe: %+v", got.Decisions[0].ReviewContext)
+	}
+	if got.Decisions[0].ReviewContext.RiskReward == nil || got.Decisions[0].ReviewContext.RiskReward.FirstTarget != 110 {
+		t.Fatalf("unexpected risk reward: %+v", got.Decisions[0].ReviewContext)
 	}
 }

@@ -11,11 +11,140 @@ import (
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
+	"nofx/trader"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+func mergeStrategyConfig(existing store.StrategyConfig, incoming json.RawMessage) (store.StrategyConfig, error) {
+	merged := existing
+	if len(incoming) == 0 || string(incoming) == "null" {
+		normalizeAIProtectionEngineModes(&merged)
+		return merged, nil
+	}
+
+	var existingMap map[string]any
+	if blob, err := json.Marshal(existing); err == nil {
+		_ = json.Unmarshal(blob, &existingMap)
+	}
+	if existingMap == nil {
+		existingMap = map[string]any{}
+	}
+
+	var incomingMap map[string]any
+	if err := json.Unmarshal(incoming, &incomingMap); err != nil {
+		return store.StrategyConfig{}, err
+	}
+
+	deepMergeMap(existingMap, incomingMap)
+
+	blob, err := json.Marshal(existingMap)
+	if err != nil {
+		return store.StrategyConfig{}, err
+	}
+	if err := json.Unmarshal(blob, &merged); err != nil {
+		return store.StrategyConfig{}, err
+	}
+	normalizeAIProtectionEngineModes(&merged)
+	return merged, nil
+}
+
+func normalizeAIProtectionEngineModes(cfg *store.StrategyConfig) {
+	if cfg == nil {
+		return
+	}
+	prot := &cfg.Protection
+	if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
+		if prot.DrawdownTakeProfit.EngineMode == "" {
+			prot.DrawdownTakeProfit.EngineMode = store.DrawdownEngineModeAI
+		}
+		return
+	}
+	if prot.DrawdownTakeProfit.Mode != store.ProtectionModeAI && prot.DrawdownTakeProfit.EngineMode == store.DrawdownEngineModeAI {
+		prot.DrawdownTakeProfit.EngineMode = store.DrawdownEngineModeManual
+	}
+}
+
+func deepMergeMap(dst, src map[string]any) {
+	for key, srcVal := range src {
+		srcMap, srcIsMap := srcVal.(map[string]any)
+		dstMap, dstIsMap := dst[key].(map[string]any)
+		if srcIsMap && dstIsMap {
+			deepMergeMap(dstMap, srcMap)
+			dst[key] = dstMap
+			continue
+		}
+		dst[key] = srcVal
+	}
+}
+
+func truncateForLog(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...<truncated>"
+}
+
+func inspectStrategyGatePresence(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return "empty"
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return fmt.Sprintf("invalid-json:%v", err)
+	}
+	cfg, _ := payload["config"].(map[string]any)
+	if cfg == nil {
+		cfg = payload
+	}
+	_, hasPolicy := cfg["strategy_control_policy"]
+	_, hasEntry := cfg["entry_structure"]
+	mode := "<missing>"
+	if policy, ok := cfg["strategy_control_policy"].(map[string]any); ok {
+		if v, ok := policy["mode"]; ok {
+			mode = fmt.Sprintf("%v", v)
+		}
+	}
+	entryEnabled := "<missing>"
+	if es, ok := cfg["entry_structure"].(map[string]any); ok {
+		if v, ok := es["enabled"]; ok {
+			entryEnabled = fmt.Sprintf("%v", v)
+		}
+	}
+	return fmt.Sprintf("policy=%t(mode=%s) entry_structure=%t(enabled=%s)", hasPolicy, mode, hasEntry, entryEnabled)
+}
+
+func inspectStrategyConfigPresence(cfg store.StrategyConfig) string {
+	blob, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Sprintf("marshal-error:%v", err)
+	}
+	return inspectStrategyGatePresence(string(blob))
+}
+
+func fullTakeProfitEnabledConfig(full store.FullTPSLConfig) bool {
+	if full.TakeProfitEnabled {
+		return true
+	}
+	return full.TakeProfit.Mode != store.ProtectionValueModeDisabled && full.TakeProfit.Value > 0
+}
+
+func fullStopLossEnabledConfig(full store.FullTPSLConfig) bool {
+	if full.StopLossEnabled {
+		return true
+	}
+	return full.StopLoss.Mode != store.ProtectionValueModeDisabled && full.StopLoss.Value > 0
+}
+
+func fullFallbackMaxLossEnabledConfig(full store.FullTPSLConfig) bool {
+	if full.FallbackMaxLossEnabled {
+		return true
+	}
+	return full.FallbackMaxLoss.Mode != store.ProtectionValueModeDisabled && full.FallbackMaxLoss.Value > 0
+}
 
 // validateStrategyConfig validates strategy configuration and returns warnings
 func validateStrategyConfig(config *store.StrategyConfig) []string {
@@ -30,38 +159,68 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 
 	full := config.Protection.FullTPSL
 	if full.Enabled {
-		if full.Mode != store.ProtectionModeManual && full.Mode != store.ProtectionModeAI {
-			warnings = append(warnings, "protection.full_tp_sl.mode should be 'manual' or 'ai'.")
+		if full.Mode != store.ProtectionModeManual && full.Mode != store.ProtectionModeAI && full.Mode != store.ProtectionModeDisabled {
+			warnings = append(warnings, "protection.full_tp_sl.mode should be 'manual', 'ai', or 'disabled'.")
 		}
-		if full.TakeProfit.Enabled && full.TakeProfit.PriceMovePct <= 0 {
-			warnings = append(warnings, "protection.full_tp_sl.take_profit.price_move_pct must be > 0 when enabled.")
+		if fullTakeProfitEnabledConfig(full) && full.TakeProfit.Mode == store.ProtectionValueModeManual && full.TakeProfit.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.take_profit.value must be > 0 when TP side is enabled and mode=manual.")
 		}
-		if full.StopLoss.Enabled && full.StopLoss.PriceMovePct <= 0 {
-			warnings = append(warnings, "protection.full_tp_sl.stop_loss.price_move_pct must be > 0 when enabled.")
+		if fullStopLossEnabledConfig(full) && full.StopLoss.Mode == store.ProtectionValueModeManual && full.StopLoss.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.stop_loss.value must be > 0 when SL side is enabled and mode=manual.")
+		}
+		if fullFallbackMaxLossEnabledConfig(full) && full.FallbackMaxLoss.Mode == store.ProtectionValueModeManual && full.FallbackMaxLoss.Value <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.fallback_max_loss.value must be > 0 when fallback side is enabled and mode=manual.")
+		}
+		if full.FallbackMaxLoss.Mode == store.ProtectionValueModeAI {
+			warnings = append(warnings, "protection.full_tp_sl.fallback_max_loss.mode does not support 'ai'; use 'manual' or 'disabled'.")
 		}
 	}
 
 	ladder := config.Protection.LadderTPSL
 	if ladder.Enabled {
-		if ladder.Mode != store.ProtectionModeManual && ladder.Mode != store.ProtectionModeAI {
-			warnings = append(warnings, "protection.ladder_tp_sl.mode should be 'manual' or 'ai'.")
+		if ladder.Mode != store.ProtectionModeManual && ladder.Mode != store.ProtectionModeAI && ladder.Mode != store.ProtectionModeDisabled {
+			warnings = append(warnings, "protection.ladder_tp_sl.mode should be 'manual', 'ai', or 'disabled'.")
 		}
-		for i, rule := range ladder.Rules {
-			if ladder.TakeProfitEnabled {
-				if rule.TakeProfitPct <= 0 || rule.TakeProfitCloseRatioPct <= 0 || rule.TakeProfitCloseRatioPct > 100 {
-					warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] take-profit fields are invalid.", i))
+		if ladder.TakeProfitEnabled {
+			if ladder.TakeProfitPrice.Mode == store.ProtectionValueModeManual && ladder.TakeProfitSize.Mode == store.ProtectionValueModeManual {
+				for i, rule := range ladder.Rules {
+					if rule.TakeProfitPct <= 0 || rule.TakeProfitCloseRatioPct <= 0 || rule.TakeProfitCloseRatioPct > 100 {
+						warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] take-profit fields are invalid.", i))
+					}
 				}
 			}
-			if ladder.StopLossEnabled {
-				if rule.StopLossPct <= 0 || rule.StopLossCloseRatioPct <= 0 || rule.StopLossCloseRatioPct > 100 {
-					warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] stop-loss fields are invalid.", i))
+		}
+		if ladder.StopLossEnabled {
+			if ladder.StopLossPrice.Mode == store.ProtectionValueModeManual && ladder.StopLossSize.Mode == store.ProtectionValueModeManual {
+				for i, rule := range ladder.Rules {
+					if rule.StopLossPct <= 0 || rule.StopLossCloseRatioPct <= 0 || rule.StopLossCloseRatioPct > 100 {
+						warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] stop-loss fields are invalid.", i))
+					}
 				}
 			}
+		}
+		if ladder.FallbackMaxLoss.Mode == store.ProtectionValueModeManual && ladder.FallbackMaxLoss.Value <= 0 {
+			warnings = append(warnings, "protection.ladder_tp_sl.fallback_max_loss.value must be > 0 when mode=manual.")
+		}
+		if ladder.FallbackMaxLoss.Mode == store.ProtectionValueModeAI {
+			warnings = append(warnings, "protection.ladder_tp_sl.fallback_max_loss.mode does not support 'ai'; use 'manual' or 'disabled'.")
 		}
 	}
 
 	drawdown := config.Protection.DrawdownTakeProfit
 	if drawdown.Enabled {
+		if drawdown.Mode != "" && drawdown.Mode != store.ProtectionModeManual && drawdown.Mode != store.ProtectionModeAI && drawdown.Mode != store.ProtectionModeDisabled {
+			warnings = append(warnings, "protection.drawdown_take_profit.mode should be 'manual', 'ai', or 'disabled'.")
+		}
+		if drawdown.Mode == store.ProtectionModeManual && len(drawdown.Rules) == 0 {
+			warnings = append(warnings, "protection.drawdown_take_profit.rules must contain at least one rule when mode=manual.")
+		}
+		if drawdown.Mode == store.ProtectionModeAI && full.Mode == store.ProtectionModeAI {
+			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai and protection.full_tp_sl.mode=ai are both enabled; AI must output a combined protection_plan when both routes own protection.")
+		}
+		if drawdown.Mode == store.ProtectionModeAI && ladder.Mode == store.ProtectionModeAI {
+			warnings = append(warnings, "protection.drawdown_take_profit.mode=ai and protection.ladder_tp_sl.mode=ai are both enabled; AI must output combined ladder+drawdown protection_plan.")
+		}
 		for i, rule := range drawdown.Rules {
 			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.MaxDrawdownPct > 100 ||
 				rule.CloseRatioPct <= 0 || rule.CloseRatioPct > 100 {
@@ -317,13 +476,19 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		mergedConfig = store.StrategyConfig{}
 	}
 
-	// Apply incoming config on top: top-level sections present in the request overwrite
-	// their corresponding existing section; absent sections remain unchanged.
+	// Apply incoming config with deep object merge so nested protection fields
+	// such as ladder/full AI mode are preserved when sibling fields are omitted.
 	if len(req.Config) > 0 && string(req.Config) != "null" {
-		if err := json.Unmarshal(req.Config, &mergedConfig); err != nil {
+		logger.Infof("[strategy.update] id=%s incoming config gates=%s", strategyID, inspectStrategyGatePresence(string(req.Config)))
+		logger.Infof("[strategy.update] id=%s incoming config snippet=%s", strategyID, truncateForLog(string(req.Config), 1200))
+		logger.Infof("[strategy.update] id=%s existing config gates=%s", strategyID, inspectStrategyGatePresence(existing.Config))
+		logger.Infof("[strategy.update] id=%s existing config snippet=%s", strategyID, truncateForLog(existing.Config, 1200))
+		mergedConfig, err = mergeStrategyConfig(mergedConfig, req.Config)
+		if err != nil {
 			SafeBadRequest(c, "Invalid config JSON")
 			return
 		}
+		logger.Infof("[strategy.update] id=%s merged config gates=%s", strategyID, inspectStrategyConfigPresence(mergedConfig))
 	}
 
 	// Preserve existing name/description when not supplied
@@ -341,6 +506,8 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		SafeInternalError(c, "Serialize configuration", err)
 		return
 	}
+	logger.Infof("[strategy.update] id=%s final config gates=%s", strategyID, inspectStrategyGatePresence(string(configJSON)))
+	logger.Infof("[strategy.update] id=%s merged config snippet=%s", strategyID, truncateForLog(string(configJSON), 1200))
 
 	strategy := &store.Strategy{
 		ID:            strategyID,
@@ -350,6 +517,24 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		Config:        string(configJSON),
 		IsPublic:      req.IsPublic,
 		ConfigVisible: req.ConfigVisible,
+	}
+
+	// Snapshot affected traders and their prior running state so strategy edits can hot-apply.
+	affectedTraders, listErr := s.store.Trader().ListByStrategyID(userID, strategyID)
+	if listErr != nil {
+		logger.Infof("[strategy.update] id=%s failed to list affected traders: %v", strategyID, listErr)
+	}
+	wasRunning := map[string]bool{}
+	for _, traderCfg := range affectedTraders {
+		if live, getErr := s.traderManager.GetTrader(traderCfg.ID); getErr == nil && live != nil {
+			if status, ok := live.GetStatus()["is_running"].(bool); ok {
+				wasRunning[traderCfg.ID] = status
+			} else {
+				wasRunning[traderCfg.ID] = traderCfg.IsRunning
+			}
+		} else {
+			wasRunning[traderCfg.ID] = traderCfg.IsRunning
+		}
 	}
 
 	if err := s.store.Strategy().Update(strategy); err != nil {
@@ -366,6 +551,31 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+
+	if len(affectedTraders) > 0 {
+		logger.Infof("[strategy.update] id=%s scheduling async hot reload for %d affected traders", strategyID, len(affectedTraders))
+		go func(userID, strategyID string, affectedTraders []*store.Trader, wasRunning map[string]bool) {
+			for _, traderCfg := range affectedTraders {
+				s.traderManager.RemoveTrader(traderCfg.ID)
+			}
+			if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+				logger.Infof("[strategy.update] id=%s trader hot reload failed: %v", strategyID, loadErr)
+				return
+			}
+			for _, traderCfg := range affectedTraders {
+				if !wasRunning[traderCfg.ID] || traderCfg.IsRunning {
+					continue
+				}
+				if reloadedTrader, getErr := s.traderManager.GetTrader(traderCfg.ID); getErr == nil {
+					go func(at *trader.AutoTrader) {
+						if runErr := at.Run(); runErr != nil {
+							logger.Infof("[strategy.update] failed to restart trader %s after strategy reload: %v", at.GetID(), runErr)
+						}
+					}(reloadedTrader)
+				}
+			}
+		}(userID, strategyID, affectedTraders, wasRunning)
+	}
 }
 
 // handleDeleteStrategy Delete strategy
@@ -589,12 +799,16 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		klineCount = 30
 	}
 
-	fmt.Printf("📊 Using timeframes: %v, primary: %s, kline count: %d\n", timeframes, primaryTimeframe, klineCount)
+	exchangeSrc := req.Config.CoinSource.ExchangeSource
+	if exchangeSrc == "" {
+		exchangeSrc = "okx"
+	}
+	fmt.Printf("📊 Using timeframes: %v, primary: %s, kline count: %d, exchange: %s\n", timeframes, primaryTimeframe, klineCount, exchangeSrc)
 
 	// Get real market data (using multiple timeframes)
 	marketDataMap := make(map[string]*market.Data)
 	for _, coin := range candidates {
-		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframesExchange(coin.Symbol, timeframes, primaryTimeframe, klineCount, exchangeSrc)
 		if err != nil {
 			// If getting data for a coin fails, log but continue
 			fmt.Printf("⚠️  Failed to get market data for %s: %v\n", coin.Symbol, err)
@@ -667,27 +881,37 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 			return
 		}
 
+		parsedDecisions, parseErr := kernel.ParseAndValidateAIDecisionsWithStrategy(aiResponse, &req.Config)
+		var parseErrText string
+		if parseErr != nil {
+			parseErrText = parseErr.Error()
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"system_prompt":   systemPrompt,
-			"user_prompt":     userPrompt,
-			"candidate_count": len(candidates),
-			"candidates":      candidates,
-			"prompt_variant":  req.PromptVariant,
-			"ai_response":     aiResponse,
-			"note":            "✅ Real AI test run successful",
+			"system_prompt":    systemPrompt,
+			"user_prompt":      userPrompt,
+			"candidate_count":  len(candidates),
+			"candidates":       candidates,
+			"prompt_variant":   req.PromptVariant,
+			"ai_response":      aiResponse,
+			"parsed_decisions": parsedDecisions,
+			"parse_error":      parseErrText,
+			"note":             "✅ Real AI test run successful",
 		})
 		return
 	}
 
 	// Return result (without actually calling AI, only return built prompt)
 	c.JSON(http.StatusOK, gin.H{
-		"system_prompt":   systemPrompt,
-		"user_prompt":     userPrompt,
-		"candidate_count": len(candidates),
-		"candidates":      candidates,
-		"prompt_variant":  req.PromptVariant,
-		"ai_response":     "Please select an AI model and click 'Run Test' to perform real AI analysis.",
-		"note":            "AI model not selected or real AI call not enabled",
+		"system_prompt":    systemPrompt,
+		"user_prompt":      userPrompt,
+		"candidate_count":  len(candidates),
+		"candidates":       candidates,
+		"prompt_variant":   req.PromptVariant,
+		"ai_response":      "Please select an AI model and click 'Run Test' to perform real AI analysis.",
+		"parsed_decisions": []kernel.Decision{},
+		"parse_error":      "",
+		"note":             "AI model not selected or real AI call not enabled",
 	})
 }
 

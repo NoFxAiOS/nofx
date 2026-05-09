@@ -68,19 +68,25 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 	at.isRunningMutex.RUnlock()
 
 	result := map[string]interface{}{
-		"trader_id":       at.id,
-		"trader_name":     at.name,
-		"ai_model":        at.aiModel,
-		"exchange":        at.exchange,
-		"is_running":      isRunning,
-		"start_time":      at.startTime.Format(time.RFC3339),
-		"runtime_minutes": int(time.Since(at.startTime).Minutes()),
-		"call_count":      at.callCount,
-		"initial_balance": at.initialBalance,
-		"scan_interval":   at.config.ScanInterval.String(),
-		"stop_until":      at.stopUntil.Format(time.RFC3339),
-		"last_reset_time": at.lastResetTime.Format(time.RFC3339),
-		"ai_provider":     aiProvider,
+		"trader_id":        at.id,
+		"trader_name":      at.name,
+		"ai_model":         at.aiModel,
+		"exchange":         at.exchange,
+		"is_running":       isRunning,
+		"start_time":       at.startTime.Format(time.RFC3339),
+		"runtime_minutes":  int(time.Since(at.startTime).Minutes()),
+		"call_count":       at.callCount,
+		"initial_balance":  at.initialBalance,
+		"scan_interval":    at.config.ScanInterval.String(),
+		"stop_until":       at.stopUntil.Format(time.RFC3339),
+		"last_reset_time":  at.lastResetTime.Format(time.RFC3339),
+		"ai_provider":      aiProvider,
+		"safe_mode":        at.safeMode,
+		"safe_mode_reason": at.safeModeReason,
+		"protect_only":     at.safeMode && strings.HasPrefix(at.safeModeReason, "protect-only"),
+		"allow_ai_open":    at.GetAllowAIOpen(),
+		"allow_ai_close":   at.GetAllowAIClose(),
+		"ai_decision_mode": at.GetAIDecisionMode(),
 	}
 
 	// Add strategy info
@@ -224,7 +230,43 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		openOrders, _ := at.trader.GetOpenOrders(symbol)
 		positionSideUpper := strings.ToUpper(side)
+		openOrders = at.enrichProtectionOrders(openOrders)
 		protectionRuntime := at.buildPositionProtectionRuntime(symbol, side, quantity, entryPrice, openOrders)
+		entryDecisionCycle := 0
+		var entryReviewSummary map[string]interface{}
+		var entryStructureAudit map[string]interface{}
+		if at.store != nil {
+			if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, positionSideUpper); err == nil && openPos != nil {
+				entryDecisionCycle = openPos.EntryDecisionCycle
+				if decisionStore := at.store.Decision(); decisionStore != nil {
+					if record, err := decisionStore.GetRecordByCycle(at.id, openPos.EntryDecisionCycle); err == nil && record != nil {
+						candidate := findMatchedDecisionAction(record, symbol, sideToOpenAction(positionSideUpper))
+						decoded := extractDecisionReviewMap(func() *store.DecisionActionReviewContext {
+							if candidate != nil {
+								return candidate.ReviewContext
+							}
+							return nil
+						}())
+						entryReviewSummary = buildEntryReviewSummaryFromDecisionReview(decoded)
+					}
+				}
+				if traderRecord, err := at.store.Trader().GetByID(at.id); err == nil && traderRecord != nil {
+					if fullCfg, err := at.store.Trader().GetFullConfig(traderRecord.UserID, at.id); err == nil && fullCfg != nil && fullCfg.Strategy != nil {
+						if parsed, err := fullCfg.Strategy.ParseConfig(); err == nil && parsed != nil {
+							es := parsed.EntryStructure
+							entryStructureAudit = map[string]interface{}{
+								"audit_primary_timeframe":             es.AuditPrimaryTimeframe,
+								"audit_adjacent_timeframes":           es.AuditAdjacentTimeframes,
+								"audit_support_resistance":            es.AuditSupportResistance,
+								"audit_structural_anchors":            es.AuditStructuralAnchors,
+								"audit_fibonacci":                     es.AuditFibonacci,
+								"require_invalidation_target_linkage": es.RequireInvalidationTargetLinkage,
+							}
+						}
+					}
+				}
+			}
+		}
 
 		result = append(result, map[string]interface{}{
 			"symbol":                    symbol,
@@ -243,6 +285,9 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
 			"protection_runtime":        protectionRuntime,
 			"position_side":             positionSideUpper,
+			"entry_decision_cycle":      entryDecisionCycle,
+			"entry_review_summary":      entryReviewSummary,
+			"entry_structure_audit":     entryStructureAudit,
 		})
 	}
 
@@ -288,11 +333,17 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 	var actualQty = quantity
 	var fee float64
 
-	// Exchanges with OrderSync: Skip immediate order recording, let OrderSync handle it
-	// This ensures accurate data from GetTrades API and avoids duplicate records
+	// Exchanges with OrderSync still need a durable ownership anchor so later
+	// fill sync can attribute the trade to the trader that actually placed it.
+	// We store a lightweight placeholder keyed by the exchange order id.
 	switch at.exchange {
 	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster", "kucoin", "gate":
-		logger.Infof("  📝 Order submitted (id: %s), will be synced by OrderSync", orderID)
+		orderRecord := at.createOrderRecord(orderID, symbol, action, positionSide, quantity, price, leverage)
+		if err := at.store.Order().CreateOrder(orderRecord); err != nil {
+			logger.Infof("  ⚠️ Failed to anchor order owner for sync: %v", err)
+		} else {
+			logger.Infof("  📝 Order submitted (id: %s), owner anchored for OrderSync", orderID)
+		}
 		return
 	}
 
@@ -378,19 +429,20 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		// Open position: create new position record
 		nowMs := time.Now().UTC().UnixMilli()
 		pos := &store.TraderPosition{
-			TraderID:     at.id,
-			ExchangeID:   at.exchangeID, // Exchange account UUID
-			ExchangeType: at.exchange,   // Exchange type: binance/bybit/okx/etc
-			Symbol:       symbol,
-			Side:         side, // LONG or SHORT
-			Quantity:     quantity,
-			EntryPrice:   price,
-			EntryOrderID: orderID,
-			EntryTime:    nowMs,
-			Leverage:     leverage,
-			Status:       "OPEN",
-			CreatedAt:    nowMs,
-			UpdatedAt:    nowMs,
+			TraderID:           at.id,
+			ExchangeID:         at.exchangeID, // Exchange account UUID
+			ExchangeType:       at.exchange,   // Exchange type: binance/bybit/okx/etc
+			Symbol:             symbol,
+			Side:               side, // LONG or SHORT
+			Quantity:           quantity,
+			EntryPrice:         price,
+			EntryOrderID:       orderID,
+			EntryDecisionCycle: at.cycleNumber,
+			EntryTime:          nowMs,
+			Leverage:           leverage,
+			Status:             "OPEN",
+			CreatedAt:          nowMs,
+			UpdatedAt:          nowMs,
 		}
 		if err := at.store.Position().Create(pos); err != nil {
 			logger.Infof("  ⚠️ Failed to record position: %v", err)
@@ -540,16 +592,221 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 	}
 }
 
+func classifyProtectionOrderRole(order OpenOrder) string {
+	kind := strings.ToUpper(order.Type)
+	if strings.Contains(kind, "TRAILING") {
+		return "trailing"
+	}
+	if looksLikeTakeProfit(order) {
+		return "take_profit"
+	}
+	if looksLikeStopLoss(order) {
+		return "stop_loss"
+	}
+	return "unknown"
+}
+
+func classifyProtectionOrderStatus(order OpenOrder) string {
+	kind := strings.ToUpper(order.Type)
+	status := strings.ToUpper(order.Status)
+	if strings.Contains(kind, "TRAILING") && (order.StopPrice <= 0 && order.Price <= 0) {
+		return "pending_activation"
+	}
+	if status == "" || status == "NEW" || status == "LIVE" || status == "OPEN" || status == "PENDING" {
+		return "delegated"
+	}
+	return "delegated"
+}
+
+func (at *AutoTrader) enrichProtectionOrders(openOrders []OpenOrder) []OpenOrder {
+	if len(openOrders) == 0 {
+		return openOrders
+	}
+	enriched := make([]OpenOrder, 0, len(openOrders))
+	for _, order := range openOrders {
+		order.ProtectionRole = classifyProtectionOrderRole(order)
+		order.ProtectionStatus = classifyProtectionOrderStatus(order)
+		enriched = append(enriched, order)
+	}
+	return enriched
+}
+
+func (at *AutoTrader) enrichProtectionOrdersWithPlan(symbol string, openOrders []OpenOrder) []OpenOrder {
+	openOrders = at.enrichProtectionOrders(openOrders)
+	if at == nil || at.config.StrategyConfig == nil || len(openOrders) == 0 {
+		return openOrders
+	}
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return openOrders
+	}
+	for _, pos := range positions {
+		posSymbol, _ := pos["symbol"].(string)
+		if !strings.EqualFold(posSymbol, symbol) {
+			continue
+		}
+		side, _ := pos["side"].(string)
+		entryPrice, _ := pos["entryPrice"].(float64)
+		quantity, _ := pos["positionAmt"].(float64)
+		if side == "" || entryPrice <= 0 || quantity == 0 {
+			continue
+		}
+		plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
+		if err != nil || plan == nil {
+			continue
+		}
+		positionSide := strings.ToUpper(side)
+		for i := range openOrders {
+			if openOrders[i].PositionSide != "" && !strings.EqualFold(openOrders[i].PositionSide, positionSide) {
+				continue
+			}
+			if openOrders[i].ClientOrderID == "" {
+				openOrders[i].ClientOrderID = inferProtectionClientOrderID(openOrders[i], positionSide, plan)
+			}
+		}
+	}
+	return openOrders
+}
+
+func inferProtectionClientOrderID(order OpenOrder, positionSide string, plan *ProtectionPlan) string {
+	price := order.StopPrice
+	if price <= 0 {
+		price = order.Price
+	}
+	if looksLikeStopLoss(order) {
+		if plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder([]OpenOrder{order}, positionSide, false, plan.FallbackMaxLossPrice) {
+			return "fallback_maxloss_sl"
+		}
+		if plan.NeedsStopLoss && plan.StopLossPrice > 0 && approximatelyEqualPrice(price, plan.StopLossPrice) {
+			return "full_sl"
+		}
+		for _, target := range plan.StopLossOrders {
+			if approximatelyEqualPrice(price, target.Price) {
+				return "ladder_sl"
+			}
+		}
+	}
+	if looksLikeTakeProfit(order) {
+		if plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 && approximatelyEqualPrice(price, plan.TakeProfitPrice) {
+			return "full_tp"
+		}
+		for _, target := range plan.TakeProfitOrders {
+			if approximatelyEqualPrice(price, target.Price) {
+				return "ladder_tp"
+			}
+		}
+	}
+	return ""
+}
+
 // GetOpenOrders returns open orders (pending SL/TP) from exchange
 func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
-	return at.trader.GetOpenOrders(symbol)
+	orders, err := at.trader.GetOpenOrders(symbol)
+	if err != nil {
+		return nil, err
+	}
+	return at.enrichProtectionOrdersWithPlan(symbol, orders), nil
 }
 
 func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quantity, entryPrice float64, openOrders []OpenOrder) map[string]interface{} {
 	positionSide := strings.ToUpper(side)
+	currentPnLPct := 0.0
+	peakPnLPct := 0.0
+	drawdownPct := 0.0
+	markPrice, _ := at.getPositionMarkPrice(symbol, side)
+	if entryPrice > 0 && markPrice > 0 {
+		currentPnLPct = calculatePositionPnLPct(side, entryPrice, markPrice)
+		peakPnLPct = currentPnLPct
+		at.peakPnLCacheMutex.RLock()
+		if peak, ok := at.peakPnLCache[positionKey(symbol, side)]; ok && peak > peakPnLPct {
+			peakPnLPct = peak
+		}
+		at.peakPnLCacheMutex.RUnlock()
+		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		}
+	}
+
+	be := at.getActiveBreakEvenConfigForPlan(nil)
+	breakEvenTrigger := 0.0
+	breakEvenOffset := 0.0
+	breakEvenSuppressedByRunner := at.isBreakEvenSuppressedByRunner(symbol, side)
+	nextBreakEvenGap := 0.0
+	breakEvenSource := at.getBreakEvenConfigSource(symbol, side)
+	if be == nil {
+		breakEvenSource = "none"
+	}
+	if be != nil {
+		breakEvenTrigger = be.TriggerValue
+		breakEvenOffset = be.OffsetPct
+		nextBreakEvenGap = be.TriggerValue - currentPnLPct
+		if nextBreakEvenGap < 0 {
+			nextBreakEvenGap = 0
+		}
+	}
+	if breakEvenSuppressedByRunner {
+		nextBreakEvenGap = 0
+	}
+
+	drawdownRules := at.getActiveDrawdownRulesForPosition(symbol, side)
+	if len(drawdownRules) == 0 {
+		drawdownRules = at.restoreAIDrawdownRulesForPositionWithEntry(symbol, side, entryPrice)
+	}
+	drawdownSource := at.getDrawdownConfigSource(symbol, side)
+	runnerState := at.getDrawdownRunnerState(symbol, side)
+	drawdownCfg := store.DrawdownTakeProfitConfig{}
+	if at.config.StrategyConfig != nil {
+		drawdownCfg = at.config.StrategyConfig.Protection.DrawdownTakeProfit
+	}
+	armRules := at.getDrawdownArmRules(currentPnLPct, entryPrice, quantity, symbol, side, drawdownRules)
+	currentStageMinProfit := 0.0
+	currentStageRuleCount := 0
+	if len(armRules) > 0 {
+		currentStageMinProfit = armRules[0].MinProfitPct
+		currentStageRuleCount = len(armRules)
+	}
+
+	plannedLadderStopCount := 0
+	plannedLadderTakeProfitCount := 0
+	fullStopPlanned := false
+	fullTakeProfitPlanned := false
+	fallbackPlanned := false
+	unexpectedSummary := unexpectedProtectionSummary{}
+	plannedLadderOrders := map[string]interface{}{}
+	var configuredPlan *ProtectionPlan
+	if plan, err := at.BuildConfiguredProtectionPlan(entryPrice, "open_"+strings.ToLower(side)); err == nil && plan != nil {
+		configuredPlan = plan
+		plannedLadderStopCount = len(plan.StopLossOrders)
+		plannedLadderTakeProfitCount = len(plan.TakeProfitOrders)
+		plannedLadderOrders = map[string]interface{}{
+			"stop_loss":   plan.StopLossOrders,
+			"take_profit": plan.TakeProfitOrders,
+		}
+		fullStopPlanned = plan.NeedsStopLoss && plan.StopLossPrice > 0
+		fullTakeProfitPlanned = plan.NeedsTakeProfit && plan.TakeProfitPrice > 0
+		fallbackPlanned = plan.FallbackMaxLossPrice > 0
+		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
+		nativeTrailingArmed := at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed"
+		unexpectedSummary = classifyUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed, true)
+	}
+
 	activeOrders := make([]map[string]interface{}, 0)
+	trailingOrders := make([]map[string]interface{}, 0)
 	liveTrailingTriggerPrice := 0.0
 	liveTrailingCallbackRate := 0.0
+	liveBreakEvenStopPrice := 0.0
+	breakEvenOrderDetected := false
+	ladderStopCount := 0
+	ladderTakeProfitCount := 0
+	fullStopCount := 0
+	fullTakeProfitCount := 0
+	fallbackStopCount := 0
+	maxProtectionOrderQuantity := 0.0
+	maxProtectionOrderQuantityOrderID := ""
+	protectionQuantityDrift := false
+	protectionQuantityDriftReason := ""
+	protectionQuantityDriftOrders := make([]map[string]interface{}, 0)
+	quantityTolerance := math.Max(0.00000001, quantity*0.02)
 	for _, order := range openOrders {
 		if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
 			continue
@@ -558,27 +815,127 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 		if triggerPrice <= 0 {
 			triggerPrice = order.Price
 		}
+		clientOrderID := strings.ToLower(strings.TrimSpace(order.ClientOrderID))
+		if clientOrderID == "" && configuredPlan != nil {
+			if inferred := inferProtectionClientOrderID(order, positionSide, configuredPlan); inferred != "" {
+				order.ClientOrderID = inferred
+				clientOrderID = strings.ToLower(inferred)
+			}
+		}
+		if !breakEvenOrderDetected && looksLikeStopLoss(order) {
+			if strings.Contains(clientOrderID, "break_even") || strings.Contains(clientOrderID, "breakeven") {
+				breakEvenOrderDetected = true
+				if triggerPrice > 0 {
+					liveBreakEvenStopPrice = triggerPrice
+				}
+			}
+		}
 		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") && triggerPrice > 0 {
 			liveTrailingTriggerPrice = triggerPrice
 			if order.CallbackRate > 0 {
 				liveTrailingCallbackRate = order.CallbackRate
 			}
+			trailingOrders = append(trailingOrders, map[string]interface{}{
+				"order_id":        order.OrderID,
+				"type":            order.Type,
+				"side":            order.Side,
+				"position_side":   order.PositionSide,
+				"trigger_price":   triggerPrice,
+				"callback_rate":   order.CallbackRate,
+				"quantity":        order.Quantity,
+				"status":          order.Status,
+				"client_order_id": order.ClientOrderID,
+			})
+		}
+		role := strings.ToLower(strings.TrimSpace(order.ProtectionRole))
+		clientOrderIDLower := strings.ToLower(strings.TrimSpace(order.ClientOrderID))
+		switch role {
+		case "stop_loss":
+			switch {
+			case strings.Contains(clientOrderIDLower, "fallback_maxloss"):
+				fallbackStopCount++
+			case strings.Contains(clientOrderIDLower, "ladder"):
+				ladderStopCount++
+			case strings.Contains(clientOrderIDLower, "full"):
+				fullStopCount++
+			}
+		case "take_profit":
+			switch {
+			case strings.Contains(clientOrderIDLower, "ladder"):
+				ladderTakeProfitCount++
+			case strings.Contains(clientOrderIDLower, "full"):
+				fullTakeProfitCount++
+			}
+		}
+		if (looksLikeStopLoss(order) || strings.Contains(strings.ToUpper(order.Type), "TRAILING")) && order.Quantity > 0 {
+			if order.Quantity > maxProtectionOrderQuantity {
+				maxProtectionOrderQuantity = order.Quantity
+				maxProtectionOrderQuantityOrderID = order.OrderID
+			}
+			if quantity > 0 && order.Quantity > quantity+quantityTolerance {
+				protectionQuantityDrift = true
+				if protectionQuantityDriftReason == "" {
+					protectionQuantityDriftReason = "protection_order_quantity_exceeds_position"
+				}
+				protectionQuantityDriftOrders = append(protectionQuantityDriftOrders, map[string]interface{}{
+					"order_id":          order.OrderID,
+					"client_order_id":   order.ClientOrderID,
+					"type":              order.Type,
+					"quantity":          order.Quantity,
+					"position_quantity": quantity,
+					"excess_quantity":   order.Quantity - quantity,
+				})
+			}
 		}
 		activeOrders = append(activeOrders, map[string]interface{}{
-			"order_id":      order.OrderID,
-			"type":          order.Type,
-			"side":          order.Side,
-			"position_side": order.PositionSide,
-			"trigger_price": triggerPrice,
-			"callback_rate": order.CallbackRate,
-			"quantity":      order.Quantity,
-			"status":        order.Status,
+			"order_id":          order.OrderID,
+			"type":              order.Type,
+			"side":              order.Side,
+			"position_side":     order.PositionSide,
+			"trigger_price":     triggerPrice,
+			"callback_rate":     order.CallbackRate,
+			"quantity":          order.Quantity,
+			"status":            order.Status,
+			"client_order_id":   order.ClientOrderID,
+			"protection_role":   order.ProtectionRole,
+			"protection_status": order.ProtectionStatus,
 		})
 	}
 
 	tiers := make([]map[string]interface{}, 0)
-	if at.config.StrategyConfig != nil {
-		for idx, rule := range at.config.StrategyConfig.Protection.DrawdownTakeProfit.Rules {
+	structureCtx := at.buildDrawdownStructureContext(symbol, side)
+	currentStructureStage := ""
+	currentStructureStopSource := ""
+	currentStructureTargetSource := ""
+	currentStructureTargetProgress := 0.0
+	currentStructurePrimaryTf := ""
+	currentStructureEvidence := []string{}
+	currentStructureTrace := []string{}
+	currentStructureHealth := "unstructured"
+	currentStructureDriftReason := ""
+	currentStructureDetached := false
+	if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
+		stage, stopSource, targetSource := classifyAIDrawdownStage(currentPnLPct, peakPnLPct, structureCtx, side, markPrice)
+		currentStructureStage = stage
+		currentStructureStopSource = stopSource
+		currentStructureTargetSource = targetSource
+		if structureCtx != nil {
+			currentStructureTargetProgress = structuralTargetProgress(side, structureCtx.Entry, structureCtx.FirstTarget, markPrice)
+			currentStructurePrimaryTf = structureCtx.PrimaryTimeframe
+			currentStructureEvidence = summarizeDrawdownStructureEvidence(structureCtx, side)
+			currentStructureTrace = append(currentStructureTrace,
+				fmt.Sprintf("tf=%s", currentStructurePrimaryTf),
+				fmt.Sprintf("stage=%s", currentStructureStage),
+				fmt.Sprintf("progress=%.2f", currentStructureTargetProgress),
+				fmt.Sprintf("stop_source=%s", currentStructureStopSource),
+				fmt.Sprintf("target_source=%s", currentStructureTargetSource),
+			)
+			currentStructureHealth = "aligned"
+		}
+	}
+	if len(drawdownRules) > 0 {
+		for idx, rule := range drawdownRules {
+			rule = normalizeDrawdownRule(rule)
 			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
 				continue
 			}
@@ -599,12 +956,10 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				}
 			}
 			activationPrice := plannedActivationPrice
-			if liveTrailingTriggerPrice > 0 && (executionMode == "native_partial_trailing" || executionMode == "native_trailing_full") {
-				activationPrice = liveTrailingTriggerPrice
-			}
-			callbackRate := calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+			callbackRate := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
 			activationSource := "planned"
 			callbackSource := "planned"
+			plannedQty := quantity * rule.CloseRatioPct / 100.0
 			if executionMode == "native_partial_trailing" || executionMode == "native_trailing_full" {
 				activationSource = "request"
 				callbackSource = "request"
@@ -612,37 +967,369 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 				case "binance", "bitget":
 					callbackRate = callbackRate * 100.0
 				}
-				if liveTrailingTriggerPrice > 0 {
-					activationSource = "exchange"
+				matchedLive := false
+				for _, order := range trailingOrders {
+					qtyVal, _ := order["quantity"].(float64)
+					cbVal, _ := order["callback_rate"].(float64)
+					trVal, _ := order["trigger_price"].(float64)
+					qtyTolerance := math.Max(0.0001, plannedQty*0.1)
+					callbackTolerance := 0.0002
+					if strings.ToLower(at.exchange) == "binance" || strings.ToLower(at.exchange) == "bitget" {
+						callbackTolerance = 0.05
+					}
+					if plannedQty > 0 && math.Abs(qtyVal-plannedQty) <= qtyTolerance && math.Abs(cbVal-callbackRate) <= callbackTolerance {
+						if trVal > 0 {
+							activationPrice = trVal
+							activationSource = "exchange"
+						}
+						if cbVal > 0 {
+							callbackRate = cbVal
+							callbackSource = "exchange"
+						}
+						matchedLive = true
+						break
+					}
 				}
-				if liveTrailingCallbackRate > 0 {
-					callbackRate = liveTrailingCallbackRate
-					callbackSource = "exchange"
+				if !matchedLive {
+					if liveTrailingTriggerPrice > 0 {
+						activationPrice = liveTrailingTriggerPrice
+						activationSource = "exchange"
+					}
+					if liveTrailingCallbackRate > 0 {
+						callbackRate = liveTrailingCallbackRate
+						callbackSource = "exchange"
+					}
 				}
 			}
-			tiers = append(tiers, map[string]interface{}{
-				"index":                    idx + 1,
-				"min_profit_pct":           rule.MinProfitPct,
-				"max_drawdown_pct":         rule.MaxDrawdownPct,
-				"close_ratio_pct":          rule.CloseRatioPct,
-				"activation_price":         activationPrice,
-				"planned_activation_price": plannedActivationPrice,
-				"activation_source":        activationSource,
-				"callback_rate":            callbackRate,
-				"callback_source":          callbackSource,
-				"planned_quantity":         quantity * rule.CloseRatioPct / 100.0,
-				"source":                   source,
-				"execution_mode":           executionMode,
-			})
+			anchor := (*drawdownTierAnchor)(nil)
+			if structureCtx != nil {
+				anchor = structureCtx.selectTierAnchor(side, rule, entryPrice)
+			}
+			legacyWarning := ""
+			nativeRejectedReason := ""
+			if rule.MaxDrawdownPct > 0 && rule.MaxDrawdownPct < 5 && rule.MaxDrawdownAbsPct <= 0 {
+				legacyWarning = "max_drawdown_pct is below 5 under peak-profit giveback semantics; likely legacy absolute-profit value"
+			}
+			if entryPrice > 0 && rule.MinProfitPct > 0 && strings.Contains(strings.ToLower(executionMode), "managed") {
+				cb := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
+				if cb > 0 && cb < minNativeDrawdownCallbackRatio {
+					nativeRejectedReason = fmt.Sprintf("native callback %.6f below safety floor %.6f; managed fallback preserves rule math", cb, minNativeDrawdownCallbackRatio)
+				}
+			}
+			tier := map[string]interface{}{
+				"index":                             idx + 1,
+				"stage_name":                        rule.StageName,
+				"timeframe":                         rule.Timeframe,
+				"reason_anchor":                     rule.ReasonAnchor,
+				"min_profit_pct":                    rule.MinProfitPct,
+				"max_drawdown_pct":                  rule.MaxDrawdownPct,
+				"max_drawdown_abs_profit_pct":       rule.MaxDrawdownAbsPct,
+				"close_ratio_pct":                   rule.CloseRatioPct,
+				"runner_keep_pct":                   rule.RunnerKeepPct,
+				"runner_stop_mode":                  rule.RunnerStopMode,
+				"runner_stop_source":                rule.RunnerStopSource,
+				"runner_target_mode":                rule.RunnerTargetMode,
+				"runner_target_source":              rule.RunnerTargetSource,
+				"activation_price":                  activationPrice,
+				"planned_activation_price":          plannedActivationPrice,
+				"activation_source":                 activationSource,
+				"callback_rate":                     callbackRate,
+				"callback_source":                   callbackSource,
+				"planned_quantity":                  quantity * rule.CloseRatioPct / 100.0,
+				"source":                            source,
+				"execution_mode":                    executionMode,
+				"is_satisfied":                      currentPnLPct >= rule.MinProfitPct,
+				"is_triggered":                      currentPnLPct >= rule.MinProfitPct && isDrawdownThresholdMet(currentPnLPct, drawdownPct, rule),
+				"legacy_drawdown_semantics_warning": legacyWarning,
+				"native_trailing_rejected_reason":   nativeRejectedReason,
+			}
+			if anchor != nil {
+				tier["structure_anchor"] = anchor
+				tier["anchor_timeframe"] = anchor.Timeframe
+				tier["anchor_price"] = anchor.Price
+				tier["anchor_source"] = anchor.Source
+			}
+			tiers = append(tiers, tier)
 		}
 	}
 
+	ladderDegradedStop := plannedLadderStopCount > 0 && ladderStopCount < plannedLadderStopCount
+	ladderDegradedTakeProfit := plannedLadderTakeProfitCount > 0 && ladderTakeProfitCount < plannedLadderTakeProfitCount
+	ladderDegradedToFullStop := ladderDegradedStop && fullStopCount > 0
+	ladderDegradedToFullTakeProfit := ladderDegradedTakeProfit && fullTakeProfitCount > 0
+	fallbackActive := fallbackStopCount > 0
+	runnerMigrationNeeded := false
+	runnerMigrationReason := ""
+	runnerMigrationAnchor := (*drawdownTierAnchor)(nil)
+	runnerMigrationDesiredActivation := 0.0
+	runnerMigrationDesiredCallback := 0.0
+	runnerMigrationLiveActivation := 0.0
+	runnerMigrationLiveCallback := 0.0
+	runnerMigrationSafe := false
+	runnerMigrationSafetyReason := ""
+	runnerMigrationWouldLoosenProtection := false
+	runnerMigrationWouldTightenProtection := false
+	runnerMigrationActionable := false
+	runnerMigrationActionableReason := ""
+	runnerMigrationPlan := map[string]interface{}{}
+	if currentStructureStage == "higher_timeframe_runner" && structureCtx != nil && len(drawdownRules) > 0 {
+		var runnerRule *store.DrawdownTakeProfitRule
+		for i := range drawdownRules {
+			rule := normalizeDrawdownRule(drawdownRules[i])
+			if rule.RunnerKeepPct > 0 || strings.Contains(strings.ToLower(rule.StageName), "runner") {
+				runnerRule = &rule
+				break
+			}
+		}
+		if runnerRule == nil {
+			rule := normalizeDrawdownRule(drawdownRules[len(drawdownRules)-1])
+			runnerRule = &rule
+		}
+		if runnerRule != nil {
+			runnerMigrationAnchor = structureCtx.selectTierAnchor(side, *runnerRule, entryPrice)
+			runnerMigrationDesiredActivation = calculateProfitBasedTrailingTriggerPrice(entryPrice, side, runnerRule.MinProfitPct)
+			runnerMigrationDesiredCallback = calculateProfitBasedTrailingCallbackRatio(entryPrice, side, runnerRule.MinProfitPct, runnerRule.MaxDrawdownPct)
+			runnerMigrationLiveActivation = liveTrailingTriggerPrice
+			runnerMigrationLiveCallback = liveTrailingCallbackRate
+			if runnerMigrationAnchor == nil || runnerMigrationAnchor.Timeframe == "" {
+				runnerMigrationNeeded = true
+				runnerMigrationReason = "missing_higher_runner_anchor"
+			} else if liveTrailingTriggerPrice <= 0 {
+				runnerMigrationNeeded = true
+				runnerMigrationReason = "missing_live_trailing"
+			} else {
+				activationDrift := math.Abs(liveTrailingTriggerPrice-runnerMigrationDesiredActivation) / math.Max(runnerMigrationDesiredActivation, 1)
+				callbackDrift := 0.0
+				if runnerMigrationDesiredCallback > 0 {
+					callbackDrift = math.Abs(liveTrailingCallbackRate-runnerMigrationDesiredCallback) / runnerMigrationDesiredCallback
+				}
+				if activationDrift > 0.003 || callbackDrift > 0.20 {
+					runnerMigrationNeeded = true
+					runnerMigrationReason = "live_trailing_differs_from_higher_runner_plan"
+				}
+			}
+			if runnerMigrationNeeded && liveTrailingTriggerPrice > 0 && runnerMigrationDesiredActivation > 0 && runnerMigrationDesiredCallback > 0 {
+				liveTrailDistance := liveTrailingTriggerPrice * liveTrailingCallbackRate
+				desiredTrailDistance := runnerMigrationDesiredActivation * runnerMigrationDesiredCallback
+				runnerMigrationWouldLoosenProtection = desiredTrailDistance > liveTrailDistance
+				runnerMigrationWouldTightenProtection = desiredTrailDistance < liveTrailDistance
+				if runnerMigrationAnchor != nil && runnerMigrationAnchor.Price > 0 && runnerMigrationDesiredCallback >= minNativeDrawdownCallbackRatio {
+					if runnerMigrationWouldLoosenProtection {
+						runnerMigrationSafe = false
+						runnerMigrationSafetyReason = "would_loosen_live_trailing"
+					} else {
+						runnerMigrationSafe = true
+						runnerMigrationSafetyReason = "tightens_or_preserves_live_trailing"
+					}
+				}
+			}
+		}
+	}
+	if runnerMigrationNeeded {
+		switch {
+		case !runnerMigrationSafe:
+			runnerMigrationActionableReason = "migration_not_safe"
+		case runnerMigrationAnchor == nil || runnerMigrationAnchor.Price <= 0:
+			runnerMigrationActionableReason = "missing_higher_runner_anchor"
+		case runnerMigrationLiveActivation <= 0 || runnerMigrationLiveCallback <= 0:
+			runnerMigrationActionableReason = "missing_live_trailing"
+		case runnerMigrationDesiredActivation <= 0 || runnerMigrationDesiredCallback < minNativeDrawdownCallbackRatio:
+			runnerMigrationActionableReason = "invalid_desired_trailing_plan"
+		default:
+			runnerMigrationActionable = true
+			runnerMigrationActionableReason = "manual_replace_ready"
+		}
+		if runnerMigrationActionable {
+			cancelOrderID := ""
+			cancelClientOrderID := ""
+			cancelQuantity := 0.0
+			for _, order := range trailingOrders {
+				triggerVal, _ := order["trigger_price"].(float64)
+				callbackVal, _ := order["callback_rate"].(float64)
+				if math.Abs(triggerVal-runnerMigrationLiveActivation) <= math.Max(0.01, runnerMigrationLiveActivation*0.0001) && math.Abs(callbackVal-runnerMigrationLiveCallback) <= math.Max(0.000001, runnerMigrationLiveCallback*0.001) {
+					cancelOrderID, _ = order["order_id"].(string)
+					cancelClientOrderID, _ = order["client_order_id"].(string)
+					cancelQuantity, _ = order["quantity"].(float64)
+					break
+				}
+			}
+			if cancelOrderID == "" && len(trailingOrders) > 0 {
+				cancelOrderID, _ = trailingOrders[0]["order_id"].(string)
+				cancelClientOrderID, _ = trailingOrders[0]["client_order_id"].(string)
+				cancelQuantity, _ = trailingOrders[0]["quantity"].(float64)
+			}
+			if cancelQuantity <= 0 {
+				cancelQuantity = quantity
+			}
+			runnerMigrationPlan = map[string]interface{}{
+				"action":                 "replace_native_trailing",
+				"cancel_order_id":        cancelOrderID,
+				"cancel_client_order_id": cancelClientOrderID,
+				"new_activation":         runnerMigrationDesiredActivation,
+				"new_callback":           runnerMigrationDesiredCallback,
+				"quantity":               math.Min(cancelQuantity, quantity),
+				"requires_confirmation":  true,
+			}
+		}
+	}
+	if currentStructureHealth == "aligned" && runnerMigrationNeeded {
+		currentStructureHealth = "runner_migration_needed"
+		currentStructureDriftReason = runnerMigrationReason
+	}
+	if currentStructureHealth == "aligned" {
+		switch {
+		case ladderDegradedStop || ladderDegradedTakeProfit:
+			currentStructureHealth = "partially_degraded"
+			currentStructureDriftReason = "ladder_degraded"
+		case ladderDegradedToFullStop || ladderDegradedToFullTakeProfit || fallbackActive:
+			currentStructureHealth = "degraded_to_full_fallback"
+			currentStructureDriftReason = "degraded_to_full_fallback"
+		}
+	}
+	if len(currentStructureEvidence) == 0 {
+		currentStructureDetached = true
+		if currentStructureHealth == "aligned" || currentStructureHealth == "unstructured" {
+			currentStructureHealth = "structure_detached"
+			if currentStructureDriftReason == "" {
+				currentStructureDriftReason = "missing_structure_context"
+			}
+		}
+	}
+
+	orphanProtectionCleanupNeeded := false
+	orphanProtectionOrderCount := 0
+	if quantity <= 0 && len(activeOrders) > 0 {
+		orphanProtectionCleanupNeeded = true
+		orphanProtectionOrderCount = len(activeOrders)
+	}
+
 	return map[string]interface{}{
-		"protection_state":          at.getProtectionState(symbol, side),
-		"break_even_state":          at.getBreakEvenState(symbol, side),
-		"drawdown_execution_mode":   at.getDrawdownExecutionMode(symbol, side),
-		"break_even_execution_mode": at.getBreakEvenExecutionMode(symbol, side),
-		"active_orders":             activeOrders,
-		"scheduled_tiers":           tiers,
+		"protection_state":                at.getProtectionState(symbol, side),
+		"break_even_state":                at.getBreakEvenState(symbol, side),
+		"break_even_suppressed_by_runner": breakEvenSuppressedByRunner,
+		"drawdown_runner_mode_active":     runnerState != nil,
+		"drawdown_runner_stage_name": func() string {
+			if runnerState != nil {
+				return runnerState.StageName
+			}
+			return ""
+		}(),
+		"drawdown_runner_keep_pct": func() float64 {
+			if runnerState != nil {
+				return runnerState.RunnerKeepPct
+			}
+			return 0
+		}(),
+		"drawdown_runner_stop_mode": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerStopMode
+			}
+			return ""
+		}(),
+		"drawdown_runner_stop_source": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerStopSource
+			}
+			return ""
+		}(),
+		"drawdown_runner_target_mode": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerTargetMode
+			}
+			return ""
+		}(),
+		"drawdown_runner_target_source": func() string {
+			if runnerState != nil {
+				return runnerState.RunnerTargetSource
+			}
+			return ""
+		}(),
+		"drawdown_structure_stage":             currentStructureStage,
+		"drawdown_structure_stop_source":       currentStructureStopSource,
+		"drawdown_structure_target_source":     currentStructureTargetSource,
+		"drawdown_structure_target_progress":   currentStructureTargetProgress,
+		"drawdown_structure_primary_timeframe": currentStructurePrimaryTf,
+		"drawdown_structure_higher_timeframes": func() []string {
+			if structureCtx != nil {
+				return structureCtx.HigherTimeframes
+			}
+			return nil
+		}(),
+		"drawdown_structure_anchors": func() []store.DecisionActionReasonAnchor {
+			if structureCtx != nil {
+				return structureCtx.Anchors
+			}
+			return nil
+		}(),
+		"drawdown_structure_evidence":         currentStructureEvidence,
+		"drawdown_structure_trace":            currentStructureTrace,
+		"structure_protection_health":         currentStructureHealth,
+		"structure_protection_drift_reason":   currentStructureDriftReason,
+		"structure_protection_detached":       currentStructureDetached,
+		"protection_quantity_drift":           protectionQuantityDrift,
+		"protection_quantity_drift_reason":    protectionQuantityDriftReason,
+		"protection_position_quantity":        quantity,
+		"protection_max_order_quantity":       maxProtectionOrderQuantity,
+		"protection_max_order_id":             maxProtectionOrderQuantityOrderID,
+		"protection_quantity_drift_orders":    protectionQuantityDriftOrders,
+		"orphan_protection_cleanup_needed":    orphanProtectionCleanupNeeded,
+		"orphan_protection_order_count":       orphanProtectionOrderCount,
+		"runner_migration_needed":             runnerMigrationNeeded,
+		"runner_migration_reason":             runnerMigrationReason,
+		"runner_migration_anchor":             runnerMigrationAnchor,
+		"runner_migration_desired_activation": runnerMigrationDesiredActivation,
+		"runner_migration_desired_callback":   runnerMigrationDesiredCallback,
+		"runner_migration_live_activation":    runnerMigrationLiveActivation,
+		"runner_migration_live_callback":      runnerMigrationLiveCallback,
+		"runner_migration_safe":               runnerMigrationSafe,
+		"runner_migration_safety_reason":      runnerMigrationSafetyReason,
+		"runner_migration_would_loosen":       runnerMigrationWouldLoosenProtection,
+		"runner_migration_would_tighten":      runnerMigrationWouldTightenProtection,
+		"runner_migration_actionable":         runnerMigrationActionable,
+		"runner_migration_actionable_reason":  runnerMigrationActionableReason,
+		"runner_migration_plan":               runnerMigrationPlan,
+		"drawdown_execution_mode":             at.getDrawdownExecutionMode(symbol, side),
+		"drawdown_config_source":              drawdownSource,
+		"break_even_execution_mode":           at.getBreakEvenExecutionMode(symbol, side),
+		"current_pnl_pct":                     currentPnLPct,
+		"drawdown_peak_pnl_pct":               peakPnLPct,
+		"current_drawdown_pct":                drawdownPct,
+		"current_break_even_trigger_pct":      breakEvenTrigger,
+		"break_even_offset_pct":               breakEvenOffset,
+		"next_break_even_gap_pct":             nextBreakEvenGap,
+		"break_even_config_source":            breakEvenSource,
+		"live_break_even_stop_price":          liveBreakEvenStopPrice,
+		"break_even_order_detected":           breakEvenOrderDetected,
+		"planned_ladder_stop_count":           plannedLadderStopCount,
+		"planned_ladder_take_profit_count":    plannedLadderTakeProfitCount,
+		"planned_ladder_orders":               plannedLadderOrders,
+		"live_ladder_stop_count":              ladderStopCount,
+		"live_ladder_take_profit_count":       ladderTakeProfitCount,
+		"live_full_stop_count":                fullStopCount,
+		"live_full_take_profit_count":         fullTakeProfitCount,
+		"fallback_order_detected":             fallbackActive,
+		"live_fallback_stop_count":            fallbackStopCount,
+		"full_stop_planned":                   fullStopPlanned,
+		"full_take_profit_planned":            fullTakeProfitPlanned,
+		"fallback_planned":                    fallbackPlanned,
+		"unexpected_protection": map[string]interface{}{
+			"stale_bot_duplicate_count":     unexpectedSummary.StaleBotDuplicate,
+			"orphan_inactive_count":         unexpectedSummary.OrphanForInactive,
+			"manual_or_foreign_count":       unexpectedSummary.ManualOrForeign,
+			"expected_dynamic_owner_count":  unexpectedSummary.ExpectedDynamicOwner,
+			"expected_static_owner_count":   unexpectedSummary.ExpectedStaticOwner,
+			"stale_bot_duplicate_order_ids": unexpectedSummary.StaleBotDuplicateIDs,
+			"orphan_inactive_order_ids":     unexpectedSummary.OrphanForInactiveIDs,
+			"manual_or_foreign_order_ids":   unexpectedSummary.ManualOrForeignIDs,
+		},
+		"ladder_stop_degraded":                  ladderDegradedStop,
+		"ladder_take_profit_degraded":           ladderDegradedTakeProfit,
+		"ladder_stop_degraded_to_full":          ladderDegradedToFullStop,
+		"ladder_take_profit_degraded_to_full":   ladderDegradedToFullTakeProfit,
+		"current_drawdown_stage_min_profit_pct": currentStageMinProfit,
+		"current_drawdown_stage_rule_count":     currentStageRuleCount,
+		"active_orders":                         activeOrders,
+		"active_trailing_orders":                trailingOrders,
+		"scheduled_tiers":                       tiers,
 	}
 }

@@ -15,6 +15,7 @@ interface ChartTabsProps {
   selectedSymbol?: string // Externally selected symbol
   updateKey?: number // Force update key
   exchangeId?: string // Exchange ID
+  disableAutoRefresh?: boolean
 }
 
 type ChartTab = 'equity' | 'kline'
@@ -55,7 +56,7 @@ function getMarketTypeFromExchange(exchangeId: string | undefined): MarketType {
   return 'crypto'
 }
 
-export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: ChartTabsProps) {
+export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId, disableAutoRefresh = false }: ChartTabsProps) {
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
   const [chartSymbol, setChartSymbol] = useState<string>('BTC')
@@ -344,6 +345,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 // Dynamic auto-sizing via ResizeObserver
                 exchange={currentExchange}
                 onSymbolChange={setChartSymbol}
+                autoRefresh={!disableAutoRefresh}
               />
             </motion.div>
           )}

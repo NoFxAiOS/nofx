@@ -110,6 +110,7 @@ type AutoTraderConfig struct {
 
 	// Competition visibility
 	ShowInCompetition bool   // Whether to show in competition page
+	AllowAIOpen       bool   // Whether AI is allowed to issue open_long / open_short
 	AllowAIClose      bool   // Whether AI is allowed to issue close_long / close_short
 	AIDecisionMode    string // conservative | balanced | aggressive
 
@@ -125,6 +126,7 @@ type AutoTrader struct {
 	exchange              string // Trading platform type (binance/bybit/etc)
 	exchangeID            string // Exchange account UUID
 	showInCompetition     bool   // Whether to show in competition page
+	allowAIOpen           bool   // Whether AI can actively open positions
 	allowAIClose          bool   // Whether AI can actively close positions
 	aiDecisionMode        string // conservative | balanced | aggressive
 	config                AutoTraderConfig
@@ -140,26 +142,35 @@ type AutoTrader struct {
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
-	isRunningMutex        sync.RWMutex       // Mutex to protect isRunning flag
-	startTime             time.Time          // System start time
-	callCount             int                // AI call count
-	positionFirstSeenTime map[string]int64   // Position first seen time (symbol_side -> timestamp in milliseconds)
-	stopMonitorCh         chan struct{}      // Used to stop monitoring goroutine
-	monitorWg             sync.WaitGroup     // Used to wait for monitoring goroutine to finish
-	peakPnLCache          map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
-	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
-	protectionStateMutex  sync.RWMutex       // Protects last protection reconcile state
-	protectionState       map[string]string  // symbol_side -> last known protection status
-	breakEvenStateMutex   sync.RWMutex       // Protects break-even armed state per position
-	breakEvenState        map[string]string  // symbol_side -> idle/armed
-	breakEvenFingerprints map[string]string  // symbol_side -> entry/qty fingerprint for lifecycle reset
-	lastBalanceSyncTime   time.Time          // Last balance sync time
-	userID                string             // User ID
-	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
-	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
-	consecutiveAIFailures int                // Consecutive AI call failures
-	safeMode              bool               // Safe mode: no new positions, protect existing ones
-	safeModeReason        string             // Why safe mode was activated
+	isRunningMutex        sync.RWMutex                              // Mutex to protect isRunning flag
+	startTime             time.Time                                 // System start time
+	callCount             int                                       // AI call count
+	positionFirstSeenTime map[string]int64                          // Position first seen time (symbol_side -> timestamp in milliseconds)
+	stopMonitorCh         chan struct{}                             // Used to stop monitoring goroutine
+	monitorWg             sync.WaitGroup                            // Used to wait for monitoring goroutine to finish
+	peakPnLCache          map[string]float64                        // Peak profit cache (symbol -> peak P&L percentage)
+	peakPnLCacheMutex     sync.RWMutex                              // Cache read-write lock
+	protectionStateMutex  sync.RWMutex                              // Protects last protection reconcile state
+	protectionState       map[string]string                         // symbol_side -> last known protection status
+	breakEvenStateMutex   sync.RWMutex                              // Protects break-even armed state per position
+	breakEvenState        map[string]string                         // symbol_side -> idle/armed
+	breakEvenFingerprints map[string]string                         // symbol_side -> entry/qty fingerprint for lifecycle reset
+	breakEvenSource       map[string]string                         // symbol_side -> strategy|ai_decision
+	drawdownState         map[string]string                         // symbol_side -> last executed drawdown rule fingerprint
+	drawdownSource        map[string]string                         // symbol_side -> strategy|ai_decision
+	drawdownAIRules       map[string][]store.DrawdownTakeProfitRule // symbol_side -> per-position AI drawdown rules restored from entry decision
+	drawdownRunnerState   map[string]DrawdownRunnerState            // symbol_side -> active runner semantics after partial drawdown
+	drawdownTierAllocs    map[string][]store.DrawdownTierAllocation // symbol_side -> fixed tier allocations computed at open
+	drawdownTierAllocMu   sync.RWMutex                             // Protects drawdownTierAllocs
+	immediateTrailingIDs  map[string]string                         // symbol_side -> immediate trailing order ID (canceled when tier trailing arms)
+	cooldownManager       *entryCooldownManager                     // Post-loss entry cooldown per symbol
+	lastBalanceSyncTime   time.Time                                 // Last balance sync time
+	userID                string                                    // User ID
+	gridState             *GridState                                // Grid trading state (only used when StrategyType == "grid_trading")
+	claw402WalletAddr     string                                    // Claw402 wallet address (derived from private key at start)
+	consecutiveAIFailures int                                       // Consecutive AI call failures
+	safeMode              bool                                      // Safe mode: no new positions, protect existing ones
+	safeModeReason        string                                    // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader
@@ -302,36 +313,13 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		return nil, fmt.Errorf("unsupported trading platform: %s", config.Exchange)
 	}
 
-	// Validate initial balance configuration, auto-fetch from exchange if 0
+	// Validate initial balance configuration.
+	// Keep startup resilient: if InitialBalance is not set, do NOT block trader creation on
+	// a live exchange balance fetch here. Startup/health should come up even when the
+	// exchange is slow or temporarily unreachable. Users can sync balance later, and runtime
+	// account info will still come from the exchange when available.
 	if config.InitialBalance <= 0 {
-		logger.Infof("📊 [%s] Initial balance not set, attempting to fetch current balance from exchange...", config.Name)
-		account, err := trader.GetBalance()
-		if err != nil {
-			return nil, fmt.Errorf("initial balance not set and unable to fetch balance from exchange: %w", err)
-		}
-		// Try multiple balance field names (different exchanges return different formats)
-		balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
-		var foundBalance float64
-		for _, key := range balanceKeys {
-			if balance, ok := account[key].(float64); ok && balance > 0 {
-				foundBalance = balance
-				break
-			}
-		}
-		if foundBalance > 0 {
-			config.InitialBalance = foundBalance
-			logger.Infof("✓ [%s] Auto-fetched initial balance: %.2f USDT", config.Name, foundBalance)
-			// Save to database so it persists across restarts
-			if st != nil {
-				if err := st.Trader().UpdateInitialBalance(userID, config.ID, foundBalance); err != nil {
-					logger.Infof("⚠️  [%s] Failed to save initial balance to database: %v", config.Name, err)
-				} else {
-					logger.Infof("✓ [%s] Initial balance saved to database", config.Name)
-				}
-			}
-		} else {
-			return nil, fmt.Errorf("initial balance must be greater than 0, please set InitialBalance in config or ensure exchange account has balance")
-		}
+		logger.Infof("⚠️ [%s] Initial balance not set; using 0 as temporary baseline and skipping startup balance fetch", config.Name)
 	}
 
 	// Get last cycle number (for recovery)
@@ -355,6 +343,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		exchange:              config.Exchange,
 		exchangeID:            config.ExchangeID,
 		showInCompetition:     config.ShowInCompetition,
+		allowAIOpen:           config.AllowAIOpen,
 		allowAIClose:          config.AllowAIClose,
 		aiDecisionMode:        config.AIDecisionMode,
 		config:                config,
@@ -378,9 +367,95 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		breakEvenStateMutex:   sync.RWMutex{},
 		breakEvenState:        make(map[string]string),
 		breakEvenFingerprints: make(map[string]string),
+		drawdownState:         make(map[string]string),
+		breakEvenSource:       make(map[string]string),
+		drawdownSource:        make(map[string]string),
+		drawdownAIRules:       make(map[string][]store.DrawdownTakeProfitRule),
+		drawdownRunnerState:   make(map[string]DrawdownRunnerState),
+		drawdownTierAllocs:    make(map[string][]store.DrawdownTierAllocation),
+		immediateTrailingIDs:  make(map[string]string),
+		cooldownManager:       newEntryCooldownManager(),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil
+}
+
+func (at *AutoTrader) loadDynamicProtectionStateFromStore() {
+	if at == nil || at.store == nil {
+		return
+	}
+	state, err := at.store.LoadDynamicProtectionState()
+	if err != nil {
+		logger.Warnf("⚠️ Dynamic protection state: failed to load persisted state: %v", err)
+		return
+	}
+	if len(state.Records) == 0 {
+		return
+	}
+	if at.protectionState == nil {
+		at.protectionState = make(map[string]string)
+	}
+	if at.drawdownState == nil {
+		at.drawdownState = make(map[string]string)
+	}
+	if at.breakEvenState == nil {
+		at.breakEvenState = make(map[string]string)
+	}
+	if at.breakEvenFingerprints == nil {
+		at.breakEvenFingerprints = make(map[string]string)
+	}
+	latestBreakEvenRecord := make(map[string]store.DynamicProtectionRecord)
+	managedRecords := make([]store.DynamicProtectionRecord, 0, len(state.Records))
+	for _, record := range state.Records {
+		if record.TraderID != "" && record.TraderID != at.id {
+			continue
+		}
+		if record.Status != "armed" && record.Status != "executed" {
+			continue
+		}
+		if record.Status == "executed" && record.ProtectionType != "managed_drawdown" {
+			continue
+		}
+		key := positionKey(record.Symbol, record.Side)
+		if isDynamicNativeProtectionType(record.ProtectionType) {
+			switch record.ProtectionType {
+			case "native_trailing":
+				at.protectionState[key] = "native_trailing_armed"
+			case "native_partial_trailing":
+				if at.protectionState[key] != "native_trailing_armed" {
+					at.protectionState[key] = "native_partial_trailing_armed"
+				}
+			}
+			if record.RuleFingerprint != "" {
+				at.drawdownState[key] = record.RuleFingerprint
+			}
+		}
+		if record.ProtectionType == "break_even_stop" {
+			existingRecord, hasExisting := latestBreakEvenRecord[key]
+			if !hasExisting || record.UpdatedAt >= existingRecord.UpdatedAt {
+				latestBreakEvenRecord[key] = record
+			}
+		}
+		managedRecords = append(managedRecords, record)
+	}
+	for _, record := range latestBreakEvenRecord {
+		key := positionKey(record.Symbol, record.Side)
+		at.breakEvenState[key] = "armed"
+		if record.PositionFingerprint != "" {
+			at.breakEvenFingerprints[key] = record.PositionFingerprint
+		}
+	}
+	for _, record := range managedRecords {
+		if record.ProtectionType != "managed_drawdown" || record.RuleFingerprint == "" {
+			continue
+		}
+		at.drawdownState[positionKey(record.Symbol, record.Side)] = record.RuleFingerprint
+	}
+	logger.Infof("🧷 Dynamic protection state: loaded %d persisted records", len(state.Records))
+}
+
+func isDynamicNativeProtectionType(protectionType string) bool {
+	return protectionType == "native_trailing" || protectionType == "native_partial_trailing"
 }
 
 // Run runs the automatic trading main loop
@@ -393,6 +468,7 @@ func (at *AutoTrader) Run() error {
 	at.startTime = time.Now()
 
 	logger.Info("🚀 AI-driven automatic trading system started")
+	at.loadDynamicProtectionStateFromStore()
 	logger.Infof("💰 Initial balance: %.2f USDT", at.initialBalance)
 	logger.Infof("⚙️  Scan interval: %v", at.config.ScanInterval)
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
@@ -433,7 +509,7 @@ func (at *AutoTrader) Run() error {
 	// Start OKX order sync if using OKX exchange
 	if at.exchange == "okx" {
 		if okxTrader, ok := at.trader.(*okx.OKXTrader); ok && at.store != nil {
-			okxTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			okxTrader.StartOrderSyncWithFullCloseHandler(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second, at.handleSyncedFullClose)
 			logger.Infof("🔄 [%s] OKX order+position sync enabled (every 30s)", at.name)
 		}
 	}
@@ -577,9 +653,47 @@ func (at *AutoTrader) GetShowInCompetition() bool {
 	return at.showInCompetition
 }
 
+// GetAllowAIOpen returns whether AI can actively open positions
+func (at *AutoTrader) GetAllowAIOpen() bool {
+	return at.allowAIOpen
+}
+
+// SetAllowAIOpen updates whether AI can actively open positions
+func (at *AutoTrader) SetAllowAIOpen(allow bool) {
+	at.allowAIOpen = allow
+}
+
 // GetAllowAIClose returns whether AI can actively close positions
 func (at *AutoTrader) GetAllowAIClose() bool {
 	return at.allowAIClose
+}
+
+// SetProtectOnlyMode enables/disables protect-only safe mode. In this mode the
+// trader loop, order sync, drawdown monitor, and protection reconciler can run,
+// but AI open decisions are blocked by the existing safe-mode execution gate.
+func (at *AutoTrader) SetProtectOnlyMode(enabled bool, reason string) {
+	if enabled {
+		if reason == "" {
+			reason = "protect-only mode requested"
+		}
+		at.safeMode = true
+		at.safeModeReason = reason
+		return
+	}
+	at.safeMode = false
+	at.safeModeReason = ""
+}
+
+// ClearSafeMode manually exits transient safe mode. Protect-only mode is also
+// cleared because this is an explicit operator recovery action.
+func (at *AutoTrader) ClearSafeMode(reason string) {
+	at.safeMode = false
+	at.safeModeReason = ""
+	at.consecutiveAIFailures = 0
+	if reason == "" {
+		reason = "manual safe-mode clear"
+	}
+	logger.Warnf("🛡️ [%s] SAFE MODE CLEARED — %s", at.name, reason)
 }
 
 // SetAllowAIClose updates whether AI can actively close positions

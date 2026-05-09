@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"nofx/logger"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,9 +25,26 @@ var (
 	frCacheTTL     = 1 * time.Hour
 )
 
-// Get retrieves market data for the specified token (uses Binance data by default)
+type fundingHistoryCache struct {
+	Rates     []float64
+	UpdatedAt time.Time
+}
+
+type oiHistoryCache struct {
+	OI1h      float64
+	OI4h      float64
+	UpdatedAt time.Time
+}
+
+var (
+	fundingHistoryMap sync.Map // map[string]*fundingHistoryCache
+	oiHistoryMap      sync.Map // map[string]*oiHistoryCache
+	oiHistoryCacheTTL = 5 * time.Minute
+)
+
+// Get retrieves market data for the specified token (uses OKX data by default)
 func Get(symbol string) (*Data, error) {
-	return GetWithExchange(symbol, "binance")
+	return GetWithExchange(symbol, "okx")
 }
 
 // GetWithExchange retrieves market data for the specified token using exchange-specific data
@@ -50,10 +68,9 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 			return nil, fmt.Errorf("Failed to get 5-minute K-line from Hyperliquid: %v", err)
 		}
 	} else {
-		// Use CoinAnk for regular crypto assets with exchange-specific data
-		klines3m, err = getKlinesFromCoinAnk(symbol, "3m", exchange, 100)
+		klines3m, err = getKlines(symbol, "3m", exchange, 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk (%s): %v", exchange, err)
+			return nil, fmt.Errorf("failed to get 3m klines for %s (%s): %v", symbol, exchange, err)
 		}
 	}
 
@@ -70,9 +87,9 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 			return nil, fmt.Errorf("Failed to get 4-hour K-line from Hyperliquid: %v", err)
 		}
 	} else {
-		klines4h, err = getKlinesFromCoinAnk(symbol, "4h", exchange, 100)
+		klines4h, err = getKlines(symbol, "4h", exchange, 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk (%s): %v", exchange, err)
+			return nil, fmt.Errorf("failed to get 4h klines for %s (%s): %v", symbol, exchange, err)
 		}
 	}
 
@@ -85,7 +102,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Calculate current indicators (based on 3-minute latest data)
-	currentPrice := klines3m[len(klines3m)-1].Close
+	currentPrice := resolveCurrentPrice(klines3m, symbol, "3m")
 	currentEMA20 := calculateEMA(klines3m, 20)
 	currentMACD := calculateMACD(klines3m)
 	currentRSI7 := calculateRSI(klines3m, 7)
@@ -110,7 +127,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	oiData, err := getOpenInterestDataExchange(symbol, exchange)
 	if err != nil {
 		// OI failure doesn't affect overall result; keep it nil so downstream can distinguish
 		// "missing OI" from a real numeric 0 and avoid accidental hard filtering.
@@ -118,7 +135,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	fundingRate, _ := getFundingRateExchange(symbol, exchange)
 
 	// Calculate intraday series data
 	intradayData := calculateIntradaySeries(klines3m)
@@ -145,7 +162,13 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 // timeframes: list of timeframes, e.g. ["5m", "15m", "1h", "4h"]
 // primaryTimeframe: primary timeframe (used for calculating current indicators), defaults to timeframes[0]
 // count: number of K-lines for each timeframe
+// Defaults to OKX exchange.
 func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*Data, error) {
+	return GetWithTimeframesExchange(symbol, timeframes, primaryTimeframe, count, "okx")
+}
+
+// GetWithTimeframesExchange is like GetWithTimeframes but allows specifying the exchange.
+func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimeframe string, count int, exchange string) (*Data, error) {
 	symbol = Normalize(symbol)
 
 	if len(timeframes) == 0 {
@@ -189,10 +212,14 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 				continue
 			}
 		} else {
-			// Use CoinAnk for regular crypto assets (default to Binance)
-			klines, err = getKlinesFromCoinAnk(symbol, tf, "binance", 200)
+
+			exSrc := exchange
+			if exSrc == "" {
+				exSrc = "okx"
+			}
+			klines, err = getKlines(symbol, tf, exSrc, 200)
 			if err != nil {
-				logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
+				logger.Infof("⚠️ Failed to get %s %s klines: %v", symbol, tf, err)
 				continue
 			}
 		}
@@ -209,8 +236,17 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 
 		// Calculate series data for this timeframe (use count from config)
 		seriesData := calculateTimeframeSeries(klines, tf, count)
+
+		// Compute structural levels and fibonacci for each timeframe
+		tfCurrentPrice := klines[len(klines)-1].Close
+		seriesData.StructuralLevels = DetectStructuralLevels(klines, tfCurrentPrice, tf)
+		seriesData.FibonacciLevels = CalculateFibonacciLevels(klines, tf)
+
 		timeframeData[tf] = seriesData
 	}
+
+	// Cross-timeframe confirmation: count how many timeframes confirm each level
+	enrichMultiTFConfirmation(timeframeData)
 
 	// If primary timeframe data is empty, return error
 	if len(primaryKlines) == 0 {
@@ -223,27 +259,44 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
 	}
 
-	// Calculate current indicators (based on primary timeframe latest data)
-	currentPrice := primaryKlines[len(primaryKlines)-1].Close
+	// Calculate current indicators (based on primary timeframe latest data).
+	// Guard against zero-volume carry-forward candles: when the latest K-line
+	// has no volume, its OHLC is just the previous close repeated by the data
+	// provider, not a real market price.
+	currentPrice := resolveCurrentPrice(primaryKlines, symbol, primaryTimeframe)
+
+	// Cross-check with exchange ticker for significant deviation.
+	// K-line close is periodic; ticker is real-time.
+	if tickerPrice := getTickerPrice(symbol, exchange); tickerPrice > 0 && currentPrice > 0 {
+		deviation := (currentPrice - tickerPrice) / tickerPrice * 100
+		if deviation < 0 {
+			deviation = -deviation
+		}
+		if deviation > 0.5 {
+			logger.Infof("⚠️ %s price deviation: kline=%.8f ticker=%.8f (%.2f%%), using ticker",
+				symbol, currentPrice, tickerPrice, deviation)
+			currentPrice = tickerPrice
+		}
+	}
 	currentEMA20 := calculateEMA(primaryKlines, 20)
 	currentMACD := calculateMACD(primaryKlines)
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
-	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	// Get OI data (exchange-aware)
+	oiData, err := getOpenInterestDataExchange(symbol, exchange)
 	if err != nil {
 		// Preserve nil to signal OI is unavailable, instead of coercing to zero.
 		oiData = nil
 	}
 
-	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	// Get Funding Rate (exchange-aware, may be overridden by sentiment block for OKX)
+	fundingRate, _ := getFundingRateExchange(symbol, exchange)
 
-	return &Data{
+	data := &Data{
 		Symbol:        symbol,
 		CurrentPrice:  currentPrice,
 		PriceChange1h: priceChange1h,
@@ -254,7 +307,162 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		OpenInterest:  oiData,
 		FundingRate:   fundingRate,
 		TimeframeData: timeframeData,
-	}, nil
+	}
+
+	// Fetch sentiment data (best-effort, don't fail on errors)
+	if !isXyzAsset {
+		if exchange == "okx" {
+			okxClient := NewOKXAPIClient()
+
+			// Long/short ratio
+			if lsRatio, err := okxClient.GetLongShortRatio(symbol, "1H"); err == nil && len(lsRatio) > 0 {
+				if v, err := strconv.ParseFloat(lsRatio[0].LongShortRatio, 64); err == nil {
+					data.LongShortRatio = &v
+				}
+			}
+
+			// Taker buy/sell ratio
+			if tbRatio, err := okxClient.GetTakerVolume(symbol, "1H"); err == nil && len(tbRatio) > 0 {
+				if v, err := strconv.ParseFloat(tbRatio[0].BuySellRatio, 64); err == nil {
+					data.TakerBuySellRatio = &v
+				}
+			}
+
+			// Order book depth
+			if depth, err := okxClient.GetOrderBookDepth(symbol, 20); err == nil {
+				bidTotal, askTotal := CalculateDepthTotals(depth)
+				data.DepthBidTotal = &bidTotal
+				data.DepthAskTotal = &askTotal
+				if bidTotal+askTotal > 0 {
+					imbalance := (bidTotal - askTotal) / (bidTotal + askTotal)
+					data.DepthImbalance = &imbalance
+				}
+			}
+
+			// Funding rate
+			if fr, err := okxClient.GetFundingRate(symbol); err == nil {
+				data.FundingRate = fr
+			}
+
+			// Funding rate history (1h cache)
+			data.FundingRateHistory = fetchFundingRateHistory(symbol)
+
+			// OI history (5min cache)
+			data.OIHistory1h, data.OIHistory4h = fetchOIHistory(symbol)
+		} else {
+			// Binance
+			apiClient := NewAPIClient()
+
+			// Long/short ratio
+			if lsRatio, err := apiClient.GetLongShortRatio(symbol, "1h"); err == nil && len(lsRatio) > 0 {
+				if v, err := strconv.ParseFloat(lsRatio[0].LongShortRatio, 64); err == nil {
+					data.LongShortRatio = &v
+				}
+			}
+
+			// Top trader ratio (Binance-only endpoint)
+			if ttRatio, err := apiClient.GetTopTraderLongShortRatio(symbol, "1h"); err == nil && len(ttRatio) > 0 {
+				if v, err := strconv.ParseFloat(ttRatio[0].LongShortRatio, 64); err == nil {
+					data.TopTraderRatio = &v
+				}
+			}
+
+			// Taker buy/sell ratio
+			if tbRatio, err := apiClient.GetTakerBuySellRatio(symbol, "1h"); err == nil && len(tbRatio) > 0 {
+				if v, err := strconv.ParseFloat(tbRatio[0].BuySellRatio, 64); err == nil {
+					data.TakerBuySellRatio = &v
+				}
+			}
+
+			// Order book depth
+			if depth, err := apiClient.GetOrderBookDepth(symbol, 20); err == nil {
+				bidTotal, askTotal := CalculateDepthTotals(depth)
+				data.DepthBidTotal = &bidTotal
+				data.DepthAskTotal = &askTotal
+				if bidTotal+askTotal > 0 {
+					imbalance := (bidTotal - askTotal) / (bidTotal + askTotal)
+					data.DepthImbalance = &imbalance
+				}
+			}
+		}
+	}
+
+	// Calculate fibonacci levels from primary timeframe
+	data.FibonacciLevels = CalculateFibonacciLevels(primaryKlines, primaryTimeframe)
+
+	// Detect structural levels from primary timeframe
+	data.StructuralLevels = DetectStructuralLevels(primaryKlines, currentPrice, primaryTimeframe)
+
+	return data, nil
+}
+
+// fetchFundingRateHistory fetches OKX funding rate history with 1h cache.
+func fetchFundingRateHistory(symbol string) []float64 {
+	if cached, ok := fundingHistoryMap.Load(symbol); ok {
+		c := cached.(*fundingHistoryCache)
+		if time.Since(c.UpdatedAt) < frCacheTTL {
+			return c.Rates
+		}
+	}
+	okxClient := NewOKXAPIClient()
+	items, err := okxClient.GetFundingRateHistory(symbol, 8)
+	if err != nil {
+		logger.Infof("⚠️ funding rate history fetch failed for %s: %v", symbol, err)
+		return nil
+	}
+	rates := make([]float64, len(items))
+	for i, it := range items {
+		rates[i] = it.FundingRate
+	}
+	fundingHistoryMap.Store(symbol, &fundingHistoryCache{Rates: rates, UpdatedAt: time.Now()})
+	return rates
+}
+
+// fetchOIHistory fetches OKX OI history with 5min cache and extracts 1h and 4h ago values.
+func fetchOIHistory(symbol string) (oi1h, oi4h float64) {
+	if cached, ok := oiHistoryMap.Load(symbol); ok {
+		c := cached.(*oiHistoryCache)
+		if time.Since(c.UpdatedAt) < oiHistoryCacheTTL {
+			return c.OI1h, c.OI4h
+		}
+	}
+	okxClient := NewOKXAPIClient()
+	items, err := okxClient.GetOpenInterestHistory(symbol, "1H")
+	if err != nil {
+		logger.Infof("⚠️ OI history fetch failed for %s: %v", symbol, err)
+		return 0, 0
+	}
+	// Items returned newest-first; index 1 = 1h ago, index 4 = 4h ago
+	if len(items) > 1 {
+		oi1h = items[1].OI
+	}
+	if len(items) > 4 {
+		oi4h = items[4].OI
+	}
+	oiHistoryMap.Store(symbol, &oiHistoryCache{OI1h: oi1h, OI4h: oi4h, UpdatedAt: time.Now()})
+	return oi1h, oi4h
+}
+
+// getOpenInterestDataExchange retrieves OI data from the specified exchange
+func getOpenInterestDataExchange(symbol, exchange string) (*OIData, error) {
+	if exchange == "okx" {
+		okxClient := NewOKXAPIClient()
+		oiResult, err := okxClient.GetOpenInterest(symbol)
+		if err != nil {
+			return nil, err
+		}
+		return oiResult, nil
+	}
+	return getOpenInterestData(symbol)
+}
+
+// getFundingRateExchange retrieves funding rate from the specified exchange
+func getFundingRateExchange(symbol, exchange string) (float64, error) {
+	if exchange == "okx" {
+		okxClient := NewOKXAPIClient()
+		return okxClient.GetFundingRate(symbol)
+	}
+	return getFundingRate(symbol)
 }
 
 // getOpenInterestData retrieves OI data
@@ -480,6 +688,49 @@ func formatTimeframeData(sb *strings.Builder, data *TimeframeSeriesData) {
 		sb.WriteString(fmt.Sprintf("ATR14: %.4f\n", data.ATR14))
 	}
 
+	// Structural levels for this timeframe
+	if len(data.StructuralLevels) > 0 {
+		var supports, resistances []StructuralLevel
+		for _, l := range data.StructuralLevels {
+			if l.Type == "support" {
+				supports = append(supports, l)
+			} else {
+				resistances = append(resistances, l)
+			}
+		}
+		if len(supports) > 0 {
+			sort.Slice(supports, func(i, j int) bool { return supports[i].Price > supports[j].Price })
+			parts := make([]string, 0, len(supports))
+			for _, s := range supports {
+				parts = append(parts, fmt.Sprintf("%s (str:%d, %s)", formatPriceWithDynamicPrecision(s.Price), s.Strength, s.Source))
+			}
+			sb.WriteString(fmt.Sprintf("Support: %s\n", strings.Join(parts, " | ")))
+		}
+		if len(resistances) > 0 {
+			sort.Slice(resistances, func(i, j int) bool { return resistances[i].Price < resistances[j].Price })
+			parts := make([]string, 0, len(resistances))
+			for _, r := range resistances {
+				parts = append(parts, fmt.Sprintf("%s (str:%d, %s)", formatPriceWithDynamicPrecision(r.Price), r.Strength, r.Source))
+			}
+			sb.WriteString(fmt.Sprintf("Resistance: %s\n", strings.Join(parts, " | ")))
+		}
+	}
+
+	// Fibonacci levels for this timeframe
+	if data.FibonacciLevels != nil {
+		fib := data.FibonacciLevels
+		keys := make([]string, 0, len(fib.Levels))
+		for k := range fib.Levels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("%s:%s", k, formatPriceWithDynamicPrecision(fib.Levels[k])))
+		}
+		sb.WriteString(fmt.Sprintf("Fib (%s→%s %s): %s\n", formatPriceWithDynamicPrecision(fib.SwingLow), formatPriceWithDynamicPrecision(fib.SwingHigh), fib.Direction, strings.Join(parts, " | ")))
+	}
+
 	sb.WriteString("\n")
 }
 
@@ -611,8 +862,7 @@ func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data,
 	}
 
 	symbol = Normalize(symbol)
-	current := primary[len(primary)-1]
-	currentPrice := current.Close
+	currentPrice := resolveCurrentPrice(primary, symbol, "primary")
 
 	data := &Data{
 		Symbol:            symbol,
@@ -651,6 +901,27 @@ func priceChangeFromSeries(series []Kline, duration time.Duration) float64 {
 		}
 	}
 	return 0
+}
+
+// resolveCurrentPrice picks the best available current price from K-lines.
+// If the last candle has zero volume (carry-forward from previous close by
+// the data provider, not a real market tick), fall back to the second-to-last
+// candle's close and log a warning.
+func resolveCurrentPrice(klines []Kline, symbol, timeframe string) float64 {
+	if len(klines) == 0 {
+		return 0
+	}
+	last := klines[len(klines)-1]
+	if last.Volume > 0 || len(klines) < 2 {
+		return last.Close
+	}
+	prev := klines[len(klines)-2]
+	if prev.Volume <= 0 {
+		return last.Close
+	}
+	logger.Infof("⚠️ %s %s last candle volume=0 (OHLC=%.8f, carry-forward), using prev close=%.8f as current price",
+		symbol, timeframe, last.Close, prev.Close)
+	return prev.Close
 }
 
 // isStaleData detects stale data (consecutive price freeze)

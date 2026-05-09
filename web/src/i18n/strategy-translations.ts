@@ -9,13 +9,14 @@
 export const coinSource = {
   sourceType: { zh: '数据来源类型', en: 'Source Type', es: 'Tipo de Fuente' },
   static: { zh: '静态列表', en: 'Static List', es: 'Lista Estática' },
-  ai500: { zh: 'AI500 数据源', en: 'AI500 Data Provider', es: 'Proveedor AI500' },
+  ai500: { zh: '热门币种', en: 'Hot Coins', es: 'Monedas Populares' },
   oi_top: { zh: 'OI 持仓增加', en: 'OI Increase', es: 'Aumento OI' },
   oi_low: { zh: 'OI 持仓减少', en: 'OI Decrease', es: 'Disminución OI' },
   mixed: { zh: '混合模式', en: 'Mixed Mode', es: 'Modo Mixto' },
+  market: { zh: '市场数据', en: 'Market', es: 'Mercado' },
   staticCoins: { zh: '自定义币种', en: 'Custom Coins', es: 'Monedas Personalizadas' },
   addCoin: { zh: '添加币种', en: 'Add Coin', es: 'Agregar Moneda' },
-  useAI500: { zh: '启用 AI500 数据源', en: 'Enable AI500 Data Provider', es: 'Habilitar AI500' },
+  useAI500: { zh: '启用热门币种筛选', en: 'Enable Hot Coin Screening', es: 'Habilitar Filtrado' },
   ai500Limit: { zh: '数量上限', en: 'Limit', es: 'Límite' },
   useOITop: { zh: '启用 OI 持仓增加榜', en: 'Enable OI Increase', es: 'Habilitar Aumento OI' },
   oiTopLimit: { zh: '数量上限', en: 'Limit', es: 'Límite' },
@@ -30,11 +31,22 @@ export const coinSource = {
   excludedCoins: { zh: '排除币种', en: 'Excluded Coins', es: 'Monedas Excluidas' },
   excludedCoinsDesc: { zh: '这些币种将从所有数据源中排除，不会被交易', en: 'These coins will be excluded from all sources and will not be traded', es: 'Estas monedas serán excluidas de todas las fuentes' },
   addExcludedCoin: { zh: '添加排除', en: 'Add Excluded', es: 'Agregar Excluida' },
-  nofxosNote: { zh: '使用 NofxOS API Key（在指标配置中设置）', en: 'Uses NofxOS API Key (set in Indicators config)', es: 'Usa API Key de NofxOS' },
-  ai500Desc: { zh: '使用 AI500 智能筛选的热门币种', en: 'Use AI500 smart-filtered popular coins', es: 'Monedas filtradas por AI500' },
-  oi_topDesc: { zh: '持仓增加榜，适合做多', en: 'OI increase ranking, for long', es: 'Ranking OI creciente, para largo' },
-  oi_lowDesc: { zh: '持仓减少榜，适合做空', en: 'OI decrease ranking, for short', es: 'Ranking OI decreciente, para corto' },
+  nofxosNote: { zh: 'NofxOS 数据源（可选，需在指标配置中设置 API Key）', en: 'NofxOS data source (optional, set API Key in Indicators)', es: 'NofxOS (opcional, configurar API Key)' },
+  ai500Desc: { zh: 'NofxOS 热门币种筛选（需 API Key）', en: 'NofxOS hot coin screening (requires API Key)', es: 'NofxOS filtrado (requiere API Key)' },
+  oi_topDesc: { zh: 'NofxOS OI 增加榜（需 API Key）', en: 'NofxOS OI increase (requires API Key)', es: 'NofxOS OI creciente (requiere API Key)' },
+  oi_lowDesc: { zh: 'NofxOS OI 减少榜（需 API Key）', en: 'NofxOS OI decrease (requires API Key)', es: 'NofxOS OI decreciente (requiere API Key)' },
+  exchangeSource: { zh: '数据交易所', en: 'Exchange Source', es: 'Exchange de Datos' },
+  exchangeSourceDesc: { zh: '选择数据来源交易所', en: 'Select exchange for data', es: 'Seleccionar exchange' },
+  legacyNofxos: { zh: 'Legacy: NofxOS（可选）', en: 'Legacy: NofxOS (Optional)', es: 'Legacy: NofxOS (Opcional)' },
+  legacyNofxosDesc: { zh: 'NofxOS 数据源当前不可用，可保留配置待恢复后启用', en: 'NofxOS data source currently unavailable, config preserved for future use', es: 'NofxOS no disponible actualmente' },
   mixedDesc: { zh: '组合多种数据源', en: 'Combine multiple sources', es: 'Combinar fuentes múltiples' },
+  marketDesc: { zh: '从交易所实时获取候选币种（热门/OI增/OI减，支持切换交易所）', en: 'Live exchange data: hot coins, OI increase/decrease, switchable exchange', es: 'Datos en vivo del exchange: popular/OI, exchange configurable' },
+  marketConfig: { zh: '市场数据配置', en: 'Market Source Config', es: 'Config. de Mercado' },
+  marketList: { zh: '榜单类型', en: 'Ranking Type', es: 'Tipo de Ranking' },
+  marketListHot: { zh: '热门币种', en: 'Hot Coins', es: 'Monedas Populares' },
+  marketListOITop: { zh: 'OI 增加', en: 'OI Increase', es: 'OI Aumento' },
+  marketListOILow: { zh: 'OI 减少', en: 'OI Decrease', es: 'OI Disminución' },
+  marketLimit: { zh: 'Top N', en: 'Top N', es: 'Top N' },
   oiIncreaseShort: { zh: 'OI增', en: 'OI↑', es: 'OI↑' },
   oiDecreaseShort: { zh: 'OI减', en: 'OI↓', es: 'OI↓' },
   custom: { zh: '自定义', en: 'Custom', es: 'Personalizado' },
@@ -45,6 +57,45 @@ export const coinSource = {
   forLong: { zh: '适合做多', en: 'For long', es: 'Para largo' },
   oiDecreaseLabel: { zh: 'OI 减少', en: 'OI Decrease', es: 'OI Disminución' },
   forShort: { zh: '适合做空', en: 'For short', es: 'Para corto' },
+};
+
+// ============================================================================
+// AI SCREENER TRANSLATIONS
+// ============================================================================
+export const aiScreener = {
+  title: { zh: 'AI 智能筛选', en: 'AI Smart Screener', es: 'Filtro Inteligente AI' },
+  ai_screener: { zh: 'AI 筛选', en: 'AI Screener', es: 'AI Filtro' },
+  desc: { zh: '系统AI定时筛选符合条件的币种，保证始终有可用交易标的', en: 'System AI periodically screens coins matching criteria, ensuring tradeable assets are always available', es: 'AI filtra monedas periódicamente' },
+  ai_screenerDesc: { zh: 'AI定时筛选符合条件的币种', en: 'AI periodically screens matching coins', es: 'AI filtra monedas periódicamente' },
+  interval: { zh: '筛选间隔', en: 'Screening Interval', es: 'Intervalo de Filtrado' },
+  maxCoins: { zh: '最大币种数', en: 'Max Coins', es: 'Máx. Monedas' },
+  volumeOiFilters: { zh: '成交量与持仓量过滤', en: 'Volume & OI Filters', es: 'Filtros de Volumen y OI' },
+  minVolume: { zh: '最低24h成交额', en: 'Min 24h Volume', es: 'Volumen Mín. 24h' },
+  minOI: { zh: '最低持仓量', en: 'Min Open Interest', es: 'OI Mínimo' },
+  priceChangeRange: { zh: '24h涨跌幅范围', en: '24h Price Change Range', es: 'Rango de Cambio 24h' },
+  sentimentPrefs: { zh: '情绪偏好', en: 'Sentiment Preferences', es: 'Preferencias de Sentimiento' },
+  preferLong: { zh: '偏好多头', en: 'Prefer Long Bias', es: 'Preferir Largo' },
+  preferShort: { zh: '偏好空头', en: 'Prefer Short Bias', es: 'Preferir Corto' },
+  preferOIGrowth: { zh: '偏好OI增长', en: 'Prefer OI Growth', es: 'Preferir Crecimiento OI' },
+  preferVolumeGrowth: { zh: '偏好成交量增长', en: 'Prefer Volume Growth', es: 'Preferir Crecimiento Volumen' },
+  sentimentNote: { zh: '这些是偏好而非硬性条件，AI会综合考虑', en: 'These are preferences, not hard filters', es: 'Son preferencias, no filtros estrictos' },
+  volatilityRange: { zh: '波动率范围', en: 'Volatility Range', es: 'Rango de Volatilidad' },
+  minAtr: { zh: '最低ATR%', en: 'Min ATR%', es: 'ATR% Mín.' },
+  maxAtr: { zh: '最高ATR%', en: 'Max ATR%', es: 'ATR% Máx.' },
+  customInstruction: { zh: 'AI自定义指令', en: 'Custom AI Instruction', es: 'Instrucción AI Personalizada' },
+  customPlaceholder: { zh: '例：关注DeFi板块，避免meme币', en: 'e.g., Focus on DeFi sector, avoid meme coins', es: 'ej., Enfocarse en DeFi, evitar meme coins' },
+  preview: { zh: '预览当前筛选结果', en: 'Preview Current Results', es: 'Vista Previa de Resultados' },
+  volumeUnit: { zh: 'USDT (5000万 = 50000000)', en: 'USDT (50M = 50000000)', es: 'USDT (50M = 50000000)' },
+  atrUnit: { zh: 'ATR14/价格×100, 1 = 1%波动', en: 'ATR14/Price×100, 1 = 1% volatility', es: 'ATR14/Precio×100, 1 = 1% volatilidad' },
+  basicSettings: { zh: '基本设置', en: 'Basic Settings', es: 'Configuración Básica' },
+  min: { zh: '最低', en: 'Min', es: 'Mín.' },
+  max: { zh: '最高', en: 'Max', es: 'Máx.' },
+  previewLoading: { zh: '加载中...', en: 'Loading...', es: 'Cargando...' },
+  previewEmpty: { zh: '无匹配结果', en: 'No matching results', es: 'Sin resultados' },
+  previewSymbol: { zh: '币种', en: 'Symbol', es: 'Símbolo' },
+  previewVolume: { zh: '24h成交额', en: '24h Volume', es: 'Volumen 24h' },
+  previewOI: { zh: '持仓量', en: 'Open Interest', es: 'Interés Abierto' },
+  previewChange: { zh: '24h涨跌', en: '24h Change', es: 'Cambio 24h' },
 };
 
 // ============================================================================
@@ -229,6 +280,15 @@ export const indicator = {
   oiDesc: { zh: '合约未平仓量', en: 'Futures open interest', es: 'Posiciones abiertas' },
   fundingRate: { zh: '资金费率', en: 'Funding Rate', es: 'Funding Rate' },
   fundingRateDesc: { zh: '永续合约资金费率', en: 'Perpetual funding rate', es: 'Rate de perpetuo' },
+  longShortRatio: { zh: '多空比', en: 'Long/Short Ratio', es: 'Ratio Long/Short' },
+  longShortRatioDesc: { zh: '全市场多空账户比例', en: 'Market-wide long/short account ratio', es: 'Ratio de cuentas long/short' },
+  topTraderRatio: { zh: '大户多空比', en: 'Top Trader L/S', es: 'Top Trader L/S' },
+  topTraderRatioDesc: { zh: '大户持仓多空比 (仅Binance源)', en: 'Top trader position ratio (Binance only)', es: 'Ratio top traders (solo Binance)' },
+  takerBuySellRatio: { zh: '主动买卖比', en: 'Taker Buy/Sell', es: 'Taker Compra/Venta' },
+  takerBuySellRatioDesc: { zh: '主动买入/卖出量比', en: 'Taker buy vs sell volume ratio', es: 'Ratio volumen taker' },
+  orderBookDepth: { zh: '盘口深度', en: 'Order Book Depth', es: 'Profundidad del Libro' },
+  orderBookDepthDesc: { zh: '买卖盘深度失衡分析', en: 'Bid/ask depth imbalance analysis', es: 'Análisis de desequilibrio' },
+  binanceOnly: { zh: '仅Binance源', en: 'Binance only', es: 'Solo Binance' },
   oiRanking: { zh: 'OI 排行', en: 'OI Ranking', es: 'Ranking OI' },
   oiRankingDesc: { zh: '持仓量增减排行', en: 'OI change ranking', es: 'Cambios de OI' },
   oiRankingNote: { zh: '显示持仓量增加/减少的币种排行，帮助发现资金流向', en: 'Shows coins with OI increase/decrease, helps identify capital flow', es: 'Identificar flujo de capital' },
@@ -281,6 +341,62 @@ export const chartTabs = {
 };
 
 // ============================================================================
+// PRE-ENTRY GATE TRANSLATIONS
+// ============================================================================
+export const preEntryGate = {
+  title: { zh: '开仓门禁', en: 'Pre-Entry Gate' },
+  gateFlow: { zh: '门禁流程：市场状态 → 结构化开仓 → AI信心 → 允许开仓', en: 'Gate Flow: Market State → Entry Structure → AI Confidence → Allow Open' },
+  marketStateGate: { zh: '市场状态门禁', en: 'Market State Gate' },
+  confidenceGate: { zh: '信心门禁', en: 'Confidence Gate' },
+  policyMode: { zh: '策略控制模式', en: 'Policy Mode' },
+  entryStructure: { zh: '开仓结构约束', en: 'Entry Structure' },
+  strict: { zh: '严格模式', en: 'Strict Mode' },
+  strictDesc: { zh: '不满足门禁条件时阻止开仓', en: 'Block opening when conditions not met' },
+  auditOnly: { zh: '审计模式', en: 'Audit Mode' },
+  auditOnlyDesc: { zh: '记录违规但不阻止开仓', en: 'Log violations but allow opening' },
+  recommendOnly: { zh: '建议模式', en: 'Recommend Mode' },
+  recommendOnlyDesc: { zh: '仅提示建议，不影响开仓', en: 'Show suggestions only' },
+  fundingRateUnit: { zh: '绝对值, 0.01 = 每8h费率1%', en: 'Absolute value, 0.01 = 1% per 8h' },
+  atrUnit: { zh: 'ATR14/价格×100, 3 = 波动率3%', en: 'ATR14/Price×100, 3 = 3% volatility' },
+  confidenceUnit: { zh: '0-100, 越高要求越严格', en: '0-100, higher = stricter' },
+  rrUnit: { zh: '例: 3 表示盈亏比至少 1:3', en: 'e.g., 3 means min 1:3 risk-reward' },
+  mutualExclusion: { zh: '互斥说明：市场状态阻止开仓时，后续门禁不再评估', en: 'Note: If Market State blocks, subsequent gates are not evaluated' },
+  hierarchy: { zh: '层级：市场状态（第一道）→ 结构化开仓（第二道）→ AI信心（第三道）', en: 'Hierarchy: Market State (1st) → Entry Structure (2nd) → AI Confidence (3rd)' },
+  allowedRegimes: { zh: '允许的市场状态', en: 'Allowed Regimes' },
+  blockHighFunding: { zh: '屏蔽高资金费率', en: 'Block high funding' },
+  blockHighVolatility: { zh: '屏蔽高波动', en: 'Block high volatility' },
+  requireTrendAlignment: { zh: '要求趋势同向', en: 'Require trend alignment' },
+  maxFundingAbs: { zh: '资金费率绝对值上限', en: 'Max Funding Rate (abs)' },
+  maxAtr14Pct: { zh: 'ATR14 波动率上限 %', en: 'Max ATR14 %' },
+  minConfidence: { zh: 'AI信心门槛', en: 'AI Confidence Threshold' },
+  minRiskReward: { zh: '最低盈亏比', en: 'Min Risk-Reward Ratio' },
+  enableRegimeFilter: { zh: '启用开仓门禁', en: 'Enable Pre-Entry Gate' },
+  enableEntryGate: { zh: '启用 ATR / 入场位置门禁', en: 'Enable ATR / Entry Position Gate' },
+  // Group A: Volatility Gate
+  volatilityGate: { zh: '波动率门禁', en: 'Volatility Gate' },
+  volatilityGateDesc: { zh: '过滤波动率过低的币种，避免手续费吃掉利润', en: 'Filter low-volatility coins where fees eat profits' },
+  volatilityGateExample: { zh: '例：ATR14=0.8% 的横盘币种会被拒绝开仓', en: 'e.g. ATR14=0.8% sideways coin will be rejected' },
+  minAtr14Pct: { zh: '最小 ATR14 %', en: 'Min ATR14 %' },
+  // Group B: Entry Precision
+  entryPrecision: { zh: '入场精度', en: 'Entry Precision' },
+  entryPrecisionDesc: { zh: '确保入场价格贴近关键结构位，不追高/追低', en: 'Ensure entry price is near key structure, no chasing' },
+  entryPrecisionExample: { zh: '例：当前价距支撑位超过 0.6×ATR 或 1.5% 时拒绝做多', en: 'e.g. reject long if price is >0.6×ATR or >1.5% from support' },
+  entryProximityAtr: { zh: '入场贴近 ATR 倍数', en: 'Entry proximity ATR x' },
+  entryProximityMaxPct: { zh: '入场最大偏离 %', en: 'Max entry gap %' },
+  // Group C: Stop Loss Quality
+  stopQuality: { zh: '止损质量', en: 'Stop Loss Quality' },
+  stopQualityDesc: { zh: '确保止损位有足够空间且锚定在结构位', en: 'Ensure stop has enough room and anchors to structure' },
+  stopQualityExample: { zh: '例：止损距离 <0.4% 太窄容易被扫；止损应在 0.5×ATR 以外的结构位', en: 'e.g. <0.4% stop is too tight; stop should be >0.5×ATR beyond structure' },
+  minRiskDistancePct: { zh: '最小止损距离 %', en: 'Min risk distance %' },
+  invalidationAtr: { zh: '止损结构 ATR 倍数', en: 'Invalidation ATR x' },
+  // Group D: Path Clarity
+  pathClarity: { zh: '路径清晰度', en: 'Path Clarity' },
+  pathClarityDesc: { zh: '入场到目标之间不能有太多阻力/支撑层阻挡', en: 'Not too many S/R levels blocking the path to target' },
+  pathClarityExample: { zh: '例：做多时上方有 5 层阻力 → 拒绝（目标难以到达）', en: 'e.g. 5 resistance levels above → reject (target unreachable)' },
+  maxBlockingLevels: { zh: '最多路径阻力/支撑层', en: 'Max blocking levels' },
+};
+
+// ============================================================================
 // HELPER FUNCTION
 // ============================================================================
 
@@ -294,6 +410,7 @@ export function ts(entry: { zh: string; en: string; [k: string]: string }, lang:
 
 export const zhStrategy = {
   ...Object.fromEntries(Object.entries(coinSource).map(([k, v]) => [k, v.zh])),
+  ...Object.fromEntries(Object.entries(aiScreener).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(gridConfig).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(gridRisk).map(([k, v]) => [k, v.zh])),
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.zh])),
@@ -305,6 +422,7 @@ export const zhStrategy = {
 
 export const enStrategy = {
   ...Object.fromEntries(Object.entries(coinSource).map(([k, v]) => [k, v.en])),
+  ...Object.fromEntries(Object.entries(aiScreener).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(gridConfig).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(gridRisk).map(([k, v]) => [k, v.en])),
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.en])),
@@ -316,6 +434,7 @@ export const enStrategy = {
 
 export const esStrategy = {
   ...Object.fromEntries(Object.entries(coinSource).map(([k, v]) => [k, v.es])),
+  ...Object.fromEntries(Object.entries(aiScreener).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(gridConfig).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(gridRisk).map(([k, v]) => [k, v.es])),
   ...Object.fromEntries(Object.entries(riskControl).map(([k, v]) => [k, v.es])),

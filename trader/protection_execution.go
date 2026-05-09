@@ -8,6 +8,7 @@ import (
 
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/store"
 	tradertypes "nofx/trader/types"
 )
 
@@ -37,14 +38,51 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 	if err != nil {
 		return err
 	}
+	if configuredPlan == nil && at.config.StrategyConfig != nil {
+		configuredPlan = buildFallbackMaxLossPlan(req.EntryPrice, req.Action, at.config.StrategyConfig.Protection)
+	}
 	plan := configuredPlan
 
 	if req.Decision.ProtectionPlan != nil {
-		decisionPlan, err := buildAIProtectionPlan(req.EntryPrice, req.Action, req.Decision.ProtectionPlan)
+		decisionPlan, err := buildAIProtectionPlan(req.EntryPrice, req.Action, req.Decision.ProtectionPlan, at.config.StrategyConfig)
 		if err != nil {
 			return err
 		}
-		plan = mergeProtectionPlans(configuredPlan, decisionPlan)
+		if decisionPlan != nil {
+			plan = preferDecisionProtectionPlan(configuredPlan, decisionPlan)
+			if len(decisionPlan.DrawdownRules) > 0 {
+				at.setAIDrawdownRules(req.Symbol, req.PositionSide, decisionPlan.DrawdownRules)
+				at.initDrawdownTiersFromResolvedRules(req.Symbol, req.PositionSide, req.Quantity, decisionPlan.DrawdownRules)
+			}
+		}
+	}
+
+	if at.config.StrategyConfig != nil && protectionRouteRequiresDecisionPlan(at.config.StrategyConfig.Protection, req.Decision.ProtectionPlan, plan) {
+		return fmt.Errorf("AI protection route is enabled but the opening decision did not materialize required protection_plan legs; refusing configured/default protection fallback")
+	}
+
+	// Structural fallback: if plan has no TP/SL orders, try generating from structural levels
+	if plan == nil || (len(plan.TakeProfitOrders) == 0 && !plan.NeedsTakeProfit && len(plan.StopLossOrders) == 0 && !plan.NeedsStopLoss) {
+		if mdata, err := at.getExecutionMarketData(req.Symbol); err == nil && mdata != nil {
+			isLong := req.Action == "open_long"
+			tpOrders, slOrders := generateStructuralLadderRules(req.EntryPrice, isLong, mdata)
+			if len(tpOrders) > 0 || len(slOrders) > 0 {
+				structPlan := &ProtectionPlan{
+					Mode:                 "structural_fallback",
+					RequiresNativeOrders: true,
+					RequiresPartialClose: len(tpOrders) > 1,
+					TakeProfitOrders:     tpOrders,
+					StopLossOrders:       slOrders,
+					NeedsTakeProfit:      len(tpOrders) > 0,
+					NeedsStopLoss:        len(slOrders) > 0,
+				}
+				if len(slOrders) == 1 {
+					structPlan.StopLossPrice = slOrders[0].Price
+				}
+				logger.Infof("  🏗 Using structural fallback protection: %d TP tiers, %d SL levels", len(tpOrders), len(slOrders))
+				plan = mergeProtectionPlans(plan, structPlan)
+			}
+		}
 	}
 
 	var planErr error
@@ -65,7 +103,7 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		}
 	}
 
-	if err := at.applyNativeProtectionTargetsAfterOpen(req); err != nil {
+	if err := at.applyNativeProtectionTargetsAfterOpen(req, plan); err != nil {
 		if planErr != nil {
 			return fmt.Errorf("primary protection failed: %v; native targets failed: %w", planErr, err)
 		}
@@ -96,54 +134,237 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 	return nil
 }
 
-func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecutionRequest) error {
+func buildFallbackMaxLossPlan(entryPrice float64, action string, protection store.ProtectionConfig) *ProtectionPlan {
+	if entryPrice <= 0 {
+		return nil
+	}
+	fallbackPct := 0.0
+	if pct, ok := resolveLadderFallbackMaxLoss(protection.LadderTPSL); ok {
+		fallbackPct = pct
+	}
+	if pct, ok := resolveFallbackMaxLoss(protection.FullTPSL); ok && (fallbackPct == 0 || pct > fallbackPct) {
+		fallbackPct = pct
+	}
+	if fallbackPct <= 0 {
+		return nil
+	}
+	move := fallbackPct / 100.0
+	price := 0.0
+	switch action {
+	case "open_long":
+		price = entryPrice * (1 - move)
+	case "open_short":
+		price = entryPrice * (1 + move)
+	default:
+		return nil
+	}
+	return &ProtectionPlan{Mode: "fallback_max_loss", RequiresNativeOrders: true, FallbackMaxLossPrice: roundProtectionPrice(price)}
+}
+
+func protectionRouteRequiresDecisionPlan(protection store.ProtectionConfig, decisionPlan *kernel.AIProtectionPlan, materialized *ProtectionPlan) bool {
+	ladderAI := protection.LadderTPSL.Enabled && protection.LadderTPSL.Mode == store.ProtectionModeAI
+	drawdownAI := protection.DrawdownTakeProfit.Enabled && protection.DrawdownTakeProfit.Mode == store.ProtectionModeAI
+	fullAI := protection.FullTPSL.Enabled && protection.FullTPSL.Mode == store.ProtectionModeAI
+	if !ladderAI && !drawdownAI && !fullAI {
+		return false
+	}
+	if decisionPlan == nil || materialized == nil {
+		return true
+	}
+	mode := strings.ToLower(strings.TrimSpace(decisionPlan.Mode))
+	if ladderAI && drawdownAI {
+		return mode != "combined" || len(materialized.StopLossOrders) == 0 || len(materialized.DrawdownRules) < 2
+	}
+	if ladderAI {
+		return mode != "ladder" || len(materialized.StopLossOrders) == 0
+	}
+	if drawdownAI {
+		return mode != "drawdown" || len(materialized.DrawdownRules) < 2
+	}
+	if fullAI {
+		return mode != "full" || (!materialized.NeedsStopLoss && !materialized.NeedsTakeProfit)
+	}
+	return false
+}
+
+func preferDecisionProtectionPlan(configuredPlan, decisionPlan *ProtectionPlan) *ProtectionPlan {
+	if decisionPlan == nil {
+		return configuredPlan
+	}
+	if configuredPlan == nil {
+		return decisionPlan
+	}
+
+	preferred := *decisionPlan
+	preferred.StopLossOrders = append([]ProtectionOrder(nil), decisionPlan.StopLossOrders...)
+	preferred.TakeProfitOrders = append([]ProtectionOrder(nil), decisionPlan.TakeProfitOrders...)
+	preferred.DrawdownRules = append([]store.DrawdownTakeProfitRule(nil), decisionPlan.DrawdownRules...)
+	if decisionPlan.BreakEvenConfig != nil {
+		cfg := *decisionPlan.BreakEvenConfig
+		preferred.BreakEvenConfig = &cfg
+	}
+	if decisionPlan.DrawdownRunnerState != nil {
+		state := *decisionPlan.DrawdownRunnerState
+		preferred.DrawdownRunnerState = &state
+	}
+
+	if preferred.FallbackMaxLossPrice == 0 && configuredPlan.FallbackMaxLossPrice > 0 {
+		preferred.FallbackMaxLossPrice = configuredPlan.FallbackMaxLossPrice
+	}
+	if preferred.BreakEvenConfig == nil && configuredPlan.BreakEvenConfig != nil {
+		cfg := *configuredPlan.BreakEvenConfig
+		preferred.BreakEvenConfig = &cfg
+	}
+	preferred.RequiresNativeOrders = preferred.RequiresNativeOrders || configuredPlan.RequiresNativeOrders
+	preferred.RequiresPartialClose = preferred.RequiresPartialClose || configuredPlan.RequiresPartialClose
+	if preferred.Mode == "" {
+		preferred.Mode = configuredPlan.Mode
+	}
+	return &preferred
+}
+
+func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecutionRequest, plan *ProtectionPlan) error {
 	if req == nil || req.Decision == nil || at.config.StrategyConfig == nil {
 		return nil
 	}
 
 	prot := at.config.StrategyConfig.Protection
+	drawdownRules := prot.DrawdownTakeProfit.Rules
+	if plan != nil && len(plan.DrawdownRules) > 0 {
+		drawdownRules = plan.DrawdownRules
+		at.protectionStateMutex.Lock()
+		at.drawdownSource[positionKey(req.Symbol, strings.ToLower(req.PositionSide))] = "ai_decision"
+		at.protectionStateMutex.Unlock()
+	} else if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
+		// AI mode but AI did not provide drawdown_rules — use strategy defaults as an explicit
+		// safety fallback only. The prompt/validator should make this rare, but we still
+		// preserve otherwise-good entries instead of leaving positions unprotected.
+		if len(prot.DrawdownTakeProfit.Rules) > 0 {
+			logger.Warnf("[%s] drawdown AI mode but AI did not provide drawdown_rules; falling back to strategy default rules (%d rules)",
+				req.Symbol, len(prot.DrawdownTakeProfit.Rules))
+			drawdownRules = prot.DrawdownTakeProfit.Rules
+			at.protectionStateMutex.Lock()
+			at.drawdownSource[positionKey(req.Symbol, strings.ToLower(req.PositionSide))] = "strategy_fallback"
+			at.protectionStateMutex.Unlock()
+		} else {
+			return fmt.Errorf("drawdown protection is in AI mode but decision did not provide drawdown_rules and no strategy default rules configured")
+		}
+	} else if !prot.DrawdownTakeProfit.Enabled || prot.DrawdownTakeProfit.Mode == store.ProtectionModeDisabled {
+		drawdownRules = nil
+	}
+
+	side := strings.ToLower(req.PositionSide)
+
+	// 0. Immediate trailing: 50% partial trailing at entry for immediate drawdown protection.
+	// Acts as first line of defense against bad entries or fast reversals. Canceled when
+	// the formal drawdown tier trailing arms successfully.
+	if plan != nil && len(plan.StopLossOrders) > 0 && len(drawdownRules) > 0 {
+		if immediateCallback, ok := calculateImmediateTrailingCallback(req.EntryPrice, side, plan.StopLossOrders); ok {
+			at.placeImmediateTrailing(req.Symbol, side, req.EntryPrice, immediateCallback)
+		}
+	}
 
 	// 1. Native drawdown/trailing should be armed as early as safely possible.
-	for _, rule := range prot.DrawdownTakeProfit.Rules {
+	// Apply only exchange-native trailing drawdown here. Managed drawdown fallback uses
+	// conditional TP-style orders and must not be staged immediately after opening,
+	// because OKX conditional algo orders can cancel/replace same-symbol protection
+	// and wipe the mandatory ladder SL stack. If native trailing is unavailable or
+	// below safety floor, runtime drawdown monitoring will handle the managed close
+	// path when drawdown is actually triggered.
+	for _, rule := range drawdownRules {
 		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
 			continue
 		}
-		if rule.CloseRatioPct >= 99.999 {
-			_ = at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule)
-			continue
-		}
-
-		// For partial drawdown, prefer exchange-native trailing when supported.
-		// Only fall back to managed partial TP when native partial trailing is unavailable or fails.
-		if at.applyNativeTrailingDrawdown(req.Symbol, strings.TrimPrefix(strings.ToLower(req.PositionSide), ""), req.EntryPrice, rule) {
-			continue
-		}
-
-		candidate := buildManagedPartialDrawdownPlanCandidate(req.EntryPrice, req.Action, rule)
-		if candidate == nil {
-			continue
-		}
-		if at.canApplyManagedPartialDrawdownPlan(candidate) {
-			logger.Infof("  🛡 Applying managed partial drawdown: symbol=%s side=%s close=%.1f%%",
-				req.Symbol, req.PositionSide, rule.CloseRatioPct)
-			if err := at.placeAndVerifyProtectionPlanWithRetry(req.Symbol, req.PositionSide, req.Quantity, candidate); err != nil {
-				// Verification failed but OKX may have accepted the orders. Cancel them to avoid orphans.
-				logger.Warnf("  ⚠️ Managed partial drawdown failed for %s %s: %v — cancelling orphaned orders", req.Symbol, req.PositionSide, err)
-				at.cancelOrphanedDrawdownOrders(req.Symbol, candidate)
-			} else {
-				at.setProtectionState(req.Symbol, strings.ToLower(req.PositionSide), "managed_partial_drawdown_armed")
-			}
-		}
+		_ = at.applyNativeTrailingDrawdown(req.Symbol, side, req.EntryPrice, rule)
 	}
 
-	// 2. Break-even should prefer exchange-native stop as soon as trigger condition is met.
-	if be := at.getActiveBreakEvenConfig(); be != nil && be.TriggerValue <= 0 {
-		if err := at.applyBreakEvenStop(req.Symbol, strings.ToLower(req.PositionSide), req.Quantity, req.EntryPrice, be.TriggerValue, *be); err == nil {
-			at.setBreakEvenState(req.Symbol, strings.ToLower(req.PositionSide), "armed")
+	// 2. Break-even: place conditional TP orders on exchange immediately at open.
+	// These provide exchange-side profit protection without relying on backend polling.
+	at.placeBreakEvenTPOrders(req.Symbol, side, req.Quantity, req.EntryPrice)
+
+	if be := at.getActiveBreakEvenConfigForPlan(plan); be != nil && be.TriggerValue > 0 {
+		if plan != nil && plan.BreakEvenConfig != nil {
+			at.breakEvenStateMutex.Lock()
+			at.breakEvenSource[positionKey(req.Symbol, side)] = "ai_decision"
+			at.breakEvenStateMutex.Unlock()
 		}
+		at.setBreakEvenState(req.Symbol, side, "armed")
 	}
 
 	return nil
+}
+
+func (at *AutoTrader) placeImmediateTrailing(symbol, side string, entryPrice, callbackRatio float64) {
+	if !at.supportsNativeTrailingStop() {
+		return
+	}
+	positionSide := strings.ToUpper(side)
+	activationPrice := entryPrice
+	if strings.ToLower(side) == "long" {
+		activationPrice = entryPrice * 1.0001
+	} else {
+		activationPrice = entryPrice * 0.9999
+	}
+
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		logger.Warnf("⚠️ Immediate trailing: failed to get positions for %s %s: %v", symbol, side, err)
+		return
+	}
+	var quantity float64
+	for _, pos := range positions {
+		ps, _ := pos["symbol"].(string)
+		pd, _ := pos["side"].(string)
+		if ps != symbol || !strings.EqualFold(pd, side) {
+			continue
+		}
+		quantity, _ = pos["positionAmt"].(float64)
+		if quantity < 0 {
+			quantity = -quantity
+		}
+		break
+	}
+	if quantity <= 0 {
+		logger.Warnf("⚠️ Immediate trailing: no position found for %s %s", symbol, side)
+		return
+	}
+	partialQty := quantity * 0.5
+
+	tagged, ok := at.trader.(interface {
+		SetTrailingStopLossTaggedWithID(symbol string, positionSide string, activationPrice float64, callbackRate float64, quantity float64, reasonTag string) (string, error)
+	})
+	if !ok {
+		return
+	}
+
+	orderID, err := tagged.SetTrailingStopLossTaggedWithID(symbol, positionSide, activationPrice, callbackRatio, partialQty, "immediate_trailing")
+	if err != nil {
+		logger.Warnf("⚠️ Immediate trailing placement failed for %s %s: %v", symbol, side, err)
+		return
+	}
+	at.setImmediateTrailingOrderID(symbol, side, orderID)
+	logger.Infof("🛡 Immediate trailing armed: %s %s | activation=%.6f callback=%.6f qty=%.4f orderID=%s",
+		symbol, side, activationPrice, callbackRatio, partialQty, orderID)
+}
+
+func (at *AutoTrader) cancelImmediateTrailing(symbol, side string) {
+	orderID := at.getImmediateTrailingOrderID(symbol, side)
+	if orderID == "" {
+		return
+	}
+	canceler, ok := at.trader.(interface {
+		CancelTrailingStopOrdersByIDs(symbol string, orderIDs []string) error
+	})
+	if !ok {
+		at.clearImmediateTrailingOrderID(symbol, side)
+		return
+	}
+	if err := canceler.CancelTrailingStopOrdersByIDs(symbol, []string{orderID}); err != nil {
+		logger.Warnf("⚠️ Failed to cancel immediate trailing for %s %s (orderID=%s): %v", symbol, side, orderID, err)
+	} else {
+		logger.Infof("🛡 Immediate trailing canceled (replaced by tier trailing): %s %s orderID=%s", symbol, side, orderID)
+	}
+	at.clearImmediateTrailingOrderID(symbol, side)
 }
 
 func (at *AutoTrader) canApplyManagedPartialDrawdownPlan(plan *ProtectionPlan) bool {
@@ -160,6 +381,10 @@ func (at *AutoTrader) placeAndVerifyProtectionPlanWithRetry(symbol, positionSide
 		if err := at.placeAndVerifyProtectionPlan(symbol, positionSide, quantity, plan); err != nil {
 			lastErr = err
 			logger.Warnf("  ⚠️ Protection plan attempt %d/%d failed for %s %s: %v", attempt, protectionSetupMaxAttempts, symbol, positionSide, err)
+			if isNonRetryableProtectionReject(err) {
+				logger.Warnf("  🛑 Protection plan failure is non-retryable without price/plan refresh for %s %s; skipping immediate retry", symbol, positionSide)
+				break
+			}
 			continue
 		}
 		if attempt > 1 {
@@ -176,6 +401,10 @@ func (at *AutoTrader) placeAndVerifyProtectionWithRetry(symbol, positionSide str
 		if err := at.placeAndVerifyProtection(symbol, positionSide, quantity, needsStopLoss, stopLossPrice, needsTakeProfit, takeProfitPrice); err != nil {
 			lastErr = err
 			logger.Warnf("  ⚠️ Protection setup attempt %d/%d failed for %s %s: %v", attempt, protectionSetupMaxAttempts, symbol, positionSide, err)
+			if isNonRetryableProtectionReject(err) {
+				logger.Warnf("  🛑 Protection setup failure is non-retryable without price/plan refresh for %s %s; skipping immediate retry", symbol, positionSide)
+				break
+			}
 			continue
 		}
 		if attempt > 1 {
@@ -186,13 +415,163 @@ func (at *AutoTrader) placeAndVerifyProtectionWithRetry(symbol, positionSide str
 	return fmt.Errorf("protection setup failed after %d attempts: %w", protectionSetupMaxAttempts, lastErr)
 }
 
+func (at *AutoTrader) validateProtectionPlanExecution(symbol, positionSide string, quantity float64, plan *ProtectionPlan) (*ProtectionPlan, error) {
+	if plan == nil {
+		return nil, nil
+	}
+
+	adjusted := *plan
+	if len(plan.StopLossOrders) > 0 {
+		adjusted.StopLossOrders = append([]ProtectionOrder(nil), plan.StopLossOrders...)
+	}
+	if len(plan.TakeProfitOrders) > 0 {
+		adjusted.TakeProfitOrders = append([]ProtectionOrder(nil), plan.TakeProfitOrders...)
+	}
+
+	markPrice, hasMarkPrice := at.getProtectionReferencePrice(symbol, strings.ToLower(positionSide))
+	if hasMarkPrice {
+		isExecutableStop := func(order ProtectionOrder) bool {
+			if isExecutableHeldStopPrice(strings.ToLower(positionSide), order.Price, markPrice) {
+				return true
+			}
+			logger.Warnf("  ⚠️ Protection ladder stop dropped as non-executable against mark: symbol=%s side=%s stop=%.6f mark=%.6f", symbol, positionSide, order.Price, markPrice)
+			return false
+		}
+		isExecutableTP := func(order ProtectionOrder) bool {
+			if isExecutableHeldTakeProfitPrice(strings.ToLower(positionSide), order.Price, markPrice) {
+				return true
+			}
+			logger.Warnf("  ⚠️ Protection ladder take-profit dropped as non-executable against mark: symbol=%s side=%s tp=%.6f mark=%.6f", symbol, positionSide, order.Price, markPrice)
+			return false
+		}
+		adjusted.StopLossOrders = filterProtectionOrders(adjusted.StopLossOrders, isExecutableStop)
+		adjusted.TakeProfitOrders = filterProtectionOrders(adjusted.TakeProfitOrders, isExecutableTP)
+		if len(plan.StopLossOrders) > 0 && len(adjusted.StopLossOrders) == 0 {
+			adjusted.StopLossPrice = 0
+		}
+		if len(plan.TakeProfitOrders) > 0 && len(adjusted.TakeProfitOrders) == 0 {
+			adjusted.TakeProfitPrice = 0
+		}
+		if adjusted.StopLossPrice > 0 && !isExecutableHeldStopPrice(strings.ToLower(positionSide), adjusted.StopLossPrice, markPrice) {
+			logger.Warnf("  ⚠️ Protection full stop dropped as non-executable against mark: symbol=%s side=%s stop=%.6f mark=%.6f", symbol, positionSide, adjusted.StopLossPrice, markPrice)
+			adjusted.StopLossPrice = 0
+			adjusted.NeedsStopLoss = len(adjusted.StopLossOrders) > 0 || adjusted.FallbackMaxLossPrice > 0
+		}
+		if adjusted.TakeProfitPrice > 0 && !isExecutableHeldTakeProfitPrice(strings.ToLower(positionSide), adjusted.TakeProfitPrice, markPrice) {
+			logger.Warnf("  ⚠️ Protection full take-profit dropped as non-executable against mark: symbol=%s side=%s tp=%.6f mark=%.6f", symbol, positionSide, adjusted.TakeProfitPrice, markPrice)
+			adjusted.TakeProfitPrice = 0
+			adjusted.NeedsTakeProfit = len(adjusted.TakeProfitOrders) > 0
+		}
+	}
+
+	if okxTrader, ok := at.trader.(interface {
+		ValidateProtectionQuantity(symbol string, quantity float64) error
+	}); ok {
+		filterExecutable := func(orders []ProtectionOrder) []ProtectionOrder {
+			if len(orders) == 0 {
+				return orders
+			}
+			filtered := make([]ProtectionOrder, 0, len(orders))
+			for _, order := range orders {
+				orderQty := quantity * order.CloseRatioPct / 100.0
+				if orderQty <= 0 {
+					continue
+				}
+				if err := okxTrader.ValidateProtectionQuantity(symbol, orderQty); err != nil {
+					logger.Warnf("  ⚠️ Protection tier dropped as non-executable: symbol=%s side=%s price=%.6f qty=%.6f err=%v", symbol, positionSide, order.Price, orderQty, err)
+					continue
+				}
+				filtered = append(filtered, order)
+			}
+			return filtered
+		}
+
+		adjusted.StopLossOrders = filterExecutable(adjusted.StopLossOrders)
+		adjusted.TakeProfitOrders = filterExecutable(adjusted.TakeProfitOrders)
+
+		if len(plan.StopLossOrders) > 0 && len(adjusted.StopLossOrders) == 0 && plan.NeedsStopLoss && plan.StopLossPrice > 0 {
+			logger.Warnf("  ⚠️ Ladder stop-loss tiers all below exchange minimum; degrading to full stop for %s %s", symbol, positionSide)
+		}
+		if len(plan.TakeProfitOrders) > 0 && len(adjusted.TakeProfitOrders) == 0 && plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 {
+			logger.Warnf("  ⚠️ Ladder take-profit tiers all below exchange minimum; degrading to full TP for %s %s", symbol, positionSide)
+		}
+	}
+
+	adjusted.NeedsStopLoss = plan.NeedsStopLoss && (adjusted.StopLossPrice > 0 || len(adjusted.StopLossOrders) > 0 || adjusted.FallbackMaxLossPrice > 0)
+	adjusted.NeedsTakeProfit = plan.NeedsTakeProfit && (adjusted.TakeProfitPrice > 0 || len(adjusted.TakeProfitOrders) > 0)
+
+	if len(adjusted.StopLossOrders) > 0 {
+		adjusted.StopLossPrice = 0
+	}
+	if len(adjusted.TakeProfitOrders) > 0 {
+		adjusted.TakeProfitPrice = 0
+	}
+
+	if !adjusted.NeedsStopLoss && !adjusted.NeedsTakeProfit && adjusted.FallbackMaxLossPrice <= 0 {
+		return nil, nil
+	}
+	return &adjusted, nil
+}
+
+func (at *AutoTrader) getProtectionReferencePrice(symbol, side string) (float64, bool) {
+	if at == nil || at.trader == nil {
+		return 0, false
+	}
+	if price, ok := at.getPositionMarkPrice(symbol, side); ok && price > 0 {
+		return price, true
+	}
+	price, err := at.trader.GetMarketPrice(symbol)
+	if err != nil || price <= 0 {
+		return 0, false
+	}
+	return price, true
+}
+
+func filterProtectionOrders(orders []ProtectionOrder, keep func(ProtectionOrder) bool) []ProtectionOrder {
+	if len(orders) == 0 || keep == nil {
+		return orders
+	}
+	filtered := make([]ProtectionOrder, 0, len(orders))
+	for _, order := range orders {
+		if keep(order) {
+			filtered = append(filtered, order)
+		}
+	}
+	return filtered
+}
+
+func isNonRetryableProtectionReject(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "code=51280") ||
+		strings.Contains(msg, "SL trigger price must be less than the last price") ||
+		strings.Contains(msg, "SL trigger price must be greater than the last price") ||
+		strings.Contains(msg, "TP trigger price must be less than the last price") ||
+		strings.Contains(msg, "TP trigger price must be greater than the last price")
+}
+
 func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {
+	if plan == nil {
+		return nil
+	}
+
+	validatedPlan, err := at.validateProtectionPlanExecution(symbol, positionSide, quantity, plan)
+	if err != nil {
+		return err
+	}
+	plan = validatedPlan
+
 	if plan == nil {
 		return nil
 	}
 
 	hasLadderSL := len(plan.StopLossOrders) > 0
 	hasLadderTP := len(plan.TakeProfitOrders) > 0
+
+	logger.Infof("  🧾 Protection plan materialized: symbol=%s side=%s mode=%s ladderSL=%d ladderTP=%d fullSL=%v@%.6f fullTP=%v@%.6f fallback=%.6f",
+		symbol, positionSide, plan.Mode, len(plan.StopLossOrders), len(plan.TakeProfitOrders), plan.NeedsStopLoss, plan.StopLossPrice, plan.NeedsTakeProfit, plan.TakeProfitPrice, plan.FallbackMaxLossPrice)
 
 	// Apply ladder legs first when present.
 	if hasLadderSL || hasLadderTP {
@@ -210,6 +589,48 @@ func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, 
 		}
 	}
 
+	if plan.FallbackMaxLossPrice > 0 {
+		fallbackNeeded := !fullStop || plan.StopLossPrice == 0 || !approximatelyEqualPrice(plan.StopLossPrice, plan.FallbackMaxLossPrice)
+		logger.Infof("  🧾 Fallback evaluation: symbol=%s side=%s fallback=%.6f fullStop=%v stopPrice=%.6f needed=%v",
+			symbol, positionSide, plan.FallbackMaxLossPrice, fullStop, plan.StopLossPrice, fallbackNeeded)
+		if fallbackNeeded {
+			if err := at.placeFallbackMaxLossProtection(symbol, positionSide, quantity, plan.FallbackMaxLossPrice); err != nil {
+				return err
+			}
+		}
+	}
+
+	if plan.FallbackMaxLossPrice > 0 {
+		openOrders, err := at.trader.GetOpenOrders(symbol)
+		if err != nil {
+			return fmt.Errorf("failed to verify fallback max-loss stop loss: %w", err)
+		}
+		if !hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice) {
+			return fmt.Errorf("fallback max-loss stop verification failed for %s %s at %.6f", symbol, positionSide, plan.FallbackMaxLossPrice)
+		}
+		logger.Infof("  ✅ Fallback max-loss stop verified: symbol=%s side=%s stop=%.6f", symbol, positionSide, plan.FallbackMaxLossPrice)
+	}
+
+	return nil
+}
+
+func (at *AutoTrader) placeFallbackMaxLossProtection(symbol, positionSide string, quantity float64, stopLossPrice float64) error {
+	if stopLossPrice <= 0 {
+		return nil
+	}
+	logger.Infof("  🛡 Placing fallback max-loss stop: symbol=%s side=%s qty=%.6f stop=%.6f", symbol, positionSide, quantity, stopLossPrice)
+	if setter, ok := at.trader.(interface {
+		SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
+		SetStopLossTagged(symbol string, positionSide string, quantity, stopPrice float64, reasonTag string) error
+	}); ok {
+		if err := setter.SetStopLossTagged(symbol, positionSide, quantity, stopLossPrice, "fallback_maxloss_sl"); err != nil {
+			return fmt.Errorf("failed to set fallback max-loss stop loss: %w", err)
+		}
+		return nil
+	}
+	if err := at.trader.SetStopLoss(symbol, positionSide, quantity, stopLossPrice); err != nil {
+		return fmt.Errorf("failed to set fallback max-loss stop loss: %w", err)
+	}
 	return nil
 }
 

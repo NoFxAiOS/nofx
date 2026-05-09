@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -521,4 +523,75 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestClient_ParseMCPResponseFull_InvalidJSONIncludesBodyPreview(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	_, err := c.ParseMCPResponseFull([]byte("do request failed transiently"))
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	if !strings.Contains(err.Error(), "body preview: do request failed transiently") {
+		t.Fatalf("expected body preview in error, got %v", err)
+	}
+}
+
+func TestClient_ParseMCPResponseFull_ParsesSSEDataResponse(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	body := []byte("data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\" world\"}}]}\n\ndata: [DONE]\n")
+	resp, err := c.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("expected SSE parse success, got %v", err)
+	}
+	if resp.Content != "hello world" {
+		t.Fatalf("unexpected SSE content %q", resp.Content)
+	}
+}
+
+func TestClient_ParseMCPResponseFull_ParsesSSEUsageOnlyAsEmptyContent(t *testing.T) {
+	client := NewClient(WithProvider("test-provider"))
+	c := client.(*Client)
+
+	body := []byte("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":77268,\"completion_tokens\":0,\"total_tokens\":77268}}\n\ndata: [DONE]\n")
+	resp, err := c.ParseMCPResponseFull(body)
+	if err != nil {
+		t.Fatalf("expected usage-only SSE parse success, got %v", err)
+	}
+	if resp.Content != "" {
+		t.Fatalf("expected empty content, got %q", resp.Content)
+	}
+}
+
+func TestClient_CallWithRequestRetriesPlaintextProxyResponse(t *testing.T) {
+	mockHTTP := NewMockHTTPClient()
+	calls := 0
+	mockHTTP.ResponseFunc = func(req *http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("do request failed transiently")), Header: make(http.Header)}, nil
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"ok after retry"}}]}`)), Header: make(http.Header)}, nil
+	}
+	client := NewClient(
+		WithHTTPClient(mockHTTP.ToHTTPClient()),
+		WithAPIKey("test-key"),
+		WithBaseURL("https://api.test.com"),
+		WithRetryWaitBase(0),
+	)
+	c := client.(*Client)
+
+	result, err := c.CallWithRequest(&Request{Messages: []Message{{Role: "user", Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("expected retry success, got %v", err)
+	}
+	if result != "ok after retry" {
+		t.Fatalf("unexpected result %q", result)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 calls, got %d", calls)
+	}
 }

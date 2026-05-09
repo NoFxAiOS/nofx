@@ -223,38 +223,6 @@ export function RiskControlEditor({
         <div className="grid grid-cols-2 gap-4">
           <div
             className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
-          >
-            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {ts(riskControl.minRiskReward, language)}
-            </label>
-            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {ts(riskControl.minRiskRewardDesc, language)}
-            </p>
-            <div className="flex items-center">
-              <span style={{ color: '#848E9C' }}>1:</span>
-              <input
-                type="number"
-                value={config.min_risk_reward_ratio ?? 3}
-                onChange={(e) =>
-                  updateField('min_risk_reward_ratio', parseFloat(e.target.value) || 3)
-                }
-                disabled={disabled}
-                min={1}
-                max={10}
-                step={0.5}
-                className="w-20 px-3 py-2 rounded ml-2"
-                style={{
-                  background: '#1E2329',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
-              />
-            </div>
-          </div>
-
-          <div
-            className="p-4 rounded-lg"
             style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
@@ -280,19 +248,7 @@ export function RiskControlEditor({
               </span>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Entry Requirements */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-5 h-5" style={{ color: '#0ECB81' }} />
-          <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {ts(riskControl.entryRequirements, language)}
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <div
             className="p-4 rounded-lg"
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
@@ -322,34 +278,6 @@ export function RiskControlEditor({
               />
               <span className="ml-2" style={{ color: '#848E9C' }}>
                 USDT
-              </span>
-            </div>
-          </div>
-
-          <div
-            className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
-          >
-            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {ts(riskControl.minConfidence, language)}
-            </label>
-            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {ts(riskControl.minConfidenceDesc, language)}
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                value={config.min_confidence ?? 75}
-                onChange={(e) =>
-                  updateField('min_confidence', parseInt(e.target.value))
-                }
-                disabled={disabled}
-                min={50}
-                max={100}
-                className="flex-1 accent-green-500"
-              />
-              <span className="w-12 text-center font-mono" style={{ color: '#0ECB81' }}>
-                {config.min_confidence ?? 75}
               </span>
             </div>
           </div>

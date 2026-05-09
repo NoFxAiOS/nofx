@@ -11,6 +11,12 @@ export interface SystemStatus {
   stop_until: string
   last_reset_time: string
   ai_provider: string
+  safe_mode?: boolean
+  safe_mode_reason?: string
+  protect_only?: boolean
+  allow_ai_open?: boolean
+  allow_ai_close?: boolean
+  ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   strategy_type?: 'ai_trading' | 'grid_trading'
   grid_symbol?: string
 }
@@ -38,12 +44,21 @@ export interface ProtectionRuntimeOrder {
   callback_rate?: number
   quantity: number
   status: string
+  client_order_id?: string
+  protection_role?: string
+  protection_status?: string
 }
 
 export interface ProtectionRuntimeTier {
   index: number
+  stage_name?: string
+  timeframe?: string
+  reason_anchor?: string
   min_profit_pct: number
   max_drawdown_pct: number
+  max_drawdown_abs_profit_pct?: number
+  legacy_drawdown_semantics_warning?: string
+  native_trailing_rejected_reason?: string
   close_ratio_pct: number
   activation_price: number
   planned_activation_price?: number
@@ -53,15 +68,139 @@ export interface ProtectionRuntimeTier {
   planned_quantity: number
   source: string
   execution_mode: string
+  drawdown_stage?: string
+  runner_mode_active?: boolean
+  runner_keep_pct?: number
+  runner_stop_mode?: string
+  runner_stop_price?: number
+  runner_stop_source?: string
+  runner_target_mode?: string
+  runner_target_price?: number
+  runner_target_source?: string
+  break_even_suppressed_by_runner?: boolean
+  structure_anchor?: { stage_name?: string; timeframe?: string; anchor_type?: string; price?: number; reason?: string; source?: string; used_for?: string; distance_pct?: number; reference?: string }
+  anchor_timeframe?: string
+  anchor_price?: number
+  anchor_source?: string
+  is_satisfied?: boolean
+  is_triggered?: boolean
+}
+
+export interface ProtectionRuntimeRunnerState {
+  active?: boolean
+  stage?: string
+  keep_pct?: number
+  stop_mode?: string
+  stop_price?: number
+  stop_source?: string
+  target_mode?: string
+  target_price?: number
+  target_source?: string
+  break_even_suppressed?: boolean
 }
 
 export interface ProtectionRuntime {
   protection_state?: string
   break_even_state?: string
   drawdown_execution_mode?: string
+  drawdown_config_source?: string
   break_even_execution_mode?: string
+  current_pnl_pct?: number
+  drawdown_peak_pnl_pct?: number
+  current_drawdown_pct?: number
+  current_break_even_trigger_pct?: number
+  break_even_offset_pct?: number
+  next_break_even_gap_pct?: number
+  break_even_config_source?: string
+  live_break_even_stop_price?: number
+  break_even_order_detected?: boolean
+  planned_ladder_stop_count?: number
+  planned_ladder_take_profit_count?: number
+  planned_ladder_orders?: {
+    stop_loss?: Array<{ Price?: number; price?: number; CloseRatioPct?: number; close_ratio_pct?: number }>
+    take_profit?: Array<{ Price?: number; price?: number; CloseRatioPct?: number; close_ratio_pct?: number }>
+  }
+  live_ladder_stop_count?: number
+  live_ladder_take_profit_count?: number
+  live_full_stop_count?: number
+  live_full_take_profit_count?: number
+  fallback_order_detected?: boolean
+  live_fallback_stop_count?: number
+  full_stop_planned?: boolean
+  full_take_profit_planned?: boolean
+  fallback_planned?: boolean
+  ladder_stop_degraded?: boolean
+  ladder_take_profit_degraded?: boolean
+  ladder_stop_degraded_to_full?: boolean
+  ladder_take_profit_degraded_to_full?: boolean
+  current_drawdown_stage_min_profit_pct?: number
+  current_drawdown_stage_rule_count?: number
+  current_drawdown_stage?: string
+  drawdown_structure_stage?: string
+  drawdown_structure_stop_source?: string
+  drawdown_structure_target_source?: string
+  drawdown_structure_target_progress?: number
+  drawdown_structure_primary_timeframe?: string
+  drawdown_structure_higher_timeframes?: string[]
+  drawdown_structure_anchors?: Array<{ type?: string; timeframe?: string; price?: number; reason?: string }>
+  drawdown_structure_evidence?: string[]
+  drawdown_structure_trace?: string[]
+  runner_migration_needed?: boolean
+  runner_migration_reason?: string
+  runner_migration_anchor?: { stage_name?: string; timeframe?: string; anchor_type?: string; price?: number; reason?: string; source?: string; used_for?: string; distance_pct?: number; reference?: string }
+  runner_migration_desired_activation?: number
+  runner_migration_desired_callback?: number
+  runner_migration_live_activation?: number
+  runner_migration_live_callback?: number
+  runner_migration_safe?: boolean
+  runner_migration_safety_reason?: string
+  runner_migration_would_loosen?: boolean
+  runner_migration_would_tighten?: boolean
+  runner_migration_actionable?: boolean
+  runner_migration_actionable_reason?: string
+  runner_migration_plan?: {
+    action?: string
+    cancel_order_id?: string
+    cancel_client_order_id?: string
+    new_activation?: number
+    new_callback?: number
+    quantity?: number
+    requires_confirmation?: boolean
+  }
+  protection_quantity_drift?: boolean
+  protection_quantity_drift_reason?: string
+  protection_position_quantity?: number
+  protection_max_order_quantity?: number
+  protection_max_order_id?: string
+  protection_quantity_drift_orders?: Array<{ order_id?: string; client_order_id?: string; type?: string; quantity?: number; position_quantity?: number; excess_quantity?: number }>
+  orphan_protection_cleanup_needed?: boolean
+  orphan_protection_order_count?: number
+  structure_protection_health?: string
+  structure_protection_drift_reason?: string
+  structure_protection_detached?: boolean
+  runner_mode_active?: boolean
+  runner_keep_pct?: number
+  runner_stop_mode?: string
+  runner_stop_price?: number
+  runner_stop_source?: string
+  runner_target_mode?: string
+  runner_target_price?: number
+  runner_target_source?: string
+  break_even_suppressed_by_runner?: boolean
+  runner_state?: ProtectionRuntimeRunnerState
   active_orders?: ProtectionRuntimeOrder[]
+  active_trailing_orders?: ProtectionRuntimeOrder[]
   scheduled_tiers?: ProtectionRuntimeTier[]
+  unexpected_protection?: {
+    stale_bot_duplicate_count?: number
+    orphan_inactive_count?: number
+    manual_or_foreign_count?: number
+    expected_dynamic_owner_count?: number
+    expected_static_owner_count?: number
+    stale_bot_duplicate_order_ids?: string[]
+    orphan_inactive_order_ids?: string[]
+    manual_or_foreign_order_ids?: string[]
+  }
 }
 
 export interface Position {
@@ -79,22 +218,35 @@ export interface Position {
   break_even_state?: string
   // native_trailing_full | native_partial_trailing | managed_partial_drawdown | local_fallback ...
   drawdown_execution_mode?: string
+  drawdown_config_source?: string
   break_even_execution_mode?: string
+  entry_decision_cycle?: number
+  entry_review_summary?: EntryReviewSummary
+  entry_structure_audit?: EntryStructureAuditConfig
   protection_runtime?: ProtectionRuntime
+}
+
+export interface ProtectionSnapshotValueSource {
+  mode?: string
+  value?: number
 }
 
 export interface ProtectionSnapshotFullTPSL {
   enabled: boolean
   mode: string
-  take_profit_pct?: number
-  stop_loss_pct?: number
+  take_profit?: ProtectionSnapshotValueSource
+  stop_loss?: ProtectionSnapshotValueSource
+  fallback_max_loss?: ProtectionSnapshotValueSource
 }
 
 export interface ProtectionSnapshotLadderRule {
   take_profit_pct?: number
+  take_profit_price?: number
   take_profit_close_ratio_pct?: number
   stop_loss_pct?: number
+  stop_loss_price?: number
   stop_loss_close_ratio_pct?: number
+  volatility_buffer_pct?: number
 }
 
 export interface ProtectionSnapshotLadder {
@@ -102,18 +254,37 @@ export interface ProtectionSnapshotLadder {
   mode: string
   take_profit_enabled: boolean
   stop_loss_enabled: boolean
+  take_profit_price?: ProtectionSnapshotValueSource
+  take_profit_size?: ProtectionSnapshotValueSource
+  stop_loss_price?: ProtectionSnapshotValueSource
+  stop_loss_size?: ProtectionSnapshotValueSource
+  fallback_max_loss?: ProtectionSnapshotValueSource
   rules: ProtectionSnapshotLadderRule[]
 }
 
 export interface ProtectionSnapshotDrawdown {
+  mode?: string
+  source?: string
+  stage?: string
+  runner_mode_active?: boolean
+  runner_keep_pct?: number
+  runner_stop_mode?: string
+  runner_stop_price?: number
+  runner_stop_source?: string
+  runner_target_mode?: string
+  runner_target_price?: number
+  runner_target_source?: string
+  break_even_suppressed_by_runner?: boolean
   min_profit_pct: number
   max_drawdown_pct: number
+  max_drawdown_abs_profit_pct?: number
   close_ratio_pct: number
   poll_interval_s: number
 }
 
 export interface ProtectionSnapshotBreakEven {
   enabled: boolean
+  source?: string
   trigger_mode: string
   trigger_value: number
   offset_pct: number
@@ -137,6 +308,146 @@ export interface OpenOrder {
   callback_rate?: number
   quantity: number
   status: string
+  client_order_id?: string
+  protection_role?: string
+  protection_status?: string
+}
+
+export interface DecisionActionReasonAnchor {
+  type?: string
+  timeframe?: string
+  price?: number
+  reason?: string
+}
+
+export interface DecisionActionKeyLevels {
+  support?: number[]
+  resistance?: number[]
+  swing_highs?: number[]
+  swing_lows?: number[]
+  fibonacci?: {
+    swing_high?: number
+    swing_low?: number
+    levels?: number[]
+  }
+}
+
+export interface DecisionActionRiskRewardSummary {
+  entry?: number
+  invalidation?: number
+  first_target?: number
+  gross_estimated_rr?: number
+  net_estimated_rr?: number
+  passed: boolean
+}
+
+export interface DecisionActionProtectionAlignment {
+  stop_beyond_invalidation?: boolean
+  target_aligned?: boolean
+  break_even_before_target?: boolean
+  fallback_within_envelope?: boolean
+  policy_status?: string
+  policy_override?: boolean
+  policy_rejected?: boolean
+  policy_reasons?: string[]
+  notes?: string[]
+}
+
+export interface DecisionActionExecutionConstraints {
+  tick_size?: number
+  price_precision?: number
+  qty_step_size?: number
+  qty_precision?: number
+  min_qty?: number
+  min_notional?: number
+  contract_value?: number
+  mark_price?: number
+  last_price?: number
+  best_bid?: number
+  best_ask?: number
+  spread_bps?: number
+  taker_fee_rate?: number
+  maker_fee_rate?: number
+  estimated_slippage_bps?: number
+}
+
+export interface DecisionActionControlOutcome {
+  decision?: string
+  original_action?: string
+  final_action?: string
+  reasons?: string[]
+  failed_checks?: string[]
+  constraints_merged?: boolean
+  runtime_rr_recomputed?: boolean
+  ai_gross_rr?: number
+  ai_net_rr?: number
+  runtime_gross_rr?: number
+  runtime_net_rr?: number
+  effective_rr?: number
+  effective_rr_source?: string
+  execution_constraint_sources?: string[]
+  regime_current?: string
+  regime_allowed?: string[]
+  regime_primary_timeframe?: string
+  regime_atr14_pct?: number
+  regime_funding_rate?: number
+  regime_trend_aligned?: boolean
+  no_order_placed?: boolean
+}
+
+export interface EntryGateCheckRecord {
+  code: string
+  stage: string
+  passed: boolean
+  detail: string
+  values?: string
+  enforced: boolean
+}
+
+export interface DecisionActionQualityGate {
+  shadow_mode?: boolean
+  decision?: string
+  passed?: boolean
+  failed_checks?: string[]
+  regime?: string
+  setup_type?: string
+  confidence?: number
+  quality_total?: number
+  net_rr?: number
+  blocked_stage?: string
+  gate_checks?: EntryGateCheckRecord[]
+}
+
+export interface DecisionActionExecutionQuality {
+  grade?: string
+  spread_bps?: number
+  estimated_slippage_bps?: number
+  min_order_notional_usdt?: number
+  partial_close_feasible?: boolean
+  ladder_tiers_feasible?: number
+  reason?: string
+}
+
+export interface DecisionActionReviewContext {
+  primary_timeframe?: string
+  timeframe_context?: {
+    primary?: string
+    lower?: string[]
+    higher?: string[]
+  }
+  min_risk_reward?: number
+  risk_reward?: DecisionActionRiskRewardSummary
+  key_levels?: DecisionActionKeyLevels
+  anchors?: DecisionActionReasonAnchor[]
+  protection?: DecisionActionProtectionAlignment
+  control?: DecisionActionControlOutcome
+  execution_constraints?: DecisionActionExecutionConstraints
+  quality_gate?: DecisionActionQualityGate
+  extra?: {
+    execution_quality?: DecisionActionExecutionQuality
+    [key: string]: unknown
+  }
+  alignment_notes?: string[]
 }
 
 export interface DecisionAction {
@@ -149,6 +460,7 @@ export interface DecisionAction {
   take_profit?: number    // Take profit price
   confidence?: number     // AI confidence (0-100)
   reasoning?: string      // Brief reasoning
+  review_context?: DecisionActionReviewContext
   order_id: number
   timestamp: string
   success: boolean
@@ -176,6 +488,7 @@ export interface DecisionRecord {
   decisions: DecisionAction[]
   execution_log: string[]
   protection_snapshot?: ProtectionSnapshot
+  allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   success: boolean
@@ -198,6 +511,7 @@ export interface TraderInfo {
   exchange_id?: string
   is_running?: boolean
   show_in_competition?: boolean
+  allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   strategy_id?: string
@@ -237,6 +551,7 @@ export interface TraderConfigData {
   strategy_name?: string  // 策略名称
   is_cross_margin: boolean
   show_in_competition: boolean  // 是否在竞技场显示
+  allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   scan_interval_minutes: number
@@ -254,6 +569,33 @@ export interface TraderConfigData {
 }
 
 // Position History Types
+export interface DecisionReviewRef {
+  decision_record_id: number
+  cycle_number: number
+  timestamp: string
+  review_context?: Record<string, unknown>
+  protection_snapshot?: ProtectionSnapshot
+  decisions?: DecisionAction[]
+  matched_decision?: DecisionAction
+}
+
+export interface EntryReviewSummary {
+  timeframe_context?: Record<string, unknown>
+  risk_reward?: Record<string, unknown>
+  key_levels?: Record<string, unknown>
+  anchors?: unknown[]
+  alignment_notes?: string[]
+}
+
+export interface EntryStructureAuditConfig {
+  audit_primary_timeframe?: boolean;
+  audit_adjacent_timeframes?: boolean;
+  audit_support_resistance?: boolean;
+  audit_structural_anchors?: boolean;
+  audit_fibonacci?: boolean;
+  require_invalidation_target_linkage?: boolean;
+}
+
 export interface PositionCloseEvent {
   id: number
   position_id: number
@@ -264,7 +606,14 @@ export interface PositionCloseEvent {
   close_reason: string
   execution_source: string
   execution_type: string
+  protection_status?: string
+  decision_cycle?: number
+  decision_review?: DecisionReviewRef
   exchange_order_id: string
+  parent_order_id?: string
+  order_id?: number
+  related_position_id?: number
+  fill_count?: number
   close_quantity: number
   close_ratio_pct: number
   execution_price: number
@@ -285,9 +634,15 @@ export interface HistoricalPosition {
   entry_quantity: number
   entry_price: number
   entry_order_id: string
+  entry_decision_cycle?: number
+  entry_decision_review?: DecisionReviewRef
+  entry_review_summary?: EntryReviewSummary
+  entry_structure_audit?: EntryStructureAuditConfig
   entry_time: string
   exit_price: number
   exit_order_id: string
+  exit_decision_cycle?: number
+  exit_decision_review?: DecisionReviewRef
   exit_time: string
   realized_pnl: number
   fee: number
@@ -299,6 +654,8 @@ export interface HistoricalPosition {
   close_ratio_pct?: number
   close_value_usdt?: number
   close_events?: PositionCloseEvent[]
+  protection_snapshot?: ProtectionSnapshot
+  protection_runtime?: ProtectionRuntime
   created_at: string
   updated_at: string
 }

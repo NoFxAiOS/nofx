@@ -73,9 +73,22 @@ func NewCryptoService() (*CryptoService, error) {
 	}, nil
 }
 
-// loadRSAPrivateKeyFromEnv loads RSA private key from environment variable
+// loadRSAPrivateKeyFromEnv loads RSA private key from environment variable or file
 func loadRSAPrivateKeyFromEnv() (*rsa.PrivateKey, error) {
 	keyPEM := os.Getenv(EnvRSAPrivateKey)
+
+	// Support loading from file via RSA_PRIVATE_KEY_FILE
+	if keyPEM == "" {
+		keyFile := os.Getenv("RSA_PRIVATE_KEY_FILE")
+		if keyFile != "" {
+			data, err := os.ReadFile(keyFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read RSA key file %s: %w", keyFile, err)
+			}
+			keyPEM = string(data)
+		}
+	}
+
 	if keyPEM == "" {
 		return nil, fmt.Errorf("environment variable %s not set, please configure RSA private key in .env", EnvRSAPrivateKey)
 	}

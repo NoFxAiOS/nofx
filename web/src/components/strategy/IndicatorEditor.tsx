@@ -1,4 +1,5 @@
-import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key } from 'lucide-react'
+import { useState } from 'react'
+import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key, ChevronDown, ChevronRight } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 import { indicator, ts } from '../../i18n/strategy-translations'
 
@@ -106,12 +107,33 @@ export function IndicatorEditor({
   // Check if any NofxOS feature is enabled
   const hasNofxosEnabled = config.enable_quant_data || config.enable_oi_ranking || config.enable_netflow_ranking || config.enable_price_ranking
   const hasApiKey = !!config.nofxos_api_key
+  const [showNofxos, setShowNofxos] = useState(false)
 
   return (
     <div className="space-y-5">
       {/* ============================================ */}
-      {/* NofxOS Data Provider - Top Configuration    */}
+      {/* NofxOS Data Provider - Legacy/Optional       */}
       {/* ============================================ */}
+      <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
+        <button
+          type="button"
+          onClick={() => setShowNofxos(!showNofxos)}
+          className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/5 transition-colors"
+        >
+          {showNofxos ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+          <Zap className="w-4 h-4 text-purple-400" />
+          <div>
+            <span className="text-sm font-medium text-gray-400">NofxOS 数据源（Legacy / 可选）</span>
+            <p className="text-[10px] text-gray-500 mt-0.5">NofxOS 数据源当前不可用，可保留配置待恢复后启用</p>
+          </div>
+          {hasApiKey && (
+            <span className="ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded-full" style={{ background: 'rgba(14, 203, 129, 0.15)', color: '#0ECB81' }}>
+              <Check className="w-3 h-3" />
+              {ts(indicator.connected, language)}
+            </span>
+          )}
+        </button>
+        {showNofxos && (
       <div
         className="rounded-lg overflow-hidden relative"
         style={{
@@ -457,6 +479,8 @@ export function IndicatorEditor({
           </div>
         </div>
       </div>
+        )}
+      </div>
 
       {/* ============================================ */}
       {/* Section 1: Market Data (Required)           */}
@@ -668,6 +692,45 @@ export function IndicatorEditor({
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: color }} />
                     <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator[label as keyof typeof indicator], language)}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config[key as keyof IndicatorConfig] as boolean || false}
+                    onChange={(e) => !disabled && onChange({ ...config, [key]: e.target.checked })}
+                    disabled={disabled}
+                    className="w-4 h-4 rounded accent-yellow-500"
+                  />
+                </div>
+                <p className="text-[10px]" style={{ color: '#5E6673' }}>{ts(indicator[desc as keyof typeof indicator], language)}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Exchange sentiment data toggles */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {[
+              { key: 'enable_long_short_ratio', label: 'longShortRatio', desc: 'longShortRatioDesc', color: '#60a5fa' },
+              { key: 'enable_top_trader_ratio', label: 'topTraderRatio', desc: 'topTraderRatioDesc', color: '#f97316', badge: 'binanceOnly' },
+              { key: 'enable_taker_buy_sell_ratio', label: 'takerBuySellRatio', desc: 'takerBuySellRatioDesc', color: '#a78bfa' },
+              { key: 'enable_order_book_depth', label: 'orderBookDepth', desc: 'orderBookDepthDesc', color: '#2dd4bf' },
+            ].map(({ key, label, desc, color, badge }) => (
+              <div
+                key={key}
+                className="p-2.5 rounded-lg transition-all"
+                style={{
+                  background: config[key as keyof IndicatorConfig] ? `${color}08` : 'transparent',
+                  border: `1px solid ${config[key as keyof IndicatorConfig] ? `${color}30` : '#2B3139'}`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator[label as keyof typeof indicator], language)}</span>
+                    {badge && (
+                      <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }}>
+                        {ts(indicator[badge as keyof typeof indicator], language)}
+                      </span>
+                    )}
                   </div>
                   <input
                     type="checkbox"

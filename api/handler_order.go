@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,6 +43,17 @@ func (s *Server) handleTraderList(c *gin.Context) {
 
 		// Return complete AIModelID (e.g. "admin_deepseek"), don't truncate
 		// Frontend needs complete ID to verify model exists (consistent with handleGetTraderConfig)
+		allowAIOpen := trader.AllowAIOpen
+		allowAIClose := trader.AllowAIClose
+		if at, err := s.traderManager.GetTrader(trader.ID); err == nil {
+			status := at.GetStatus()
+			if v, ok := status["allow_ai_open"].(bool); ok {
+				allowAIOpen = v
+			}
+			if v, ok := status["allow_ai_close"].(bool); ok {
+				allowAIClose = v
+			}
+		}
 		result = append(result, map[string]interface{}{
 			"trader_id":           trader.ID,
 			"trader_name":         trader.Name,
@@ -49,7 +61,8 @@ func (s *Server) handleTraderList(c *gin.Context) {
 			"exchange_id":         trader.ExchangeID,
 			"is_running":          isRunning,
 			"show_in_competition": trader.ShowInCompetition,
-			"allow_ai_close":      trader.AllowAIClose,
+			"allow_ai_open":       allowAIOpen,
+			"allow_ai_close":      allowAIClose,
 			"ai_decision_mode":    trader.AIDecisionMode,
 			"initial_balance":     trader.InitialBalance,
 			"strategy_id":         trader.StrategyID,
@@ -79,10 +92,18 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 
 	// Get real-time running status
 	isRunning := traderConfig.IsRunning
+	allowAIOpen := traderConfig.AllowAIOpen
+	allowAIClose := traderConfig.AllowAIClose
 	if at, err := s.traderManager.GetTrader(traderID); err == nil {
 		status := at.GetStatus()
 		if running, ok := status["is_running"].(bool); ok {
 			isRunning = running
+		}
+		if v, ok := status["allow_ai_open"].(bool); ok {
+			allowAIOpen = v
+		}
+		if v, ok := status["allow_ai_close"].(bool); ok {
+			allowAIClose = v
 		}
 	}
 
@@ -95,9 +116,11 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"ai_model":              aiModelID,
 		"exchange_id":           traderConfig.ExchangeID,
 		"strategy_id":           traderConfig.StrategyID,
+		"strategy_name":         "",
 		"initial_balance":       traderConfig.InitialBalance,
 		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,
-		"allow_ai_close":        traderConfig.AllowAIClose,
+		"allow_ai_open":         allowAIOpen,
+		"allow_ai_close":        allowAIClose,
 		"ai_decision_mode":      traderConfig.AIDecisionMode,
 		"btc_eth_leverage":      traderConfig.BTCETHLeverage,
 		"altcoin_leverage":      traderConfig.AltcoinLeverage,
@@ -108,6 +131,9 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"use_ai500":             traderConfig.UseAI500,
 		"use_oi_top":            traderConfig.UseOITop,
 		"is_running":            isRunning,
+	}
+	if fullCfg.Strategy != nil {
+		result["strategy_name"] = fullCfg.Strategy.Name
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -180,8 +206,47 @@ func (s *Server) handlePositions(c *gin.Context) {
 		SafeInternalError(c, "Get positions", err)
 		return
 	}
+	if s.store != nil {
+		livePositions := make(map[string]float64, len(positions))
+		for _, pos := range positions {
+			symbol, _ := pos["symbol"].(string)
+			side, _ := pos["position_side"].(string)
+			if side == "" {
+				side, _ = pos["side"].(string)
+			}
+			qty, _ := pos["positionAmt"].(float64)
+			if qty == 0 {
+				qty, _ = pos["quantity"].(float64)
+			}
+			if qty < 0 {
+				qty = -qty
+			}
+			if symbol == "" || side == "" || qty <= 0 {
+				continue
+			}
+			livePositions[strings.ToUpper(market.Normalize(symbol))+"|"+normalizeAPIPositionSideForStore(side)] = qty
+		}
+		updated, markErr := s.store.Position().MarkOpenPositionsAbsentFromExchangeClosed(traderID, livePositions, "sync_absent_from_exchange")
+		if markErr != nil {
+			logger.Warnf("⚠️ Positions: failed to reconcile local open positions for trader %s: %v", traderID, markErr)
+		} else if updated > 0 {
+			logger.Infof("🧹 Positions: marked %d local stale open positions closed for trader %s", updated, traderID)
+		}
+	}
 
 	c.JSON(http.StatusOK, positions)
+}
+
+func normalizeAPIPositionSideForStore(side string) string {
+	side = strings.ToUpper(strings.TrimSpace(side))
+	switch side {
+	case "LONG", "BUY":
+		return "LONG"
+	case "SHORT", "SELL":
+		return "SHORT"
+	default:
+		return side
+	}
 }
 
 // handlePositionHistory Historical closed positions with statistics
@@ -206,17 +271,87 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	}
 
 	// Get store
-	store := trader.GetStore()
-	if store == nil {
+	traderStore := trader.GetStore()
+	if traderStore == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
 		return
 	}
 
 	// Get closed positions
-	positions, err := store.Position().GetClosedPositions(trader.GetID(), limit)
+	positions, err := traderStore.Position().GetClosedPositions(trader.GetID(), limit)
 	if err != nil {
 		SafeInternalError(c, "Get position history", err)
 		return
+	}
+
+	type decisionReviewRef struct {
+		DecisionRecordID   int64                  `json:"decision_record_id"`
+		CycleNumber        int                    `json:"cycle_number"`
+		Timestamp          string                 `json:"timestamp"`
+		ReviewContext      map[string]interface{} `json:"review_context,omitempty"`
+		ProtectionSnapshot interface{}            `json:"protection_snapshot,omitempty"`
+	}
+
+	buildEntryReviewSummaryFromDecisionReview := func(review map[string]interface{}) map[string]interface{} {
+		if review == nil {
+			return nil
+		}
+		summary := map[string]interface{}{}
+		for _, key := range []string{"timeframe_context", "risk_reward", "key_levels", "anchors", "alignment_notes", "protection", "control", "execution_constraints"} {
+			if value, ok := review[key]; ok {
+				summary[key] = value
+			}
+		}
+		if len(summary) == 0 {
+			return nil
+		}
+		return summary
+	}
+
+	buildDecisionReviewRef := func(cycle int, symbol string, action string) map[string]interface{} {
+		if cycle <= 0 || traderStore.Decision() == nil {
+			return nil
+		}
+		record, err := traderStore.Decision().GetRecordByCycle(trader.GetID(), cycle)
+		if err != nil || record == nil {
+			return nil
+		}
+		var matched map[string]interface{}
+		for i := range record.Decisions {
+			candidate := record.Decisions[i]
+			if symbol != "" && !strings.EqualFold(candidate.Symbol, symbol) {
+				continue
+			}
+			if action != "" && !strings.EqualFold(candidate.Action, action) {
+				continue
+			}
+			if payload, err := json.Marshal(candidate); err == nil {
+				_ = json.Unmarshal(payload, &matched)
+			}
+			break
+		}
+		reviewContext := record.ReviewContext
+		if matchedReview, ok := matched["review_context"].(map[string]interface{}); ok {
+			reviewContext = matchedReview
+		}
+		return map[string]interface{}{
+			"decision_record_id":  record.ID,
+			"cycle_number":        record.CycleNumber,
+			"timestamp":           record.Timestamp.UTC().Format(time.RFC3339),
+			"review_context":      reviewContext,
+			"protection_snapshot": record.ProtectionSnapshot,
+			"decisions":           record.Decisions,
+			"matched_decision":    matched,
+		}
+	}
+
+	buildEntryReviewSummary := func(cycle int, symbol string, action string) map[string]interface{} {
+		ref := buildDecisionReviewRef(cycle, symbol, action)
+		if ref == nil {
+			return nil
+		}
+		review, _ := ref["review_context"].(map[string]interface{})
+		return buildEntryReviewSummaryFromDecisionReview(review)
 	}
 
 	// Enrich with execution metadata for frontend expandable rows.
@@ -242,7 +377,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		executionOrderType := "unknown"
 		sourceLower := strings.ToLower(executionSource)
 
-		if orderStore := store.Order(); orderStore != nil && pos.ExitOrderID != "" {
+		if orderStore := traderStore.Order(); orderStore != nil && pos.ExitOrderID != "" {
 			if ord, err := orderStore.GetOrderByExchangeID(pos.ExchangeID, pos.ExitOrderID); err == nil && ord != nil {
 				orderActionLower := strings.ToLower(ord.OrderAction)
 				orderTypeUpper := strings.ToUpper(ord.Type)
@@ -284,70 +419,101 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		}
 
 		closeEvents := make([]map[string]interface{}, 0)
-		if eventStore := store.PositionClose(); eventStore != nil {
+		if eventStore := traderStore.PositionClose(); eventStore != nil {
 			if events, err := eventStore.ListByPositionID(pos.ID); err == nil {
 				for _, ev := range events {
+					orderID := int64(0)
+					fillCount := 0
+					if orderStore := traderStore.Order(); orderStore != nil && ev.ExchangeOrderID != "" {
+						if ord, err := orderStore.GetOrderByExchangeID(ev.ExchangeID, ev.ExchangeOrderID); err == nil && ord != nil {
+							orderID = ord.ID
+							if fills, err := orderStore.GetOrderFills(ord.ID); err == nil {
+								fillCount = len(fills)
+							}
+						}
+					}
 					closeEvents = append(closeEvents, map[string]interface{}{
-						"id":                 ev.ID,
-						"position_id":        ev.PositionID,
-						"trader_id":          ev.TraderID,
-						"exchange_id":        ev.ExchangeID,
-						"symbol":             ev.Symbol,
-						"side":               ev.Side,
-						"close_reason":       ev.CloseReason,
-						"execution_source":   ev.ExecutionSource,
-						"execution_type":     ev.ExecutionType,
-						"exchange_order_id":  ev.ExchangeOrderID,
-						"close_quantity":     ev.CloseQuantity,
-						"close_ratio_pct":    ev.CloseRatioPct,
-						"execution_price":    ev.ExecutionPrice,
-						"close_value_usdt":   ev.CloseValueUSDT,
-						"realized_pnl_delta": ev.RealizedPnLDelta,
-						"fee_delta":          ev.FeeDelta,
-						"event_time":         time.UnixMilli(ev.EventTime).UTC().Format(time.RFC3339),
+						"id":                  ev.ID,
+						"position_id":         ev.PositionID,
+						"trader_id":           ev.TraderID,
+						"exchange_id":         ev.ExchangeID,
+						"symbol":              ev.Symbol,
+						"side":                ev.Side,
+						"close_reason":        ev.CloseReason,
+						"execution_source":    ev.ExecutionSource,
+						"execution_type":      ev.ExecutionType,
+						"protection_status":   ev.ProtectionStatus,
+						"decision_cycle":      ev.DecisionCycle,
+						"decision_review":     buildDecisionReviewRef(ev.DecisionCycle, ev.Symbol, ev.CloseReason),
+						"exchange_order_id":   ev.ExchangeOrderID,
+						"parent_order_id":     ev.ParentOrderID,
+						"order_id":            orderID,
+						"related_position_id": ev.PositionID,
+						"fill_count":          fillCount,
+						"close_quantity":      ev.CloseQuantity,
+						"close_ratio_pct":     ev.CloseRatioPct,
+						"execution_price":     ev.ExecutionPrice,
+						"close_value_usdt":    ev.CloseValueUSDT,
+						"realized_pnl_delta":  ev.RealizedPnLDelta,
+						"fee_delta":           ev.FeeDelta,
+						"event_time":          time.UnixMilli(ev.EventTime).UTC().Format(time.RFC3339),
 					})
 				}
 			}
 		}
 
 		enrichedPositions = append(enrichedPositions, map[string]interface{}{
-			"id":                   pos.ID,
-			"trader_id":            pos.TraderID,
-			"exchange_id":          pos.ExchangeID,
-			"exchange_type":        pos.ExchangeType,
-			"symbol":               pos.Symbol,
-			"side":                 pos.Side,
-			"quantity":             pos.Quantity,
-			"entry_quantity":       pos.EntryQuantity,
-			"entry_price":          pos.EntryPrice,
-			"entry_order_id":       pos.EntryOrderID,
-			"entry_time":           time.UnixMilli(pos.EntryTime).UTC().Format(time.RFC3339),
-			"exit_price":           pos.ExitPrice,
-			"exit_order_id":        pos.ExitOrderID,
-			"exit_time":            time.UnixMilli(pos.ExitTime).UTC().Format(time.RFC3339),
-			"realized_pnl":         pos.RealizedPnL,
-			"fee":                  pos.Fee,
-			"leverage":             pos.Leverage,
-			"status":               pos.Status,
-			"close_reason":         pos.CloseReason,
-			"execution_source":     executionSource,
-			"execution_order_type": executionOrderType,
-			"close_ratio_pct":      closeRatioPct,
-			"close_value_usdt":     pos.ExitPrice * closedQty,
-			"close_events":         closeEvents,
-			"created_at":           time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
-			"updated_at":           time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
+			"id":                    pos.ID,
+			"trader_id":             pos.TraderID,
+			"exchange_id":           pos.ExchangeID,
+			"exchange_type":         pos.ExchangeType,
+			"symbol":                pos.Symbol,
+			"side":                  pos.Side,
+			"quantity":              pos.Quantity,
+			"entry_quantity":        pos.EntryQuantity,
+			"entry_price":           pos.EntryPrice,
+			"entry_order_id":        pos.EntryOrderID,
+			"entry_decision_cycle":  pos.EntryDecisionCycle,
+			"entry_decision_review": buildDecisionReviewRef(pos.EntryDecisionCycle, pos.Symbol, sideToOpenAction(pos.Side)),
+			"entry_review_summary":  buildEntryReviewSummary(pos.EntryDecisionCycle, pos.Symbol, sideToOpenAction(pos.Side)),
+			"entry_time":            time.UnixMilli(pos.EntryTime).UTC().Format(time.RFC3339),
+			"exit_price":            pos.ExitPrice,
+			"exit_order_id":         pos.ExitOrderID,
+			"exit_decision_cycle":   pos.ExitDecisionCycle,
+			"exit_decision_review":  buildDecisionReviewRef(pos.ExitDecisionCycle, pos.Symbol, closeActionFromSide(pos.Side)),
+			"exit_time":             time.UnixMilli(pos.ExitTime).UTC().Format(time.RFC3339),
+			"realized_pnl":          pos.RealizedPnL,
+			"fee":                   pos.Fee,
+			"leverage":              pos.Leverage,
+			"status":                pos.Status,
+			"close_reason":          pos.CloseReason,
+			"execution_source":      executionSource,
+			"execution_order_type":  executionOrderType,
+			"close_ratio_pct":       closeRatioPct,
+			"close_value_usdt":      pos.ExitPrice * closedQty,
+			"close_events":          closeEvents,
+			"protection_snapshot": func() any {
+				if ref := buildDecisionReviewRef(pos.ExitDecisionCycle, pos.Symbol, closeActionFromSide(pos.Side)); ref != nil {
+					return ref["protection_snapshot"]
+				}
+				if ref := buildDecisionReviewRef(pos.EntryDecisionCycle, pos.Symbol, sideToOpenAction(pos.Side)); ref != nil {
+					return ref["protection_snapshot"]
+				}
+				return nil
+			}(),
+			"created_at": time.UnixMilli(pos.CreatedAt).UTC().Format(time.RFC3339),
+			"updated_at": time.UnixMilli(pos.UpdatedAt).UTC().Format(time.RFC3339),
 		})
 	}
 
 	// Get statistics
-	stats, _ := store.Position().GetFullStats(trader.GetID())
+	stats, _ := traderStore.Position().GetFullStats(trader.GetID())
 
 	// Get symbol stats
-	symbolStats, _ := store.Position().GetSymbolStats(trader.GetID(), 10)
+	symbolStats, _ := traderStore.Position().GetSymbolStats(trader.GetID(), 10)
 
 	// Get direction stats
-	directionStats, _ := store.Position().GetDirectionStats(trader.GetID())
+	directionStats, _ := traderStore.Position().GetDirectionStats(trader.GetID())
 
 	c.JSON(http.StatusOK, gin.H{
 		"positions":       enrichedPositions,
@@ -355,6 +521,28 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		"symbol_stats":    symbolStats,
 		"direction_stats": directionStats,
 	})
+}
+
+func sideToOpenAction(side string) string {
+	switch strings.ToUpper(strings.TrimSpace(side)) {
+	case "LONG":
+		return "open_long"
+	case "SHORT":
+		return "open_short"
+	default:
+		return ""
+	}
+}
+
+func closeActionFromSide(side string) string {
+	switch strings.ToUpper(strings.TrimSpace(side)) {
+	case "LONG":
+		return "close_long"
+	case "SHORT":
+		return "close_short"
+	default:
+		return ""
+	}
 }
 
 // handleTrades Historical trades list
@@ -523,6 +711,21 @@ func (s *Server) handleOpenOrders(c *gin.Context) {
 	if err != nil {
 		SafeInternalError(c, "Get open orders", err)
 		return
+	}
+	if s.store != nil {
+		liveIDs := make([]string, 0, len(openOrders))
+		for _, order := range openOrders {
+			liveIDs = append(liveIDs, order.OrderID)
+		}
+		fullCfg, cfgErr := s.store.Trader().GetFullConfig(c.GetString("user_id"), traderID)
+		if cfgErr == nil && fullCfg != nil && fullCfg.Trader != nil {
+			updated, markErr := s.store.Order().MarkMissingOpenOrdersCanceled(fullCfg.Trader.ExchangeID, symbol, liveIDs)
+			if markErr != nil {
+				logger.Warnf("⚠️ Open orders: failed to reconcile local order status for %s: %v", symbol, markErr)
+			} else if updated > 0 {
+				logger.Infof("🧹 Open orders: marked %d local stale order records canceled for %s", updated, symbol)
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, openOrders)

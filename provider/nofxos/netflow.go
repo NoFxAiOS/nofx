@@ -22,8 +22,8 @@ type NetFlowResponse struct {
 	Data    struct {
 		Netflows  []NetFlowPosition `json:"netflows"`
 		Count     int               `json:"count"`
-		Type      string            `json:"type"`      // institution or personal
-		Trade     string            `json:"trade"`     // futures or spot
+		Type      string            `json:"type"`  // institution or personal
+		Trade     string            `json:"trade"` // futures or spot
 		TimeRange string            `json:"time_range"`
 		RankType  string            `json:"rank_type"` // top or low
 		Limit     int               `json:"limit"`
@@ -136,12 +136,10 @@ func formatNetFlowRankingZH(data *NetFlowRankingData) string {
 	// Institution inflow
 	if len(data.InstitutionFutureTop) > 0 {
 		sb.WriteString("### 机构资金流入榜\n")
-		sb.WriteString("Smart Money买入信号:\n\n")
-		sb.WriteString("| 排名 | 币种 | 流入金额(USDT) | 价格 |\n")
-		sb.WriteString("|------|------|----------------|------|\n")
+		sb.WriteString("Smart Money买入信号:\n")
 		for _, pos := range data.InstitutionFutureTop {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | $%.4f |\n",
-				pos.Rank, pos.Symbol, formatValue(pos.Amount), pos.Price))
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s flow_usdt=%s price=%s\n",
+				pos.Rank, pos.Symbol, formatValue(pos.Amount), formatPlainNumber(pos.Price)))
 		}
 		sb.WriteString("\n")
 	}
@@ -149,12 +147,10 @@ func formatNetFlowRankingZH(data *NetFlowRankingData) string {
 	// Institution outflow
 	if len(data.InstitutionFutureLow) > 0 {
 		sb.WriteString("### 机构资金流出榜\n")
-		sb.WriteString("Smart Money卖出信号:\n\n")
-		sb.WriteString("| 排名 | 币种 | 流出金额(USDT) | 价格 |\n")
-		sb.WriteString("|------|------|----------------|------|\n")
+		sb.WriteString("Smart Money卖出信号:\n")
 		for _, pos := range data.InstitutionFutureLow {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | $%.4f |\n",
-				pos.Rank, pos.Symbol, formatValue(pos.Amount), pos.Price))
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s flow_usdt=%s price=%s\n",
+				pos.Rank, pos.Symbol, formatValue(pos.Amount), formatPlainNumber(pos.Price)))
 		}
 		sb.WriteString("\n")
 	}
@@ -203,12 +199,10 @@ func formatNetFlowRankingEN(data *NetFlowRankingData) string {
 	// Institution inflow
 	if len(data.InstitutionFutureTop) > 0 {
 		sb.WriteString("### Institution Inflow\n")
-		sb.WriteString("Smart Money buying signals:\n\n")
-		sb.WriteString("| Rank | Symbol | Inflow (USDT) | Price |\n")
-		sb.WriteString("|------|--------|---------------|-------|\n")
+		sb.WriteString("Smart Money buying signals:\n")
 		for _, pos := range data.InstitutionFutureTop {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | $%.4f |\n",
-				pos.Rank, pos.Symbol, formatValue(pos.Amount), pos.Price))
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s flow_usdt=%s price=%s\n",
+				pos.Rank, pos.Symbol, formatValue(pos.Amount), formatPlainNumber(pos.Price)))
 		}
 		sb.WriteString("\n")
 	}
@@ -216,12 +210,10 @@ func formatNetFlowRankingEN(data *NetFlowRankingData) string {
 	// Institution outflow
 	if len(data.InstitutionFutureLow) > 0 {
 		sb.WriteString("### Institution Outflow\n")
-		sb.WriteString("Smart Money selling signals:\n\n")
-		sb.WriteString("| Rank | Symbol | Outflow (USDT) | Price |\n")
-		sb.WriteString("|------|--------|----------------|-------|\n")
+		sb.WriteString("Smart Money selling signals:\n")
 		for _, pos := range data.InstitutionFutureLow {
-			sb.WriteString(fmt.Sprintf("| %d | %s | %s | $%.4f |\n",
-				pos.Rank, pos.Symbol, formatValue(pos.Amount), pos.Price))
+			sb.WriteString(fmt.Sprintf("- rank=%d symbol=%s flow_usdt=%s price=%s\n",
+				pos.Rank, pos.Symbol, formatValue(pos.Amount), formatPlainNumber(pos.Price)))
 		}
 		sb.WriteString("\n")
 	}

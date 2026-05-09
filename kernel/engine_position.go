@@ -57,17 +57,21 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			return fmt.Errorf("position size must be greater than 0: %.2f", d.PositionSizeUSD)
 		}
 
-		const minPositionSizeGeneral = 12.0
-		const minPositionSizeBTCETH = 60.0
-
-		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			if d.PositionSizeUSD < minPositionSizeBTCETH {
-				return fmt.Errorf("%s opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.Symbol, d.PositionSizeUSD, minPositionSizeBTCETH)
+		minPositionSize := 12.0
+		if accountEquity > 0 {
+			maxAdaptiveMin := accountEquity * 0.9
+			if maxAdaptiveMin > 0 && maxAdaptiveMin < minPositionSize {
+				minPositionSize = maxAdaptiveMin
 			}
-		} else {
-			if d.PositionSizeUSD < minPositionSizeGeneral {
-				return fmt.Errorf("opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.PositionSizeUSD, minPositionSizeGeneral)
+		}
+		if minPositionSize < 5.0 {
+			minPositionSize = 5.0
+		}
+		if d.PositionSizeUSD < minPositionSize {
+			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
+				return fmt.Errorf("%s opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.Symbol, d.PositionSizeUSD, minPositionSize)
 			}
+			return fmt.Errorf("opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.PositionSizeUSD, minPositionSize)
 		}
 
 		tolerance := maxPositionValue * 0.01

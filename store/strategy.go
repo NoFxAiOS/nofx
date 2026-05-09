@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -48,11 +49,139 @@ type StrategyConfig struct {
 	RiskControl RiskControlConfig `json:"risk_control"`
 	// unified protection / profit-control configuration
 	Protection ProtectionConfig `json:"protection,omitempty"`
+	// structural entry contract configuration
+	EntryStructure EntryStructureConfig `json:"entry_structure,omitempty"`
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
 
+	// Strategy-control policy for system-governed entry/protection decisions.
+	// Omitted or unknown modes default to strict to preserve current runtime blocks.
+	StrategyControlPolicy StrategyControlPolicyConfig `json:"strategy_control_policy,omitempty"`
+
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+}
+
+type EntryStructureConfig struct {
+	Enabled                          bool            `json:"enabled"`
+	RequirePrimaryTimeframe          bool            `json:"require_primary_timeframe"`
+	RequireAdjacentTimeframes        bool            `json:"require_adjacent_timeframes"`
+	RequireSupportResistance         bool            `json:"require_support_resistance"`
+	RequireStructuralAnchors         bool            `json:"require_structural_anchors"`
+	RequireFibonacci                 bool            `json:"require_fibonacci"`
+	MaxSupportLevels                 int             `json:"max_support_levels,omitempty"`
+	MaxResistanceLevels              int             `json:"max_resistance_levels,omitempty"`
+	MaxAnchorCount                   int             `json:"max_anchor_count,omitempty"`
+	AuditPrimaryTimeframe            bool            `json:"audit_primary_timeframe,omitempty"`
+	AuditAdjacentTimeframes          bool            `json:"audit_adjacent_timeframes,omitempty"`
+	AuditSupportResistance           bool            `json:"audit_support_resistance,omitempty"`
+	AuditStructuralAnchors           bool            `json:"audit_structural_anchors,omitempty"`
+	AuditFibonacci                   bool            `json:"audit_fibonacci,omitempty"`
+	RequireInvalidationTargetLinkage bool            `json:"require_invalidation_target_linkage,omitempty"`
+	EntryGate                        EntryGateConfig `json:"entry_gate,omitempty"`
+}
+
+// EntryGateConfig controls executable entry-quality gates that validate AI open proposals.
+// It is nested under EntryStructure so it composes with existing entry/protection gates.
+type EntryGateConfig struct {
+	Enabled                     bool    `json:"enabled,omitempty"`
+	MinATR14Pct                 float64 `json:"min_atr14_pct,omitempty"`
+	MinRiskDistancePct          float64 `json:"min_risk_distance_pct,omitempty"`
+	MinSLDistanceATRMul         float64 `json:"min_sl_distance_atr_mul,omitempty"`
+	MinRewardATRMul             float64 `json:"min_reward_atr_mul,omitempty"`
+	EntryProximityATRMul        float64 `json:"entry_proximity_atr_mul,omitempty"`
+	EntryProximityMinPct        float64 `json:"entry_proximity_min_pct,omitempty"`
+	EntryProximityMaxPct        float64 `json:"entry_proximity_max_pct,omitempty"`
+	InvalidationStructureATRMul float64 `json:"invalidation_structure_atr_mul,omitempty"`
+	InvalidationStructureMinPct float64 `json:"invalidation_structure_min_pct,omitempty"`
+	MaxBlockingLevels           int     `json:"max_blocking_levels,omitempty"`
+	MaxTargetTimeframeRankGap   int     `json:"max_target_timeframe_rank_gap,omitempty"`
+
+	// Squeeze/crowded regime extra requirements (G2b)
+	SqueezeMinConfidence int     `json:"squeeze_min_confidence,omitempty"`
+	SqueezeMinRR         float64 `json:"squeeze_min_rr,omitempty"`
+
+	// Fallback minimum RR when strategy MinRiskRewardRatio is not set (G3b)
+	FallbackMinRR float64 `json:"fallback_min_rr,omitempty"`
+
+	// Short position minimum confidence when regime is not trend_down (G3e)
+	ShortNonDowntrendMinConfidence int `json:"short_non_downtrend_min_confidence,omitempty"`
+}
+
+func (c EntryGateConfig) WithDefaults() EntryGateConfig {
+	// Default enabled so existing EntryStructure strict mode keeps enforcing executable entry gates.
+	c.Enabled = true
+	if c.MinATR14Pct <= 0 {
+		c.MinATR14Pct = 1.2
+	}
+	if c.MinRiskDistancePct <= 0 {
+		c.MinRiskDistancePct = 0.4
+	}
+	if c.MinSLDistanceATRMul <= 0 {
+		c.MinSLDistanceATRMul = 1.2
+	}
+	if c.MinRewardATRMul <= 0 {
+		c.MinRewardATRMul = 1.8
+	}
+	if c.EntryProximityATRMul <= 0 {
+		c.EntryProximityATRMul = 0.6
+	}
+	if c.EntryProximityMinPct <= 0 {
+		c.EntryProximityMinPct = 0.2
+	}
+	if c.EntryProximityMaxPct <= 0 {
+		c.EntryProximityMaxPct = 1.5
+	}
+	if c.InvalidationStructureATRMul <= 0 {
+		c.InvalidationStructureATRMul = 0.5
+	}
+	if c.InvalidationStructureMinPct <= 0 {
+		c.InvalidationStructureMinPct = 0.3
+	}
+	if c.MaxBlockingLevels <= 0 {
+		c.MaxBlockingLevels = 4
+	}
+	if c.MaxTargetTimeframeRankGap <= 0 {
+		c.MaxTargetTimeframeRankGap = 3
+	}
+	if c.SqueezeMinConfidence <= 0 {
+		c.SqueezeMinConfidence = 80
+	}
+	if c.SqueezeMinRR <= 0 {
+		c.SqueezeMinRR = 2.5
+	}
+	if c.FallbackMinRR <= 0 {
+		c.FallbackMinRR = 1.5
+	}
+	if c.ShortNonDowntrendMinConfidence <= 0 {
+		c.ShortNonDowntrendMinConfidence = 85
+	}
+	return c
+}
+
+type StrategyControlPolicyMode string
+
+const (
+	StrategyControlPolicyModeStrict        StrategyControlPolicyMode = "strict"
+	StrategyControlPolicyModeAuditOnly     StrategyControlPolicyMode = "audit_only"
+	StrategyControlPolicyModeRecommendOnly StrategyControlPolicyMode = "recommend_only"
+)
+
+// StrategyControlPolicyConfig is the first narrow config surface for
+// system-governed strategy-control behavior. Mode defaults to strict so legacy
+// configs keep the current reject/block behavior.
+type StrategyControlPolicyConfig struct {
+	Mode StrategyControlPolicyMode `json:"mode,omitempty"`
+}
+
+// EffectiveMode returns the safe default for omitted or unknown policy modes.
+func (c StrategyControlPolicyConfig) EffectiveMode() StrategyControlPolicyMode {
+	switch c.Mode {
+	case StrategyControlPolicyModeAuditOnly, StrategyControlPolicyModeRecommendOnly:
+		return c.Mode
+	default:
+		return StrategyControlPolicyModeStrict
+	}
 }
 
 // ProtectionConfig unified trade protection / profit-control configuration.
@@ -68,15 +197,71 @@ type ProtectionConfig struct {
 type ProtectionMode string
 
 const (
-	ProtectionModeManual ProtectionMode = "manual"
-	ProtectionModeAI     ProtectionMode = "ai"
+	ProtectionModeDisabled ProtectionMode = "disabled"
+	ProtectionModeManual   ProtectionMode = "manual"
+	ProtectionModeAI       ProtectionMode = "ai"
 )
 
+type ProtectionValueMode string
+
+const (
+	ProtectionValueModeDisabled ProtectionValueMode = "disabled"
+	ProtectionValueModeManual   ProtectionValueMode = "manual"
+	ProtectionValueModeAI       ProtectionValueMode = "ai"
+)
+
+type ProtectionValueSource struct {
+	Mode  ProtectionValueMode `json:"mode,omitempty"`
+	Value float64             `json:"value,omitempty"`
+}
+
+func (p *ProtectionValueSource) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		*p = ProtectionValueSource{}
+		return nil
+	}
+
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &probe); err == nil {
+		if _, hasEnabled := probe["enabled"]; hasEnabled {
+			var legacy struct {
+				Enabled bool    `json:"enabled"`
+				Value   float64 `json:"value,omitempty"`
+			}
+			if err := json.Unmarshal(trimmed, &legacy); err != nil {
+				return err
+			}
+			if legacy.Enabled {
+				p.Mode = ProtectionValueModeManual
+				p.Value = legacy.Value
+			} else {
+				p.Mode = ProtectionValueModeDisabled
+				p.Value = 0
+			}
+			return nil
+		}
+	}
+
+	type alias ProtectionValueSource
+	var decoded alias
+	if err := json.Unmarshal(trimmed, &decoded); err != nil {
+		return err
+	}
+	p.Mode = decoded.Mode
+	p.Value = decoded.Value
+	return nil
+}
+
 type FullTPSLConfig struct {
-	Enabled    bool                    `json:"enabled"`
-	Mode       ProtectionMode          `json:"mode,omitempty"`
-	TakeProfit ProtectionThresholdRule `json:"take_profit,omitempty"`
-	StopLoss   ProtectionThresholdRule `json:"stop_loss,omitempty"`
+	Enabled                bool                  `json:"enabled"`
+	Mode                   ProtectionMode        `json:"mode,omitempty"`
+	TakeProfitEnabled      bool                  `json:"take_profit_enabled,omitempty"`
+	StopLossEnabled        bool                  `json:"stop_loss_enabled,omitempty"`
+	FallbackMaxLossEnabled bool                  `json:"fallback_max_loss_enabled,omitempty"`
+	TakeProfit             ProtectionValueSource `json:"take_profit,omitempty"`
+	StopLoss               ProtectionValueSource `json:"stop_loss,omitempty"`
+	FallbackMaxLoss        ProtectionValueSource `json:"fallback_max_loss,omitempty"`
 }
 
 type ProtectionThresholdRule struct {
@@ -85,11 +270,16 @@ type ProtectionThresholdRule struct {
 }
 
 type LadderTPSLConfig struct {
-	Enabled           bool             `json:"enabled"`
-	Mode              ProtectionMode   `json:"mode,omitempty"`
-	TakeProfitEnabled bool             `json:"take_profit_enabled"`
-	StopLossEnabled   bool             `json:"stop_loss_enabled"`
-	Rules             []LadderTPSLRule `json:"rules,omitempty"`
+	Enabled           bool                  `json:"enabled"`
+	Mode              ProtectionMode        `json:"mode,omitempty"`
+	TakeProfitEnabled bool                  `json:"take_profit_enabled"`
+	StopLossEnabled   bool                  `json:"stop_loss_enabled"`
+	TakeProfitPrice   ProtectionValueSource `json:"take_profit_price,omitempty"`
+	TakeProfitSize    ProtectionValueSource `json:"take_profit_size,omitempty"`
+	StopLossPrice     ProtectionValueSource `json:"stop_loss_price,omitempty"`
+	StopLossSize      ProtectionValueSource `json:"stop_loss_size,omitempty"`
+	Rules             []LadderTPSLRule      `json:"rules,omitempty"`
+	FallbackMaxLoss   ProtectionValueSource `json:"fallback_max_loss,omitempty"`
 }
 
 type LadderTPSLRule struct {
@@ -99,16 +289,92 @@ type LadderTPSLRule struct {
 	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
 }
 
+type DrawdownEngineMode string
+
+const (
+	DrawdownEngineModeManual DrawdownEngineMode = "manual"
+	DrawdownEngineModeAI     DrawdownEngineMode = "ai"
+)
+
+const (
+	DrawdownBreakEvenRunnerPrimary      = "primary"
+	DrawdownBreakEvenRunnerFallbackOnly = "fallback_only"
+	DrawdownBreakEvenRunnerDisabled     = "disabled_for_runner"
+)
+
 type DrawdownTakeProfitConfig struct {
-	Enabled bool                     `json:"enabled"`
-	Rules   []DrawdownTakeProfitRule `json:"rules,omitempty"`
+	Enabled               bool                     `json:"enabled"`
+	Mode                  ProtectionMode           `json:"mode,omitempty"`
+	EngineMode            DrawdownEngineMode       `json:"engine_mode,omitempty"`
+	RunnerEnabled         bool                     `json:"runner_enabled,omitempty"`
+	MinRunnerKeepPct      float64                  `json:"min_runner_keep_pct,omitempty"`
+	MaxFirstReducePct     float64                  `json:"max_first_reduce_pct,omitempty"`
+	BreakEvenRunnerPolicy string                   `json:"break_even_runner_policy,omitempty"`
+	Rules                 []DrawdownTakeProfitRule `json:"rules,omitempty"`
+}
+
+func (c *DrawdownTakeProfitConfig) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		*c = DrawdownTakeProfitConfig{}
+		return nil
+	}
+
+	type alias DrawdownTakeProfitConfig
+	var decoded alias
+	if err := json.Unmarshal(trimmed, &decoded); err != nil {
+		return err
+	}
+
+	*c = DrawdownTakeProfitConfig(decoded)
+
+	if c.Mode == "" {
+		if c.Enabled {
+			c.Mode = ProtectionModeManual
+		} else {
+			c.Mode = ProtectionModeDisabled
+		}
+	}
+	if c.EngineMode == "" {
+		if c.Mode == ProtectionModeAI {
+			c.EngineMode = DrawdownEngineModeAI
+		} else {
+			c.EngineMode = DrawdownEngineModeManual
+		}
+	}
+	if c.MinRunnerKeepPct <= 0 {
+		c.MinRunnerKeepPct = 20
+	}
+	if c.MaxFirstReducePct <= 0 {
+		c.MaxFirstReducePct = 60
+	}
+	if c.BreakEvenRunnerPolicy == "" {
+		c.BreakEvenRunnerPolicy = DrawdownBreakEvenRunnerFallbackOnly
+	}
+
+	return nil
 }
 
 type DrawdownTakeProfitRule struct {
+	Timeframe           string  `json:"timeframe,omitempty"`
 	MinProfitPct        float64 `json:"min_profit_pct,omitempty"`
 	MaxDrawdownPct      float64 `json:"max_drawdown_pct,omitempty"`
+	MaxDrawdownAbsPct   float64 `json:"max_drawdown_abs_profit_pct,omitempty"`
 	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
 	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
+	ReasonAnchor        string  `json:"reason_anchor,omitempty"`
+	StageName           string  `json:"stage_name,omitempty"`
+	RunnerKeepPct       float64 `json:"runner_keep_pct,omitempty"`
+	RunnerStopMode      string  `json:"runner_stop_mode,omitempty"`
+	RunnerStopSource    string  `json:"runner_stop_source,omitempty"`
+	RunnerTargetMode    string  `json:"runner_target_mode,omitempty"`
+	RunnerTargetSource  string  `json:"runner_target_source,omitempty"`
+
+	// Per-field AI/manual control: each dimension can independently choose AI or manual value.
+	// When mode is "ai", AI decides the value; when "manual", the configured value is used.
+	CloseRatioMode    ProtectionValueMode `json:"close_ratio_mode,omitempty"`
+	MinProfitMode     ProtectionValueMode `json:"min_profit_mode,omitempty"`
+	MaxDrawdownMode   ProtectionValueMode `json:"max_drawdown_mode,omitempty"`
 }
 
 type BreakEvenTriggerMode string
@@ -120,19 +386,50 @@ const (
 
 type BreakEvenStopConfig struct {
 	Enabled      bool                 `json:"enabled"`
+	Mode         ProtectionMode       `json:"mode,omitempty"`
 	TriggerMode  BreakEvenTriggerMode `json:"trigger_mode,omitempty"`
 	TriggerValue float64              `json:"trigger_value,omitempty"`
 	OffsetPct    float64              `json:"offset_pct,omitempty"`
+	Rules        []BreakEvenStopRule  `json:"rules,omitempty"`
 }
 
+type BreakEvenStopRule struct {
+	TriggerMode   BreakEvenTriggerMode `json:"trigger_mode,omitempty"`
+	TriggerValue  float64              `json:"trigger_value,omitempty"`
+	OffsetPct     float64              `json:"offset_pct,omitempty"`
+	CloseRatioPct float64              `json:"close_ratio_pct,omitempty"`
+	StageName     string               `json:"stage_name,omitempty"`
+}
+
+// DrawdownTierAllocation records the fixed position allocation for each drawdown tier,
+// computed once at position open and never changed afterwards.
+type DrawdownTierAllocation struct {
+	TierIndex      int     `json:"tier_index"`
+	StageName      string  `json:"stage_name"`
+	Quantity       float64 `json:"quantity"`
+	CloseRatioPct  float64 `json:"close_ratio_pct"`
+	MinProfitPct   float64 `json:"min_profit_pct"`
+	MaxDrawdownPct float64 `json:"max_drawdown_pct"`
+	PeakPnLPct     float64 `json:"peak_pnl_pct"`
+	Status         string  `json:"status"` // "pending", "tracking", "executed", "be_covered"
+}
+
+type RegimeTrendAlignmentMode string
+
+const (
+	RegimeTrendAlignmentStrict                 RegimeTrendAlignmentMode = "strict"
+	RegimeTrendAlignmentAllowRangeEdgeReversal RegimeTrendAlignmentMode = "allow_range_edge_reversal"
+)
+
 type RegimeFilterConfig struct {
-	Enabled               bool     `json:"enabled"`
-	AllowedRegimes        []string `json:"allowed_regimes,omitempty"`
-	BlockHighFunding      bool     `json:"block_high_funding"`
-	MaxFundingRateAbs     float64  `json:"max_funding_rate_abs,omitempty"`
-	BlockHighVolatility   bool     `json:"block_high_volatility"`
-	MaxATR14Pct           float64  `json:"max_atr14_pct,omitempty"`
-	RequireTrendAlignment bool     `json:"require_trend_alignment"`
+	Enabled               bool                     `json:"enabled"`
+	AllowedRegimes        []string                 `json:"allowed_regimes,omitempty"`
+	BlockHighFunding      bool                     `json:"block_high_funding"`
+	MaxFundingRateAbs     float64                  `json:"max_funding_rate_abs,omitempty"`
+	BlockHighVolatility   bool                     `json:"block_high_volatility"`
+	MaxATR14Pct           float64                  `json:"max_atr14_pct,omitempty"`
+	RequireTrendAlignment bool                     `json:"require_trend_alignment"`
+	TrendAlignmentMode    RegimeTrendAlignmentMode `json:"trend_alignment_mode,omitempty"`
 }
 
 // GridStrategyConfig grid trading specific configuration
@@ -183,7 +480,7 @@ type PromptSectionsConfig struct {
 
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed"
+	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed" | "market"
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`
@@ -207,6 +504,12 @@ type CoinSourceConfig struct {
 	UseHyperMain bool `json:"use_hyper_main"`
 	// Hyperliquid Main maximum count (default 20)
 	HyperMainLimit int `json:"hyper_main_limit,omitempty"`
+	// Market source config (used when source_type = "market")
+	MarketList  string   `json:"market_list,omitempty"`  // deprecated: single list, kept for backward compat
+	MarketLists []string `json:"market_lists,omitempty"` // multi-select: ["hot", "oi_top", "oi_low"]
+	MarketLimit int      `json:"market_limit,omitempty"` // top N coins per list
+	// Exchange for market data source (default: "okx")
+	ExchangeSource string `json:"exchange_source,omitempty"` // "binance" | "okx"
 	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 
@@ -225,6 +528,11 @@ type IndicatorConfig struct {
 	EnableVolume      bool `json:"enable_volume"`
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
+	// Exchange sentiment data toggles
+	EnableLongShortRatio    bool `json:"enable_long_short_ratio"`     // long/short account ratio
+	EnableTopTraderRatio    bool `json:"enable_top_trader_ratio"`     // top trader long/short ratio (Binance only)
+	EnableTakerBuySellRatio bool `json:"enable_taker_buy_sell_ratio"` // taker buy/sell volume ratio
+	EnableOrderBookDepth    bool `json:"enable_order_book_depth"`     // order book depth imbalance
 	// EMA period configuration
 	EMAPeriods []int `json:"ema_periods,omitempty"` // default [20, 50]
 	// RSI period configuration
@@ -259,6 +567,14 @@ type IndicatorConfig struct {
 	EnablePriceRanking   bool   `json:"enable_price_ranking"`             // whether to enable price ranking data
 	PriceRankingDuration string `json:"price_ranking_duration,omitempty"` // durations: "1h" or "1h,4h,24h"
 	PriceRankingLimit    int    `json:"price_ranking_limit,omitempty"`    // number of entries per ranking (default 10)
+
+	// Derivatives enhancement indicators (Phase B)
+	EnableCVD             bool `json:"enable_cvd"`
+	EnableOIGrowthRate    bool `json:"enable_oi_growth_rate"`
+	EnableFundingHistory  bool `json:"enable_funding_history"`
+	EnableVWAP            bool `json:"enable_vwap"`
+	EnableTakerDelta      bool `json:"enable_taker_delta"`
+	EnableDepthChangeRate bool `json:"enable_depth_change_rate"`
 }
 
 // KlineConfig K-line configuration
@@ -366,28 +682,40 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EnableVolume:      true,
 			EnableOI:          true,
 			EnableFundingRate: true,
-			EMAPeriods:        []int{20, 50},
-			RSIPeriods:        []int{7, 14},
-			ATRPeriods:        []int{14},
-			BOLLPeriods:       []int{20},
+			// Exchange sentiment data
+			EnableLongShortRatio:    true,
+			EnableTopTraderRatio:    true, // Binance only
+			EnableTakerBuySellRatio: true,
+			EnableOrderBookDepth:    true,
+			EMAPeriods:              []int{20, 50},
+			RSIPeriods:              []int{7, 14},
+			ATRPeriods:              []int{14},
+			BOLLPeriods:             []int{20},
 			// NofxOS unified API key
 			NofxOSAPIKey: "cm_568c67eae410d912c54c",
 			// Quant data
-			EnableQuantData:    true,
-			EnableQuantOI:      true,
-			EnableQuantNetflow: true,
+			EnableQuantData:    false,
+			EnableQuantOI:      false,
+			EnableQuantNetflow: false,
 			// OI ranking data
-			EnableOIRanking:   true,
+			EnableOIRanking:   false,
 			OIRankingDuration: "1h",
 			OIRankingLimit:    10,
 			// NetFlow ranking data
-			EnableNetFlowRanking:   true,
+			EnableNetFlowRanking:   false,
 			NetFlowRankingDuration: "1h",
 			NetFlowRankingLimit:    10,
 			// Price ranking data
 			EnablePriceRanking:   true,
 			PriceRankingDuration: "1h,4h,24h",
 			PriceRankingLimit:    10,
+			// Derivatives enhancement (Phase B)
+			EnableCVD:             true,
+			EnableOIGrowthRate:    true,
+			EnableFundingHistory:  true,
+			EnableVWAP:            true,
+			EnableTakerDelta:      true,
+			EnableDepthChangeRate: true,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)
@@ -400,28 +728,59 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
 			MinConfidence:                75,  // Min 75% confidence (AI guided)
 		},
+		StrategyControlPolicy: StrategyControlPolicyConfig{Mode: StrategyControlPolicyModeStrict},
+		EntryStructure: EntryStructureConfig{
+			Enabled:                          true,
+			RequirePrimaryTimeframe:          true,
+			RequireAdjacentTimeframes:        true,
+			RequireSupportResistance:         true,
+			RequireStructuralAnchors:         true,
+			RequireFibonacci:                 false,
+			MaxSupportLevels:                 3,
+			MaxResistanceLevels:              3,
+			MaxAnchorCount:                   4,
+			AuditPrimaryTimeframe:            true,
+			AuditAdjacentTimeframes:          true,
+			AuditSupportResistance:           true,
+			AuditStructuralAnchors:           true,
+			AuditFibonacci:                   true,
+			RequireInvalidationTargetLinkage: true,
+		},
 		Protection: ProtectionConfig{
 			FullTPSL: FullTPSLConfig{
-				Enabled:    false,
-				Mode:       ProtectionModeManual,
-				TakeProfit: ProtectionThresholdRule{Enabled: false, PriceMovePct: 0},
-				StopLoss:   ProtectionThresholdRule{Enabled: false, PriceMovePct: 0},
+				Enabled:         false,
+				Mode:            ProtectionModeManual,
+				TakeProfit:      ProtectionValueSource{Mode: ProtectionValueModeManual, Value: 0},
+				StopLoss:        ProtectionValueSource{Mode: ProtectionValueModeManual, Value: 0},
+				FallbackMaxLoss: ProtectionValueSource{Mode: ProtectionValueModeDisabled, Value: 0},
 			},
 			LadderTPSL: LadderTPSLConfig{
 				Enabled:           false,
 				Mode:              ProtectionModeManual,
 				TakeProfitEnabled: false,
 				StopLossEnabled:   false,
+				TakeProfitPrice:   ProtectionValueSource{Mode: ProtectionValueModeManual, Value: 0},
+				TakeProfitSize:    ProtectionValueSource{Mode: ProtectionValueModeManual, Value: 0},
+				StopLossPrice:     ProtectionValueSource{Mode: ProtectionValueModeManual, Value: 0},
+				StopLossSize:      ProtectionValueSource{Mode: ProtectionValueModeManual, Value: 0},
 				Rules:             []LadderTPSLRule{},
+				FallbackMaxLoss:   ProtectionValueSource{Mode: ProtectionValueModeDisabled, Value: 0},
 			},
 			DrawdownTakeProfit: DrawdownTakeProfitConfig{
-				Enabled: false,
+				Enabled:               false,
+				Mode:                  ProtectionModeManual,
+				EngineMode:            DrawdownEngineModeManual,
+				RunnerEnabled:         true,
+				MinRunnerKeepPct:      20,
+				MaxFirstReducePct:     60,
+				BreakEvenRunnerPolicy: DrawdownBreakEvenRunnerFallbackOnly,
 				Rules: []DrawdownTakeProfitRule{
 					{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, PollIntervalSeconds: 60},
 				},
 			},
 			BreakEvenStop: BreakEvenStopConfig{
 				Enabled:      false,
+				Mode:         ProtectionModeManual,
 				TriggerMode:  BreakEvenTriggerProfitPct,
 				TriggerValue: 3,
 				OffsetPct:    0.1,
@@ -616,7 +975,24 @@ func (s *Strategy) ParseConfig() (*StrategyConfig, error) {
 	if err := json.Unmarshal([]byte(s.Config), &config); err != nil {
 		return nil, fmt.Errorf("failed to parse strategy configuration: %w", err)
 	}
+	config.Indicators.FillSentimentDefaults()
 	return &config, nil
+}
+
+// FillSentimentDefaults ensures new sentiment toggle fields default to true
+// for strategies created before these fields existed (where all 4 would be false).
+func (ind *IndicatorConfig) FillSentimentDefaults() {
+	// If all 4 new sentiment fields are false but OI or funding rate is enabled,
+	// this is likely a pre-existing strategy — default them all to true.
+	if !ind.EnableLongShortRatio && !ind.EnableTopTraderRatio &&
+		!ind.EnableTakerBuySellRatio && !ind.EnableOrderBookDepth {
+		if ind.EnableOI || ind.EnableFundingRate {
+			ind.EnableLongShortRatio = true
+			ind.EnableTopTraderRatio = true
+			ind.EnableTakerBuySellRatio = true
+			ind.EnableOrderBookDepth = true
+		}
+	}
 }
 
 // SetConfig set strategy configuration

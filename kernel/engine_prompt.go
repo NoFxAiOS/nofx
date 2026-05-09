@@ -32,6 +32,21 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("\n\n")
 	sb.WriteString("---\n\n")
 
+	// 0.1 Hard language contract — enforce decision/reasoning language
+	if lang == LangChinese {
+		sb.WriteString("## ⚠️ 输出语言硬性要求\n")
+		sb.WriteString("- 你必须用**中文**输出所有分析、reasoning、entry_protection_rationale、protection_plan 说明性字段、reason_anchor、structural_anchor、notes、alignment_notes 等文本内容\n")
+		sb.WriteString("- 决策 JSON 的字段名保持英文 schema 不变，但字段值里的自然语言解释必须是中文\n")
+		sb.WriteString("- 不要输出英文分析，不要中英混写，除非是币种、周期、字段名或技术术语缩写\n")
+		sb.WriteString("- 如果输出语言不是中文，视为不合格输出\n\n")
+	} else {
+		sb.WriteString("## ⚠️ Output Language Contract\n")
+		sb.WriteString("- You MUST use **English** for all reasoning, explanatory text, entry_protection_rationale, protection_plan explanation fields, reason_anchor, structural_anchor, notes, alignment_notes, etc.\n")
+		sb.WriteString("- Keep JSON field names in the schema unchanged, but all natural-language values inside the JSON must be English\n")
+		sb.WriteString("- Do not output Chinese analysis or mixed Chinese-English prose unless it is a symbol, timeframe, field name, or technical abbreviation\n")
+		sb.WriteString("- If the output language is not English, it is invalid\n\n")
+	}
+
 	// 1. Role definition (editable)
 	if promptSections.RoleDefinition != "" {
 		sb.WriteString(promptSections.RoleDefinition)
@@ -53,6 +68,13 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("## Mode: Scalping\n- Focus on short-term momentum, smaller profit targets but require quick action\n- If price doesn't move as expected within two bars, immediately reduce position or stop-loss\n\n")
 	}
 
+	// 2b. Trading principles
+	sb.WriteString("## Trading Principles\n\n")
+	sb.WriteString("- Seek trades with structural depth: entry near tested support/resistance, SL beyond a deeper level, TP at higher-TF structure\n")
+	sb.WriteString("- Every open must justify: which structural level, where invalidation is, where the target is\n")
+	sb.WriteString("- Prefer waiting for price to reach structure over forcing entries in no-man's-land\n")
+	sb.WriteString("- The backend has quantitative entry gates (ATR distance, RR ratio, regime alignment, confidence floor) that will reject trades not meeting thresholds — focus on finding high-quality setups rather than worrying about exact numbers\n\n")
+
 	// 3. Hard constraints (risk control)
 	btcEthPosValueRatio := riskControl.BTCETHMaxPositionValueRatio
 	if btcEthPosValueRatio <= 0 {
@@ -71,7 +93,20 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("- Position Value Limit (BTC/ETH): max %.0f USDT (= equity %.0f × %.1fx)\n",
 		accountEquity*btcEthPosValueRatio, accountEquity, btcEthPosValueRatio))
 	sb.WriteString(fmt.Sprintf("- Max Margin Usage: ≤%.0f%%\n", riskControl.MaxMarginUsage*100))
-	sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT\n\n", riskControl.MinPositionSize))
+	minExecutablePositionSize := riskControl.MinPositionSize
+	if minExecutablePositionSize <= 0 {
+		minExecutablePositionSize = 12
+	}
+	btcEthExecutableMin := minExecutablePositionSize
+	if accountEquity > 0 {
+		if adaptiveMin := accountEquity * 0.9; adaptiveMin > 0 && adaptiveMin < btcEthExecutableMin {
+			btcEthExecutableMin = adaptiveMin
+		}
+	}
+	if btcEthExecutableMin < 5 {
+		btcEthExecutableMin = 5
+	}
+	sb.WriteString(fmt.Sprintf("- Min Position Size: ≥%.0f USDT (BTC/ETH on small accounts may use the executable floor around %.0f USDT)\n\n", minExecutablePositionSize, btcEthExecutableMin))
 
 	sb.WriteString("## AI GUIDED (Recommended, you should follow):\n")
 	sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
@@ -83,10 +118,11 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("## Position Sizing Guidance\n")
 	sb.WriteString("Calculate `position_size_usd` based on your confidence and the Position Value Limits above:\n")
 	sb.WriteString("- High confidence (≥85): Use 80-100%% of max position value limit\n")
-	sb.WriteString("- Medium confidence (70-84): Use 50-80%% of max position value limit\n")
-	sb.WriteString("- Low confidence (60-69): Use 30-50%% of max position value limit\n")
+	sb.WriteString("- Medium confidence (70-84): Use 65-85%% of max position value limit\n")
+	sb.WriteString("- Low confidence (60-69): Use 50-70%% of max position value limit\n")
 	sb.WriteString(fmt.Sprintf("- Example: With equity %.0f and BTC/ETH ratio %.1fx, max is %.0f USDT\n",
 		accountEquity, btcEthPosValueRatio, accountEquity*btcEthPosValueRatio))
+	sb.WriteString(fmt.Sprintf("- For any open decision, `position_size_usd` must stay above the executable floor. On this account, BTC/ETH opens should generally not be below about %.0f USDT unless venue constraints explicitly allow it. Avoid tiny probe sizes that are likely to fail validation or venue minimums.\n", btcEthExecutableMin))
 	sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limits!\n\n")
 
 	// 4. Trading frequency (editable)
@@ -114,6 +150,115 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString(fmt.Sprintf("\nFeel free to use any effective analysis method, but **confidence ≥ %d** required to open positions; avoid low-quality behaviors such as single indicators, contradictory signals, sideways consolidation, reopening immediately after closing, etc.\n\n", riskControl.MinConfidence))
 	}
 
+	// Structural analysis requirements
+	sb.WriteString("# 🏗️ Structural Analysis Requirements\n\n")
+	sb.WriteString("You receive auto-detected support/resistance levels and Fibonacci retracements for EACH timeframe in the market data.\n")
+	sb.WriteString("Higher timeframes (1h, 4h) provide stronger structural levels; lower timeframes (5m, 15m) provide precision.\n\n")
+
+	// Backend entry gates explanation
+	sb.WriteString("## Backend Entry Gates (for your awareness)\n\n")
+	sb.WriteString("The system validates your decisions before execution. Understanding these helps you avoid wasted analysis:\n")
+	sb.WriteString("- **Regime alignment**: open direction must align with detected trend regime\n")
+	sb.WriteString("- **ATR-relative distances**: SL and TP must exceed minimum ATR multiples (configurable per strategy)\n")
+	sb.WriteString("- **Risk-reward ratio**: effective RR must meet minimum threshold\n")
+	sb.WriteString("- **Confidence floor**: varies by regime (higher for squeeze/crowded scenarios, higher for shorts in non-downtrend)\n")
+	sb.WriteString("- **Funding rate cap**: extreme funding rates block new entries\n")
+	sb.WriteString("- **Structural fit**: setup_type must match regime's allowed setups\n")
+	sb.WriteString("If your trade is rejected, it appears in the decision log with the specific reason.\n\n")
+
+	entryGate := e.config.EntryStructure.EntryGate
+	minSLATR := entryGate.MinSLDistanceATRMul
+	if minSLATR <= 0 {
+		minSLATR = 1.2
+	}
+	minRewardATR := entryGate.MinRewardATRMul
+	if minRewardATR <= 0 {
+		minRewardATR = 1.8
+	}
+
+	sb.WriteString("## How to use multi-timeframe structural data:\n\n")
+	sb.WriteString("1. **Entry positioning**: Open positions near support (long) or resistance (short), not in no-man's land\n")
+	sb.WriteString("2. **Protection planning — use multi-timeframe structure**:\n")
+	sb.WriteString("   - **Stop Loss**: Place beyond the nearest structural invalidation on the PRIMARY timeframe (real swing point, not micro-wick). Add 0.3-0.5× ATR buffer to survive stop-hunts. Ladder SL tiers: use distinct prices around the same structure with ≥75% close protection near it.\n")
+	sb.WriteString("   - **Take Profit / Ladder TP**: Align with resistance/fib levels (longs) or support/fib levels (shorts). Use HIGHER timeframe levels for major targets, lower timeframe for partial exits\n")
+	sb.WriteString("   - **Drawdown rules**: Each profit stage's min_profit_pct should correspond to a structural level distance from entry. max_drawdown_pct is percentage-of-peak-profit giveback (exchange trailing semantics), e.g. 55 means allow 55% of peak profit to be given back before closing.\n")
+	sb.WriteString("   - **Break-even trigger**: Set trigger_value near the first structural level past entry, with offset beyond the nearest support/resistance\n")
+	sb.WriteString("3. **Volatility buffer**: All SL/TP/drawdown thresholds must account for typical wick range. Use ATR14 as the volatility gauge — always add buffer beyond structure\n")
+	sb.WriteString("4. **Cross-validation**: Auto-detected levels are hints. Confirm with volume, price action, and multi-timeframe alignment\n")
+	sb.WriteString("5. **structural_key_levels in output**: When opening, include a `structural_key_levels` array listing the structural levels that influenced your entry/TP/SL/drawdown decisions, with the timeframe each came from\n")
+	sb.WriteString("6. **Higher-timeframe runner context**: If `timeframe_context.higher` is present, include `higher_timeframe_anchors` or `timeframe_structures` with explicit higher-TF price anchors. Outer drawdown/runner stages must cite those higher-TF anchors, not only primary-TF resistance/support text.\n\n")
+	sb.WriteString("## Protection Plan Requirements (when mode = ai):\n\n")
+	sb.WriteString("### For ladder mode=ai:\n")
+	sb.WriteString("- Each ladder TP target MUST correspond to a nearby structural level (support/resistance/fibonacci) from the relevant timeframe\n")
+	sb.WriteString("- Include a `structural_anchor` field in each ladder rule explaining which level + timeframe it references\n")
+	sb.WriteString("- Position sizing per tier should reflect distance to the structural target and confidence\n")
+	sb.WriteString("- SL placement: beyond the nearest invalidation level on primary TF, plus ATR buffer to survive wicks; ladder SL tiers must be distinct prices around the same nearest primary structure, with >=75% close protection and any far tier <=25%.\n")
+	sb.WriteString("- DO NOT use arbitrary round percentages (like 1%%, 2%%, 3%%) - use market structure\n\n")
+	sb.WriteString("### For drawdown mode=ai:\n")
+	sb.WriteString("- Each drawdown rule represents a profit protection stage. Design stages around structural targets:\n")
+	sb.WriteString("- You MUST output at least 2 `drawdown_rules` for every drawdown/combined protection plan:\n")
+	sb.WriteString("  - Stage 1 = lock profit near the first primary-timeframe structure, generous `max_drawdown_pct`\n")
+	sb.WriteString("  - Stage 2+ = outer runner/trend protection anchored to higher-timeframe structure\n")
+	sb.WriteString("- The outer runner stage should use primary/higher timeframe trend structure and ATR, not lower-timeframe noise; allow normal retests/wicks so profitable positions can keep running\n")
+	sb.WriteString("- max_drawdown_pct should account for ATR volatility — too tight a tolerance triggers on normal retracements\n")
+	sb.WriteString("- Include `reason_anchor` field referencing the specific structural level + timeframe that justifies each stage\n")
+	sb.WriteString("- Use the exact field name `close_ratio_pct` in drawdown_rules; do NOT use `close_ratio`\n")
+	sb.WriteString("- DO NOT use arbitrary round percentages — derive from actual structural distances\n\n")
+
+	// Dynamic: inject hard requirement when drawdown is actually in AI mode
+	prot := e.config.Protection
+	if prot.DrawdownTakeProfit.Enabled && prot.DrawdownTakeProfit.Mode == store.ProtectionModeAI {
+		if prot.LadderTPSL.Enabled && prot.LadderTPSL.Mode == store.ProtectionModeAI {
+			sb.WriteString("### ⚠️ ACTIVE: Ladder + Drawdown are BOTH in AI mode for this strategy\n")
+			sb.WriteString("- You MUST include one `protection_plan` with `mode=\"combined\"` for every open_long/open_short decision\n")
+			sb.WriteString("- The combined plan MUST include both non-empty `ladder_rules` and at least 2 `drawdown_rules`; omission or a single drawdown stage rejects the trade\n")
+			sb.WriteString("- `ladder_rules` own staged stop-loss / optional staged TP; derive absolute prices, percentages, buffers, and close ratios from structure, not from default round numbers\n")
+			sb.WriteString("- Every ladder rule must include a volatility/wick buffer using ATR or recent wick behavior; do not place stops/targets exactly on crowded structure/fib levels\n")
+			sb.WriteString("- `drawdown_rules` own profit-protection/trailing stages; derive min_profit_pct/max_drawdown_pct/close_ratio_pct from structural targets and volatility\n")
+			sb.WriteString("- Include structural_anchor on every ladder rule and reason_anchor on every drawdown rule\n")
+			sb.WriteString(fmt.Sprintf("- Strategy has %d default ladder rule(s) and %d default drawdown rule(s).\n", len(prot.LadderTPSL.Rules), len(prot.DrawdownTakeProfit.Rules)))
+			for i, r := range prot.LadderTPSL.Rules {
+				sb.WriteString(fmt.Sprintf("  - Ladder reference %d: tp=%.2f%% close=%.0f%%, sl=%.2f%% close=%.0f%%\n", i+1, r.TakeProfitPct, r.TakeProfitCloseRatioPct, r.StopLossPct, r.StopLossCloseRatioPct))
+			}
+			for i, r := range prot.DrawdownTakeProfit.Rules {
+				sb.WriteString(fmt.Sprintf("  - Drawdown tier %d (ceiling): min_profit ≤ %.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+			}
+			sb.WriteString(buildDrawdownTierConstraintPrompt(prot.DrawdownTakeProfit))
+			sb.WriteString("\n")
+		} else {
+			sb.WriteString("### ⚠️ ACTIVE: Drawdown Take Profit is in AI mode for this strategy\n")
+			sb.WriteString("- You MUST include `protection_plan` with `mode=\"drawdown\"` and at least 2 `drawdown_rules` for every open_long/open_short decision\n")
+			sb.WriteString("- Rule 1 should partially lock profit near the first primary-timeframe structural target; rule 2+ should protect a runner using primary/higher timeframe structure and ATR tolerance\n")
+			sb.WriteString("- Omitting `drawdown_rules` or providing only one drawdown stage will cause the trade to be rejected\n")
+			if prot.FullTPSL.Enabled && prot.FullTPSL.Mode == store.ProtectionModeAI {
+				sb.WriteString("- Combined ownership mode is active: drawdown AI owns profit-taking / profit-protection, while full AI remains strategy-level stop-loss / fallback stop protection\n")
+				sb.WriteString("- In this combined mode, DO NOT output `mode=full` in the AI decision. Output only drawdown ownership fields and let strategy-level full stop protection merge at execution time\n")
+			}
+			sb.WriteString(fmt.Sprintf("- Strategy has %d default drawdown rule(s).\n", len(prot.DrawdownTakeProfit.Rules)))
+			for i, r := range prot.DrawdownTakeProfit.Rules {
+				sb.WriteString(fmt.Sprintf("  - Drawdown tier %d (ceiling): min_profit ≤ %.2f%%, peak_profit_giveback=%.0f%%, close_ratio=%.0f%%\n", i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+			}
+			sb.WriteString(buildDrawdownTierConstraintPrompt(prot.DrawdownTakeProfit))
+			sb.WriteString("\n")
+		}
+	}
+	if prot.BreakEvenStop.Enabled {
+		if prot.BreakEvenStop.Mode == store.ProtectionModeAI {
+			sb.WriteString("### ⚠️ ACTIVE: Break-even Stop is enabled in AI mode for this strategy\n")
+			sb.WriteString("- You MUST include break_even_trigger_mode, break_even_trigger_value, and break_even_offset_pct in protection_plan for every open action\n")
+			sb.WriteString(fmt.Sprintf("  - Manual fallback/reference: trigger_mode=%s, trigger_value=%.1f, offset=%.2f%%\n", prot.BreakEvenStop.TriggerMode, prot.BreakEvenStop.TriggerValue, prot.BreakEvenStop.OffsetPct))
+		} else {
+			sb.WriteString("### ⚠️ ACTIVE: Break-even Stop is enabled in manual mode for this strategy\n")
+			sb.WriteString("- Break-even uses the strategy manual trigger/offset; do NOT invent AI break-even values unless another AI protection route needs rationale text\n")
+			sb.WriteString(fmt.Sprintf("  - Manual: trigger_mode=%s, trigger_value=%.1f, offset=%.2f%%\n", prot.BreakEvenStop.TriggerMode, prot.BreakEvenStop.TriggerValue, prot.BreakEvenStop.OffsetPct))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("### For break_even mode:\n")
+	sb.WriteString("- trigger_value should be set near the first structural level past entry (e.g. first resistance for long, first support for short)\n")
+	sb.WriteString("- offset_pct should keep the stop just beyond the nearest support/resistance, plus ATR buffer to avoid wick sweeps\n")
+	sb.WriteString("- Reference the specific structural level and timeframe in break_even_reason_anchor\n\n")
+
 	// 6. Decision process (editable)
 	if promptSections.DecisionProcess != "" {
 		sb.WriteString(promptSections.DecisionProcess)
@@ -134,28 +279,79 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	}
 
 	// 7. Output format
-	sb.WriteString("# Output Format (Strictly Follow)\n\n")
-	sb.WriteString("**Must use XML tags <reasoning> and <decision> to separate chain of thought and decision JSON, avoiding parsing errors**\n\n")
-	sb.WriteString("## Format Requirements\n\n")
+	sb.WriteString("# Output Format — HARD SEPARATION CONTRACT\n\n")
+	sb.WriteString("You MUST separate analysis from executable JSON exactly like this:\n")
+	sb.WriteString("- `<reasoning>`: concise analysis only. No JSON required here.\n")
+	sb.WriteString("- `<decision>`: executable JSON array only. No prose, no markdown fence, no comments, no formulas.\n")
+	sb.WriteString("If there is no valid trade, output `<decision>[]</decision>`.\n\n")
+	sb.WriteString("## Token optimization for wait/hold decisions\n\n")
+	sb.WriteString("- When outputting `wait` or `hold`, you may use minimal JSON: `{\"symbol\":\"BTCUSDT\",\"action\":\"wait\"}` or `{\"symbol\":\"BTCUSDT\",\"action\":\"hold\"}`.\n")
+	sb.WriteString("- Optional: add brief `reasoning` field if context helps (e.g., `\"reasoning\":\"chop/no setup\"`), but omit all protection/entry fields.\n")
+	sb.WriteString("- For `open_long` / `open_short` / `close_*`, you MUST output full schema including `entry_protection_rationale` and `protection_plan` as specified below.\n\n")
 	sb.WriteString("<reasoning>\n")
-	sb.WriteString("Your chain of thought analysis...\n")
-	sb.WriteString("- Briefly analyze your thinking process \n")
-	sb.WriteString("</reasoning>\n\n")
+	sb.WriteString("Concise analysis: regime, setup quality, key levels, why wait/open/hold. Keep it short.\n")
+	sb.WriteString("</reasoning>\n")
 	sb.WriteString("<decision>\n")
-	sb.WriteString("Step 2: JSON decision array\n\n")
-	sb.WriteString("```json\n[\n")
-	// Use the actual configured position value ratio for BTC/ETH in the example
+	sb.WriteString("[\n")
 	examplePositionSize := accountEquity * btcEthPosValueRatio
-	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
-		riskControl.BTCETHMaxLeverage, examplePositionSize))
-	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
-	sb.WriteString("]\n```\n")
+	sb.WriteString(fmt.Sprintf("  {\"symbol\":\"BTCUSDT\",\"action\":\"open_short\",\"leverage\":%d,\"position_size_usd\":%.0f,\"stop_loss\":97000,\"take_profit\":91000,\"confidence\":85,\"risk_usd\":300,\"entry_protection_rationale\":{\"timeframe_context\":{\"primary\":\"15m\",\"lower\":[\"5m\"],\"higher\":[\"1h\"]},\"risk_reward\":{\"entry\":95000,\"invalidation\":97000,\"first_target\":91000,\"gross_estimated_rr\":2.0,\"net_estimated_rr\":1.8,\"min_required_rr\":%.1f,\"passed\":true},\"key_levels\":{\"support\":[91000],\"resistance\":[97000]},\"anchors\":[{\"type\":\"resistance\",\"timeframe\":\"15m\",\"price\":96000,\"reason\":\"primary rejection\"}]},\"protection_plan\":{\"mode\":\"combined\",\"ladder_rules\":[{\"take_profit_price\":93000,\"take_profit_close_ratio_pct\":35,\"stop_loss_price\":97000,\"stop_loss_close_ratio_pct\":50,\"structural_anchor\":\"15m support target / 15m invalidation resistance with ATR buffer\",\"volatility_buffer_reason\":\"ATR/wick buffer applied\"},{\"take_profit_price\":91000,\"take_profit_close_ratio_pct\":35,\"stop_loss_price\":98200,\"stop_loss_close_ratio_pct\":50,\"structural_anchor\":\"1h support extension / higher invalidation with ATR buffer\",\"volatility_buffer_reason\":\"ATR/wick buffer applied\"}],\"drawdown_rules\":[{\"timeframe\":\"15m\",\"min_profit_pct\":0.75,\"max_drawdown_pct\":60,\"close_ratio_pct\":65,\"runner_keep_pct\":35,\"stage_name\":\"partial_profit_lock\",\"reason_anchor\":\"15m first structural target (inside of nearest structure)\"},{\"timeframe\":\"1h\",\"min_profit_pct\":1.4,\"max_drawdown_pct\":55,\"close_ratio_pct\":80,\"runner_keep_pct\":20,\"stage_name\":\"runner_extension\",\"reason_anchor\":\"1h runner structure\"}]}}},\n", riskControl.BTCETHMaxLeverage, examplePositionSize, riskControl.MinRiskRewardRatio))
+	sb.WriteString("  {\"symbol\":\"ETHUSDT\",\"action\":\"wait\"}\n")
+	sb.WriteString("]\n")
 	sb.WriteString("</decision>\n\n")
+	sb.WriteString("### Top-level decision object\n")
+	sb.WriteString("- Required for open_long/open_short: `symbol`, `action`, `leverage`, `position_size_usd`, `stop_loss`, `take_profit`, `confidence`, `risk_usd`, `entry_protection_rationale`, `protection_plan`.\n")
+	sb.WriteString("- For hold/wait/close actions: do NOT include `protection_plan`.\n")
+	sb.WriteString("- JSON numeric fields must be plain numbers only; never use formulas, commas, or strings for numeric values.\n\n")
+	sb.WriteString("### protection_plan schema\n")
+	sb.WriteString("- `mode`: one of `full`, `ladder`, `drawdown`, `combined`, `break_even`. Use `combined` when ladder AI and drawdown AI are both active.\n")
+	sb.WriteString("- `ladder_rules`: 2~3 objects when ladder is active. Each active TP leg MUST have `take_profit_price` and `take_profit_close_ratio_pct`; each active SL leg MUST have `stop_loss_price` and `stop_loss_close_ratio_pct`. Do not output TP/SL price without its close ratio.\n")
+	sb.WriteString("- Ladder prices MUST be absolute executable structural prices, not percent-only placeholders. Long: TP > entry and SL < entry. Short: TP < entry and SL > entry.\n")
+	sb.WriteString("- Every ladder rule MUST include `structural_anchor` or side-specific anchors, plus `volatility_buffer_pct` or `volatility_buffer_reason`.\n")
+	sb.WriteString("- **CRITICAL LADDER CONSTRAINTS**:\n")
+	sb.WriteString("  - **All ladder SL must use the SAME nearest primary-timeframe invalidation structure** (e.g., all use 15m resistance + buffer). Do NOT use different timeframe structures for different ladder tiers. The tiers must still have distinct prices: split near the structure into inside/near-buffer and outside/beyond-buffer prices protecting at least 75% total size; at most one farther tier may remain, and it must be <=25%.\n")
+	sb.WriteString("  - Ladder[0] and Ladder[1] TP: MUST be within 0.5% of a structural support/resistance/fibonacci level.\n")
+	sb.WriteString("  - Ladder[2] (TP3) extended target: MAY deviate from structure to pursue larger profit, but `take_profit_close_ratio_pct` MUST be ≤ 20%. If you want TP3 > 20%, move it closer to structure.\n")
+	sb.WriteString("  - **When drawdown_rules are present, drawdown owns TP/profit-taking. Do NOT output ladder take_profit_price/take_profit_close_ratio_pct unless explicitly needed for audit; prefer ladder rules with stop-loss side only.**\n")
+	sb.WriteString("  - When drawdown_rules are present, ladder TP ratios do NOT need to sum to 80%+ (drawdown handles dynamic allocation).\n")
+	sb.WriteString("  - Each `drawdown_rule.timeframe` must be a SINGLE timeframe string (e.g., \"15m\" or \"1h\"), NOT a combined format like \"15m/1h\". If you want to reference cross-timeframe resonance, mention it in `reason_anchor` text only.\n")
+	sb.WriteString("- `drawdown_rules`: at least 2 objects when drawdown/combined is active. Each must include `timeframe` (SINGLE timeframe string like \"15m\" or \"1h\", NOT \"15m/1h\"), `min_profit_pct`, `max_drawdown_pct`, `close_ratio_pct`, `stage_name`, `reason_anchor`. `max_drawdown_pct` is percent-of-peak-profit giveback, not absolute price drawdown.\n")
+	sb.WriteString("- Drawdown structure should lock partial profit first, then leave runner inventory for higher targets: early stages close less than 60%, final/outer stage may close more but should preserve runner semantics when trend allows.\n")
+	sb.WriteString("- Fallback policy: fallback exists as exchange/runtime safety and may reference operator manual/default values if an otherwise good setup cannot place one leg natively. But the model's goal is a schema-valid, structure-anchored AI `protection_plan`; do NOT intentionally omit/underspecify protection to rely on fallback. If the market structure is too unclear to derive valid protection, then do not open. Output wait/[] instead.\n\n")
 	sb.WriteString("## Field Description\n\n")
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- Optional reliability fields for every decision: `regime` (trend_up|trend_down|range|squeeze|chop|news_risk|no_trade), `setup_type` (trend_pullback|range_edge|breakout_retest|none), and `quality_score` with total/trend_alignment/structure_location/sr_fib_quality/derivatives_context/trigger_quality/net_rr. These fields are currently audit/shadow fields, but strong opens should include them.\n")
+	sb.WriteString("- Prefer `wait` when no clear setup is present. Recognized setup types: trend_pullback, range_edge, breakout_retest.\n")
+	sb.WriteString("- `protection_plan`: optional structured protection output for open actions only\n")
+	sb.WriteString("- Ladder rule price fields: explicit absolute `take_profit_price` / `stop_loss_price` (or aliases `tp_level` / `sl_level`) are REQUIRED for AI ladder. `take_profit_pct` / `stop_loss_pct` are only equivalent UI/audit percentages after calculating from the absolute prices; they are never enough by themselves. Every TP leg with `take_profit_price` MUST include positive `take_profit_close_ratio_pct`; every SL leg with `stop_loss_price` MUST include positive `stop_loss_close_ratio_pct`. Include `take_profit_anchor` / `stop_loss_anchor` or `structural_anchor` naming the support/resistance/fibonacci/invalidation level, plus a volatility/wick buffer (`volatility_buffer_pct` or `volatility_buffer_reason`) based on ATR/recent wicks. Do not put stops/targets naked exactly on crowded structural levels: invalidation should require an effective break, not a one-tick touch. Never output generic 0.9% / 1.5% ladder stops unless those exact percentages are back-calculated from explicit structural prices plus buffer. Ladder SL tiers must not collapse to identical or near-identical prices; use same nearest primary structure but distinct inside/near and outside/beyond buffer stops.\n")
+	sb.WriteString("- `entry_protection_rationale`: required for `open_long` / `open_short`; must include timeframe_context, risk_reward (entry/invalidation/first_target/gross_estimated_rr and preferably net_estimated_rr), and structural anchors when opening\n")
+	sb.WriteString("  - Opening decisions MUST include a first-target anchor: use either `anchors[].type=\"first_target\"`, or `structural_key_levels[].used_for=\"first_target\"/\"tp1\"/\"take_profit\"`, with target price and reason.\n")
+	sb.WriteString("  - If you do NOT have a concrete higher-timeframe anchor, leave `timeframe_context.higher` empty/omitted. If `timeframe_context.higher` is present, you MUST include `higher_timeframe_anchors` or `timeframe_structures` with explicit higher-TF price anchors.\n")
+	sb.WriteString("  - `gross_estimated_rr` MUST equal abs(first_target-entry)/abs(entry-invalidation). Do not invent or round it upward; if computed RR is below the minimum, output wait/[] instead.\n")
+	sb.WriteString("  - Treat structural entry as a compact contract, not a verbose essay: include only the few levels/anchors needed to justify entry, invalidation, and first target\n")
+	sb.WriteString("  - When strategy `entry_structure` is enabled, you MUST provide the required structural fields (primary timeframe, adjacent timeframe, support/resistance, anchors, and fibonacci only when explicitly required) or output wait/[] instead of forcing an open\n")
+	sb.WriteString("  - Use exchange/runtime market data only to extract the necessary structure for judgment; do not dump every indicator or noisy field\n")
+	sb.WriteString("  - Use `mode=full` when one unified TP/SL plan is enough\n")
+	sb.WriteString("  - For `mode=full`, output `take_profit_pct` / `stop_loss_pct` only; do not place absolute price fields inside protection_plan\n")
+	sb.WriteString("  - Use `mode=ladder` when you want staged TP/SL with multiple ladder_rules\n")
+	sb.WriteString("  - For ladder_rules, output 2~3 structurally distinct tiers. Prefer both TP and SL sides when the strategy route owns ladder: each rule should include absolute `take_profit_price`, `take_profit_close_ratio_pct`, absolute `stop_loss_price`, `stop_loss_close_ratio_pct`, and anchor text.\n")
+	sb.WriteString("  - **Position sizing rules**: When `drawdown_rules` are present, drawdown owns TP/profit-taking, so prefer omitting ladder TP fields entirely and provide ladder stop-loss side only. Without drawdown, TP ratios should total 60~90%. SL ratios may total up to 100%. For ladder SL, at least 75% of total position protection must be near the nearest primary invalidation structure; any farther stop tier is optional and must be <=25%.\n")
+	sb.WriteString("  - **TP3 extended target rule**: Ladder[2] (TP3) MAY deviate from structure to pursue larger profit, but `take_profit_close_ratio_pct` MUST be ≤ 20%. If you want more than 20% at TP3, move TP3 closer to a structural level.\n")
+	sb.WriteString("  - **Unified SL structure rule**: All ladder SL prices must reference the SAME nearest primary-timeframe invalidation structure (e.g., all use 15m resistance 5.444 + ATR buffer). Do NOT use 1h structure for Ladder[1] and 15m for Ladder[0]. Use the same base structure, only vary the buffer; do not repeat the same stop price.\n")
+	sb.WriteString("  - Example long ladder rule: `{\"take_profit_price\": 0.2538, \"take_profit_close_ratio_pct\": 35, \"stop_loss_price\": 0.2472, \"stop_loss_close_ratio_pct\": 50, \"structural_anchor\": \"15m resistance 0.2540 / 15m invalidation support 0.2475, buffered by ATR\"}`. Percent-only ladder rules are rejected when structure exists.\n")
+	sb.WriteString("  - Use `mode=drawdown` when the strategy route enables AI drawdown profit protection; then `drawdown_rules` must be non-empty\n")
+	sb.WriteString("  - Use `mode=break_even` when the strategy enables Break-even Stop as an AI-required runtime stop layer; include break_even_trigger_mode/value/offset\n")
+	sb.WriteString("  - In drawdown/break-even AI mode, reasoning must reference the primary timeframe, adjacent timeframes, and structural anchors such as support/resistance, fibonacci, and volatility\n")
+	sb.WriteString("  - If Drawdown Take Profit is enabled in strategy config, your reasoning must explicitly mention drawdown, trailing, or profit-protection ownership\n")
+	sb.WriteString("  - If Break-even Stop is enabled in strategy config, your reasoning must explicitly mention break-even or acknowledge that an additional stop layer exists after profit trigger\n")
+	sb.WriteString("  - Do NOT output protection_plan for hold/wait/close actions\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
-	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
-	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
+	sb.WriteString(fmt.Sprintf("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, entry_protection_rationale; risk_reward must satisfy min RR ≥ %.1f and direction sanity (long: invalidation < entry < first_target, short: invalidation > entry > first_target)\n", riskControl.MinRiskRewardRatio))
+	sb.WriteString("- Structural entry fields should be compact and purpose-driven: primary/adjacent timeframe, top support/resistance, one or a few anchors, and fibonacci only when it materially affects invalidation/target planning\n")
+	sb.WriteString("- `entry_protection_rationale.key_levels.support` and `entry_protection_rationale.key_levels.resistance` are REQUIRED for open actions when structural entry is enabled; provide only the most decision-relevant structural levels and stay within configured caps (typically support<=3, resistance<=3) instead of dumping every visible level\n")
+	sb.WriteString("- `structural_key_levels`: structural levels that influenced protection placement decisions; each must specify price, type (support/resistance), timeframe, source, and what it was used_for (tp1/tp2/stop_loss/invalidation)\n")
+	sb.WriteString("- If you provide `structural_key_levels`, make sure they are consistent with key_levels.support/resistance; do not leave support/resistance empty\n")
+	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n")
+	sb.WriteString("- **STRICT JSON NUMBER RULE**: JSON numeric fields must use plain digits with optional decimal point only. Never use thousands separators, grouping commas, spaces, or localized punctuation in numeric fields. Correct: `97687.05`, `77048.9`, `2293.23`. Wrong: `97,687.05`, `77,048.9`, `2,293.23`, `9,76887.05`. If you want to mention comma-formatted prices, put them only inside quoted natural-language strings, never in numeric fields.\n\n")
 
 	// 8. Custom Prompt
 	if e.config.CustomPrompt != "" {
@@ -243,40 +439,88 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder) {
 // BuildUserPrompt builds User Prompt based on strategy configuration
 func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 	var sb strings.Builder
+	lang := e.GetLanguage()
+
+	// Hard language reminder in user prompt too (reinforces system prompt)
+	if lang == LangChinese {
+		sb.WriteString("【硬性要求】本次所有分析、解释、结构理由、保护方案说明必须使用中文；JSON 字段名保持英文，但字段值中的自然语言文本必须是中文。\n\n")
+	} else {
+		sb.WriteString("[HARD REQUIREMENT] All analysis, explanations, structural rationale, and protection-plan explanatory text must be in English. Keep JSON field names in English, but any natural-language values inside JSON must also be English.\n\n")
+	}
 
 	// System status
-	sb.WriteString(fmt.Sprintf("Time: %s | Period: #%d | Runtime: %d minutes\n\n",
-		ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
+	if lang == LangChinese {
+		sb.WriteString(fmt.Sprintf("时间: %s | 周期: #%d | 运行时长: %d 分钟\n\n",
+			ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
+	} else {
+		sb.WriteString(fmt.Sprintf("Time: %s | Period: #%d | Runtime: %d minutes\n\n",
+			ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
+	}
 
 	// BTC market
 	if btcData, hasBTC := ctx.MarketDataMap["BTCUSDT"]; hasBTC {
-		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
-			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
-			btcData.CurrentMACD, btcData.CurrentRSI7))
+		if lang == LangChinese {
+			sb.WriteString(fmt.Sprintf("BTC: %s (1h: %s%%, 4h: %s%%) | MACD: %s | RSI: %s\n\n",
+				formatAIFloat(btcData.CurrentPrice), formatAISignedFloat(btcData.PriceChange1h), formatAISignedFloat(btcData.PriceChange4h),
+				formatAIFloat(btcData.CurrentMACD), formatAIFloat(btcData.CurrentRSI7)))
+		} else {
+			sb.WriteString(fmt.Sprintf("BTC: %s (1h: %s%%, 4h: %s%%) | MACD: %s | RSI: %s\n\n",
+				formatAIFloat(btcData.CurrentPrice), formatAISignedFloat(btcData.PriceChange1h), formatAISignedFloat(btcData.PriceChange4h),
+				formatAIFloat(btcData.CurrentMACD), formatAIFloat(btcData.CurrentRSI7)))
+		}
 	}
 
 	// Account information
-	sb.WriteString(fmt.Sprintf("Account: Equity %.2f | Balance %.2f (%.1f%%) | PnL %+.2f%% | Margin %.1f%% | Positions %d\n\n",
-		ctx.Account.TotalEquity,
-		ctx.Account.AvailableBalance,
-		(ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100,
-		ctx.Account.TotalPnLPct,
-		ctx.Account.MarginUsedPct,
-		ctx.Account.PositionCount))
+	if lang == LangChinese {
+		sb.WriteString(fmt.Sprintf("账户: 权益 %s | 可用余额 %s (%s%%) | 盈亏 %s%% | 保证金 %s%% | 持仓 %d\n\n",
+			formatAIFloat(ctx.Account.TotalEquity),
+			formatAIFloat(ctx.Account.AvailableBalance),
+			formatAIFloat((ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100),
+			formatAISignedFloat(ctx.Account.TotalPnLPct),
+			formatAIFloat(ctx.Account.MarginUsedPct),
+			ctx.Account.PositionCount))
+	} else {
+		sb.WriteString(fmt.Sprintf("Account: Equity %s | Balance %s (%s%%) | PnL %s%% | Margin %s%% | Positions %d\n\n",
+			formatAIFloat(ctx.Account.TotalEquity),
+			formatAIFloat(ctx.Account.AvailableBalance),
+			formatAIFloat((ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100),
+			formatAISignedFloat(ctx.Account.TotalPnLPct),
+			formatAIFloat(ctx.Account.MarginUsedPct),
+			ctx.Account.PositionCount))
+	}
 
 	// Recently completed orders (placed before positions to ensure visibility)
 	if len(ctx.RecentOrders) > 0 {
-		sb.WriteString("## Recent Completed Trades\n")
+		if lang == LangChinese {
+			sb.WriteString("## 最近已完成交易\n")
+		} else {
+			sb.WriteString("## Recent Completed Trades\n")
+		}
 		for i, order := range ctx.RecentOrders {
 			resultStr := "Profit"
-			if order.RealizedPnL < 0 {
-				resultStr = "Loss"
+			if lang == LangChinese {
+				resultStr = "盈利"
 			}
-			sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Exit %.4f | %s: %+.2f USDT (%+.2f%%) | %s→%s (%s)\n",
-				i+1, order.Symbol, order.Side,
-				order.EntryPrice, order.ExitPrice,
-				resultStr, order.RealizedPnL, order.PnLPct,
-				order.EntryTime, order.ExitTime, order.HoldDuration))
+			if order.RealizedPnL < 0 {
+				if lang == LangChinese {
+					resultStr = "亏损"
+				} else {
+					resultStr = "Loss"
+				}
+			}
+			if lang == LangChinese {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | 开仓 %s 平仓 %s | %s: %s USDT (%s%%) | %s→%s (%s)\n",
+					i+1, order.Symbol, order.Side,
+					formatAIFloat(order.EntryPrice), formatAIFloat(order.ExitPrice),
+					resultStr, formatAISignedFloat(order.RealizedPnL), formatAISignedFloat(order.PnLPct),
+					order.EntryTime, order.ExitTime, order.HoldDuration))
+			} else {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %s Exit %s | %s: %s USDT (%s%%) | %s→%s (%s)\n",
+					i+1, order.Symbol, order.Side,
+					formatAIFloat(order.EntryPrice), formatAIFloat(order.ExitPrice),
+					resultStr, formatAISignedFloat(order.RealizedPnL), formatAISignedFloat(order.PnLPct),
+					order.EntryTime, order.ExitTime, order.HoldDuration))
+			}
 		}
 		sb.WriteString("\n")
 	}
@@ -360,24 +604,27 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		positionSymbols[normalizedSymbol] = true
 	}
 
+	seenCandidateSymbols := make(map[string]bool)
 	displayableCount := 0
 	for _, coin := range ctx.CandidateCoins {
 		normalizedCoinSymbol := market.Normalize(coin.Symbol)
-		if positionSymbols[normalizedCoinSymbol] {
+		if positionSymbols[normalizedCoinSymbol] || seenCandidateSymbols[normalizedCoinSymbol] {
 			continue
 		}
 		if _, hasData := ctx.MarketDataMap[coin.Symbol]; !hasData {
 			continue
 		}
+		seenCandidateSymbols[normalizedCoinSymbol] = true
 		displayableCount++
 	}
 
 	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", displayableCount))
 	displayedCount := 0
+	displayedCandidateSymbols := make(map[string]bool)
 	for _, coin := range ctx.CandidateCoins {
 		// Skip if this coin is already a position (data already shown in positions section)
 		normalizedCoinSymbol := market.Normalize(coin.Symbol)
-		if positionSymbols[normalizedCoinSymbol] {
+		if positionSymbols[normalizedCoinSymbol] || displayedCandidateSymbols[normalizedCoinSymbol] {
 			continue
 		}
 
@@ -385,11 +632,13 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		if !hasData {
 			continue
 		}
+		displayedCandidateSymbols[normalizedCoinSymbol] = true
 		displayedCount++
 
 		sourceTags := e.formatCoinSourceTag(coin.Sources)
 		sb.WriteString(fmt.Sprintf("### %d. %s%s\n\n", displayedCount, coin.Symbol, sourceTags))
 		sb.WriteString(e.formatMarketData(marketData))
+		sb.WriteString(e.formatMarketContextV2(coin.Symbol, marketData))
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[coin.Symbol]; hasQuant {
@@ -421,6 +670,23 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString(nofxos.FormatPriceRankingForAI(ctx.PriceRankingData, nofxosLang))
 	}
 
+	// Optional data availability: never fail closed; continue with available exchange/market data.
+	if len(ctx.OptionalDataStates) > 0 {
+		sb.WriteString("## Optional Data Availability\n")
+		for _, state := range ctx.OptionalDataStates {
+			status := "missing"
+			if state.Available {
+				status = "available"
+			}
+			sb.WriteString(fmt.Sprintf("- source=%s status=%s", state.Source, status))
+			if state.Reason != "" {
+				sb.WriteString(fmt.Sprintf(" reason=%s", state.Reason))
+			}
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Rule: optional data absence is not a no-trade signal by itself; use remaining price/structure/exchange data and mention uncertainty if relevant.\n\n")
+	}
+
 	sb.WriteString("---\n\n")
 	sb.WriteString("Now please analyze and output your decision (Chain of Thought + JSON)\n")
 
@@ -448,13 +714,14 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		positionValue = -positionValue
 	}
 
-	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n\n",
+	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %s Current %s | Qty %s | Position Value %s USDT | PnL%s%% | PnL Amount%s USDT | Peak PnL%s%% | Leverage %dx | Margin %s | Liq Price %s%s\n\n",
 		index, pos.Symbol, strings.ToUpper(pos.Side),
-		pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
-		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
+		formatAIFloat(pos.EntryPrice), formatAIFloat(pos.MarkPrice), formatAIFloat(pos.Quantity), formatAIFloat(positionValue), formatAISignedFloat(pos.UnrealizedPnLPct), formatAISignedFloat(pos.UnrealizedPnL), formatAIFloat(pos.PeakPnLPct),
+		pos.Leverage, formatAIFloat(pos.MarginUsed), formatAIFloat(pos.LiquidationPrice), holdingDuration))
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))
+		sb.WriteString(e.formatMarketContextV2(pos.Symbol, marketData))
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[pos.Symbol]; hasQuant {
@@ -534,18 +801,18 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 
 	// Clearly label the coin symbol
 	sb.WriteString(fmt.Sprintf("=== %s Market Data ===\n\n", data.Symbol))
-	sb.WriteString(fmt.Sprintf("current_price = %.4f", data.CurrentPrice))
+	sb.WriteString(fmt.Sprintf("current_price = %s", formatAIFloat(data.CurrentPrice)))
 
 	if indicators.EnableEMA {
-		sb.WriteString(fmt.Sprintf(", current_ema20 = %.3f", data.CurrentEMA20))
+		sb.WriteString(fmt.Sprintf(", current_ema20 = %s", formatAIFloat(data.CurrentEMA20)))
 	}
 
 	if indicators.EnableMACD {
-		sb.WriteString(fmt.Sprintf(", current_macd = %.3f", data.CurrentMACD))
+		sb.WriteString(fmt.Sprintf(", current_macd = %s", formatAIFloat(data.CurrentMACD)))
 	}
 
 	if indicators.EnableRSI {
-		sb.WriteString(fmt.Sprintf(", current_rsi7 = %.3f", data.CurrentRSI7))
+		sb.WriteString(fmt.Sprintf(", current_rsi7 = %s", formatAIFloat(data.CurrentRSI7)))
 	}
 
 	sb.WriteString("\n\n")
@@ -554,12 +821,12 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 		sb.WriteString(fmt.Sprintf("Additional data for %s:\n\n", data.Symbol))
 
 		if indicators.EnableOI && data.OpenInterest != nil {
-			sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f\n\n",
-				data.OpenInterest.Latest, data.OpenInterest.Average))
+			sb.WriteString(fmt.Sprintf("Open Interest: latest=%s average=%s\n\n",
+				formatAIFloat(data.OpenInterest.Latest), formatAIFloat(data.OpenInterest.Average)))
 		}
 
 		if indicators.EnableFundingRate {
-			sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
+			sb.WriteString(fmt.Sprintf("Funding Rate: %s\n\n", formatAIFloat(data.FundingRate)))
 		}
 	}
 
@@ -603,7 +870,7 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 			}
 
 			if indicators.EnableATR {
-				sb.WriteString(fmt.Sprintf("3m ATR (14-period): %.3f\n\n", data.IntradaySeries.ATR14))
+				sb.WriteString(fmt.Sprintf("3m ATR (14-period): %s\n\n", formatAIFloat(data.IntradaySeries.ATR14)))
 			}
 		}
 
@@ -611,18 +878,18 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 			sb.WriteString(fmt.Sprintf("Longer-term context (%s timeframe):\n\n", indicators.Klines.LongerTimeframe))
 
 			if indicators.EnableEMA {
-				sb.WriteString(fmt.Sprintf("20-Period EMA: %.3f vs. 50-Period EMA: %.3f\n\n",
-					data.LongerTermContext.EMA20, data.LongerTermContext.EMA50))
+				sb.WriteString(fmt.Sprintf("20-Period EMA: %s vs. 50-Period EMA: %s\n\n",
+					formatAIFloat(data.LongerTermContext.EMA20), formatAIFloat(data.LongerTermContext.EMA50)))
 			}
 
 			if indicators.EnableATR {
-				sb.WriteString(fmt.Sprintf("3-Period ATR: %.3f vs. 14-Period ATR: %.3f\n\n",
-					data.LongerTermContext.ATR3, data.LongerTermContext.ATR14))
+				sb.WriteString(fmt.Sprintf("3-Period ATR: %s vs. 14-Period ATR: %s\n\n",
+					formatAIFloat(data.LongerTermContext.ATR3), formatAIFloat(data.LongerTermContext.ATR14)))
 			}
 
 			if indicators.EnableVolume {
-				sb.WriteString(fmt.Sprintf("Current Volume: %.3f vs. Average Volume: %.3f\n\n",
-					data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
+				sb.WriteString(fmt.Sprintf("Current Volume: %s vs. Average Volume: %s\n\n",
+					formatAIFloat(data.LongerTermContext.CurrentVolume), formatAIFloat(data.LongerTermContext.AverageVolume)))
 			}
 
 			if indicators.EnableMACD && len(data.LongerTermContext.MACDValues) > 0 {
@@ -633,6 +900,101 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 				sb.WriteString(fmt.Sprintf("RSI indicators (14-Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
 			}
 		}
+	}
+
+	// Sentiment and structural data
+	sb.WriteString(formatSentimentDataEN(data, indicators))
+	sb.WriteString(formatStructuralLevelsEN(data))
+	sb.WriteString(e.formatDerivativesDeepDive(data, indicators))
+
+	return sb.String()
+}
+
+// formatDerivativesDeepDive appends a Derivatives Deep Dive section computed
+// from kline data already present in market.Data. Only emits the section when
+// at least one relevant indicator toggle is enabled.
+func (e *StrategyEngine) formatDerivativesDeepDive(data *market.Data, indicators store.IndicatorConfig) string {
+	if data == nil {
+		return ""
+	}
+	if !indicators.EnableCVD && !indicators.EnableOIGrowthRate &&
+		!indicators.EnableFundingHistory && !indicators.EnableVWAP &&
+		!indicators.EnableTakerDelta && !indicators.EnableDepthChangeRate {
+		return ""
+	}
+
+	enriched := market.BuildDerivativesEnriched(data, indicators.EnableCVD, indicators.EnableOIGrowthRate,
+		indicators.EnableFundingHistory, indicators.EnableVWAP, indicators.EnableTakerDelta,
+		indicators.EnableDepthChangeRate)
+	if enriched == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n## Derivatives Deep Dive\n")
+
+	if indicators.EnableCVD {
+		cvd1hLabel := "neutral"
+		if enriched.CVD1h > 0 {
+			cvd1hLabel = "buyers accumulating"
+		} else if enriched.CVD1h < 0 {
+			cvd1hLabel = "sellers dominant"
+		}
+		cvd4hLabel := "neutral"
+		if enriched.CVD4h > 0 {
+			cvd4hLabel = "buyers accumulating"
+		} else if enriched.CVD4h < 0 {
+			cvd4hLabel = "sellers dominant"
+		}
+		sb.WriteString(fmt.Sprintf("CVD(1h): %+.0f (%s)  |  CVD(4h): %+.0f (%s)\n",
+			enriched.CVD1h, cvd1hLabel, enriched.CVD4h, cvd4hLabel))
+	}
+
+	if indicators.EnableOIGrowthRate {
+		sb.WriteString(fmt.Sprintf("OI Growth: 1h=%+.2f%%, 4h=%+.2f%%\n",
+			enriched.OIGrowthRate1h, enriched.OIGrowthRate4h))
+	}
+
+	if indicators.EnableFundingHistory && len(enriched.FundingHistory) > 0 {
+		parts := make([]string, len(enriched.FundingHistory))
+		for i, v := range enriched.FundingHistory {
+			parts[i] = fmt.Sprintf("%.4f", v)
+		}
+		sb.WriteString(fmt.Sprintf("Funding Trend: %s (last %d: %s)\n",
+			enriched.FundingTrend, len(enriched.FundingHistory), strings.Join(parts, ", ")))
+	}
+
+	if indicators.EnableVWAP && enriched.VWAP > 0 {
+		sign := "+"
+		if enriched.PriceVsVWAP < 0 {
+			sign = ""
+		}
+		sb.WriteString(fmt.Sprintf("VWAP: %s (price %s%.2f%% vs VWAP)\n",
+			formatAIFloat(enriched.VWAP), sign, enriched.PriceVsVWAP))
+	}
+
+	if indicators.EnableTakerDelta {
+		takerLabel := "neutral"
+		if enriched.TakerDelta > 0.3 {
+			takerLabel = "strong buy pressure"
+		} else if enriched.TakerDelta > 0.1 {
+			takerLabel = "mild buy pressure"
+		} else if enriched.TakerDelta < -0.3 {
+			takerLabel = "strong sell pressure"
+		} else if enriched.TakerDelta < -0.1 {
+			takerLabel = "mild sell pressure"
+		}
+		sb.WriteString(fmt.Sprintf("Taker Delta: %+.2f (%s)\n", enriched.TakerDelta, takerLabel))
+	}
+
+	if indicators.EnableDepthChangeRate {
+		depthLabel := "stable"
+		if enriched.DepthChangeRate > 0 {
+			depthLabel = "bids strengthening"
+		} else if enriched.DepthChangeRate < 0 {
+			depthLabel = "asks strengthening"
+		}
+		sb.WriteString(fmt.Sprintf("Depth Change: %+.1f%% (%s)\n", enriched.DepthChangeRate, depthLabel))
 	}
 
 	return sb.String()
@@ -682,7 +1044,7 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	if indicators.EnableATR && data.ATR14 > 0 {
-		sb.WriteString(fmt.Sprintf("ATR14: %.4f\n", data.ATR14))
+		sb.WriteString(fmt.Sprintf("ATR14: %s\n", formatAIFloat(data.ATR14)))
 	}
 
 	if indicators.EnableBOLL && len(data.BOLLUpper) > 0 {
@@ -692,6 +1054,44 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	sb.WriteString("\n")
+}
+
+func (e *StrategyEngine) formatMarketContextV2(symbol string, data *market.Data) string {
+	ctx := market.BuildMarketContextV2(symbol, data, []string{"3m", "15m", "1h", "4h", "1d"}, "15m")
+	if ctx == nil || ctx.RegimeRules == nil {
+		return ""
+	}
+	snapshot := market.BuildCompositeMarketSnapshotFromExistingData("okx", []string{"3m", "15m", "1h", "4h", "1d"}, "15m", 180*time.Second, data)
+	if snapshot != nil && snapshot.AICompact != "" {
+		return "Composite Market Context (shared human/AI source):\n" + snapshot.AICompact + "  rule: open only when setup_type is compatible with allowed_setups and structural anchors satisfy structure_mode; otherwise wait. For any open with ladder protection, stop_loss_price must be an explicit structural invalidation price beyond support/resistance/fibonacci plus ATR/wick buffer; stop_loss_pct is only a derived display value, never the planning input.\n"
+	}
+	var sb strings.Builder
+	sb.WriteString("Execution Regime Guidance:\n")
+	sb.WriteString(fmt.Sprintf("  regime=%s structure_mode=%s fibonacci_mode=%s\n", ctx.RegimeRules.Regime, ctx.RegimeRules.StructureMode, ctx.RegimeRules.FibonacciMode))
+	if len(ctx.RegimeRules.AllowedSetups) > 0 {
+		sb.WriteString(fmt.Sprintf("  allowed_setups=%s\n", strings.Join(ctx.RegimeRules.AllowedSetups, ",")))
+	}
+	if len(ctx.RegimeRules.RequiredAnchors) > 0 {
+		sb.WriteString(fmt.Sprintf("  required_anchors=%s\n", strings.Join(ctx.RegimeRules.RequiredAnchors, ",")))
+	}
+	if ctx.RegimeRules.ProtectionGuidance != "" {
+		sb.WriteString(fmt.Sprintf("  protection_guidance=%s\n", ctx.RegimeRules.ProtectionGuidance))
+	}
+	if ctx.RegimeRules.RegimeReversalRisk {
+		sb.WriteString(fmt.Sprintf("  ⚠️ Regime reversal risk: %s\n", ctx.RegimeRules.ReversalRiskReason))
+		sb.WriteString("  → Consider whether the trend is still intact before opening in the trend direction\n")
+	}
+	if ctx.Derivatives != nil {
+		sb.WriteString(fmt.Sprintf("  derivatives: funding_bias=%s squeeze_risk=%s oi_1h=%.2f%% volume_z=%.2f\n", ctx.Derivatives.FundingBias, ctx.Derivatives.SqueezeRisk, ctx.Derivatives.OIChange1hPct, ctx.Derivatives.VolumeZScore))
+	}
+	if ctx.Quant != nil && ctx.Quant.DataQuality != "" && ctx.Quant.DataQuality != "missing" {
+		sb.WriteString(fmt.Sprintf("  quant: flow_bias=%s crowding=%s inst_future_1h=%s retail_future_1h=%s oi_1h=%.2f%%\n", ctx.Quant.FlowBias, ctx.Quant.CrowdingRisk, formatFlowValue(ctx.Quant.InstitutionFuture1h), formatFlowValue(ctx.Quant.RetailFuture1h), ctx.Quant.OIChange1hPct))
+	}
+	if ctx.ExchangeFlow != nil && ctx.ExchangeFlow.DataQuality != "" && ctx.ExchangeFlow.DataQuality != "missing" {
+		sb.WriteString(fmt.Sprintf("  exchange_flow: funding=%s long_short=%s taker=%s depth=%s crowding=%s depth_total=%s\n", ctx.ExchangeFlow.FundingBias, ctx.ExchangeFlow.LongShortSkew, ctx.ExchangeFlow.TakerFlowBias, ctx.ExchangeFlow.DepthBias, ctx.ExchangeFlow.CrowdingRisk, formatFlowValue(ctx.ExchangeFlow.DepthTotalUSDT)))
+	}
+	sb.WriteString("  rule: open only when setup_type is compatible with allowed_setups and structural anchors satisfy structure_mode; otherwise wait.\n")
+	return sb.String()
 }
 
 func (e *StrategyEngine) formatQuantData(data *QuantData) string {
@@ -801,7 +1201,25 @@ func formatFlowValue(v float64) string {
 func formatFloatSlice(values []float64) string {
 	strValues := make([]string, len(values))
 	for i, v := range values {
-		strValues[i] = fmt.Sprintf("%.4f", v)
+		strValues[i] = formatAIFloat(v)
 	}
 	return "[" + strings.Join(strValues, ", ") + "]"
+}
+
+func buildDrawdownTierConstraintPrompt(cfg store.DrawdownTakeProfitConfig) string {
+	if !cfg.Enabled || len(cfg.Rules) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("### Drawdown tier guidelines:\n")
+	sb.WriteString("- Match the strategy tier count. Each tier has a ceiling — design min_profit_pct at or below it:\n")
+	for i, r := range cfg.Rules {
+		sb.WriteString(fmt.Sprintf("  - Tier %d: ceiling %.2f%%, suggested max_drawdown ≈ %.0f%%, close_ratio ≈ %.0f%%.\n",
+			i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
+	}
+	sb.WriteString("- Tier 1 should lock meaningful profit (the backend enforces close_ratio ≥ 50%% on tier 1).\n")
+	sb.WriteString("- Target the inside of the nearest structural level (easier to reach), not aspirational outside levels.\n")
+	sb.WriteString("- Ensure min_profit_pct exceeds normal ATR volatility so retracements don't prematurely trigger.\n")
+	sb.WriteString("- If min_profit_pct exceeds a tier ceiling, the backend clamps it down automatically.\n")
+	return sb.String()
 }

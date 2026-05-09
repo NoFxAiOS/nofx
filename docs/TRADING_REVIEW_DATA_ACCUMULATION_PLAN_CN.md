@@ -386,11 +386,19 @@ DecisionRecord
 
 ### Phase B（最小代码补强）
 **连接键与最小结构化快照**
-- [ ] decision ↔ position
-- [ ] close event ↔ decision
+- [x] decision ↔ position（V1 先落 `entry_decision_cycle` / `exit_decision_cycle`）
+- [x] close event ↔ decision（V1 先落 `decision_cycle`）
 - [x] review context 最小结构化快照（safe mode / ai close gate / ai mode / candidate count / equity / margin）
 
-### Phase C（复盘基础设施）
+### Phase C（最小产品交付）
+**第一版交易复盘面板**
+- [x] 复用现有 `PositionHistory` 作为最小产品面，而不是新开高耦合大页面
+- [x] position 级展示：入场 / 出场决策周期
+- [x] close event 级展示：decision cycle
+- [ ] 下一步：把 `review_context` 摘要直接投到历史面板
+- [ ] 下一步：补 `decision_record_id` 级强连接与详情联查
+
+### Phase D（复盘基础设施）
 **逐笔反思模板与 review 数据容器**
 - 统一 review 模型
 - 自动生成分析输入材料

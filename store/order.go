@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -17,6 +18,7 @@ type TraderOrder struct {
 	ExchangeType      string  `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
 	ExchangeOrderID   string  `gorm:"column:exchange_order_id;not null;uniqueIndex:idx_orders_exchange_unique,priority:2" json:"exchange_order_id"`
 	ClientOrderID     string  `gorm:"column:client_order_id;default:''" json:"client_order_id"`
+	ParentOrderID     string  `gorm:"column:parent_order_id;default:'';index:idx_orders_parent_order_id" json:"parent_order_id"`
 	Symbol            string  `gorm:"column:symbol;not null;index:idx_orders_symbol" json:"symbol"`
 	Side              string  `gorm:"column:side;not null" json:"side"`
 	PositionSide      string  `gorm:"column:position_side;default:''" json:"position_side"`
@@ -37,9 +39,9 @@ type TraderOrder struct {
 	PriceProtect      bool    `gorm:"column:price_protect;default:false" json:"price_protect"`
 	OrderAction       string  `gorm:"column:order_action;default:''" json:"order_action"`
 	RelatedPositionID int64   `gorm:"column:related_position_id;default:0" json:"related_position_id"`
-	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"`         // Unix milliseconds UTC
-	UpdatedAt         int64   `gorm:"column:updated_at" json:"updated_at"`         // Unix milliseconds UTC
-	FilledAt          int64   `gorm:"column:filled_at" json:"filled_at"`           // Unix milliseconds UTC
+	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
+	UpdatedAt         int64   `gorm:"column:updated_at" json:"updated_at"` // Unix milliseconds UTC
+	FilledAt          int64   `gorm:"column:filled_at" json:"filled_at"`   // Unix milliseconds UTC
 }
 
 // TableName returns the table name for TraderOrder
@@ -50,23 +52,25 @@ func (TraderOrder) TableName() string {
 // TraderFill trade record
 // All time fields use int64 millisecond timestamps (UTC) to avoid timezone issues
 type TraderFill struct {
-	ID              int64   `gorm:"primaryKey;autoIncrement" json:"id"`
-	TraderID        string  `gorm:"column:trader_id;not null;index:idx_fills_trader_id" json:"trader_id"`
-	ExchangeID      string  `gorm:"column:exchange_id;not null;default:''" json:"exchange_id"`
-	ExchangeType    string  `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
-	OrderID         int64   `gorm:"column:order_id;not null;index:idx_fills_order_id" json:"order_id"`
-	ExchangeOrderID string  `gorm:"column:exchange_order_id;not null" json:"exchange_order_id"`
-	ExchangeTradeID string  `gorm:"column:exchange_trade_id;not null;uniqueIndex:idx_fills_exchange_unique,priority:2" json:"exchange_trade_id"`
-	Symbol          string  `gorm:"column:symbol;not null" json:"symbol"`
-	Side            string  `gorm:"column:side;not null" json:"side"`
-	Price           float64 `gorm:"column:price;not null" json:"price"`
-	Quantity        float64 `gorm:"column:quantity;not null" json:"quantity"`
-	QuoteQuantity   float64 `gorm:"column:quote_quantity;not null" json:"quote_quantity"`
-	Commission      float64 `gorm:"column:commission;not null" json:"commission"`
-	CommissionAsset string  `gorm:"column:commission_asset;not null" json:"commission_asset"`
-	RealizedPnL     float64 `gorm:"column:realized_pnl;default:0" json:"realized_pnl"`
-	IsMaker         bool    `gorm:"column:is_maker;default:false" json:"is_maker"`
-	CreatedAt       int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
+	ID                int64   `gorm:"primaryKey;autoIncrement" json:"id"`
+	TraderID          string  `gorm:"column:trader_id;not null;index:idx_fills_trader_id" json:"trader_id"`
+	ExchangeID        string  `gorm:"column:exchange_id;not null;default:''" json:"exchange_id"`
+	ExchangeType      string  `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
+	OrderID           int64   `gorm:"column:order_id;not null;index:idx_fills_order_id" json:"order_id"`
+	ExchangeOrderID   string  `gorm:"column:exchange_order_id;not null" json:"exchange_order_id"`
+	ParentOrderID     string  `gorm:"column:parent_order_id;default:'';index:idx_fills_parent_order_id" json:"parent_order_id"`
+	ExchangeTradeID   string  `gorm:"column:exchange_trade_id;not null;uniqueIndex:idx_fills_exchange_unique,priority:2" json:"exchange_trade_id"`
+	Symbol            string  `gorm:"column:symbol;not null" json:"symbol"`
+	Side              string  `gorm:"column:side;not null" json:"side"`
+	Price             float64 `gorm:"column:price;not null" json:"price"`
+	Quantity          float64 `gorm:"column:quantity;not null" json:"quantity"`
+	QuoteQuantity     float64 `gorm:"column:quote_quantity;not null" json:"quote_quantity"`
+	Commission        float64 `gorm:"column:commission;not null" json:"commission"`
+	CommissionAsset   string  `gorm:"column:commission_asset;not null" json:"commission_asset"`
+	RealizedPnL       float64 `gorm:"column:realized_pnl;default:0" json:"realized_pnl"`
+	IsMaker           bool    `gorm:"column:is_maker;default:false" json:"is_maker"`
+	RelatedPositionID int64   `gorm:"column:related_position_id;default:0" json:"related_position_id"`
+	CreatedAt         int64   `gorm:"column:created_at" json:"created_at"` // Unix milliseconds UTC
 }
 
 // TableName returns the table name for TraderFill
@@ -124,14 +128,20 @@ func (s *OrderStore) InitTables() error {
 				}
 			}
 
-			// Ensure indexes exist
+			// Ensure indexes and attribution columns exist
+			s.db.Exec(`ALTER TABLE trader_orders ADD COLUMN IF NOT EXISTS related_position_id INTEGER DEFAULT 0`)
+			s.db.Exec(`ALTER TABLE trader_orders ADD COLUMN IF NOT EXISTS parent_order_id TEXT DEFAULT ''`)
+			s.db.Exec(`ALTER TABLE trader_fills ADD COLUMN IF NOT EXISTS related_position_id INTEGER DEFAULT 0`)
+			s.db.Exec(`ALTER TABLE trader_fills ADD COLUMN IF NOT EXISTS parent_order_id TEXT DEFAULT ''`)
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_exchange_unique ON trader_orders(exchange_id, exchange_order_id)`)
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_fills_exchange_unique ON trader_fills(exchange_id, exchange_trade_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_trader_id ON trader_orders(trader_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_symbol ON trader_orders(symbol)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_status ON trader_orders(status)`)
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_parent_order_id ON trader_orders(parent_order_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_trader_id ON trader_fills(trader_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_order_id ON trader_fills(order_id)`)
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_parent_order_id ON trader_fills(parent_order_id)`)
 			return nil
 		}
 	}
@@ -144,6 +154,8 @@ func (s *OrderStore) InitTables() error {
 	s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_exchange_unique ON trader_orders(exchange_id, exchange_order_id)`)
 	// Create unique composite index for exchange_id + exchange_trade_id
 	s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_fills_exchange_unique ON trader_fills(exchange_id, exchange_trade_id)`)
+	s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_parent_order_id ON trader_orders(parent_order_id)`)
+	s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_fills_parent_order_id ON trader_fills(parent_order_id)`)
 
 	return nil
 }
@@ -165,6 +177,79 @@ func (s *OrderStore) CreateOrder(order *TraderOrder) error {
 	return s.db.Create(order).Error
 }
 
+func (s *OrderStore) UpsertSyncedOrder(order *TraderOrder) error {
+	if order == nil || order.ExchangeID == "" || order.ExchangeOrderID == "" {
+		return nil
+	}
+	existing, err := s.GetOrderByExchangeID(order.ExchangeID, order.ExchangeOrderID)
+	if err != nil {
+		return fmt.Errorf("failed to check existing order: %w", err)
+	}
+	if existing == nil {
+		return s.db.Create(order).Error
+	}
+	order.ID = existing.ID
+	if order.TraderID == "" {
+		order.TraderID = existing.TraderID
+	}
+	if order.OrderAction == "" {
+		order.OrderAction = existing.OrderAction
+	}
+	if order.PositionSide == "" {
+		order.PositionSide = existing.PositionSide
+	}
+	updates := map[string]interface{}{
+		"client_order_id":  firstNonEmpty(order.ClientOrderID, existing.ClientOrderID),
+		"parent_order_id":  firstNonEmpty(order.ParentOrderID, existing.ParentOrderID),
+		"symbol":           firstNonEmpty(order.Symbol, existing.Symbol),
+		"side":             firstNonEmpty(order.Side, existing.Side),
+		"position_side":    firstNonEmpty(order.PositionSide, existing.PositionSide),
+		"type":             firstNonEmpty(order.Type, existing.Type),
+		"order_action":     firstNonEmpty(order.OrderAction, existing.OrderAction),
+		"quantity":         nonZeroFloat(order.Quantity, existing.Quantity),
+		"price":            nonZeroFloat(order.Price, existing.Price),
+		"status":           firstNonEmpty(order.Status, existing.Status),
+		"filled_quantity":  nonZeroFloat(order.FilledQuantity, existing.FilledQuantity),
+		"avg_fill_price":   nonZeroFloat(order.AvgFillPrice, existing.AvgFillPrice),
+		"commission":       nonZeroFloat(order.Commission, existing.Commission),
+		"commission_asset": firstNonEmpty(order.CommissionAsset, existing.CommissionAsset),
+		"filled_at":        nonZeroInt(order.FilledAt, existing.FilledAt),
+		"updated_at":       nonZeroInt(order.UpdatedAt, time.Now().UTC().UnixMilli()),
+	}
+	if existing.TraderID == "" {
+		updates["trader_id"] = order.TraderID
+	} else {
+		order.TraderID = existing.TraderID
+	}
+	if existing.CreatedAt == 0 && order.CreatedAt > 0 {
+		updates["created_at"] = order.CreatedAt
+	} else {
+		order.CreatedAt = existing.CreatedAt
+	}
+	return s.db.Model(&TraderOrder{}).Where("id = ?", existing.ID).Updates(updates).Error
+}
+
+func firstNonEmpty(v, fallback string) string {
+	if v != "" {
+		return v
+	}
+	return fallback
+}
+
+func nonZeroFloat(v, fallback float64) float64 {
+	if v != 0 {
+		return v
+	}
+	return fallback
+}
+
+func nonZeroInt(v, fallback int64) int64 {
+	if v != 0 {
+		return v
+	}
+	return fallback
+}
+
 // UpdateOrderStatus updates order status
 func (s *OrderStore) UpdateOrderStatus(id int64, status string, filledQty, avgPrice, commission float64) error {
 	updates := map[string]interface{}{
@@ -180,6 +265,92 @@ func (s *OrderStore) UpdateOrderStatus(id int64, status string, filledQty, avgPr
 	}
 
 	return s.db.Model(&TraderOrder{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (s *OrderStore) MarkMissingOpenOrdersCanceled(exchangeID string, symbol string, liveExchangeOrderIDs []string) (int64, error) {
+	if exchangeID == "" || symbol == "" {
+		return 0, nil
+	}
+	live := make([]string, 0, len(liveExchangeOrderIDs)*3)
+	seen := make(map[string]struct{}, len(liveExchangeOrderIDs)*3)
+	for _, id := range liveExchangeOrderIDs {
+		if id == "" {
+			continue
+		}
+		for _, candidate := range []string{id, strings.TrimSuffix(strings.TrimSuffix(id, "_sl"), "_tp"), id + "_sl", id + "_tp"} {
+			if candidate == "" {
+				continue
+			}
+			if _, ok := seen[candidate]; ok {
+				continue
+			}
+			seen[candidate] = struct{}{}
+			live = append(live, candidate)
+		}
+	}
+
+	q := s.db.Model(&TraderOrder{}).
+		Where("exchange_id = ? AND symbol = ? AND status IN ? AND type IN ?", exchangeID, symbol, []string{"NEW", "PARTIALLY_FILLED"}, []string{"ALGO", "TRAILING_STOP_MARKET", "STOP_MARKET", "TAKE_PROFIT_MARKET", "LIMIT"})
+	if len(live) > 0 {
+		q = q.Where("exchange_order_id NOT IN ?", live)
+	}
+	res := q.Updates(map[string]interface{}{
+		"status":     "CANCELED",
+		"updated_at": time.Now().UTC().UnixMilli(),
+	})
+	return res.RowsAffected, res.Error
+}
+
+func (s *OrderStore) MarkSymbolProtectionOrdersCanceled(exchangeID string, symbol string) (int64, error) {
+	if exchangeID == "" || symbol == "" {
+		return 0, nil
+	}
+	res := s.db.Model(&TraderOrder{}).
+		Where("exchange_id = ? AND symbol = ? AND status IN ? AND type IN ?", exchangeID, symbol, []string{"NEW", "PARTIALLY_FILLED"}, []string{"ALGO", "TRAILING_STOP_MARKET", "STOP_MARKET", "TAKE_PROFIT_MARKET"}).
+		Updates(map[string]interface{}{
+			"status":     "CANCELED",
+			"updated_at": time.Now().UTC().UnixMilli(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (s *OrderStore) UpdateOrderRelatedPosition(orderID int64, positionID int64) error {
+	if orderID == 0 || positionID == 0 {
+		return nil
+	}
+	return s.db.Model(&TraderOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+		"related_position_id": positionID,
+		"updated_at":          time.Now().UTC().UnixMilli(),
+	}).Error
+}
+
+func (s *OrderStore) UpdateOrderActionByExchangeID(exchangeID string, exchangeOrderID string, orderAction string) error {
+	if exchangeID == "" || exchangeOrderID == "" || orderAction == "" {
+		return nil
+	}
+	return s.db.Model(&TraderOrder{}).
+		Where("exchange_id = ? AND exchange_order_id = ?", exchangeID, exchangeOrderID).
+		Updates(map[string]interface{}{
+			"order_action": orderAction,
+			"updated_at":   time.Now().UTC().UnixMilli(),
+		}).Error
+}
+
+func (s *OrderStore) UpdateOrderParentByID(orderID int64, parentOrderID string) error {
+	if orderID == 0 || parentOrderID == "" {
+		return nil
+	}
+	return s.db.Model(&TraderOrder{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+		"parent_order_id": parentOrderID,
+		"updated_at":      time.Now().UTC().UnixMilli(),
+	}).Error
+}
+
+func (s *OrderStore) UpdateFillsRelatedPositionByOrderID(orderID int64, positionID int64) error {
+	if orderID == 0 || positionID == 0 {
+		return nil
+	}
+	return s.db.Model(&TraderFill{}).Where("order_id = ?", orderID).Update("related_position_id", positionID).Error
 }
 
 // CreateFill creates fill record

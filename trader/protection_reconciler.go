@@ -2,11 +2,13 @@ package trader
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"nofx/logger"
+	"nofx/store"
 )
 
 const (
@@ -38,6 +40,11 @@ func (at *AutoTrader) startProtectionReconciler() {
 			}
 		}
 	}()
+}
+
+type protectionReconcileResult struct {
+	ExchangeVerified bool
+	Summary          string
 }
 
 func (at *AutoTrader) reconcilePositionProtections() {
@@ -77,38 +84,103 @@ func (at *AutoTrader) reconcilePositionProtections() {
 			continue
 		}
 
-		if err := at.reconcileProtectionForPosition(symbol, side, quantity, entryPrice); err != nil {
+		result, err := at.reconcileProtectionForPosition(symbol, side, quantity, entryPrice)
+		if err != nil {
 			logger.Infof("❌ Protection reconciler: %s %s reconcile failed: %v", symbol, side, err)
 			at.setProtectionState(symbol, side, "reconcile_failed: "+err.Error())
 			continue
 		}
 
-		currentState := at.getProtectionState(symbol, side)
-		if currentState == "" {
-			at.setProtectionState(symbol, side, "exchange_protection_verified")
+		if result.ExchangeVerified {
+			currentState := at.getProtectionState(symbol, side)
+			if currentState == "native_trailing_armed" || currentState == "native_partial_trailing_armed" || currentState == "native_trailing_arming" || currentState == "native_partial_trailing_arming" || currentState == "managed_partial_drawdown_armed" {
+				logger.Infof("✅ Protection reconciler: %s %s exchange protection verified (preserving dynamic state=%s)", symbol, side, currentState)
+			} else {
+				at.setProtectionState(symbol, side, "exchange_protection_verified")
+				logger.Infof("✅ Protection reconciler: %s %s exchange protection verified", symbol, side)
+			}
+		} else {
+			if result.Summary == "" {
+				result.Summary = "no exchange protection ownership verified"
+			}
+			logger.Warnf("⚠️ Protection reconciler: %s %s exchange protection not verified: %s", symbol, side, result.Summary)
 		}
-		logger.Infof("✅ Protection reconciler: %s %s exchange protection verified", symbol, side)
 	}
 
 	at.cleanupInactiveProtectionState(active)
+	if at.store != nil {
+		if err := at.store.DeleteDynamicProtectionRecordsForInactive(active); err != nil {
+			logger.Warnf("⚠️ Dynamic protection state: failed to cleanup inactive records: %v", err)
+		}
+	}
 }
 
-func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quantity, entryPrice float64) error {
+func (at *AutoTrader) describeProtectionSnapshot(symbol, side string, openOrders []OpenOrder, plan *ProtectionPlan, breakEvenArmed bool, nativeTrailingArmed bool) string {
+	parts := make([]string, 0, len(openOrders)+8)
+	for _, order := range openOrders {
+		if side != "" && order.PositionSide != "" && !strings.EqualFold(order.PositionSide, strings.ToUpper(side)) {
+			continue
+		}
+		kind := order.Type
+		if strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			kind = fmt.Sprintf("%s@%.6f/cb=%.6f", order.Type, order.StopPrice, order.CallbackRate)
+		} else {
+			kind = fmt.Sprintf("%s@%.6f", order.Type, order.StopPrice)
+		}
+		parts = append(parts, kind)
+	}
+	if plan != nil {
+		parts = append(parts, fmt.Sprintf("planStops=%d", len(plan.StopLossOrders)))
+		parts = append(parts, fmt.Sprintf("planTPs=%d", len(plan.TakeProfitOrders)))
+		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
+			parts = append(parts, fmt.Sprintf("fullSL=%.6f", plan.StopLossPrice))
+		}
+		if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
+			parts = append(parts, fmt.Sprintf("fullTP=%.6f", plan.TakeProfitPrice))
+		}
+		if plan.FallbackMaxLossPrice > 0 {
+			parts = append(parts, fmt.Sprintf("fallback=%.6f", plan.FallbackMaxLossPrice))
+		}
+	}
+	parts = append(parts, fmt.Sprintf("beArmed=%t", breakEvenArmed))
+	parts = append(parts, fmt.Sprintf("trailingArmed=%t", nativeTrailingArmed))
+	return strings.Join(parts, " | ")
+}
+
+func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quantity, entryPrice float64) (protectionReconcileResult, error) {
+	result := protectionReconcileResult{}
 	positionSide := strings.ToUpper(side)
 	currentProtectionState := at.getProtectionState(symbol, side)
 	openOrders, err := at.trader.GetOpenOrders(symbol)
 	if err != nil {
-		return fmt.Errorf("get open orders: %w", err)
+		return result, fmt.Errorf("get open orders: %w", err)
+	}
+	at.reconcileLocalOpenOrderStatuses(symbol, openOrders)
+
+	if currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" || currentProtectionState == "native_trailing_arming" || currentProtectionState == "native_partial_trailing_arming" {
+		if len(at.getArmedDrawdownRecordsForPosition(symbol, side, entryPrice, quantity)) == 0 {
+			logger.Infof("🟣 Protection reconciler: %s %s native trailing state belongs to an old position fingerprint, re-arming current position", symbol, positionSide)
+			currentProtectionState = ""
+			at.clearProtectionState(symbol, side)
+		}
 	}
 
-	// If native trailing drawdown is already armed, generic take-profit plans should not be
+	// If native trailing drawdown is already armed/arming, generic take-profit plans should not be
 	// re-applied on top of it. But stop-loss protection must still be preserved and repaired.
-	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed"
+	nativeTrailingArmed := currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" || currentProtectionState == "native_trailing_arming" || currentProtectionState == "native_partial_trailing_arming"
 
 	plan, err := at.BuildConfiguredProtectionPlan(entryPrice, actionFromPositionSide(side))
 	if err != nil {
-		return fmt.Errorf("build configured plan: %w", err)
+		return result, fmt.Errorf("build configured plan: %w", err)
 	}
+	if aiPlan := at.restoreAIProtectionPlanForPositionWithEntry(symbol, side, entryPrice); aiPlan != nil {
+		plan = preferDecisionProtectionPlan(plan, aiPlan)
+	}
+	if !at.verifyLivePositionForProtection(symbol, side, "protection reconcile") {
+		result.Summary = "inactive position; protection state cleaned"
+		return result, nil
+	}
+	protectionConfigured := at.hasConfiguredProtectionOwner()
 
 	// Drawdown/native trailing owns the profit-taking side. If drawdown profit-control is enabled,
 	// proactively remove old generic TP orders for the active position while keeping SL orders intact.
@@ -118,7 +190,10 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		plan.TakeProfitPrice = 0
 		plan.TakeProfitOrders = nil
 	}
-	if drawdownEnabled {
+	// Preserve the configured/open-time ladder shape during held-position reconciliation.
+	// OKX can keep multiple conditional stop legs; only degrade later if exchange validation
+	// proves a tier is non-executable, not preemptively on every reconcile pass.
+	if drawdownEnabled && nativeTrailingArmed {
 		hasGenericTP := false
 		for _, order := range openOrders {
 			if order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
@@ -129,7 +204,7 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				break
 			}
 		}
-		if hasGenericTP {
+		if hasGenericTP && !hasVisiblePlanProfitOwner(openOrders, positionSide, plan) {
 			if canceller, ok := at.trader.(interface{ CancelTakeProfitOrders(symbol string) error }); ok {
 				logger.Infof("🧹 Drawdown owner: removing legacy generic take-profit orders for %s %s while preserving stop-loss legs", symbol, positionSide)
 				if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
@@ -137,88 +212,153 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 				}
 				openOrders, _ = at.trader.GetOpenOrders(symbol)
 			}
+		} else if hasGenericTP {
+			logger.Infof("🛡 Drawdown owner: preserving existing take-profit orders for %s %s until dynamic protection is visibly armed", symbol, positionSide)
 		}
 	}
 
-	if plan != nil {
-		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan)
-		expectedOrderCount := len(plan.StopLossOrders) + len(plan.TakeProfitOrders)
-		if plan.NeedsStopLoss && len(plan.StopLossOrders) == 0 {
-			expectedOrderCount++
-		}
-		if plan.NeedsTakeProfit && len(plan.TakeProfitOrders) == 0 {
-			expectedOrderCount++
-		}
-		// Independent protections must be counted too, otherwise duplicate cleanup will
-		// mistakenly wipe valid break-even / native trailing orders.
-		if at.getBreakEvenState(symbol, side) == "armed" {
-			expectedOrderCount++
-		}
-		if currentProtectionState == "native_trailing_armed" || currentProtectionState == "native_partial_trailing_armed" {
-			expectedOrderCount++
-		}
-		symbolOrderCount := countOrdersForPositionSide(openOrders, positionSide)
+	if plan == nil {
+		result = reconcileResultForUnmaterializedPlan(openOrders, positionSide, protectionConfigured)
+	}
 
-		// Detect duplicate/stale orders: if we have more protection orders than expected,
-		// cancel all and re-apply cleanly to avoid accumulation.
-		if symbolOrderCount > expectedOrderCount+2 {
-			logger.Warnf("🧹 Protection reconciler: %s %s has %d orders (expected ~%d), cleaning duplicates",
-				symbol, positionSide, symbolOrderCount, expectedOrderCount)
-			at.cancelProtectionOrdersForCleanup(symbol)
-			// Re-apply clean protection plan.
+	if plan != nil {
+		breakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
+		if at.isBreakEvenSuppressedByRunner(symbol, side) {
+			breakEvenArmed = false
+		}
+		missingSL, missingTP := detectMissingProtection(openOrders, positionSide, plan, breakEvenArmed)
+		planOrderCount := protectionOrderCountForPlan(plan)
+		unexpectedStops, unexpectedTPs := detectUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+		unexpectedSummary := classifyUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed, true)
+		ownership := evaluateProtectionOwnership(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+		logger.Infof("🧭 Protection ownership: %s %s | state=%s verified=%t stopOwner=%s profitOwner=%s missingSL=%t missingTP=%t unexpectedSL=%d unexpectedTP=%d staleBot=%d manualForeign=%d dynamicOwner=%d reasons=%s",
+			symbol, positionSide, ownership.State, ownership.Verified, ownership.StopOwner, ownership.ProfitOwner, ownership.MissingStop, ownership.MissingProfit, ownership.UnexpectedStops, ownership.UnexpectedProfits, unexpectedSummary.StaleBotDuplicate, unexpectedSummary.ManualOrForeign, unexpectedSummary.ExpectedDynamicOwner, strings.Join(ownership.Reasons, "; "))
+		if ownership.State == "unprotected" && ownership.Verified {
+			return result, fmt.Errorf("invalid protection ownership invariant: unprotected but verified")
+		}
+
+		// Detect duplicate/stale orders by explicit order-role mismatch, not only coarse order counts.
+		// This keeps valid break-even / trailing orders while removing old ladder/fallback debris.
+		if unexpectedStops > 0 && unexpectedTPs == 0 && !missingSL && ownership.StopOwner != "" {
+			logger.Infof("🛡 Protection reconciler: %s %s preserving extra protective stop orders (unexpectedSL=%d) because stop coverage is already satisfied", symbol, positionSide, unexpectedStops)
+			unexpectedStops = 0
+			ownership.UnexpectedStops = 0
+			ownership.Reasons = removeUnexpectedProtectionReason(ownership.Reasons)
+			if ownership.StopOwner != "" && (!planRequiresProfitOwner(plan) || ownership.ProfitOwner != "") && ownership.UnexpectedProfits == 0 {
+				ownership.State = "protected"
+				ownership.Verified = true
+			}
+		}
+		if unexpectedStops > 0 || unexpectedTPs > 0 {
+			logger.Warnf("🧹 Protection reconciler: %s %s found unexpected exchange protection orders (unexpectedSL=%d unexpectedTP=%d, planned=%d), staging replacement before cleanup",
+				symbol, positionSide, unexpectedStops, unexpectedTPs, planOrderCount)
+			unexpectedIDs := collectUnexpectedProtectionOrderIDs(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+			if !at.verifyLivePositionForProtection(symbol, side, "unexpected protection replacement") {
+				result.Summary = "inactive position before unexpected protection replacement; protection state cleaned"
+				return result, nil
+			}
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
 				at.setReconcileCooldown(positionKey(symbol, side))
-				return fmt.Errorf("cleanup re-apply protection plan: %w", err)
+				return result, fmt.Errorf("stage replacement before cleanup: %w", err)
+			}
+			at.cancelUnexpectedProtectionOrdersByID(symbol, unexpectedIDs)
+			remainingOrders, cleanErr := at.trader.GetOpenOrders(symbol)
+			if cleanErr != nil {
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return result, fmt.Errorf("verify unexpected cleanup open orders: %w", cleanErr)
+			}
+			remainingUnexpectedStops, remainingUnexpectedTPs := detectUnexpectedProtectionOrders(remainingOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed)
+			if remainingUnexpectedStops > 0 || remainingUnexpectedTPs > 0 {
+				at.setReconcileCooldown(positionKey(symbol, side))
+				return result, fmt.Errorf("unexpected cleanup incomplete after replacement (unexpectedSL=%d unexpectedTP=%d)", remainingUnexpectedStops, remainingUnexpectedTPs)
 			}
 			at.setReconcileCooldown(positionKey(symbol, side))
-			return nil
+			result.ExchangeVerified = true
+			result.Summary = "staged replacement before cleaning unexpected protection"
+			return result, nil
 		}
 
 		if missingSL || missingTP {
-			// Safety cap: if there are already many orders for this symbol, do NOT keep adding.
-			maxAllowed := expectedOrderCount * 3
-			if maxAllowed < 6 {
-				maxAllowed = 6
-			}
-			if symbolOrderCount >= maxAllowed {
-				logger.Warnf("🛑 Protection reconciler: %s %s already has %d orders (max %d), cancelling and re-applying",
-					symbol, positionSide, symbolOrderCount, maxAllowed)
-				at.cancelProtectionOrdersForCleanup(symbol)
-			}
-
 			logger.Infof("🛠 Protection reconciler: %s %s missing exchange orders (SL=%v TP=%v), re-applying plan", symbol, positionSide, missingSL, missingTP)
+			if !at.verifyLivePositionForProtection(symbol, side, "missing protection re-apply") {
+				result.Summary = "inactive position before missing protection re-apply; protection state cleaned"
+				return result, nil
+			}
+			if missingSL && plan.NeedsStopLoss && plan.StopLossPrice > 0 && plan.FallbackMaxLossPrice > 0 {
+				if markPrice, ok := at.getPositionMarkPrice(symbol, side); ok && !isExecutableHeldStopPrice(side, plan.StopLossPrice, markPrice) {
+					logger.Warnf("🛟 Protection reconciler: %s %s primary stop %.6f is non-executable against mark %.6f; keeping/restoring fallback %.6f",
+						symbol, positionSide, plan.StopLossPrice, markPrice, plan.FallbackMaxLossPrice)
+					if hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice) {
+						result.ExchangeVerified = true
+						result.Summary = "fallback retained: primary stop non-executable"
+						return result, nil
+					}
+					if fallbackErr := at.placeAndVerifyFallbackMaxLoss(symbol, positionSide, quantity, plan.FallbackMaxLossPrice); fallbackErr == nil {
+						at.setReconcileCooldown(positionKey(symbol, side))
+						result.ExchangeVerified = true
+						result.Summary = "fallback restored: primary stop non-executable"
+						return result, nil
+					}
+				}
+			}
+			if missingSL && hasAnyProtectionOrder(openOrders, positionSide, false) {
+				logger.Infof("🛡 Protection reconciler: %s %s preserving existing stop owner while staging missing protection replacement", symbol, positionSide)
+			}
+			if !at.verifyLivePositionForProtection(symbol, side, "missing protection plan placement") {
+				result.Summary = "inactive position before missing protection plan placement; protection state cleaned"
+				return result, nil
+			}
 			if err := at.placeAndVerifyProtectionPlanWithRetry(symbol, positionSide, quantity, plan); err != nil {
+				if missingSL && plan.FallbackMaxLossPrice > 0 {
+					logger.Warnf("🛟 Protection reconciler: %s %s primary stop re-apply failed, restoring fallback max-loss stop %.6f: %v", symbol, positionSide, plan.FallbackMaxLossPrice, err)
+					if fallbackErr := at.placeAndVerifyFallbackMaxLoss(symbol, positionSide, quantity, plan.FallbackMaxLossPrice); fallbackErr == nil {
+						at.setReconcileCooldown(positionKey(symbol, side))
+						result.ExchangeVerified = true
+						result.Summary = "fallback restored after primary stop re-apply failure"
+						return result, nil
+					} else {
+						logger.Warnf("🛟 Protection reconciler: %s %s fallback restore also failed: %v", symbol, positionSide, fallbackErr)
+					}
+				}
 				at.setReconcileCooldown(positionKey(symbol, side))
-				return fmt.Errorf("re-apply manual protection plan: %w", err)
+				return result, fmt.Errorf("re-apply manual protection plan: %w", err)
 			}
 			at.setReconcileCooldown(positionKey(symbol, side))
-			return nil
+			result.ExchangeVerified = true
+			result.Summary = "re-applied missing protection"
+			return result, nil
+		}
+		result.ExchangeVerified = ownership.Verified
+		result.Summary = strings.Join(ownership.Reasons, "; ")
+		if ownership.ProfitOwner == "drawdown" && (at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming") {
+			result.Summary = "dynamic protection owner armed; exchange static ownership verified"
 		}
 	}
 
 	markPrice, _ := at.getPositionMarkPrice(symbol, side)
 	currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
 
-	be := at.getActiveBreakEvenConfig()
+	beRules := at.getActiveBreakEvenRules()
 	fingerprintChanged := at.refreshBreakEvenFingerprint(symbol, side, entryPrice, quantity)
 	prevBreakEvenArmed := at.getBreakEvenState(symbol, side) == "armed"
-	if be != nil && at.GetProtectionCapabilities().NativeStopLoss {
+	if at.isBreakEvenSuppressedByRunner(symbol, side) {
+		beRules = nil
+	}
+	if len(beRules) > 0 && at.GetProtectionCapabilities().NativeStopLoss {
 		if prevBreakEvenArmed && fingerprintChanged {
 			logger.Infof("🛠 Protection reconciler: %s %s break-even fingerprint changed, re-arming native stop", symbol, positionSide)
-			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
-				return fmt.Errorf("re-arm break-even native stop: %w", err)
+			if err := at.applyBreakEvenStops(symbol, side, quantity, entryPrice, currentPnLPct, beRules); err != nil {
+				return result, fmt.Errorf("re-arm break-even native stop: %w", err)
 			}
-			at.setBreakEvenState(symbol, side, "armed")
-		} else if at.getBreakEvenState(symbol, side) != "armed" && currentPnLPct >= be.TriggerValue {
-			logger.Infof("🛠 Protection reconciler: %s %s break-even trigger met (%.2f%% >= %.2f%%), applying native stop", symbol, positionSide, currentPnLPct, be.TriggerValue)
-			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *be); err != nil {
-				return fmt.Errorf("apply break-even native stop: %w", err)
+		} else if at.getBreakEvenState(symbol, side) != "armed" {
+			if err := at.applyBreakEvenStops(symbol, side, quantity, entryPrice, currentPnLPct, beRules); err != nil {
+				at.setBreakEvenState(symbol, side, "pending")
+				return result, fmt.Errorf("apply break-even native stop: %w", err)
 			}
-			at.setBreakEvenState(symbol, side, "armed")
 		}
 	}
 
-	rules := at.getActiveDrawdownRules()
+	rules := at.getActiveDrawdownRulesForPosition(symbol, side)
 	if len(rules) > 0 {
 		peakPnLPct := currentPnLPct
 		at.peakPnLCacheMutex.RLock()
@@ -231,14 +371,70 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
-		if matched := at.matchDrawdownRule(currentPnLPct, drawdownPct, rules); matched != nil {
-			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, *matched) {
-				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (close=%.1f%%)", symbol, positionSide, matched.CloseRatioPct)
+		armedAny := false
+		for _, armRule := range at.getDrawdownArmRulesForNativeExposure(currentPnLPct, entryPrice, quantity, symbol, side, rules) {
+			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
+				armedAny = true
+				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (arm close=%.1f%%)", symbol, positionSide, armRule.CloseRatioPct)
 			}
+		}
+		for _, triggeredRule := range at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules) {
+			if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, triggeredRule) {
+				armedAny = true
+				logger.Infof("🛠 Protection reconciler: %s %s ensured native drawdown protection (trigger close=%.1f%%)", symbol, positionSide, triggeredRule.CloseRatioPct)
+			}
+		}
+		if !armedAny && isNativeTrailingProtectionState(at.getProtectionState(symbol, side)) {
+			logger.Infof("🟣 Protection reconciler: %s %s already has all satisfied native trailing tiers armed (%s)", symbol, positionSide, at.getDrawdownExecutionMode(symbol, side))
 		}
 	}
 
-	return nil
+	if !result.ExchangeVerified && hasMissingMandatoryLadderStops(openOrders, positionSide, plan) {
+		result.Summary = "mandatory ladder SL missing; dynamic protection cannot satisfy static ladder ownership"
+	} else if !result.ExchangeVerified && (at.getBreakEvenState(symbol, side) == "armed" || at.getProtectionState(symbol, side) == "native_trailing_armed" || at.getProtectionState(symbol, side) == "native_partial_trailing_armed" || at.getProtectionState(symbol, side) == "native_trailing_arming" || at.getProtectionState(symbol, side) == "native_partial_trailing_arming" || at.getProtectionState(symbol, side) == "managed_drawdown_armed") {
+		result.Summary = "dynamic protection owner armed; exchange static ownership not fully verified"
+	}
+	return result, nil
+}
+
+func hasMissingMandatoryLadderStops(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) bool {
+	if plan == nil || len(plan.StopLossOrders) == 0 {
+		return false
+	}
+	for _, target := range plan.StopLossOrders {
+		if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func isExecutableHeldStopPrice(side string, stopPrice, markPrice float64) bool {
+	if stopPrice <= 0 || markPrice <= 0 {
+		return true
+	}
+	switch strings.ToLower(side) {
+	case "short":
+		return stopPrice > markPrice
+	case "long":
+		return stopPrice < markPrice
+	default:
+		return true
+	}
+}
+
+func isExecutableHeldTakeProfitPrice(side string, takeProfitPrice, markPrice float64) bool {
+	if takeProfitPrice <= 0 || markPrice <= 0 {
+		return true
+	}
+	switch strings.ToLower(side) {
+	case "short":
+		return takeProfitPrice < markPrice
+	case "long":
+		return takeProfitPrice > markPrice
+	default:
+		return true
+	}
 }
 
 func (at *AutoTrader) getPositionMarkPrice(symbol, side string) (float64, bool) {
@@ -260,6 +456,36 @@ func (at *AutoTrader) getPositionMarkPrice(symbol, side string) (float64, bool) 
 	return 0, false
 }
 
+func (at *AutoTrader) verifyLivePositionForProtection(symbol, side, reason string) bool {
+	if at == nil || at.trader == nil {
+		return false
+	}
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		logger.Warnf("⚠️ Protection liveness gate: failed to verify live position before %s (%s %s): %v", reason, symbol, side, err)
+		return false
+	}
+	active := make(map[string]struct{})
+	for _, pos := range positions {
+		ps, _ := pos["symbol"].(string)
+		pd, _ := pos["side"].(string)
+		qty, _ := pos["positionAmt"].(float64)
+		if qty < 0 {
+			qty = -qty
+		}
+		if ps == "" || pd == "" || qty <= 0 {
+			continue
+		}
+		active[positionKey(ps, pd)] = struct{}{}
+		if ps == symbol && strings.EqualFold(pd, side) {
+			return true
+		}
+	}
+	logger.Warnf("🧯 Protection liveness gate: skipping %s for inactive %s %s; cleaning orphaned protection state", reason, symbol, side)
+	at.cleanupInactiveProtectionState(active)
+	return false
+}
+
 func calculatePositionPnLPct(side string, entryPrice, markPrice float64) float64 {
 	if entryPrice <= 0 || markPrice <= 0 {
 		return 0
@@ -273,12 +499,101 @@ func calculatePositionPnLPct(side string, entryPrice, markPrice float64) float64
 	return 0
 }
 
-func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan) (missingSL bool, missingTP bool) {
+func protectionOrderCountForPlan(plan *ProtectionPlan) int {
+	if plan == nil {
+		return 0
+	}
+	count := 0
+	if len(plan.StopLossOrders) > 0 {
+		count += len(plan.StopLossOrders)
+	} else if plan.NeedsStopLoss && plan.StopLossPrice > 0 {
+		count++
+	}
+	if len(plan.TakeProfitOrders) > 0 {
+		count += len(plan.TakeProfitOrders)
+	} else if plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 {
+		count++
+	}
+	if plan.FallbackMaxLossPrice > 0 {
+		count++
+	}
+	return count
+}
+
+func detectUnexpectedProtectionOrders(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan, breakEvenArmed bool, nativeTrailingArmed bool) (unexpectedStops int, unexpectedTPs int) {
+	summary := classifyUnexpectedProtectionOrders(openOrders, positionSide, plan, breakEvenArmed, nativeTrailingArmed, true)
+	for _, order := range openOrders {
+		if positionSide != "" && order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
+			continue
+		}
+		if !isUnexpectedProtectionOrder(order, summary) {
+			continue
+		}
+		if looksLikeTakeProfit(order) {
+			unexpectedTPs++
+		} else if looksLikeStopLoss(order) || strings.Contains(strings.ToUpper(order.Type), "TRAILING") {
+			unexpectedStops++
+		}
+	}
+	return unexpectedStops, unexpectedTPs
+}
+
+func isUnexpectedProtectionOrder(order OpenOrder, summary unexpectedProtectionSummary) bool {
+	if order.OrderID != "" {
+		for _, id := range summary.StaleBotDuplicateIDs {
+			if order.OrderID == id {
+				return true
+			}
+		}
+		for _, id := range summary.OrphanForInactiveIDs {
+			if order.OrderID == id {
+				return true
+			}
+		}
+	}
+	// Manual/foreign orders are intentionally not treated as bot-cleanable unexpected
+	// orders. They still make ownership degraded through ManualOrForeign counts/logging,
+	// but should not be canceled or trigger re-apply stacking.
+	return false
+}
+
+func consumeAllowedProtectionPrice(prices *[]float64, actual float64) bool {
+	if prices == nil || actual <= 0 {
+		return false
+	}
+	for i, expected := range *prices {
+		if approximatelyEqualPrice(actual, expected) {
+			items := *prices
+			items = append(items[:i], items[i+1:]...)
+			*prices = items
+			return true
+		}
+	}
+	return false
+}
+
+func hasExplicitBreakEvenConfig(config *store.StrategyConfig) bool {
+	if config == nil {
+		return false
+	}
+	be := config.Protection.BreakEvenStop
+	return be.Enabled && be.TriggerMode == store.BreakEvenTriggerProfitPct && be.TriggerValue > 0
+}
+
+func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *ProtectionPlan, breakEvenArmed bool) (missingSL bool, missingTP bool) {
 	if plan == nil {
 		return false, false
 	}
 
-	if len(plan.StopLossOrders) > 1 {
+	breakEvenSatisfied := breakEvenArmed && hasAnyProtectionOrder(openOrders, positionSide, false)
+	fallbackSatisfied := plan.FallbackMaxLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.FallbackMaxLossPrice)
+	fullStopSatisfied := plan.NeedsStopLoss && plan.StopLossPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, false, plan.StopLossPrice)
+	fullTPSatisfied := plan.NeedsTakeProfit && plan.TakeProfitPrice > 0 && hasMatchingProtectionOrder(openOrders, positionSide, true, plan.TakeProfitPrice)
+
+	// Ladder SL is a hard static owner: every configured ladder stop tier must be
+	// visible. Break-even/full/fallback stops are independent overlays and must not
+	// satisfy or mask missing ladder SL tiers.
+	if len(plan.StopLossOrders) > 0 {
 		for _, target := range plan.StopLossOrders {
 			if countMatchingProtectionOrders(openOrders, positionSide, false, target.Price) == 0 {
 				missingSL = true
@@ -286,21 +601,54 @@ func detectMissingProtection(openOrders []OpenOrder, positionSide string, plan *
 			}
 		}
 	} else if plan.NeedsStopLoss {
-		missingSL = !hasMatchingProtectionOrder(openOrders, positionSide, false, plan.StopLossPrice)
+		// For non-ladder static stops, a visible break-even/fallback max-loss stop still counts as protected
+		// stop ownership even when tighter static stops are absent or intentionally handled by
+		// a dynamic owner. This avoids re-materializing static stops next to an armed break-even stop.
+		missingSL = !(breakEvenSatisfied || fullStopSatisfied || fallbackSatisfied || visibleFallbackOwnerSatisfied(openOrders, positionSide))
 	}
 
-	if len(plan.TakeProfitOrders) > 1 {
-		for _, target := range plan.TakeProfitOrders {
-			if countMatchingProtectionOrders(openOrders, positionSide, true, target.Price) == 0 {
-				missingTP = true
-				break
+	// Same rule for take-profit: when ladder TP orders exist, require each configured tier explicitly.
+	// But if a full-position TP is already present, accept degraded-to-full ownership.
+	if len(plan.TakeProfitOrders) > 0 {
+		if !fullTPSatisfied {
+			for _, target := range plan.TakeProfitOrders {
+				if countMatchingProtectionOrders(openOrders, positionSide, true, target.Price) == 0 {
+					missingTP = true
+					break
+				}
 			}
 		}
 	} else if plan.NeedsTakeProfit {
-		missingTP = !hasMatchingProtectionOrder(openOrders, positionSide, true, plan.TakeProfitPrice)
+		missingTP = !fullTPSatisfied
 	}
 
 	return missingSL, missingTP
+}
+
+func removeUnexpectedProtectionReason(reasons []string) []string {
+	filtered := make([]string, 0, len(reasons))
+	for _, r := range reasons {
+		if strings.HasPrefix(r, "unexpected protection orders sl=") {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
+}
+
+func visibleFallbackOwnerSatisfied(openOrders []OpenOrder, positionSide string) bool {
+	for _, order := range openOrders {
+		if positionSide != "" && order.PositionSide != "" && !strings.EqualFold(order.PositionSide, positionSide) {
+			continue
+		}
+		if !looksLikeStopLoss(order) {
+			continue
+		}
+		if strings.Contains(strings.ToLower(order.ClientOrderID), "fallback") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasAnyProtectionOrder(openOrders []OpenOrder, positionSide string, wantTakeProfit bool) bool {
@@ -336,16 +684,219 @@ func actionFromPositionSide(side string) string {
 	}
 }
 
-func (at *AutoTrader) setProtectionState(symbol, side, state string) {
+func (at *AutoTrader) setDrawdownExecutionFingerprint(symbol, side, fingerprint string) {
 	at.protectionStateMutex.Lock()
 	defer at.protectionStateMutex.Unlock()
-	at.protectionState[symbol+"_"+strings.ToLower(side)] = state
+	if at.drawdownState == nil {
+		at.drawdownState = make(map[string]string)
+	}
+	at.drawdownState[positionKey(symbol, side)] = fingerprint
+	at.persistDynamicProtectionRecord(symbol, side, "managed_drawdown", fingerprint, dynamicCloseRatioFromFingerprint(fingerprint), "executed", "")
+}
+
+func (at *AutoTrader) getDrawdownExecutionFingerprint(symbol, side string) string {
+	at.protectionStateMutex.RLock()
+	defer at.protectionStateMutex.RUnlock()
+	if at.drawdownState == nil {
+		return ""
+	}
+	return at.drawdownState[positionKey(symbol, side)]
+}
+
+func (at *AutoTrader) clearDrawdownExecutionFingerprint(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownState == nil {
+		return
+	}
+	delete(at.drawdownState, positionKey(symbol, side))
+	delete(at.drawdownRunnerState, positionKey(symbol, side))
+}
+
+func dynamicCloseRatioFromFingerprint(fingerprint string) float64 {
+	parts := strings.Split(fingerprint, "|")
+	if len(parts) < 5 {
+		return 0
+	}
+	value, _ := strconv.ParseFloat(parts[4], 64)
+	return value
+}
+
+func (at *AutoTrader) persistDynamicProtectionRecord(symbol, side, protectionType, ruleFingerprint string, closeRatioPct float64, status string, exchangeOrderID string) {
+	at.persistDynamicProtectionRecordWithDetails(symbol, side, protectionType, ruleFingerprint, closeRatioPct, status, exchangeOrderID, 0, 0, 0)
+}
+
+func (at *AutoTrader) persistDynamicProtectionRecordWithDetails(symbol, side, protectionType, ruleFingerprint string, closeRatioPct float64, status string, exchangeOrderID string, activationPrice, callbackRatio, quantity float64) {
+	if at == nil || at.store == nil {
+		return
+	}
+	positionFingerprint := ""
+	parts := strings.Split(ruleFingerprint, "|")
+	if len(parts) >= 2 {
+		positionFingerprint = parts[0] + "|" + parts[1]
+	}
+	record := store.DynamicProtectionRecord{
+		TraderID:            at.id,
+		ExchangeID:          at.exchangeID,
+		Symbol:              symbol,
+		Side:                strings.ToLower(side),
+		PositionFingerprint: positionFingerprint,
+		ProtectionType:      protectionType,
+		RuleFingerprint:     ruleFingerprint,
+		CloseRatioPct:       closeRatioPct,
+		Status:              status,
+		ExchangeOrderID:     exchangeOrderID,
+		ActivationPrice:     activationPrice,
+		TriggerPrice:        activationPrice,
+		StopPrice:           activationPrice,
+		CallbackRatio:       callbackRatio,
+		Quantity:            quantity,
+	}
+	if err := at.store.SaveDynamicProtectionRecord(record); err != nil {
+		logger.Warnf("⚠️ Dynamic protection state: failed to persist %s for %s %s: %v", protectionType, symbol, side, err)
+	}
+}
+
+func drawdownRuleFingerprint(entryPrice, quantity float64, rule store.DrawdownTakeProfitRule) string {
+	rule = normalizeDrawdownRule(rule)
+	return fmt.Sprintf("%.8f|%.8f|%.4f|%.4f|%.4f|%s|%.4f|%s|%s|%s|%s", entryPrice, quantity, rule.MinProfitPct, rule.MaxDrawdownPct, rule.CloseRatioPct, rule.StageName, rule.RunnerKeepPct, rule.RunnerStopMode, rule.RunnerStopSource, rule.RunnerTargetMode, rule.RunnerTargetSource)
+}
+
+func stableDrawdownRuleFingerprint(entryPrice float64, rule store.DrawdownTakeProfitRule) string {
+	return drawdownRuleFingerprint(entryPrice, 0, rule)
+}
+
+func (at *AutoTrader) refreshDrawdownExecutionFingerprint(symbol, side string, entryPrice float64) bool {
+	key := positionKey(symbol, side)
+	base := fmt.Sprintf("%.8f|", entryPrice)
+
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownState == nil {
+		at.drawdownState = make(map[string]string)
+	}
+	prev, ok := at.drawdownState[key]
+	if !ok || prev == "" {
+		return false
+	}
+	if !strings.HasPrefix(prev, base) && prev != strings.TrimSuffix(base, "|") {
+		delete(at.drawdownState, key)
+		return true
+	}
+	return false
+}
+
+func (at *AutoTrader) setDrawdownRunnerState(symbol, side string, state *DrawdownRunnerState) {
+	if state == nil {
+		return
+	}
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownRunnerState == nil {
+		at.drawdownRunnerState = make(map[string]DrawdownRunnerState)
+	}
+	at.drawdownRunnerState[positionKey(symbol, side)] = *state
+}
+
+func (at *AutoTrader) getDrawdownRunnerState(symbol, side string) *DrawdownRunnerState {
+	at.protectionStateMutex.RLock()
+	defer at.protectionStateMutex.RUnlock()
+	if at.drawdownRunnerState == nil {
+		return nil
+	}
+	state, ok := at.drawdownRunnerState[positionKey(symbol, side)]
+	if !ok {
+		return nil
+	}
+	copyState := state
+	return &copyState
+}
+
+func (at *AutoTrader) clearDrawdownRunnerState(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.drawdownRunnerState == nil {
+		return
+	}
+	delete(at.drawdownRunnerState, positionKey(symbol, side))
+}
+
+func (at *AutoTrader) isBreakEvenSuppressedByRunner(symbol, side string) bool {
+	state := at.getDrawdownRunnerState(symbol, side)
+	return state != nil && state.BreakEvenSuppressedByRunner
+}
+
+func isNativeTrailingArmingState(state string) bool {
+	return state == "native_trailing_arming" || state == "native_partial_trailing_arming"
+}
+
+func (at *AutoTrader) claimProtectionArmingState(symbol, side, expectedCurrentState, armingState string) (claimed bool, previousState string, actualState string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.protectionState == nil {
+		at.protectionState = make(map[string]string)
+	}
+	key := symbol + "_" + strings.ToLower(side)
+	actualState = at.protectionState[key]
+	if isNativeTrailingArmingState(actualState) {
+		return false, actualState, actualState
+	}
+	if actualState != expectedCurrentState {
+		return false, actualState, actualState
+	}
+	at.protectionState[key] = armingState
+	return true, actualState, actualState
 }
 
 func (at *AutoTrader) getProtectionState(symbol, side string) string {
 	at.protectionStateMutex.RLock()
 	defer at.protectionStateMutex.RUnlock()
 	return at.protectionState[symbol+"_"+strings.ToLower(side)]
+}
+
+func (at *AutoTrader) setProtectionState(symbol, side, state string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.protectionState == nil {
+		at.protectionState = make(map[string]string)
+	}
+	at.protectionState[symbol+"_"+strings.ToLower(side)] = state
+}
+
+func (at *AutoTrader) clearProtectionState(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.protectionState == nil {
+		return
+	}
+	delete(at.protectionState, symbol+"_"+strings.ToLower(side))
+}
+
+func (at *AutoTrader) setImmediateTrailingOrderID(symbol, side, orderID string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.immediateTrailingIDs == nil {
+		at.immediateTrailingIDs = make(map[string]string)
+	}
+	at.immediateTrailingIDs[symbol+"_"+strings.ToLower(side)] = orderID
+}
+
+func (at *AutoTrader) getImmediateTrailingOrderID(symbol, side string) string {
+	at.protectionStateMutex.RLock()
+	defer at.protectionStateMutex.RUnlock()
+	if at.immediateTrailingIDs == nil {
+		return ""
+	}
+	return at.immediateTrailingIDs[symbol+"_"+strings.ToLower(side)]
+}
+
+func (at *AutoTrader) clearImmediateTrailingOrderID(symbol, side string) {
+	at.protectionStateMutex.Lock()
+	defer at.protectionStateMutex.Unlock()
+	if at.immediateTrailingIDs == nil {
+		return
+	}
+	delete(at.immediateTrailingIDs, symbol+"_"+strings.ToLower(side))
 }
 
 func (at *AutoTrader) setBreakEvenState(symbol, side, state string) {
@@ -386,13 +937,33 @@ func (at *AutoTrader) clearBreakEvenState(symbol, side string) {
 
 func (at *AutoTrader) getDrawdownExecutionMode(symbol, side string) string {
 	state := at.getProtectionState(symbol, side)
-	switch state {
-	case "native_trailing_armed":
-		return "native_trailing_full"
-	case "native_partial_trailing_armed":
-		return "native_partial_trailing"
-	case "managed_partial_drawdown_armed":
+	if state == "managed_partial_drawdown_armed" {
 		return "managed_partial_drawdown"
+	}
+	if state == "native_trailing_arming" || state == "native_partial_trailing_arming" {
+		return "native_trailing_arming"
+	}
+	if state == "native_trailing_armed" || state == "native_partial_trailing_armed" {
+		fullCount := 0
+		partialCount := 0
+		for _, record := range at.getArmedDrawdownRecords(symbol, side) {
+			if record.CloseRatioPct >= 99.999 || record.ProtectionType == "native_trailing" {
+				fullCount++
+			} else {
+				partialCount++
+			}
+		}
+		switch {
+		case partialCount > 0 && fullCount > 0:
+			return "native_trailing_tiers"
+		case partialCount > 1:
+			return "native_partial_trailing_tiers"
+		case partialCount > 0:
+			return "native_partial_trailing"
+		case fullCount > 0 || state == "native_trailing_armed":
+			return "native_trailing_full"
+		}
+		return "native_partial_trailing"
 	}
 
 	rules := at.getActiveDrawdownRules()
@@ -477,6 +1048,22 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 	}
 	at.breakEvenStateMutex.Unlock()
 
+	at.protectionStateMutex.Lock()
+	for key := range at.drawdownRunnerState {
+		if _, ok := active[key]; !ok {
+			delete(at.drawdownRunnerState, key)
+		}
+	}
+	at.protectionStateMutex.Unlock()
+
+	at.protectionStateMutex.Lock()
+	for key := range at.drawdownState {
+		if _, ok := active[key]; !ok {
+			delete(at.drawdownState, key)
+		}
+	}
+	at.protectionStateMutex.Unlock()
+
 	at.peakPnLCacheMutex.Lock()
 	for key := range at.peakPnLCache {
 		if _, ok := active[key]; !ok {
@@ -496,9 +1083,9 @@ func (at *AutoTrader) cleanupInactiveProtectionState(active map[string]struct{})
 }
 
 func (at *AutoTrader) cancelOrphanedProtectionOrdersForInactiveSymbol(symbol string) error {
-	// For inactive symbols, cancel plain stop/take-profit protection orders.
-	// Native trailing orders live in separate exchange endpoints and should only be
-	// cancelled by their dedicated trailing-order APIs, not by generic TP/SL cleanup.
+	// For fully inactive symbols, cancel all protection orders. In hedge/dual-side mode this
+	// path is deliberately only called when no side of the symbol remains active, so broad
+	// symbol cleanup is safe and prevents stale same-symbol algo orders from surviving a full close.
 	if err := at.trader.CancelStopOrders(symbol); err != nil {
 		return err
 	}
@@ -509,7 +1096,33 @@ func (at *AutoTrader) cancelOrphanedProtectionOrdersForInactiveSymbol(symbol str
 			logger.Warnf("⚠️ Protection cleanup: trailing stop cleanup for inactive symbol %s returned: %v", symbol, err)
 		}
 	}
+	if at.store != nil && at.exchangeID != "" {
+		updated, err := at.store.Order().MarkSymbolProtectionOrdersCanceled(at.exchangeID, symbol)
+		if err != nil {
+			logger.Warnf("⚠️ Protection cleanup: failed to mark local orphan orders canceled for %s: %v", symbol, err)
+		} else if updated > 0 {
+			logger.Infof("🧹 Protection cleanup: marked %d local orphan order records canceled for inactive symbol %s", updated, symbol)
+		}
+	}
 	return nil
+}
+
+func (at *AutoTrader) reconcileLocalOpenOrderStatuses(symbol string, openOrders []OpenOrder) {
+	if at == nil || at.store == nil || at.exchangeID == "" || symbol == "" {
+		return
+	}
+	liveIDs := make([]string, 0, len(openOrders))
+	for _, order := range openOrders {
+		liveIDs = append(liveIDs, order.OrderID)
+	}
+	updated, err := at.store.Order().MarkMissingOpenOrdersCanceled(at.exchangeID, symbol, liveIDs)
+	if err != nil {
+		logger.Warnf("⚠️ Protection reconciler: failed to reconcile local open order statuses for %s: %v", symbol, err)
+		return
+	}
+	if updated > 0 {
+		logger.Infof("🧹 Protection reconciler: marked %d local stale open order records canceled for %s", updated, symbol)
+	}
 }
 
 func splitPositionKey(key string) (symbol, side string) {
@@ -554,21 +1167,57 @@ func countOrdersForPositionSide(openOrders []OpenOrder, positionSide string) int
 
 // cancelProtectionOrdersForCleanup cancels all SL and TP algo orders for a symbol
 // to prepare for a clean re-application of the correct protection plan.
+type okxProtectionCanceller interface {
+	CancelStopLossOrders(symbol string) error
+	CancelTakeProfitOrders(symbol string) error
+}
+
+type okxProtectionOrderIDCanceller interface {
+	CancelAlgoOrderByID(symbol string, algoID string) error
+}
+
+type okxTaggedProtectionCanceller interface {
+	CancelStopLossOrdersTagged(symbol string, reasonTag string) error
+	CancelTakeProfitOrdersTagged(symbol string, reasonTag string) error
+}
+
+func (at *AutoTrader) cancelUnexpectedProtectionOrdersByID(symbol string, orderIDs []string) {
+	if len(orderIDs) == 0 {
+		return
+	}
+	canceller, ok := at.trader.(okxProtectionOrderIDCanceller)
+	if !ok {
+		return
+	}
+	seen := map[string]bool{}
+	for _, id := range orderIDs {
+		id = strings.TrimSuffix(strings.TrimSuffix(id, "_sl"), "_tp")
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		if err := canceller.CancelAlgoOrderByID(symbol, id); err != nil {
+			logger.Warnf("  ⚠️ Cleanup: failed to cancel unexpected algo order for %s [%s]: %v", symbol, id, err)
+		}
+	}
+}
+
+// cancelProtectionOrdersForCleanup performs tagged-only cleanup for active-position repair paths.
+// It must not broad-cancel symbol protection while a position is active; broad cleanup is reserved
+// for fully inactive symbols in cancelOrphanedProtectionOrdersForInactiveSymbol.
 func (at *AutoTrader) cancelProtectionOrdersForCleanup(symbol string) {
-	if canceller, ok := at.trader.(interface {
-		CancelStopLossOrders(symbol string) error
-	}); ok {
-		if err := canceller.CancelStopLossOrders(symbol); err != nil {
-			logger.Warnf("  ⚠️ Cleanup: failed to cancel SL orders for %s: %v", symbol, err)
+	if tagged, ok := at.trader.(okxTaggedProtectionCanceller); ok {
+		for _, tag := range []string{"ladder_sl", "full_sl", "fallback_maxloss_sl", "break_even_stop"} {
+			if err := tagged.CancelStopLossOrdersTagged(symbol, tag); err != nil {
+				logger.Warnf("  ⚠️ Cleanup: failed to cancel tagged SL orders for %s [%s]: %v", symbol, tag, err)
+			}
+		}
+		for _, tag := range []string{"ladder_tp", "full_tp"} {
+			if err := tagged.CancelTakeProfitOrdersTagged(symbol, tag); err != nil {
+				logger.Warnf("  ⚠️ Cleanup: failed to cancel tagged TP orders for %s [%s]: %v", symbol, tag, err)
+			}
 		}
 	}
-	if canceller, ok := at.trader.(interface {
-		CancelTakeProfitOrders(symbol string) error
-	}); ok {
-		if err := canceller.CancelTakeProfitOrders(symbol); err != nil {
-			logger.Warnf("  ⚠️ Cleanup: failed to cancel TP orders for %s: %v", symbol, err)
-		}
-	}
-	// Small delay to let exchange process cancellations.
+	// Small delay to let exchange process targeted cancellations.
 	time.Sleep(500 * time.Millisecond)
 }

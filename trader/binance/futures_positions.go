@@ -2,6 +2,7 @@ package binance
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"nofx/logger"
 	"strconv"
@@ -276,6 +277,43 @@ func (t *FuturesTrader) GetSymbolPricePrecision(symbol string) (int, error) {
 	return 2, nil
 }
 
+// GetExecutionConstraints returns compact Binance execution constraints from exchange rules.
+func (t *FuturesTrader) GetExecutionConstraints(symbol string) (map[string]float64, error) {
+	exchangeInfo, err := t.client.NewExchangeInfoService().Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trading rules: %w", err)
+	}
+
+	for _, s := range exchangeInfo.Symbols {
+		if s.Symbol != symbol {
+			continue
+		}
+		result := map[string]float64{}
+		for _, filter := range s.Filters {
+			var typed map[string]string
+			if raw, err := json.Marshal(filter); err == nil {
+				_ = json.Unmarshal(raw, &typed)
+			}
+			switch typed["filterType"] {
+			case "PRICE_FILTER":
+				result["tick_size"], _ = strconv.ParseFloat(typed["tickSize"], 64)
+			case "LOT_SIZE":
+				result["qty_step_size"], _ = strconv.ParseFloat(typed["stepSize"], 64)
+				result["min_qty"], _ = strconv.ParseFloat(typed["minQty"], 64)
+			case "MIN_NOTIONAL", "NOTIONAL":
+				if typed["notional"] != "" {
+					result["min_notional"], _ = strconv.ParseFloat(typed["notional"], 64)
+				} else {
+					result["min_notional"], _ = strconv.ParseFloat(typed["minNotional"], 64)
+				}
+			}
+		}
+		return result, nil
+	}
+
+	return nil, fmt.Errorf("symbol not found: %s", symbol)
+}
+
 // FormatPrice formats price to correct precision
 func (t *FuturesTrader) FormatPrice(symbol string, price float64) (string, error) {
 	precision, err := t.GetSymbolPricePrecision(symbol)
@@ -287,4 +325,3 @@ func (t *FuturesTrader) FormatPrice(symbol string, price float64) (string, error
 	format := fmt.Sprintf("%%.%df", precision)
 	return fmt.Sprintf(format, price), nil
 }
-

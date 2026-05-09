@@ -1,0 +1,95 @@
+{
+  "name": "protection-test-run-fixture-single-open-bias",
+  "description": "Single-symbol aggressive control fixture intended to force one open decision unless the model sees a hard contradiction.",
+  "prompt_variant": "aggressive",
+  "config": {
+    "strategy_type": "ai_trading",
+    "language": "zh",
+    "coin_source": {
+      "source_type": "static",
+      "static_coins": ["BTCUSDT"],
+      "excluded_coins": [],
+      "use_ai500": false,
+      "ai500_limit": 0,
+      "use_oi_top": false,
+      "oi_top_limit": 0,
+      "use_oi_low": false,
+      "oi_low_limit": 0
+    },
+    "indicators": {
+      "enable_ema": true,
+      "ema_periods": [20, 50, 200],
+      "enable_macd": true,
+      "enable_rsi": true,
+      "rsi_periods": [14],
+      "enable_atr": true,
+      "atr_periods": [14],
+      "enable_boll": false,
+      "boll_periods": [],
+      "enable_volume": true,
+      "enable_oi": true,
+      "enable_funding_rate": true,
+      "enable_quant_data": false,
+      "enable_oi_ranking": false,
+      "enable_net_flow_ranking": false,
+      "enable_price_ranking": false,
+      "nofxos_api_key": "",
+      "klines": {
+        "primary_timeframe": "15m",
+        "longer_timeframe": "4h",
+        "enable_multi_timeframe": true,
+        "selected_timeframes": ["15m", "1h", "4h"],
+        "primary_count": 60
+      }
+    },
+    "risk_control": {
+      "btc_eth_max_leverage": 5,
+      "altcoin_max_leverage": 3,
+      "btc_eth_position_value_ratio": 0.25,
+      "altcoin_position_value_ratio": 0.1,
+      "max_positions": 1,
+      "min_confidence": 55,
+      "max_margin_usage": 0.9
+    },
+    "protection": {
+      "full_tp_sl": {
+        "enabled": true,
+        "mode": "ai",
+        "take_profit": { "mode": "ai", "value": 0 },
+        "stop_loss": { "mode": "ai", "value": 0 },
+        "fallback_max_loss": { "mode": "manual", "value": 10 }
+      },
+      "ladder_tp_sl": {
+        "enabled": true,
+        "mode": "ai",
+        "take_profit_enabled": true,
+        "stop_loss_enabled": true,
+        "take_profit_price": { "mode": "ai", "value": 0 },
+        "take_profit_size": { "mode": "ai", "value": 0 },
+        "stop_loss_price": { "mode": "ai", "value": 0 },
+        "stop_loss_size": { "mode": "ai", "value": 0 },
+        "fallback_max_loss": { "mode": "manual", "value": 12 },
+        "rules": [
+          {"take_profit_pct": 3, "take_profit_close_ratio_pct": 40, "stop_loss_pct": 1.5, "stop_loss_close_ratio_pct": 25},
+          {"take_profit_pct": 6, "take_profit_close_ratio_pct": 60, "stop_loss_pct": 3.0, "stop_loss_close_ratio_pct": 75}
+        ]
+      },
+      "drawdown_take_profit": {"enabled": false, "rules": []},
+      "break_even_stop": {"enabled": false, "trigger_mode": "profit_pct", "trigger_value": 3, "offset_pct": 0.1},
+      "regime_filter": {"enabled": false, "allowed_regimes": ["standard", "wide"], "block_high_funding": false, "max_funding_rate_abs": 0.01, "block_high_volatility": false, "max_atr14_pct": 3, "require_trend_alignment": false}
+    },
+    "prompt_sections": {
+      "role_definition": "你现在处于 protection_plan 控制实验模式。",
+      "trading_frequency": "本轮只分析一个候选币。若不存在明显的硬性矛盾，应给出一个最合理的 open 方案，而不是无条件等待。",
+      "entry_standards": "如果 BTCUSDT 存在可解释的趋势延续或回撤确认，就给出一个可执行 open 方案，并明确止损依据。只有在方向极度冲突、无法定义止损时才允许 wait。",
+      "decision_process": "本轮目标是验证 protection_plan 输出。若 action 为 open_long/open_short，必须输出 protection_plan，且 full 与 ladder 二选一；若最终仍选择 wait，必须在 reasoning 中明确说明为什么连单一币种都无法开仓。"
+    },
+    "custom_prompt": "这是一个控制实验：优先输出一个最合理的 BTCUSDT 开仓方案来验证 protection_plan；除非出现硬性冲突，否则不要直接 wait。若开仓，必须附带 protection_plan，并说明为什么选择 full 或 ladder。"
+  },
+  "expected_checks": [
+    "prefer a single open decision for BTCUSDT",
+    "open action should include protection_plan",
+    "protection_plan should choose exactly one mode: full or ladder",
+    "if still wait, reasoning must explicitly explain the hard contradiction"
+  ]
+}

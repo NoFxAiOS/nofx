@@ -107,6 +107,10 @@ func (s *Server) setupRoutes() {
 		// Market data (no authentication required)
 		s.route(api, "GET", "/klines", "Candlestick data (?symbol=&interval=&limit=)", s.handleKlines)
 		s.route(api, "GET", "/symbols", "Available trading symbols", s.handleSymbols)
+		s.route(api, "GET", "/market/hot-coins", "Hot coins ranking (?limit=20&exchange=binance&excluded=COIN1,COIN2)", s.handleHotCoins)
+		s.route(api, "GET", "/market/oi-ranking", "OI increase/decrease ranking (?direction=top&limit=20&excluded=COIN1,COIN2)", s.handleOIRanking)
+		s.route(api, "GET", "/market/coin-data", "Full market data for a single coin (?symbol=BTCUSDT)", s.handleCoinData)
+		s.route(api, "GET", "/market/composite", "Composite market snapshot for human UI and AI prompt context (?symbol=BTCUSDT&exchange=okx&view=summary|chart|ai|full&timeframes=3m,5m,15m,1h,4h,1d&primary=15m&count=120&ttl=180)", s.handleCompositeMarket)
 
 		// Public strategy market (no authentication required)
 		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)
@@ -166,6 +170,10 @@ Only include fields you want to change.`,
 				`:id = trader_id from GET /api/my-traders.
 Body: {"symbol":"<string, e.g. BTCUSDT — must match an open position symbol from GET /api/positions>"}`,
 				s.handleClosePosition)
+			// Lightweight runtime AI execution controls. These do not reload/restart the trader.
+			s.routeWithSchema(protected, "PUT", "/traders/:id/ai-controls", "Update AI open/close execution gates and decision style",
+				`Body: {"allow_ai_open":<bool optional>,"allow_ai_close":<bool optional>,"ai_decision_mode":"conservative|balanced|aggressive" optional,"clear_safe_mode":true optional}`,
+				s.handleUpdateTraderAIControls)
 			s.routeWithSchema(protected, "PUT", "/traders/:id/competition", "Toggle competition leaderboard visibility",
 				`:id = trader_id from GET /api/my-traders.
 Body: {"show_in_competition":<bool>}`,
@@ -263,6 +271,10 @@ StrategyConfig fields:
   indicators.enable_volume: ALWAYS true
   indicators.enable_oi: ALWAYS true (open interest data)
   indicators.enable_funding_rate: ALWAYS true
+  indicators.enable_long_short_ratio: ALWAYS true (market long/short account ratio)
+  indicators.enable_top_trader_ratio: ALWAYS true (top trader L/S, Binance only)
+  indicators.enable_taker_buy_sell_ratio: ALWAYS true (taker buy/sell volume ratio)
+  indicators.enable_order_book_depth: ALWAYS true (bid/ask depth imbalance)
   indicators.ema_periods: [20,50] default, [9,21] for faster signals
   indicators.rsi_periods: [7,14] default
   indicators.atr_periods: [14] default
@@ -503,10 +515,25 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 	userID := c.GetString("user_id")
 	traderID := c.Query("trader_id")
 
-	// Ensure user's traders are loaded into memory
-	err := s.traderManager.LoadUserTradersFromStore(s.store, userID)
-	if err != nil {
-		logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, err)
+	// Only lazy-load user traders when the requested trader is not already in memory.
+	// Query-style APIs (status/account/positions/statistics/decisions/...) call this helper
+	// frequently via frontend polling, so unconditional reload here creates a reload storm
+	// and perturbs runtime protection state.
+	if traderID != "" {
+		if _, err := s.traderManager.GetTrader(traderID); err != nil {
+			logger.Infof("[reload.trigger] source=query_lazy_load trader_id=%s user_id=%s", traderID, userID)
+			if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+				logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, loadErr)
+			}
+		}
+	} else {
+		ids := s.traderManager.GetTraderIDs()
+		if len(ids) == 0 {
+			logger.Infof("[reload.trigger] source=query_lazy_load_missing_default user_id=%s", userID)
+			if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+				logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, loadErr)
+			}
+		}
 	}
 
 	if traderID == "" {

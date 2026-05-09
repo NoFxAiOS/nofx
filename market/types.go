@@ -18,15 +18,18 @@ type Data struct {
 	// Multi-timeframe data (new)
 	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
 	// Market sentiment fields
-	LongShortRatio    *float64          `json:"long_short_ratio,omitempty"`
-	TopTraderRatio    *float64          `json:"top_trader_ratio,omitempty"`
-	TakerBuySellRatio *float64          `json:"taker_buy_sell_ratio,omitempty"`
-	DepthBidTotal     *float64          `json:"depth_bid_total,omitempty"`
-	DepthAskTotal     *float64          `json:"depth_ask_total,omitempty"`
-	DepthImbalance    *float64          `json:"depth_imbalance,omitempty"`
-	FibonacciLevels   *FibonacciLevels  `json:"fibonacci_levels,omitempty"`
-	StructuralLevels  []StructuralLevel `json:"structural_levels,omitempty"`
-	QuantContext      *QuantContext     `json:"quant_context,omitempty"`
+	LongShortRatio     *float64          `json:"long_short_ratio,omitempty"`
+	TopTraderRatio     *float64          `json:"top_trader_ratio,omitempty"`
+	TakerBuySellRatio  *float64          `json:"taker_buy_sell_ratio,omitempty"`
+	DepthBidTotal      *float64          `json:"depth_bid_total,omitempty"`
+	DepthAskTotal      *float64          `json:"depth_ask_total,omitempty"`
+	DepthImbalance     *float64          `json:"depth_imbalance,omitempty"`
+	FibonacciLevels    *FibonacciLevels  `json:"fibonacci_levels,omitempty"`
+	StructuralLevels   []StructuralLevel `json:"structural_levels,omitempty"`
+	QuantContext       *QuantContext     `json:"quant_context,omitempty"`
+	FundingRateHistory []float64         // last 8 funding rates (newest first)
+	OIHistory1h        float64           // OI value from 1h ago
+	OIHistory4h        float64           // OI value from 4h ago
 }
 
 type QuantContext struct {
@@ -300,4 +303,19 @@ func (d GridDirection) GetBuySellRatio(biasRatio float64) (buyRatio, sellRatio f
 	default:
 		return 0.5, 0.5
 	}
+}
+
+// DerivativesEnriched holds computed derivatives indicators derived from kline
+// and order-book snapshots. Fields are optional: zero value means not computed.
+type DerivativesEnriched struct {
+	CVD1h           float64   `json:"cvd_1h,omitempty"`            // 1h Cumulative Volume Delta (positive = buyer dominant)
+	CVD4h           float64   `json:"cvd_4h,omitempty"`            // 4h CVD
+	OIGrowthRate1h  float64   `json:"oi_growth_rate_1h,omitempty"` // 1h OI growth rate %
+	OIGrowthRate4h  float64   `json:"oi_growth_rate_4h,omitempty"` // 4h OI growth rate %
+	FundingTrend    string    `json:"funding_trend,omitempty"`     // "rising" / "falling" / "stable" / "extreme_positive" / "extreme_negative"
+	FundingHistory  []float64 `json:"funding_history,omitempty"`   // Last 8 funding rates
+	VWAP            float64   `json:"vwap,omitempty"`              // Intraday VWAP
+	PriceVsVWAP     float64   `json:"price_vs_vwap,omitempty"`     // (price - VWAP) / VWAP × 100%
+	TakerDelta      float64   `json:"taker_delta,omitempty"`       // (buy-sell)/total, [-1, 1]
+	DepthChangeRate float64   `json:"depth_change_rate,omitempty"` // Depth imbalance change rate
 }

@@ -185,6 +185,14 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		return err
 	}
 
+	// [CODE ENFORCED] Leverage cap
+	decision.Leverage = at.enforceLeverageCap(decision.Leverage, decision.Symbol)
+
+	// [CODE ENFORCED] Max margin usage
+	if err := at.enforceMaxMarginUsage(decision.PositionSizeUSD, decision.Leverage, equity); err != nil {
+		return err
+	}
+
 	// Calculate quantity with adjusted position size
 	quantity := actualPositionSize / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
@@ -315,6 +323,14 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 
 	// [CODE ENFORCED] Entry price deviation check
 	if err := enforceEntryPriceDeviation(decision, marketData.CurrentPrice, "short"); err != nil {
+		return err
+	}
+
+	// [CODE ENFORCED] Leverage cap
+	decision.Leverage = at.enforceLeverageCap(decision.Leverage, decision.Symbol)
+
+	// [CODE ENFORCED] Max margin usage
+	if err := at.enforceMaxMarginUsage(decision.PositionSizeUSD, decision.Leverage, equity); err != nil {
 		return err
 	}
 

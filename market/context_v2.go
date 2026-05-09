@@ -41,15 +41,15 @@ type MarketContextV2 struct {
 }
 
 type RegimeEntryGuidance struct {
-	Regime              string   `json:"regime,omitempty"`
-	AllowedSetups       []string `json:"allowed_setups,omitempty"`
-	StructureMode       string   `json:"structure_mode,omitempty"`
-	FibonacciMode       string   `json:"fibonacci_mode,omitempty"`
-	RequiredAnchors     []string `json:"required_anchors,omitempty"`
-	ProtectionGuidance  string   `json:"protection_guidance,omitempty"`
-	RegimeReversalRisk  bool     `json:"regime_reversal_risk,omitempty"`
-	ReversalRiskReason  string   `json:"reversal_risk_reason,omitempty"`
-	Notes               []string `json:"notes,omitempty"`
+	Regime             string   `json:"regime,omitempty"`
+	AllowedSetups      []string `json:"allowed_setups,omitempty"`
+	StructureMode      string   `json:"structure_mode,omitempty"`
+	FibonacciMode      string   `json:"fibonacci_mode,omitempty"`
+	RequiredAnchors    []string `json:"required_anchors,omitempty"`
+	ProtectionGuidance string   `json:"protection_guidance,omitempty"`
+	RegimeReversalRisk bool     `json:"regime_reversal_risk,omitempty"`
+	ReversalRiskReason string   `json:"reversal_risk_reason,omitempty"`
+	Notes              []string `json:"notes,omitempty"`
 }
 
 // MarketStructureBrief is a compact structural summary suitable for review context.
@@ -318,14 +318,14 @@ func BuildRegimeEntryGuidance(data *Data, structure *MarketStructureBrief, deriv
 	if data != nil {
 		switch regime {
 		case "trend_up":
-			if data.PriceChange1h < -0.3 {
+			if data.PriceChange1h < -0.6 {
 				g.RegimeReversalRisk = true
-				g.ReversalRiskReason = fmt.Sprintf("regime=trend_up but 1h change=%.2f%% (bearish). Trend may be reversing — require extra justification for longs", data.PriceChange1h)
+				g.ReversalRiskReason = fmt.Sprintf("regime=trend_up but 1h change=%.2f%% (bearish divergence)", data.PriceChange1h)
 			}
 		case "trend_down":
-			if data.PriceChange1h > 0.3 {
+			if data.PriceChange1h > 0.6 {
 				g.RegimeReversalRisk = true
-				g.ReversalRiskReason = fmt.Sprintf("regime=trend_down but 1h change=+%.2f%% (bullish). Trend may be reversing — require extra justification for shorts", data.PriceChange1h)
+				g.ReversalRiskReason = fmt.Sprintf("regime=trend_down but 1h change=+%.2f%% (bullish divergence)", data.PriceChange1h)
 			}
 		}
 	}
@@ -408,4 +408,94 @@ func absMarketChange(data *Data) float64 {
 		return -v
 	}
 	return v
+}
+
+// BuildDerivativesEnriched computes DerivativesEnriched from already-fetched
+// market data. Callers pass boolean flags to opt-in to each computation;
+// fields not requested are left at their zero value.
+func BuildDerivativesEnriched(data *Data, cvd, oiGrowth, fundingHist, vwap, takerDelta, depthChange bool) *DerivativesEnriched {
+	if data == nil {
+		return nil
+	}
+	e := &DerivativesEnriched{}
+
+	if cvd {
+		// 1h and 4h CVD from the respective kline series
+		if tf1h, ok := data.TimeframeData["1h"]; ok && len(tf1h.Klines) > 0 {
+			klines := klineBarsToKlines(tf1h.Klines)
+			e.CVD1h = CalculateCVD(klines, 1)
+			e.CVD4h = CalculateCVD(klines, 4)
+		}
+	}
+
+	if oiGrowth && data.OpenInterest != nil {
+		if data.OIHistory1h > 0 {
+			e.OIGrowthRate1h = CalculateOIGrowthRate(data.OpenInterest.Latest, data.OIHistory1h)
+		} else {
+			e.OIGrowthRate1h = CalculateOIGrowthRate(data.OpenInterest.Latest, data.OpenInterest.Average)
+		}
+		if data.OIHistory4h > 0 {
+			e.OIGrowthRate4h = CalculateOIGrowthRate(data.OpenInterest.Latest, data.OIHistory4h)
+		} else {
+			e.OIGrowthRate4h = e.OIGrowthRate1h
+		}
+	}
+
+	if fundingHist {
+		if len(data.FundingRateHistory) > 0 {
+			e.FundingHistory = data.FundingRateHistory
+			e.FundingTrend = ClassifyFundingTrend(data.FundingRateHistory)
+		} else {
+			e.FundingTrend = ClassifyFundingTrend([]float64{data.FundingRate})
+		}
+	}
+
+	if vwap {
+		var klines []Kline
+		// Prefer 1h series for intraday VWAP; fall back to 15m
+		for _, tf := range []string{"1h", "15m", "5m", "3m"} {
+			if series, ok := data.TimeframeData[tf]; ok && len(series.Klines) > 0 {
+				klines = klineBarsToKlines(series.Klines)
+				break
+			}
+		}
+		if len(klines) > 0 {
+			e.VWAP = CalculateVWAP(klines)
+			if e.VWAP > 0 && data.CurrentPrice > 0 {
+				e.PriceVsVWAP = (data.CurrentPrice - e.VWAP) / e.VWAP * 100
+			}
+		}
+	}
+
+	if takerDelta && data.TakerBuySellRatio != nil {
+		// TakerBuySellRatio = buy/sell; convert to normalized delta
+		ratio := *data.TakerBuySellRatio
+		// ratio = buy_vol / sell_vol → delta = (ratio-1)/(ratio+1)
+		if ratio+1 > 0 {
+			e.TakerDelta = (ratio - 1) / (ratio + 1)
+		}
+	}
+
+	if depthChange && data.DepthImbalance != nil {
+		e.DepthChangeRate = *data.DepthImbalance
+	}
+
+	return e
+}
+
+// klineBarsToKlines converts KlineBar slice (used in TimeframeSeriesData) to
+// the Kline type used by calculation functions.
+func klineBarsToKlines(bars []KlineBar) []Kline {
+	out := make([]Kline, len(bars))
+	for i, b := range bars {
+		out[i] = Kline{
+			OpenTime: b.Time,
+			Open:     b.Open,
+			High:     b.High,
+			Low:      b.Low,
+			Close:    b.Close,
+			Volume:   b.Volume,
+		}
+	}
+	return out
 }

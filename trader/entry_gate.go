@@ -20,40 +20,40 @@ const (
 
 // EntryGateCheck is one specific check within a stage.
 type EntryGateCheck struct {
-	Code    string `json:"code"`
-	Stage   string `json:"stage"`
-	Passed  bool   `json:"passed"`
-	Detail  string `json:"detail"`
-	Values  string `json:"values,omitempty"`
-	Enforced bool  `json:"enforced"`
+	Code     string `json:"code"`
+	Stage    string `json:"stage"`
+	Passed   bool   `json:"passed"`
+	Detail   string `json:"detail"`
+	Values   string `json:"values,omitempty"`
+	Enforced bool   `json:"enforced"`
 }
 
 // EntryGateResult is the consolidated outcome of the 3-stage gate pipeline.
 type EntryGateResult struct {
-	Allowed       bool              `json:"allowed"`
-	Stage         EntryGateStage    `json:"rejected_stage,omitempty"`
-	BlockedBy     string            `json:"blocked_by,omitempty"`
-	BlockReason   string            `json:"block_reason,omitempty"`
-	Checks        []EntryGateCheck  `json:"checks"`
-	FailedCodes   []string          `json:"failed_codes,omitempty"`
-	EnforcedCodes []string          `json:"enforced_codes,omitempty"`
-	Regime        string            `json:"regime,omitempty"`
-	SystemRegime  string            `json:"system_regime,omitempty"`
-	ATR14Pct      float64           `json:"atr14_pct,omitempty"`
-	FundingRate   float64           `json:"funding_rate,omitempty"`
-	EffectiveRR   float64           `json:"effective_rr,omitempty"`
+	Allowed       bool             `json:"allowed"`
+	Stage         EntryGateStage   `json:"rejected_stage,omitempty"`
+	BlockedBy     string           `json:"blocked_by,omitempty"`
+	BlockReason   string           `json:"block_reason,omitempty"`
+	Checks        []EntryGateCheck `json:"checks"`
+	FailedCodes   []string         `json:"failed_codes,omitempty"`
+	EnforcedCodes []string         `json:"enforced_codes,omitempty"`
+	Regime        string           `json:"regime,omitempty"`
+	SystemRegime  string           `json:"system_regime,omitempty"`
+	ATR14Pct      float64          `json:"atr14_pct,omitempty"`
+	FundingRate   float64          `json:"funding_rate,omitempty"`
+	EffectiveRR   float64          `json:"effective_rr,omitempty"`
 }
 
 // entryGateInput collects all inputs needed for gate evaluation.
 type entryGateInput struct {
-	Decision         *kernel.Decision
-	MarketData       *market.Data
-	StrategyConfig   *store.StrategyConfig
-	PolicyMode       store.StrategyControlPolicyMode
-	MinRR            float64
-	MinConfidence    int
-	ConstraintSnap   *ExecutionConstraintsSnapshot
-	ProtectionAlign  *store.DecisionActionProtectionAlignment
+	Decision        *kernel.Decision
+	MarketData      *market.Data
+	StrategyConfig  *store.StrategyConfig
+	PolicyMode      store.StrategyControlPolicyMode
+	MinRR           float64
+	MinConfidence   int
+	ConstraintSnap  *ExecutionConstraintsSnapshot
+	ProtectionAlign *store.DecisionActionProtectionAlignment
 }
 
 // evaluateEntryGate runs the 3-stage entry gate pipeline.
@@ -266,36 +266,42 @@ func evaluateStructuralFitGate(input entryGateInput) []EntryGateCheck {
 
 			// 2b. Squeeze/crowded regime: extra confidence and RR requirements
 			if guidance.Regime == "squeeze_risk" || guidance.Regime == "crowded" {
+				gate := store.EntryGateConfig{}
+				if input.StrategyConfig != nil {
+					gate = input.StrategyConfig.EntryStructure.EntryGate.WithDefaults()
+				}
 				if d.Confidence > 0 {
-					confPassed := d.Confidence >= 80
+					squeezeMinConf := gate.SqueezeMinConfidence
+					confPassed := d.Confidence >= squeezeMinConf
 					confCheck := EntryGateCheck{
 						Code:     "squeeze_regime_low_confidence",
 						Stage:    string(EntryGateStageStructuralFit),
 						Passed:   confPassed,
 						Enforced: true,
-						Values:   fmt.Sprintf("confidence=%d min_required=80 regime=%s", d.Confidence, guidance.Regime),
+						Values:   fmt.Sprintf("confidence=%d min_required=%d regime=%s", d.Confidence, squeezeMinConf, guidance.Regime),
 					}
 					if confPassed {
-						confCheck.Detail = fmt.Sprintf("confidence %d >= 80 required for %s regime", d.Confidence, guidance.Regime)
+						confCheck.Detail = fmt.Sprintf("confidence %d >= %d required for %s regime", d.Confidence, squeezeMinConf, guidance.Regime)
 					} else {
-						confCheck.Detail = fmt.Sprintf("confidence %d < 80 required for %s regime", d.Confidence, guidance.Regime)
+						confCheck.Detail = fmt.Sprintf("confidence %d < %d required for %s regime", d.Confidence, squeezeMinConf, guidance.Regime)
 					}
 					checks = append(checks, confCheck)
 				}
 				if d.EntryProtection != nil && d.EntryProtection.RiskReward.NetEstimatedRR > 0 {
 					netRR := d.EntryProtection.RiskReward.NetEstimatedRR
-					rrPassed := netRR >= 2.5
+					squeezeMinRR := gate.SqueezeMinRR
+					rrPassed := netRR >= squeezeMinRR
 					rrCheck := EntryGateCheck{
 						Code:     "squeeze_regime_low_rr",
 						Stage:    string(EntryGateStageStructuralFit),
 						Passed:   rrPassed,
 						Enforced: true,
-						Values:   fmt.Sprintf("net_rr=%.2f min_required=2.50 regime=%s", netRR, guidance.Regime),
+						Values:   fmt.Sprintf("net_rr=%.2f min_required=%.2f regime=%s", netRR, squeezeMinRR, guidance.Regime),
 					}
 					if rrPassed {
-						rrCheck.Detail = fmt.Sprintf("net RR %.2f >= 2.50 required for %s regime", netRR, guidance.Regime)
+						rrCheck.Detail = fmt.Sprintf("net RR %.2f >= %.2f required for %s regime", netRR, squeezeMinRR, guidance.Regime)
 					} else {
-						rrCheck.Detail = fmt.Sprintf("net RR %.2f < 2.50 required for %s regime", netRR, guidance.Regime)
+						rrCheck.Detail = fmt.Sprintf("net RR %.2f < %.2f required for %s regime", netRR, squeezeMinRR, guidance.Regime)
 					}
 					checks = append(checks, rrCheck)
 				}
@@ -416,7 +422,11 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 	// 3b. Runtime RR check
 	minRR := input.MinRR
 	if minRR <= 0 {
-		minRR = 1.5
+		if input.StrategyConfig != nil {
+			minRR = input.StrategyConfig.EntryStructure.EntryGate.WithDefaults().FallbackMinRR
+		} else {
+			minRR = 1.5
+		}
 	}
 	if d.EntryProtection != nil {
 		rr := d.EntryProtection.RiskReward
@@ -531,6 +541,10 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 		regime := classifyProtectionRegime(data)
 		if isShortAction(d.Action) && !isTrendDownRegime(regime) {
 			shortMinConf := 85
+			if input.StrategyConfig != nil {
+				cfg := input.StrategyConfig.EntryStructure.EntryGate.WithDefaults()
+				shortMinConf = cfg.ShortNonDowntrendMinConfidence
+			}
 			if d.Confidence > 0 {
 				passed := d.Confidence >= shortMinConf
 				check := EntryGateCheck{

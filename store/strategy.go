@@ -96,6 +96,16 @@ type EntryGateConfig struct {
 	InvalidationStructureMinPct float64 `json:"invalidation_structure_min_pct,omitempty"`
 	MaxBlockingLevels           int     `json:"max_blocking_levels,omitempty"`
 	MaxTargetTimeframeRankGap   int     `json:"max_target_timeframe_rank_gap,omitempty"`
+
+	// Squeeze/crowded regime extra requirements (G2b)
+	SqueezeMinConfidence int     `json:"squeeze_min_confidence,omitempty"`
+	SqueezeMinRR         float64 `json:"squeeze_min_rr,omitempty"`
+
+	// Fallback minimum RR when strategy MinRiskRewardRatio is not set (G3b)
+	FallbackMinRR float64 `json:"fallback_min_rr,omitempty"`
+
+	// Short position minimum confidence when regime is not trend_down (G3e)
+	ShortNonDowntrendMinConfidence int `json:"short_non_downtrend_min_confidence,omitempty"`
 }
 
 func (c EntryGateConfig) WithDefaults() EntryGateConfig {
@@ -133,6 +143,18 @@ func (c EntryGateConfig) WithDefaults() EntryGateConfig {
 	}
 	if c.MaxTargetTimeframeRankGap <= 0 {
 		c.MaxTargetTimeframeRankGap = 3
+	}
+	if c.SqueezeMinConfidence <= 0 {
+		c.SqueezeMinConfidence = 80
+	}
+	if c.SqueezeMinRR <= 0 {
+		c.SqueezeMinRR = 2.5
+	}
+	if c.FallbackMinRR <= 0 {
+		c.FallbackMinRR = 1.5
+	}
+	if c.ShortNonDowntrendMinConfidence <= 0 {
+		c.ShortNonDowntrendMinConfidence = 85
 	}
 	return c
 }
@@ -526,6 +548,14 @@ type IndicatorConfig struct {
 	EnablePriceRanking   bool   `json:"enable_price_ranking"`             // whether to enable price ranking data
 	PriceRankingDuration string `json:"price_ranking_duration,omitempty"` // durations: "1h" or "1h,4h,24h"
 	PriceRankingLimit    int    `json:"price_ranking_limit,omitempty"`    // number of entries per ranking (default 10)
+
+	// Derivatives enhancement indicators (Phase B)
+	EnableCVD             bool `json:"enable_cvd"`
+	EnableOIGrowthRate    bool `json:"enable_oi_growth_rate"`
+	EnableFundingHistory  bool `json:"enable_funding_history"`
+	EnableVWAP            bool `json:"enable_vwap"`
+	EnableTakerDelta      bool `json:"enable_taker_delta"`
+	EnableDepthChangeRate bool `json:"enable_depth_change_rate"`
 }
 
 // KlineConfig K-line configuration
@@ -660,6 +690,13 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EnablePriceRanking:   true,
 			PriceRankingDuration: "1h,4h,24h",
 			PriceRankingLimit:    10,
+			// Derivatives enhancement (Phase B)
+			EnableCVD:             true,
+			EnableOIGrowthRate:    true,
+			EnableFundingHistory:  true,
+			EnableVWAP:            true,
+			EnableTakerDelta:      true,
+			EnableDepthChangeRate: true,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)

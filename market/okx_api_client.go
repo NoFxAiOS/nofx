@@ -92,8 +92,8 @@ func (o *OKXAPIClient) GetKlines(symbol, interval string, limit int) ([]Kline, e
 		high, _ := strconv.ParseFloat(k[2], 64)
 		low, _ := strconv.ParseFloat(k[3], 64)
 		close_, _ := strconv.ParseFloat(k[4], 64)
-		vol, _ := strconv.ParseFloat(k[5], 64)   // volume in contracts
-		qvol, _ := strconv.ParseFloat(k[6], 64)  // volume in quote currency
+		vol, _ := strconv.ParseFloat(k[5], 64)  // volume in contracts
+		qvol, _ := strconv.ParseFloat(k[6], 64) // volume in quote currency
 
 		klines = append(klines, Kline{
 			OpenTime:    openTime,
@@ -332,7 +332,74 @@ func (o *OKXAPIClient) GetAllSwapTickers() ([]OKXSwapTicker, error) {
 	return tickers, nil
 }
 
-// convertInterval converts Binance-style interval to OKX format
+// FundingRateHistoryItem is a single entry from OKX funding rate history
+type FundingRateHistoryItem struct {
+	FundingRate float64
+	FundingTime int64
+}
+
+// GetFundingRateHistory fetches recent funding rate history from OKX
+func (o *OKXAPIClient) GetFundingRateHistory(symbol string, limit int) ([]FundingRateHistoryItem, error) {
+	okxSymbol := binanceToOKXSymbol(symbol)
+	data, err := o.doGet("/api/v5/public/funding-rate-history", map[string]string{
+		"instId": okxSymbol,
+		"limit":  strconv.Itoa(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var results []struct {
+		FundingRate string `json:"fundingRate"`
+		FundingTime string `json:"fundingTime"`
+	}
+	if err := json.Unmarshal(data, &results); err != nil {
+		return nil, err
+	}
+
+	items := make([]FundingRateHistoryItem, 0, len(results))
+	for _, r := range results {
+		rate, _ := strconv.ParseFloat(r.FundingRate, 64)
+		ts, _ := strconv.ParseInt(r.FundingTime, 10, 64)
+		items = append(items, FundingRateHistoryItem{FundingRate: rate, FundingTime: ts})
+	}
+	return items, nil
+}
+
+// OIHistoryItem is a single entry from OKX OI history
+type OIHistoryItem struct {
+	Ts int64
+	OI float64
+}
+
+// GetOpenInterestHistory fetches OI history from OKX rubik stats endpoint
+func (o *OKXAPIClient) GetOpenInterestHistory(symbol, period string) ([]OIHistoryItem, error) {
+	base := strings.TrimSuffix(strings.ToUpper(symbol), "USDT")
+	data, err := o.doGet("/api/v5/rubik/stat/contracts/open-interest-history", map[string]string{
+		"ccy":    base,
+		"period": period,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var rawData [][]string // [ts, oi, oiCcy]
+	if err := json.Unmarshal(data, &rawData); err != nil {
+		return nil, err
+	}
+
+	items := make([]OIHistoryItem, 0, len(rawData))
+	for _, r := range rawData {
+		if len(r) < 2 {
+			continue
+		}
+		ts, _ := strconv.ParseInt(r[0], 10, 64)
+		oi, _ := strconv.ParseFloat(r[1], 64)
+		items = append(items, OIHistoryItem{Ts: ts, OI: oi})
+	}
+	return items, nil
+}
+
 func convertInterval(interval string) string {
 	// Most intervals are the same, but OKX uses slightly different naming
 	mapping := map[string]string{

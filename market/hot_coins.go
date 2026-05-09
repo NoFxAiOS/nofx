@@ -25,9 +25,14 @@ type HotCoin struct {
 }
 
 const (
-	hotCoinMinVolume   = 50_000_000 // 50M USDT
-	hotCoinMinOI       = 15_000_000 // 15M USDT
+	hotCoinMinVolume   = 50_000_000 // 50M USDT (tier-1 threshold)
+	hotCoinMinOI       = 15_000_000 // 15M USDT (tier-1 threshold)
 	hotCoinMaxPriceChg = 30.0       // 30% max abs price change
+
+	// Second-tier thresholds: lower absolute bars but require composite percentile > 0.7.
+	hotCoinTier2MinVolume    = 20_000_000 // 20M USDT
+	hotCoinTier2MinOI        = 8_000_000  // 8M USDT
+	hotCoinTier2MinComposite = 0.70       // minimum composite score to qualify
 )
 
 // GetHotCoins returns top hot coins by composite score (auto-selects exchange)
@@ -99,10 +104,9 @@ func getHotCoinsOKX(limit int, excludedCoins []string) ([]HotCoin, error) {
 		vol    float64
 		chg    float64
 		oi     float64
-		last   float64
+		tier2  bool // true when only second-tier threshold is met
 	}
 	var raws []raw
-	var maxVol, maxOI, maxChg float64
 
 	for _, t := range tickers {
 		if !strings.HasSuffix(t.InstID, "-USDT-SWAP") {
@@ -120,9 +124,6 @@ func getHotCoinsOKX(limit int, excludedCoins []string) ([]HotCoin, error) {
 
 		// volCcy24h is in base currency; convert to USDT
 		volUSD := volCcy * last
-		if volUSD < hotCoinMinVolume {
-			continue
-		}
 
 		var chg float64
 		if open24h > 0 {
@@ -132,58 +133,68 @@ func getHotCoinsOKX(limit int, excludedCoins []string) ([]HotCoin, error) {
 			continue
 		}
 
+		// Reject coins below tier-2 (lowest) volume floor early.
+		if volUSD < hotCoinTier2MinVolume {
+			continue
+		}
+
 		// Get OI
 		oiData, err := okx.GetOpenInterest(stdSymbol)
 		if err != nil || oiData == nil {
 			continue
 		}
 		oiUSD := oiData.Latest * last
-		if oiUSD < hotCoinMinOI {
+		if oiUSD < hotCoinTier2MinOI {
 			continue
 		}
 
-		r := raw{symbol: stdSymbol, vol: volUSD, chg: math.Abs(chg), oi: oiUSD, last: last}
-		raws = append(raws, r)
+		isTier2 := volUSD < hotCoinMinVolume || oiUSD < hotCoinMinOI
+		raws = append(raws, raw{symbol: stdSymbol, vol: volUSD, chg: math.Abs(chg), oi: oiUSD, tier2: isTier2})
+	}
 
-		if r.vol > maxVol {
-			maxVol = r.vol
+	// Build candidateInput slice for batch percentile scoring.
+	inputs := make([]candidateInput, len(raws))
+	for i, r := range raws {
+		activity := 0.0
+		if r.oi > 0 {
+			activity = r.vol / r.oi * 100
 		}
-		if r.oi > maxOI {
-			maxOI = r.oi
-		}
-		if r.chg > maxChg {
-			maxChg = r.chg
+		inputs[i] = candidateInput{
+			symbol:      r.symbol,
+			volumeUSD:   r.vol,
+			oiUSD:       r.oi,
+			absChgPct:   r.chg,
+			activity:    activity,
+			oiGrowthPct: math.NaN(), // not available at this stage
+			fundingRate: math.NaN(), // optional; skip per-coin API calls to keep batch fast
 		}
 	}
+
+	qualities := scoreCandidatesPercentile(inputs)
 
 	var candidates []HotCoin
-	var maxActivity float64
-	for _, r := range raws {
-		activity := 0.0
-		if r.oi > 0 {
-			activity = r.vol / r.oi * 100
-		}
-		if activity > maxActivity {
-			maxActivity = activity
-		}
-	}
-	for _, r := range raws {
-		activity := 0.0
-		if r.oi > 0 {
-			activity = r.vol / r.oi * 100
-		}
-		quality := scoreCandidateQuality(r.vol, r.oi, r.chg, activity, maxVol, maxOI, maxChg, maxActivity)
-		if !quality.Passed {
+	for i, r := range raws {
+		q := qualities[i]
+		if !q.Passed {
 			continue
 		}
+		composite := compositeHotScore(q)
+
+		// Tier-2 coins must clear the composite threshold.
+		if r.tier2 && composite < hotCoinTier2MinComposite {
+			continue
+		}
+
+		logger.Infof("%s", qualityLogLine(r.symbol, q, composite))
+
 		candidates = append(candidates, HotCoin{
 			Symbol:          r.symbol,
 			QuoteVolume24h:  r.vol,
 			PriceChangePct:  r.chg,
 			OpenInterestUSD: r.oi,
-			HotScore:        compositeHotScore(quality),
+			HotScore:        composite,
 			Source:          "okx_hot",
-			Quality:         quality,
+			Quality:         q,
 		})
 	}
 
@@ -195,7 +206,7 @@ func getHotCoinsOKX(limit int, excludedCoins []string) ([]HotCoin, error) {
 		candidates = candidates[:limit]
 	}
 
-	logger.Infof("GetHotCoinsOKX: found %d coins", len(candidates))
+	logger.Infof("GetHotCoinsOKX: found %d coins (%d raw candidates)", len(candidates), len(raws))
 	return candidates, nil
 }
 
@@ -361,9 +372,9 @@ func getHotCoinsBinance(limit int, excludedCoins []string) ([]HotCoin, error) {
 		vol    float64
 		chg    float64
 		oi     float64
+		tier2  bool
 	}
 	var raws []raw
-	var maxVol, maxOI, maxChg float64
 
 	for _, t := range tickers {
 		if !strings.HasSuffix(t.Symbol, "USDT") {
@@ -375,10 +386,10 @@ func getHotCoinsBinance(limit int, excludedCoins []string) ([]HotCoin, error) {
 		vol, _ := strconv.ParseFloat(t.QuoteVolume, 64)
 		chg, _ := strconv.ParseFloat(t.PriceChangePercent, 64)
 
-		if vol < hotCoinMinVolume {
+		if math.Abs(chg) > hotCoinMaxPriceChg {
 			continue
 		}
-		if math.Abs(chg) > hotCoinMaxPriceChg {
+		if vol < hotCoinTier2MinVolume {
 			continue
 		}
 
@@ -388,52 +399,55 @@ func getHotCoinsBinance(limit int, excludedCoins []string) ([]HotCoin, error) {
 		}
 		price, _ := strconv.ParseFloat(t.WeightedAvgPrice, 64)
 		oiUSD := oiData.Latest * price
-		if oiUSD < hotCoinMinOI {
+		if oiUSD < hotCoinTier2MinOI {
 			continue
 		}
 
-		r := raw{symbol: t.Symbol, vol: vol, chg: math.Abs(chg), oi: oiUSD}
-		raws = append(raws, r)
+		isTier2 := vol < hotCoinMinVolume || oiUSD < hotCoinMinOI
+		raws = append(raws, raw{symbol: t.Symbol, vol: vol, chg: math.Abs(chg), oi: oiUSD, tier2: isTier2})
+	}
 
-		if r.vol > maxVol {
-			maxVol = r.vol
+	// Batch percentile scoring.
+	inputs := make([]candidateInput, len(raws))
+	for i, r := range raws {
+		activity := 0.0
+		if r.oi > 0 {
+			activity = r.vol / r.oi * 100
 		}
-		if r.oi > maxOI {
-			maxOI = r.oi
-		}
-		if r.chg > maxChg {
-			maxChg = r.chg
+		inputs[i] = candidateInput{
+			symbol:      r.symbol,
+			volumeUSD:   r.vol,
+			oiUSD:       r.oi,
+			absChgPct:   r.chg,
+			activity:    activity,
+			oiGrowthPct: math.NaN(),
+			fundingRate: math.NaN(),
 		}
 	}
+
+	qualities := scoreCandidatesPercentile(inputs)
 
 	var candidates []HotCoin
-	var maxActivity float64
-	for _, r := range raws {
-		activity := 0.0
-		if r.oi > 0 {
-			activity = r.vol / r.oi * 100
-		}
-		if activity > maxActivity {
-			maxActivity = activity
-		}
-	}
-	for _, r := range raws {
-		activity := 0.0
-		if r.oi > 0 {
-			activity = r.vol / r.oi * 100
-		}
-		quality := scoreCandidateQuality(r.vol, r.oi, r.chg, activity, maxVol, maxOI, maxChg, maxActivity)
-		if !quality.Passed {
+	for i, r := range raws {
+		q := qualities[i]
+		if !q.Passed {
 			continue
 		}
+		composite := compositeHotScore(q)
+		if r.tier2 && composite < hotCoinTier2MinComposite {
+			continue
+		}
+
+		logger.Infof("%s", qualityLogLine(r.symbol, q, composite))
+
 		candidates = append(candidates, HotCoin{
 			Symbol:          r.symbol,
 			QuoteVolume24h:  r.vol,
 			PriceChangePct:  r.chg,
 			OpenInterestUSD: r.oi,
-			HotScore:        compositeHotScore(quality),
+			HotScore:        composite,
 			Source:          "binance_hot",
-			Quality:         quality,
+			Quality:         q,
 		})
 	}
 

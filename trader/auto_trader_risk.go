@@ -280,6 +280,11 @@ func (at *AutoTrader) setAIDrawdownRules(symbol, side string, rules []store.Draw
 	if len(cloned) == 0 {
 		return
 	}
+	// Stage 1 must lock meaningful profit: close_ratio ≥ 50%
+	if cloned[0].CloseRatioPct < 50 {
+		logger.Infof("  ⚙️ Drawdown tier 1 close_ratio clamped: %.0f%% → 50%% (minimum for stage 1)", cloned[0].CloseRatioPct)
+		cloned[0].CloseRatioPct = 50
+	}
 	at.protectionStateMutex.Lock()
 	if at.drawdownAIRules == nil {
 		at.drawdownAIRules = make(map[string][]store.DrawdownTakeProfitRule)
@@ -2134,4 +2139,66 @@ func calculateDrawdownRuleCallbackRatio(entryPrice float64, side string, rule st
 		return calculateAbsoluteProfitDrawdownCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownAbsPct)
 	}
 	return calculateProfitBasedTrailingCallbackRatio(entryPrice, side, rule.MinProfitPct, rule.MaxDrawdownPct)
+}
+
+// enforceLeverageCap clamps AI-requested leverage to the strategy maximum.
+// Returns the clamped leverage value.
+func (at *AutoTrader) enforceLeverageCap(leverage int, symbol string) int {
+	if at.config.StrategyConfig == nil {
+		return leverage
+	}
+	rc := at.config.StrategyConfig.RiskControl
+	var maxLev int
+	if isBTCETH(symbol) {
+		maxLev = rc.BTCETHMaxLeverage
+	} else {
+		maxLev = rc.AltcoinMaxLeverage
+	}
+	if maxLev <= 0 {
+		maxLev = 5
+	}
+	if leverage > maxLev {
+		logger.Infof("  ⚙️ Leverage clamped: AI requested %dx → capped to %dx (strategy max for %s)", leverage, maxLev, symbol)
+		return maxLev
+	}
+	return leverage
+}
+
+// enforceMaxMarginUsage checks whether opening a new position would exceed
+// the configured max margin usage ratio. Returns an error if the new margin
+// would push total usage above the limit.
+func (at *AutoTrader) enforceMaxMarginUsage(positionSizeUSD float64, leverage int, equity float64) error {
+	if at.config.StrategyConfig == nil {
+		return nil
+	}
+	maxUsage := at.config.StrategyConfig.RiskControl.MaxMarginUsage
+	if maxUsage <= 0 {
+		return nil
+	}
+
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return nil
+	}
+
+	var currentMargin float64
+	for _, pos := range positions {
+		qty, _ := pos["quantity"].(float64)
+		price, _ := pos["markPrice"].(float64)
+		lev := 10.0
+		if l, ok := pos["leverage"].(float64); ok && l > 0 {
+			lev = l
+		}
+		currentMargin += (qty * price) / lev
+	}
+
+	newMargin := positionSizeUSD / float64(leverage)
+	totalMargin := currentMargin + newMargin
+	usageRatio := totalMargin / equity
+
+	if usageRatio > maxUsage {
+		return fmt.Errorf("margin usage would be %.1f%% (limit %.0f%%): current=%.2f + new=%.2f, equity=%.2f",
+			usageRatio*100, maxUsage*100, currentMargin, newMargin, equity)
+	}
+	return nil
 }

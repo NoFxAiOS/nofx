@@ -25,6 +25,23 @@ var (
 	frCacheTTL     = 1 * time.Hour
 )
 
+type fundingHistoryCache struct {
+	Rates     []float64
+	UpdatedAt time.Time
+}
+
+type oiHistoryCache struct {
+	OI1h      float64
+	OI4h      float64
+	UpdatedAt time.Time
+}
+
+var (
+	fundingHistoryMap sync.Map // map[string]*fundingHistoryCache
+	oiHistoryMap      sync.Map // map[string]*oiHistoryCache
+	oiHistoryCacheTTL = 5 * time.Minute
+)
+
 // Get retrieves market data for the specified token (uses OKX data by default)
 func Get(symbol string) (*Data, error) {
 	return GetWithExchange(symbol, "okx")
@@ -195,7 +212,7 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 				continue
 			}
 		} else {
-			
+
 			exSrc := exchange
 			if exSrc == "" {
 				exSrc = "okx"
@@ -263,7 +280,7 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
 	// Get OI data (exchange-aware)
@@ -323,6 +340,12 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 			if fr, err := okxClient.GetFundingRate(symbol); err == nil {
 				data.FundingRate = fr
 			}
+
+			// Funding rate history (1h cache)
+			data.FundingRateHistory = fetchFundingRateHistory(symbol)
+
+			// OI history (5min cache)
+			data.OIHistory1h, data.OIHistory4h = fetchOIHistory(symbol)
 		} else {
 			// Binance
 			apiClient := NewAPIClient()
@@ -368,6 +391,53 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 	data.StructuralLevels = DetectStructuralLevels(primaryKlines, currentPrice, primaryTimeframe)
 
 	return data, nil
+}
+
+// fetchFundingRateHistory fetches OKX funding rate history with 1h cache.
+func fetchFundingRateHistory(symbol string) []float64 {
+	if cached, ok := fundingHistoryMap.Load(symbol); ok {
+		c := cached.(*fundingHistoryCache)
+		if time.Since(c.UpdatedAt) < frCacheTTL {
+			return c.Rates
+		}
+	}
+	okxClient := NewOKXAPIClient()
+	items, err := okxClient.GetFundingRateHistory(symbol, 8)
+	if err != nil {
+		logger.Infof("⚠️ funding rate history fetch failed for %s: %v", symbol, err)
+		return nil
+	}
+	rates := make([]float64, len(items))
+	for i, it := range items {
+		rates[i] = it.FundingRate
+	}
+	fundingHistoryMap.Store(symbol, &fundingHistoryCache{Rates: rates, UpdatedAt: time.Now()})
+	return rates
+}
+
+// fetchOIHistory fetches OKX OI history with 5min cache and extracts 1h and 4h ago values.
+func fetchOIHistory(symbol string) (oi1h, oi4h float64) {
+	if cached, ok := oiHistoryMap.Load(symbol); ok {
+		c := cached.(*oiHistoryCache)
+		if time.Since(c.UpdatedAt) < oiHistoryCacheTTL {
+			return c.OI1h, c.OI4h
+		}
+	}
+	okxClient := NewOKXAPIClient()
+	items, err := okxClient.GetOpenInterestHistory(symbol, "1H")
+	if err != nil {
+		logger.Infof("⚠️ OI history fetch failed for %s: %v", symbol, err)
+		return 0, 0
+	}
+	// Items returned newest-first; index 1 = 1h ago, index 4 = 4h ago
+	if len(items) > 1 {
+		oi1h = items[1].OI
+	}
+	if len(items) > 4 {
+		oi4h = items[4].OI
+	}
+	oiHistoryMap.Store(symbol, &oiHistoryCache{OI1h: oi1h, OI4h: oi4h, UpdatedAt: time.Now()})
+	return oi1h, oi4h
 }
 
 // getOpenInterestDataExchange retrieves OI data from the specified exchange

@@ -158,6 +158,10 @@ export interface DrawdownTakeProfitRule {
   max_drawdown_pct: number
   close_ratio_pct: number
   poll_interval_seconds: number
+  // Per-field AI/manual control
+  close_ratio_mode?: ProtectionValueMode
+  min_profit_mode?: ProtectionValueMode
+  max_drawdown_mode?: ProtectionValueMode
 }
 
 export interface DrawdownTakeProfitConfig {

@@ -52,6 +52,7 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 			plan = preferDecisionProtectionPlan(configuredPlan, decisionPlan)
 			if len(decisionPlan.DrawdownRules) > 0 {
 				at.setAIDrawdownRules(req.Symbol, req.PositionSide, decisionPlan.DrawdownRules)
+				at.initDrawdownTiersFromResolvedRules(req.Symbol, req.PositionSide, req.Quantity, decisionPlan.DrawdownRules)
 			}
 		}
 	}
@@ -277,16 +278,17 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 		_ = at.applyNativeTrailingDrawdown(req.Symbol, side, req.EntryPrice, rule)
 	}
 
-	// 2. Break-even should become ready immediately after open, but must only be
-	// marked armed after a real exchange stop has been placed. The runtime/reconciler
-	// will apply the native BE stop as soon as the trigger condition is met.
+	// 2. Break-even: place conditional TP orders on exchange immediately at open.
+	// These provide exchange-side profit protection without relying on backend polling.
+	at.placeBreakEvenTPOrders(req.Symbol, side, req.Quantity, req.EntryPrice)
+
 	if be := at.getActiveBreakEvenConfigForPlan(plan); be != nil && be.TriggerValue > 0 {
 		if plan != nil && plan.BreakEvenConfig != nil {
 			at.breakEvenStateMutex.Lock()
 			at.breakEvenSource[positionKey(req.Symbol, side)] = "ai_decision"
 			at.breakEvenStateMutex.Unlock()
 		}
-		at.setBreakEvenState(req.Symbol, side, "pending")
+		at.setBreakEvenState(req.Symbol, side, "armed")
 	}
 
 	return nil

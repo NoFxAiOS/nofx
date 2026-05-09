@@ -369,6 +369,12 @@ type DrawdownTakeProfitRule struct {
 	RunnerStopSource    string  `json:"runner_stop_source,omitempty"`
 	RunnerTargetMode    string  `json:"runner_target_mode,omitempty"`
 	RunnerTargetSource  string  `json:"runner_target_source,omitempty"`
+
+	// Per-field AI/manual control: each dimension can independently choose AI or manual value.
+	// When mode is "ai", AI decides the value; when "manual", the configured value is used.
+	CloseRatioMode    ProtectionValueMode `json:"close_ratio_mode,omitempty"`
+	MinProfitMode     ProtectionValueMode `json:"min_profit_mode,omitempty"`
+	MaxDrawdownMode   ProtectionValueMode `json:"max_drawdown_mode,omitempty"`
 }
 
 type BreakEvenTriggerMode string
@@ -393,6 +399,19 @@ type BreakEvenStopRule struct {
 	OffsetPct     float64              `json:"offset_pct,omitempty"`
 	CloseRatioPct float64              `json:"close_ratio_pct,omitempty"`
 	StageName     string               `json:"stage_name,omitempty"`
+}
+
+// DrawdownTierAllocation records the fixed position allocation for each drawdown tier,
+// computed once at position open and never changed afterwards.
+type DrawdownTierAllocation struct {
+	TierIndex      int     `json:"tier_index"`
+	StageName      string  `json:"stage_name"`
+	Quantity       float64 `json:"quantity"`
+	CloseRatioPct  float64 `json:"close_ratio_pct"`
+	MinProfitPct   float64 `json:"min_profit_pct"`
+	MaxDrawdownPct float64 `json:"max_drawdown_pct"`
+	PeakPnLPct     float64 `json:"peak_pnl_pct"`
+	Status         string  `json:"status"` // "pending", "tracking", "executed", "be_covered"
 }
 
 type RegimeTrendAlignmentMode string

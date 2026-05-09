@@ -160,6 +160,8 @@ type AutoTrader struct {
 	drawdownSource        map[string]string                         // symbol_side -> strategy|ai_decision
 	drawdownAIRules       map[string][]store.DrawdownTakeProfitRule // symbol_side -> per-position AI drawdown rules restored from entry decision
 	drawdownRunnerState   map[string]DrawdownRunnerState            // symbol_side -> active runner semantics after partial drawdown
+	drawdownTierAllocs    map[string][]store.DrawdownTierAllocation // symbol_side -> fixed tier allocations computed at open
+	drawdownTierAllocMu   sync.RWMutex                             // Protects drawdownTierAllocs
 	immediateTrailingIDs  map[string]string                         // symbol_side -> immediate trailing order ID (canceled when tier trailing arms)
 	cooldownManager       *entryCooldownManager                     // Post-loss entry cooldown per symbol
 	lastBalanceSyncTime   time.Time                                 // Last balance sync time
@@ -370,6 +372,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		drawdownSource:        make(map[string]string),
 		drawdownAIRules:       make(map[string][]store.DrawdownTakeProfitRule),
 		drawdownRunnerState:   make(map[string]DrawdownRunnerState),
+		drawdownTierAllocs:    make(map[string][]store.DrawdownTierAllocation),
 		immediateTrailingIDs:  make(map[string]string),
 		cooldownManager:       newEntryCooldownManager(),
 		lastBalanceSyncTime:   time.Now(),

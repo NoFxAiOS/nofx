@@ -297,8 +297,11 @@ export function ProtectionEditor({
     const nextRule: DrawdownTakeProfitRule = {
       min_profit_pct: 5,
       max_drawdown_pct: 40,
-      close_ratio_pct: 100,
+      close_ratio_pct: drawdownRules.length === 0 ? 50 : 30,
       poll_interval_seconds: 60,
+      close_ratio_mode: 'manual',
+      min_profit_mode: 'manual',
+      max_drawdown_mode: 'manual',
     }
     updateDrawdown('rules', [...drawdownRules, nextRule])
   }
@@ -1610,8 +1613,8 @@ export function ProtectionEditor({
             )}
             <div className="text-[11px]" style={{ color: '#848E9C' }}>
               {isZh
-                ? '单位说明：最小利润%、最大回撤%、平仓比例% 均按百分比表达；利润/回撤语义应基于主周期及其邻近周期分析。'
-                : 'Units: min profit %, max drawdown %, and close ratio % are all percentages; profit-protection semantics should be analyzed against the primary timeframe and adjacent timeframes.'}
+                ? '每级仓位在开仓时固定分配，各级独立追踪峰值和回撤。T1 触发后其仓位不再参与后续级别。未达到的级别由 Break-even 兜底。每级的仓位/峰值/回撤支持 AI 或手动独立控制。'
+                : "Each tier's position is fixed at open. Tiers track peaks independently. After T1 triggers, its allocation exits and does not participate in later tiers. Unreached tiers are covered by break-even. Each dimension (ratio/trigger/drawdown) supports independent AI or manual control."}
             </div>
             {config.drawdown_take_profit.mode === 'ai' && (
               <div className="p-3 rounded-lg text-xs" style={helpCardStyle}>
@@ -1664,7 +1667,9 @@ export function ProtectionEditor({
                       className="text-sm font-medium"
                       style={{ color: '#EAECEF' }}
                     >
-                      {isZh ? `规则 ${index + 1}` : `Rule ${index + 1}`}
+                      {isZh
+                        ? `T${index + 1} — 第 ${index + 1} 级回撤`
+                        : `T${index + 1} — Tier ${index + 1}`}
                     </div>
                     <button
                       type="button"
@@ -1680,64 +1685,42 @@ export function ProtectionEditor({
                       {isZh ? '删除' : 'Remove'}
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
+
+                  {/* Row 1: Close Ratio (position allocation for this tier) */}
+                  <div
+                    className="p-3 rounded-lg space-y-2"
+                    style={{ ...cardStyle(true), borderColor: '#2B3139' }}
+                  >
+                    <div className="flex items-center justify-between">
                       <label
-                        className="block text-xs mb-1"
+                        className="block text-xs"
                         style={{ color: '#848E9C' }}
                       >
-                        {isZh ? '最小利润 %' : 'Min Profit %'}
+                        {isZh
+                          ? '仓位比例 %（开仓时固定分配）'
+                          : 'Position Ratio % (fixed at open)'}
                       </label>
-                      <input
-                        type="number"
-                        value={rule.min_profit_pct}
-                        min={0}
-                        step={0.1}
+                      <select
+                        value={rule.close_ratio_mode || 'manual'}
                         onChange={(e) =>
                           updateDrawdownRule(index, {
-                            min_profit_pct: parseFloat(e.target.value) || 0,
+                            close_ratio_mode: e.target.value as 'manual' | 'ai',
                           })
                         }
                         disabled={
                           disabled ||
                           config.drawdown_take_profit.mode === 'disabled'
                         }
-                        className="w-full px-3 py-2 rounded"
+                        className="px-2 py-1 rounded text-xs"
                         style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="block text-xs mb-1"
-                        style={{ color: '#848E9C' }}
                       >
-                        {isZh ? '最大回撤 %' : 'Max Drawdown %'}
-                      </label>
-                      <input
-                        type="number"
-                        value={rule.max_drawdown_pct}
-                        min={0}
-                        step={0.1}
-                        onChange={(e) =>
-                          updateDrawdownRule(index, {
-                            max_drawdown_pct: parseFloat(e.target.value) || 0,
-                          })
-                        }
-                        disabled={
-                          disabled ||
-                          config.drawdown_take_profit.mode === 'disabled'
-                        }
-                        className="w-full px-3 py-2 rounded"
-                        style={inputStyle}
-                      />
+                        <option value="manual">
+                          {isZh ? '手动' : 'Manual'}
+                        </option>
+                        <option value="ai">{isZh ? 'AI 决定' : 'AI'}</option>
+                      </select>
                     </div>
-                    <div>
-                      <label
-                        className="block text-xs mb-1"
-                        style={{ color: '#848E9C' }}
-                      >
-                        {isZh ? '平仓比例 %' : 'Close Ratio %'}
-                      </label>
+                    {(rule.close_ratio_mode || 'manual') === 'manual' && (
                       <input
                         type="number"
                         value={rule.close_ratio_pct}
@@ -1756,23 +1739,59 @@ export function ProtectionEditor({
                         className="w-full px-3 py-2 rounded"
                         style={inputStyle}
                       />
-                    </div>
-                    <div>
+                    )}
+                    {(rule.close_ratio_mode || 'manual') === 'ai' && (
+                      <div className="text-[11px]" style={{ color: '#848E9C' }}>
+                        {isZh
+                          ? `AI 决定仓位比例（手动参考值：${rule.close_ratio_pct}%）`
+                          : `AI decides ratio (manual reference: ${rule.close_ratio_pct}%)`}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 2: Min Profit (peak trigger threshold) */}
+                  <div
+                    className="p-3 rounded-lg space-y-2"
+                    style={{ ...cardStyle(true), borderColor: '#2B3139' }}
+                  >
+                    <div className="flex items-center justify-between">
                       <label
-                        className="block text-xs mb-1"
+                        className="block text-xs"
                         style={{ color: '#848E9C' }}
                       >
-                        {isZh ? '轮询秒数' : 'Poll Seconds'}
+                        {isZh
+                          ? '峰值触发 %（利润达到此值开始追踪）'
+                          : 'Peak Trigger % (start tracking at this profit)'}
                       </label>
-                      <input
-                        type="number"
-                        value={rule.poll_interval_seconds}
-                        min={5}
-                        step={5}
+                      <select
+                        value={rule.min_profit_mode || 'manual'}
                         onChange={(e) =>
                           updateDrawdownRule(index, {
-                            poll_interval_seconds:
-                              parseInt(e.target.value) || 60,
+                            min_profit_mode: e.target.value as 'manual' | 'ai',
+                          })
+                        }
+                        disabled={
+                          disabled ||
+                          config.drawdown_take_profit.mode === 'disabled'
+                        }
+                        className="px-2 py-1 rounded text-xs"
+                        style={inputStyle}
+                      >
+                        <option value="manual">
+                          {isZh ? '手动' : 'Manual'}
+                        </option>
+                        <option value="ai">{isZh ? 'AI 决定' : 'AI'}</option>
+                      </select>
+                    </div>
+                    {(rule.min_profit_mode || 'manual') === 'manual' && (
+                      <input
+                        type="number"
+                        value={rule.min_profit_pct}
+                        min={0}
+                        step={0.1}
+                        onChange={(e) =>
+                          updateDrawdownRule(index, {
+                            min_profit_pct: parseFloat(e.target.value) || 0,
                           })
                         }
                         disabled={
@@ -1782,7 +1801,105 @@ export function ProtectionEditor({
                         className="w-full px-3 py-2 rounded"
                         style={inputStyle}
                       />
+                    )}
+                    {(rule.min_profit_mode || 'manual') === 'ai' && (
+                      <div className="text-[11px]" style={{ color: '#848E9C' }}>
+                        {isZh
+                          ? `AI 决定峰值触发（手动参考值：${rule.min_profit_pct}%）`
+                          : `AI decides trigger (manual reference: ${rule.min_profit_pct}%)`}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 3: Max Drawdown (drawdown threshold from tier peak) */}
+                  <div
+                    className="p-3 rounded-lg space-y-2"
+                    style={{ ...cardStyle(true), borderColor: '#2B3139' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label
+                        className="block text-xs"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {isZh
+                          ? '回撤幅度 %（从该级峰值回撤此比例触发平仓）'
+                          : 'Drawdown % (close when drawdown from tier peak exceeds this)'}
+                      </label>
+                      <select
+                        value={rule.max_drawdown_mode || 'manual'}
+                        onChange={(e) =>
+                          updateDrawdownRule(index, {
+                            max_drawdown_mode: e.target.value as
+                              | 'manual'
+                              | 'ai',
+                          })
+                        }
+                        disabled={
+                          disabled ||
+                          config.drawdown_take_profit.mode === 'disabled'
+                        }
+                        className="px-2 py-1 rounded text-xs"
+                        style={inputStyle}
+                      >
+                        <option value="manual">
+                          {isZh ? '手动' : 'Manual'}
+                        </option>
+                        <option value="ai">{isZh ? 'AI 决定' : 'AI'}</option>
+                      </select>
                     </div>
+                    {(rule.max_drawdown_mode || 'manual') === 'manual' && (
+                      <input
+                        type="number"
+                        value={rule.max_drawdown_pct}
+                        min={0}
+                        step={0.1}
+                        onChange={(e) =>
+                          updateDrawdownRule(index, {
+                            max_drawdown_pct: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        disabled={
+                          disabled ||
+                          config.drawdown_take_profit.mode === 'disabled'
+                        }
+                        className="w-full px-3 py-2 rounded"
+                        style={inputStyle}
+                      />
+                    )}
+                    {(rule.max_drawdown_mode || 'manual') === 'ai' && (
+                      <div className="text-[11px]" style={{ color: '#848E9C' }}>
+                        {isZh
+                          ? `AI 决定回撤幅度（手动参考值：${rule.max_drawdown_pct}%）`
+                          : `AI decides drawdown (manual reference: ${rule.max_drawdown_pct}%)`}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Poll interval */}
+                  <div>
+                    <label
+                      className="block text-xs mb-1"
+                      style={{ color: '#848E9C' }}
+                    >
+                      {isZh ? '轮询秒数' : 'Poll Seconds'}
+                    </label>
+                    <input
+                      type="number"
+                      value={rule.poll_interval_seconds}
+                      min={5}
+                      step={5}
+                      onChange={(e) =>
+                        updateDrawdownRule(index, {
+                          poll_interval_seconds: parseInt(e.target.value) || 60,
+                        })
+                      }
+                      disabled={
+                        disabled ||
+                        config.drawdown_take_profit.mode === 'disabled'
+                      }
+                      className="w-full px-3 py-2 rounded"
+                      style={inputStyle}
+                    />
                   </div>
                 </div>
               ))}

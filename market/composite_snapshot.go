@@ -16,14 +16,16 @@ type CompositeMarketSource struct {
 }
 
 type CompositeMarketLine struct {
-	ID          string  `json:"id"`
-	Price       float64 `json:"price"`
-	Kind        string  `json:"kind"`
-	Label       string  `json:"label"`
-	Timeframe   string  `json:"timeframe,omitempty"`
-	Strength    int     `json:"strength,omitempty"`
-	Source      string  `json:"source,omitempty"`
-	DistancePct float64 `json:"distance_pct,omitempty"`
+	ID           string  `json:"id"`
+	Price        float64 `json:"price"`
+	Kind         string  `json:"kind"`
+	Label        string  `json:"label"`
+	Timeframe    string  `json:"timeframe,omitempty"`
+	Strength     int     `json:"strength,omitempty"`
+	Source       string  `json:"source,omitempty"`
+	DistancePct  float64 `json:"distance_pct,omitempty"`
+	Confidence   float64 `json:"confidence,omitempty"`
+	MultiTFCount int     `json:"multi_tf_count,omitempty"`
 }
 
 type CompositeMarketTimeframe struct {
@@ -236,7 +238,7 @@ func buildCompositeSources(data *Data, ctx *MarketContextV2) []CompositeMarketSo
 func buildLinesForTimeframe(current float64, levels []StructuralLevel, fib *FibonacciLevels) []CompositeMarketLine {
 	out := make([]CompositeMarketLine, 0, len(levels)+8)
 	for i, l := range levels {
-		out = append(out, CompositeMarketLine{ID: fmt.Sprintf("%s-%s-%d", l.Timeframe, l.Type, i), Price: l.Price, Kind: l.Type, Label: l.Type, Timeframe: l.Timeframe, Strength: l.Strength, Source: l.Source, DistancePct: distancePct(current, l.Price)})
+		out = append(out, CompositeMarketLine{ID: fmt.Sprintf("%s-%s-%d", l.Timeframe, l.Type, i), Price: l.Price, Kind: l.Type, Label: l.Type, Timeframe: l.Timeframe, Strength: l.Strength, Source: l.Source, DistancePct: distancePct(current, l.Price), Confidence: l.Confidence, MultiTFCount: l.MultiTFCount})
 	}
 	if fib != nil {
 		keys := make([]string, 0, len(fib.Levels))
@@ -275,7 +277,14 @@ func FormatCompositeMarketForAI(s *CompositeMarketSnapshot) string {
 	}
 	for i := 0; i < limit; i++ {
 		l := near[i]
-		b.WriteString(fmt.Sprintf("line %s %s %.8f dist=%.2f%% strength=%d src=%s\n", l.Timeframe, l.Kind, l.Price, l.DistancePct, l.Strength, l.Source))
+		extra := ""
+		if l.Confidence > 0 {
+			extra = fmt.Sprintf(" conf=%.0f", l.Confidence)
+		}
+		if l.MultiTFCount > 0 {
+			extra += fmt.Sprintf(" mtf=%d", l.MultiTFCount)
+		}
+		b.WriteString(fmt.Sprintf("line %s %s %.8f dist=%.2f%% strength=%d src=%s%s\n", l.Timeframe, l.Kind, l.Price, l.DistancePct, l.Strength, l.Source, extra))
 	}
 	return b.String()
 }

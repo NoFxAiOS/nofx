@@ -211,7 +211,20 @@ func formatStructuralLevelRows(label string, levels []market.StructuralLevel, zh
 		if zh {
 			source = translateSource(level.Source, true)
 		}
-		sb.WriteString(fmt.Sprintf("  - level_%d_price=%s timeframe=%s source=%s strength=%d\n", i+1, formatAIFloat(level.Price), level.Timeframe, source, level.Strength))
+		extra := ""
+		if level.Confidence > 0 {
+			extra += fmt.Sprintf(" conf=%.0f", level.Confidence)
+		}
+		if level.VolumeScore > 0 {
+			extra += fmt.Sprintf(" vol=%.0f%%", level.VolumeScore*100)
+		}
+		if level.MultiTFCount > 0 {
+			extra += fmt.Sprintf(" mtf=%d", level.MultiTFCount)
+		}
+		if level.TouchCount > 0 {
+			extra += fmt.Sprintf(" touches=%d", level.TouchCount)
+		}
+		sb.WriteString(fmt.Sprintf("  - level_%d_price=%s timeframe=%s source=%s strength=%d%s\n", i+1, formatAIFloat(level.Price), level.Timeframe, source, level.Strength, extra))
 	}
 	return sb.String()
 }

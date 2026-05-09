@@ -245,6 +245,9 @@ func GetWithTimeframesExchange(symbol string, timeframes []string, primaryTimefr
 		timeframeData[tf] = seriesData
 	}
 
+	// Cross-timeframe confirmation: count how many timeframes confirm each level
+	enrichMultiTFConfirmation(timeframeData)
+
 	// If primary timeframe data is empty, return error
 	if len(primaryKlines) == 0 {
 		return nil, fmt.Errorf("Primary timeframe %s K-line data is empty", primaryTimeframe)

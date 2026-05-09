@@ -129,7 +129,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		markPrice := pos["markPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
 		if quantity < 0 {
-			quantity = -quantity // Short position quantity is negative, convert to positive
+			quantity = -quantity
 		}
 
 		rules := at.getActiveDrawdownRulesForPosition(symbol, side)
@@ -137,53 +137,41 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			continue
 		}
 
-		// Calculate current P&L percentage using pure price move, not leveraged return on margin.
-		// Protection logic must stay invariant when leverage changes.
 		currentPnLPct := calculatePositionPnLPct(side, entryPrice, markPrice)
 
-		// Construct unique position identifier (distinguish long/short)
+		// Legacy global peak tracking (kept for backward compat with native trailing)
 		posKey := symbol + "_" + side
-
-		// Get historical peak profit for this position
 		at.peakPnLCacheMutex.RLock()
 		peakPnLPct, exists := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
-
 		if !exists {
-			// If no historical peak record, use current P&L as initial value
 			peakPnLPct = currentPnLPct
 			at.UpdatePeakPnL(symbol, side, currentPnLPct)
 		} else {
-			// Update peak cache
 			at.UpdatePeakPnL(symbol, side, currentPnLPct)
-		}
-
-		// Calculate drawdown (magnitude of decline from peak)
-		var drawdownPct float64
-		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
-			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
 		if fingerprintChanged := at.refreshDrawdownExecutionFingerprint(symbol, side, entryPrice); fingerprintChanged {
 			logger.Infof("🟠 Drawdown monitor: %s %s drawdown entry fingerprint changed, clearing previous execution guard", symbol, side)
 		}
 
+		// Break-even: apply exchange-side BE stops when profit thresholds are met.
 		matchedBreakEvenRules := at.getActiveBreakEvenRules()
 		if len(matchedBreakEvenRules) > 0 {
 			if at.isBreakEvenSuppressedByRunner(symbol, side) {
 				logger.Infof("🟠 Break-even monitor: %s %s suppressed by runner semantics, skipping mechanical BE apply", symbol, side)
 			} else {
-				if err := at.applyBreakEvenStops(symbol, side, quantity, entryPrice, currentPnLPct, matchedBreakEvenRules); err != nil {
+				beQuantity := at.computeRemainingQuantityForBE(symbol, side)
+				if beQuantity <= 0 {
+					beQuantity = quantity
+				}
+				if err := at.applyBreakEvenStops(symbol, side, beQuantity, entryPrice, currentPnLPct, matchedBreakEvenRules); err != nil {
 					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
 				}
 			}
 		}
 
-		structureCtx := at.buildDrawdownStructureContext(symbol, side)
-
 		// For exchange-native trailing protections, arm all tiers whose min-profit gate is already met.
-		// Do NOT wait for drawdown to happen first — the exchange trailing order itself is responsible
-		// for tracking the drawdown once armed.
 		if at.supportsNativeTrailingStop() {
 			executionMode := at.getDrawdownExecutionMode(symbol, side)
 			armRules := at.getDrawdownArmRulesForNativeExposure(currentPnLPct, entryPrice, quantity, symbol, side, rules)
@@ -202,11 +190,79 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			}
 		}
 
+		// ===== New tier-based drawdown evaluation =====
+		// Initialize tier allocations if not set yet (e.g. position opened before this code deployed)
+		allocs := at.getDrawdownTierAllocs(symbol, side)
+		if len(allocs) == 0 {
+			at.initDrawdownTiersForPosition(symbol, side, quantity, rules)
+			allocs = at.getDrawdownTierAllocs(symbol, side)
+		}
+
+		if len(allocs) > 0 {
+			// Log tier status periodically
+			if currentPnLPct > 0 {
+				logTierAllocStatus(symbol, side, allocs)
+			}
+
+			// Evaluate tiers with independent peak tracking per tier
+			triggered := at.evaluateDrawdownTiers(symbol, side, currentPnLPct, peakPnLPct)
+			if triggered == nil {
+				if currentPnLPct > 0 {
+					logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%%",
+						symbol, side, currentPnLPct, peakPnLPct)
+				}
+				continue
+			}
+
+			// Execute the triggered tier's partial close using its fixed quantity
+			closeQty := triggered.Quantity
+			if closeQty <= 0 {
+				continue
+			}
+
+			logger.Infof("🚨 Drawdown %s triggered: %s %s | qty=%.6f | pnl=%.2f%% | tier_peak=%.2f%%",
+				triggered.StageName, symbol, side, closeQty, currentPnLPct, triggered.PeakPnLPct)
+
+			if err := at.closePositionByReason(symbol, side, closeQty, "managed_drawdown_"+triggered.StageName); err != nil {
+				logger.Infof("❌ Drawdown %s close failed (%s %s): %v", triggered.StageName, symbol, side, err)
+				// Revert tier status on failure
+				at.updateTierAlloc(symbol, side, triggered.TierIndex, func(a *store.DrawdownTierAllocation) {
+					a.Status = "tracking"
+				})
+				continue
+			}
+
+			logger.Infof("✅ Drawdown %s succeeded: %s %s | closed %.6f", triggered.StageName, symbol, side, closeQty)
+			at.setProtectionState(symbol, side, "drawdown_triggered_"+triggered.StageName)
+
+			// Set runner state from the original rule to preserve runner/BE suppression semantics
+			matchingRule := findRuleForTier(rules, triggered)
+			if matchingRule != nil {
+				enforced := enforceDrawdownRunnerPolicy(drawdownCfg, normalizeDrawdownRule(*matchingRule))
+				at.setDrawdownRunnerState(symbol, side, buildDrawdownRunnerState(enforced))
+			}
+
+			// Check if all tiers are done — if so, remaining position is handled by BE
+			updatedAllocs := at.getDrawdownTierAllocs(symbol, side)
+			if hasAllTiersCompleted(updatedAllocs) {
+				logger.Infof("✅ All drawdown tiers completed for %s %s — remaining position protected by break-even", symbol, side)
+			}
+
+			continue
+		}
+
+		// Fallback: legacy path for positions without tier allocations
+		var drawdownPct float64
+		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		}
+
 		triggeredRules := at.getTriggeredDrawdownRules(currentPnLPct, drawdownPct, rules)
 		if len(triggeredRules) > 0 {
 			triggeredRules = []store.DrawdownTakeProfitRule{enforceDrawdownRunnerPolicy(drawdownCfg, normalizeDrawdownRule(triggeredRules[0]))}
 		}
 		if drawdownCfg.Enabled && drawdownCfg.Mode == store.ProtectionModeAI && drawdownCfg.EngineMode == store.DrawdownEngineModeAI {
+			structureCtx := at.buildDrawdownStructureContext(symbol, side)
 			if eval := evaluateAIDrawdownRule(drawdownCfg, currentPnLPct, peakPnLPct, drawdownPct, rules, structureCtx, side, markPrice); eval != nil {
 				triggeredRules = []store.DrawdownTakeProfitRule{eval.Rule}
 			} else {
@@ -239,7 +295,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 		closeQty := quantity * matchedRule.CloseRatioPct / 100.0
 		if closeQty <= 0 || matchedRule.CloseRatioPct >= 99.999 {
-			closeQty = 0 // exchange adapters use 0 to mean close all
+			closeQty = 0
 		}
 
 		logger.Infof("🚨 Drawdown take-profit triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%% | CloseRatio: %.2f%%",

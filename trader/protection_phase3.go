@@ -494,7 +494,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 	}
 
 	if mode == "ladder" {
-		return buildAIDecisionLadderProtectionPlan(entryPrice, action, plan.LadderRules)
+		return buildAIDecisionLadderProtectionPlan(entryPrice, action, plan.LadderRules, cfgs...)
 	}
 
 	if mode == "drawdown" {
@@ -529,7 +529,7 @@ func buildAIProtectionPlan(entryPrice float64, action string, plan *kernel.AIPro
 		}
 		parts := make([]*ProtectionPlan, 0, 3)
 		if len(plan.LadderRules) > 0 {
-			if p, err := buildAIDecisionLadderProtectionPlan(entryPrice, action, plan.LadderRules); err != nil {
+			if p, err := buildAIDecisionLadderProtectionPlan(entryPrice, action, plan.LadderRules, cfgs...); err != nil {
 				return nil, err
 			} else if p != nil {
 				parts = append(parts, p)
@@ -663,7 +663,7 @@ func buildAIFullProtectionPlan(entryPrice float64, action string, full store.Ful
 	return plan, nil
 }
 
-func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rules []kernel.AIProtectionLadderRule) (*ProtectionPlan, error) {
+func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rules []kernel.AIProtectionLadderRule, cfgs ...*store.StrategyConfig) (*ProtectionPlan, error) {
 	if entryPrice <= 0 || len(rules) == 0 {
 		return nil, nil
 	}
@@ -718,6 +718,57 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 	if len(plan.StopLossOrders) == 0 && len(plan.TakeProfitOrders) == 0 {
 		return nil, nil
 	}
+
+	// Volatility buffer auto-widening: ensure SL orders have enough ATR distance.
+	// If SL is too tight but TP/SL ratio still valid after widening, widen SL automatically.
+	if len(plan.StopLossOrders) > 0 && len(rules) > 0 {
+		var atr14Pct float64
+		var volBuf float64
+		var bufferMul float64
+		if len(cfgs) > 0 && cfgs[0] != nil {
+			gd := cfgs[0].EntryStructure.EntryGate.WithDefaults()
+			volBuf = gd.VolatilityBufferATRMul
+			bufferMul = volBuf * 0.7
+			if bufferMul <= 0 {
+				bufferMul = 0.35
+			}
+		} else {
+			bufferMul = 0.35
+		}
+		for _, r := range rules {
+			if r.VolatilityBufferPct > 0 {
+				atr14Pct = r.VolatilityBufferPct / bufferMul
+				break
+			}
+		}
+		if atr14Pct <= 0 && len(cfgs) > 0 && cfgs[0] != nil {
+			gd := cfgs[0].EntryStructure.EntryGate.WithDefaults()
+			if gd.MinATR14Pct > 0 {
+				atr14Pct = gd.MinATR14Pct
+			}
+		}
+		if atr14Pct > 0 && volBuf > 0 {
+			atrAbs := entryPrice * (atr14Pct / 100)
+			minSLMul := 1.2
+			if len(cfgs) > 0 && cfgs[0] != nil && cfgs[0].EntryStructure.EntryGate.MinSLDistanceATRMul > 0 {
+				minSLMul = cfgs[0].EntryStructure.EntryGate.MinSLDistanceATRMul
+			}
+			minSLDist := (minSLMul + volBuf) * atrAbs
+			for i := range plan.StopLossOrders {
+				sl := &plan.StopLossOrders[i]
+				dist := math.Abs(entryPrice - sl.Price)
+				if dist < minSLDist {
+					if isLong {
+						sl.Price = roundProtectionPrice(entryPrice - minSLDist)
+					} else {
+						sl.Price = roundProtectionPrice(entryPrice + minSLDist)
+					}
+					logger.Infof("🛡️ volatility auto-widen SL[%d]: dist %.4f < min %.4f (%.2fx ATR), widened to %.8f", i, dist, minSLDist, minSLDist/atrAbs, sl.Price)
+				}
+			}
+		}
+	}
+
 	plan.NeedsStopLoss = len(plan.StopLossOrders) > 0
 	plan.NeedsTakeProfit = len(plan.TakeProfitOrders) > 0
 	return plan, nil

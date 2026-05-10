@@ -106,6 +106,13 @@ type EntryGateConfig struct {
 
 	// Short position minimum confidence when regime is not trend_down (G3e)
 	ShortNonDowntrendMinConfidence int `json:"short_non_downtrend_min_confidence,omitempty"`
+
+	// VolatilityBufferATRMul adds extra ATR-based buffer to SL/TP distances beyond
+	// the structural placement. Range [0, 1.5]: 0 = tightest (no extra buffer),
+	// 1.5 = widest (1.5× ATR extra padding). Default 0.3.
+	// When SL distance < (MinSLDistanceATRMul + VolatilityBufferATRMul) × ATR and
+	// RR still holds after widening, backend auto-widens SL to meet the threshold.
+	VolatilityBufferATRMul float64 `json:"volatility_buffer_atr_mul,omitempty"`
 }
 
 func (c EntryGateConfig) WithDefaults() EntryGateConfig {
@@ -155,6 +162,14 @@ func (c EntryGateConfig) WithDefaults() EntryGateConfig {
 	}
 	if c.ShortNonDowntrendMinConfidence <= 0 {
 		c.ShortNonDowntrendMinConfidence = 85
+	}
+	if c.VolatilityBufferATRMul == 0 {
+		c.VolatilityBufferATRMul = 0.3
+	} else if c.VolatilityBufferATRMul < 0 {
+		c.VolatilityBufferATRMul = 0
+	}
+	if c.VolatilityBufferATRMul > 1.5 {
+		c.VolatilityBufferATRMul = 1.5
 	}
 	return c
 }

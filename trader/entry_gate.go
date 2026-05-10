@@ -500,21 +500,40 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 			if minSLMul <= 0 {
 				minSLMul = 1.2
 			}
-			effectiveMinSL := minSLMul + volBuffer
-			slPassed := slATRMul >= effectiveMinSL
+			// Hard gate: only base threshold (reject garbage SL)
+			slPassed := slATRMul >= minSLMul
 			slCheck := EntryGateCheck{
 				Code:     "sl_distance_below_atr_min",
 				Stage:    string(EntryGateStageConfidenceRisk),
 				Passed:   slPassed,
 				Enforced: true,
-				Values:   fmt.Sprintf("sl_atr_mul=%.2f min=%.1f+buf%.1f=%.1f sl_dist=%.4f atr14=%.4f atr_pct=%.2f%%", slATRMul, minSLMul, volBuffer, effectiveMinSL, slDist, atrAbs, atrPct),
+				Values:   fmt.Sprintf("sl_atr_mul=%.2f min=%.1f sl_dist=%.4f atr14=%.4f atr_pct=%.2f%%", slATRMul, minSLMul, slDist, atrAbs, atrPct),
 			}
 			if slPassed {
-				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 >= effective min %.1fx (base %.1f + vol_buffer %.1f) — room for volatility", slATRMul, effectiveMinSL, minSLMul, volBuffer)
+				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 >= min %.1fx — passes base gate (auto-widen to %.1fx at execution if needed)", slATRMul, minSLMul, minSLMul+volBuffer)
 			} else {
-				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 < effective min %.1fx (base %.1f + vol_buffer %.1f) — too tight, normal wick will sweep", slATRMul, effectiveMinSL, minSLMul, volBuffer)
+				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 < min %.1fx — structure too shallow, will be swept by normal noise", slATRMul, minSLMul)
 			}
 			checks = append(checks, slCheck)
+
+			// Informational: vol buffer check (not enforced, auto-widen handles it)
+			if volBuffer > 0 && slPassed {
+				effectiveMinSL := minSLMul + volBuffer
+				volPassed := slATRMul >= effectiveMinSL
+				volCheck := EntryGateCheck{
+					Code:     "sl_distance_below_vol_buffer",
+					Stage:    string(EntryGateStageConfidenceRisk),
+					Passed:   volPassed,
+					Enforced: false,
+					Values:   fmt.Sprintf("sl_atr_mul=%.2f effective_min=%.1f (base+buf)", slATRMul, effectiveMinSL),
+				}
+				if volPassed {
+					volCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 >= %.1fx (incl vol buffer) — no auto-widening needed", slATRMul, effectiveMinSL)
+				} else {
+					volCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 < %.1fx — ladder SL will be auto-widened at execution", slATRMul, effectiveMinSL)
+				}
+				checks = append(checks, volCheck)
+			}
 
 			rewardDist := math.Abs(rr.FirstTarget - rr.Entry)
 			rewardATRMul := rewardDist / atrAbs

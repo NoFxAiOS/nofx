@@ -9,31 +9,11 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return
 
-          if (id.includes('react-dom') || id.includes('/react/')) {
-            return 'react-vendor'
-          }
-          if (id.includes('recharts') || id.includes('d3-')) {
-            return 'chart-vendor'
-          }
-          if (id.includes('lightweight-charts')) {
-            return 'trading-chart-vendor'
-          }
-          if (id.includes('katex')) {
-            return 'katex-vendor'
-          }
-          if (id.includes('framer-motion')) {
-            return 'motion-vendor'
-          }
-          if (id.includes('lucide-react')) {
-            return 'icons-vendor'
-          }
-          if (id.includes('swr') || id.includes('axios')) {
-            return 'data-vendor'
-          }
-          if (id.includes('@radix-ui') || id.includes('sonner')) {
-            return 'ui-vendor'
-          }
+          // Large standalone chunks that don't share deps with React
+          if (id.includes('katex')) return 'katex-vendor'
+          if (id.includes('lightweight-charts')) return 'trading-chart-vendor'
 
+          // Everything else in one vendor chunk to avoid circular imports
           return 'vendor'
         },
       },

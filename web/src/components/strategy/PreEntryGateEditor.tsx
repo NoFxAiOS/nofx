@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { Filter, Shield, Radio, Layers } from 'lucide-react'
 import type {
   RegimeFilterConfig,
@@ -79,7 +80,7 @@ function EntryGateGroup({
   description: string
   example: string
   color: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <div

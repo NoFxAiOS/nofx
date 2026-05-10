@@ -610,7 +610,7 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 				if strings.TrimSpace(rule.StructuralAnchor) == "" {
 					logger.Warnf("decision #%d ladder_rule[%d]: missing structural_anchor (structural justification expected)", i+1, j)
 				}
-				ensureLadderVolatilityBuffer(d, rule, i, j)
+				ensureLadderVolatilityBuffer(d, rule, i, j, config)
 			}
 			for j, rule := range d.ProtectionPlan.DrawdownRules {
 				if strings.TrimSpace(rule.ReasonAnchor) == "" {
@@ -630,7 +630,7 @@ func validateAIDecisionRoutesWithStrategy(decisions []Decision, config *store.St
 				return fmt.Errorf("decision #%d: ladder protection_plan must contain 2~3 ladder_rules under current strategy route", i+1)
 			}
 			for j := range d.ProtectionPlan.LadderRules {
-				ensureLadderVolatilityBuffer(d, &d.ProtectionPlan.LadderRules[j], i, j)
+				ensureLadderVolatilityBuffer(d, &d.ProtectionPlan.LadderRules[j], i, j, config)
 			}
 		}
 		if fullAI && !drawdownAI && !ladderAI {
@@ -1299,13 +1299,20 @@ func validateProtectionPlanAlignmentSkeleton(d Decision, rr AIRiskRewardRational
 	return nil
 }
 
-func ensureLadderVolatilityBuffer(d Decision, rule *AIProtectionLadderRule, decisionIndex, ruleIndex int) {
+func ensureLadderVolatilityBuffer(d Decision, rule *AIProtectionLadderRule, decisionIndex, ruleIndex int, config *store.StrategyConfig) {
 	if rule == nil || rule.VolatilityBufferPct > 0 {
 		return
 	}
 	if d.EntryProtection != nil && d.EntryProtection.VolatilityAdjustment.ATR14Pct > 0 {
-		rule.VolatilityBufferPct = d.EntryProtection.VolatilityAdjustment.ATR14Pct * 0.35
-		rule.VolatilityBufferReason = firstNonEmptyString(rule.VolatilityBufferReason, "auto 0.35x ATR14 buffer from entry_protection_rationale")
+		bufferMul := 0.35
+		if config != nil {
+			gd := config.EntryStructure.EntryGate.WithDefaults()
+			if gd.VolatilityBufferATRMul > 0 {
+				bufferMul = gd.VolatilityBufferATRMul * 0.7
+			}
+		}
+		rule.VolatilityBufferPct = d.EntryProtection.VolatilityAdjustment.ATR14Pct * bufferMul
+		rule.VolatilityBufferReason = firstNonEmptyString(rule.VolatilityBufferReason, fmt.Sprintf("auto %.2fx ATR14 buffer (vol_buffer_atr_mul=%.2f)", bufferMul, bufferMul/0.7))
 		return
 	}
 	logger.Warnf("decision #%d ladder_rule[%d]: missing volatility buffer; structural alignment fallback will be used", decisionIndex+1, ruleIndex)

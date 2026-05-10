@@ -242,3 +242,114 @@ func TestClampAIDrawdownTierCeilingsAlreadyCompliant(t *testing.T) {
 		t.Errorf("compliant tier 2 should not be changed, got %.4f", clamped[1].MinProfitPct)
 	}
 }
+
+func TestVolatilityAutoWidenSL(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.EntryStructure.EntryGate = store.EntryGateConfig{
+		Enabled:             true,
+		MinSLDistanceATRMul: 1.2,
+		MinATR14Pct:         1.0,
+	}
+	cfg.EntryStructure.EntryGate.VolatilityBufferATRMul = 0.5
+
+	// Entry=100, ATR14=1%, so ATR absolute = 1.0
+	// Effective min SL = (1.2 + 0.5) * 1.0 = 1.7
+	// Ladder SL at 99.5 = 0.5 away from entry → should be widened to 98.3
+	plan, err := buildAIDecisionLadderProtectionPlan(100, "open_long", []kernel.AIProtectionLadderRule{
+		{StopLossPrice: 99.5, StopLossCloseRatioPct: 100, VolatilityBufferPct: 0.35},
+	}, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if plan == nil || len(plan.StopLossOrders) != 1 {
+		t.Fatal("expected 1 SL order")
+	}
+	sl := plan.StopLossOrders[0].Price
+	if sl >= 99.5 {
+		t.Errorf("SL should be widened below 99.5, got %.4f", sl)
+	}
+	if sl > 98.4 {
+		t.Errorf("SL should be widened to ~98.3, got %.4f", sl)
+	}
+}
+
+func TestVolatilityAutoWidenSLShort(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.EntryStructure.EntryGate = store.EntryGateConfig{
+		Enabled:             true,
+		MinSLDistanceATRMul: 1.2,
+		MinATR14Pct:         1.0,
+	}
+	cfg.EntryStructure.EntryGate.VolatilityBufferATRMul = 0.5
+
+	// Entry=100, ATR14=1%, ATR abs=1.0
+	// SL at 100.5 = 0.5 away → too tight → should widen to ~101.7
+	plan, err := buildAIDecisionLadderProtectionPlan(100, "open_short", []kernel.AIProtectionLadderRule{
+		{StopLossPrice: 100.5, StopLossCloseRatioPct: 100, VolatilityBufferPct: 0.35},
+	}, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if plan == nil || len(plan.StopLossOrders) != 1 {
+		t.Fatal("expected 1 SL order")
+	}
+	sl := plan.StopLossOrders[0].Price
+	if sl <= 100.5 {
+		t.Errorf("short SL should be widened above 100.5, got %.4f", sl)
+	}
+	if sl < 101.6 {
+		t.Errorf("short SL should be widened to ~101.7, got %.4f", sl)
+	}
+}
+
+func TestVolatilityNoWidenWhenSufficientDistance(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.EntryStructure.EntryGate = store.EntryGateConfig{
+		Enabled:             true,
+		MinSLDistanceATRMul: 1.2,
+		MinATR14Pct:         1.0,
+	}
+	cfg.EntryStructure.EntryGate.VolatilityBufferATRMul = 0.3
+
+	// Entry=100, VolatilityBufferATRMul=0.3, bufferMul=0.3*0.7=0.21
+	// VolatilityBufferPct should be ATR14Pct*bufferMul=1.0*0.21=0.21
+	// atr14Pct reverse = 0.21/0.21 = 1.0, ATR abs = 1.0
+	// effective min = (1.2+0.3)*1.0 = 1.5
+	// SL at 97.0 = 3.0 away → already sufficient → no widening
+	plan, err := buildAIDecisionLadderProtectionPlan(100, "open_long", []kernel.AIProtectionLadderRule{
+		{StopLossPrice: 97.0, StopLossCloseRatioPct: 100, VolatilityBufferPct: 0.21},
+	}, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if plan == nil || len(plan.StopLossOrders) != 1 {
+		t.Fatal("expected 1 SL order")
+	}
+	if plan.StopLossOrders[0].Price != 97.0 {
+		t.Errorf("SL should not be widened, expected 97.0 got %.4f", plan.StopLossOrders[0].Price)
+	}
+}
+
+func TestVolatilityNoWidenWhenBufferDisabled(t *testing.T) {
+	cfg := &store.StrategyConfig{}
+	cfg.EntryStructure.EntryGate = store.EntryGateConfig{
+		Enabled:             true,
+		MinSLDistanceATRMul: 1.2,
+		MinATR14Pct:         1.0,
+	}
+	cfg.EntryStructure.EntryGate.VolatilityBufferATRMul = -1 // disabled
+
+	// With buffer disabled (clamped to 0), no widening should happen
+	plan, err := buildAIDecisionLadderProtectionPlan(100, "open_long", []kernel.AIProtectionLadderRule{
+		{StopLossPrice: 99.5, StopLossCloseRatioPct: 100, VolatilityBufferPct: 0.35},
+	}, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if plan == nil || len(plan.StopLossOrders) != 1 {
+		t.Fatal("expected 1 SL order")
+	}
+	if plan.StopLossOrders[0].Price != 99.5 {
+		t.Errorf("SL should NOT be widened when buffer disabled, expected 99.5 got %.4f", plan.StopLossOrders[0].Price)
+	}
+}

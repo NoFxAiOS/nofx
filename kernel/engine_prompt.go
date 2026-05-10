@@ -167,6 +167,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("If your trade is rejected, it appears in the decision log with the specific reason.\n\n")
 
 	entryGate := e.config.EntryStructure.EntryGate
+	gateDefaults := entryGate.WithDefaults()
 	minSLATR := entryGate.MinSLDistanceATRMul
 	if minSLATR <= 0 {
 		minSLATR = 1.2
@@ -175,15 +176,17 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	if minRewardATR <= 0 {
 		minRewardATR = 1.8
 	}
+	volBuffer := gateDefaults.VolatilityBufferATRMul
+	effectiveMinSL := minSLATR + volBuffer
 
 	sb.WriteString("## How to use multi-timeframe structural data:\n\n")
 	sb.WriteString("1. **Entry positioning**: Open positions near support (long) or resistance (short), not in no-man's land\n")
 	sb.WriteString("2. **Protection planning — use multi-timeframe structure**:\n")
-	sb.WriteString("   - **Stop Loss**: Place beyond the nearest structural invalidation on the PRIMARY timeframe (real swing point, not micro-wick). Add 0.3-0.5× ATR buffer to survive stop-hunts. Ladder SL tiers: use distinct prices around the same structure with ≥75% close protection near it.\n")
+	sb.WriteString(fmt.Sprintf("   - **Stop Loss**: Place beyond the nearest structural invalidation on the PRIMARY timeframe. The backend requires SL distance >= %.1f× ATR14 (base %.1f + volatility buffer %.1f). Place SL at structure + enough ATR buffer to survive wicks/stop-hunts. Ladder SL tiers: use distinct prices around the same structure with ≥75%% close protection near it.\n", effectiveMinSL, minSLATR, volBuffer))
 	sb.WriteString("   - **Take Profit / Ladder TP**: Align with resistance/fib levels (longs) or support/fib levels (shorts). Use HIGHER timeframe levels for major targets, lower timeframe for partial exits\n")
 	sb.WriteString("   - **Drawdown rules**: Each profit stage's min_profit_pct should correspond to a structural level distance from entry. max_drawdown_pct is percentage-of-peak-profit giveback (exchange trailing semantics), e.g. 55 means allow 55% of peak profit to be given back before closing.\n")
 	sb.WriteString("   - **Break-even trigger**: Set trigger_value near the first structural level past entry, with offset beyond the nearest support/resistance\n")
-	sb.WriteString("3. **Volatility buffer**: All SL/TP/drawdown thresholds must account for typical wick range. Use ATR14 as the volatility gauge — always add buffer beyond structure\n")
+	sb.WriteString(fmt.Sprintf("3. **Volatility buffer (CRITICAL)**: SL must survive normal wicks. Backend enforces minimum %.1f× ATR14 total SL distance. If your structural SL is closer than this, the system will auto-widen it. Design entries where invalidation is naturally >= %.1f× ATR from entry.\n", effectiveMinSL, effectiveMinSL))
 	sb.WriteString("4. **Cross-validation**: Auto-detected levels are hints. Confirm with volume, price action, and multi-timeframe alignment\n")
 	sb.WriteString("5. **structural_key_levels in output**: When opening, include a `structural_key_levels` array listing the structural levels that influenced your entry/TP/SL/drawdown decisions, with the timeframe each came from\n")
 	sb.WriteString("6. **Higher-timeframe runner context**: If `timeframe_context.higher` is present, include `higher_timeframe_anchors` or `timeframe_structures` with explicit higher-TF price anchors. Outer drawdown/runner stages must cite those higher-TF anchors, not only primary-TF resistance/support text.\n\n")

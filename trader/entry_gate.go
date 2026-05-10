@@ -481,9 +481,10 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 		}
 	}
 
-	// 3d. ATR-relative SL and reward distance
+	// 3d. ATR-relative SL and reward distance (with volatility buffer)
 	if d.EntryProtection != nil && input.StrategyConfig != nil {
 		gate := input.StrategyConfig.EntryStructure.EntryGate
+		gateDefaults := gate.WithDefaults()
 		rr := d.EntryProtection.RiskReward
 		atrPct := d.EntryProtection.VolatilityAdjustment.ATR14Pct
 		if atrPct <= 0 && input.MarketData != nil {
@@ -491,6 +492,7 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 		}
 		if atrPct > 0 && rr.Entry > 0 && rr.Invalidation > 0 && rr.FirstTarget > 0 {
 			atrAbs := rr.Entry * (atrPct / 100)
+			volBuffer := gateDefaults.VolatilityBufferATRMul
 
 			slDist := math.Abs(rr.Entry - rr.Invalidation)
 			slATRMul := slDist / atrAbs
@@ -498,18 +500,19 @@ func evaluateConfidenceRiskGate(input entryGateInput) []EntryGateCheck {
 			if minSLMul <= 0 {
 				minSLMul = 1.2
 			}
-			slPassed := slATRMul >= minSLMul
+			effectiveMinSL := minSLMul + volBuffer
+			slPassed := slATRMul >= effectiveMinSL
 			slCheck := EntryGateCheck{
 				Code:     "sl_distance_below_atr_min",
 				Stage:    string(EntryGateStageConfidenceRisk),
 				Passed:   slPassed,
 				Enforced: true,
-				Values:   fmt.Sprintf("sl_atr_mul=%.2f min=%.1f sl_dist=%.4f atr14=%.4f atr_pct=%.2f%%", slATRMul, minSLMul, slDist, atrAbs, atrPct),
+				Values:   fmt.Sprintf("sl_atr_mul=%.2f min=%.1f+buf%.1f=%.1f sl_dist=%.4f atr14=%.4f atr_pct=%.2f%%", slATRMul, minSLMul, volBuffer, effectiveMinSL, slDist, atrAbs, atrPct),
 			}
 			if slPassed {
-				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 >= min %.1fx — sufficient room for volatility", slATRMul, minSLMul)
+				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 >= effective min %.1fx (base %.1f + vol_buffer %.1f) — room for volatility", slATRMul, effectiveMinSL, minSLMul, volBuffer)
 			} else {
-				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 < min %.1fx — structure too shallow, will be swept by normal noise", slATRMul, minSLMul)
+				slCheck.Detail = fmt.Sprintf("SL distance %.2fx ATR14 < effective min %.1fx (base %.1f + vol_buffer %.1f) — too tight, normal wick will sweep", slATRMul, effectiveMinSL, minSLMul, volBuffer)
 			}
 			checks = append(checks, slCheck)
 

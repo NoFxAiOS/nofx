@@ -3970,13 +3970,10 @@ func (a *Agent) thinkAndActLegacyWithStore(ctx context.Context, storeUserID stri
 	if taskStateCtx != "" {
 		messages = append(messages, mcp.NewSystemMessage(taskStateCtx))
 	}
-	history := a.history.Get(userID)
-	if len(history) > 0 {
-		history = history[:len(history)-1]
-	}
-	for _, msg := range history {
-		messages = append(messages, mcp.NewMessage(msg.Role, msg.Content))
-	}
+	// Legacy loop is a fallback when the planner fails (e.g. 402 payment error).
+	// Do NOT inject conversation history here — it causes cross-turn topic
+	// pollution where the LLM re-answers questions from previous turns.
+	// Each legacy-loop call is treated as a standalone request.
 	messages = append(messages, mcp.NewUserMessage(userPrompt))
 
 	// Use domain-filtered tools to reduce over-fetching; fall back to full set

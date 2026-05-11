@@ -3970,19 +3970,21 @@ func (a *Agent) thinkAndActLegacyWithStore(ctx context.Context, storeUserID stri
 	if taskStateCtx != "" {
 		messages = append(messages, mcp.NewSystemMessage(taskStateCtx))
 	}
-	// Legacy loop is a fallback when the planner fails (e.g. 402 payment error).
-	// Do NOT inject conversation history here — it causes cross-turn topic
-	// pollution where the LLM re-answers questions from previous turns.
-	// Each legacy-loop call is treated as a standalone request.
+	// NOTE: We intentionally do NOT inject conversation history into the legacy
+	// loop. Even a single prior round causes DeepSeek to hallucinate data from
+	// earlier topics (e.g. outputting strategy details when asked about a wallet).
+	// The planner path handles multi-turn context properly; the legacy loop is
+	// a single-turn fallback. References like "那binance的钱包呢" still work
+	// because the text itself contains enough keywords for domain routing.
 	messages = append(messages, mcp.NewUserMessage(userPrompt))
 
 	// Use domain-filtered tools to reduce over-fetching; fall back to full set
 	// for "general" domain to preserve full functionality.
+	domain := plannerToolDomainForText(text)
 	tools := plannerToolsForText(text)
-	if plannerToolDomainForText(text) == "general" {
+	if domain == "general" {
 		tools = agentTools()
 	}
-
 	const maxToolRounds = 5
 	for round := 0; round < maxToolRounds; round++ {
 		req := &mcp.Request{

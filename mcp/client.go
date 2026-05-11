@@ -278,8 +278,9 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 	var result struct {
 		Choices []struct {
 			Message struct {
-				Content   string     `json:"content"`
-				ToolCalls []ToolCall `json:"tool_calls"`
+				Content          string     `json:"content"`
+				ReasoningContent string     `json:"reasoning_content"`
+				ToolCalls        []ToolCall `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
 		Usage struct {
@@ -310,8 +311,9 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 
 	msg := result.Choices[0].Message
 	return &LLMResponse{
-		Content:   msg.Content,
-		ToolCalls: msg.ToolCalls,
+		Content:          msg.Content,
+		ReasoningContent: msg.ReasoningContent,
+		ToolCalls:        msg.ToolCalls,
 	}, nil
 }
 
@@ -623,6 +625,11 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 			m["content"] = msg.Content
 		} else {
 			m["content"] = msg.Content
+		}
+		// DeepSeek thinking models require reasoning_content to be echoed back
+		// in multi-turn conversations when present in assistant messages.
+		if msg.ReasoningContent != "" {
+			m["reasoning_content"] = msg.ReasoningContent
 		}
 		messages = append(messages, m)
 	}

@@ -165,13 +165,26 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			apiKey := strings.TrimSpace(string(model.APIKey))
 			customAPIURL := strings.TrimSpace(model.CustomAPIURL)
 			modelName := strings.TrimSpace(model.CustomModelName)
-			customAPIURL, modelName = resolveModelRuntimeConfig(model.Provider, customAPIURL, modelName, model.ID)
+			provider := strings.ToLower(strings.TrimSpace(model.Provider))
+
+			// Use the provider registry for providers like claw402 that have their own
+			// client implementation (x402 payment, custom auth, etc.).
+			if client := mcp.NewAIClientByProvider(provider); client != nil {
+				if modelName == "" {
+					modelName = model.ID
+				}
+				client.SetAPIKey(apiKey, customAPIURL, modelName)
+				a.log().Info("agent AI client selected (provider registry)", "store_user_id", candidateUserID, "model_id", model.ID, "provider", provider, "model", modelName)
+				return client, modelName, true
+			}
+
+			customAPIURL, modelName = resolveModelRuntimeConfig(provider, customAPIURL, modelName, model.ID)
 			if apiKey == "" || customAPIURL == "" {
 				a.log().Warn(
 					"skipping incomplete enabled AI model",
 					"store_user_id", candidateUserID,
 					"model_id", model.ID,
-					"provider", model.Provider,
+					"provider", provider,
 					"has_api_key", apiKey != "",
 					"has_custom_api_url", customAPIURL != "",
 				)

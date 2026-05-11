@@ -4014,6 +4014,9 @@ func (a *Agent) thinkAndActLegacyWithStore(ctx context.Context, storeUserID stri
 		if resp.Content != "" {
 			assistantMsg.Content = resp.Content
 		}
+		if resp.ReasoningContent != "" {
+			assistantMsg.ReasoningContent = resp.ReasoningContent
+		}
 		messages = append(messages, assistantMsg)
 
 		for _, tc := range resp.ToolCalls {

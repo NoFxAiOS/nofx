@@ -115,6 +115,7 @@ export default function HeaderBar({
                   page: 'agent',
                   path: ROUTES.agent,
                   label: 'Agent',
+                  badge: 'Beta',
                   requiresAuth: false,
                 },
                 {

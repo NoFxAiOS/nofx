@@ -453,6 +453,16 @@ func clampAIDrawdownTierCeilings(rules []store.DrawdownTakeProfitRule, cfg store
 		}
 	}
 
+	// Deduplicate: ensure strictly increasing MinProfitPct across tiers.
+	// If AI returns tiers with identical thresholds, space them by at least 0.3%.
+	for i := 1; i < len(rules); i++ {
+		if rules[i].MinProfitPct <= rules[i-1].MinProfitPct {
+			rules[i].MinProfitPct = rules[i-1].MinProfitPct + 0.3
+			logger.Warnf("⚠️ Drawdown tier %d min_profit_pct deduplicated → %.4f (was ≤ tier %d)",
+				i+1, rules[i].MinProfitPct, i)
+		}
+	}
+
 	// Enforce first-tier allocation: close ≥50%, runner ≤35%.
 	if len(rules) > 0 {
 		if rules[0].CloseRatioPct < 50 {

@@ -78,12 +78,23 @@ export interface ProtectionRuntimeTier {
   runner_target_price?: number
   runner_target_source?: string
   break_even_suppressed_by_runner?: boolean
-  structure_anchor?: { stage_name?: string; timeframe?: string; anchor_type?: string; price?: number; reason?: string; source?: string; used_for?: string; distance_pct?: number; reference?: string }
+  structure_anchor?: {
+    stage_name?: string
+    timeframe?: string
+    anchor_type?: string
+    price?: number
+    reason?: string
+    source?: string
+    used_for?: string
+    distance_pct?: number
+    reference?: string
+  }
   anchor_timeframe?: string
   anchor_price?: number
   anchor_source?: string
   is_satisfied?: boolean
   is_triggered?: boolean
+  status?: string
 }
 
 export interface ProtectionRuntimeRunnerState {
@@ -117,8 +128,18 @@ export interface ProtectionRuntime {
   planned_ladder_stop_count?: number
   planned_ladder_take_profit_count?: number
   planned_ladder_orders?: {
-    stop_loss?: Array<{ Price?: number; price?: number; CloseRatioPct?: number; close_ratio_pct?: number }>
-    take_profit?: Array<{ Price?: number; price?: number; CloseRatioPct?: number; close_ratio_pct?: number }>
+    stop_loss?: Array<{
+      Price?: number
+      price?: number
+      CloseRatioPct?: number
+      close_ratio_pct?: number
+    }>
+    take_profit?: Array<{
+      Price?: number
+      price?: number
+      CloseRatioPct?: number
+      close_ratio_pct?: number
+    }>
   }
   live_ladder_stop_count?: number
   live_ladder_take_profit_count?: number
@@ -142,12 +163,27 @@ export interface ProtectionRuntime {
   drawdown_structure_target_progress?: number
   drawdown_structure_primary_timeframe?: string
   drawdown_structure_higher_timeframes?: string[]
-  drawdown_structure_anchors?: Array<{ type?: string; timeframe?: string; price?: number; reason?: string }>
+  drawdown_structure_anchors?: Array<{
+    type?: string
+    timeframe?: string
+    price?: number
+    reason?: string
+  }>
   drawdown_structure_evidence?: string[]
   drawdown_structure_trace?: string[]
   runner_migration_needed?: boolean
   runner_migration_reason?: string
-  runner_migration_anchor?: { stage_name?: string; timeframe?: string; anchor_type?: string; price?: number; reason?: string; source?: string; used_for?: string; distance_pct?: number; reference?: string }
+  runner_migration_anchor?: {
+    stage_name?: string
+    timeframe?: string
+    anchor_type?: string
+    price?: number
+    reason?: string
+    source?: string
+    used_for?: string
+    distance_pct?: number
+    reference?: string
+  }
   runner_migration_desired_activation?: number
   runner_migration_desired_callback?: number
   runner_migration_live_activation?: number
@@ -172,7 +208,14 @@ export interface ProtectionRuntime {
   protection_position_quantity?: number
   protection_max_order_quantity?: number
   protection_max_order_id?: string
-  protection_quantity_drift_orders?: Array<{ order_id?: string; client_order_id?: string; type?: string; quantity?: number; position_quantity?: number; excess_quantity?: number }>
+  protection_quantity_drift_orders?: Array<{
+    order_id?: string
+    client_order_id?: string
+    type?: string
+    quantity?: number
+    position_quantity?: number
+    excess_quantity?: number
+  }>
   orphan_protection_cleanup_needed?: boolean
   orphan_protection_order_count?: number
   structure_protection_health?: string
@@ -456,10 +499,10 @@ export interface DecisionAction {
   quantity: number
   leverage: number
   price: number
-  stop_loss?: number      // Stop loss price
-  take_profit?: number    // Take profit price
-  confidence?: number     // AI confidence (0-100)
-  reasoning?: string      // Brief reasoning
+  stop_loss?: number // Stop loss price
+  take_profit?: number // Take profit price
+  confidence?: number // AI confidence (0-100)
+  reasoning?: string // Brief reasoning
   review_context?: DecisionActionReviewContext
   order_id: number
   timestamp: string
@@ -547,10 +590,10 @@ export interface TraderConfigData {
   trader_name: string
   ai_model: string
   exchange_id: string
-  strategy_id?: string  // 策略ID
-  strategy_name?: string  // 策略名称
+  strategy_id?: string // 策略ID
+  strategy_name?: string // 策略名称
   is_cross_margin: boolean
-  show_in_competition: boolean  // 是否在竞技场显示
+  show_in_competition: boolean // 是否在竞技场显示
   allow_ai_open?: boolean
   allow_ai_close?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
@@ -588,12 +631,12 @@ export interface EntryReviewSummary {
 }
 
 export interface EntryStructureAuditConfig {
-  audit_primary_timeframe?: boolean;
-  audit_adjacent_timeframes?: boolean;
-  audit_support_resistance?: boolean;
-  audit_structural_anchors?: boolean;
-  audit_fibonacci?: boolean;
-  require_invalidation_target_linkage?: boolean;
+  audit_primary_timeframe?: boolean
+  audit_adjacent_timeframes?: boolean
+  audit_support_resistance?: boolean
+  audit_structural_anchors?: boolean
+  audit_fibonacci?: boolean
+  require_invalidation_target_linkage?: boolean
 }
 
 export interface PositionCloseEvent {

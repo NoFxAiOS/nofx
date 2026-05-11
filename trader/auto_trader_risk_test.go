@@ -268,7 +268,7 @@ func TestCheckPositionDrawdownSkipsSameStageAfterPositionQuantityChanges(t *test
 	}
 }
 
-func TestApplyNativeTrailingDrawdownRejectsNoiseCallbackForNativeAndFallsBack(t *testing.T) {
+func TestApplyNativeTrailingDrawdownClampsNoiseCallbackAndPlacesNativeOrder(t *testing.T) {
 	fake := &fakeProtectionTrader{
 		positions: []map[string]interface{}{{
 			"symbol":      "BTCUSDT",
@@ -295,13 +295,13 @@ func TestApplyNativeTrailingDrawdownRejectsNoiseCallbackForNativeAndFallsBack(t 
 
 	ok := at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule)
 	if !ok {
-		t.Fatal("expected native trailing noise rejection to arm managed fallback and report protection armed")
+		t.Fatal("expected native trailing to succeed with clamped callback")
 	}
-	if fake.trailingCalls != 0 {
-		t.Fatalf("expected no native trailing call, got %d", fake.trailingCalls)
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected 1 native trailing call (clamped callback), got %d", fake.trailingCalls)
 	}
-	if state := at.getProtectionState("BTCUSDT", "long"); state != "managed_drawdown_armed" {
-		t.Fatalf("expected managed fallback state, got %s", state)
+	if state := at.getProtectionState("BTCUSDT", "long"); state != "native_trailing_armed" {
+		t.Fatalf("expected native_trailing_armed state, got %s", state)
 	}
 }
 
@@ -1052,7 +1052,7 @@ func TestGetDrawdownArmRulesForNativeExposureSelectsOneStableTierBeforeProfitGat
 	}
 }
 
-func TestApplyNativeTrailingDrawdownBelowSafetyFloorArmsManagedFullFallback(t *testing.T) {
+func TestApplyNativeTrailingDrawdownBelowSafetyFloorClampsAndPlacesNativeOrder(t *testing.T) {
 	fake := &fakeProtectionTrader{
 		positions: []map[string]interface{}{{"symbol": "BTCUSDT", "side": "long", "positionAmt": 1.0}},
 	}
@@ -1064,13 +1064,13 @@ func TestApplyNativeTrailingDrawdownBelowSafetyFloorArmsManagedFullFallback(t *t
 	}
 	rule := store.DrawdownTakeProfitRule{MinProfitPct: 0.1, MaxDrawdownPct: 10, CloseRatioPct: 100, StageName: "outer_exit"}
 	if !at.applyNativeTrailingDrawdown("BTCUSDT", "long", 100, rule) {
-		t.Fatalf("expected managed fallback to be armed")
+		t.Fatalf("expected native trailing to succeed with clamped callback")
 	}
-	if got := at.getProtectionState("BTCUSDT", "long"); got != "managed_drawdown_armed" {
-		t.Fatalf("state=%s, want managed_drawdown_armed", got)
+	if got := at.getProtectionState("BTCUSDT", "long"); got != "native_trailing_armed" {
+		t.Fatalf("state=%s, want native_trailing_armed", got)
 	}
-	if fake.trailingCalls != 0 {
-		t.Fatalf("native trailing should not be placed below safety floor, got %d", fake.trailingCalls)
+	if fake.trailingCalls != 1 {
+		t.Fatalf("expected 1 native trailing call (clamped), got %d", fake.trailingCalls)
 	}
 }
 
@@ -1129,5 +1129,43 @@ func TestApplyBreakEvenStopsOnlyAppliesHighestSatisfiedTier(t *testing.T) {
 	// Should only call setStopLoss once (for BE2, the highest satisfied tier)
 	if fake.setStopLossCalls != 1 {
 		t.Fatalf("expected 1 stop loss call (highest tier), got %d", fake.setStopLossCalls)
+	}
+}
+
+func TestSelectNativeDrawdownExposureRuleWithFloor(t *testing.T) {
+	rules := []store.DrawdownTakeProfitRule{
+		{StageName: "T1", MinProfitPct: 1.0, MaxDrawdownPct: 45, CloseRatioPct: 50},
+		{StageName: "T2", MinProfitPct: 2.0, MaxDrawdownPct: 40, CloseRatioPct: 80},
+		{StageName: "T3", MinProfitPct: 3.0, MaxDrawdownPct: 35, CloseRatioPct: 100},
+	}
+
+	// No floor: profit at 1.5% selects T1 (highest satisfied)
+	rule, ok := selectNativeDrawdownExposureRuleWithFloor(1.5, rules, 0)
+	if !ok || rule.StageName != "T1" {
+		t.Fatalf("expected T1, got %s (ok=%v)", rule.StageName, ok)
+	}
+
+	// Profit at 2.5% selects T2
+	rule, ok = selectNativeDrawdownExposureRuleWithFloor(2.5, rules, 0)
+	if !ok || rule.StageName != "T2" {
+		t.Fatalf("expected T2, got %s (ok=%v)", rule.StageName, ok)
+	}
+
+	// Floor at T2 (2.0): profit drops to 1.5% — should NOT downgrade to T1, should keep T2
+	rule, ok = selectNativeDrawdownExposureRuleWithFloor(1.5, rules, 2.0)
+	if !ok || rule.StageName != "T2" {
+		t.Fatalf("expected T2 (floor prevents downgrade), got %s (ok=%v)", rule.StageName, ok)
+	}
+
+	// Floor at T2 (2.0): profit rises to 3.5% — should upgrade to T3
+	rule, ok = selectNativeDrawdownExposureRuleWithFloor(3.5, rules, 2.0)
+	if !ok || rule.StageName != "T3" {
+		t.Fatalf("expected T3 (upgrade above floor), got %s (ok=%v)", rule.StageName, ok)
+	}
+
+	// Floor at T3 (3.0): profit drops to 0.5% — should keep T3
+	rule, ok = selectNativeDrawdownExposureRuleWithFloor(0.5, rules, 3.0)
+	if !ok || rule.StageName != "T3" {
+		t.Fatalf("expected T3 (floor prevents downgrade from T3), got %s (ok=%v)", rule.StageName, ok)
 	}
 }

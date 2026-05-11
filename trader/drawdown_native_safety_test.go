@@ -2,27 +2,29 @@ package trader
 
 import (
 	"math"
-	"strings"
 	"testing"
 
 	"nofx/store"
 )
 
-func TestAdjustNativeDrawdownCallbackRejectsNoiseCallbackInsteadOfWidening(t *testing.T) {
+func TestAdjustNativeDrawdownCallbackClampsNoiseCallbackToFloor(t *testing.T) {
 	rule := store.DrawdownTakeProfitRule{MinProfitPct: 0.9, MaxDrawdownPct: 1.5, CloseRatioPct: 100}
 	callback := calculateProfitBasedTrailingCallbackRatio(0.1529, "short", rule.MinProfitPct, rule.MaxDrawdownPct)
 	if callback >= minNativeDrawdownCallbackRatio {
 		t.Fatalf("test setup expected noisy callback below safety floor, got %.8f", callback)
 	}
 	adjusted, err := adjustNativeDrawdownCallbackRatio(0.1529, "short", rule, callback)
-	if err == nil {
-		t.Fatal("expected native callback rejection so managed fallback can preserve rule math")
+	if err != nil {
+		t.Fatalf("expected clamp (no error), got %v", err)
 	}
-	if adjusted.Adjusted || adjusted.CallbackRatio != callback {
-		t.Fatalf("expected callback unchanged on rejection, got %+v", adjusted)
+	if !adjusted.Adjusted {
+		t.Fatal("expected Adjusted=true after clamping")
 	}
-	if !strings.Contains(err.Error(), "managed drawdown fallback") {
-		t.Fatalf("unexpected error: %v", err)
+	if adjusted.CallbackRatio != minNativeDrawdownCallbackRatio {
+		t.Fatalf("expected callback clamped to %.6f, got %.6f", minNativeDrawdownCallbackRatio, adjusted.CallbackRatio)
+	}
+	if adjusted.Reason != "clamped_to_native_floor" {
+		t.Fatalf("expected reason clamped_to_native_floor, got %s", adjusted.Reason)
 	}
 }
 

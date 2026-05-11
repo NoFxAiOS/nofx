@@ -452,7 +452,8 @@ export function PreEntryGateEditor({
         {/* Group A: Volatility Gate */}
         <EntryGateGroup
           enabled={
-            config.entry_structure?.entry_gate?.volatility_gate_enabled ?? true
+            config.entry_structure?.entry_gate?.volatility_gate_enabled !==
+            false
           }
           onToggle={(v) => updateEntryGate('volatility_gate_enabled', v)}
           masterDisabled={
@@ -470,10 +471,8 @@ export function PreEntryGateEditor({
             disabled={
               disabled ||
               !(config.entry_structure?.entry_gate?.enabled ?? false) ||
-              !(
-                config.entry_structure?.entry_gate?.volatility_gate_enabled ??
-                true
-              )
+              config.entry_structure?.entry_gate?.volatility_gate_enabled ===
+                false
             }
             onChange={(v) => updateEntryGate('min_atr14_pct', v)}
           />
@@ -482,7 +481,8 @@ export function PreEntryGateEditor({
         {/* Group B: Entry Precision */}
         <EntryGateGroup
           enabled={
-            config.entry_structure?.entry_gate?.entry_precision_enabled ?? true
+            config.entry_structure?.entry_gate?.entry_precision_enabled !==
+            false
           }
           onToggle={(v) => updateEntryGate('entry_precision_enabled', v)}
           masterDisabled={
@@ -502,10 +502,8 @@ export function PreEntryGateEditor({
             disabled={
               disabled ||
               !(config.entry_structure?.entry_gate?.enabled ?? false) ||
-              !(
-                config.entry_structure?.entry_gate?.entry_precision_enabled ??
-                true
-              )
+              config.entry_structure?.entry_gate?.entry_precision_enabled ===
+                false
             }
             onChange={(v) => updateEntryGate('entry_proximity_atr_mul', v)}
           />
@@ -518,10 +516,8 @@ export function PreEntryGateEditor({
             disabled={
               disabled ||
               !(config.entry_structure?.entry_gate?.enabled ?? false) ||
-              !(
-                config.entry_structure?.entry_gate?.entry_precision_enabled ??
-                true
-              )
+              config.entry_structure?.entry_gate?.entry_precision_enabled ===
+                false
             }
             onChange={(v) => updateEntryGate('entry_proximity_max_pct', v)}
           />
@@ -530,7 +526,7 @@ export function PreEntryGateEditor({
         {/* Group C: Stop Loss Quality */}
         <EntryGateGroup
           enabled={
-            config.entry_structure?.entry_gate?.stop_quality_enabled ?? true
+            config.entry_structure?.entry_gate?.stop_quality_enabled !== false
           }
           onToggle={(v) => updateEntryGate('stop_quality_enabled', v)}
           masterDisabled={
@@ -550,11 +546,22 @@ export function PreEntryGateEditor({
             disabled={
               disabled ||
               !(config.entry_structure?.entry_gate?.enabled ?? false) ||
-              !(
-                config.entry_structure?.entry_gate?.stop_quality_enabled ?? true
-              )
+              config.entry_structure?.entry_gate?.stop_quality_enabled === false
             }
             onChange={(v) => updateEntryGate('min_risk_distance_pct', v)}
+          />
+          <EntryGateInput
+            label={ts(preEntryGate.minSlDistanceAtr, language)}
+            value={
+              config.entry_structure?.entry_gate?.min_sl_distance_atr_mul ?? 1.2
+            }
+            step={0.1}
+            disabled={
+              disabled ||
+              !(config.entry_structure?.entry_gate?.enabled ?? false) ||
+              config.entry_structure?.entry_gate?.stop_quality_enabled === false
+            }
+            onChange={(v) => updateEntryGate('min_sl_distance_atr_mul', v)}
           />
           <EntryGateInput
             label={ts(preEntryGate.invalidationAtr, language)}
@@ -566,9 +573,7 @@ export function PreEntryGateEditor({
             disabled={
               disabled ||
               !(config.entry_structure?.entry_gate?.enabled ?? false) ||
-              !(
-                config.entry_structure?.entry_gate?.stop_quality_enabled ?? true
-              )
+              config.entry_structure?.entry_gate?.stop_quality_enabled === false
             }
             onChange={(v) =>
               updateEntryGate('invalidation_structure_atr_mul', v)
@@ -597,10 +602,8 @@ export function PreEntryGateEditor({
                 disabled={
                   disabled ||
                   !(config.entry_structure?.entry_gate?.enabled ?? false) ||
-                  !(
-                    config.entry_structure?.entry_gate?.stop_quality_enabled ??
-                    true
-                  )
+                  config.entry_structure?.entry_gate?.stop_quality_enabled ===
+                    false
                 }
                 min={0}
                 max={1.5}
@@ -626,7 +629,7 @@ export function PreEntryGateEditor({
         {/* Group D: Path Clarity */}
         <EntryGateGroup
           enabled={
-            config.entry_structure?.entry_gate?.path_clarity_enabled ?? true
+            config.entry_structure?.entry_gate?.path_clarity_enabled !== false
           }
           onToggle={(v) => updateEntryGate('path_clarity_enabled', v)}
           masterDisabled={
@@ -644,9 +647,7 @@ export function PreEntryGateEditor({
             disabled={
               disabled ||
               !(config.entry_structure?.entry_gate?.enabled ?? false) ||
-              !(
-                config.entry_structure?.entry_gate?.path_clarity_enabled ?? true
-              )
+              config.entry_structure?.entry_gate?.path_clarity_enabled === false
             }
             onChange={(v) => updateEntryGate('max_blocking_levels', v)}
           />

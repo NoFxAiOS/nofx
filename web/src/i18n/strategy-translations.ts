@@ -1059,7 +1059,14 @@ export const preEntryGate = {
     en: 'e.g. <0.4% stop is too tight; stop should be >0.5×ATR beyond structure',
   },
   minRiskDistancePct: { zh: '最小止损距离 %', en: 'Min risk distance %' },
-  invalidationAtr: { zh: '止损结构 ATR 倍数', en: 'Invalidation ATR x' },
+  minSlDistanceAtr: {
+    zh: '最小SL距离 (ATR×)',
+    en: 'Min SL distance (ATR×)',
+  },
+  invalidationAtr: {
+    zh: '失效位结构 ATR 倍数',
+    en: 'Invalidation structure ATR x',
+  },
   volatilityBufferAtr: {
     zh: '波动保护容错 (ATR×)',
     en: 'Volatility buffer (ATR×)',

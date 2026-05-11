@@ -991,14 +991,9 @@ func (at *AutoTrader) buildPositionProtectionRuntime(symbol, side string, quanti
 					}
 				}
 				if !matchedLive {
-					if liveTrailingTriggerPrice > 0 {
-						activationPrice = liveTrailingTriggerPrice
-						activationSource = "exchange"
-					}
-					if liveTrailingCallbackRate > 0 {
-						callbackRate = liveTrailingCallbackRate
-						callbackSource = "exchange"
-					}
+					// Keep per-tier planned values — don't override with first live order's global values
+					activationSource = "planned"
+					callbackSource = "planned"
 				}
 			}
 			anchor := (*drawdownTierAnchor)(nil)

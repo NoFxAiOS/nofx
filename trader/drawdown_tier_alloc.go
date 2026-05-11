@@ -116,8 +116,8 @@ func (at *AutoTrader) updateTierAlloc(symbol, side string, tierIndex int, update
 
 // evaluateDrawdownTiers checks all pending/tracking tiers against current P&L.
 // Returns the tier that should be executed now, or nil if none.
-// Key difference from old system: each tier tracks its own peak independently,
-// and once a tier is executed, it never participates again.
+// Single-direction upgrade: when a higher tier activates, all lower tiers are superseded.
+// Each tier's CloseRatioPct is relative to the original entry quantity.
 // globalPeakPnL is used to initialize a tier's peak when it first enters tracking,
 // ensuring continuity for positions where peak was already reached before tier initialization.
 func (at *AutoTrader) evaluateDrawdownTiers(symbol, side string, currentPnLPct, globalPeakPnL float64) *store.DrawdownTierAllocation {
@@ -135,7 +135,7 @@ func (at *AutoTrader) evaluateDrawdownTiers(symbol, side string, currentPnLPct, 
 	for i := range allocs {
 		tier := &allocs[i]
 
-		if tier.Status == "executed" || tier.Status == "be_covered" {
+		if tier.Status == "executed" || tier.Status == "be_covered" || tier.Status == "superseded" {
 			continue
 		}
 
@@ -150,6 +150,14 @@ func (at *AutoTrader) evaluateDrawdownTiers(symbol, side string, currentPnLPct, 
 				}
 				logger.Infof("📈 Drawdown %s now tracking: %s %s | pnl=%.2f%% >= trigger=%.2f%% | peak=%.2f%%",
 					tier.StageName, symbol, side, currentPnLPct, tier.MinProfitPct, tier.PeakPnLPct)
+				// Single-direction upgrade: supersede all lower tiers
+				for j := 0; j < i; j++ {
+					if allocs[j].Status == "tracking" || allocs[j].Status == "pending" {
+						allocs[j].Status = "superseded"
+						logger.Infof("⏭️ Drawdown %s superseded by %s: %s %s",
+							allocs[j].StageName, tier.StageName, symbol, side)
+					}
+				}
 				// Fall through to check drawdown immediately in the same cycle
 			} else {
 				continue
@@ -180,6 +188,64 @@ func (at *AutoTrader) evaluateDrawdownTiers(symbol, side string, currentPnLPct, 
 	}
 
 	return triggered
+}
+
+// updateDrawdownTierStates updates tier states (pending→tracking, supersede lower tiers)
+// based on current P&L without triggering market closes. Used when native trailing handles
+// exchange orders but we still need tier state for high-water-mark tracking.
+func (at *AutoTrader) updateDrawdownTierStates(symbol, side string, currentPnLPct, globalPeakPnL float64) {
+	key := positionKey(symbol, side)
+	at.drawdownTierAllocMu.Lock()
+	defer at.drawdownTierAllocMu.Unlock()
+
+	allocs := at.drawdownTierAllocs[key]
+	if len(allocs) == 0 {
+		return
+	}
+
+	for i := range allocs {
+		tier := &allocs[i]
+		if tier.Status == "executed" || tier.Status == "be_covered" || tier.Status == "superseded" {
+			continue
+		}
+		if tier.Status == "pending" {
+			if currentPnLPct >= tier.MinProfitPct {
+				tier.Status = "tracking"
+				tier.PeakPnLPct = globalPeakPnL
+				if currentPnLPct > tier.PeakPnLPct {
+					tier.PeakPnLPct = currentPnLPct
+				}
+				logger.Infof("📈 Drawdown %s now tracking (native): %s %s | pnl=%.2f%% >= trigger=%.2f%%",
+					tier.StageName, symbol, side, currentPnLPct, tier.MinProfitPct)
+				for j := 0; j < i; j++ {
+					if allocs[j].Status == "tracking" || allocs[j].Status == "pending" {
+						allocs[j].Status = "superseded"
+						logger.Infof("⏭️ Drawdown %s superseded by %s (native): %s %s",
+							allocs[j].StageName, tier.StageName, symbol, side)
+					}
+				}
+			}
+		} else if tier.Status == "tracking" {
+			if currentPnLPct > tier.PeakPnLPct {
+				tier.PeakPnLPct = currentPnLPct
+			}
+		}
+	}
+}
+
+// getExecutedTierCloseRatio returns the cumulative CloseRatioPct of all executed tiers for a position.
+func (at *AutoTrader) getExecutedTierCloseRatio(symbol, side string) float64 {
+	key := positionKey(symbol, side)
+	at.drawdownTierAllocMu.Lock()
+	defer at.drawdownTierAllocMu.Unlock()
+	allocs := at.drawdownTierAllocs[key]
+	var total float64
+	for _, tier := range allocs {
+		if tier.Status == "executed" {
+			total += tier.CloseRatioPct
+		}
+	}
+	return total
 }
 
 // resolveDrawdownRulesWithModes merges AI-provided rules with strategy-configured rules
@@ -238,6 +304,13 @@ func resolveDrawdownRulesWithModes(strategyRules, aiRules []store.DrawdownTakePr
 				result.StageName = fmt.Sprintf("T%d", i+1)
 			}
 			resolved = append(resolved, result)
+		}
+	}
+
+	// Ensure strictly increasing MinProfitPct across resolved tiers.
+	for i := 1; i < len(resolved); i++ {
+		if resolved[i].MinProfitPct <= resolved[i-1].MinProfitPct {
+			resolved[i].MinProfitPct = resolved[i-1].MinProfitPct + 0.3
 		}
 	}
 

@@ -97,6 +97,12 @@ type EntryGateConfig struct {
 	MaxBlockingLevels           int     `json:"max_blocking_levels,omitempty"`
 	MaxTargetTimeframeRankGap   int     `json:"max_target_timeframe_rank_gap,omitempty"`
 
+	// Group toggles (pointer to distinguish false from unset)
+	StopQualityEnabled    *bool `json:"stop_quality_enabled,omitempty"`
+	VolatilityGateEnabled *bool `json:"volatility_gate_enabled,omitempty"`
+	EntryPrecisionEnabled *bool `json:"entry_precision_enabled,omitempty"`
+	PathClarityEnabled    *bool `json:"path_clarity_enabled,omitempty"`
+
 	// Squeeze/crowded regime extra requirements (G2b)
 	SqueezeMinConfidence int     `json:"squeeze_min_confidence,omitempty"`
 	SqueezeMinRR         float64 `json:"squeeze_min_rr,omitempty"`

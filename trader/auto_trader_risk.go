@@ -45,7 +45,13 @@ func adjustNativeDrawdownCallbackRatio(entryPrice float64, side string, rule sto
 	if callbackRatio >= minNativeDrawdownCallbackRatio {
 		return adjustment, nil
 	}
-	return adjustment, nativeDrawdownRejection{CallbackRatio: callbackRatio, SafetyFloor: minNativeDrawdownCallbackRatio, Reason: "below_native_safety_floor"}
+	// Clamp up to the minimum native callback rather than rejecting.
+	// This ensures an exchange trailing order is always placed (visible to user),
+	// with slightly wider drawdown tolerance than the AI plan specified.
+	adjustment.CallbackRatio = minNativeDrawdownCallbackRatio
+	adjustment.Adjusted = true
+	adjustment.Reason = "clamped_to_native_floor"
+	return adjustment, nil
 }
 
 func calculateImmediateTrailingCallback(entryPrice float64, side string, ladderSLOrders []ProtectionOrder) (float64, bool) {
@@ -172,25 +178,28 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		// For exchange-native trailing protections, arm all tiers whose min-profit gate is already met.
+		nativeTrailingHandled := false
 		if at.supportsNativeTrailingStop() {
 			executionMode := at.getDrawdownExecutionMode(symbol, side)
 			armRules := at.getDrawdownArmRulesForNativeExposure(currentPnLPct, entryPrice, quantity, symbol, side, rules)
 			if len(armRules) == 0 && isNativeTrailingProtectionState(at.getProtectionState(symbol, side)) {
 				logger.Infof("🟣 Drawdown monitor: %s %s already has all satisfied native trailing tiers armed (%s), skipping duplicate arm pass", symbol, side, executionMode)
+				nativeTrailingHandled = true
 			} else {
-				armedAny := false
 				for _, armRule := range armRules {
 					if at.applyNativeTrailingDrawdown(symbol, side, entryPrice, armRule) {
-						armedAny = true
+						// Only mark as native-handled if the state is actually native trailing.
+						// If applyNativeTrailingDrawdown fell back to managed mode (callback too small),
+						// we must NOT skip the managed execution path below.
+						if isNativeTrailingProtectionState(at.getProtectionState(symbol, side)) {
+							nativeTrailingHandled = true
+						}
 					}
-				}
-				if armedAny {
-					continue
 				}
 			}
 		}
 
-		// ===== New tier-based drawdown evaluation =====
+		// ===== Tier alloc state update (always runs, needed for high-water-mark tracking) =====
 		// Initialize tier allocations if not set yet (e.g. position opened before this code deployed)
 		allocs := at.getDrawdownTierAllocs(symbol, side)
 		if len(allocs) == 0 {
@@ -199,6 +208,16 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		}
 
 		if len(allocs) > 0 {
+			// Update tier states (tracking/superseded) based on current P&L — needed for
+			// high-water-mark even when native trailing handles the actual exchange orders.
+			at.updateDrawdownTierStates(symbol, side, currentPnLPct, peakPnLPct)
+
+			if nativeTrailingHandled {
+				// Native trailing is handling exchange orders; skip managed market-close execution
+				// but tier state has been updated above for high-water-mark tracking.
+				continue
+			}
+
 			// Log tier status periodically
 			if currentPnLPct > 0 {
 				logTierAllocStatus(symbol, side, allocs)
@@ -551,6 +570,31 @@ func isNativeTrailingProtectionState(state string) bool {
 	return state == "native_trailing_arming" || state == "native_trailing_armed" || state == "native_partial_trailing_arming" || state == "native_partial_trailing_armed"
 }
 
+func (at *AutoTrader) isManagedDrawdownRecord(symbol, side, fingerprint string) bool {
+	if at.store == nil {
+		return false
+	}
+	state, err := at.store.LoadDynamicProtectionState()
+	if err != nil || state == nil {
+		return false
+	}
+	for _, record := range state.Records {
+		if record.TraderID != "" && record.TraderID != at.id {
+			continue
+		}
+		if !strings.EqualFold(record.Symbol, symbol) || !strings.EqualFold(record.Side, side) {
+			continue
+		}
+		if record.Status != "armed" {
+			continue
+		}
+		if record.RuleFingerprint == fingerprint && record.ProtectionType == "managed_drawdown" {
+			return true
+		}
+	}
+	return false
+}
+
 func isDrawdownRuleSatisfied(currentPnLPct float64, rule store.DrawdownTakeProfitRule) bool {
 	return currentPnLPct >= rule.MinProfitPct
 }
@@ -669,21 +713,61 @@ func (at *AutoTrader) getDrawdownArmRulesForNativeExposure(currentPnLPct, entryP
 	// venues. Live OKX behaviour showed multiple simultaneous trailing tiers on the
 	// same symbol/side can churn (place/cancel/place). Keep one exchange tier stable
 	// and let local managed drawdown + reconciler migrate it as profit advances.
-	rule, ok := selectNativeDrawdownExposureRule(currentPnLPct, rules)
+	//
+	// High-water-mark protection: use tier alloc state to prevent downgrade.
+	// If a higher tier was previously armed (lower tiers are superseded), never
+	// fall back to a lower tier even if currentPnL drops below the higher tier's threshold.
+	highestArmedMinProfit := at.getHighestArmedTierMinProfit(symbol, side)
+	rule, ok := selectNativeDrawdownExposureRuleWithFloor(currentPnLPct, rules, highestArmedMinProfit)
 	if !ok {
 		return nil
 	}
 	return at.getDrawdownArmRulesForSelectedRule(entryPrice, quantity, symbol, side, rule)
 }
 
+// getHighestArmedTierMinProfit returns the MinProfitPct of the highest tier that has been
+// armed (tracking or superseded or executed). Returns 0 if no tier has been armed yet.
+func (at *AutoTrader) getHighestArmedTierMinProfit(symbol, side string) float64 {
+	allocs := at.getDrawdownTierAllocs(symbol, side)
+	var highest float64
+	for _, a := range allocs {
+		if a.Status == "tracking" || a.Status == "superseded" || a.Status == "executed" {
+			if a.MinProfitPct > highest {
+				highest = a.MinProfitPct
+			}
+		}
+	}
+	return highest
+}
+
 func selectNativeDrawdownExposureRule(currentPnLPct float64, rules []store.DrawdownTakeProfitRule) (store.DrawdownTakeProfitRule, bool) {
+	return selectNativeDrawdownExposureRuleWithFloor(currentPnLPct, rules, 0)
+}
+
+// selectNativeDrawdownExposureRuleWithFloor selects the best native trailing tier to arm.
+// floorMinProfit prevents downgrade: never select a tier with MinProfitPct < floorMinProfit.
+// When currentPnL drops below the floor tier's threshold, the floor tier is still returned
+// (maintaining the highest armed tier rather than downgrading).
+func selectNativeDrawdownExposureRuleWithFloor(currentPnLPct float64, rules []store.DrawdownTakeProfitRule, floorMinProfit float64) (store.DrawdownTakeProfitRule, bool) {
 	bestSatisfied := store.DrawdownTakeProfitRule{}
 	hasSatisfied := false
 	next := store.DrawdownTakeProfitRule{}
 	hasNext := false
+	var floorRule store.DrawdownTakeProfitRule
+	hasFloor := false
+
 	for _, raw := range rules {
 		rule := normalizeDrawdownRule(raw)
 		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
+			continue
+		}
+		// Track the floor tier (highest previously armed)
+		if floorMinProfit > 0 && math.Abs(rule.MinProfitPct-floorMinProfit) < 0.001 {
+			floorRule = rule
+			hasFloor = true
+		}
+		// Skip tiers below the floor (prevent downgrade)
+		if floorMinProfit > 0 && rule.MinProfitPct < floorMinProfit {
 			continue
 		}
 		if currentPnLPct >= rule.MinProfitPct {
@@ -701,6 +785,18 @@ func selectNativeDrawdownExposureRule(currentPnLPct float64, rules []store.Drawd
 	if hasSatisfied {
 		return bestSatisfied, true
 	}
+	// If no tier is currently satisfied but we have a floor (previously armed tier),
+	// return the floor tier to maintain it (profit dropped but we don't downgrade)
+	if hasFloor && !hasNext {
+		return floorRule, true
+	}
+	if hasFloor && floorRule.MinProfitPct >= next.MinProfitPct {
+		return floorRule, true
+	}
+	// If profit dropped below floor but there's a higher next tier, return floor
+	if hasFloor {
+		return floorRule, true
+	}
 	return next, hasNext
 }
 
@@ -712,6 +808,12 @@ func (at *AutoTrader) getDrawdownArmRulesForSelectedRule(entryPrice, quantity fl
 	if _, ok := armedFingerprints[fingerprint]; ok {
 		if at.hasMatchingNativeTrailingOrderForRule(symbol, side, entryPrice, rule, openOrders) {
 			logger.Infof("🟣 Drawdown native exposure skipped: %s %s already armed fingerprint=%s", symbol, side, fingerprint)
+			return nil
+		}
+		// Check if this is a managed drawdown record — managed mode doesn't place
+		// exchange trailing orders, so absence of a trailing order is expected.
+		if at.isManagedDrawdownRecord(symbol, side, fingerprint) {
+			logger.Infof("🟣 Drawdown managed mode already armed: %s %s fingerprint=%s (no exchange trailing expected)", symbol, side, fingerprint)
 			return nil
 		}
 		logger.Infof("⚠️ Drawdown native exposure record stale: %s %s fingerprint=%s has no matching exchange trailing order, re-arming", symbol, side, fingerprint)
@@ -1331,7 +1433,23 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 			return false
 		}
 
-		partialQty := quantity * rule.CloseRatioPct / 100.0
+		// Use original entry quantity for CloseRatioPct calculation, subtract already-executed tiers
+		originalQty := quantity
+		if at.store != nil {
+			if dbPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side)); err == nil && dbPos != nil && dbPos.EntryQuantity > 0 {
+				originalQty = dbPos.EntryQuantity
+			}
+		}
+		executedRatio := at.getExecutedTierCloseRatio(symbol, side)
+		actualCloseRatio := rule.CloseRatioPct - executedRatio
+		if actualCloseRatio <= 0 {
+			logger.Infof("🟣 Partial drawdown tier already covered by executed tiers (%s %s close=%.1f%% executed=%.1f%%)", symbol, side, rule.CloseRatioPct, executedRatio)
+			return false
+		}
+		partialQty := originalQty * actualCloseRatio / 100.0
+		if partialQty > quantity {
+			partialQty = quantity
+		}
 		if partialQty <= 0 {
 			return false
 		}

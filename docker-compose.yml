@@ -11,10 +11,10 @@ services:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
       - "6060:6060"  # pprof profiling
     volumes:
-      - ./data:/app/data
+      - /opt/webstack/nofx/data:/app/data
       - /etc/localtime:/etc/localtime:ro
     env_file:
-      - .env
+      - /opt/webstack/nofx/.env
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       - AI_MAX_TOKENS=8000

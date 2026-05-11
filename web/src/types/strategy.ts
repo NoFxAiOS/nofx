@@ -80,6 +80,7 @@ export interface EntryGateConfig {
   entry_proximity_max_pct?: number
   // Stop loss quality
   min_risk_distance_pct?: number
+  min_sl_distance_atr_mul?: number
   invalidation_structure_atr_mul?: number
   // Volatility buffer: extra ATR-based SL padding [0=tightest, 1.5=widest]. Default 0.3.
   volatility_buffer_atr_mul?: number

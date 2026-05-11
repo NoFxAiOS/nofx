@@ -14,8 +14,8 @@ export default {
           highlight: '#FFD700',
         },
         'nofx-bg': {
-          DEFAULT: '#05070A', // Deep Void
-          deeper: '#020304',  // Abyssal
+          DEFAULT: '#0B0E11', // Deep Void
+          deeper: '#050709',  // Abyssal
           lighter: '#0E1217', // Surface
         },
         'nofx-accent': '#00F0FF', // Cyan Cyber

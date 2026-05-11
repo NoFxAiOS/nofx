@@ -630,7 +630,7 @@ export function AgentChatPage() {
       style={{
         display: 'flex',
         height: 'calc(100dvh - 64px)',
-        background: '#09090b',
+        background: '#0B0E11',
         overflow: 'hidden',
       }}
     >
@@ -655,7 +655,7 @@ export function AgentChatPage() {
             overflowX: 'auto',
             flexShrink: 0,
             backdropFilter: 'blur(12px)',
-            background: 'rgba(9,9,11,0.8)',
+            background: 'rgba(11,14,17,0.8)',
           }}
           className="hide-scrollbar"
         >

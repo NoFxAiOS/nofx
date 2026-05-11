@@ -88,7 +88,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         style={{
           padding: '12px 16px 20px',
           borderTop: '1px solid rgba(255,255,255,0.04)',
-          background: 'linear-gradient(to top, #09090b 80%, transparent)',
+          background: 'linear-gradient(to top, #0B0E11 80%, transparent)',
         }}
       >
         <div
@@ -181,7 +181,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             margin: '6px auto 0',
             textAlign: 'center',
             fontSize: 10,
-            color: '#1e1e32',
+            color: '#4a4a62',
           }}
         >
           NOFXi may make mistakes. Always verify trading decisions.

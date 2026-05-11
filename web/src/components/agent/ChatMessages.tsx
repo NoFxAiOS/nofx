@@ -89,9 +89,9 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
                     fontSize: 13.5,
                     lineHeight: 1.7,
                     wordBreak: 'break-word',
-                    background: 'rgba(255,255,255,0.03)',
+                    background: 'rgba(255,255,255,0.05)',
                     color: '#dcdce8',
-                    border: '1px solid rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.08)',
                   }}
                 >
                   <AgentStepPanel steps={m.steps} visible={hasMeaningfulExecutionSteps(m.steps)} />
@@ -123,7 +123,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
                 <div
                   style={{
                     fontSize: 10,
-                    color: '#2c2c42',
+                    color: '#5a5a72',
                     marginTop: 4,
                     textAlign: m.role === 'user' ? 'right' : 'left',
                     paddingLeft: m.role === 'bot' ? 4 : 0,

@@ -1341,18 +1341,22 @@ func deriveAIProtectionStopPrice(plan *kernel.AIProtectionPlan, entry float64, i
 	if plan.StopLossPrice > 0 {
 		return plan.StopLossPrice, true
 	}
-	for _, rule := range plan.LadderRules {
-		if rule.StopLossPrice > 0 {
-			return rule.StopLossPrice, true
+	// For ladder plans, use the deepest (last) layer — ladder is progressive exit,
+	// only the final layer needs to be beyond invalidation.
+	if len(plan.LadderRules) > 0 {
+		for i := len(plan.LadderRules) - 1; i >= 0; i-- {
+			if plan.LadderRules[i].StopLossPrice > 0 {
+				return plan.LadderRules[i].StopLossPrice, true
+			}
+		}
+		for i := len(plan.LadderRules) - 1; i >= 0; i-- {
+			if plan.LadderRules[i].StopLossPct > 0 {
+				return pctOffsetPrice(entry, plan.LadderRules[i].StopLossPct, isLong, isShort, false)
+			}
 		}
 	}
 	if plan.StopLossPct > 0 {
 		return pctOffsetPrice(entry, plan.StopLossPct, isLong, isShort, false)
-	}
-	for _, rule := range plan.LadderRules {
-		if rule.StopLossPct > 0 {
-			return pctOffsetPrice(entry, rule.StopLossPct, isLong, isShort, false)
-		}
 	}
 	return 0, false
 }

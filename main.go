@@ -168,7 +168,7 @@ func main() {
 	}
 	logger.Info("✅ HTTP server stopped")
 
-	logger.Info("✅ NOFXi agent stopped")
+	// nofxiAgent.Stop() is handled by defer above
 
 	// Stop all traders
 	traderManager.StopAll()

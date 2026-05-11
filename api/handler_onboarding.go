@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"nofx/logger"
+	"nofx/mcp/payment"
 	"nofx/wallet"
 
 	gethcrypto "github.com/ethereum/go-ethereum/crypto"
@@ -54,7 +55,7 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 	}
 
 	if !reusedExisting {
-		if err := s.store.AIModel().Update(userID, "claw402", true, privateKey, "", "glm-5"); err != nil {
+		if err := s.store.AIModel().Update(userID, "claw402", true, privateKey, "", payment.DefaultClaw402Model); err != nil {
 			logger.Errorf("Failed to save beginner claw402 config for user %s: %v", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save beginner model configuration"})
 			return
@@ -68,7 +69,7 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 
 	os.Setenv("CLAW402_WALLET_KEY", privateKey)
 	os.Setenv("CLAW402_WALLET_ADDRESS", address)
-	os.Setenv("CLAW402_DEFAULT_MODEL", "glm-5")
+	os.Setenv("CLAW402_DEFAULT_MODEL", payment.DefaultClaw402Model)
 
 	envSaved, envPath, envErr := persistBeginnerWalletEnv(privateKey, address)
 	resp := beginnerOnboardingResponse{
@@ -77,7 +78,7 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 		Chain:             "base",
 		Asset:             "USDC",
 		Provider:          "claw402",
-		DefaultModel:      "glm-5",
+		DefaultModel:      payment.DefaultClaw402Model,
 		ConfiguredModelID: configuredModelID,
 		BalanceUSDC:       wallet.QueryUSDCBalanceStr(address),
 		EnvSaved:          envSaved,
@@ -253,7 +254,7 @@ func persistBeginnerWalletEnv(privateKey string, address string) (bool, string, 
 		if err := upsertEnvFile(path, map[string]string{
 			"CLAW402_WALLET_KEY":     privateKey,
 			"CLAW402_WALLET_ADDRESS": address,
-			"CLAW402_DEFAULT_MODEL":  "glm-5",
+			"CLAW402_DEFAULT_MODEL":  payment.DefaultClaw402Model,
 		}); err != nil {
 			lastErr = err
 			continue

@@ -45,6 +45,20 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ---
 
+## クイックデモ
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1frzw-HDZ3viQvLOQKsAJGc9bT0dXs68D/view">
+    <img src="../../../screenshots/demo-cover.png" alt="NOFX クイックデモ動画" width="900"/>
+  </a>
+</p>
+
+<p align="center">
+  カバー画像をクリックするとデモ動画を視聴できます。
+</p>
+
+---
+
 ## x402 の仕組み
 
 従来のフロー：アカウント登録 → クレジット購入 → API キー取得 → クォータ管理 → キーのローテーション。

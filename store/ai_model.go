@@ -147,7 +147,7 @@ func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 
 func (s *AIModelStore) firstEnabledUsable(userID string) (*AIModel, error) {
 	var models []AIModel
-	err := s.db.Where("user_id = ? AND enabled = ?", userID, true).
+	err := s.db.Where("user_id = ? AND enabled = ? AND api_key != ''", userID, true).
 		Order("updated_at DESC, id ASC").
 		Find(&models).Error
 	if err != nil {

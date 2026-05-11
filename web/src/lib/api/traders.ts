@@ -82,9 +82,9 @@ export const traderApi = {
 
   async updateTraderAIControls(
     traderId: string,
-    controls: { allow_ai_open?: boolean; allow_ai_close?: boolean; ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'; clear_safe_mode?: boolean }
-  ): Promise<{ allow_ai_open: boolean; allow_ai_close: boolean; ai_decision_mode: 'conservative' | 'balanced' | 'aggressive'; clear_safe_mode?: boolean }> {
-    const result = await httpClient.put<{ allow_ai_open: boolean; allow_ai_close: boolean; ai_decision_mode: 'conservative' | 'balanced' | 'aggressive'; clear_safe_mode?: boolean }>(
+    controls: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const result = await httpClient.put<Record<string, unknown>>(
       `${API_BASE}/traders/${traderId}/ai-controls`,
       controls
     )

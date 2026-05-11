@@ -142,6 +142,10 @@ type Decision struct {
 	SetupType    string          `json:"setup_type,omitempty"`
 	QualityScore *AIQualityScore `json:"quality_score,omitempty"`
 	Reasoning    string          `json:"reasoning"`
+
+	// Close classification (AI marks whether this close is stop-loss or take-profit)
+	IsStopLoss  bool   `json:"is_stop_loss,omitempty"`
+	CloseReason string `json:"close_reason,omitempty"` // structure_break, time_decay, correlation_risk, take_profit
 }
 
 type AIQualityScore struct {

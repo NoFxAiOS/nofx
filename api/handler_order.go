@@ -94,6 +94,9 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 	isRunning := traderConfig.IsRunning
 	allowAIOpen := traderConfig.AllowAIOpen
 	allowAIClose := traderConfig.AllowAIClose
+	allowAIStopClose := traderConfig.AllowAIStopClose
+	allowAITakeProfit := traderConfig.AllowAITakeProfit
+	aiStopMinLossPct := traderConfig.AIStopMinLossPct
 	if at, err := s.traderManager.GetTrader(traderID); err == nil {
 		status := at.GetStatus()
 		if running, ok := status["is_running"].(bool); ok {
@@ -121,6 +124,9 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,
 		"allow_ai_open":         allowAIOpen,
 		"allow_ai_close":        allowAIClose,
+		"allow_ai_stop_close":   allowAIStopClose,
+		"allow_ai_take_profit":  allowAITakeProfit,
+		"ai_stop_min_loss_pct":  aiStopMinLossPct,
 		"ai_decision_mode":      traderConfig.AIDecisionMode,
 		"btc_eth_leverage":      traderConfig.BTCETHLeverage,
 		"altcoin_leverage":      traderConfig.AltcoinLeverage,

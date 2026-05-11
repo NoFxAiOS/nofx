@@ -26,7 +26,6 @@ import type {
     Statistics,
     TraderInfo,
     Exchange,
-    CreateTraderRequest,
 } from '../types'
 
 // --- Helper Functions ---
@@ -148,7 +147,9 @@ export function TraderDashboardPage({
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
     const [allowAIOpen, setAllowAIOpen] = useState<boolean>(true)
-    const [allowAIClose, setAllowAIClose] = useState<boolean>(true)
+    const [allowAIStopClose, setAllowAIStopClose] = useState<boolean>(false)
+    const [allowAITakeProfit, setAllowAITakeProfit] = useState<boolean>(false)
+    const [aiStopMinLossPct, setAIStopMinLossPct] = useState<number>(0.5)
     const [aiDecisionMode, setAIDecisionMode] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced')
     const [savingAIControls, setSavingAIControls] = useState<boolean>(false)
 
@@ -184,7 +185,9 @@ export function TraderDashboardPage({
                 const cfg = await api.getTraderConfig(selectedTraderId)
                 if (cancelled) return
                 setAllowAIOpen(cfg.allow_ai_open !== false)
-                setAllowAIClose(cfg.allow_ai_close !== false)
+                setAllowAIStopClose(cfg.allow_ai_stop_close === true)
+                setAllowAITakeProfit(cfg.allow_ai_take_profit === true)
+                setAIStopMinLossPct((cfg.ai_stop_min_loss_pct ?? 0) > 0 ? cfg.ai_stop_min_loss_pct! : 0.5)
                 setAIDecisionMode(cfg.ai_decision_mode || 'balanced')
             } catch (err) {
                 console.error('Failed to load trader AI controls', err)
@@ -196,18 +199,16 @@ export function TraderDashboardPage({
         }
     }, [selectedTraderId])
 
-    const saveAIControls = async (patch: Partial<CreateTraderRequest>) => {
+    const saveAIControls = async (patch: Record<string, unknown>) => {
         if (!selectedTraderId) return
         setSavingAIControls(true)
         try {
-            const result = await api.updateTraderAIControls(selectedTraderId, {
-                allow_ai_open: patch.allow_ai_open,
-                allow_ai_close: patch.allow_ai_close,
-                ai_decision_mode: patch.ai_decision_mode,
-            })
-            if (typeof result.allow_ai_open === 'boolean') setAllowAIOpen(result.allow_ai_open)
-            if (typeof result.allow_ai_close === 'boolean') setAllowAIClose(result.allow_ai_close)
-            if (result.ai_decision_mode) setAIDecisionMode(result.ai_decision_mode)
+            const result = await api.updateTraderAIControls(selectedTraderId, patch)
+            if (typeof result.allow_ai_open === 'boolean') setAllowAIOpen(result.allow_ai_open as boolean)
+            if (typeof result.allow_ai_stop_close === 'boolean') setAllowAIStopClose(result.allow_ai_stop_close as boolean)
+            if (typeof result.allow_ai_take_profit === 'boolean') setAllowAITakeProfit(result.allow_ai_take_profit as boolean)
+            if (typeof result.ai_stop_min_loss_pct === 'number') setAIStopMinLossPct(result.ai_stop_min_loss_pct as number)
+            if (result.ai_decision_mode) setAIDecisionMode(result.ai_decision_mode as 'conservative' | 'balanced' | 'aggressive')
             await Promise.all([
                 mutate(`trader-config-${selectedTraderId}`),
                 mutate(`${selectedTraderId}-status`),
@@ -534,61 +535,107 @@ export function TraderDashboardPage({
                                     selectedTrader.ai_model
                                 )}
                             </span>
-                            <label className="flex items-center gap-2 ml-2 text-xs">
-                                <span className="opacity-60">AI Open</span>
-                                <input
-                                    type="checkbox"
-                                    checked={allowAIOpen}
+                            <div className="flex items-center gap-3 ml-2">
+                                {/* AI Open toggle */}
+                                <label className="flex items-center gap-1 text-xs cursor-pointer">
+                                    <span className="opacity-60">Open</span>
+                                    <button
+                                        type="button"
+                                        disabled={savingAIControls}
+                                        onClick={async () => {
+                                            const next = !allowAIOpen
+                                            setAllowAIOpen(next)
+                                            try { await saveAIControls({ allow_ai_open: next }) }
+                                            catch { setAllowAIOpen(!next) }
+                                        }}
+                                        className={`relative w-8 h-4 rounded-full transition-colors ${allowAIOpen ? 'bg-green-500/80' : 'bg-white/10'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${allowAIOpen ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                                    </button>
+                                </label>
+                                {/* AI Stop-Loss Close toggle */}
+                                <label className="flex items-center gap-1 text-xs cursor-pointer">
+                                    <span className="opacity-60">SL</span>
+                                    <button
+                                        type="button"
+                                        disabled={savingAIControls}
+                                        onClick={async () => {
+                                            const next = !allowAIStopClose
+                                            setAllowAIStopClose(next)
+                                            try { await saveAIControls({ allow_ai_stop_close: next }) }
+                                            catch { setAllowAIStopClose(!next) }
+                                        }}
+                                        className={`relative w-8 h-4 rounded-full transition-colors ${allowAIStopClose ? 'bg-green-500/80' : 'bg-white/10'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${allowAIStopClose ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                                    </button>
+                                </label>
+                                {/* AI Take-Profit Close toggle */}
+                                <label className="flex items-center gap-1 text-xs cursor-pointer">
+                                    <span className="opacity-60">TP</span>
+                                    <button
+                                        type="button"
+                                        disabled={savingAIControls}
+                                        onClick={async () => {
+                                            const next = !allowAITakeProfit
+                                            setAllowAITakeProfit(next)
+                                            try { await saveAIControls({ allow_ai_take_profit: next }) }
+                                            catch { setAllowAITakeProfit(!next) }
+                                        }}
+                                        className={`relative w-8 h-4 rounded-full transition-colors ${allowAITakeProfit ? 'bg-green-500/80' : 'bg-white/10'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${allowAITakeProfit ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                                    </button>
+                                </label>
+                                {/* Min Loss % adjuster (only visible when SL is enabled) */}
+                                {allowAIStopClose && (
+                                    <div className="flex items-center gap-0.5 text-xs">
+                                        <span className="opacity-60">Min</span>
+                                        <button
+                                            type="button"
+                                            disabled={savingAIControls || aiStopMinLossPct <= 0.1}
+                                            onClick={async () => {
+                                                const next = Math.max(0.1, +(aiStopMinLossPct - 0.1).toFixed(1))
+                                                const prev = aiStopMinLossPct
+                                                setAIStopMinLossPct(next)
+                                                try { await saveAIControls({ ai_stop_min_loss_pct: next }) }
+                                                catch { setAIStopMinLossPct(prev) }
+                                            }}
+                                            className="w-4 h-4 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-nofx-text-muted"
+                                        >−</button>
+                                        <span className="w-9 text-center text-nofx-text-main">{aiStopMinLossPct.toFixed(1)}%</span>
+                                        <button
+                                            type="button"
+                                            disabled={savingAIControls || aiStopMinLossPct >= 5.0}
+                                            onClick={async () => {
+                                                const next = Math.min(5.0, +(aiStopMinLossPct + 0.1).toFixed(1))
+                                                const prev = aiStopMinLossPct
+                                                setAIStopMinLossPct(next)
+                                                try { await saveAIControls({ ai_stop_min_loss_pct: next }) }
+                                                catch { setAIStopMinLossPct(prev) }
+                                            }}
+                                            className="w-4 h-4 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-nofx-text-muted"
+                                        >+</button>
+                                    </div>
+                                )}
+                                {/* Decision mode */}
+                                <select
+                                    value={aiDecisionMode}
                                     disabled={savingAIControls}
                                     onChange={async (e) => {
-                                        const next = e.target.checked
-                                        setAllowAIOpen(next)
-                                        try {
-                                            await saveAIControls({ allow_ai_open: next })
-                                        } catch {
-                                            setAllowAIOpen(!next)
-                                        }
+                                        const next = e.target.value as 'conservative' | 'balanced' | 'aggressive'
+                                        const prev = aiDecisionMode
+                                        setAIDecisionMode(next)
+                                        try { await saveAIControls({ ai_decision_mode: next }) }
+                                        catch { setAIDecisionMode(prev) }
                                     }}
-                                    className="h-4 w-4 accent-[#F0B90B]"
-                                />
-                            </label>
-                            <label className="flex items-center gap-2 ml-2 text-xs">
-                                <span className="opacity-60">AI Close</span>
-                                <input
-                                    type="checkbox"
-                                    checked={allowAIClose}
-                                    disabled={savingAIControls}
-                                    onChange={async (e) => {
-                                        const next = e.target.checked
-                                        setAllowAIClose(next)
-                                        try {
-                                            await saveAIControls({ allow_ai_close: next })
-                                        } catch {
-                                            setAllowAIClose(!next)
-                                        }
-                                    }}
-                                    className="h-4 w-4 accent-[#F0B90B]"
-                                />
-                            </label>
-                            <select
-                                value={aiDecisionMode}
-                                disabled={savingAIControls}
-                                onChange={async (e) => {
-                                    const next = e.target.value as 'conservative' | 'balanced' | 'aggressive'
-                                    const prev = aiDecisionMode
-                                    setAIDecisionMode(next)
-                                    try {
-                                        await saveAIControls({ ai_decision_mode: next })
-                                    } catch {
-                                        setAIDecisionMode(prev)
-                                    }
-                                }}
-                                className="bg-transparent border border-white/10 rounded px-2 py-0.5 text-xs text-nofx-text-main"
-                            >
-                                <option value="conservative" className="bg-[#0B0E11]">保守</option>
-                                <option value="balanced" className="bg-[#0B0E11]">平衡</option>
-                                <option value="aggressive" className="bg-[#0B0E11]">激进</option>
-                            </select>
+                                    className="bg-transparent border border-white/10 rounded px-2 py-0.5 text-xs text-nofx-text-main"
+                                >
+                                    <option value="conservative" className="bg-[#0B0E11]">保守</option>
+                                    <option value="balanced" className="bg-[#0B0E11]">平衡</option>
+                                    <option value="aggressive" className="bg-[#0B0E11]">激进</option>
+                                </select>
+                            </div>
                         </span>
                         <span className="w-px h-3 bg-white/10 hidden md:block" />
                         <span className="flex items-center gap-2">

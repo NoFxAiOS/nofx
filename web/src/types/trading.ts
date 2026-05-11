@@ -596,6 +596,9 @@ export interface TraderConfigData {
   show_in_competition: boolean // 是否在竞技场显示
   allow_ai_open?: boolean
   allow_ai_close?: boolean
+  allow_ai_stop_close?: boolean
+  allow_ai_take_profit?: boolean
+  ai_stop_min_loss_pct?: number
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   scan_interval_minutes: number
   initial_balance: number

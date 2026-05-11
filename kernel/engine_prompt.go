@@ -19,10 +19,31 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	riskControl := e.config.RiskControl
 	promptSections := e.config.PromptSections
 	decisionMode := strings.ToLower(strings.TrimSpace(variant))
+
+	// Parse fine-grained close permission flags
+	allowAIStopClose := true
+	allowAITakeProfit := true
+	if strings.Contains(decisionMode, "|no_stop_close") {
+		allowAIStopClose = false
+		decisionMode = strings.ReplaceAll(decisionMode, "|no_stop_close", "")
+	}
+	if strings.Contains(decisionMode, "|no_take_profit") {
+		allowAITakeProfit = false
+		decisionMode = strings.ReplaceAll(decisionMode, "|no_take_profit", "")
+	}
+	// Legacy flag: treat |no_close as both disabled
 	allowAIClose := true
 	if strings.Contains(decisionMode, "|no_close") {
 		allowAIClose = false
+		allowAIStopClose = false
+		allowAITakeProfit = false
 		decisionMode = strings.ReplaceAll(decisionMode, "|no_close", "")
+	}
+	// Parse open permission flag
+	allowAIOpen := true
+	if strings.Contains(decisionMode, "|no_open") {
+		allowAIOpen = false
+		decisionMode = strings.ReplaceAll(decisionMode, "|no_open", "")
 	}
 
 	// 0. Data Dictionary & Schema (ensure AI understands all fields)
@@ -273,12 +294,35 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("3. Write chain of thought first, then output structured JSON\n\n")
 	}
 
-	// 7. Output format
-	if !allowAIClose {
+	// 7. AI Close permission gate
+	if !allowAIClose || (!allowAIStopClose && !allowAITakeProfit) {
 		sb.WriteString("# AI Close Gate\n\n")
 		sb.WriteString("- You are NOT allowed to output `close_long` or `close_short`.\n")
 		sb.WriteString("- Existing positions may only be closed by code protection and exchange protection orders.\n")
 		sb.WriteString("- You must continue analyzing open positions, but if you want a close, output `hold` and explain the risk instead.\n\n")
+	} else if allowAIStopClose && !allowAITakeProfit {
+		sb.WriteString("# AI Close Permission — Stop-Loss Only\n\n")
+		sb.WriteString("- You MAY output `close_long` or `close_short` ONLY for stop-loss reasons.\n")
+		sb.WriteString("- You MUST set `\"is_stop_loss\": true` and `\"close_reason\"` to one of:\n")
+		sb.WriteString("  - `\"structure_break\"`: 开仓逻辑/结构失效（支撑跌破、趋势反转确认）\n")
+		sb.WriteString("  - `\"time_decay\"`: 持仓超时无进展（价格横盘、动量消失）\n")
+		sb.WriteString("  - `\"correlation_risk\"`: 关联资产异动预警（BTC暴跌、板块联动）\n")
+		sb.WriteString("- You are NOT allowed to close for profit-taking. If you want to take profit, output `hold`.\n")
+		sb.WriteString("- The system will reject stop-loss closes if the position's unrealized loss is below the configured threshold.\n\n")
+	} else if !allowAIStopClose && allowAITakeProfit {
+		sb.WriteString("# AI Close Permission — Take-Profit Only\n\n")
+		sb.WriteString("- You MAY output `close_long` or `close_short` ONLY for take-profit reasons.\n")
+		sb.WriteString("- You MUST set `\"is_stop_loss\": false`.\n")
+		sb.WriteString("- You are NOT allowed to close for stop-loss. Protection orders handle that.\n\n")
+	}
+	// Both allowed: no gate injected
+
+	// AI Open permission gate
+	if !allowAIOpen {
+		sb.WriteString("# AI Open Gate\n\n")
+		sb.WriteString("- You are NOT allowed to output `open_long` or `open_short`.\n")
+		sb.WriteString("- Focus on analyzing existing positions and market conditions.\n")
+		sb.WriteString("- If you see a good setup, output `hold` and describe it in reasoning.\n\n")
 	}
 
 	// 7. Output format

@@ -492,10 +492,13 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 // UpdateAIControlsRequest updates runtime AI open/close gates and decision style.
 type UpdateAIControlsRequest struct {
-	AllowAIOpen    *bool  `json:"allow_ai_open"`
-	AllowAIClose   *bool  `json:"allow_ai_close"`
-	ClearSafeMode  *bool  `json:"clear_safe_mode"`
-	AIDecisionMode string `json:"ai_decision_mode"`
+	AllowAIOpen       *bool    `json:"allow_ai_open"`
+	AllowAIClose      *bool    `json:"allow_ai_close"`
+	AllowAIStopClose  *bool    `json:"allow_ai_stop_close"`
+	AllowAITakeProfit *bool    `json:"allow_ai_take_profit"`
+	AIStopMinLossPct  *float64 `json:"ai_stop_min_loss_pct"`
+	ClearSafeMode     *bool    `json:"clear_safe_mode"`
+	AIDecisionMode    string   `json:"ai_decision_mode"`
 }
 
 // handleUpdateTraderAIControls updates AI execution gates without reloading/restarting the trader.
@@ -508,12 +511,16 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
-	if req.AllowAIOpen == nil && req.AllowAIClose == nil && req.AIDecisionMode == "" && (req.ClearSafeMode == nil || !*req.ClearSafeMode) {
+	if req.AllowAIOpen == nil && req.AllowAIClose == nil && req.AllowAIStopClose == nil && req.AllowAITakeProfit == nil && req.AIStopMinLossPct == nil && req.AIDecisionMode == "" && (req.ClearSafeMode == nil || !*req.ClearSafeMode) {
 		SafeBadRequest(c, "No AI control fields provided")
 		return
 	}
 	if req.AIDecisionMode != "" && req.AIDecisionMode != "conservative" && req.AIDecisionMode != "balanced" && req.AIDecisionMode != "aggressive" {
 		SafeBadRequest(c, "Invalid AI decision mode")
+		return
+	}
+	if req.AIStopMinLossPct != nil && (*req.AIStopMinLossPct < 0.1 || *req.AIStopMinLossPct > 5.0) {
+		SafeBadRequest(c, "ai_stop_min_loss_pct must be between 0.1 and 5.0")
 		return
 	}
 
@@ -525,9 +532,15 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 
 	allowAIOpen := fullCfg.Trader.AllowAIOpen
 	allowAIClose := fullCfg.Trader.AllowAIClose
+	allowAIStopClose := fullCfg.Trader.AllowAIStopClose
+	allowAITakeProfit := fullCfg.Trader.AllowAITakeProfit
+	aiStopMinLossPct := fullCfg.Trader.AIStopMinLossPct
 	aiDecisionMode := fullCfg.Trader.AIDecisionMode
 	if aiDecisionMode == "" {
 		aiDecisionMode = "balanced"
+	}
+	if aiStopMinLossPct <= 0 {
+		aiStopMinLossPct = 0.5
 	}
 	if req.AllowAIOpen != nil {
 		allowAIOpen = *req.AllowAIOpen
@@ -535,10 +548,19 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 	if req.AllowAIClose != nil {
 		allowAIClose = *req.AllowAIClose
 	}
+	if req.AllowAIStopClose != nil {
+		allowAIStopClose = *req.AllowAIStopClose
+	}
+	if req.AllowAITakeProfit != nil {
+		allowAITakeProfit = *req.AllowAITakeProfit
+	}
+	if req.AIStopMinLossPct != nil {
+		aiStopMinLossPct = *req.AIStopMinLossPct
+	}
 	if req.AIDecisionMode != "" {
 		aiDecisionMode = req.AIDecisionMode
 	}
-	if err := s.store.Trader().UpdateAIExecutionControls(userID, traderID, allowAIOpen, allowAIClose, aiDecisionMode); err != nil {
+	if err := s.store.Trader().UpdateAIExecutionControls(userID, traderID, allowAIOpen, allowAIClose, allowAIStopClose, allowAITakeProfit, aiStopMinLossPct, aiDecisionMode); err != nil {
 		SafeInternalError(c, "Failed to update AI controls", err)
 		return
 	}
@@ -546,6 +568,9 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 	if at, getErr := s.traderManager.GetTrader(traderID); getErr == nil && at != nil {
 		at.SetAllowAIOpen(allowAIOpen)
 		at.SetAllowAIClose(allowAIClose)
+		at.SetAllowAIStopClose(allowAIStopClose)
+		at.SetAllowAITakeProfit(allowAITakeProfit)
+		at.SetAIStopMinLossPct(aiStopMinLossPct)
 		at.SetAIDecisionMode(aiDecisionMode)
 		if req.ClearSafeMode != nil && *req.ClearSafeMode {
 			at.ClearSafeMode("manual clear via AI controls API")
@@ -553,11 +578,14 @@ func (s *Server) handleUpdateTraderAIControls(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"trader_id":        traderID,
-		"allow_ai_open":    allowAIOpen,
-		"allow_ai_close":   allowAIClose,
-		"ai_decision_mode": aiDecisionMode,
-		"clear_safe_mode":  req.ClearSafeMode != nil && *req.ClearSafeMode,
+		"trader_id":            traderID,
+		"allow_ai_open":        allowAIOpen,
+		"allow_ai_close":       allowAIClose,
+		"allow_ai_stop_close":  allowAIStopClose,
+		"allow_ai_take_profit": allowAITakeProfit,
+		"ai_stop_min_loss_pct": aiStopMinLossPct,
+		"ai_decision_mode":     aiDecisionMode,
+		"clear_safe_mode":      req.ClearSafeMode != nil && *req.ClearSafeMode,
 	})
 }
 

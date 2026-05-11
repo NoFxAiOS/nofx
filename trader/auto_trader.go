@@ -110,9 +110,12 @@ type AutoTraderConfig struct {
 
 	// Competition visibility
 	ShowInCompetition bool   // Whether to show in competition page
-	AllowAIOpen       bool   // Whether AI is allowed to issue open_long / open_short
-	AllowAIClose      bool   // Whether AI is allowed to issue close_long / close_short
-	AIDecisionMode    string // conservative | balanced | aggressive
+	AllowAIOpen       bool    // Whether AI is allowed to issue open_long / open_short
+	AllowAIClose      bool    // Whether AI is allowed to issue close_long / close_short
+	AllowAIStopClose  bool    // Whether AI can close for stop-loss reasons
+	AllowAITakeProfit bool    // Whether AI can close for take-profit reasons
+	AIStopMinLossPct  float64 // Minimum unrealized loss % before AI can stop-loss
+	AIDecisionMode    string  // conservative | balanced | aggressive
 
 	// Strategy configuration (use complete strategy config)
 	StrategyConfig *store.StrategyConfig // Strategy configuration (includes coin sources, indicators, risk control, prompts, etc.)
@@ -126,9 +129,12 @@ type AutoTrader struct {
 	exchange              string // Trading platform type (binance/bybit/etc)
 	exchangeID            string // Exchange account UUID
 	showInCompetition     bool   // Whether to show in competition page
-	allowAIOpen           bool   // Whether AI can actively open positions
-	allowAIClose          bool   // Whether AI can actively close positions
-	aiDecisionMode        string // conservative | balanced | aggressive
+	allowAIOpen           bool    // Whether AI can actively open positions
+	allowAIClose          bool    // Whether AI can actively close positions
+	allowAIStopClose      bool    // Whether AI can close for stop-loss reasons
+	allowAITakeProfit     bool    // Whether AI can close for take-profit reasons
+	aiStopMinLossPct      float64 // Minimum unrealized loss % before AI can stop-loss
+	aiDecisionMode        string  // conservative | balanced | aggressive
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
@@ -345,6 +351,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		showInCompetition:     config.ShowInCompetition,
 		allowAIOpen:           config.AllowAIOpen,
 		allowAIClose:          config.AllowAIClose,
+		allowAIStopClose:      config.AllowAIStopClose,
+		allowAITakeProfit:     config.AllowAITakeProfit,
+		aiStopMinLossPct:      config.AIStopMinLossPct,
 		aiDecisionMode:        config.AIDecisionMode,
 		config:                config,
 		trader:                trader,
@@ -699,6 +708,39 @@ func (at *AutoTrader) ClearSafeMode(reason string) {
 // SetAllowAIClose updates whether AI can actively close positions
 func (at *AutoTrader) SetAllowAIClose(allow bool) {
 	at.allowAIClose = allow
+}
+
+// GetAllowAIStopClose returns whether AI can close for stop-loss reasons
+func (at *AutoTrader) GetAllowAIStopClose() bool {
+	return at.allowAIStopClose
+}
+
+// SetAllowAIStopClose updates whether AI can close for stop-loss reasons
+func (at *AutoTrader) SetAllowAIStopClose(allow bool) {
+	at.allowAIStopClose = allow
+}
+
+// GetAllowAITakeProfit returns whether AI can close for take-profit reasons
+func (at *AutoTrader) GetAllowAITakeProfit() bool {
+	return at.allowAITakeProfit
+}
+
+// SetAllowAITakeProfit updates whether AI can close for take-profit reasons
+func (at *AutoTrader) SetAllowAITakeProfit(allow bool) {
+	at.allowAITakeProfit = allow
+}
+
+// GetAIStopMinLossPct returns the minimum loss % threshold for AI stop-loss
+func (at *AutoTrader) GetAIStopMinLossPct() float64 {
+	if at.aiStopMinLossPct <= 0 {
+		return 0.5
+	}
+	return at.aiStopMinLossPct
+}
+
+// SetAIStopMinLossPct updates the minimum loss % threshold for AI stop-loss
+func (at *AutoTrader) SetAIStopMinLossPct(pct float64) {
+	at.aiStopMinLossPct = pct
 }
 
 // GetAIDecisionMode returns the configured AI decision mode

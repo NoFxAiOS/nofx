@@ -32,6 +32,9 @@ type Trader struct {
 	ShowInCompetition   bool      `gorm:"column:show_in_competition;default:true" json:"show_in_competition"`
 	AllowAIOpen         bool      `gorm:"column:allow_ai_open;default:true" json:"allow_ai_open"`
 	AllowAIClose        bool      `gorm:"column:allow_ai_close;default:true" json:"allow_ai_close"`
+	AllowAIStopClose    bool      `gorm:"column:allow_ai_stop_close;default:false" json:"allow_ai_stop_close"`
+	AllowAITakeProfit   bool      `gorm:"column:allow_ai_take_profit;default:false" json:"allow_ai_take_profit"`
+	AIStopMinLossPct    float64   `gorm:"column:ai_stop_min_loss_pct;default:0.5" json:"ai_stop_min_loss_pct"`
 	AIDecisionMode      string    `gorm:"column:ai_decision_mode;default:balanced" json:"ai_decision_mode"`
 	CreatedAt           time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
 	UpdatedAt           time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
@@ -68,6 +71,9 @@ func (s *TraderStore) initTables() error {
 		if tableExists > 0 {
 			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS allow_ai_open BOOLEAN DEFAULT true`)
 			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS allow_ai_close BOOLEAN DEFAULT true`)
+			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS allow_ai_stop_close BOOLEAN DEFAULT false`)
+			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS allow_ai_take_profit BOOLEAN DEFAULT false`)
+			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS ai_stop_min_loss_pct REAL DEFAULT 0.5`)
 			s.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS ai_decision_mode TEXT DEFAULT 'balanced'`)
 			return nil
 		}
@@ -117,16 +123,25 @@ func (s *TraderStore) UpdateShowInCompetition(userID, id string, showInCompetiti
 }
 
 // UpdateAIExecutionControls updates AI open/close execution gates and decision style.
-func (s *TraderStore) UpdateAIExecutionControls(userID, id string, allowAIOpen, allowAIClose bool, aiDecisionMode string) error {
+func (s *TraderStore) UpdateAIExecutionControls(userID, id string, allowAIOpen, allowAIClose, allowAIStopClose, allowAITakeProfit bool, aiStopMinLossPct float64, aiDecisionMode string) error {
 	if aiDecisionMode == "" {
 		aiDecisionMode = "balanced"
+	}
+	if aiStopMinLossPct < 0.1 {
+		aiStopMinLossPct = 0.1
+	}
+	if aiStopMinLossPct > 5.0 {
+		aiStopMinLossPct = 5.0
 	}
 	return s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Updates(map[string]interface{}{
-			"allow_ai_open":    allowAIOpen,
-			"allow_ai_close":   allowAIClose,
-			"ai_decision_mode": aiDecisionMode,
+			"allow_ai_open":       allowAIOpen,
+			"allow_ai_close":      allowAIClose,
+			"allow_ai_stop_close": allowAIStopClose,
+			"allow_ai_take_profit": allowAITakeProfit,
+			"ai_stop_min_loss_pct": aiStopMinLossPct,
+			"ai_decision_mode":    aiDecisionMode,
 		}).Error
 }
 
@@ -136,15 +151,18 @@ func (s *TraderStore) Update(trader *Trader) error {
 		trader.ID, trader.Name, trader.AIModelID, trader.StrategyID)
 
 	updates := map[string]interface{}{
-		"name":                trader.Name,
-		"ai_model_id":         trader.AIModelID,
-		"exchange_id":         trader.ExchangeID,
-		"strategy_id":         trader.StrategyID,
-		"is_cross_margin":     trader.IsCrossMargin,
-		"show_in_competition": trader.ShowInCompetition,
-		"allow_ai_open":       trader.AllowAIOpen,
-		"allow_ai_close":      trader.AllowAIClose,
-		"ai_decision_mode":    trader.AIDecisionMode,
+		"name":                 trader.Name,
+		"ai_model_id":          trader.AIModelID,
+		"exchange_id":          trader.ExchangeID,
+		"strategy_id":          trader.StrategyID,
+		"is_cross_margin":      trader.IsCrossMargin,
+		"show_in_competition":  trader.ShowInCompetition,
+		"allow_ai_open":        trader.AllowAIOpen,
+		"allow_ai_close":       trader.AllowAIClose,
+		"allow_ai_stop_close":  trader.AllowAIStopClose,
+		"allow_ai_take_profit": trader.AllowAITakeProfit,
+		"ai_stop_min_loss_pct": trader.AIStopMinLossPct,
+		"ai_decision_mode":     trader.AIDecisionMode,
 	}
 
 	// Only update these if > 0

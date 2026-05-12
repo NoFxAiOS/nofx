@@ -112,40 +112,31 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		}
 		logger.Infof("📝 Received plain text model config (UserID: %s)", userID)
 	} else {
-		// Transport encryption enabled, require encrypted payload
+		// Transport encryption enabled — try encrypted first, fall back to plaintext
 		var encryptedPayload crypto.EncryptedPayload
-		if err := json.Unmarshal(bodyBytes, &encryptedPayload); err != nil {
-			logger.Infof("❌ Failed to parse encrypted payload: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format, encrypted transmission required"})
-			return
+		if err := json.Unmarshal(bodyBytes, &encryptedPayload); err == nil && encryptedPayload.WrappedKey != "" {
+			// Decrypt data
+			decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
+			if err != nil {
+				logger.Infof("❌ Failed to decrypt model config (UserID: %s): %v", userID, err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to decrypt data"})
+				return
+			}
+			if err := json.Unmarshal([]byte(decrypted), &req); err != nil {
+				logger.Infof("❌ Failed to parse decrypted data: %v", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse decrypted data"})
+				return
+			}
+			logger.Infof("🔓 Decrypted model config data (UserID: %s)", userID)
+		} else {
+			// Fallback: accept plaintext (client may not support crypto.subtle)
+			if err := json.Unmarshal(bodyBytes, &req); err != nil {
+				logger.Infof("❌ Failed to parse model config request: %v", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+				return
+			}
+			logger.Infof("📝 Received plain text model config (crypto.subtle unavailable on client) (UserID: %s)", userID)
 		}
-
-		// Verify encrypted data
-		if encryptedPayload.WrappedKey == "" {
-			logger.Infof("❌ Detected unencrypted request (UserID: %s)", userID)
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "This endpoint only supports encrypted transmission, please use encrypted client",
-				"code":    "ENCRYPTION_REQUIRED",
-				"message": "Encrypted transmission is required for security reasons",
-			})
-			return
-		}
-
-		// Decrypt data
-		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
-		if err != nil {
-			logger.Infof("❌ Failed to decrypt model config (UserID: %s): %v", userID, err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to decrypt data"})
-			return
-		}
-
-		// Parse decrypted data
-		if err := json.Unmarshal([]byte(decrypted), &req); err != nil {
-			logger.Infof("❌ Failed to parse decrypted data: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse decrypted data"})
-			return
-		}
-		logger.Infof("🔓 Decrypted model config data (UserID: %s)", userID)
 	}
 
 	// Update each model's configuration and track traders that need reload

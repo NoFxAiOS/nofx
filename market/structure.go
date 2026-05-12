@@ -32,8 +32,8 @@ func DetectStructuralLevels(klines []Kline, currentPrice float64, timeframe stri
 	var levels []StructuralLevel
 	tolerancePct := 0.005 // 0.5% cluster tolerance
 
-	// 1. Swing point detection
-	lookback := 5
+	// 1. Swing point detection — dynamic lookback based on timeframe
+	lookback := swingLookbackForTimeframe(timeframe)
 	swingHighs := findSwingHighs(klines, lookback)
 	swingLows := findSwingLows(klines, lookback)
 
@@ -424,5 +424,27 @@ func enrichMultiTFConfirmation(timeframeData map[string]*TimeframeSeriesData) {
 			levelA.MultiTFCount = confirmations
 			levelA.Confidence = computeCompositeConfidence(levelA)
 		}
+	}
+}
+
+// swingLookbackForTimeframe returns the number of bars to look back on each
+// side when detecting swing highs/lows. Shorter timeframes use larger lookback
+// to filter out noise and detect more meaningful structural pivots.
+func swingLookbackForTimeframe(tf string) int {
+	switch tf {
+	case "1m", "3m":
+		return 10
+	case "5m":
+		return 8
+	case "15m":
+		return 7
+	case "30m":
+		return 6
+	case "1h":
+		return 5
+	case "4h", "1d":
+		return 4
+	default:
+		return 7
 	}
 }

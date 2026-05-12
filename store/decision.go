@@ -63,6 +63,8 @@ type DecisionRecord struct {
 	ReviewContext       map[string]interface{} `json:"review_context,omitempty"`
 	AllowAIClose        bool                   `json:"allow_ai_close"`
 	AllowAIOpen         bool                   `json:"allow_ai_open"`
+	AllowAIStopClose    bool                   `json:"allow_ai_stop_close"`
+	AllowAITakeProfit   bool                   `json:"allow_ai_take_profit"`
 	AIDecisionMode      string                 `json:"ai_decision_mode"`
 }
 
@@ -402,6 +404,12 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 			}
 			if v, ok := rc["allow_ai_close"].(bool); ok {
 				record.AllowAIClose = v
+			}
+			if v, ok := rc["allow_ai_stop_close"].(bool); ok {
+				record.AllowAIStopClose = v
+			}
+			if v, ok := rc["allow_ai_take_profit"].(bool); ok {
+				record.AllowAITakeProfit = v
 			}
 		}
 	}

@@ -19,8 +19,9 @@ func CalculateFibonacciLevels(klines []Kline, timeframe string) *FibonacciLevels
 		return nil
 	}
 
-	// Use up to 50 recent candles
-	lookback := 50
+	// Dynamic lookback based on timeframe: shorter timeframes need more bars
+	// to capture meaningful swing ranges
+	lookback := fibLookbackForTimeframe(timeframe)
 	if len(klines) < lookback {
 		lookback = len(klines)
 	}
@@ -151,4 +152,26 @@ func clusterLevels(prices []float64, tolerancePct float64) []priceCluster {
 		clusters = append(clusters, priceCluster{Price: sum / float64(count), Count: count})
 	}
 	return clusters
+}
+
+// fibLookbackForTimeframe returns the number of candles to use for fibonacci
+// swing detection. Shorter timeframes need more bars to capture meaningful
+// price swings that represent real structural levels.
+func fibLookbackForTimeframe(tf string) int {
+	switch tf {
+	case "1m", "3m":
+		return 150
+	case "5m":
+		return 120
+	case "15m":
+		return 100
+	case "30m":
+		return 80
+	case "1h":
+		return 60
+	case "4h", "1d":
+		return 50
+	default:
+		return 100
+	}
 }

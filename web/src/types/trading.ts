@@ -533,6 +533,8 @@ export interface DecisionRecord {
   protection_snapshot?: ProtectionSnapshot
   allow_ai_open?: boolean
   allow_ai_close?: boolean
+  allow_ai_stop_close?: boolean
+  allow_ai_take_profit?: boolean
   ai_decision_mode?: 'conservative' | 'balanced' | 'aggressive'
   success: boolean
   error_message?: string

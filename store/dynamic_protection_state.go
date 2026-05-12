@@ -98,13 +98,16 @@ func singletonDynamicProtectionGroup(protectionType string) string {
 	}
 }
 
-func (s *Store) DeleteDynamicProtectionRecordsForInactive(activeKeys map[string]struct{}) error {
+func (s *Store) DeleteDynamicProtectionRecordsForInactive(traderID string, activeKeys map[string]struct{}) error {
 	state, err := s.LoadDynamicProtectionState()
 	if err != nil {
 		return err
 	}
 	changed := false
 	for key, record := range state.Records {
+		if traderID != "" && record.TraderID != traderID {
+			continue
+		}
 		positionKey := record.Symbol + "_" + record.Side
 		if _, ok := activeKeys[positionKey]; ok {
 			continue

@@ -109,7 +109,7 @@ func (at *AutoTrader) reconcilePositionProtections() {
 
 	at.cleanupInactiveProtectionState(active)
 	if at.store != nil {
-		if err := at.store.DeleteDynamicProtectionRecordsForInactive(active); err != nil {
+		if err := at.store.DeleteDynamicProtectionRecordsForInactive(at.id, active); err != nil {
 			logger.Warnf("⚠️ Dynamic protection state: failed to cleanup inactive records: %v", err)
 		}
 	}

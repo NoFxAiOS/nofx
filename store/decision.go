@@ -115,6 +115,7 @@ type DecisionActionReviewContext struct {
 	MinRiskReward        float64                             `json:"min_risk_reward,omitempty"`
 	RiskReward           *DecisionActionRiskRewardSummary    `json:"risk_reward,omitempty"`
 	KeyLevels            *DecisionActionKeyLevels            `json:"key_levels,omitempty"`
+	SelectedLevels       []DecisionActionSelectedLevel       `json:"selected_levels,omitempty"`
 	Anchors              []DecisionActionReasonAnchor        `json:"anchors,omitempty"`
 	HigherAnchors        []DecisionActionReasonAnchor        `json:"higher_timeframe_anchors,omitempty"`
 	TimeframeStructures  []DecisionActionTimeframeStructure  `json:"timeframe_structures,omitempty"`
@@ -123,6 +124,18 @@ type DecisionActionReviewContext struct {
 	ExecutionConstraints *DecisionActionExecutionConstraints `json:"execution_constraints,omitempty"`
 	QualityGate          *DecisionActionQualityGate          `json:"quality_gate,omitempty"`
 	Extra                map[string]interface{}              `json:"extra,omitempty"`
+}
+
+// DecisionActionSelectedLevel represents a structural level AI explicitly chose
+type DecisionActionSelectedLevel struct {
+	Price      float64 `json:"price"`
+	Type       string  `json:"type"`
+	Timeframe  string  `json:"timeframe"`
+	Source     string  `json:"source"`
+	UsedFor    string  `json:"used_for"`
+	BasisType  string  `json:"basis_type"`
+	Reason     string  `json:"reason,omitempty"`
+	Confidence float64 `json:"confidence,omitempty"`
 }
 
 // DecisionActionQualityGate stores record-only v2 trade-quality checks. During

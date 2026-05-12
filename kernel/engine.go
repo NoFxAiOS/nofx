@@ -128,6 +128,7 @@ type Decision struct {
 	ProtectionPlan      *AIProtectionPlan           `json:"protection_plan,omitempty"`
 	EntryProtection     *AIEntryProtectionRationale `json:"entry_protection_rationale,omitempty"`
 	StructuralKeyLevels []AIStructuralKeyLevel      `json:"structural_key_levels,omitempty"` // Backward-compatible top-level placement accepted from prompts
+	SelectedLevels      []AISelectedLevel           `json:"selected_levels,omitempty"`       // AI's chosen structural levels with reasoning
 
 	// Grid trading parameters
 	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
@@ -242,6 +243,18 @@ type AIStructuralKeyLevel struct {
 	Timeframe string  `json:"timeframe"`
 	Source    string  `json:"source"`   // "auto_detected", "fibonacci_0.618", etc.
 	UsedFor   string  `json:"used_for"` // "tp1", "tp2", "stop_loss", "invalidation"
+}
+
+// AISelectedLevel represents a structural level that AI explicitly chose with reasoning
+type AISelectedLevel struct {
+	Price      float64 `json:"price"`
+	Type       string  `json:"type"`                  // "support" | "resistance"
+	Timeframe  string  `json:"timeframe"`
+	Source     string  `json:"source"`                // "swing_point" | "volume_cluster" | "fibonacci_0.618" | "atr_based"
+	UsedFor    string  `json:"used_for"`              // "stop_loss" | "tp1" | "tp2" | "tp3" | "invalidation" | "entry_trigger" | "break_even"
+	BasisType  string  `json:"basis_type"`            // "structural" | "atr_based" | "percentage" | "fibonacci"
+	Reason     string  `json:"reason"`                // brief explanation of why this level was chosen
+	Confidence float64 `json:"confidence,omitempty"`  // confidence from input data (backfilled)
 }
 
 type AIEntryTimeframeContext struct {
@@ -582,6 +595,7 @@ type AIProtectionDrawdownRule struct {
 	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
 	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
 	ReasonAnchor        string  `json:"reason_anchor,omitempty"`
+	BasisType           string  `json:"basis_type,omitempty"` // "structural" | "atr_based" | "percentage"
 	StageName           string  `json:"stage_name,omitempty"`
 	RunnerKeepPct       float64 `json:"runner_keep_pct,omitempty"`
 	RunnerStopMode      string  `json:"runner_stop_mode,omitempty"`
@@ -623,6 +637,7 @@ type AIProtectionLadderRule struct {
 	StructuralAnchor        string  `json:"structural_anchor,omitempty"`
 	StopLossAnchor          string  `json:"stop_loss_anchor,omitempty"`
 	TakeProfitAnchor        string  `json:"take_profit_anchor,omitempty"`
+	BasisType               string  `json:"basis_type,omitempty"` // "structural" | "atr_based" | "percentage" | "fibonacci"
 	VolatilityBufferPct     float64 `json:"volatility_buffer_pct,omitempty"`
 	VolatilityBufferReason  string  `json:"volatility_buffer_reason,omitempty"`
 }

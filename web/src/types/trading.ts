@@ -92,6 +92,7 @@ export interface ProtectionRuntimeTier {
   anchor_timeframe?: string
   anchor_price?: number
   anchor_source?: string
+  basis_type?: string // "structural" | "atr_based" | "percentage" | "fibonacci"
   is_satisfied?: boolean
   is_triggered?: boolean
   status?: string
@@ -471,6 +472,17 @@ export interface DecisionActionExecutionQuality {
   reason?: string
 }
 
+export interface DecisionActionSelectedLevel {
+  price: number
+  type: string // "support" | "resistance"
+  timeframe: string
+  source: string // "swing_point" | "volume_cluster" | "fibonacci_0.618" | "atr_based"
+  used_for: string // "stop_loss" | "tp1" | "tp2" | "tp3" | "invalidation" | "entry_trigger" | "break_even"
+  basis_type: string // "structural" | "atr_based" | "percentage" | "fibonacci"
+  reason?: string
+  confidence?: number
+}
+
 export interface DecisionActionReviewContext {
   primary_timeframe?: string
   timeframe_context?: {
@@ -481,6 +493,7 @@ export interface DecisionActionReviewContext {
   min_risk_reward?: number
   risk_reward?: DecisionActionRiskRewardSummary
   key_levels?: DecisionActionKeyLevels
+  selected_levels?: DecisionActionSelectedLevel[]
   anchors?: DecisionActionReasonAnchor[]
   protection?: DecisionActionProtectionAlignment
   control?: DecisionActionControlOutcome

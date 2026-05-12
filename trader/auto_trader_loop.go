@@ -977,6 +977,9 @@ func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, 
 			ctx.RiskReward = riskReward
 		}
 		ctx.KeyLevels = compactKeyLevels(ep.KeyLevels)
+		if len(decision.SelectedLevels) > 0 {
+			ctx.SelectedLevels = mapSelectedLevels(decision.SelectedLevels)
+		}
 		if len(ep.Anchors) > 0 {
 			ctx.Anchors = compactReasonAnchors(ep.Anchors)
 		}
@@ -1174,6 +1177,26 @@ func compactReasonAnchors(anchors []kernel.AIEntryProtectionAnchor) []store.Deci
 		}
 	}
 	return compact
+}
+
+func mapSelectedLevels(levels []kernel.AISelectedLevel) []store.DecisionActionSelectedLevel {
+	out := make([]store.DecisionActionSelectedLevel, 0, len(levels))
+	for _, l := range levels {
+		if l.Price <= 0 {
+			continue
+		}
+		out = append(out, store.DecisionActionSelectedLevel{
+			Price:      l.Price,
+			Type:       l.Type,
+			Timeframe:  l.Timeframe,
+			Source:     l.Source,
+			UsedFor:    l.UsedFor,
+			BasisType:  l.BasisType,
+			Reason:     l.Reason,
+			Confidence: l.Confidence,
+		})
+	}
+	return out
 }
 
 func deriveProtectionAlignment(decision *kernel.Decision, snapshot *store.ProtectionSnapshot) *store.DecisionActionProtectionAlignment {
@@ -1571,6 +1594,7 @@ func reviewContextIsEmpty(ctx *store.DecisionActionReviewContext) bool {
 		ctx.MinRiskReward == 0 &&
 		ctx.RiskReward == nil &&
 		ctx.KeyLevels == nil &&
+		len(ctx.SelectedLevels) == 0 &&
 		len(ctx.Anchors) == 0 &&
 		ctx.Protection == nil &&
 		ctx.ExecutionConstraints == nil

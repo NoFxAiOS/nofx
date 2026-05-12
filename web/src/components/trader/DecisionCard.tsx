@@ -1,13 +1,6 @@
 import { useState } from 'react'
 import type { DecisionRecord, DecisionAction } from '../../types'
 import { t, type Language } from '../../i18n/translations'
-import {
-  formatTimeframeTrail,
-  formatCompactLevelList,
-  formatRiskRewardLinkage,
-  formatAlignmentNotes,
-} from './reviewContextSummary'
-import { CompactEntryRationaleBlock } from './CompactEntryRationaleBlock'
 
 interface DecisionCardProps {
   decision: DecisionRecord
@@ -66,18 +59,6 @@ function formatPrice(price: number | undefined): string {
   return price.toFixed(6)
 }
 
-// Calculate percentage change
-function calcPctChange(
-  entry: number | undefined,
-  target: number | undefined,
-  isLong: boolean
-): string {
-  if (!entry || !target || entry === 0) return '-'
-  const pct = ((target - entry) / entry) * 100
-  const adjustedPct = isLong ? pct : -pct
-  return `${adjustedPct >= 0 ? '+' : ''}${adjustedPct.toFixed(2)}%`
-}
-
 // Get confidence color
 function getConfidenceColor(confidence: number | undefined): string {
   if (!confidence) return '#848E9C'
@@ -120,34 +101,7 @@ function toneColors(tone: 'danger' | 'warn' | 'neutral') {
   }
 }
 
-function formatControlCheck(check?: string): string {
-  switch (String(check || '').toLowerCase()) {
-    case 'runtime_rr_below_min':
-      return 'runtime RR below min'
-    case 'protection_alignment_mismatch':
-      return 'protection alignment mismatch'
-    case 'stop_inside_invalidation':
-      return 'stop above invalidation'
-    case 'target_before_first_target':
-      return 'target before first target'
-    case 'break_even_after_target':
-      return 'break-even after target'
-    case 'fallback_inside_invalidation':
-      return 'fallback above invalidation'
-    case 'regime_not_allowed':
-      return 'regime not allowed'
-    case 'funding_above_max':
-      return 'funding above max'
-    case 'atr_above_max':
-      return 'ATR above max'
-    case 'trend_misaligned':
-      return 'trend misaligned'
-    default:
-      return String(check || 'check_failed').replace(/_/g, ' ')
-  }
-}
-
-// Single Action Card Component
+// Single Action Card Component — Layered Design
 function ActionCard({
   action,
   language,
@@ -157,24 +111,61 @@ function ActionCard({
   language: Language
   onSymbolClick?: (symbol: string) => void
 }) {
+  const [showDetails, setShowDetails] = useState(false)
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
-  const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
+  const isClose = action.action.includes('close')
+  const isHoldWait = !isOpen && !isClose
   const control = action.review_context?.control
   const controlStatus = formatControlDecisionLabel(control?.decision)
   const review = action.review_context
-  const support = review?.key_levels?.support || []
-  const resistance = review?.key_levels?.resistance || []
-  const fibLevels = review?.key_levels?.fibonacci?.levels || []
-  const anchors = review?.anchors || []
-  const timeframeTrail = formatTimeframeTrail(review)
-  const rrSummary = formatRiskRewardLinkage(review?.risk_reward, true)
-  const supportSummary = formatCompactLevelList(review?.key_levels?.support)
-  const resistanceSummary = formatCompactLevelList(
-    review?.key_levels?.resistance
-  )
-  const alignmentNotes = formatAlignmentNotes(review, 2)
+  const selectedLevels = review?.selected_levels || []
 
+  // Hold/Wait: compact single-line card
+  if (isHoldWait) {
+    return (
+      <div
+        className="rounded-lg px-3 py-2 flex items-center gap-2"
+        style={{
+          background: '#1A1E23',
+          border: '1px solid #2B3139',
+        }}
+      >
+        <span className="text-sm">{config.icon}</span>
+        <span
+          className="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+          style={{ background: config.bg, color: config.color }}
+        >
+          {config.label}
+        </span>
+        <span
+          className="font-mono text-xs cursor-pointer hover:underline"
+          style={{ color: '#EAECEF' }}
+          onClick={() => onSymbolClick?.(action.symbol)}
+        >
+          {action.symbol.replace('USDT', '')}
+        </span>
+        {action.confidence !== undefined && action.confidence > 0 && (
+          <span className="text-[10px]" style={{ color: '#848E9C' }}>
+            {action.confidence}%
+          </span>
+        )}
+        <span className="flex-1 text-xs truncate" style={{ color: '#848E9C' }}>
+          {action.reasoning}
+        </span>
+        {controlStatus && (
+          <span
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0"
+            style={toneColors(controlStatus.tone)}
+          >
+            {controlStatus.label}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  // Open/Close: layered card
   return (
     <div
       className="rounded-lg p-4 transition-all duration-200 hover:scale-[1.01]"
@@ -184,20 +175,19 @@ function ActionCard({
         boxShadow: `0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.03)`,
       }}
     >
-      {/* Header Row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xl">{config.icon}</span>
+      {/* Layer 1: Core Summary */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{config.icon}</span>
           <span
-            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110"
+            className="font-mono font-bold text-base cursor-pointer hover:scale-110 transition-transform"
             style={{ color: '#EAECEF' }}
             onClick={() => onSymbolClick?.(action.symbol)}
-            title="Click to view chart"
           >
             {action.symbol.replace('USDT', '')}
           </span>
           <span
-            className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+            className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
             style={{
               background: config.bg,
               color: config.color,
@@ -207,159 +197,47 @@ function ActionCard({
             {config.label}
           </span>
         </div>
-
-        {/* Status Badge */}
         <div className="flex items-center gap-2">
           {action.confidence !== undefined && action.confidence > 0 && (
-            <div
-              className="px-2 py-1 rounded text-xs font-semibold"
+            <span
+              className="px-2 py-0.5 rounded text-xs font-semibold"
               style={{
                 background: `${getConfidenceColor(action.confidence)}22`,
                 color: getConfidenceColor(action.confidence),
               }}
             >
-              {action.confidence.toFixed(0)}%
-            </div>
+              {action.confidence}%
+            </span>
           )}
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{ background: action.success ? '#0ECB81' : '#F6465D' }}
-          />
-        </div>
-      </div>
-
-      {/* Trading Details Grid */}
-      {isOpen && (
-        <div
-          className="grid grid-cols-4 gap-3 mt-3 pt-3"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
-          {/* Entry Price */}
-          <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
-              {t('entryPrice', language)}
-            </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#EAECEF' }}
-            >
-              {formatPrice(action.price)}
-            </div>
-          </div>
-
-          {/* Stop Loss */}
-          <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#F6465D' }}>
-              {t('stopLoss', language)}
-            </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#F6465D' }}
-            >
-              {formatPrice(action.stop_loss)}
-            </div>
-            {action.stop_loss && action.price && (
-              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
-                {calcPctChange(action.price, action.stop_loss, isLong)}
-              </div>
-            )}
-          </div>
-
-          {/* Take Profit */}
-          <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#0ECB81' }}>
-              {t('takeProfit', language)}
-            </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#0ECB81' }}
-            >
-              {formatPrice(action.take_profit)}
-            </div>
-            {action.take_profit && action.price && (
-              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
-                {calcPctChange(action.price, action.take_profit, isLong)}
-              </div>
-            )}
-          </div>
-
-          {/* Leverage */}
-          <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
-              {t('leverage', language)}
-            </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#F0B90B' }}
-            >
-              {action.leverage}x
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Risk/Reward Ratio for open positions */}
-      {isOpen && action.stop_loss && action.take_profit && action.price && (
-        <div
-          className="mt-3 pt-3 flex items-center justify-between"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
-          <span className="text-xs" style={{ color: '#848E9C' }}>
-            {t('riskReward', language)}
-          </span>
-          <div className="flex items-center gap-2">
-            {(() => {
+          {/* RR ratio inline */}
+          {isOpen &&
+            action.stop_loss &&
+            action.take_profit &&
+            action.price &&
+            (() => {
               const slDist = Math.abs(action.price - action.stop_loss)
               const tpDist = Math.abs(action.take_profit - action.price)
               const ratio = slDist > 0 ? tpDist / slDist : 0
-              const ratioColor =
-                ratio >= 3 ? '#0ECB81' : ratio >= 2 ? '#F0B90B' : '#F6465D'
               return (
-                <>
-                  <div className="flex gap-1">
-                    <span style={{ color: '#F6465D' }}>1</span>
-                    <span style={{ color: '#848E9C' }}>:</span>
-                    <span style={{ color: '#0ECB81' }}>{ratio.toFixed(1)}</span>
-                  </div>
-                  <div
-                    className="h-1.5 rounded-full"
-                    style={{
-                      width: '60px',
-                      background: '#2B3139',
-                    }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.min((ratio / 5) * 100, 100)}%`,
-                        background: ratioColor,
-                      }}
-                    />
-                  </div>
-                </>
+                <span
+                  className="px-2 py-0.5 rounded text-[10px] font-semibold"
+                  style={{
+                    background:
+                      ratio >= 2
+                        ? 'rgba(14, 203, 129, 0.15)'
+                        : 'rgba(240, 185, 11, 0.15)',
+                    color:
+                      ratio >= 3
+                        ? '#0ECB81'
+                        : ratio >= 2
+                          ? '#F0B90B'
+                          : '#F6465D',
+                  }}
+                >
+                  RR 1:{ratio.toFixed(1)}
+                </span>
               )
             })()}
-          </div>
-        </div>
-      )}
-
-      {/* Reasoning */}
-      {action.reasoning && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
-          <div className="text-xs line-clamp-2" style={{ color: '#848E9C' }}>
-            💡 {action.reasoning}
-          </div>
-        </div>
-      )}
-
-      {/* Compact audit badges */}
-      {(controlStatus ||
-        control?.no_order_placed ||
-        (control?.failed_checks && control.failed_checks.length > 0) ||
-        control?.regime_current ||
-        (control?.regime_allowed && control.regime_allowed.length > 0) ||
-        control?.regime_trend_aligned !== undefined) && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
           {controlStatus && (
             <span
               className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
@@ -368,96 +246,65 @@ function ActionCard({
               {controlStatus.label}
             </span>
           )}
-          {control?.no_order_placed && (
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={toneColors('danger')}
-            >
-              no order placed
-            </span>
-          )}
-          {control?.failed_checks?.slice(0, 4).map((check) => (
-            <span
-              key={check}
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={toneColors('danger')}
-            >
-              failed · {formatControlCheck(check)}
-            </span>
-          ))}
-          {control?.regime_current && (
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={toneColors('warn')}
-            >
-              regime {control.regime_current}
-            </span>
-          )}
-          {control?.regime_allowed?.slice(0, 3).map((regime) => (
-            <span
-              key={`allowed-${regime}`}
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={toneColors('neutral')}
-            >
-              allowed {regime}
-            </span>
-          ))}
-          {control?.regime_trend_aligned !== undefined &&
-            control?.regime_trend_aligned !== null && (
-              <span
-                className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                style={toneColors(
-                  control.regime_trend_aligned ? 'neutral' : 'danger'
-                )}
-              >
-                trend {control.regime_trend_aligned ? 'aligned' : 'misaligned'}
-              </span>
-            )}
-          {control?.regime_atr14_pct ? (
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={toneColors('warn')}
-            >
-              ATR {control.regime_atr14_pct.toFixed(2)}%
-            </span>
-          ) : null}
-          {control?.regime_primary_timeframe ? (
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={toneColors('neutral')}
-            >
-              tf {control.regime_primary_timeframe}
-            </span>
-          ) : null}
+        </div>
+      </div>
+
+      {/* Layer 2: Selected Levels / Structure Basis */}
+      {selectedLevels.length > 0 && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
+          <div className="text-[10px] mb-1.5" style={{ color: '#848E9C' }}>
+            AI Selected Levels
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {selectedLevels.map((level, idx) => {
+              const isSL =
+                level.used_for === 'stop_loss' ||
+                level.used_for === 'invalidation'
+              const isTP =
+                level.used_for.startsWith('tp') ||
+                level.used_for === 'take_profit'
+              const color = isSL ? '#F6465D' : isTP ? '#0ECB81' : '#F0B90B'
+              const basisIcon =
+                level.basis_type === 'structural'
+                  ? '🎯'
+                  : level.basis_type === 'atr_based'
+                    ? '📐'
+                    : level.basis_type === 'fibonacci'
+                      ? '🌀'
+                      : '📊'
+              return (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px]"
+                  style={{
+                    background: `${color}15`,
+                    border: `1px solid ${color}30`,
+                    color,
+                  }}
+                  title={level.reason || ''}
+                >
+                  {basisIcon} {level.used_for}: {formatPrice(level.price)}
+                  {level.timeframe && (
+                    <span style={{ color: '#848E9C' }}>
+                      {' '}
+                      ({level.timeframe})
+                    </span>
+                  )}
+                </span>
+              )
+            })}
+          </div>
         </div>
       )}
 
-      {/* Compact structure summary */}
-      {(review?.timeframe_context?.primary ||
-        support.length > 0 ||
-        resistance.length > 0 ||
-        fibLevels.length > 0 ||
-        anchors.length > 0) && (
-        <div
-          className="mt-3 pt-3 space-y-2"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
-          <div className="text-[11px]" style={{ color: '#848E9C' }}>
-            structure audit
-          </div>
+      {/* Fallback: show key_levels if no selected_levels (old data) */}
+      {selectedLevels.length === 0 && review?.key_levels && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
           <div className="flex flex-wrap gap-1.5 text-[10px]">
-            {review?.timeframe_context?.primary && (
-              <span
-                className="inline-flex items-center rounded-full px-2 py-0.5"
-                style={toneColors('neutral')}
-              >
-                tf {review.timeframe_context.primary}
-              </span>
-            )}
-            {support.slice(0, 2).map((level) => (
+            {(review.key_levels.support || []).slice(0, 2).map((level) => (
               <span
                 key={`s-${level}`}
-                className="inline-flex items-center rounded-full px-2 py-0.5"
+                className="inline-flex items-center rounded px-2 py-0.5"
                 style={{
                   border: '1px solid rgba(14, 203, 129, 0.25)',
                   background: 'rgba(14, 203, 129, 0.12)',
@@ -467,10 +314,10 @@ function ActionCard({
                 S {formatPrice(level)}
               </span>
             ))}
-            {resistance.slice(0, 2).map((level) => (
+            {(review.key_levels.resistance || []).slice(0, 2).map((level) => (
               <span
                 key={`r-${level}`}
-                className="inline-flex items-center rounded-full px-2 py-0.5"
+                className="inline-flex items-center rounded px-2 py-0.5"
                 style={{
                   border: '1px solid rgba(246, 70, 93, 0.25)',
                   background: 'rgba(246, 70, 93, 0.12)',
@@ -480,133 +327,168 @@ function ActionCard({
                 R {formatPrice(level)}
               </span>
             ))}
-            {fibLevels.length > 0 && (
-              <span
-                className="inline-flex items-center rounded-full px-2 py-0.5"
-                style={{
-                  border: '1px solid rgba(168, 85, 247, 0.25)',
-                  background: 'rgba(168, 85, 247, 0.12)',
-                  color: '#D8B4FE',
-                }}
-              >
-                fib {fibLevels.length} levels
-              </span>
-            )}
-            {anchors.length > 0 && (
-              <span
-                className="inline-flex items-center rounded-full px-2 py-0.5"
-                style={toneColors('neutral')}
-              >
-                anchors {anchors.length}
-              </span>
-            )}
           </div>
         </div>
       )}
 
-      {/* Entry rationale summary */}
-      <CompactEntryRationaleBlock
-        language={language}
-        timeframeTrail={timeframeTrail}
-        rrSummary={rrSummary}
-        supportSummary={supportSummary}
-        resistanceSummary={resistanceSummary}
-        fibLevels={fibLevels}
-        anchors={anchors}
-        alignmentNotes={alignmentNotes}
-        toneColors={toneColors}
-      />
-
-      {/* Gate Attribution — detailed check-by-check breakdown */}
-      {action.error && (
-        <div
-          className="mt-3 rounded p-2 text-xs"
-          style={{
-            background: 'rgba(246, 70, 93, 0.1)',
-            border: '1px solid rgba(246, 70, 93, 0.3)',
-            color: '#F6465D',
-          }}
-        >
-          ❌ {action.error}
-          {review?.quality_gate?.gate_checks &&
-          review.quality_gate.gate_checks.length > 0 ? (
-            <div className="mt-2 space-y-1" style={{ color: '#e0e0e0' }}>
-              {review.quality_gate.blocked_stage && (
-                <div style={{ color: '#F6465D', fontWeight: 600 }}>
-                  blocked at stage: {review.quality_gate.blocked_stage}
-                </div>
-              )}
-              {review.quality_gate.gate_checks.map((gc, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    color: gc.passed
-                      ? '#6b7280'
-                      : gc.enforced
-                        ? '#F6465D'
-                        : '#f59e0b',
-                    paddingLeft: '0.5rem',
-                    borderLeft: gc.passed
-                      ? '2px solid #374151'
-                      : gc.enforced
-                        ? '2px solid #F6465D'
-                        : '2px solid #f59e0b',
-                  }}
-                >
-                  <span style={{ fontWeight: 500 }}>
-                    {gc.passed ? '✓' : gc.enforced ? '✗' : '⚠'} {gc.code}
-                  </span>
-                  {!gc.passed && !gc.enforced && (
-                    <span style={{ color: '#9ca3af' }}> (shadow)</span>
-                  )}
-                  {gc.detail && (
-                    <div
-                      style={{
-                        color: gc.passed ? '#6b7280' : '#d1d5db',
-                        paddingLeft: '0.75rem',
-                      }}
-                    >
-                      {gc.detail}
-                    </div>
-                  )}
-                  {gc.values && !gc.passed && (
-                    <div
-                      style={{
-                        color: '#9ca3af',
-                        paddingLeft: '0.75rem',
-                        fontFamily: 'monospace',
-                        fontSize: '10px',
-                      }}
-                    >
-                      {gc.values}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : control ? (
-            <div className="mt-2 space-y-1" style={{ color: '#FCD5DA' }}>
-              {control.failed_checks && control.failed_checks.length > 0 && (
-                <div>checks: {control.failed_checks.join(', ')}</div>
-              )}
-              {control.reasons && control.reasons.length > 0 && (
-                <div>reason: {control.reasons.join(' | ')}</div>
-              )}
-              {(control.regime_current ||
-                (control.regime_allowed &&
-                  control.regime_allowed.length > 0)) && (
-                <div>
-                  regime: {control.regime_current || '-'}
-                  {control.regime_allowed && control.regime_allowed.length > 0
-                    ? ` | allowed: ${control.regime_allowed.join(', ')}`
-                    : ''}
-                </div>
-              )}
-              {control.no_order_placed && <div>no order placed</div>}
-            </div>
-          ) : null}
+      {/* Reasoning (always visible for open/close) */}
+      {action.reasoning && (
+        <div className="mt-2 text-xs" style={{ color: '#848E9C' }}>
+          {action.reasoning}
         </div>
       )}
+
+      {/* Layer 3: Expandable Details */}
+      <div className="mt-3 pt-2" style={{ borderTop: '1px solid #2B3139' }}>
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="text-[10px] font-medium transition-colors hover:opacity-80"
+          style={{ color: '#848E9C' }}
+        >
+          {showDetails ? '▼ Hide details' : '▶ Trading details & audit'}
+        </button>
+
+        {showDetails && (
+          <div className="mt-2 space-y-3">
+            {/* Trading Details */}
+            {isOpen && (
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div>
+                  <div className="text-[10px]" style={{ color: '#848E9C' }}>
+                    {t('entryPrice', language)}
+                  </div>
+                  <div
+                    className="font-mono text-xs font-semibold"
+                    style={{ color: '#EAECEF' }}
+                  >
+                    {formatPrice(action.price)}
+                  </div>
+                </div>
+                {action.stop_loss && (
+                  <div>
+                    <div className="text-[10px]" style={{ color: '#848E9C' }}>
+                      SL
+                    </div>
+                    <div
+                      className="font-mono text-xs font-semibold"
+                      style={{ color: '#F6465D' }}
+                    >
+                      {formatPrice(action.stop_loss)}
+                    </div>
+                  </div>
+                )}
+                {action.take_profit && (
+                  <div>
+                    <div className="text-[10px]" style={{ color: '#848E9C' }}>
+                      TP
+                    </div>
+                    <div
+                      className="font-mono text-xs font-semibold"
+                      style={{ color: '#0ECB81' }}
+                    >
+                      {formatPrice(action.take_profit)}
+                    </div>
+                  </div>
+                )}
+                {action.leverage > 0 && (
+                  <div>
+                    <div className="text-[10px]" style={{ color: '#848E9C' }}>
+                      {t('leverage', language)}
+                    </div>
+                    <div
+                      className="font-mono text-xs font-semibold"
+                      style={{ color: '#F0B90B' }}
+                    >
+                      {action.leverage}x
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Protection Plan Summary */}
+            {review?.protection && (
+              <div
+                className="text-[10px] space-y-1"
+                style={{ color: '#9CA3AF' }}
+              >
+                <div className="flex flex-wrap gap-1.5">
+                  {review.protection.stop_beyond_invalidation && (
+                    <span style={{ color: '#0ECB81' }}>
+                      SL beyond invalidation
+                    </span>
+                  )}
+                  {review.protection.target_aligned && (
+                    <span style={{ color: '#0ECB81' }}>TP aligned</span>
+                  )}
+                  {review.protection.policy_status && (
+                    <span>{review.protection.policy_status}</span>
+                  )}
+                </div>
+                {review.protection.notes &&
+                  review.protection.notes.length > 0 && (
+                    <div>{review.protection.notes.slice(0, 2).join(' | ')}</div>
+                  )}
+              </div>
+            )}
+
+            {/* Gate Attribution (only for rejected/downgraded) */}
+            {review?.quality_gate && !review.quality_gate.passed && (
+              <div
+                className="rounded p-2"
+                style={{
+                  background: 'rgba(246, 70, 93, 0.08)',
+                  border: '1px solid rgba(246, 70, 93, 0.2)',
+                }}
+              >
+                <div
+                  className="text-[10px] font-medium mb-1"
+                  style={{ color: '#F6465D' }}
+                >
+                  Gate: {review.quality_gate.decision || 'blocked'}
+                  {review.quality_gate.blocked_stage &&
+                    ` @ ${review.quality_gate.blocked_stage}`}
+                </div>
+                {review.quality_gate.gate_checks && (
+                  <div className="space-y-0.5">
+                    {review.quality_gate.gate_checks
+                      .filter((gc) => !gc.passed)
+                      .slice(0, 4)
+                      .map((gc, i) => (
+                        <div
+                          key={i}
+                          className="text-[10px]"
+                          style={{ color: '#FDA4AF' }}
+                        >
+                          {gc.enforced ? '✗' : '⚠'} {gc.code}
+                          {gc.detail ? `: ${gc.detail}` : ''}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Control outcome details (only if not already shown via gate) */}
+            {control && !review?.quality_gate && (
+              <div
+                className="text-[10px] space-y-0.5"
+                style={{ color: '#9CA3AF' }}
+              >
+                {control.failed_checks && control.failed_checks.length > 0 && (
+                  <div>Checks: {control.failed_checks.join(', ')}</div>
+                )}
+                {control.reasons && control.reasons.length > 0 && (
+                  <div>Reason: {control.reasons.join(' | ')}</div>
+                )}
+                {control.regime_current && (
+                  <div>Regime: {control.regime_current}</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

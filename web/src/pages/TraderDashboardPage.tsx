@@ -155,6 +155,7 @@ export function TraderDashboardPage({
   exchanges,
 }: TraderDashboardPageProps) {
   const [closingPosition, setClosingPosition] = useState<string | null>(null)
+  const [showOnlyActionable, setShowOnlyActionable] = useState(true)
   const [selectedChartSymbol, setSelectedChartSymbol] = useState<
     string | undefined
   >(undefined)
@@ -1220,6 +1221,27 @@ export function TraderDashboardPage({
                   </div>
                 )}
               </div>
+              {/* Filter Toggle */}
+              <button
+                onClick={() => setShowOnlyActionable(!showOnlyActionable)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border"
+                style={{
+                  background: showOnlyActionable
+                    ? 'rgba(99, 102, 241, 0.15)'
+                    : 'rgba(0,0,0,0.3)',
+                  color: showOnlyActionable ? '#818CF8' : '#848E9C',
+                  borderColor: showOnlyActionable
+                    ? 'rgba(99, 102, 241, 0.3)'
+                    : 'rgba(255,255,255,0.1)',
+                }}
+                title={
+                  showOnlyActionable
+                    ? 'Showing actionable decisions only'
+                    : 'Showing all decisions'
+                }
+              >
+                {showOnlyActionable ? '⚡ Key' : '📋 All'}
+              </button>
               {/* Limit Selector */}
               <select
                 value={decisionsLimit}
@@ -1239,26 +1261,40 @@ export function TraderDashboardPage({
               className="space-y-4 overflow-y-auto pr-2 custom-scrollbar"
               style={{ maxHeight: 'calc(100vh - 280px)' }}
             >
-              {decisions && decisions.length > 0 ? (
-                decisions.map((decision, i) => (
-                  <DecisionCard
-                    key={i}
-                    decision={decision}
-                    language={language}
-                    onSymbolClick={handleSymbolClick}
-                  />
-                ))
-              ) : (
-                <div className="py-16 text-center text-nofx-text-muted opacity-60">
-                  <div className="text-6xl mb-4 opacity-30 grayscale">🧠</div>
-                  <div className="text-lg font-semibold mb-2 text-nofx-text-main">
-                    {t('noDecisionsYet', language)}
+              {(() => {
+                const filteredDecisions = showOnlyActionable
+                  ? (decisions || []).filter((d) =>
+                      d.decisions?.some(
+                        (a) =>
+                          a.action.includes('open') ||
+                          a.action.includes('close') ||
+                          a.review_context?.control?.decision === 'rejected' ||
+                          a.review_context?.control?.decision ===
+                            'downgraded_to_wait'
+                      )
+                    )
+                  : decisions || []
+                return filteredDecisions.length > 0 ? (
+                  filteredDecisions.map((decision, i) => (
+                    <DecisionCard
+                      key={i}
+                      decision={decision}
+                      language={language}
+                      onSymbolClick={handleSymbolClick}
+                    />
+                  ))
+                ) : (
+                  <div className="py-16 text-center text-nofx-text-muted opacity-60">
+                    <div className="text-6xl mb-4 opacity-30 grayscale">🧠</div>
+                    <div className="text-lg font-semibold mb-2 text-nofx-text-main">
+                      {t('noDecisionsYet', language)}
+                    </div>
+                    <div className="text-sm">
+                      {t('aiDecisionsWillAppear', language)}
+                    </div>
                   </div>
-                  <div className="text-sm">
-                    {t('aiDecisionsWillAppear', language)}
-                  </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           </div>
         </div>

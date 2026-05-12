@@ -33,6 +33,7 @@ type UnifiedRow = {
   tierMaxDD?: number
   tierRunnerKeep?: number
   anchorInfo?: string
+  basisType?: string // "structural" | "atr_based" | "percentage" | "fibonacci"
 }
 
 function normalizeSide(side?: string): string {
@@ -231,6 +232,8 @@ function buildUnifiedRows(
         anchorPrice > 0
           ? `${tf} ${compactSourceLabel(anchorType, language)} ${formatPrice(anchorPrice)}`
           : undefined,
+      basisType:
+        tier.basis_type || (anchorPrice > 0 ? 'structural' : undefined),
     })
   }
 
@@ -626,9 +629,32 @@ export function PositionProtectionPanel({
                               {row.status}
                             </td>
                             <td
-                              className="py-0.5 pl-1 text-nofx-text-muted truncate max-w-[120px]"
+                              className="py-0.5 pl-1 text-nofx-text-muted truncate max-w-[140px]"
                               title={row.anchorInfo || ''}
                             >
+                              {row.basisType && (
+                                <span
+                                  className="inline-block mr-1 text-[9px]"
+                                  style={{
+                                    color:
+                                      row.basisType === 'structural'
+                                        ? '#60A5FA'
+                                        : row.basisType === 'atr_based'
+                                          ? '#F59E0B'
+                                          : row.basisType === 'fibonacci'
+                                            ? '#A78BFA'
+                                            : '#9CA3AF',
+                                  }}
+                                >
+                                  {row.basisType === 'structural'
+                                    ? '🎯'
+                                    : row.basisType === 'atr_based'
+                                      ? '📐'
+                                      : row.basisType === 'fibonacci'
+                                        ? '🌀'
+                                        : '📊'}
+                                </span>
+                              )}
                               {row.anchorInfo || '—'}
                             </td>
                           </tr>

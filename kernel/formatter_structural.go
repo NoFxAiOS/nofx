@@ -126,58 +126,114 @@ func formatSentimentDataEN(mdata *market.Data, indicators ...store.IndicatorConf
 	return sb.String()
 }
 
-// formatStructuralLevelsZH formats structural levels (Chinese)
+// formatStructuralLevelsZH formats structural levels (Chinese) — evaluated version
 func formatStructuralLevelsZH(mdata *market.Data) string {
-	return formatStructuralLevels(mdata, true)
+	return formatStructuralLevelsEvaluated(mdata, true)
 }
 
-// formatStructuralLevelsEN formats structural levels (English)
+// formatStructuralLevelsEN formats structural levels (English) — evaluated version
 func formatStructuralLevelsEN(mdata *market.Data) string {
-	return formatStructuralLevels(mdata, false)
+	return formatStructuralLevelsEvaluated(mdata, false)
 }
 
-func formatStructuralLevels(mdata *market.Data, zh bool) string {
+// formatStructuralLevelsEvaluated formats structural levels grouped by trading usage
+func formatStructuralLevelsEvaluated(mdata *market.Data, zh bool) string {
 	if len(mdata.StructuralLevels) == 0 && mdata.FibonacciLevels == nil {
 		return ""
 	}
 
+	// Get ATR14 from primary timeframe data
+	atr14 := extractPrimaryATR14(mdata)
+	currentPrice := mdata.CurrentPrice
+
+	// Evaluate levels for trading context (direction unknown at prompt time)
+	evaluated := market.EvaluateForTrading(mdata.StructuralLevels, currentPrice, atr14, "")
+	groups := market.GroupByUsage(evaluated)
+
 	var sb strings.Builder
 
 	if zh {
-		sb.WriteString("**关键结构性价位** (自动检测, 机器可读摘要; 请结合自身分析验证):\n")
+		sb.WriteString("**关键结构性价位** (按交易用途分组评估):\n")
 	} else {
-		sb.WriteString("**Key Structural Levels** (auto-detected, machine-readable summary; verify with your analysis):\n")
+		sb.WriteString("**Key Structural Levels** (grouped by trading usage):\n")
 	}
 
-	if len(mdata.StructuralLevels) > 0 {
-		var supports, resistances []market.StructuralLevel
-		for _, l := range mdata.StructuralLevels {
-			if l.Type == "support" {
-				supports = append(supports, l)
-			} else {
-				resistances = append(resistances, l)
-			}
-		}
+	// ATR context line
+	if atr14 > 0 {
+		atrPct := (atr14 / currentPrice) * 100
+		sb.WriteString(fmt.Sprintf("- context: current_price=%s atr14=%s (%.2f%%)\n\n",
+			formatAIFloat(currentPrice), formatAIFloat(atr14), atrPct))
+	}
 
-		if len(supports) > 0 {
-			sort.Slice(supports, func(i, j int) bool { return supports[i].Price > supports[j].Price })
-			label := "support_levels"
-			if zh {
-				label = "support_levels_支撑"
-			}
-			sb.WriteString(formatStructuralLevelRows(label, supports, zh))
+	// SL Candidates
+	slGroup := groups["sl_anchor"]
+	if len(slGroup) > 0 {
+		limit := 4
+		if len(slGroup) < limit {
+			limit = len(slGroup)
 		}
-
-		if len(resistances) > 0 {
-			sort.Slice(resistances, func(i, j int) bool { return resistances[i].Price < resistances[j].Price })
-			label := "resistance_levels"
-			if zh {
-				label = "resistance_levels_阻力"
-			}
-			sb.WriteString(formatStructuralLevelRows(label, resistances, zh))
+		label := "[SL Candidates]"
+		if zh {
+			label = "[止损锚点候选]"
+		}
+		sb.WriteString(fmt.Sprintf("- %s:\n", label))
+		for _, l := range slGroup[:limit] {
+			sb.WriteString(formatEvaluatedLevelRow(l, zh))
 		}
 	}
 
+	// TP Candidates
+	tpGroup := groups["tp_target"]
+	if len(tpGroup) > 0 {
+		limit := 4
+		if len(tpGroup) < limit {
+			limit = len(tpGroup)
+		}
+		label := "[TP Candidates]"
+		if zh {
+			label = "[止盈目标候选]"
+		}
+		sb.WriteString(fmt.Sprintf("- %s:\n", label))
+		for _, l := range tpGroup[:limit] {
+			sb.WriteString(formatEvaluatedLevelRow(l, zh))
+		}
+	}
+
+	// Entry Triggers
+	entryGroup := groups["entry_trigger"]
+	if len(entryGroup) > 0 {
+		limit := 2
+		if len(entryGroup) < limit {
+			limit = len(entryGroup)
+		}
+		label := "[Entry Triggers]"
+		if zh {
+			label = "[入场触发位]"
+		}
+		sb.WriteString(fmt.Sprintf("- %s:\n", label))
+		for _, l := range entryGroup[:limit] {
+			sb.WriteString(formatEvaluatedLevelRow(l, zh))
+		}
+	}
+
+	// Context Only (max 3, only if there are few actionable levels)
+	ctxGroup := groups["context_only"]
+	if len(ctxGroup) > 0 && (len(slGroup)+len(tpGroup)+len(entryGroup)) < 4 {
+		limit := 3
+		if len(ctxGroup) < limit {
+			limit = len(ctxGroup)
+		}
+		label := "[Context Only]"
+		if zh {
+			label = "[仅供参考]"
+		}
+		sb.WriteString(fmt.Sprintf("- %s:\n", label))
+		for _, l := range ctxGroup[:limit] {
+			sb.WriteString(formatEvaluatedLevelRow(l, zh))
+		}
+	}
+
+	// Fibonacci context
 	if mdata.FibonacciLevels != nil {
 		fib := mdata.FibonacciLevels
 		dir := fib.Direction
@@ -195,39 +251,70 @@ func formatStructuralLevels(mdata *market.Data, zh bool) string {
 		}
 	}
 
-	if zh {
-		sb.WriteString("⚠️ 以上价位为自动计算、无千分位逗号的机器可读格式；请交叉验证，不要把相邻价位合并成一个数字。\n\n")
-	} else {
-		sb.WriteString("⚠️ These levels are auto-calculated in machine-readable format without thousands separators; cross-validate and never merge adjacent levels into one number.\n\n")
+	// Quality advisory
+	hasSL := market.HasHighQualitySLCandidates(evaluated)
+	hasTP := market.HasHighQualityTPCandidates(evaluated)
+	if !hasSL || !hasTP {
+		sb.WriteString("\n")
+		if zh {
+			if !hasSL {
+				sb.WriteString("⚠️ 无高质量止损锚点 — 可使用 ATR-based 止损 (建议 1.5-2x ATR)。\n")
+			}
+			if !hasTP {
+				sb.WriteString("⚠️ 无高质量止盈目标 — 可使用 ATR-based 目标或固定 RR 比。\n")
+			}
+		} else {
+			if !hasSL {
+				sb.WriteString("⚠️ No high-quality SL anchors — use ATR-based stop (suggested 1.5-2x ATR from entry).\n")
+			}
+			if !hasTP {
+				sb.WriteString("⚠️ No high-quality TP targets — use ATR-based target or fixed RR ratio.\n")
+			}
+		}
 	}
+
+	sb.WriteString("\n")
 	return sb.String()
 }
 
-func formatStructuralLevelRows(label string, levels []market.StructuralLevel, zh bool) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("- %s:\n", label))
-	for i, level := range levels {
-		source := level.Source
-		if zh {
-			source = translateSource(level.Source, true)
-		}
-		extra := ""
-		if level.Confidence > 0 {
-			extra += fmt.Sprintf(" conf=%.0f", level.Confidence)
-		}
-		if level.VolumeScore > 0 {
-			extra += fmt.Sprintf(" vol=%.0f%%", level.VolumeScore*100)
-		}
-		if level.MultiTFCount > 0 {
-			extra += fmt.Sprintf(" mtf=%d", level.MultiTFCount)
-		}
-		if level.TouchCount > 0 {
-			extra += fmt.Sprintf(" touches=%d", level.TouchCount)
-		}
-		sb.WriteString(fmt.Sprintf("  - level_%d_price=%s timeframe=%s source=%s strength=%d%s\n", i+1, formatAIFloat(level.Price), level.Timeframe, source, level.Strength, extra))
+func formatEvaluatedLevelRow(l market.EvaluatedLevel, zh bool) string {
+	source := l.Source
+	if zh {
+		source = translateSource(l.Source, true)
 	}
-	return sb.String()
+	return fmt.Sprintf("  - price=%s tf=%s source=%s conf=%.0f atr_dist=%.1f quality=%s",
+		formatAIFloat(l.Price), l.Timeframe, source, l.Confidence, l.ATRDistance, l.QualityGrade) +
+		formatEvaluatedLevelExtra(l) + "\n"
 }
+
+func formatEvaluatedLevelExtra(l market.EvaluatedLevel) string {
+	var parts []string
+	if l.MultiTFCount > 0 {
+		parts = append(parts, fmt.Sprintf("mtf=%d", l.MultiTFCount))
+	}
+	if l.TouchCount > 1 {
+		parts = append(parts, fmt.Sprintf("touches=%d", l.TouchCount))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " " + strings.Join(parts, " ")
+}
+
+// extractPrimaryATR14 gets ATR14 from the best available timeframe in market data
+func extractPrimaryATR14(mdata *market.Data) float64 {
+	if mdata.TimeframeData == nil {
+		return 0
+	}
+	// Prefer 15m > 5m > 1h as primary ATR reference
+	for _, tf := range []string{"15m", "5m", "1h", "3m", "4h"} {
+		if series, ok := mdata.TimeframeData[tf]; ok && series.ATR14 > 0 {
+			return series.ATR14
+		}
+	}
+	return 0
+}
+
 
 func formatAIFloat(v float64) string {
 	s := fmt.Sprintf("%.8f", v)

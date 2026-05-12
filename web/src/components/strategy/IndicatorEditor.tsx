@@ -6,6 +6,14 @@ import { NofxSelect } from '../ui/select'
 // Default NofxOS API Key
 const DEFAULT_NOFXOS_API_KEY = 'cm_568c67eae410d912c54c'
 
+const adanosSourceOptions = [
+  { value: 'reddit_crypto', label: 'Reddit Crypto' },
+  { value: 'reddit_stocks', label: 'Reddit Stocks' },
+  { value: 'x_stocks', label: 'X Stocks' },
+  { value: 'news_stocks', label: 'News Stocks' },
+  { value: 'polymarket_stocks', label: 'Polymarket Stocks' },
+]
+
 interface IndicatorEditorProps {
   config: IndicatorConfig
   onChange: (config: IndicatorConfig) => void
@@ -117,6 +125,7 @@ export function IndicatorEditor({
   // Check if any NofxOS feature is enabled
   const hasNofxosEnabled = config.enable_quant_data || config.enable_oi_ranking || config.enable_netflow_ranking || config.enable_price_ranking
   const hasApiKey = !!config.nofxos_api_key
+  const hasAdanosApiKey = !!config.adanos_api_key
 
   return (
     <div className="space-y-5">
@@ -683,6 +692,114 @@ export function IndicatorEditor({
                 <p className="text-[10px]" style={{ color: '#5E6673' }}>{ts(indicator[desc as keyof typeof indicator], language)}</p>
               </div>
             ))}
+          </div>
+
+          <div
+            className="mt-3 p-3 rounded-lg transition-all"
+            style={{
+              background: config.enable_adanos_sentiment ? 'rgba(14, 203, 129, 0.08)' : 'rgba(30, 35, 41, 0.45)',
+              border: config.enable_adanos_sentiment ? '1px solid rgba(14, 203, 129, 0.30)' : '1px solid rgba(43, 49, 57, 0.65)',
+              opacity: disabled ? 0.5 : 1,
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: '#0ECB81' }} />
+                  <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.adanosSentiment, language)}</span>
+                  <a
+                    href="https://api.adanos.org/docs/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] transition-colors"
+                    style={{ color: '#0ECB81' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {ts(indicator.adanosDocs, language)}
+                  </a>
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.adanosSentimentDesc, language)}</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={config.enable_adanos_sentiment || false}
+                onChange={(e) => !disabled && onChange({
+                  ...config,
+                  enable_adanos_sentiment: e.target.checked,
+                  ...(e.target.checked && !config.adanos_source ? { adanos_source: 'reddit_crypto' } : {}),
+                  ...(e.target.checked && !config.adanos_days ? { adanos_days: 7 } : {}),
+                  ...(e.target.checked && !config.adanos_max_symbols ? { adanos_max_symbols: 10 } : {}),
+                })}
+                disabled={disabled}
+                className="w-4 h-4 rounded accent-emerald-500"
+              />
+            </div>
+
+            {config.enable_adanos_sentiment && (
+              <div className="mt-3 space-y-2">
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#848E9C' }} />
+                  <input
+                    type="password"
+                    value={config.adanos_api_key || ''}
+                    onChange={(e) => !disabled && onChange({ ...config, adanos_api_key: e.target.value })}
+                    disabled={disabled}
+                    placeholder={ts(indicator.adanosApiKeyPlaceholder, language)}
+                    className="w-full pl-8 pr-3 py-2 rounded text-xs font-mono"
+                    style={{
+                      background: '#1E2329',
+                      border: hasAdanosApiKey ? '1px solid rgba(14, 203, 129, 0.3)' : '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="min-w-0">
+                    <span className="block text-[10px] mb-1" style={{ color: '#848E9C' }}>{ts(indicator.adanosSource, language)}</span>
+                    <NofxSelect
+                      value={config.adanos_source || 'reddit_crypto'}
+                      onChange={(val) => !disabled && onChange({ ...config, adanos_source: val as IndicatorConfig['adanos_source'] })}
+                      options={adanosSourceOptions}
+                      disabled={disabled}
+                      className="px-2 py-1.5 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className="block text-[10px] mb-1" style={{ color: '#848E9C' }}>{ts(indicator.adanosDays, language)}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={config.adanos_days || 7}
+                      onChange={(e) => !disabled && onChange({ ...config, adanos_days: Math.max(1, Math.min(30, parseInt(e.target.value) || 7)) })}
+                      disabled={disabled}
+                      className="w-full px-2 py-1.5 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className="block text-[10px] mb-1" style={{ color: '#848E9C' }}>{ts(indicator.adanosMaxSymbols, language)}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={config.adanos_max_symbols || 10}
+                      onChange={(e) => !disabled && onChange({ ...config, adanos_max_symbols: Math.max(1, Math.min(10, parseInt(e.target.value) || 10)) })}
+                      disabled={disabled}
+                      className="w-full px-2 py-1.5 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    />
+                  </label>
+                </div>
+
+                {!hasAdanosApiKey && (
+                  <p className="text-[10px]" style={{ color: '#848E9C' }}>{ts(indicator.adanosApiKeyEnvFallback, language)}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

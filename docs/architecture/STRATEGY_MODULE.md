@@ -228,6 +228,7 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 | **Volume** | `EnableVolume` | Raw volume data |
 | **OI** | `EnableOI` | Open interest data |
 | **Funding Rate** | `EnableFundingRate` | Funding rate |
+| **Adanos Market Sentiment** | `EnableAdanosSentiment` | Optional social, news, and prediction-market sentiment enrichment |
 
 ### 2.5 Quant Data (Optional)
 
@@ -255,6 +256,26 @@ QuantData {
     }
 }
 ```
+
+### 2.6 Adanos Market Sentiment (Optional)
+
+Adanos is a disabled-by-default external sentiment source. When `EnableAdanosSentiment`
+is true, the strategy engine enriches selected symbols with Adanos sentiment before
+building the AI prompt. It never blocks trading decisions: missing credentials, HTTP
+errors, or empty responses are logged and skipped.
+
+```go
+Indicators: IndicatorConfig{
+    EnableAdanosSentiment: true,
+    AdanosAPIKey:          "...", // optional; falls back to ADANOS_API_KEY
+    AdanosSource:          "reddit_crypto",
+    AdanosDays:            7,
+    AdanosMaxSymbols:      10,
+}
+```
+
+Supported sources are `reddit_crypto`, `reddit_stocks`, `x_stocks`, `news_stocks`,
+and `polymarket_stocks`. See the Adanos API docs at https://api.adanos.org/docs/.
 
 ---
 

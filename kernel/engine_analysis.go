@@ -101,6 +101,10 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		}
 	}
 
+	if ctx.AdanosSentimentMap == nil {
+		ctx.AdanosSentimentMap = engine.FetchAdanosSentimentForContext(ctx)
+	}
+
 	// 2. Build System Prompt using strategy engine
 	riskConfig := engine.GetRiskControlConfig()
 	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, variant)

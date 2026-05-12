@@ -448,3 +448,61 @@ func (at *AutoTrader) computeRemainingQuantityForBE(symbol, side string) float64
 	}
 	return remaining
 }
+
+// isDrawdownTierExecuted checks if the tier matching the given rule has already been
+// executed (trailing order filled). Matches by MinProfitPct and MaxDrawdownPct.
+func (at *AutoTrader) isDrawdownTierExecuted(symbol, side string, rule store.DrawdownTakeProfitRule) bool {
+	allocs := at.getDrawdownTierAllocs(symbol, side)
+	for _, a := range allocs {
+		if a.MinProfitPct == rule.MinProfitPct && a.MaxDrawdownPct == rule.MaxDrawdownPct && a.Status == "executed" {
+			return true
+		}
+	}
+	return false
+}
+
+// detectNativeTrailingFills detects when a native trailing order has been filled
+// by comparing current position quantity against expected remaining quantity from tier allocs.
+// If position is smaller than expected, mark the highest "tracking" tier as executed.
+func (at *AutoTrader) detectNativeTrailingFills(symbol, side string, currentQuantity float64) {
+	key := positionKey(symbol, side)
+	at.drawdownTierAllocMu.Lock()
+	defer at.drawdownTierAllocMu.Unlock()
+
+	allocs := at.drawdownTierAllocs[key]
+	if len(allocs) == 0 {
+		return
+	}
+
+	// Compute expected remaining quantity (sum of non-executed tiers)
+	expectedRemaining := 0.0
+	for _, a := range allocs {
+		if a.Status != "executed" && a.Status != "be_covered" {
+			expectedRemaining += math.Abs(a.Quantity)
+		}
+	}
+
+	if expectedRemaining <= 0 {
+		return
+	}
+
+	// If current quantity is significantly less than expected, a tier was filled
+	// Use 5% tolerance to account for rounding
+	deficit := expectedRemaining - currentQuantity
+	if deficit <= expectedRemaining*0.05 {
+		return
+	}
+
+	// Find the highest-index "tracking" tier and mark it as executed
+	for i := len(allocs) - 1; i >= 0; i-- {
+		if allocs[i].Status == "tracking" {
+			tierQty := math.Abs(allocs[i].Quantity)
+			if deficit >= tierQty*0.5 {
+				allocs[i].Status = "executed"
+				logger.Infof("✅ Drawdown %s detected as filled (native trailing): %s %s | position=%.4f expected=%.4f deficit=%.4f",
+					allocs[i].StageName, symbol, side, currentQuantity, expectedRemaining, deficit)
+				return
+			}
+		}
+	}
+}

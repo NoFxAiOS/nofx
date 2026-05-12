@@ -171,7 +171,9 @@ func (at *AutoTrader) checkPositionDrawdown() {
 				if beQuantity <= 0 {
 					beQuantity = quantity
 				}
-				if err := at.applyBreakEvenStops(symbol, side, beQuantity, entryPrice, currentPnLPct, matchedBreakEvenRules); err != nil {
+				// Convert r_multiple rules to profit_pct equivalent
+				resolvedRules := resolveBreakEvenRulesForPosition(matchedBreakEvenRules, entryPrice, symbol, side, at)
+				if err := at.applyBreakEvenStops(symbol, side, beQuantity, entryPrice, currentPnLPct, resolvedRules); err != nil {
 					logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
 				}
 			}
@@ -203,7 +205,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		// Initialize tier allocations if not set yet (e.g. position opened before this code deployed)
 		allocs := at.getDrawdownTierAllocs(symbol, side)
 		if len(allocs) == 0 {
-			at.initDrawdownTiersForPosition(symbol, side, quantity, rules)
+			at.initDrawdownTiersFromResolvedRules(symbol, side, quantity, rules)
 			allocs = at.getDrawdownTierAllocs(symbol, side)
 		}
 
@@ -211,6 +213,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			// Update tier states (tracking/superseded) based on current P&L — needed for
 			// high-water-mark even when native trailing handles the actual exchange orders.
 			at.updateDrawdownTierStates(symbol, side, currentPnLPct, peakPnLPct)
+
+			// Detect native trailing order fills: if position quantity decreased below
+			// expected remaining, mark the highest tracking tier as executed.
+			at.detectNativeTrailingFills(symbol, side, quantity)
 
 			if nativeTrailingHandled {
 				// Native trailing is handling exchange orders; skip managed market-close execution
@@ -814,6 +820,12 @@ func (at *AutoTrader) getDrawdownArmRulesForSelectedRule(entryPrice, quantity fl
 		// exchange trailing orders, so absence of a trailing order is expected.
 		if at.isManagedDrawdownRecord(symbol, side, fingerprint) {
 			logger.Infof("🟣 Drawdown managed mode already armed: %s %s fingerprint=%s (no exchange trailing expected)", symbol, side, fingerprint)
+			return nil
+		}
+		// Check if this tier was already executed (order filled, position reduced).
+		// If the tier alloc shows executed/triggered, don't re-arm.
+		if at.isDrawdownTierExecuted(symbol, side, rule) {
+			logger.Infof("🟣 Drawdown tier already executed: %s %s fingerprint=%s (trailing order filled, not re-arming)", symbol, side, fingerprint)
 			return nil
 		}
 		logger.Infof("⚠️ Drawdown native exposure record stale: %s %s fingerprint=%s has no matching exchange trailing order, re-arming", symbol, side, fingerprint)
@@ -1860,7 +1872,10 @@ func (at *AutoTrader) getActiveBreakEvenRules() []store.BreakEvenStopRule {
 		if rule.TriggerMode == "" {
 			rule.TriggerMode = cfg.TriggerMode
 		}
-		if rule.TriggerMode != store.BreakEvenTriggerProfitPct || rule.TriggerValue <= 0 {
+		if rule.TriggerValue <= 0 {
+			continue
+		}
+		if rule.TriggerMode != store.BreakEvenTriggerProfitPct && rule.TriggerMode != store.BreakEvenTriggerRMultiple {
 			continue
 		}
 		if rule.OffsetPct < 0 {
@@ -1870,6 +1885,67 @@ func (at *AutoTrader) getActiveBreakEvenRules() []store.BreakEvenStopRule {
 			rule.CloseRatioPct = 100
 		}
 		out = append(out, rule)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TriggerValue < out[j].TriggerValue })
+	return out
+}
+
+// resolveBreakEvenRulesForPosition converts r_multiple rules to profit_pct equivalent
+// by computing the SL distance from open stop-loss orders.
+func resolveBreakEvenRulesForPosition(rules []store.BreakEvenStopRule, entryPrice float64, symbol, side string, at *AutoTrader) []store.BreakEvenStopRule {
+	hasRMultiple := false
+	for _, r := range rules {
+		if r.TriggerMode == store.BreakEvenTriggerRMultiple {
+			hasRMultiple = true
+			break
+		}
+	}
+	if !hasRMultiple {
+		return rules
+	}
+
+	// Find SL distance from open orders
+	slDistancePct := 0.0
+	if openOrders, err := at.trader.GetOpenOrders(symbol); err == nil {
+		positionSide := strings.ToUpper(side)
+		for _, order := range openOrders {
+			orderSide := strings.ToUpper(order.PositionSide)
+			if orderSide != positionSide {
+				continue
+			}
+			if !looksLikeStopLoss(order) {
+				continue
+			}
+			stopPrice := order.StopPrice
+			if stopPrice <= 0 {
+				continue
+			}
+			dist := math.Abs(stopPrice-entryPrice) / entryPrice * 100
+			if dist > slDistancePct {
+				slDistancePct = dist
+			}
+		}
+	}
+
+	if slDistancePct <= 0 {
+		// Fallback: filter out r_multiple rules if we can't determine SL distance
+		out := make([]store.BreakEvenStopRule, 0, len(rules))
+		for _, r := range rules {
+			if r.TriggerMode == store.BreakEvenTriggerProfitPct {
+				out = append(out, r)
+			}
+		}
+		return out
+	}
+
+	// Convert r_multiple to profit_pct: 1R profit = slDistancePct
+	out := make([]store.BreakEvenStopRule, 0, len(rules))
+	for _, r := range rules {
+		if r.TriggerMode == store.BreakEvenTriggerRMultiple {
+			r.TriggerValue = r.TriggerValue * slDistancePct
+			r.TriggerMode = store.BreakEvenTriggerProfitPct
+		}
+		out = append(out, r)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].TriggerValue < out[j].TriggerValue })
 	return out

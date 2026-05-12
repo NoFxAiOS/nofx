@@ -33,7 +33,8 @@ type UnifiedRow = {
   tierMaxDD?: number
   tierRunnerKeep?: number
   anchorInfo?: string
-  basisType?: string // "structural" | "atr_based" | "percentage" | "fibonacci"
+  basisType?: string
+  atrDistance?: number
 }
 
 function normalizeSide(side?: string): string {
@@ -142,6 +143,40 @@ function buildUnifiedRows(
   const dirMul = side === 'LONG' ? 1 : -1
   const rows: UnifiedRow[] = []
 
+  // Get planned ladder orders for anchor matching
+  const rt = position.protection_runtime
+  const plannedLadder = rt?.planned_ladder_orders as
+    | {
+        stop_loss?: Array<{
+          price: number
+          basis_type?: string
+          anchor_price?: number
+          anchor_timeframe?: string
+          anchor_source?: string
+          atr_distance?: number
+        }>
+        take_profit?: Array<{
+          price: number
+          basis_type?: string
+          anchor_price?: number
+          anchor_timeframe?: string
+          anchor_source?: string
+          atr_distance?: number
+        }>
+      }
+    | undefined
+
+  function matchPlannedOrder(triggerPrice: number, direction: string) {
+    if (!plannedLadder || triggerPrice <= 0) return undefined
+    const list =
+      direction === 'SL'
+        ? plannedLadder.stop_loss
+        : plannedLadder.take_profit
+    if (!list) return undefined
+    const tolerance = triggerPrice * 0.0001
+    return list.find((p) => Math.abs(p.price - triggerPrice) < tolerance)
+  }
+
   for (const order of orders) {
     const bucket = classifyOrderBucket(order)
     const triggerPrice = order.stop_price || order.price || 0
@@ -159,6 +194,9 @@ function buildUnifiedRows(
     const direction =
       zone === 'BE' ? ('BE' as const) : getOrderDirection(bucket)
 
+    // Match to planned ladder for anchor info
+    const planned = matchPlannedOrder(triggerPrice, direction)
+
     rows.push({
       zone,
       direction,
@@ -170,10 +208,14 @@ function buildUnifiedRows(
       source: '',
       orderId: order.order_id,
       callbackRate: callbackRate > 0 ? callbackRate : undefined,
+      basisType: planned?.basis_type,
+      anchorInfo: planned?.anchor_source
+        ? `${planned.anchor_timeframe || ''} ${compactSourceLabel(planned.anchor_source, language)} ${planned.anchor_price ? formatPrice(planned.anchor_price) : ''}`.trim()
+        : undefined,
+      atrDistance: planned?.atr_distance,
     })
   }
 
-  const rt = position.protection_runtime
   const runtimeTiers = rt?.scheduled_tiers || []
   for (const tier of runtimeTiers) {
     const activationPrice = Number(
@@ -234,6 +276,7 @@ function buildUnifiedRows(
           : undefined,
       basisType:
         tier.basis_type || (anchorPrice > 0 ? 'structural' : undefined),
+      atrDistance: Number(tier.atr_distance || 0) || undefined,
     })
   }
 
@@ -292,11 +335,43 @@ function DirectionBadge({ direction }: { direction: UnifiedRow['direction'] }) {
   }[direction]
   return (
     <span
-      className={`inline-flex items-center rounded px-1 py-0 text-[9px] font-medium border ${cls}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border ${cls}`}
     >
       {direction}
     </span>
   )
+}
+
+function StatusBadge({
+  status,
+  statusCls,
+}: {
+  status: string
+  statusCls: string
+}) {
+  const bgMap: Record<string, string> = {
+    'text-emerald-300': 'bg-emerald-500/10 border-emerald-500/20',
+    'text-amber-300': 'bg-amber-500/10 border-amber-500/20',
+    'text-nofx-red': 'bg-red-500/10 border-red-500/20',
+    'text-nofx-text-muted line-through':
+      'bg-white/5 border-white/10 opacity-60',
+  }
+  const bg = bgMap[statusCls] || 'bg-white/5 border-white/10'
+  return (
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium border ${statusCls} ${bg}`}
+    >
+      {status}
+    </span>
+  )
+}
+
+function ZoneLabel({ zone }: { zone: string }) {
+  let cls = 'text-nofx-text-main'
+  if (zone === 'Ladder') cls = 'text-blue-300'
+  else if (zone.startsWith('DD')) cls = 'text-purple-300'
+  else if (zone === 'BE') cls = 'text-amber-300'
+  return <span className={`font-medium ${cls}`}>{zone}</span>
 }
 
 function CollapsibleSection({
@@ -314,12 +389,12 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-2 py-1 text-[10px] font-medium text-nofx-text-muted hover:text-cyan-300 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-medium text-nofx-text-muted hover:text-cyan-300 transition-colors"
       >
         <span>{title}</span>
-        <span className="text-[8px]">{open ? '▼' : '▶'}</span>
+        <span className="text-[9px]">{open ? '▼' : '▶'}</span>
       </button>
-      {open && <div className="px-2 pb-1.5">{children}</div>}
+      {open && <div className="px-3 pb-2">{children}</div>}
     </div>
   )
 }
@@ -328,7 +403,7 @@ function KV({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-2">
       <span className="text-nofx-text-muted whitespace-nowrap">{label}</span>
-      <span className="font-mono text-nofx-text-main text-right text-[10px]">
+      <span className="font-mono text-nofx-text-main text-right text-[11px]">
         {value}
       </span>
     </div>
@@ -390,12 +465,15 @@ export function PositionProtectionPanel({
 
   if (!positions || positions.length === 0) {
     return (
-      <div className="nofx-glass p-3 relative overflow-hidden">
-        <h3 className="text-xs font-bold text-nofx-text-main uppercase tracking-wide flex items-center gap-2 mb-2">
-          <span className="text-purple-400">🛡</span>
+      <div className="nofx-glass p-6 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+          <div className="w-24 h-24 rounded-full bg-purple-500 blur-3xl" />
+        </div>
+        <h2 className="text-lg font-bold text-nofx-text-main uppercase tracking-wide flex items-center gap-2 mb-4">
+          <span className="text-purple-400">◈</span>
           {language === 'zh' ? '持仓保护' : 'Position Protection'}
-        </h3>
-        <div className="rounded border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-nofx-text-muted">
+        </h2>
+        <div className="rounded border border-white/10 bg-black/20 px-4 py-3 text-xs text-nofx-text-muted">
           {language === 'zh' ? '当前没有持仓。' : 'No open positions.'}
         </div>
       </div>
@@ -403,13 +481,21 @@ export function PositionProtectionPanel({
   }
 
   return (
-    <div className="nofx-glass p-3 relative overflow-hidden">
-      <h3 className="text-xs font-bold text-nofx-text-main uppercase tracking-wide flex items-center gap-2 mb-2">
-        <span className="text-purple-400">🛡</span>
+    <div className="nofx-glass p-6 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+        <div className="w-24 h-24 rounded-full bg-purple-500 blur-3xl" />
+      </div>
+      <h2 className="text-lg font-bold text-nofx-text-main uppercase tracking-wide flex items-center gap-2 mb-5 relative z-10">
+        <span className="text-purple-400">◈</span>
         {language === 'zh' ? '持仓保护' : 'Position Protection'}
-      </h3>
+        {positions.length > 0 && (
+          <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono ml-2">
+            {positions.length}
+          </span>
+        )}
+      </h2>
 
-      <div className="space-y-2">
+      <div className="space-y-4 relative z-10">
         {positions.map((position, index) => {
           const symbol = String(position.symbol || '').toUpperCase()
           const side = normalizeSide(position.side)
@@ -481,100 +567,110 @@ export function PositionProtectionPanel({
           return (
             <div
               key={`${symbol}-${side}-${index}`}
-              className="rounded-lg border border-white/10 bg-black/20 p-2 space-y-1.5"
+              className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3"
             >
-              {/* Position Header — single compact line */}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => onSymbolClick?.(symbol)}
-                  className="font-semibold text-nofx-text-main hover:text-cyan-300 transition-colors"
-                >
-                  {symbol}
-                </button>
-                <span
-                  className={`inline-flex items-center rounded border px-1 py-0 text-[9px] font-medium ${sideBadgeCls}`}
-                >
-                  {side}
-                </span>
-                <span className="text-nofx-text-muted">
-                  E:
+              {/* Position Header — Line 1: Symbol + Side + Leverage + PnL */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onSymbolClick?.(symbol)}
+                    className="text-base font-bold text-nofx-text-main hover:text-cyan-300 transition-colors"
+                  >
+                    {symbol}
+                  </button>
+                  <span
+                    className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold ${sideBadgeCls}`}
+                  >
+                    {side}
+                  </span>
+                  {position.leverage && (
+                    <span className="text-xs font-mono text-nofx-text-muted">
+                      {position.leverage}x
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-base font-bold font-mono ${pnlColor}`}
+                  >
+                    {formatSignedPercent(currentPnlPct)}
+                  </span>
+                  <span className="text-[10px] text-nofx-text-muted px-1.5 py-0.5 rounded bg-white/5 border border-white/10">
+                    {compactProtectionLabel(
+                      position.protection_state,
+                      language,
+                      exchange
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Position Header — Line 2: Entry / Qty / Value / Peak */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-nofx-text-muted">
+                <span>
+                  Entry{' '}
                   <span className="font-mono text-nofx-text-main">
                     {formatPrice(entryPrice)}
                   </span>
                 </span>
-                <span className="text-nofx-text-muted">
-                  Qty:
+                <span>
+                  Qty{' '}
                   <span className="font-mono text-nofx-text-main">
                     {formatQuantity(qty)}
                   </span>
-                  /
+                  {' / '}
                   <span className="font-mono text-nofx-text-main">
                     ${entryValue.toFixed(1)}
                   </span>
                 </span>
                 {markPrice > 0 && (
-                  <span className="text-nofx-text-muted">
-                    Now:
+                  <span>
+                    Now{' '}
                     <span className="font-mono text-nofx-text-main">
                       ${currentValue.toFixed(1)}
                     </span>
                   </span>
                 )}
-                <span className={`font-mono font-semibold ${pnlColor}`}>
-                  {formatSignedPercent(currentPnlPct)}
-                </span>
-                <span className="text-nofx-text-muted">
-                  Pk:
+                <span>
+                  Peak{' '}
                   <span className="font-mono text-nofx-text-main">
                     {formatSignedPercent(peakPnlPct)}
                   </span>
-                </span>
-                {position.leverage && (
-                  <span className="font-mono text-nofx-text-muted">
-                    {position.leverage}x
-                  </span>
-                )}
-                <span className="text-nofx-text-muted ml-auto text-[9px]">
-                  {compactProtectionLabel(
-                    position.protection_state,
-                    language,
-                    exchange
-                  )}
                 </span>
               </div>
 
               {/* Protection Table */}
               {unifiedRows.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-[10px]">
+                  <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-nofx-text-muted border-b border-white/10">
-                        <th className="text-left py-0.5 pr-1 font-medium w-14">
+                      <tr className="text-nofx-text-muted border-b-2 border-white/10">
+                        <th className="text-left py-1.5 pr-2 font-medium w-16">
                           {language === 'zh' ? '区域' : 'Zone'}
                         </th>
-                        <th className="text-left py-0.5 px-1 font-medium w-10">
+                        <th className="text-left py-1.5 px-2 font-medium w-12">
                           {language === 'zh' ? '向' : 'Dir'}
                         </th>
-                        <th className="text-right py-0.5 px-1 font-medium">
+                        <th className="text-right py-1.5 px-2 font-medium">
                           {language === 'zh' ? '价格' : 'Price'}
                         </th>
-                        <th className="text-right py-0.5 px-1 font-medium">
+                        <th className="text-right py-1.5 px-2 font-medium">
                           {language === 'zh' ? '偏移' : 'Δ%'}
                         </th>
-                        <th className="text-right py-0.5 px-1 font-medium">
+                        <th className="text-right py-1.5 px-2 font-medium">
                           {language === 'zh' ? '比例' : '%'}
                         </th>
-                        <th className="text-right py-0.5 px-1 font-medium">
+                        <th className="text-right py-1.5 px-2 font-medium">
                           {language === 'zh' ? '利润阈' : 'Min'}
                         </th>
-                        <th className="text-right py-0.5 px-1 font-medium">
+                        <th className="text-right py-1.5 px-2 font-medium">
                           {language === 'zh' ? '回撤' : 'DD'}
                         </th>
-                        <th className="text-left py-0.5 px-1 font-medium">
+                        <th className="text-center py-1.5 px-2 font-medium">
                           {language === 'zh' ? '状态' : 'St'}
                         </th>
-                        <th className="text-left py-0.5 pl-1 font-medium">
+                        <th className="text-left py-1.5 pl-2 font-medium">
                           {language === 'zh' ? '结构位' : 'Anchor'}
                         </th>
                       </tr>
@@ -590,51 +686,54 @@ export function PositionProtectionPanel({
                         return (
                           <tr
                             key={`row-${ri}-${row.zone}-${row.price}`}
-                            className="border-b border-white/5 hover:bg-white/[0.02]"
+                            className="border-b border-white/5 hover:bg-white/5 transition-colors"
                           >
-                            <td className="py-0.5 pr-1 text-nofx-text-main font-medium">
-                              {row.zone}
+                            <td className="py-1.5 pr-2">
+                              <ZoneLabel zone={row.zone} />
                             </td>
-                            <td className="py-0.5 px-1">
+                            <td className="py-1.5 px-2">
                               <DirectionBadge direction={row.direction} />
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono text-nofx-text-main">
+                            <td className="py-1.5 px-2 text-right font-mono font-semibold text-nofx-text-main">
                               {row.callbackRate && !row.price
                                 ? `cb ${(row.callbackRate * 100).toFixed(2)}%`
                                 : formatPrice(row.price)}
                             </td>
                             <td
-                              className={`py-0.5 px-1 text-right font-mono ${deltaColor}`}
+                              className={`py-1.5 px-2 text-right font-mono ${deltaColor}`}
                             >
                               {row.callbackRate
                                 ? `cb ${(row.callbackRate * 100).toFixed(2)}%`
                                 : formatSignedPercent(row.deltaPct)}
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono text-nofx-text-main">
+                            <td className="py-1.5 px-2 text-right font-mono text-nofx-text-main">
                               {row.ratioPct > 0
                                 ? `${row.ratioPct.toFixed(0)}%`
                                 : '—'}
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono text-nofx-text-muted">
+                            <td className="py-1.5 px-2 text-right font-mono text-nofx-text-muted">
                               {row.tierMinProfit
                                 ? `${row.tierMinProfit.toFixed(1)}%`
                                 : '—'}
                             </td>
-                            <td className="py-0.5 px-1 text-right font-mono text-nofx-text-muted">
+                            <td className="py-1.5 px-2 text-right font-mono text-nofx-text-muted">
                               {row.tierMaxDD
                                 ? `${row.tierMaxDD.toFixed(0)}%`
                                 : '—'}
                             </td>
-                            <td className={`py-0.5 px-1 ${row.statusCls}`}>
-                              {row.status}
+                            <td className="py-1.5 px-2 text-center">
+                              <StatusBadge
+                                status={row.status}
+                                statusCls={row.statusCls}
+                              />
                             </td>
                             <td
-                              className="py-0.5 pl-1 text-nofx-text-muted truncate max-w-[140px]"
+                              className="py-1.5 pl-2 text-nofx-text-muted truncate max-w-[200px]"
                               title={row.anchorInfo || ''}
                             >
                               {row.basisType && (
                                 <span
-                                  className="inline-block mr-1 text-[9px]"
+                                  className="inline-block mr-1"
                                   style={{
                                     color:
                                       row.basisType === 'structural'
@@ -655,7 +754,14 @@ export function PositionProtectionPanel({
                                         : '📊'}
                                 </span>
                               )}
-                              {row.anchorInfo || '—'}
+                              <span className="text-nofx-text-main">
+                                {row.anchorInfo || '—'}
+                              </span>
+                              {row.atrDistance ? (
+                                <span className="text-nofx-text-muted ml-1">
+                                  ({row.atrDistance.toFixed(1)} ATR)
+                                </span>
+                              ) : null}
                             </td>
                           </tr>
                         )
@@ -664,17 +770,17 @@ export function PositionProtectionPanel({
                   </table>
                 </div>
               ) : (
-                <div className="text-[10px] text-nofx-text-muted border border-white/10 rounded px-2 py-1">
+                <div className="text-xs text-nofx-text-muted border border-white/10 rounded px-3 py-2">
                   {language === 'zh' ? '无保护委托' : 'No protection orders'}
                 </div>
               )}
 
               {/* Compact status bar */}
-              <div className="flex flex-wrap gap-x-2 gap-y-0 text-[9px] text-nofx-text-muted">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-nofx-text-muted">
                 {currentDrawdownPct > 0 && (
                   <span>
                     DD{' '}
-                    <span className="text-nofx-text-main">
+                    <span className="text-nofx-text-main font-mono">
                       {currentDrawdownPct.toFixed(1)}%
                     </span>
                   </span>
@@ -688,7 +794,7 @@ export function PositionProtectionPanel({
                 {runnerActive && (
                   <span>
                     Runner{' '}
-                    <span className="text-nofx-text-main">
+                    <span className="text-nofx-text-main font-mono">
                       {runnerKeepPct > 0
                         ? `keep ${runnerKeepPct.toFixed(0)}%`
                         : 'active'}
@@ -698,7 +804,7 @@ export function PositionProtectionPanel({
                 {runnerStopPrice > 0 && (
                   <span>
                     R-SL{' '}
-                    <span className="text-nofx-text-main">
+                    <span className="text-nofx-text-main font-mono">
                       {formatPrice(runnerStopPrice)}
                     </span>
                   </span>
@@ -793,11 +899,11 @@ export function PositionProtectionPanel({
         })}
 
         {loading && (
-          <div className="text-[9px] text-nofx-text-muted">
+          <div className="text-[11px] text-nofx-text-muted">
             {language === 'zh' ? '刷新中…' : 'Refreshing…'}
           </div>
         )}
-        {error && <div className="text-[9px] text-nofx-red">{error}</div>}
+        {error && <div className="text-xs text-nofx-red">{error}</div>}
       </div>
     </div>
   )

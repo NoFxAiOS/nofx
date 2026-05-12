@@ -1183,16 +1183,6 @@ export function TraderDashboardPage({
               )}
             </div>
 
-            <PositionProtectionPanel
-              traderId={selectedTraderId}
-              positions={positions}
-              language={language}
-              exchange={getExchangeTypeFromList(
-                selectedTrader?.exchange_id,
-                exchanges
-              )}
-              onSymbolClick={handleSymbolClick}
-            />
           </div>
 
           {/* Right Column: Recent Decisions */}
@@ -1297,6 +1287,20 @@ export function TraderDashboardPage({
               })()}
             </div>
           </div>
+        </div>
+
+        {/* Position Protection — Full Width */}
+        <div className="mb-6 animate-slide-in" style={{ animationDelay: '0.2s' }}>
+          <PositionProtectionPanel
+            traderId={selectedTraderId}
+            positions={positions}
+            language={language}
+            exchange={getExchangeTypeFromList(
+              selectedTrader?.exchange_id,
+              exchanges
+            )}
+            onSymbolClick={handleSymbolClick}
+          />
         </div>
 
         {/* Position History Section */}

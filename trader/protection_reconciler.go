@@ -175,6 +175,15 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 	}
 	if aiPlan := at.restoreAIProtectionPlanForPositionWithEntry(symbol, side, entryPrice); aiPlan != nil {
 		plan = preferDecisionProtectionPlan(plan, aiPlan)
+	} else if at.config.StrategyConfig != nil {
+		// Fallback: when ladder mode is "ai" but no AI plan exists (manual position),
+		// use the configured ladder values as a safety net.
+		ladderCfg := at.config.StrategyConfig.Protection.LadderTPSL
+		if ladderCfg.Enabled && ladderCfg.Mode == store.ProtectionModeAI {
+			if fallbackPlan, fbErr := buildManualLadderProtectionPlan(entryPrice, actionFromPositionSide(side), ladderCfg); fbErr == nil && fallbackPlan != nil {
+				plan = mergeProtectionPlans(plan, fallbackPlan)
+			}
+		}
 	}
 	if !at.verifyLivePositionForProtection(symbol, side, "protection reconcile") {
 		result.Summary = "inactive position; protection state cleaned"

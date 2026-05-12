@@ -155,8 +155,13 @@ func roundProtectionPrice(price float64) float64 {
 
 // ProtectionOrder represents one protection leg in a full or ladder protection plan.
 type ProtectionOrder struct {
-	Price         float64
-	CloseRatioPct float64
+	Price           float64 `json:"price"`
+	CloseRatioPct   float64 `json:"close_ratio_pct"`
+	BasisType       string  `json:"basis_type,omitempty"`
+	AnchorPrice     float64 `json:"anchor_price,omitempty"`
+	AnchorTimeframe string  `json:"anchor_timeframe,omitempty"`
+	AnchorSource    string  `json:"anchor_source,omitempty"`
+	ATRDistance     float64 `json:"atr_distance,omitempty"`
 }
 
 // ProtectionPlan is the normalized execution representation produced from strategy config

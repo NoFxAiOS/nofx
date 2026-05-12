@@ -707,7 +707,14 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 			price := resolveAIDecisionLadderPrice(entryPrice, action, rule.TakeProfitPct, rule.TakeProfitPrice, rule.VolatilityBufferPct, true)
 			if price > 0 && isExecutableTakeProfitPrice(entryPrice, action, price) {
 				closeRatio := minPositive(rule.TakeProfitCloseRatioPct, remainingTakeProfitRatio)
-				plan.TakeProfitOrders = append(plan.TakeProfitOrders, ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio})
+				order := ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio}
+				order.BasisType = rule.BasisType
+				if rule.TakeProfitAnchor != "" {
+					order.AnchorSource = rule.TakeProfitAnchor
+				} else if rule.StructuralAnchor != "" {
+					order.AnchorSource = rule.StructuralAnchor
+				}
+				plan.TakeProfitOrders = append(plan.TakeProfitOrders, order)
 				remainingTakeProfitRatio -= closeRatio
 			}
 		}
@@ -719,7 +726,14 @@ func buildAIDecisionLadderProtectionPlan(entryPrice float64, action string, rule
 				if i == lastSLIndex {
 					closeRatio = 100
 				}
-				plan.StopLossOrders = append(plan.StopLossOrders, ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio})
+				order := ProtectionOrder{Price: roundProtectionPrice(price), CloseRatioPct: closeRatio}
+				order.BasisType = rule.BasisType
+				if rule.StopLossAnchor != "" {
+					order.AnchorSource = rule.StopLossAnchor
+				} else if rule.StructuralAnchor != "" {
+					order.AnchorSource = rule.StructuralAnchor
+				}
+				plan.StopLossOrders = append(plan.StopLossOrders, order)
 				remainingStopLossRatio -= closeRatio
 			}
 		}

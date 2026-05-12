@@ -191,10 +191,10 @@ export function PreEntryGateEditor({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header + Gate Flow */}
       <div
-        className="p-4 rounded-lg"
+        className="p-3 rounded-lg"
         style={{ background: '#0B0E11', border: '1px solid #38BDF833' }}
       >
         <div className="flex items-center gap-2 mb-3">
@@ -231,7 +231,7 @@ export function PreEntryGateEditor({
       </div>
 
       {/* Section 1: Market State Gate */}
-      <div className="p-4 rounded-lg space-y-3" style={sectionStyle}>
+      <div className="p-3 rounded-lg space-y-2" style={sectionStyle}>
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4" style={{ color: '#38BDF8' }} />
           <h4 className="text-sm font-medium" style={{ color: '#EAECEF' }}>
@@ -405,7 +405,7 @@ export function PreEntryGateEditor({
       </div>
 
       {/* Section 2: Entry Structure */}
-      <div className="p-4 rounded-lg space-y-3" style={sectionStyle}>
+      <div className="p-3 rounded-lg space-y-2" style={sectionStyle}>
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4" style={{ color: '#60A5FA' }} />
           <h4 className="text-sm font-medium" style={{ color: '#EAECEF' }}>
@@ -624,6 +624,19 @@ export function PreEntryGateEditor({
               {ts(preEntryGate.volatilityBufferDesc, language)}
             </div>
           </div>
+          <EntryGateInput
+            label={ts(preEntryGate.minRewardAtr, language)}
+            value={
+              config.entry_structure?.entry_gate?.min_reward_atr_mul ?? 1.8
+            }
+            step={0.1}
+            disabled={
+              disabled ||
+              !(config.entry_structure?.entry_gate?.enabled ?? false) ||
+              config.entry_structure?.entry_gate?.stop_quality_enabled === false
+            }
+            onChange={(v) => updateEntryGate('min_reward_atr_mul', v)}
+          />
         </EntryGateGroup>
 
         {/* Group D: Path Clarity */}
@@ -653,6 +666,66 @@ export function PreEntryGateEditor({
           />
         </EntryGateGroup>
 
+        {/* Group E: Confidence & Direction */}
+        <EntryGateGroup
+          enabled={
+            config.entry_structure?.entry_gate?.confidence_direction_enabled !==
+            false
+          }
+          onToggle={(v) => updateEntryGate('confidence_direction_enabled', v)}
+          masterDisabled={
+            disabled || !(config.entry_structure?.entry_gate?.enabled ?? false)
+          }
+          title={ts(preEntryGate.confidenceDirection, language)}
+          description={ts(preEntryGate.confidenceDirectionDesc, language)}
+          example={ts(preEntryGate.confidenceDirectionExample, language)}
+          color="#F6465D"
+        >
+          <EntryGateInput
+            label={ts(preEntryGate.shortNonDowntrendConf, language)}
+            value={
+              config.entry_structure?.entry_gate
+                ?.short_non_downtrend_min_confidence ?? 85
+            }
+            step={1}
+            disabled={
+              disabled ||
+              !(config.entry_structure?.entry_gate?.enabled ?? false) ||
+              config.entry_structure?.entry_gate
+                ?.confidence_direction_enabled === false
+            }
+            onChange={(v) =>
+              updateEntryGate('short_non_downtrend_min_confidence', v)
+            }
+          />
+          <EntryGateInput
+            label={ts(preEntryGate.squeezeMinConf, language)}
+            value={
+              config.entry_structure?.entry_gate?.squeeze_min_confidence ?? 80
+            }
+            step={1}
+            disabled={
+              disabled ||
+              !(config.entry_structure?.entry_gate?.enabled ?? false) ||
+              config.entry_structure?.entry_gate
+                ?.confidence_direction_enabled === false
+            }
+            onChange={(v) => updateEntryGate('squeeze_min_confidence', v)}
+          />
+          <EntryGateInput
+            label={ts(preEntryGate.squeezeMinRR, language)}
+            value={config.entry_structure?.entry_gate?.squeeze_min_rr ?? 2.5}
+            step={0.5}
+            disabled={
+              disabled ||
+              !(config.entry_structure?.entry_gate?.enabled ?? false) ||
+              config.entry_structure?.entry_gate
+                ?.confidence_direction_enabled === false
+            }
+            onChange={(v) => updateEntryGate('squeeze_min_rr', v)}
+          />
+        </EntryGateGroup>
+
         <EntryStructureEditor
           config={config.entry_structure}
           onChange={(entryStructure: EntryStructureConfig) =>
@@ -664,7 +737,7 @@ export function PreEntryGateEditor({
       </div>
 
       {/* Section 3: Confidence Gate */}
-      <div className="p-4 rounded-lg space-y-3" style={sectionStyle}>
+      <div className="p-3 rounded-lg space-y-2" style={sectionStyle}>
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4" style={{ color: '#0ECB81' }} />
           <h4 className="text-sm font-medium" style={{ color: '#EAECEF' }}>
@@ -740,7 +813,7 @@ export function PreEntryGateEditor({
       </div>
 
       {/* Section 4: Policy Mode */}
-      <div className="p-4 rounded-lg space-y-3" style={sectionStyle}>
+      <div className="p-3 rounded-lg space-y-2" style={sectionStyle}>
         <div className="flex items-center gap-2">
           <Radio className="w-4 h-4" style={{ color: '#A855F7' }} />
           <h4 className="text-sm font-medium" style={{ color: '#EAECEF' }}>

@@ -649,6 +649,11 @@ type RiskControlConfig struct {
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
 	// Min AI confidence to open position (AI guided)
 	MinConfidence int `json:"min_confidence"`
+
+	// Post-loss entry cooldown per symbol in minutes (CODE ENFORCED, default: 90)
+	EntryCooldownMinutes int `json:"entry_cooldown_minutes,omitempty"`
+	// Max allowed entry price deviation % between AI plan and execution (CODE ENFORCED, default: 1.5)
+	MaxEntryDeviationPct float64 `json:"max_entry_deviation_pct,omitempty"`
 }
 
 // NewStrategyStore creates a new StrategyStore

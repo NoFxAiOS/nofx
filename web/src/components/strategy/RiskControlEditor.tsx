@@ -25,7 +25,7 @@ export function RiskControlEditor({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Position Limits */}
       <div>
         <div className="flex items-center gap-2 mb-4">
@@ -35,7 +35,7 @@ export function RiskControlEditor({
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 mb-4">
+        <div className="grid grid-cols-1 gap-3 mb-3">
           <div
             className="p-4 rounded-lg"
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
@@ -71,7 +71,7 @@ export function RiskControlEditor({
             {ts(riskControl.tradingLeverage, language)}
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <div
             className="p-4 rounded-lg"
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
@@ -160,7 +160,10 @@ export function RiskControlEditor({
                 type="range"
                 value={config.btc_eth_max_position_value_ratio ?? 5}
                 onChange={(e) =>
-                  updateField('btc_eth_max_position_value_ratio', parseFloat(e.target.value))
+                  updateField(
+                    'btc_eth_max_position_value_ratio',
+                    parseFloat(e.target.value)
+                  )
                 }
                 disabled={disabled}
                 min={0.5}
@@ -192,7 +195,10 @@ export function RiskControlEditor({
                 type="range"
                 value={config.altcoin_max_position_value_ratio ?? 1}
                 onChange={(e) =>
-                  updateField('altcoin_max_position_value_ratio', parseFloat(e.target.value))
+                  updateField(
+                    'altcoin_max_position_value_ratio',
+                    parseFloat(e.target.value)
+                  )
                 }
                 disabled={disabled}
                 min={0.5}
@@ -236,14 +242,20 @@ export function RiskControlEditor({
                 type="range"
                 value={(config.max_margin_usage ?? 0.9) * 100}
                 onChange={(e) =>
-                  updateField('max_margin_usage', parseInt(e.target.value) / 100)
+                  updateField(
+                    'max_margin_usage',
+                    parseInt(e.target.value) / 100
+                  )
                 }
                 disabled={disabled}
                 min={10}
                 max={100}
                 className="flex-1 accent-green-500"
               />
-              <span className="w-12 text-center font-mono" style={{ color: '#0ECB81' }}>
+              <span
+                className="w-12 text-center font-mono"
+                style={{ color: '#0ECB81' }}
+              >
                 {Math.round((config.max_margin_usage ?? 0.9) * 100)}%
               </span>
             </div>
@@ -264,7 +276,10 @@ export function RiskControlEditor({
                 type="number"
                 value={config.min_position_size ?? 12}
                 onChange={(e) =>
-                  updateField('min_position_size', parseFloat(e.target.value) || 12)
+                  updateField(
+                    'min_position_size',
+                    parseFloat(e.target.value) || 12
+                  )
                 }
                 disabled={disabled}
                 min={10}
@@ -279,6 +294,88 @@ export function RiskControlEditor({
               <span className="ml-2" style={{ color: '#848E9C' }}>
                 USDT
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Execution Constraints */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle className="w-4 h-4" style={{ color: '#F6465D' }} />
+          <h3 className="font-medium text-sm" style={{ color: '#EAECEF' }}>
+            {ts(riskControl.executionConstraints, language)}
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div
+            className="p-3 rounded-lg"
+            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+          >
+            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+              {ts(riskControl.entryCooldown, language)}
+            </label>
+            <p className="text-[11px] mb-2" style={{ color: '#848E9C' }}>
+              {ts(riskControl.entryCooldownDesc, language)}
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                value={config.entry_cooldown_minutes ?? 90}
+                onChange={(e) =>
+                  updateField(
+                    'entry_cooldown_minutes',
+                    parseInt(e.target.value)
+                  )
+                }
+                disabled={disabled}
+                min={15}
+                max={180}
+                step={15}
+                className="flex-1 accent-red-500"
+              />
+              <span
+                className="w-12 text-center font-mono text-sm"
+                style={{ color: '#F6465D' }}
+              >
+                {config.entry_cooldown_minutes ?? 90}
+              </span>
+            </div>
+          </div>
+
+          <div
+            className="p-3 rounded-lg"
+            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+          >
+            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+              {ts(riskControl.maxEntryDeviation, language)}
+            </label>
+            <p className="text-[11px] mb-2" style={{ color: '#848E9C' }}>
+              {ts(riskControl.maxEntryDeviationDesc, language)}
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={config.max_entry_deviation_pct ?? 1.5}
+                onChange={(e) =>
+                  updateField(
+                    'max_entry_deviation_pct',
+                    parseFloat(e.target.value) || 1.5
+                  )
+                }
+                disabled={disabled}
+                min={0.5}
+                max={5}
+                step={0.1}
+                className="w-20 px-3 py-2 rounded"
+                style={{
+                  background: '#1E2329',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              <span style={{ color: '#848E9C' }}>%</span>
             </div>
           </div>
         </div>

@@ -38,8 +38,15 @@ import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
-import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
-import { ProtectionEditor, defaultProtectionConfig, normalizeProtectionConfig } from '../components/strategy/ProtectionEditor'
+import {
+  GridConfigEditor,
+  defaultGridConfig,
+} from '../components/strategy/GridConfigEditor'
+import {
+  ProtectionEditor,
+  defaultProtectionConfig,
+  normalizeProtectionConfig,
+} from '../components/strategy/ProtectionEditor'
 import { normalizeEntryStructureConfig } from '../components/strategy/EntryStructureEditor'
 import { PreEntryGateEditor } from '../components/strategy/PreEntryGateEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
@@ -49,17 +56,26 @@ import { getJson, sendJson } from '../lib/httpClient'
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 export function buildStrategySavePayload(
-  selectedStrategy: Pick<Strategy, 'name' | 'description' | 'is_public' | 'config_visible'>,
+  selectedStrategy: Pick<
+    Strategy,
+    'name' | 'description' | 'is_public' | 'config_visible'
+  >,
   editingConfig: StrategyConfig,
   language: 'zh' | 'en'
 ) {
-  const normalizedProtection = normalizeProtectionConfig(editingConfig.protection)
+  const normalizedProtection = normalizeProtectionConfig(
+    editingConfig.protection
+  )
 
   const protection = {
     ...normalizedProtection,
     drawdown_take_profit: {
       ...normalizedProtection.drawdown_take_profit,
-      mode: normalizedProtection.drawdown_take_profit.mode || (normalizedProtection.drawdown_take_profit.enabled ? 'manual' : 'disabled'),
+      mode:
+        normalizedProtection.drawdown_take_profit.mode ||
+        (normalizedProtection.drawdown_take_profit.enabled
+          ? 'manual'
+          : 'disabled'),
     },
   }
 
@@ -75,7 +91,9 @@ export function buildStrategySavePayload(
       ...editingConfig.strategy_control_policy,
       mode: editingConfig.strategy_control_policy?.mode || 'strict',
     },
-    entry_structure: normalizeEntryStructureConfig(editingConfig.entry_structure),
+    entry_structure: normalizeEntryStructureConfig(
+      editingConfig.entry_structure
+    ),
   }
 
   return {
@@ -92,8 +110,12 @@ export function StrategyStudioPage() {
   const { language } = useLanguage()
 
   const [strategies, setStrategies] = useState<Strategy[]>([])
-  const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null)
-  const [editingConfig, setEditingConfig] = useState<StrategyConfig | null>(null)
+  const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(
+    null
+  )
+  const [editingConfig, setEditingConfig] = useState<StrategyConfig | null>(
+    null
+  )
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -117,7 +139,9 @@ export function StrategyStudioPage() {
   })
 
   // Right panel states
-  const [activeRightTab, setActiveRightTab] = useState<'prompt' | 'test'>('prompt')
+  const [activeRightTab, setActiveRightTab] = useState<'prompt' | 'test'>(
+    'prompt'
+  )
   const [promptPreview, setPromptPreview] = useState<{
     system_prompt: string
     user_prompt?: string
@@ -152,9 +176,11 @@ export function StrategyStudioPage() {
   const fetchAiModels = useCallback(async () => {
     if (!token) return
     try {
-      const data = await getJson<AIModel[] | { models?: AIModel[] }>(`${API_BASE}/api/models`)
+      const data = await getJson<AIModel[] | { models?: AIModel[] }>(
+        `${API_BASE}/api/models`
+      )
       // Backend returns an array, not { models: [] }
-      const allModels = Array.isArray(data) ? data : (data.models || [])
+      const allModels = Array.isArray(data) ? data : data.models || []
       const enabledModels = allModels.filter((m: AIModel) => m.enabled)
       setAiModels(enabledModels)
       if (enabledModels.length > 0 && !selectedModelId) {
@@ -169,19 +195,25 @@ export function StrategyStudioPage() {
   const fetchStrategies = useCallback(async () => {
     if (!token) return
     try {
-      const data = await getJson<{ strategies?: Strategy[] }>(`${API_BASE}/api/strategies`)
-      const normalizedStrategies = (data.strategies || []).map((strategy: Strategy) => ({
-        ...strategy,
-        config: {
-          ...strategy.config,
-          protection: normalizeProtectionConfig(strategy.config?.protection),
-          entry_structure: normalizeEntryStructureConfig(strategy.config?.entry_structure),
-          strategy_control_policy: {
-            ...strategy.config?.strategy_control_policy,
-            mode: strategy.config?.strategy_control_policy?.mode || 'strict',
+      const data = await getJson<{ strategies?: Strategy[] }>(
+        `${API_BASE}/api/strategies`
+      )
+      const normalizedStrategies = (data.strategies || []).map(
+        (strategy: Strategy) => ({
+          ...strategy,
+          config: {
+            ...strategy.config,
+            protection: normalizeProtectionConfig(strategy.config?.protection),
+            entry_structure: normalizeEntryStructureConfig(
+              strategy.config?.entry_structure
+            ),
+            strategy_control_policy: {
+              ...strategy.config?.strategy_control_policy,
+              mode: strategy.config?.strategy_control_policy?.mode || 'strict',
+            },
           },
-        },
-      }))
+        })
+      )
       setStrategies(normalizedStrategies)
 
       // Select active or first strategy
@@ -224,14 +256,16 @@ export function StrategyStudioPage() {
         )
 
         // Update only the prompt sections and language field
-        setEditingConfig(prev => {
+        setEditingConfig((prev) => {
           if (!prev) return prev
           return {
             ...prev,
             language: language as 'zh' | 'en',
             prompt_sections: defaultConfig.prompt_sections,
             protection: normalizeProtectionConfig(prev.protection),
-            entry_structure: normalizeEntryStructureConfig(prev.entry_structure),
+            entry_structure: normalizeEntryStructureConfig(
+              prev.entry_structure
+            ),
             strategy_control_policy: {
               ...prev.strategy_control_policy,
               mode: prev.strategy_control_policy?.mode || 'strict',
@@ -254,21 +288,28 @@ export function StrategyStudioPage() {
       const defaultConfig = await getJson<StrategyConfig>(
         `${API_BASE}/api/strategies/default-config?lang=${language}`
       )
-      defaultConfig.protection = normalizeProtectionConfig(defaultConfig.protection || defaultProtectionConfig)
-      defaultConfig.entry_structure = normalizeEntryStructureConfig(defaultConfig.entry_structure)
+      defaultConfig.protection = normalizeProtectionConfig(
+        defaultConfig.protection || defaultProtectionConfig
+      )
+      defaultConfig.entry_structure = normalizeEntryStructureConfig(
+        defaultConfig.entry_structure
+      )
       defaultConfig.strategy_control_policy = {
         ...defaultConfig.strategy_control_policy,
         mode: defaultConfig.strategy_control_policy?.mode || 'strict',
       }
 
-      const result = await sendJson<{ id?: string }>(`${API_BASE}/api/strategies`, {
-        method: 'POST',
-        data: {
-          name: tr('newStrategyName'),
-          description: '',
-          config: defaultConfig,
-        },
-      })
+      const result = await sendJson<{ id?: string }>(
+        `${API_BASE}/api/strategies`,
+        {
+          method: 'POST',
+          data: {
+            name: tr('newStrategyName'),
+            description: '',
+            config: defaultConfig,
+          },
+        }
+      )
       await fetchStrategies()
       // Auto-select the newly created strategy
       if (result.id) {
@@ -298,14 +339,11 @@ export function StrategyStudioPage() {
   const handleDeleteStrategy = async (id: string) => {
     if (!token) return
 
-    const confirmed = await confirmToast(
-      tr('confirmDeleteStrategy'),
-      {
-        title: tr('confirmDelete'),
-        okText: tr('delete'),
-        cancelText: tr('cancel'),
-      }
-    )
+    const confirmed = await confirmToast(tr('confirmDeleteStrategy'), {
+      title: tr('confirmDelete'),
+      okText: tr('delete'),
+      cancelText: tr('cancel'),
+    })
     if (!confirmed) return
 
     try {
@@ -365,7 +403,9 @@ export function StrategyStudioPage() {
       exported_at: new Date().toISOString(),
       version: '1.0',
     }
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json',
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -378,7 +418,9 @@ export function StrategyStudioPage() {
   }
 
   // Import strategy from JSON file
-  const handleImportStrategy = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportStrategy = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0]
     if (!file || !token) return
 
@@ -418,7 +460,11 @@ export function StrategyStudioPage() {
     try {
       await sendJson(`${API_BASE}/api/strategies/${selectedStrategy.id}`, {
         method: 'PUT',
-        data: buildStrategySavePayload(selectedStrategy, editingConfig, language as 'zh' | 'en'),
+        data: buildStrategySavePayload(
+          selectedStrategy,
+          editingConfig,
+          language as 'zh' | 'en'
+        ),
       })
       setHasChanges(false)
       notify.success(tr('strategySaved'))
@@ -442,7 +488,6 @@ export function StrategyStudioPage() {
     })
     setHasChanges(true)
   }
-
 
   // Fetch prompt preview
   const fetchPromptPreview = async () => {
@@ -525,21 +570,32 @@ export function StrategyStudioPage() {
     const mode = plan.mode || 'unknown'
     return (
       <div className="mt-2 p-2 rounded border border-yellow-500/20 bg-yellow-500/5">
-        <div className="text-[11px] font-medium text-yellow-300">Protection Plan · {mode}</div>
+        <div className="text-[11px] font-medium text-yellow-300">
+          Protection Plan · {mode}
+        </div>
         {mode === 'full' && (
           <div className="mt-1 text-[11px] text-nofx-text-muted">
-            TP%: {String(plan.take_profit_pct ?? '-')} · SL%: {String(plan.stop_loss_pct ?? '-')}
+            TP%: {String(plan.take_profit_pct ?? '-')} · SL%:{' '}
+            {String(plan.stop_loss_pct ?? '-')}
           </div>
         )}
         {mode === 'ladder' && Array.isArray(plan.ladder_rules) && (
           <div className="mt-1 space-y-1">
             {plan.ladder_rules.map((rule: any, idx: number) => {
-              const tpPrice = rule.take_profit_price ?? rule.tp_level ?? rule.tp_price
-              const slPrice = rule.stop_loss_price ?? rule.sl_level ?? rule.sl_price
+              const tpPrice =
+                rule.take_profit_price ?? rule.tp_level ?? rule.tp_price
+              const slPrice =
+                rule.stop_loss_price ?? rule.sl_level ?? rule.sl_price
               const buffer = rule.volatility_buffer_pct ?? rule.buffer_pct
               return (
                 <div key={idx} className="text-[11px] text-nofx-text-muted">
-                  #{idx + 1} TP {tpPrice ? `${String(tpPrice)} / ` : ''}{String(rule.take_profit_pct ?? '-')}% / {String(rule.take_profit_close_ratio_pct ?? '-')}% · SL {slPrice ? `${String(slPrice)} / ` : ''}{String(rule.stop_loss_pct ?? '-')}% / {String(rule.stop_loss_close_ratio_pct ?? '-')}%{buffer ? ` · buffer ${String(buffer)}%` : ''}
+                  #{idx + 1} TP {tpPrice ? `${String(tpPrice)} / ` : ''}
+                  {String(rule.take_profit_pct ?? '-')}% /{' '}
+                  {String(rule.take_profit_close_ratio_pct ?? '-')}% · SL{' '}
+                  {slPrice ? `${String(slPrice)} / ` : ''}
+                  {String(rule.stop_loss_pct ?? '-')}% /{' '}
+                  {String(rule.stop_loss_close_ratio_pct ?? '-')}%
+                  {buffer ? ` · buffer ${String(buffer)}%` : ''}
                 </div>
               )
             })}
@@ -632,21 +688,42 @@ export function StrategyStudioPage() {
       key: 'preEntryGate' as const,
       icon: Shield,
       color: '#38BDF8',
-      title: language === 'zh' ? '\u5f00\u4ed3\u95e8\u7981 / Pre-Entry Gate' : 'Pre-Entry Gate',
+      title:
+        language === 'zh'
+          ? '\u5f00\u4ed3\u95e8\u7981 / Pre-Entry Gate'
+          : 'Pre-Entry Gate',
       forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <PreEntryGateEditor
           config={{
-            ...normalizeProtectionConfig(editingConfig.protection).regime_filter,
-            min_confidence: normalizeProtectionConfig(editingConfig.protection).regime_filter.min_confidence ?? editingConfig.risk_control.min_confidence,
-            min_risk_reward_ratio: normalizeProtectionConfig(editingConfig.protection).regime_filter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
-            policy_mode: normalizeProtectionConfig(editingConfig.protection).regime_filter.policy_mode ?? (editingConfig.strategy_control_policy?.mode as 'strict' | 'audit_only' | 'recommend_only' | undefined) ?? 'strict',
-            entry_structure: normalizeProtectionConfig(editingConfig.protection).regime_filter.entry_structure ?? editingConfig.entry_structure,
+            ...normalizeProtectionConfig(editingConfig.protection)
+              .regime_filter,
+            min_confidence:
+              normalizeProtectionConfig(editingConfig.protection).regime_filter
+                .min_confidence ?? editingConfig.risk_control.min_confidence,
+            min_risk_reward_ratio:
+              normalizeProtectionConfig(editingConfig.protection).regime_filter
+                .min_risk_reward_ratio ??
+              editingConfig.risk_control.min_risk_reward_ratio,
+            policy_mode:
+              normalizeProtectionConfig(editingConfig.protection).regime_filter
+                .policy_mode ??
+              (editingConfig.strategy_control_policy?.mode as
+                | 'strict'
+                | 'audit_only'
+                | 'recommend_only'
+                | undefined) ??
+              'strict',
+            entry_structure:
+              normalizeProtectionConfig(editingConfig.protection).regime_filter
+                .entry_structure ?? editingConfig.entry_structure,
           }}
           onChange={(regimeFilter) => {
             // Must do a single setEditingConfig to avoid stale closure overwrites
             if (!editingConfig) return
-            const currentProtection = normalizeProtectionConfig(editingConfig.protection)
+            const currentProtection = normalizeProtectionConfig(
+              editingConfig.protection
+            )
             setEditingConfig({
               ...editingConfig,
               protection: {
@@ -655,18 +732,26 @@ export function StrategyStudioPage() {
               },
               risk_control: {
                 ...editingConfig.risk_control,
-                min_confidence: regimeFilter.min_confidence ?? editingConfig.risk_control.min_confidence,
-                min_risk_reward_ratio: regimeFilter.min_risk_reward_ratio ?? editingConfig.risk_control.min_risk_reward_ratio,
+                min_confidence:
+                  regimeFilter.min_confidence ??
+                  editingConfig.risk_control.min_confidence,
+                min_risk_reward_ratio:
+                  regimeFilter.min_risk_reward_ratio ??
+                  editingConfig.risk_control.min_risk_reward_ratio,
               },
-              ...(regimeFilter.policy_mode ? {
-                strategy_control_policy: {
-                  ...editingConfig.strategy_control_policy,
-                  mode: regimeFilter.policy_mode,
-                },
-              } : {}),
-              ...(regimeFilter.entry_structure ? {
-                entry_structure: regimeFilter.entry_structure,
-              } : {}),
+              ...(regimeFilter.policy_mode
+                ? {
+                    strategy_control_policy: {
+                      ...editingConfig.strategy_control_policy,
+                      mode: regimeFilter.policy_mode,
+                    },
+                  }
+                : {}),
+              ...(regimeFilter.entry_structure
+                ? {
+                    entry_structure: regimeFilter.entry_structure,
+                  }
+                : {}),
             })
             setHasChanges(true)
           }}
@@ -679,7 +764,10 @@ export function StrategyStudioPage() {
       key: 'protection' as const,
       icon: Shield,
       color: '#F0B90B',
-      title: language === 'zh' ? 'Protection / 盈利控制' : 'Protection / Profit Control',
+      title:
+        language === 'zh'
+          ? 'Protection / 盈利控制'
+          : 'Protection / Profit Control',
       forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <ProtectionEditor
@@ -699,7 +787,9 @@ export function StrategyStudioPage() {
       content: editingConfig && (
         <PromptSectionsEditor
           config={editingConfig.prompt_sections}
-          onChange={(promptSections) => updateConfig('prompt_sections', promptSections)}
+          onChange={(promptSections) =>
+            updateConfig('prompt_sections', promptSections)
+          }
           disabled={selectedStrategy?.is_default}
           language={language}
         />
@@ -722,7 +812,11 @@ export function StrategyStudioPage() {
             disabled={selectedStrategy?.is_default}
             placeholder={tr('customPromptPlaceholder')}
             className="w-full h-32 px-3 py-2 rounded-lg resize-none font-mono text-xs"
-            style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+            style={{
+              background: '#0B0E11',
+              border: '1px solid #2B3139',
+              color: '#EAECEF',
+            }}
           />
         </div>
       ),
@@ -750,13 +844,14 @@ export function StrategyStudioPage() {
         />
       ),
     },
-  ].filter(section =>
-    section.forStrategyType === 'both' || section.forStrategyType === currentStrategyType
+  ].filter(
+    (section) =>
+      section.forStrategyType === 'both' ||
+      section.forStrategyType === currentStrategyType
   )
 
   return (
     <DeepVoidBackground className="h-[calc(100vh-64px)] flex flex-col bg-nofx-bg relative overflow-hidden">
-
       {/* Header */}
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-3 border-b border-nofx-gold/20 bg-nofx-bg/60 backdrop-blur-md z-10">
@@ -766,29 +861,41 @@ export function StrategyStudioPage() {
               <Sparkles className="w-5 h-5 text-black" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-nofx-text">{tr('strategyStudio')}</h1>
+              <h1 className="text-lg font-bold text-nofx-text">
+                {tr('strategyStudio')}
+              </h1>
               <p className="text-xs text-nofx-text-muted">{tr('subtitle')}</p>
             </div>
           </div>
           {error && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-nofx-danger/10 text-nofx-danger">
               {error}
-              <button onClick={() => setError(null)} className="hover:underline">×</button>
+              <button
+                onClick={() => setError(null)}
+                className="hover:underline"
+              >
+                ×
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Main Content - Three Columns */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main Content - Responsive Columns */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Column - Strategy List */}
-        <div className="w-48 flex-shrink-0 border-r border-nofx-gold/20 overflow-y-auto bg-nofx-bg/30 backdrop-blur-sm z-10">
+        <div className="lg:w-48 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-nofx-gold/20 overflow-x-auto lg:overflow-x-visible lg:overflow-y-auto bg-nofx-bg/30 backdrop-blur-sm z-10">
           <div className="p-2">
             <div className="flex items-center justify-between mb-2 px-2">
-              <span className="text-xs font-medium text-nofx-text-muted">{tr('strategies')}</span>
+              <span className="text-xs font-medium text-nofx-text-muted">
+                {tr('strategies')}
+              </span>
               <div className="flex items-center gap-1">
                 {/* Import button with hidden file input */}
-                <label className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer text-nofx-text-muted hover:text-white" title={tr('importStrategy')}>
+                <label
+                  className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer text-nofx-text-muted hover:text-white"
+                  title={tr('importStrategy')}
+                >
                   <Upload className="w-4 h-4" />
                   <input
                     type="file"
@@ -806,7 +913,7 @@ export function StrategyStudioPage() {
                 </button>
               </div>
             </div>
-            <div className="space-y-1">
+            <div className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible">
               {strategies.map((strategy) => (
                 <div
                   key={strategy.id}
@@ -817,16 +924,22 @@ export function StrategyStudioPage() {
                     setPromptPreview(null)
                     setAiTestResult(null)
                   }}
-                  className={`group px-2 py-2 rounded-lg cursor-pointer transition-all ${selectedStrategy?.id === strategy.id
-                    ? 'ring-1 ring-nofx-gold/50 bg-nofx-gold/10 shadow-[0_0_15px_rgba(240,185,11,0.1)]'
-                    : 'hover:bg-nofx-bg-lighter/60 hover:ring-1 hover:ring-nofx-gold/20 bg-transparent'
-                    }`}
+                  className={`group px-2 py-2 rounded-lg cursor-pointer transition-all ${
+                    selectedStrategy?.id === strategy.id
+                      ? 'ring-1 ring-nofx-gold/50 bg-nofx-gold/10 shadow-[0_0_15px_rgba(240,185,11,0.1)]'
+                      : 'hover:bg-nofx-bg-lighter/60 hover:ring-1 hover:ring-nofx-gold/20 bg-transparent'
+                  }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm truncate text-nofx-text">{strategy.name}</span>
+                    <span className="text-sm truncate text-nofx-text">
+                      {strategy.name}
+                    </span>
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleExportStrategy(strategy) }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleExportStrategy(strategy)
+                        }}
                         className="p-1 rounded hover:bg-white/10 text-nofx-text-muted hover:text-white"
                         title={tr('export')}
                       >
@@ -835,14 +948,20 @@ export function StrategyStudioPage() {
                       {!strategy.is_default && (
                         <>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleDuplicateStrategy(strategy.id) }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDuplicateStrategy(strategy.id)
+                            }}
                             className="p-1 rounded hover:bg-white/10 text-nofx-text-muted hover:text-white"
                             title={tr('duplicate')}
                           >
                             <Copy className="w-3 h-3" />
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteStrategy(strategy.id) }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteStrategy(strategy.id)
+                            }}
                             className="p-1 rounded hover:bg-nofx-danger/20 text-nofx-danger"
                             title={tr('deleteTooltip')}
                           >
@@ -876,446 +995,551 @@ export function StrategyStudioPage() {
           </div>
         </div>
 
-        {/* Middle Column - Config Editor */}
-        <div className="flex-1 min-w-0 overflow-y-auto border-r border-nofx-gold/20">
-          {selectedStrategy && editingConfig ? (
-            <div className="p-4">
-              {/* Strategy Name & Actions */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex-1 min-w-0">
-                  <input
-                    type="text"
-                    value={selectedStrategy.name}
-                    onChange={(e) => {
-                      setSelectedStrategy({ ...selectedStrategy, name: e.target.value })
-                      setHasChanges(true)
-                    }}
-                    disabled={selectedStrategy.is_default}
-                    className="text-lg font-bold bg-transparent border-none outline-none w-full text-nofx-text placeholder-nofx-text-muted"
-                  />
-                  <input
-                    type="text"
-                    value={selectedStrategy.description || ''}
-                    onChange={(e) => {
-                      setSelectedStrategy({ ...selectedStrategy, description: e.target.value })
-                      setHasChanges(true)
-                    }}
-                    disabled={selectedStrategy.is_default}
-                    placeholder={tr('addDescription')}
-                    className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
-                  />
-                  {hasChanges && (
-                    <span className="text-xs text-nofx-gold">● {tr('unsaved')}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {!selectedStrategy.is_active && (
-                    <button
-                      onClick={() => handleActivateStrategy(selectedStrategy.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors bg-nofx-success/10 border border-nofx-success/30 text-nofx-success hover:bg-nofx-success/20"
-                    >
-                      <Check className="w-3 h-3" />
-                      {tr('activate')}
-                    </button>
-                  )}
-                  {!selectedStrategy.is_default && (
-                    <button
-                      onClick={handleSaveStrategy}
-                      disabled={isSaving || !hasChanges}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50
-                        ${hasChanges ? 'bg-nofx-gold text-black hover:bg-yellow-500' : 'bg-nofx-bg-lighter text-nofx-text-muted cursor-not-allowed'}`}
-                    >
-                      <Save className="w-3 h-3" />
-                      {isSaving ? tr('saving') : tr('save')}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Strategy Type Selector */}
-              {editingConfig && (
-                <div className="mb-4 p-4 rounded-lg bg-nofx-bg-lighter border border-nofx-gold/20">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                    <span className="text-sm font-medium text-nofx-text">{tr('strategyType')}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => {
-                        if (!selectedStrategy?.is_default) {
-                          updateConfig('strategy_type', 'ai_trading')
-                          // Clear grid config when switching to AI trading
-                          updateConfig('grid_config', undefined)
-                        }
+        {/* Middle + Right wrapper */}
+        <div className="flex-1 flex flex-col xl:flex-row overflow-hidden min-w-0">
+          {/* Middle Column - Config Editor */}
+          <div className="flex-1 min-w-0 overflow-y-auto xl:border-r border-nofx-gold/20">
+            {selectedStrategy && editingConfig ? (
+              <div className="p-3">
+                {/* Strategy Name & Actions */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={selectedStrategy.name}
+                      onChange={(e) => {
+                        setSelectedStrategy({
+                          ...selectedStrategy,
+                          name: e.target.value,
+                        })
+                        setHasChanges(true)
                       }}
-                      disabled={selectedStrategy?.is_default}
-                      className={`p-3 rounded-lg border transition-all ${
-                        (!editingConfig.strategy_type || editingConfig.strategy_type === 'ai_trading')
-                          ? 'border-nofx-gold bg-nofx-gold/10'
-                          : 'border-nofx-border hover:border-nofx-gold/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Bot className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                        <span className="text-sm font-medium text-nofx-text">{tr('aiTrading')}</span>
-                      </div>
-                      <p className="text-xs text-nofx-text-muted text-left">{tr('aiTradingDesc')}</p>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!selectedStrategy?.is_default) {
-                          updateConfig('strategy_type', 'grid_trading')
-                          // Initialize grid config if not exists
-                          if (!editingConfig.grid_config) {
-                            updateConfig('grid_config', defaultGridConfig)
-                          }
-                        }
+                      disabled={selectedStrategy.is_default}
+                      className="text-lg font-bold bg-transparent border-none outline-none w-full text-nofx-text placeholder-nofx-text-muted"
+                    />
+                    <input
+                      type="text"
+                      value={selectedStrategy.description || ''}
+                      onChange={(e) => {
+                        setSelectedStrategy({
+                          ...selectedStrategy,
+                          description: e.target.value,
+                        })
+                        setHasChanges(true)
                       }}
-                      disabled={selectedStrategy?.is_default}
-                      className={`p-3 rounded-lg border transition-all ${
-                        editingConfig.strategy_type === 'grid_trading'
-                          ? 'border-nofx-gold bg-nofx-gold/10'
-                          : 'border-nofx-border hover:border-nofx-gold/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Activity className="w-4 h-4" style={{ color: '#0ECB81' }} />
-                        <span className="text-sm font-medium text-nofx-text">{tr('gridTrading')}</span>
-                      </div>
-                      <p className="text-xs text-nofx-text-muted text-left">{tr('gridTradingDesc')}</p>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Config Sections */}
-              <div className="space-y-2">
-                {configSections.map(({ key, icon: Icon, color, title, content }) => (
-                  <div
-                    key={key}
-                    className="rounded-lg overflow-hidden bg-nofx-bg-lighter border border-nofx-gold/20"
-                  >
-                    <button
-                      onClick={() => toggleSection(key)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/5 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-4 h-4" style={{ color }} />
-                        <span className="text-sm font-medium text-nofx-text">{title}</span>
-                      </div>
-                      {expandedSections[key] ? (
-                        <ChevronDown className="w-4 h-4 text-nofx-text-muted" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-nofx-text-muted" />
-                      )}
-                    </button>
-                    {expandedSections[key] && (
-                      <div className="px-3 pb-3">
-                        {content}
-                      </div>
+                      disabled={selectedStrategy.is_default}
+                      placeholder={tr('addDescription')}
+                      className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
+                    />
+                    {hasChanges && (
+                      <span className="text-xs text-nofx-gold">
+                        ● {tr('unsaved')}
+                      </span>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Activity className="w-12 h-12 mx-auto mb-2 opacity-30 text-nofx-text-muted" />
-                <p className="text-sm text-nofx-text-muted">
-                  {tr('selectOrCreate')}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column - Prompt Preview & AI Test */}
-        <div className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden">
-          {/* Tabs */}
-          <div className="flex-shrink-0 flex border-b border-nofx-gold/20">
-            <button
-              onClick={() => setActiveRightTab('prompt')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeRightTab === 'prompt' ? 'border-b-2 border-purple-500 text-purple-500' : 'opacity-60 hover:opacity-100 text-nofx-text-muted'
-                }`}
-            >
-              <Eye className="w-4 h-4" />
-              {tr('promptPreview')}
-            </button>
-            <button
-              onClick={() => setActiveRightTab('test')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeRightTab === 'test' ? 'border-b-2 border-green-500 text-green-500' : 'opacity-60 hover:opacity-100 text-nofx-text-muted'
-                }`}
-            >
-              <Play className="w-4 h-4" />
-              {tr('aiTestRun')}
-            </button>
-          </div>
-
-          {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto">
-            {activeRightTab === 'prompt' ? (
-              /* Prompt Preview Tab */
-              <div className="p-3 space-y-3">
-                {/* Controls */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={selectedVariant}
-                    onChange={(e) => setSelectedVariant(e.target.value)}
-                    className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text outline-none focus:border-nofx-gold"
-                  >
-                    <option value="balanced">{tr('balanced')}</option>
-                    <option value="aggressive">{tr('aggressive')}</option>
-                    <option value="conservative">{tr('conservative')}</option>
-                  </select>
-                  <button
-                    onClick={fetchPromptPreview}
-                    disabled={isLoadingPrompt || !editingConfig}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50 bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    {isLoadingPrompt ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                    {promptPreview ? tr('refreshPrompt') : tr('loadPrompt')}
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {!selectedStrategy.is_active && (
+                      <button
+                        onClick={() =>
+                          handleActivateStrategy(selectedStrategy.id)
+                        }
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors bg-nofx-success/10 border border-nofx-success/30 text-nofx-success hover:bg-nofx-success/20"
+                      >
+                        <Check className="w-3 h-3" />
+                        {tr('activate')}
+                      </button>
+                    )}
+                    {!selectedStrategy.is_default && (
+                      <button
+                        onClick={handleSaveStrategy}
+                        disabled={isSaving || !hasChanges}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50
+                        ${hasChanges ? 'bg-nofx-gold text-black hover:bg-yellow-500' : 'bg-nofx-bg-lighter text-nofx-text-muted cursor-not-allowed'}`}
+                      >
+                        <Save className="w-3 h-3" />
+                        {isSaving ? tr('saving') : tr('save')}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {promptPreview ? (
-                  <>
-                    {/* Config Summary */}
-                    <div className="p-2 rounded-lg bg-nofx-bg border border-nofx-gold/20">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Code className="w-3 h-3 text-purple-500" />
-                        <span className="text-xs font-medium text-purple-500">Config</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        {Object.entries(promptPreview.config_summary || {}).map(([key, value]) => (
-                          <div key={key}>
-                            <div className="text-nofx-text-muted">{key.replace(/_/g, ' ')}</div>
-                            <div className="text-nofx-text">{String(value)}</div>
-                          </div>
-                        ))}
-                      </div>
+                {/* Strategy Type Selector */}
+                {editingConfig && (
+                  <div className="mb-4 p-4 rounded-lg bg-nofx-bg-lighter border border-nofx-gold/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                      <span className="text-sm font-medium text-nofx-text">
+                        {tr('strategyType')}
+                      </span>
                     </div>
-
-                    {/* System Prompt */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <FileText className="w-3 h-3 text-purple-500" />
-                          <span className="text-xs font-medium text-nofx-text">{tr('systemPrompt')}</span>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-nofx-bg-lighter text-nofx-text-muted">
-                          {promptPreview.system_prompt.length.toLocaleString()} chars
-                        </span>
-                      </div>
-                      <pre
-                        className="p-2 rounded-lg text-[11px] font-mono overflow-auto bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                        style={{ maxHeight: '400px' }}
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => {
+                          if (!selectedStrategy?.is_default) {
+                            updateConfig('strategy_type', 'ai_trading')
+                            // Clear grid config when switching to AI trading
+                            updateConfig('grid_config', undefined)
+                          }
+                        }}
+                        disabled={selectedStrategy?.is_default}
+                        className={`p-3 rounded-lg border transition-all ${
+                          !editingConfig.strategy_type ||
+                          editingConfig.strategy_type === 'ai_trading'
+                            ? 'border-nofx-gold bg-nofx-gold/10'
+                            : 'border-nofx-border hover:border-nofx-gold/50'
+                        }`}
                       >
-                        {promptPreview.system_prompt}
-                      </pre>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Bot
+                            className="w-4 h-4"
+                            style={{ color: '#F0B90B' }}
+                          />
+                          <span className="text-sm font-medium text-nofx-text">
+                            {tr('aiTrading')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-nofx-text-muted text-left">
+                          {tr('aiTradingDesc')}
+                        </p>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!selectedStrategy?.is_default) {
+                            updateConfig('strategy_type', 'grid_trading')
+                            // Initialize grid config if not exists
+                            if (!editingConfig.grid_config) {
+                              updateConfig('grid_config', defaultGridConfig)
+                            }
+                          }
+                        }}
+                        disabled={selectedStrategy?.is_default}
+                        className={`p-3 rounded-lg border transition-all ${
+                          editingConfig.strategy_type === 'grid_trading'
+                            ? 'border-nofx-gold bg-nofx-gold/10'
+                            : 'border-nofx-border hover:border-nofx-gold/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <Activity
+                            className="w-4 h-4"
+                            style={{ color: '#0ECB81' }}
+                          />
+                          <span className="text-sm font-medium text-nofx-text">
+                            {tr('gridTrading')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-nofx-text-muted text-left">
+                          {tr('gridTradingDesc')}
+                        </p>
+                      </button>
                     </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-nofx-text-muted">
-                    <Eye className="w-10 h-10 mb-2 opacity-30" />
-                    <p className="text-sm">{tr('generatePromptPreview')}</p>
                   </div>
                 )}
+
+                {/* Config Sections */}
+                <div className="space-y-2">
+                  {configSections.map(
+                    ({ key, icon: Icon, color, title, content }) => (
+                      <div
+                        key={key}
+                        className="rounded-lg overflow-hidden bg-nofx-bg-lighter border border-nofx-gold/20"
+                      >
+                        <button
+                          onClick={() => toggleSection(key)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/5 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4" style={{ color }} />
+                            <span className="text-sm font-medium text-nofx-text">
+                              {title}
+                            </span>
+                          </div>
+                          {expandedSections[key] ? (
+                            <ChevronDown className="w-4 h-4 text-nofx-text-muted" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-nofx-text-muted" />
+                          )}
+                        </button>
+                        {expandedSections[key] && (
+                          <div className="px-3 pb-3">{content}</div>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
               </div>
             ) : (
-              /* AI Test Tab */
-              <div className="p-3 space-y-3">
-                {/* Controls */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-green-500" />
-                    <span className="text-xs font-medium text-nofx-text">{tr('selectModel')}</span>
-                  </div>
-                  {aiModels.length > 0 ? (
-                    <select
-                      value={selectedModelId}
-                      onChange={(e) => setSelectedModelId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg text-sm bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    >
-                      {aiModels.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name} ({model.provider})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="px-3 py-2 rounded-lg text-sm bg-nofx-danger/10 text-nofx-danger">
-                      {tr('noModel')}
-                    </div>
-                  )}
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Activity className="w-12 h-12 mx-auto mb-2 opacity-30 text-nofx-text-muted" />
+                  <p className="text-sm text-nofx-text-muted">
+                    {tr('selectOrCreate')}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
 
-                  <div className="flex items-center gap-2">
+          {/* Right Column - Prompt Preview & AI Test */}
+          <div className="xl:w-[420px] flex-shrink-0 flex flex-col overflow-hidden border-t xl:border-t-0 border-nofx-gold/20">
+            {/* Tabs */}
+            <div className="flex-shrink-0 flex border-b border-nofx-gold/20">
+              <button
+                onClick={() => setActiveRightTab('prompt')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeRightTab === 'prompt'
+                    ? 'border-b-2 border-purple-500 text-purple-500'
+                    : 'opacity-60 hover:opacity-100 text-nofx-text-muted'
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                {tr('promptPreview')}
+              </button>
+              <button
+                onClick={() => setActiveRightTab('test')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeRightTab === 'test'
+                    ? 'border-b-2 border-green-500 text-green-500'
+                    : 'opacity-60 hover:opacity-100 text-nofx-text-muted'
+                }`}
+              >
+                <Play className="w-4 h-4" />
+                {tr('aiTestRun')}
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto">
+              {activeRightTab === 'prompt' ? (
+                /* Prompt Preview Tab */
+                <div className="p-3 space-y-3">
+                  {/* Controls */}
+                  <div className="flex items-center gap-2 flex-wrap">
                     <select
                       value={selectedVariant}
                       onChange={(e) => setSelectedVariant(e.target.value)}
-                      className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                      className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text outline-none focus:border-nofx-gold"
                     >
                       <option value="balanced">{tr('balanced')}</option>
                       <option value="aggressive">{tr('aggressive')}</option>
                       <option value="conservative">{tr('conservative')}</option>
                     </select>
                     <button
-                      onClick={runAiTest}
-                      disabled={isRunningAiTest || !editingConfig || !selectedModelId}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 text-white shadow-lg shadow-green-500/20 bg-gradient-to-br from-green-500 to-green-600"
+                      onClick={fetchPromptPreview}
+                      disabled={isLoadingPrompt || !editingConfig}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50 bg-purple-600 hover:bg-purple-700 text-white"
                     >
-                      {isRunningAiTest ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          {tr('running')}
-                        </>
+                      {isLoadingPrompt ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          {tr('runTest')}
-                        </>
+                        <RefreshCw className="w-3 h-3" />
                       )}
+                      {promptPreview ? tr('refreshPrompt') : tr('loadPrompt')}
                     </button>
                   </div>
-                  <p className="text-[10px] text-nofx-text-muted">{tr('testNote')}</p>
-                </div>
 
-                {/* Test Results */}
-                {aiTestResult ? (
-                  <div className="space-y-3">
-                    {aiTestResult.error ? (
-                      <div className="p-3 rounded-lg bg-nofx-danger/10 border border-nofx-danger/30">
-                        <p className="text-sm text-nofx-danger">{aiTestResult.error}</p>
+                  {promptPreview ? (
+                    <>
+                      {/* Config Summary */}
+                      <div className="p-2 rounded-lg bg-nofx-bg border border-nofx-gold/20">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Code className="w-3 h-3 text-purple-500" />
+                          <span className="text-xs font-medium text-purple-500">
+                            Config
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          {Object.entries(
+                            promptPreview.config_summary || {}
+                          ).map(([key, value]) => (
+                            <div key={key}>
+                              <div className="text-nofx-text-muted">
+                                {key.replace(/_/g, ' ')}
+                              </div>
+                              <div className="text-nofx-text">
+                                {String(value)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ) : (
-                      <>
-                        {aiTestResult.duration_ms && (
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3 h-3 text-nofx-text-muted" />
-                            <span className="text-xs text-nofx-text-muted">
-                              {tr('duration')}: {(aiTestResult.duration_ms / 1000).toFixed(2)}s
+
+                      {/* System Prompt */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <FileText className="w-3 h-3 text-purple-500" />
+                            <span className="text-xs font-medium text-nofx-text">
+                              {tr('systemPrompt')}
                             </span>
                           </div>
-                        )}
-
-                        {/* User Prompt Input */}
-                        {aiTestResult.user_prompt && (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <Terminal className="w-3 h-3 text-blue-400" />
-                              <span className="text-xs font-medium text-nofx-text">{tr('userPrompt')} (Input)</span>
-                            </div>
-                            <pre
-                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                              style={{ maxHeight: '200px' }}
-                            >
-                              {aiTestResult.user_prompt}
-                            </pre>
-                          </div>
-                        )}
-
-                        {/* AI Reasoning */}
-                        {aiTestResult.reasoning && (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <Sparkles className="w-3 h-3 text-nofx-gold" />
-                              <span className="text-xs font-medium text-nofx-text">{tr('reasoning')}</span>
-                            </div>
-                            <pre
-                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-nofx-gold/30 text-nofx-text"
-                              style={{ maxHeight: '200px' }}
-                            >
-                              {aiTestResult.reasoning}
-                            </pre>
-                          </div>
-                        )}
-
-                        {aiTestResult.parsed_decisions && aiTestResult.parsed_decisions.length > 0 && (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <Activity className="w-3 h-3 text-green-500" />
-                              <span className="text-xs font-medium text-nofx-text">Parsed Decisions</span>
-                            </div>
-                            {aiTestResult.parsed_decisions.map((decision: any, index: number) => (
-                              <div key={index} className="p-2 rounded-lg bg-nofx-bg border border-green-500/20">
-                                <div className="text-xs font-medium text-nofx-text">{formatDecisionTitle(decision, index)}</div>
-                                <div className="mt-1 text-[11px] text-nofx-text-muted">
-                                  Leverage: {String(decision?.leverage ?? '-')} · Size: {String(decision?.position_size_usd ?? '-')} · Confidence: {String(decision?.confidence ?? '-')}
-                                </div>
-                                {decision?.reasoning && (
-                                  <div className="mt-1 text-[11px] text-nofx-text-muted whitespace-pre-wrap">
-                                    {decision.reasoning}
-                                  </div>
-                                )}
-                                {renderProtectionPlanSummary(decision)}
-                              </div>
-                            ))}
-                            <details className="p-2 rounded-lg bg-nofx-bg border border-green-500/20">
-                              <summary className="cursor-pointer text-[11px] text-green-400">Raw Parsed Decision JSON</summary>
-                              <pre className="mt-2 text-[10px] font-mono overflow-auto text-nofx-text" style={{ maxHeight: '220px' }}>
-                                {JSON.stringify(aiTestResult.parsed_decisions, null, 2)}
-                              </pre>
-                            </details>
-                          </div>
-                        )}
-
-                        {aiTestResult.parse_error && (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <AlertTriangle className="w-3 h-3 text-yellow-500" />
-                              <span className="text-xs font-medium text-yellow-400">Parse Error</span>
-                            </div>
-                            <pre
-                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-yellow-500/30 text-yellow-300"
-                              style={{ maxHeight: '160px' }}
-                            >
-                              {aiTestResult.parse_error}
-                            </pre>
-                          </div>
-                        )}
-
-                        {/* AI Decisions */}
-                        {aiTestResult.decisions && aiTestResult.decisions.length > 0 && (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <Activity className="w-3 h-3 text-green-500" />
-                              <span className="text-xs font-medium text-nofx-text">{tr('decisions')}</span>
-                            </div>
-                            <pre
-                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto bg-nofx-bg border border-green-500/30 text-nofx-text"
-                              style={{ maxHeight: '200px' }}
-                            >
-                              {JSON.stringify(aiTestResult.decisions, null, 2)}
-                            </pre>
-                          </div>
-                        )}
-
-                        {/* Raw AI Response */}
-                        {aiTestResult.ai_response && (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <FileText className="w-3 h-3 text-nofx-text-muted" />
-                              <span className="text-xs font-medium text-nofx-text">{tr('aiOutput')} (Raw)</span>
-                            </div>
-                            <pre
-                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                              style={{ maxHeight: '300px' }}
-                            >
-                              {aiTestResult.ai_response}
-                            </pre>
-                          </div>
-                        )}
-                      </>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-nofx-bg-lighter text-nofx-text-muted">
+                            {promptPreview.system_prompt.length.toLocaleString()}{' '}
+                            chars
+                          </span>
+                        </div>
+                        <pre
+                          className="p-2 rounded-lg text-[11px] font-mono overflow-auto bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                          style={{ maxHeight: '400px' }}
+                        >
+                          {promptPreview.system_prompt}
+                        </pre>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-nofx-text-muted">
+                      <Eye className="w-10 h-10 mb-2 opacity-30" />
+                      <p className="text-sm">{tr('generatePromptPreview')}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* AI Test Tab */
+                <div className="p-3 space-y-3">
+                  {/* Controls */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-4 h-4 text-green-500" />
+                      <span className="text-xs font-medium text-nofx-text">
+                        {tr('selectModel')}
+                      </span>
+                    </div>
+                    {aiModels.length > 0 ? (
+                      <select
+                        value={selectedModelId}
+                        onChange={(e) => setSelectedModelId(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg text-sm bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                      >
+                        {aiModels.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.name} ({model.provider})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="px-3 py-2 rounded-lg text-sm bg-nofx-danger/10 text-nofx-danger">
+                        {tr('noModel')}
+                      </div>
                     )}
+
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedVariant}
+                        onChange={(e) => setSelectedVariant(e.target.value)}
+                        className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                      >
+                        <option value="balanced">{tr('balanced')}</option>
+                        <option value="aggressive">{tr('aggressive')}</option>
+                        <option value="conservative">
+                          {tr('conservative')}
+                        </option>
+                      </select>
+                      <button
+                        onClick={runAiTest}
+                        disabled={
+                          isRunningAiTest || !editingConfig || !selectedModelId
+                        }
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 text-white shadow-lg shadow-green-500/20 bg-gradient-to-br from-green-500 to-green-600"
+                      >
+                        {isRunningAiTest ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            {tr('running')}
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            {tr('runTest')}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-nofx-text-muted">
+                      {tr('testNote')}
+                    </p>
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-nofx-text-muted">
-                    <Play className="w-10 h-10 mb-2 opacity-30" />
-                    <p className="text-sm">{tr('runAiTestHint')}</p>
-                  </div>
-                )}
-              </div>
-            )}
+
+                  {/* Test Results */}
+                  {aiTestResult ? (
+                    <div className="space-y-3">
+                      {aiTestResult.error ? (
+                        <div className="p-3 rounded-lg bg-nofx-danger/10 border border-nofx-danger/30">
+                          <p className="text-sm text-nofx-danger">
+                            {aiTestResult.error}
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          {aiTestResult.duration_ms && (
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3 h-3 text-nofx-text-muted" />
+                              <span className="text-xs text-nofx-text-muted">
+                                {tr('duration')}:{' '}
+                                {(aiTestResult.duration_ms / 1000).toFixed(2)}s
+                              </span>
+                            </div>
+                          )}
+
+                          {/* User Prompt Input */}
+                          {aiTestResult.user_prompt && (
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <Terminal className="w-3 h-3 text-blue-400" />
+                                <span className="text-xs font-medium text-nofx-text">
+                                  {tr('userPrompt')} (Input)
+                                </span>
+                              </div>
+                              <pre
+                                className="p-2 rounded-lg text-[10px] font-mono overflow-auto bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                                style={{ maxHeight: '200px' }}
+                              >
+                                {aiTestResult.user_prompt}
+                              </pre>
+                            </div>
+                          )}
+
+                          {/* AI Reasoning */}
+                          {aiTestResult.reasoning && (
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <Sparkles className="w-3 h-3 text-nofx-gold" />
+                                <span className="text-xs font-medium text-nofx-text">
+                                  {tr('reasoning')}
+                                </span>
+                              </div>
+                              <pre
+                                className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-nofx-gold/30 text-nofx-text"
+                                style={{ maxHeight: '200px' }}
+                              >
+                                {aiTestResult.reasoning}
+                              </pre>
+                            </div>
+                          )}
+
+                          {aiTestResult.parsed_decisions &&
+                            aiTestResult.parsed_decisions.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <Activity className="w-3 h-3 text-green-500" />
+                                  <span className="text-xs font-medium text-nofx-text">
+                                    Parsed Decisions
+                                  </span>
+                                </div>
+                                {aiTestResult.parsed_decisions.map(
+                                  (decision: any, index: number) => (
+                                    <div
+                                      key={index}
+                                      className="p-2 rounded-lg bg-nofx-bg border border-green-500/20"
+                                    >
+                                      <div className="text-xs font-medium text-nofx-text">
+                                        {formatDecisionTitle(decision, index)}
+                                      </div>
+                                      <div className="mt-1 text-[11px] text-nofx-text-muted">
+                                        Leverage:{' '}
+                                        {String(decision?.leverage ?? '-')} ·
+                                        Size:{' '}
+                                        {String(
+                                          decision?.position_size_usd ?? '-'
+                                        )}{' '}
+                                        · Confidence:{' '}
+                                        {String(decision?.confidence ?? '-')}
+                                      </div>
+                                      {decision?.reasoning && (
+                                        <div className="mt-1 text-[11px] text-nofx-text-muted whitespace-pre-wrap">
+                                          {decision.reasoning}
+                                        </div>
+                                      )}
+                                      {renderProtectionPlanSummary(decision)}
+                                    </div>
+                                  )
+                                )}
+                                <details className="p-2 rounded-lg bg-nofx-bg border border-green-500/20">
+                                  <summary className="cursor-pointer text-[11px] text-green-400">
+                                    Raw Parsed Decision JSON
+                                  </summary>
+                                  <pre
+                                    className="mt-2 text-[10px] font-mono overflow-auto text-nofx-text"
+                                    style={{ maxHeight: '220px' }}
+                                  >
+                                    {JSON.stringify(
+                                      aiTestResult.parsed_decisions,
+                                      null,
+                                      2
+                                    )}
+                                  </pre>
+                                </details>
+                              </div>
+                            )}
+
+                          {aiTestResult.parse_error && (
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                                <span className="text-xs font-medium text-yellow-400">
+                                  Parse Error
+                                </span>
+                              </div>
+                              <pre
+                                className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-yellow-500/30 text-yellow-300"
+                                style={{ maxHeight: '160px' }}
+                              >
+                                {aiTestResult.parse_error}
+                              </pre>
+                            </div>
+                          )}
+
+                          {/* AI Decisions */}
+                          {aiTestResult.decisions &&
+                            aiTestResult.decisions.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <Activity className="w-3 h-3 text-green-500" />
+                                  <span className="text-xs font-medium text-nofx-text">
+                                    {tr('decisions')}
+                                  </span>
+                                </div>
+                                <pre
+                                  className="p-2 rounded-lg text-[10px] font-mono overflow-auto bg-nofx-bg border border-green-500/30 text-nofx-text"
+                                  style={{ maxHeight: '200px' }}
+                                >
+                                  {JSON.stringify(
+                                    aiTestResult.decisions,
+                                    null,
+                                    2
+                                  )}
+                                </pre>
+                              </div>
+                            )}
+
+                          {/* Raw AI Response */}
+                          {aiTestResult.ai_response && (
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <FileText className="w-3 h-3 text-nofx-text-muted" />
+                                <span className="text-xs font-medium text-nofx-text">
+                                  {tr('aiOutput')} (Raw)
+                                </span>
+                              </div>
+                              <pre
+                                className="p-2 rounded-lg text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                                style={{ maxHeight: '300px' }}
+                              >
+                                {aiTestResult.ai_response}
+                              </pre>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-nofx-text-muted">
+                      <Play className="w-10 h-10 mb-2 opacity-30" />
+                      <p className="text-sm">{tr('runAiTestHint')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

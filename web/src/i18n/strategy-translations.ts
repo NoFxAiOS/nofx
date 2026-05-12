@@ -629,6 +629,31 @@ export const riskControl = {
     en: 'AI confidence threshold for entry',
     es: 'Umbral de confianza AI',
   },
+  executionConstraints: {
+    zh: '执行约束',
+    en: 'Execution Constraints',
+    es: 'Restricciones de Ejecución',
+  },
+  entryCooldown: {
+    zh: '止损后冷却 (分钟)',
+    en: 'Post-loss cooldown (min)',
+    es: 'Enfriamiento post-pérdida (min)',
+  },
+  entryCooldownDesc: {
+    zh: '止损平仓后该币种禁止开仓的时间',
+    en: 'Time before re-entry allowed after stop-loss',
+    es: 'Tiempo antes de reentrada tras stop-loss',
+  },
+  maxEntryDeviation: {
+    zh: '入场价偏差上限 %',
+    en: 'Max entry deviation %',
+    es: 'Desviación máx. de entrada %',
+  },
+  maxEntryDeviationDesc: {
+    zh: 'AI 计划价与实际执行价的最大允许偏差',
+    en: 'Max allowed gap between AI planned price and execution price',
+    es: 'Brecha máx. entre precio AI y ejecución',
+  },
 }
 
 // ============================================================================
@@ -1086,6 +1111,26 @@ export const preEntryGate = {
     en: 'e.g. 5 resistance levels above → reject (target unreachable)',
   },
   maxBlockingLevels: { zh: '最多路径阻力/支撑层', en: 'Max blocking levels' },
+  // Group E: Confidence & Direction
+  confidenceDirection: {
+    zh: '置信度 & 方向门禁',
+    en: 'Confidence & Direction',
+  },
+  confidenceDirectionDesc: {
+    zh: '特殊市场状态下的额外置信度/RR 要求',
+    en: 'Extra confidence/RR requirements for special regimes',
+  },
+  confidenceDirectionExample: {
+    zh: '例：非下跌趋势做空需 conf≥78；挤压行情需 conf≥80 且 RR≥2.5',
+    en: 'e.g. short in non-downtrend needs conf≥78; squeeze needs conf≥80 & RR≥2.5',
+  },
+  shortNonDowntrendConf: {
+    zh: '做空非下跌趋势最低置信度',
+    en: 'Short non-downtrend min confidence',
+  },
+  squeezeMinConf: { zh: '挤压行情最低置信度', en: 'Squeeze min confidence' },
+  squeezeMinRR: { zh: '挤压行情最低 RR', en: 'Squeeze min RR' },
+  minRewardAtr: { zh: '最小TP距离 (ATR×)', en: 'Min TP distance (ATR×)' },
 }
 
 // ============================================================================

@@ -383,7 +383,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		drawdownRunnerState:   make(map[string]DrawdownRunnerState),
 		drawdownTierAllocs:    make(map[string][]store.DrawdownTierAllocation),
 		immediateTrailingIDs:  make(map[string]string),
-		cooldownManager:       newEntryCooldownManager(),
+		cooldownManager:       newEntryCooldownManagerFromConfig(config),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil

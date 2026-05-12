@@ -73,6 +73,7 @@ export interface EntryGateConfig {
   entry_precision_enabled?: boolean
   stop_quality_enabled?: boolean
   path_clarity_enabled?: boolean
+  confidence_direction_enabled?: boolean
   // Volatility gate
   min_atr14_pct?: number
   // Entry precision
@@ -84,8 +85,14 @@ export interface EntryGateConfig {
   invalidation_structure_atr_mul?: number
   // Volatility buffer: extra ATR-based SL padding [0=tightest, 1.5=widest]. Default 0.3.
   volatility_buffer_atr_mul?: number
+  // Reward distance
+  min_reward_atr_mul?: number
   // Path clarity
   max_blocking_levels?: number
+  // Confidence & direction
+  short_non_downtrend_min_confidence?: number
+  squeeze_min_confidence?: number
+  squeeze_min_rr?: number
   // Legacy compat
   entry_proximity_min_pct?: number
   invalidation_structure_min_pct?: number
@@ -368,4 +375,8 @@ export interface RiskControlConfig {
   min_position_size: number // Min position size in USDT (CODE ENFORCED)
   min_risk_reward_ratio: number // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number // Min AI confidence to open position (AI guided)
+
+  // Execution constraints
+  entry_cooldown_minutes?: number // Post-loss cooldown per symbol (default: 90)
+  max_entry_deviation_pct?: number // Max entry price deviation % (default: 1.5)
 }

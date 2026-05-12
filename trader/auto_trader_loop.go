@@ -927,6 +927,15 @@ func (at *AutoTrader) getMinConfidence() int {
 	return 0
 }
 
+func (at *AutoTrader) getMaxEntryDeviationPct() float64 {
+	if at != nil && at.config.StrategyConfig != nil {
+		if v := at.config.StrategyConfig.RiskControl.MaxEntryDeviationPct; v > 0 {
+			return v
+		}
+	}
+	return 0
+}
+
 func buildDecisionActionReviewContext(decision *kernel.Decision, minRR float64, snapshot *store.ProtectionSnapshot, executionSnapshot ...interface{}) *store.DecisionActionReviewContext {
 	ctx := &store.DecisionActionReviewContext{}
 	var protectionOverride *store.DecisionActionProtectionAlignment

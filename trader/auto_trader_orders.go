@@ -181,7 +181,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	}
 
 	// [CODE ENFORCED] Entry price deviation check
-	if err := enforceEntryPriceDeviation(decision, marketData.CurrentPrice, "long"); err != nil {
+	if err := enforceEntryPriceDeviationWithMax(decision, marketData.CurrentPrice, "long", at.getMaxEntryDeviationPct()); err != nil {
 		return err
 	}
 
@@ -322,7 +322,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	}
 
 	// [CODE ENFORCED] Entry price deviation check
-	if err := enforceEntryPriceDeviation(decision, marketData.CurrentPrice, "short"); err != nil {
+	if err := enforceEntryPriceDeviationWithMax(decision, marketData.CurrentPrice, "short", at.getMaxEntryDeviationPct()); err != nil {
 		return err
 	}
 

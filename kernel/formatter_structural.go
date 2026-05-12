@@ -146,8 +146,15 @@ func formatStructuralLevelsEvaluated(mdata *market.Data, zh bool) string {
 	atr14 := extractPrimaryATR14(mdata)
 	currentPrice := mdata.CurrentPrice
 
+	// Combine structural levels with fibonacci extensions for uncharted territory
+	allLevels := append([]market.StructuralLevel{}, mdata.StructuralLevels...)
+	if mdata.FibonacciLevels != nil {
+		extLevels := market.GenerateFibExtensionLevels(mdata.FibonacciLevels, currentPrice, mdata.FibonacciLevels.Timeframe)
+		allLevels = append(allLevels, extLevels...)
+	}
+
 	// Evaluate levels for trading context (direction unknown at prompt time)
-	evaluated := market.EvaluateForTrading(mdata.StructuralLevels, currentPrice, atr14, "")
+	evaluated := market.EvaluateForTrading(allLevels, currentPrice, atr14, "")
 	groups := market.GroupByUsage(evaluated)
 
 	var sb strings.Builder
@@ -251,24 +258,26 @@ func formatStructuralLevelsEvaluated(mdata *market.Data, zh bool) string {
 		}
 	}
 
-	// Quality advisory
+	// Quality advisory — only when NO candidates at all (not just missing high quality)
 	hasSL := market.HasHighQualitySLCandidates(evaluated)
 	hasTP := market.HasHighQualityTPCandidates(evaluated)
 	if !hasSL || !hasTP {
 		sb.WriteString("\n")
 		if zh {
-			if !hasSL {
-				sb.WriteString("⚠️ 无高质量止损锚点 — 可使用 ATR-based 止损 (建议 1.5-2x ATR)。\n")
-			}
-			if !hasTP {
-				sb.WriteString("⚠️ 无高质量止盈目标 — 可使用 ATR-based 目标或固定 RR 比。\n")
+			if !hasSL && !hasTP {
+				sb.WriteString("📐 结构位稀疏区域 — 可使用 ATR-based 止损 (1.5-2x ATR) 和 fibonacci extension 目标。basis_type 标注为 \"atr_based\"。仍需确保 RR 达标且入场有结构依托。\n")
+			} else if !hasSL {
+				sb.WriteString("📐 止损方向无近距结构位 — 可使用 ATR-based 止损 (1.5-2x ATR from entry)，basis_type 标注为 \"atr_based\"。确保止损距离合理且 RR 达标。\n")
+			} else {
+				sb.WriteString("📐 止盈方向结构目标有限 — 可使用 fibonacci extension 或 ATR-based 目标，basis_type 标注为 \"atr_based\" 或 \"fibonacci\"。确保目标距离满足 RR 要求。\n")
 			}
 		} else {
-			if !hasSL {
-				sb.WriteString("⚠️ No high-quality SL anchors — use ATR-based stop (suggested 1.5-2x ATR from entry).\n")
-			}
-			if !hasTP {
-				sb.WriteString("⚠️ No high-quality TP targets — use ATR-based target or fixed RR ratio.\n")
+			if !hasSL && !hasTP {
+				sb.WriteString("📐 Sparse structure zone — use ATR-based stop (1.5-2x ATR) and fibonacci extension targets. Mark basis_type as \"atr_based\". Still require valid RR and structural entry justification.\n")
+			} else if !hasSL {
+				sb.WriteString("📐 No nearby SL structure — use ATR-based stop (1.5-2x ATR from entry), mark basis_type as \"atr_based\". Ensure stop distance is reasonable and RR meets threshold.\n")
+			} else {
+				sb.WriteString("📐 Limited TP structure — use fibonacci extension or ATR-based target, mark basis_type as \"atr_based\" or \"fibonacci\". Ensure target distance satisfies RR requirement.\n")
 			}
 		}
 	}

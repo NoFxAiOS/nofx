@@ -75,7 +75,7 @@ func FilterRecommended(levels []EvaluatedLevel) []EvaluatedLevel {
 	return out
 }
 
-// HasHighQualitySLCandidates checks if there are any high/medium quality SL anchors
+// HasHighQualitySLCandidates checks if there are any medium+ quality SL anchors
 func HasHighQualitySLCandidates(levels []EvaluatedLevel) bool {
 	for _, l := range levels {
 		if l.UsageLabel == "sl_anchor" && l.QualityGrade != "low" {
@@ -85,7 +85,7 @@ func HasHighQualitySLCandidates(levels []EvaluatedLevel) bool {
 	return false
 }
 
-// HasHighQualityTPCandidates checks if there are any high/medium quality TP targets
+// HasHighQualityTPCandidates checks if there are any medium+ quality TP targets
 func HasHighQualityTPCandidates(levels []EvaluatedLevel) bool {
 	for _, l := range levels {
 		if l.UsageLabel == "tp_target" && l.QualityGrade != "low" {
@@ -116,30 +116,29 @@ func classifyUsageLabel(l StructuralLevel, currentPrice, atr14, dist, atrDist fl
 
 	switch side {
 	case "long":
-		// For long: support below = SL anchor, resistance above = TP target
-		if l.Type == "support" && isBelow && atrDist >= 0.5 && atrDist <= 3.5 && l.Confidence >= 35 {
+		if l.Type == "support" && isBelow && atrDist >= 0.3 && atrDist <= 4.0 && l.Confidence >= 30 {
 			return "sl_anchor"
 		}
-		if (l.Type == "resistance" || l.Source == "fibonacci") && isAbove && atrDist >= 0.8 && l.Confidence >= 30 {
+		if (l.Type == "resistance" || l.Source == "fibonacci") && isAbove && atrDist >= 0.8 && l.Confidence >= 25 {
 			return "tp_target"
 		}
 	case "short":
-		// For short: resistance above = SL anchor, support below = TP target
-		if l.Type == "resistance" && isAbove && atrDist >= 0.5 && atrDist <= 3.5 && l.Confidence >= 35 {
+		if l.Type == "resistance" && isAbove && atrDist >= 0.3 && atrDist <= 4.0 && l.Confidence >= 30 {
 			return "sl_anchor"
 		}
-		if (l.Type == "support" || l.Source == "fibonacci") && isBelow && atrDist >= 0.8 && l.Confidence >= 30 {
+		if (l.Type == "support" || l.Source == "fibonacci") && isBelow && atrDist >= 0.8 && l.Confidence >= 25 {
 			return "tp_target"
 		}
 	default:
-		// Unknown direction: classify by type and distance
-		if l.Type == "support" && isBelow && atrDist >= 0.5 && atrDist <= 3.5 && l.Confidence >= 35 {
+		// Unknown direction: both support below and resistance above can serve as SL
+		if l.Type == "support" && isBelow && atrDist >= 0.3 && atrDist <= 4.0 && l.Confidence >= 30 {
 			return "sl_anchor"
 		}
-		if l.Type == "resistance" && isAbove && atrDist >= 0.5 && atrDist <= 3.5 && l.Confidence >= 35 {
+		if l.Type == "resistance" && isAbove && atrDist >= 0.3 && atrDist <= 4.0 && l.Confidence >= 30 {
 			return "sl_anchor"
 		}
-		if atrDist >= 1.0 && atrDist <= 6.0 && l.Confidence >= 30 {
+		// TP: anything at reasonable distance with decent confidence
+		if atrDist >= 0.8 && atrDist <= 6.0 && l.Confidence >= 25 {
 			return "tp_target"
 		}
 	}
@@ -148,11 +147,73 @@ func classifyUsageLabel(l StructuralLevel, currentPrice, atr14, dist, atrDist fl
 }
 
 func computeQualityGrade(l StructuralLevel) string {
-	if l.Confidence >= 60 && l.MultiTFCount >= 2 {
+	if l.Confidence >= 50 && l.MultiTFCount >= 1 {
 		return "high"
 	}
-	if l.Confidence >= 35 || l.MultiTFCount >= 1 {
+	if l.Confidence >= 30 || l.MultiTFCount >= 1 {
 		return "medium"
 	}
 	return "low"
+}
+
+// GenerateFibExtensionLevels generates fibonacci extension levels below swing low
+// (for downtrend TP targets) or above swing high (for uptrend TP targets).
+// These provide structural targets when price enters uncharted territory.
+func GenerateFibExtensionLevels(fib *FibonacciLevels, currentPrice float64, timeframe string) []StructuralLevel {
+	if fib == nil || fib.SwingHigh <= fib.SwingLow {
+		return nil
+	}
+
+	diff := fib.SwingHigh - fib.SwingLow
+	var levels []StructuralLevel
+
+	if fib.Direction == "retracement_up" && currentPrice < fib.SwingLow {
+		// Price broke below swing low — generate extension targets below
+		extensions := []struct {
+			ratio float64
+			name  string
+		}{
+			{1.272, "fib_ext_1.272"},
+			{1.618, "fib_ext_1.618"},
+			{2.0, "fib_ext_2.0"},
+		}
+		for _, ext := range extensions {
+			price := fib.SwingHigh - diff*ext.ratio
+			if price > 0 && price < currentPrice {
+				levels = append(levels, StructuralLevel{
+					Price:      price,
+					Type:       "support",
+					Timeframe:  timeframe,
+					Strength:   2,
+					Source:     "fibonacci_extension",
+					Confidence: 40,
+				})
+			}
+		}
+	} else if fib.Direction == "retracement_down" && currentPrice > fib.SwingHigh {
+		// Price broke above swing high — generate extension targets above
+		extensions := []struct {
+			ratio float64
+			name  string
+		}{
+			{1.272, "fib_ext_1.272"},
+			{1.618, "fib_ext_1.618"},
+			{2.0, "fib_ext_2.0"},
+		}
+		for _, ext := range extensions {
+			price := fib.SwingLow + diff*ext.ratio
+			if price > currentPrice {
+				levels = append(levels, StructuralLevel{
+					Price:      price,
+					Type:       "resistance",
+					Timeframe:  timeframe,
+					Strength:   2,
+					Source:     "fibonacci_extension",
+					Confidence: 40,
+				})
+			}
+		}
+	}
+
+	return levels
 }

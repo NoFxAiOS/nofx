@@ -83,8 +83,10 @@ func resolveLadderTakeProfitRule(rule store.LadderTPSLRule, ladder store.LadderT
 	case store.ProtectionValueModeManual:
 		pricePct = rule.TakeProfitPct
 	case store.ProtectionValueModeAI:
-		if aiRule != nil {
+		if aiRule != nil && aiRule.TakeProfitPct > 0 {
 			pricePct = aiRule.TakeProfitPct
+		} else if rule.TakeProfitPct > 0 {
+			pricePct = rule.TakeProfitPct
 		}
 	}
 
@@ -92,8 +94,10 @@ func resolveLadderTakeProfitRule(rule store.LadderTPSLRule, ladder store.LadderT
 	case store.ProtectionValueModeManual:
 		closeRatioPct = rule.TakeProfitCloseRatioPct
 	case store.ProtectionValueModeAI:
-		if aiRule != nil {
+		if aiRule != nil && aiRule.TakeProfitCloseRatioPct > 0 {
 			closeRatioPct = aiRule.TakeProfitCloseRatioPct
+		} else if rule.TakeProfitCloseRatioPct > 0 {
+			closeRatioPct = rule.TakeProfitCloseRatioPct
 		}
 	}
 
@@ -114,11 +118,9 @@ func resolveLadderStopLossRule(rule store.LadderTPSLRule, ladder store.LadderTPS
 	case store.ProtectionValueModeAI:
 		if aiRule != nil && aiRule.StopLossPct > 0 {
 			pricePct = aiRule.StopLossPct
-		} else if ladder.Mode == store.ProtectionModeManual {
-			// Existing-position reconciliation must not leave stops unmaterialized
-			// just because the opening AI rationale is gone after restart. In manual
-			// ladder mode, configured rule values are the deterministic fallback for
-			// held-position stop ownership.
+		} else if rule.StopLossPct > 0 {
+			// Fallback: use configured rule percentage when AI plan is unavailable
+			// (manual positions or positions surviving a restart without AI context)
 			pricePct = rule.StopLossPct
 		}
 	}
@@ -129,7 +131,7 @@ func resolveLadderStopLossRule(rule store.LadderTPSLRule, ladder store.LadderTPS
 	case store.ProtectionValueModeAI:
 		if aiRule != nil && aiRule.StopLossCloseRatioPct > 0 {
 			closeRatioPct = aiRule.StopLossCloseRatioPct
-		} else if ladder.Mode == store.ProtectionModeManual {
+		} else if rule.StopLossCloseRatioPct > 0 {
 			closeRatioPct = rule.StopLossCloseRatioPct
 		}
 	}

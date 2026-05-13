@@ -122,6 +122,9 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 - **stop_loss**: 直接止损价（可选，仅当你不使用 protection_plan 时）
 - **take_profit**: 直接止盈价（可选，仅当你不使用 protection_plan 时）
 - **protection_plan**: 可选的结构化保护计划。mode=full/ladder 都优先提供结构绝对价 take_profit_price/stop_loss_price，同时给等价百分比；百分比只是审计/显示值，不是结构止损来源
+  - **drawdown_rules 的 min_profit_pct 必须基于结构位计算**：T1 对应入场到第一个阻力/目标结构位的距离（减去 0.1-0.2% 缓冲，确保保护在价格到达目标前就 arm）。T2/T3 对应更远的结构位或 fibonacci extension。禁止使用固定模板值 — 必须从实际结构数据计算。缓冲的目的是防止价格差一点没到目标就回撤、而 drawdown 保护还没激活的情况。
+  - 示例：entry=100, 第一阻力=101.5 → T1 min_profit_pct = 1.5% - 0.15% = 1.35%。第二目标=103.2 → T2 = 3.0%。
+  - stage_name 应引用实际使用的结构位（如 "15m 阻力 101.5 缓冲"）。
 - **confidence**: 信心度（0-100）
 - **reasoning**: 推理过程（必需，必须详细说明决策依据）
 
@@ -196,11 +199,12 @@ func (pb *PromptBuilder) getDecisionRequirementsZH() string {
     "protection_plan": {
       "mode": "drawdown",
       "drawdown_rules": [
-        {"timeframe":"5m","min_profit_pct":2.5,"max_drawdown_pct":35,"close_ratio_pct":20,"poll_interval_seconds":30,"reason_anchor":"5m micro swing near local resistance"},
-        {"timeframe":"15m","min_profit_pct":4.5,"max_drawdown_pct":30,"close_ratio_pct":50,"poll_interval_seconds":60,"reason_anchor":"15m primary trend profit protection"}
+        {"timeframe":"15m","min_profit_pct":1.35,"max_drawdown_pct":55,"close_ratio_pct":55,"poll_interval_seconds":20,"reason_anchor":"15m resistance 1.015 minus 0.15% buffer","stage_name":"15m阻力1.015缓冲"},
+        {"timeframe":"1h","min_profit_pct":2.8,"max_drawdown_pct":45,"close_ratio_pct":25,"poll_interval_seconds":20,"reason_anchor":"1h fib 0.618 extension minus 0.2% buffer","stage_name":"1h fib ext缓冲"},
+        {"timeframe":"1h","min_profit_pct":4.3,"max_drawdown_pct":40,"close_ratio_pct":100,"poll_interval_seconds":20,"reason_anchor":"1h swing high target minus 0.2% buffer","stage_name":"1h前高目标缓冲"}
       ]
     },
-    "reasoning": "XRPUSDT 与 15m 主趋势和 5m 延续结构一致，适合使用 drawdown protection_plan；规则参考主周期、邻近周期、支撑阻力、斐波那契和当前波动率。"
+    "reasoning": "XRPUSDT 与 15m 主趋势和 5m 延续结构一致，适合使用 drawdown protection_plan；每个 tier 的 min_profit_pct 基于实际结构位距离减去缓冲计算。"
   },
   {
     "symbol": "HUSDT",
@@ -337,6 +341,9 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
 - **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
 - **protection_plan**: Optional structured protection plan. Use mode=full/ladder with structural absolute prices plus equivalent pct where applicable, or mode=drawdown/combined with at least 2 drawdown_rules. When drawdown_rules are present, drawdown owns TP/profit-taking; do not output ladder take_profit_price/take_profit_close_ratio_pct unless explicitly needed for audit, and prefer ladder stop-loss side only. In drawdown_rules, max_drawdown_pct is peak-profit giveback percentage: 55 means give back 55% of peak profit; do not output 0.55 unless you truly mean 0.55% of peak profit.
+  - **drawdown_rules min_profit_pct MUST be derived from structural levels**: T1 min_profit_pct should correspond to the distance (in %) from entry to the FIRST resistance/target structural level (minus ~0.1-0.2% buffer so protection arms BEFORE price reaches the level). T2/T3 should correspond to further structural levels or fibonacci extensions. Do NOT use fixed/template values — calculate from the actual structural data provided. Add a small buffer (0.1-0.2%) below each target so drawdown protection arms slightly before the target is reached, preventing the scenario where price reverses just short of the target with no protection.
+  - Example: entry=100, first resistance=101.5 → T1 min_profit_pct = 1.5% - 0.15% buffer = 1.35%. Second target=103.2 → T2 min_profit_pct = 3.2% - 0.2% = 3.0%.
+  - stage_name should reference the actual structural level used (e.g. "15m resistance 101.5 buffer").
 - **entry_protection_rationale**: Required for open_long/open_short. Must include structured timeframe/key-level/RR rationale. At minimum include risk_reward.entry, risk_reward.invalidation, risk_reward.first_target, risk_reward.gross_estimated_rr, and preferably risk_reward.net_estimated_rr plus structural anchors.
   - Opening decisions MUST include a first-target anchor. Use either anchors[].type="first_target", or structural_key_levels[].used_for="first_target"/"tp1"/"take_profit", with the target price and reason.
   - If you do not have a concrete higher-timeframe anchor, leave timeframe_context.higher empty/omitted. If timeframe_context.higher is present, you MUST include higher_timeframe_anchors or timeframe_structures with explicit higher-TF price anchors for runner/drawdown context.

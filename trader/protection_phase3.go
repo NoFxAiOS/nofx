@@ -441,17 +441,9 @@ func clampAIDrawdownTierCeilings(rules []store.DrawdownTakeProfitRule, cfg store
 		return cfgRules[i].MinProfitPct < cfgRules[j].MinProfitPct
 	})
 
-	// Clamp each AI tier's min_profit_pct to the corresponding strategy ceiling.
-	for i := range rules {
-		if i < len(cfgRules) {
-			ceiling := cfgRules[i].MinProfitPct
-			if ceiling > 0 && rules[i].MinProfitPct > ceiling {
-				logger.Warnf("⚠️ Drawdown tier %d min_profit_pct %.4f exceeds strategy ceiling %.4f, clamping down",
-					i+1, rules[i].MinProfitPct, ceiling)
-				rules[i].MinProfitPct = ceiling
-			}
-		}
-	}
+	// Note: min_profit_pct ceiling clamp removed — AI now derives values from
+	// structural levels with buffer. Strategy config values serve as examples/defaults
+	// only when AI plan is unavailable, not as hard ceilings.
 
 	// Deduplicate: ensure strictly increasing MinProfitPct across tiers.
 	// If AI returns tiers with identical thresholds, space them by at least 0.3%.

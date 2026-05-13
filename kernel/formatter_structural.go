@@ -192,7 +192,7 @@ func formatStructuralLevelsEvaluated(mdata *market.Data, zh bool) string {
 	// TP Candidates
 	tpGroup := groups["tp_target"]
 	if len(tpGroup) > 0 {
-		limit := 4
+		limit := 6
 		if len(tpGroup) < limit {
 			limit = len(tpGroup)
 		}

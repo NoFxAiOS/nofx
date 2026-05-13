@@ -100,12 +100,12 @@ func classifyUsageLabel(l StructuralLevel, currentPrice, atr14, dist, atrDist fl
 	isAbove := dist > 0
 
 	// Entry trigger: very close to current price with decent confidence
-	if atrDist < 0.5 && l.Confidence >= 50 {
+	if atrDist < 0.3 && l.Confidence >= 50 {
 		return "entry_trigger"
 	}
 
 	// Too far away — context only
-	if atrDist > 6 {
+	if atrDist > 12 {
 		return "context_only"
 	}
 
@@ -119,14 +119,14 @@ func classifyUsageLabel(l StructuralLevel, currentPrice, atr14, dist, atrDist fl
 		if l.Type == "support" && isBelow && atrDist >= 0.3 && atrDist <= 4.0 && l.Confidence >= 30 {
 			return "sl_anchor"
 		}
-		if (l.Type == "resistance" || l.Source == "fibonacci") && isAbove && atrDist >= 0.8 && l.Confidence >= 25 {
+		if (l.Type == "resistance" || l.Source == "fibonacci" || l.Source == "fibonacci_extension") && isAbove && atrDist >= 0.3 && l.Confidence >= 25 {
 			return "tp_target"
 		}
 	case "short":
 		if l.Type == "resistance" && isAbove && atrDist >= 0.3 && atrDist <= 4.0 && l.Confidence >= 30 {
 			return "sl_anchor"
 		}
-		if (l.Type == "support" || l.Source == "fibonacci") && isBelow && atrDist >= 0.8 && l.Confidence >= 25 {
+		if (l.Type == "support" || l.Source == "fibonacci" || l.Source == "fibonacci_extension") && isBelow && atrDist >= 0.3 && l.Confidence >= 25 {
 			return "tp_target"
 		}
 	default:
@@ -138,7 +138,7 @@ func classifyUsageLabel(l StructuralLevel, currentPrice, atr14, dist, atrDist fl
 			return "sl_anchor"
 		}
 		// TP: anything at reasonable distance with decent confidence
-		if atrDist >= 0.8 && atrDist <= 6.0 && l.Confidence >= 25 {
+		if atrDist >= 0.3 && atrDist <= 12.0 && l.Confidence >= 25 {
 			return "tp_target"
 		}
 	}

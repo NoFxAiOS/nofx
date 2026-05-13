@@ -367,10 +367,6 @@ func (at *AutoTrader) reconcileProtectionForPosition(symbol, side string, quanti
 		}
 	}
 
-	// Ensure break-even TP orders are present on exchange.
-	// These are placed once at open time but lost on restart if the exchange cancelled them.
-	at.reconcileBreakEvenTPOrders(symbol, side, quantity, entryPrice, openOrders)
-
 	rules := at.getActiveDrawdownRulesForPosition(symbol, side)
 	if len(rules) > 0 {
 		peakPnLPct := currentPnLPct

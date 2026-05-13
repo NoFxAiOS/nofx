@@ -278,9 +278,9 @@ func (at *AutoTrader) applyNativeProtectionTargetsAfterOpen(req *protectionExecu
 		_ = at.applyNativeTrailingDrawdown(req.Symbol, side, req.EntryPrice, rule)
 	}
 
-	// 2. Break-even: place conditional TP orders on exchange immediately at open.
-	// These provide exchange-side profit protection without relying on backend polling.
-	at.placeBreakEvenTPOrders(req.Symbol, side, req.Quantity, req.EntryPrice)
+	// 2. Break-even: runtime polling will detect when profit reaches trigger level
+	// and place a stop-loss at the break-even price (entry + offset).
+	// No pre-placed TP orders — stops are placed only after profit threshold is met.
 
 	if be := at.getActiveBreakEvenConfigForPlan(plan); be != nil && be.TriggerValue > 0 {
 		if plan != nil && plan.BreakEvenConfig != nil {

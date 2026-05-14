@@ -384,48 +384,17 @@ func buildAIBreakEvenConfig(plan *kernel.AIProtectionPlan) *store.BreakEvenStopC
 }
 
 func clampAIDrawdownCloseRatio(rule store.DrawdownTakeProfitRule, cfg store.DrawdownTakeProfitConfig) store.DrawdownTakeProfitRule {
-	if cfg.EngineMode != store.DrawdownEngineModeAI {
-		return rule
-	}
-	anchor := strings.ToLower(strings.Join([]string{rule.StageName, rule.Timeframe, rule.RunnerStopMode, rule.RunnerStopSource, rule.RunnerTargetMode, rule.RunnerTargetSource, rule.ReasonAnchor}, " "))
-	isRunnerRule := rule.RunnerKeepPct > 0 || strings.Contains(anchor, "runner")
-	isEarlyRule := strings.Contains(anchor, "early") || strings.Contains(anchor, "first") || strings.Contains(anchor, "tp1") || strings.Contains(anchor, "partial") || strings.Contains(anchor, "lock_first")
-	maxFirstReduce := cfg.MaxFirstReducePct
-	if maxFirstReduce <= 0 || maxFirstReduce > 100 {
-		maxFirstReduce = 60
-	}
-	if isRunnerRule {
-		minRunnerKeep := rule.RunnerKeepPct
-		if minRunnerKeep <= 0 {
-			minRunnerKeep = cfg.MinRunnerKeepPct
-		}
-		if cfg.RunnerEnabled && minRunnerKeep > 0 {
-			rule.CloseRatioPct = minPositive(rule.CloseRatioPct, 100-minRunnerKeep)
-		}
-	} else if isEarlyRule {
-		rule.CloseRatioPct = minPositive(rule.CloseRatioPct, maxFirstReduce)
-	} else if len(strings.TrimSpace(rule.StageName+rule.ReasonAnchor)) > 0 {
-		stageText := strings.ToLower(rule.StageName + " " + rule.ReasonAnchor)
-		if strings.Contains(stageText, "first") || strings.Contains(stageText, "第一") || strings.Contains(stageText, "t1") {
-			rule.CloseRatioPct = 65
-		} else if strings.Contains(stageText, "second") || strings.Contains(stageText, "第二") || strings.Contains(stageText, "t2") {
-			rule.CloseRatioPct = minPositive(rule.CloseRatioPct, 25)
-		} else if strings.Contains(stageText, "outer") || strings.Contains(stageText, "final") || strings.Contains(stageText, "最外") || strings.Contains(stageText, "t3") {
-			rule.CloseRatioPct = minPositive(rule.CloseRatioPct, 10)
-		}
-	}
-	if rule.RunnerKeepPct > 0 && rule.CloseRatioPct > 100-rule.RunnerKeepPct {
-		rule.CloseRatioPct = 100 - rule.RunnerKeepPct
-	}
+	// No clamping needed — close_ratio_pct comes directly from strategy config
+	// (manual value) or AI decision. The strategy config's close_ratio_pct is
+	// applied at the tier-matching stage in clampAIDrawdownTierCeilings, not here.
 	return rule
 }
 
-// clampAIDrawdownTierCeilings enforces strategy-configured ceilings on AI drawdown rules:
-// 1. Each tier's min_profit_pct must be ≤ the corresponding strategy tier ceiling.
-// 2. The first tier must close ≥50% of the position (runner_keep ≤ 35%).
-// Rules are sorted by min_profit_pct ascending before matching to strategy tiers.
+// clampAIDrawdownTierCeilings applies strategy-configured close_ratio_pct to AI drawdown rules.
+// Strategy config close_ratio_pct is always authoritative — AI only provides min_profit and max_drawdown
+// when their mode is "ai". The number of tiers comes from AI (can be 3, 4, 5, etc.).
 func clampAIDrawdownTierCeilings(rules []store.DrawdownTakeProfitRule, cfg store.DrawdownTakeProfitConfig) []store.DrawdownTakeProfitRule {
-	if len(rules) == 0 || len(cfg.Rules) == 0 {
+	if len(rules) == 0 {
 		return rules
 	}
 
@@ -434,40 +403,17 @@ func clampAIDrawdownTierCeilings(rules []store.DrawdownTakeProfitRule, cfg store
 		return rules[i].MinProfitPct < rules[j].MinProfitPct
 	})
 
-	// Sort strategy config rules the same way.
-	cfgRules := make([]store.DrawdownTakeProfitRule, len(cfg.Rules))
-	copy(cfgRules, cfg.Rules)
-	sort.Slice(cfgRules, func(i, j int) bool {
-		return cfgRules[i].MinProfitPct < cfgRules[j].MinProfitPct
-	})
-
-	// Note: min_profit_pct ceiling clamp removed — AI now derives values from
-	// structural levels with buffer. Strategy config values serve as examples/defaults
-	// only when AI plan is unavailable, not as hard ceilings.
-
-	// Deduplicate: ensure strictly increasing MinProfitPct across tiers.
-	// If AI returns tiers with identical thresholds, space them by at least 0.3%.
-	for i := 1; i < len(rules); i++ {
-		if rules[i].MinProfitPct <= rules[i-1].MinProfitPct {
-			rules[i].MinProfitPct = rules[i-1].MinProfitPct + 0.3
-			logger.Warnf("⚠️ Drawdown tier %d min_profit_pct deduplicated → %.4f (was ≤ tier %d)",
-				i+1, rules[i].MinProfitPct, i)
+	// Apply strategy config close_ratio_pct where available (positional match).
+	for i := range rules {
+		if i < len(cfg.Rules) && cfg.Rules[i].CloseRatioPct > 0 {
+			rules[i].CloseRatioPct = cfg.Rules[i].CloseRatioPct
 		}
 	}
 
-	// Enforce first-tier allocation: close ≥50%, runner ≤35%.
-	if len(rules) > 0 {
-		if rules[0].CloseRatioPct < 50 {
-			logger.Warnf("⚠️ Drawdown tier 1 close_ratio_pct %.1f below minimum 50%%, clamping up", rules[0].CloseRatioPct)
-			rules[0].CloseRatioPct = 65 // default to 65% lock for first tier
-		}
-		if rules[0].RunnerKeepPct > 35 {
-			logger.Warnf("⚠️ Drawdown tier 1 runner_keep_pct %.1f exceeds 35%%, clamping down", rules[0].RunnerKeepPct)
-			rules[0].RunnerKeepPct = 35
-		}
-		// Ensure consistency: close + runner ≤ 100
-		if rules[0].RunnerKeepPct > 0 && rules[0].CloseRatioPct > 100-rules[0].RunnerKeepPct {
-			rules[0].CloseRatioPct = 100 - rules[0].RunnerKeepPct
+	// Deduplicate: ensure strictly increasing MinProfitPct across tiers.
+	for i := 1; i < len(rules); i++ {
+		if rules[i].MinProfitPct <= rules[i-1].MinProfitPct {
+			rules[i].MinProfitPct = rules[i-1].MinProfitPct + 0.3
 		}
 	}
 

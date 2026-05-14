@@ -508,11 +508,7 @@ func (tm *TraderManager) LoadTradersFromStore(st *store.Store) error {
 	defer tm.mu.Unlock()
 
 	if st != nil && !isProtectOnlyBoot() {
-		if err := st.Trader().ForceAllRunning(); err != nil {
-			logger.Warnf("⚠️ Failed to force traders running on normal boot: %v", err)
-		} else {
-			logger.Infof("🟢 Normal boot policy: all configured traders marked running; use frontend stop or NOFX_PROTECT_ONLY_BOOT=1 for diagnostic protect-only boot")
-		}
+		logger.Infof("🟢 Normal boot policy: respecting DB is_running state for each trader")
 	}
 
 	// Get all users

@@ -1358,20 +1358,10 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 
 	plannedActivationPrice := calculateProfitBasedTrailingTriggerPrice(entryPrice, side, rule.MinProfitPct)
 	activationPrice := plannedActivationPrice
-	if marketPrice, err := at.trader.GetMarketPrice(symbol); err == nil && marketPrice > 0 {
-		marketReachedArmGate := false
-		switch strings.ToLower(side) {
-		case "long":
-			marketReachedArmGate = marketPrice >= plannedActivationPrice
-		case "short":
-			marketReachedArmGate = marketPrice <= plannedActivationPrice
-		}
-		if marketReachedArmGate {
-			activationPrice = marketPrice
-		}
-	} else if err != nil {
-		logger.Infof("⚠️ Failed to get latest market price for trailing activation (%s %s): %v", symbol, side, err)
-	}
+	// Use the fixed planned activation price. The exchange's native trailing stop
+	// tracks the high-water mark internally — we do NOT update activation price
+	// based on current market price. This prevents the "ratchet down" bug where
+	// the trigger price keeps dropping as price retreats from peak.
 	priceBasedCallbackRatio := calculateDrawdownRuleCallbackRatio(entryPrice, side, rule)
 	if activationPrice <= 0 || priceBasedCallbackRatio <= 0 {
 		return false
@@ -1445,22 +1435,25 @@ func (at *AutoTrader) applyNativeTrailingDrawdown(symbol, side string, entryPric
 			return false
 		}
 
-		// Use original entry quantity for CloseRatioPct calculation, subtract already-executed tiers
+		// Use original entry quantity for CloseRatioPct calculation.
+		// When a tier triggers, it closes its own ratio PLUS all superseded lower tiers' ratios.
+		// E.g. T1=65%, T2=25%: if T2 triggers (T1 was superseded), close 65+25=90% of original.
+		// This implements "higher tier inherits lower tier's position responsibility".
 		originalQty := quantity
 		if at.store != nil {
 			if dbPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, strings.ToUpper(side)); err == nil && dbPos != nil && dbPos.EntryQuantity > 0 {
 				originalQty = dbPos.EntryQuantity
 			}
 		}
-		executedRatio := at.getExecutedTierCloseRatio(symbol, side)
-		actualCloseRatio := rule.CloseRatioPct - executedRatio
-		if actualCloseRatio <= 0 {
-			logger.Infof("🟣 Partial drawdown tier already covered by executed tiers (%s %s close=%.1f%% executed=%.1f%%)", symbol, side, rule.CloseRatioPct, executedRatio)
-			return false
-		}
-		partialQty := originalQty * actualCloseRatio / 100.0
-		if partialQty > quantity {
+		cumulativeRatio := at.getCumulativeCloseRatioByRule(symbol, side, rule)
+		var partialQty float64
+		if cumulativeRatio >= 100 {
 			partialQty = quantity
+		} else {
+			partialQty = originalQty * cumulativeRatio / 100.0
+			if partialQty > quantity {
+				partialQty = quantity
+			}
 		}
 		if partialQty <= 0 {
 			return false

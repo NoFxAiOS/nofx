@@ -248,6 +248,56 @@ func (at *AutoTrader) getExecutedTierCloseRatio(symbol, side string) float64 {
 	return total
 }
 
+// getCumulativeCloseRatio returns the cumulative CloseRatioPct for a tier including
+// all lower tiers that were superseded by it. When a higher tier activates, it inherits
+// the position responsibility of all lower tiers. E.g. T1=65%, T2=25% → when T2 triggers,
+// it closes 65+25=90% of original position using T2's profit/drawdown parameters.
+func (at *AutoTrader) getCumulativeCloseRatio(symbol, side string, tierIndex int) float64 {
+	key := positionKey(symbol, side)
+	at.drawdownTierAllocMu.Lock()
+	defer at.drawdownTierAllocMu.Unlock()
+	allocs := at.drawdownTierAllocs[key]
+	var total float64
+	for _, tier := range allocs {
+		if tier.TierIndex <= tierIndex && (tier.Status == "superseded" || tier.Status == "tracking" || tier.TierIndex == tierIndex) {
+			total += tier.CloseRatioPct
+		}
+	}
+	if total > 100 {
+		total = 100
+	}
+	return total
+}
+
+// getCumulativeCloseRatioByRule finds the tier matching the given rule and returns
+// the cumulative close ratio (this tier + all superseded lower tiers).
+func (at *AutoTrader) getCumulativeCloseRatioByRule(symbol, side string, rule store.DrawdownTakeProfitRule) float64 {
+	key := positionKey(symbol, side)
+	at.drawdownTierAllocMu.Lock()
+	defer at.drawdownTierAllocMu.Unlock()
+	allocs := at.drawdownTierAllocs[key]
+	tierIndex := -1
+	for _, tier := range allocs {
+		if math.Abs(tier.MinProfitPct-rule.MinProfitPct) < 0.01 {
+			tierIndex = tier.TierIndex
+			break
+		}
+	}
+	if tierIndex < 0 {
+		return rule.CloseRatioPct
+	}
+	var total float64
+	for _, tier := range allocs {
+		if tier.TierIndex <= tierIndex {
+			total += tier.CloseRatioPct
+		}
+	}
+	if total > 100 {
+		total = 100
+	}
+	return total
+}
+
 // resolveDrawdownRulesWithModes merges AI-provided rules with strategy-configured rules
 // based on per-field mode settings. For each rule, if a field's mode is "ai", the AI value
 // is used; if "manual", the strategy config value is used.

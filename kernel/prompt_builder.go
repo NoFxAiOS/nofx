@@ -349,17 +349,19 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - **stop_loss**: Stop-loss price (optional direct price, only when you are not using protection_plan)
 - **take_profit**: Take-profit price (optional direct price, only when you are not using protection_plan)
 - **protection_plan**: Optional structured protection plan. Use mode=full/ladder with structural absolute prices plus equivalent pct where applicable, or mode=drawdown/combined with at least 2 drawdown_rules. When drawdown_rules are present, drawdown owns TP/profit-taking; do not output ladder take_profit_price/take_profit_close_ratio_pct unless explicitly needed for audit, and prefer ladder stop-loss side only. In drawdown_rules, max_drawdown_pct is peak-profit giveback percentage: 55 means give back 55% of peak profit; do not output 0.55 unless you truly mean 0.55% of peak profit.
-  - **CRITICAL — drawdown_rules MUST be calculated from structural data, NOT templated**:
-    - T1 min_profit_pct = distance(%) from entry to nearest TP structural level/fib/resistance MINUS 0.1-0.2% buffer. This ensures drawdown protection arms BEFORE price reaches the target, so if price reverses just short of the level, profit is already locked.
-    - T2 min_profit_pct = distance(%) to next structural level (higher timeframe resistance, fib extension, volume cluster). Use adjacent timeframe levels (if primary=15m, use 1h levels for T2/T3).
-    - T3 min_profit_pct = distance(%) to furthest reasonable target (1h/4h structure, fib 1.618 extension).
-    - max_drawdown_pct should DECREASE with each tier (e.g. T1=55-60%, T2=45-50%, T3=35-40%) — tighter protection as profit grows.
-    - close_ratio_pct: T1 should close 50-65% (lock majority), T2 close 20-30% (partial), T3 close 100% (full exit). Unless strategy specifies otherwise.
+  - **CRITICAL — drawdown_rules MUST be calculated from multi-TF structural data with pessimistic buffer**:
+    - Each tier uses a DIFFERENT timeframe's structural target:
+      - T1: primary TF (e.g. 15m) nearest resistance/fib → min_profit = distance × 0.70~0.80 (pessimistic: assume price may reverse BEFORE reaching the level)
+      - T2: higher TF (e.g. 1h) structural level → min_profit = distance × 0.70~0.80
+      - T3+: highest TF or fib extension → min_profit = distance × 0.75~0.85
+    - The pessimistic factor ensures DD protection activates even if price falls short of the target by 20-30%.
+    - max_drawdown_pct should DECREASE with each tier: T1=55-65%, T2=45-55%, T3=35-50% — tighter as profit grows.
+    - close_ratio_pct is FIXED by strategy config — do NOT output or override it.
     - If only ONE TP structural level exists, use fibonacci extensions (1.272, 1.618, 2.0) from the swing range to derive T2/T3 targets.
     - FORBIDDEN: using fixed values like 0.75/1.45/2.45 across all coins. Each coin's DD tiers must reflect its unique structural landscape.
-  - Example: entry=81100, 15m resistance=81838 (0.91%), 1h fib_0.618=82200 (1.36%), 1h swing_high=83500 (2.96%)
-    → T1: min_profit=0.71% (0.91%-0.2% buffer), T2: min_profit=1.16% (1.36%-0.2%), T3: min_profit=2.76% (2.96%-0.2%)
-  - stage_name MUST include the actual price level: e.g. "15m resistance 81838 buffer" not generic "第一压力利润保护".
+  - Example: entry=81100, 15m resistance=81838 (0.91% away), 1h fib_0.618=82200 (1.36% away), 1h swing_high=83500 (2.96% away)
+    → T1: min_profit=0.91%×0.75=0.68%, T2: min_profit=1.36%×0.75=1.02%, T3: min_profit=2.96%×0.80=2.37%
+  - stage_name MUST include the actual price level: e.g. "15m resistance 81838 pessimistic" not generic "第一压力利润保护".
 - **entry_protection_rationale**: Required for open_long/open_short. Must include structured timeframe/key-level/RR rationale. At minimum include risk_reward.entry, risk_reward.invalidation, risk_reward.first_target, risk_reward.gross_estimated_rr, and preferably risk_reward.net_estimated_rr plus structural anchors.
   - Opening decisions MUST include a first-target anchor. Use either anchors[].type="first_target", or structural_key_levels[].used_for="first_target"/"tp1"/"take_profit", with the target price and reason.
   - If you do not have a concrete higher-timeframe anchor, leave timeframe_context.higher empty/omitted. If timeframe_context.higher is present, you MUST include higher_timeframe_anchors or timeframe_structures with explicit higher-TF price anchors for runner/drawdown context.

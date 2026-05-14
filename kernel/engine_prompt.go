@@ -93,7 +93,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("## Trading Principles\n\n")
 	sb.WriteString("- Seek trades with structural depth: entry near tested support/resistance, SL beyond a deeper level, TP at higher-TF structure\n")
 	sb.WriteString("- Every open must justify: which structural level, where invalidation is, where the target is\n")
-	sb.WriteString("- Prefer waiting for price to reach structure over forcing entries in no-man's-land\n")
+	sb.WriteString("- Prefer entries near structure, but do not over-wait — if price is at a valid level with clear invalidation and target, take the trade\n")
 	sb.WriteString("- The backend has quantitative entry gates (ATR distance, RR ratio, regime alignment, confidence floor) that will reject trades not meeting thresholds — focus on finding high-quality setups rather than worrying about exact numbers\n\n")
 
 	// 3. Hard constraints (risk control)
@@ -600,16 +600,6 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 				ctx.TradingStats.AvgLoss,
 				ctx.TradingStats.MaxDrawdownPct))
 
-			// Performance hints based on profit factor, sharpe, and drawdown
-			if ctx.TradingStats.ProfitFactor >= 1.5 && ctx.TradingStats.SharpeRatio >= 1 {
-				sb.WriteString("表现: 良好 - 保持当前策略\n")
-			} else if ctx.TradingStats.ProfitFactor < 1 {
-				sb.WriteString("表现: 需改进 - 提高盈亏比，优化止盈止损\n")
-			} else if ctx.TradingStats.MaxDrawdownPct > 30 {
-				sb.WriteString("表现: 风险偏高 - 减少仓位，控制回撤\n")
-			} else {
-				sb.WriteString("表现: 正常 - 有优化空间\n")
-			}
 		} else {
 			sb.WriteString("## Historical Trading Statistics\n")
 			sb.WriteString(fmt.Sprintf("Total Trades: %d | Profit Factor: %.2f | Sharpe: %.2f | Win/Loss Ratio: %.2f\n",
@@ -623,16 +613,6 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 				ctx.TradingStats.AvgLoss,
 				ctx.TradingStats.MaxDrawdownPct))
 
-			// Performance hints based on profit factor, sharpe, and drawdown
-			if ctx.TradingStats.ProfitFactor >= 1.5 && ctx.TradingStats.SharpeRatio >= 1 {
-				sb.WriteString("Performance: GOOD - maintain current strategy\n")
-			} else if ctx.TradingStats.ProfitFactor < 1 {
-				sb.WriteString("Performance: NEEDS IMPROVEMENT - improve win/loss ratio, optimize TP/SL\n")
-			} else if ctx.TradingStats.MaxDrawdownPct > 30 {
-				sb.WriteString("Performance: HIGH RISK - reduce position size, control drawdown\n")
-			} else {
-				sb.WriteString("Performance: NORMAL - room for optimization\n")
-			}
 		}
 		sb.WriteString("\n")
 	}
@@ -1263,14 +1243,32 @@ func buildDrawdownTierConstraintPrompt(cfg store.DrawdownTakeProfitConfig) strin
 	}
 	var sb strings.Builder
 	sb.WriteString("### Drawdown tier guidelines:\n")
-	sb.WriteString("- Match the strategy tier count. Each tier has a ceiling — design min_profit_pct at or below it:\n")
-	for i, r := range cfg.Rules {
-		sb.WriteString(fmt.Sprintf("  - Tier %d: ceiling %.2f%%, suggested max_drawdown ≈ %.0f%%, close_ratio ≈ %.0f%%.\n",
-			i+1, r.MinProfitPct, r.MaxDrawdownPct, r.CloseRatioPct))
-	}
-	sb.WriteString("- Tier 1 should lock meaningful profit (the backend enforces close_ratio ≥ 50%% on tier 1).\n")
-	sb.WriteString("- Target the inside of the nearest structural level (easier to reach), not aspirational outside levels.\n")
-	sb.WriteString("- Ensure min_profit_pct exceeds normal ATR volatility so retracements don't prematurely trigger.\n")
-	sb.WriteString("- If min_profit_pct exceeds a tier ceiling, the backend clamps it down automatically.\n")
+	sb.WriteString("- CRITICAL: drawdown_rules min_profit_pct MUST be derived from multi-timeframe structural levels for each coin.\n")
+	sb.WriteString("- Calculation logic:\n")
+	sb.WriteString("  1. For each tier, pick a structural target from a DIFFERENT timeframe:\n")
+	sb.WriteString("     - T1: primary TF (e.g. 15m) nearest resistance/support target\n")
+	sb.WriteString("     - T2: higher TF (e.g. 1h) structural level or fib retracement\n")
+	sb.WriteString("     - T3+: highest TF or fib extension targets\n")
+	sb.WriteString("  2. min_profit_pct = (distance from entry to target) × pessimistic_factor\n")
+	sb.WriteString("     - pessimistic_factor = 0.70~0.85 (assume price may reverse BEFORE reaching the level)\n")
+	sb.WriteString("     - Example: target is 2.0% away → min_profit = 2.0% × 0.75 = 1.5%\n")
+	sb.WriteString("     - This ensures DD protection activates even if price falls short of the structural target\n")
+	sb.WriteString("  3. max_drawdown_pct = how much peak profit to give back before triggering:\n")
+	sb.WriteString("     - Near targets (T1): 55-65% (tighter, lock profit quickly)\n")
+	sb.WriteString("     - Mid targets (T2): 45-55%\n")
+	sb.WriteString("     - Far targets (T3+): 35-50% (wider, allow trend room)\n")
+	sb.WriteString("- Number of tiers is flexible (3, 4, 5...) — more structural targets = more tiers.\n")
+	sb.WriteString("- FORBIDDEN: using fixed values like 0.8/1.5/2.5 or copying strategy config numbers. Each coin is unique.\n")
+	sb.WriteString(fmt.Sprintf("- close_ratio_pct is fixed by strategy config (do NOT override): %s.\n",
+		formatDrawdownCloseRatios(cfg.Rules)))
+	sb.WriteString("- Sanity check: T1 min_profit must be > 0.5× ATR14 (as %% of entry) to avoid noise triggers.\n")
 	return sb.String()
+}
+
+func formatDrawdownCloseRatios(rules []store.DrawdownTakeProfitRule) string {
+	parts := make([]string, len(rules))
+	for i, r := range rules {
+		parts[i] = fmt.Sprintf("T%d=%.0f%%", i+1, r.CloseRatioPct)
+	}
+	return strings.Join(parts, ", ")
 }

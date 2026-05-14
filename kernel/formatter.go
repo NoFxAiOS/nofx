@@ -160,34 +160,6 @@ func formatTradingStatsZH(stats *TradingStats) string {
 	sb.WriteString(fmt.Sprintf("- 平均亏损: -%.2f USDT\n", stats.AvgLoss))
 	sb.WriteString(fmt.Sprintf("- 最大回撤: %.1f%%\n\n", stats.MaxDrawdownPct))
 
-	// Comprehensive analysis and decision guidance
-	sb.WriteString("**决策参考**:\n")
-
-	// Provide specific recommendations based on statistics
-	if stats.TotalTrades < 10 {
-		sb.WriteString("- 样本量较小（<10笔），统计结果参考意义有限\n")
-	}
-
-	if stats.ProfitFactor >= 1.5 && stats.SharpeRatio >= 1 {
-		sb.WriteString("- 📈 表现良好: 可以维持当前策略风格\n")
-	} else if stats.ProfitFactor >= 1.0 {
-		sb.WriteString("- 📊 表现正常: 策略可行但有优化空间\n")
-	}
-
-	if stats.ProfitFactor < 1.0 {
-		sb.WriteString("- ⚠️ 盈利因子<1: 亏损大于盈利，需要提高盈亏比，优化止盈止损\n")
-	}
-
-	if winLossRatio > 0 && winLossRatio < 1.5 {
-		sb.WriteString("- ⚠️ 盈亏比偏低: 建议让利润奔跑，提高止盈目标\n")
-	}
-
-	if stats.MaxDrawdownPct > 30 {
-		sb.WriteString("- ⚠️ 最大回撤过高: 建议降低仓位大小控制风险\n")
-	} else if stats.MaxDrawdownPct < 10 {
-		sb.WriteString("- ✅ 回撤控制良好: 风险管理有效\n")
-	}
-
 	sb.WriteString("\n")
 	return sb.String()
 }

@@ -13,7 +13,7 @@ html {
 :root {
   /* NoFX Neo-Gold Design System */
   --nofx-gold: #F0B90B;
-  --nofx-bg: #05070A;
+  --nofx-bg: #0B0E11;
   --nofx-accent: #00F0FF;
   --nofx-glass: rgba(5, 7, 10, 0.7);
   --nofx-border: rgba(240, 185, 11, 0.2);
@@ -23,7 +23,7 @@ html {
   --glow-accent: 0 0 20px rgba(0, 240, 255, 0.3);
   --glow-text: 0 0 10px rgba(240, 185, 11, 0.5);
 
-  --background: #05070A;
+  --background: #0B0E11;
   --header-bg: rgba(2, 3, 4, 0.85);
   /* Deep Abyssal */
 
@@ -56,7 +56,7 @@ html {
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --shadow-glow: 0 0 30px rgba(240, 185, 11, 0.15);
 
-  font-family: 'IBM Plex Mono', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
   font-weight: 400;
   color-scheme: dark;
@@ -136,13 +136,13 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: var(--background);
-  background-image: radial-gradient(circle at 50% 0%, #151921 0%, #05070a 60%);
+  background-image: radial-gradient(circle at 50% 0%, #151921 0%, #0B0E11 60%);
   background-attachment: fixed;
 }
 
-/* Premium Selection Styles */
+/* Premium Selection Styles — gold to match brand */
 ::selection {
-  background: rgba(255, 88, 0, 0.3);
+  background: rgba(240, 185, 11, 0.3);
   color: #FFFFFF;
 }
 
@@ -350,8 +350,16 @@ body {
   color: var(--text-primary) !important;
 }
 
-/* Monospace numbers */
+/* Monospace numbers — use for prices, balances, timestamps, code */
 .mono {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.text-profit,
+.text-loss,
+.number-up,
+.number-down {
   font-family: 'IBM Plex Mono', 'Courier New', monospace;
   font-variant-numeric: tabular-nums;
 }
@@ -364,14 +372,6 @@ button {
 
 button:hover:not(:disabled) {
   filter: brightness(1.1);
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-button:active:not(:disabled) {
-  transform: scale(0.98) translateY(0);
-  box-shadow: none;
 }
 
 /* Soft Glow for Primary Buttons (Yellow) */
@@ -437,6 +437,14 @@ button:disabled {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.nofx-glass {
+  background: rgba(30, 35, 41, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
 }
 
 /* Premium Input Styles */

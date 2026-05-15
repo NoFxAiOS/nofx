@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	recentConversationRounds       = 3
+	recentConversationRounds       = 6
 	recentConversationMessages     = recentConversationRounds * 2
+	chatHistoryMaxTurns            = recentConversationMessages * 2 // fallback cap when compression is unavailable
 	taskStateSummaryTokenLimit     = 1200
 	shortTermCompressThreshold     = 900
 	incrementalTaskStateMessages   = 6

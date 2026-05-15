@@ -259,7 +259,7 @@ CRITICAL: Always use the "id" field for strategy_id.`,
 IMPORTANT: For most use cases just POST {"name":"<name>"} — the backend fills everything in. Only include "config" when the user explicitly requests custom settings (specific coins, custom leverage, custom timeframes).
 
 StrategyConfig fields:
-  coin_source.source_type: "static"(fixed coin list) | "ai500"(AI top500 ranking) | "oi_top"(OI increasing, suited for long) | "oi_low"(OI decreasing, suited for short) | "mixed"
+  coin_source.source_type: "static"(fixed coin list) | "ai500"(AI top500 ranking) | "oi_top"(OI increasing, suited for long) | "oi_low"(OI decreasing, suited for short)
   coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — only when source_type="static"
   coin_source.use_ai500, ai500_limit: number of coins from AI500 pool (default 10)
   coin_source.use_oi_top/use_oi_low, oi_top_limit/oi_low_limit: OI-based coin selection

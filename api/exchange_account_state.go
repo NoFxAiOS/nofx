@@ -319,29 +319,23 @@ func accountAssetForExchange(exchangeType string) string {
 }
 
 func missingExchangeCredentials(exchangeCfg *store.Exchange) (status string, code string, message string, missing bool) {
-	switch exchangeCfg.ExchangeType {
-	case "binance", "bybit", "gate", "indodax":
-		if exchangeCfg.APIKey == "" || exchangeCfg.SecretKey == "" {
-			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "API key and secret key are required", true
+	missingFields := store.MissingRequiredExchangeCredentialFields(
+		exchangeCfg.ExchangeType,
+		string(exchangeCfg.APIKey),
+		string(exchangeCfg.SecretKey),
+		string(exchangeCfg.Passphrase),
+		exchangeCfg.HyperliquidWalletAddr,
+		exchangeCfg.AsterUser,
+		exchangeCfg.AsterSigner,
+		string(exchangeCfg.AsterPrivateKey),
+		exchangeCfg.LighterWalletAddr,
+		string(exchangeCfg.LighterAPIKeyPrivateKey),
+	)
+	if len(missingFields) > 0 {
+		if len(missingFields) == 1 && missingFields[0] == "exchange_type" {
+			return exchangeAccountStatusUnavailable, "UNSUPPORTED_EXCHANGE", "Unsupported exchange type", true
 		}
-	case "okx", "bitget", "kucoin":
-		if exchangeCfg.APIKey == "" || exchangeCfg.SecretKey == "" || exchangeCfg.Passphrase == "" {
-			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "API key, secret key, and passphrase are required", true
-		}
-	case "hyperliquid":
-		if exchangeCfg.APIKey == "" || exchangeCfg.HyperliquidWalletAddr == "" {
-			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "Private key and wallet address are required", true
-		}
-	case "aster":
-		if exchangeCfg.AsterUser == "" || exchangeCfg.AsterSigner == "" || exchangeCfg.AsterPrivateKey == "" {
-			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "Aster user, signer, and private key are required", true
-		}
-	case "lighter":
-		if exchangeCfg.LighterWalletAddr == "" || exchangeCfg.LighterAPIKeyPrivateKey == "" {
-			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "Wallet address and API key private key are required", true
-		}
-	default:
-		return exchangeAccountStatusUnavailable, "UNSUPPORTED_EXCHANGE", "Unsupported exchange type", true
+		return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "Missing required fields: " + strings.Join(missingFields, ", "), true
 	}
 
 	return "", "", "", false

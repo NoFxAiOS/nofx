@@ -1,28 +1,15 @@
 import { create } from 'zustand'
-
-export interface AgentStep {
-  id: string
-  label: string
-  status: 'planning' | 'pending' | 'running' | 'completed' | 'replanned'
-  detail?: string
-}
-
-export interface AgentMessage {
-  id: string
-  role: 'user' | 'bot'
-  text: string
-  time: string
-  streaming?: boolean
-  steps?: AgentStep[]
-}
+import type { AgentMessage } from '../types/agent'
 
 interface AgentChatStoreState {
   activeUserId?: string
   messages: AgentMessage[]
+  draftText: string
   loading: boolean
   hydrated: boolean
   setActiveUserId: (userId?: string) => void
   setMessages: (messages: AgentMessage[]) => void
+  setDraftText: (draftText: string) => void
   updateMessages: (
     updater: (messages: AgentMessage[]) => AgentMessage[]
   ) => void
@@ -34,10 +21,12 @@ interface AgentChatStoreState {
 export const useAgentChatStore = create<AgentChatStoreState>((set) => ({
   activeUserId: undefined,
   messages: [],
+  draftText: '',
   loading: false,
   hydrated: false,
   setActiveUserId: (userId) => set({ activeUserId: userId }),
   setMessages: (messages) => set({ messages }),
+  setDraftText: (draftText) => set({ draftText }),
   updateMessages: (updater) =>
     set((state) => ({ messages: updater(state.messages) })),
   setLoading: (loading) => set({ loading }),
@@ -46,6 +35,7 @@ export const useAgentChatStore = create<AgentChatStoreState>((set) => ({
     set({
       activeUserId: userId,
       messages,
+      draftText: '',
       loading: false,
       hydrated: true,
     }),

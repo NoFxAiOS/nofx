@@ -14,6 +14,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	maxManualBTCETHLeverage = 20
+	maxManualAltLeverage    = 20
+)
+
 // AI trader management related structures
 type CreateTraderRequest struct {
 	Name                string  `json:"name" binding:"required"`
@@ -63,6 +68,16 @@ func formatTraderCreationError(reason, nextStep string) string {
 
 func traderCreationRequestError(reason string) string {
 	return formatTraderCreationError(reason, "请检查你刚刚填写的内容后，再重新提交")
+}
+
+func validateTraderLeverageRange(btcEthLeverage, altcoinLeverage int) (string, string) {
+	if btcEthLeverage < 0 || btcEthLeverage > maxManualBTCETHLeverage {
+		return traderCreationRequestError("BTC/ETH 杠杆倍数需要在 1 到 20 倍之间"), "trader.create.invalid_btc_eth_leverage"
+	}
+	if altcoinLeverage < 0 || altcoinLeverage > maxManualAltLeverage {
+		return traderCreationRequestError("山寨币杠杆倍数需要在 1 到 20 倍之间"), "trader.create.invalid_altcoin_leverage"
+	}
+	return "", ""
 }
 
 func exchangeDisplayName(exchange *store.Exchange) string {
@@ -306,13 +321,9 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		return
 	}
 
-	// Validate leverage values
-	if req.BTCETHLeverage < 0 || req.BTCETHLeverage > 50 {
-		SafeBadRequestWithDetails(c, traderCreationRequestError("BTC/ETH 杠杆倍数需要在 1 到 50 倍之间"), "trader.create.invalid_btc_eth_leverage", nil)
-		return
-	}
-	if req.AltcoinLeverage < 0 || req.AltcoinLeverage > 20 {
-		SafeBadRequestWithDetails(c, traderCreationRequestError("山寨币杠杆倍数需要在 1 到 20 倍之间"), "trader.create.invalid_altcoin_leverage", nil)
+	// Validate leverage values against the same limits exposed by manual user config.
+	if errMsg, errCode := validateTraderLeverageRange(req.BTCETHLeverage, req.AltcoinLeverage); errMsg != "" {
+		SafeBadRequestWithDetails(c, errMsg, errCode, nil)
 		return
 	}
 
@@ -571,6 +582,11 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 	if existingTrader == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	if errMsg, errCode := validateTraderLeverageRange(req.BTCETHLeverage, req.AltcoinLeverage); errMsg != "" {
+		SafeBadRequestWithDetails(c, errMsg, errCode, nil)
 		return
 	}
 

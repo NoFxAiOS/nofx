@@ -3,20 +3,22 @@ package agent
 var i18nMessages = map[string]map[string]string{
 	"help": {
 		"zh": "🤖 *NOFXi — 你的 AI 交易 Agent*\n\n" +
-			"*交易:* /buy /sell /long /short + 交易对 数量 杠杆\n" +
+			"*交易:* 做多 BTC 0.01 x10 · 做空 ETH 0.1 · 平多 BTC · 平空 ETH\n" +
+			"       也支持 /buy /sell /long /short + 交易对 数量 杠杆\n" +
 			"*查询:* /positions /balance /pnl /traders\n" +
 			"*分析:* /analyze BTC\n" +
 			"*监控:* /watch BTC · /unwatch BTC\n" +
 			"*策略:* /strategy\n" +
-			"*系统:* /status /help\n\n" +
+			"*系统:* /status /clear /help\n\n" +
 			"直接跟我说话就行，中英文都可以 💬",
 		"en": "🤖 *NOFXi — Your AI Trading Agent*\n\n" +
-			"*Trade:* /buy /sell /long /short + symbol qty leverage\n" +
+			"*Trade:* long BTC 0.01 x10 · short ETH 0.1 · close long BTC · close short ETH\n" +
+			"         Also supports /buy /sell /long /short + symbol qty leverage\n" +
 			"*Query:* /positions /balance /pnl /traders\n" +
 			"*Analyze:* /analyze BTC\n" +
 			"*Monitor:* /watch BTC · /unwatch BTC\n" +
 			"*Strategy:* /strategy\n" +
-			"*System:* /status /help\n\n" +
+			"*System:* /status /clear /help\n\n" +
 			"Just talk to me in any language 💬",
 	},
 	"status": {
@@ -52,8 +54,8 @@ var i18nMessages = map[string]map[string]string{
 		"en": "🤖 *Traders*\n\n",
 	},
 	"trade_usage": {
-		"zh": "用法: `/buy BTC 0.01` 或 `/sell ETH 0.5 3x`",
-		"en": "Usage: `/buy BTC 0.01` or `/sell ETH 0.5 3x`",
+		"zh": "手动下单示例：`做多 BTC 0.01 x10`、`做空 ETH 0.1`、`平多 BTC`、`平空 ETH`。也支持 `/buy BTC 0.01` 或 `/sell ETH 0.5 3x`。下单后需要确认；大额订单要用“确认大额 trade_xxx”。",
+		"en": "Manual trade examples: `long BTC 0.01 x10`, `short ETH 0.1`, `close long BTC`, `close short ETH`. Also supports `/buy BTC 0.01` or `/sell ETH 0.5 3x`. Orders require confirmation; large orders use `confirm large trade_xxx`.",
 	},
 	"invalid_qty": {
 		"zh": "❓ 无效数量: %s",
@@ -68,8 +70,8 @@ var i18nMessages = map[string]map[string]string{
 		"en": "⚠️ Sentinel not enabled.",
 	},
 	"system_prompt": {
-		"zh": "你是 NOFXi，一个专业的 AI 交易 Agent。简洁、专业、用中文回复。使用交易相关 emoji。",
-		"en": "You are NOFXi, a professional AI trading agent. Be concise, professional. Use trading emojis.",
+		"zh": "你是 NOFXi，一个专业的 AI 交易 Agent。把用户当交易小白，用简单清楚的大白话回复，先说结论，再说下一步。使用少量交易相关 emoji。",
+		"en": "You are NOFXi, a professional AI trading agent. Treat the user like a trading beginner, use plain language, lead with the conclusion, then the next step. Use a small amount of trading emojis.",
 	},
 }
 

@@ -1,9 +1,4 @@
-interface AgentStep {
-  id: string
-  label: string
-  status: 'planning' | 'pending' | 'running' | 'completed' | 'replanned'
-  detail?: string
-}
+import type { AgentStep } from '../../types/agent'
 
 interface AgentStepPanelProps {
   steps?: AgentStep[]
@@ -20,6 +15,16 @@ const statusStyles: Record<AgentStep['status'], { dot: string; text: string }> =
 
 export function AgentStepPanel({ steps, visible }: AgentStepPanelProps) {
   if (!visible || !steps || steps.length === 0) {
+    return null
+  }
+
+  const sanitizedSteps = steps.filter((step) => {
+    const label = step.label.trim().toLowerCase()
+    const detail = (step.detail || '').trim().toLowerCase()
+    return !(label.startsWith('tool:') || detail === 'central_brain')
+  })
+
+  if (sanitizedSteps.length === 0) {
     return null
   }
 
@@ -46,7 +51,7 @@ export function AgentStepPanel({ steps, visible }: AgentStepPanelProps) {
         Live Run
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {steps.map((step) => {
+        {sanitizedSteps.map((step) => {
           const style = statusStyles[step.status]
           return (
             <div

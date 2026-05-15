@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"nofx/crypto"
 	"nofx/logger"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,6 +58,9 @@ func (s *ExchangeStore) initTables() error {
 			// Still run data migrations
 			s.migrateToMultiAccount()
 			s.db.Model(&Exchange{}).Where("account_name = '' OR account_name IS NULL").Update("account_name", "Default")
+			if err := s.cleanupIncompleteExchangeConfigs(); err != nil {
+				logger.Warnf("Exchange cleanup migration warning: %v", err)
+			}
 			return nil
 		}
 	}
@@ -72,7 +76,45 @@ func (s *ExchangeStore) initTables() error {
 
 	// Fix empty account_name for existing records
 	s.db.Model(&Exchange{}).Where("account_name = '' OR account_name IS NULL").Update("account_name", "Default")
+	if err := s.cleanupIncompleteExchangeConfigs(); err != nil {
+		logger.Warnf("Exchange cleanup migration warning: %v", err)
+	}
 
+	return nil
+}
+
+func (s *ExchangeStore) cleanupIncompleteExchangeConfigs() error {
+	var exchanges []Exchange
+	if err := s.db.Find(&exchanges).Error; err != nil {
+		return err
+	}
+	for _, exchange := range exchanges {
+		missing := MissingRequiredExchangeCredentialFields(
+			exchange.ExchangeType,
+			string(exchange.APIKey),
+			string(exchange.SecretKey),
+			string(exchange.Passphrase),
+			exchange.HyperliquidWalletAddr,
+			exchange.AsterUser,
+			exchange.AsterSigner,
+			string(exchange.AsterPrivateKey),
+			exchange.LighterWalletAddr,
+			string(exchange.LighterAPIKeyPrivateKey),
+		)
+		if len(missing) > 0 {
+			if err := s.db.Delete(&Exchange{}, "id = ? AND user_id = ?", exchange.ID, exchange.UserID).Error; err != nil {
+				return err
+			}
+			logger.Infof("🧹 Removed incomplete exchange config during migration: id=%s user=%s missing=%s", exchange.ID, exchange.UserID, strings.Join(missing, ","))
+			continue
+		}
+		if !exchange.Enabled {
+			if err := s.db.Model(&Exchange{}).Where("id = ? AND user_id = ?", exchange.ID, exchange.UserID).Update("enabled", true).Error; err != nil {
+				return err
+			}
+			logger.Infof("🧹 Enabled complete exchange config during migration: id=%s user=%s", exchange.ID, exchange.UserID)
+		}
+	}
 	return nil
 }
 
@@ -188,6 +230,10 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 	asterUser, asterSigner, asterPrivateKey,
 	lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int) (string, error) {
 
+	if missing := MissingRequiredExchangeCredentialFields(exchangeType, apiKey, secretKey, passphrase, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterApiKeyPrivateKey); len(missing) > 0 {
+		return "", fmt.Errorf("missing required exchange fields: %s", strings.Join(missing, ", "))
+	}
+
 	id := uuid.New().String()
 	name, typ := getExchangeNameAndType(exchangeType)
 
@@ -205,7 +251,7 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 		UserID:                  userID,
 		Name:                    name,
 		Type:                    typ,
-		Enabled:                 enabled,
+		Enabled:                 true,
 		APIKey:                  crypto.EncryptedString(apiKey),
 		SecretKey:               crypto.EncryptedString(secretKey),
 		Passphrase:              crypto.EncryptedString(passphrase),
@@ -232,10 +278,10 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 	hyperliquidWalletAddr string, hyperliquidUnifiedAcct bool,
 	asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int) error {
 
-	logger.Debugf("🔧 ExchangeStore.Update: userID=%s, id=%s, enabled=%v", userID, id, enabled)
+	logger.Debugf("🔧 ExchangeStore.Update: userID=%s, id=%s", userID, id)
 
 	updates := map[string]interface{}{
-		"enabled":                     enabled,
+		"enabled":                     true,
 		"testnet":                     testnet,
 		"hyperliquid_wallet_addr":     hyperliquidWalletAddr,
 		"hyperliquid_unified_account": hyperliquidUnifiedAcct,

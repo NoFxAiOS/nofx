@@ -1,4 +1,5 @@
 import useSWR from 'swr'
+import { useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
 import { ArrowUpRight, ArrowDownRight, Wallet } from 'lucide-react'
@@ -7,7 +8,7 @@ import type { Position, TraderInfo } from '../../types'
 export function PositionsPanel() {
   const { user, token } = useAuth()
 
-  const { data: traders } = useSWR<TraderInfo[]>(
+  const { data: traders, mutate: mutateTraders } = useSWR<TraderInfo[]>(
     user && token ? 'agent-traders' : null,
     api.getTraders,
     { refreshInterval: 30000, shouldRetryOnError: false }
@@ -17,11 +18,20 @@ export function PositionsPanel() {
   const runningTrader = traders?.find((t) => t.is_running)
   const traderId = runningTrader?.trader_id
 
-  const { data: positions } = useSWR<Position[]>(
+  const { data: positions, mutate: mutatePositions } = useSWR<Position[]>(
     traderId ? `agent-positions-${traderId}` : null,
     () => api.getPositions(traderId),
     { refreshInterval: 15000, shouldRetryOnError: false }
   )
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      void mutateTraders()
+      void mutatePositions()
+    }
+    window.addEventListener('agent-config-refresh', handleRefresh)
+    return () => window.removeEventListener('agent-config-refresh', handleRefresh)
+  }, [mutatePositions, mutateTraders])
 
   if (!user || !token) {
     return (

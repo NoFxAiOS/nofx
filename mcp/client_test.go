@@ -346,6 +346,11 @@ func TestClient_IsRetryableError(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "upstream empty output",
+			err:      errors.New(`API returned error (status 429): {"error":{"code":"upstream_empty_output","message":"Upstream model returned empty output.","type":"rate_limit_error"}}`),
+			expected: true,
+		},
+		{
 			name:     "normal error",
 			err:      errors.New("bad request"),
 			expected: false,

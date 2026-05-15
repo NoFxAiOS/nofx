@@ -2,5 +2,21 @@
   "name": "strategy_diagnosis",
   "kind": "diagnosis",
   "domain": "strategy",
-  "description": "当用户反馈策略未生效、策略输出异常、提示词或配置结果与预期不一致、策略执行表现异常时调用。适用于策略内容和执行效果相关的排障与解释。不用于创建、修改、删除、激活、复制或查询策略模板这类管理操作。"
+  "description": "当用户反馈策略未生效、候选币为空、策略输出异常、提示词或配置结果与预期不一致、AI 一直 hold/wait、策略执行表现异常时调用。适用于策略内容、候选币、风控边界和执行效果相关的排障与解释。不用于创建、修改、删除、激活、复制或查询策略模板这类管理操作。",
+  "capabilities": [
+    "区分策略模板配置问题、交易员绑定问题、市场数据/候选币问题、AI 决策为 hold/wait、风控拦截和交易所下单失败",
+    "解释 AI 策略与网格策略的字段边界、页面范围和 System enforced 字段",
+    "指出策略模板不能直接运行，必须由交易员绑定后执行"
+  ],
+  "dynamic_rules": [
+    "策略没生效时，先区分：只是策略模板未被交易员绑定，还是交易员已绑定但运行结果不符合预期。",
+    "若候选币为空，检查 source_type/static_coins/AI500/OI 榜单/排除币/量化数据开关，不要直接归因为模型问题。",
+    "若 AI 一直 hold/wait，先检查 min_confidence、min_risk_reward_ratio、提示词是否过于保守、行情是否满足入场条件，再判断是否需要放宽策略。",
+    "若交易员绑定了策略但没有下单，应与 trader_diagnosis 协作区分策略无信号、风控拦截和交易所下单失败。",
+    "策略诊断必须区分可编辑策略字段和 System enforced 字段。AI 智能策略里的 max_positions、btceth_max_position_value_ratio、altcoin_max_position_value_ratio、max_margin_usage、min_position_size 只能解释，不能建议用户修改。",
+    "如果不开单原因来自最小下单金额、保证金或仓位价值边界，不要建议修改 min_position_size 或 position_size_usd；应建议增加账户权益、换更适合小资金的标的、调整可编辑风险偏好或让策略在资金不足时等待。",
+    "策略页不存在 position_size_usd 这类固定配置项；position_size_usd 是 AI 每轮决策输出，不是策略模板字段。不要把 AI 决策里的 position_size_usd 说成可以在策略页手动修改的参数。",
+    "后台 402/404/EOF 类数据源错误只能作为策略分析质量的辅助影响，不能在决策记录已经显示明确风控/最小金额拒绝时作为主因。",
+    "策略模板本身不保存交易所、模型、扫描间隔或初始余额；这些问题应引导到 trader/model/exchange 相关诊断。"
+  ]
 }

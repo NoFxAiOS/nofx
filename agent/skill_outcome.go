@@ -42,11 +42,11 @@ func normalizeAtomicSkillAction(skill, action string) string {
 			return "query_list"
 		case "query_running":
 			return "query_running"
-		case "query_detail":
+		case "query_detail", "query_strategy_binding", "query_exchange_binding", "query_model_binding":
+			return action
+		case "query_binding":
 			return "query_detail"
-		case "update":
-			return "update_name"
-		case "update_name", "update_bindings":
+		case "update", "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
 			return action
 		}
 	case "exchange_management":
@@ -55,9 +55,7 @@ func normalizeAtomicSkillAction(skill, action string) string {
 			return "query_list"
 		case "query_detail":
 			return "query_detail"
-		case "update":
-			return "update_name"
-		case "update_name", "update_status":
+		case "update", "update_name", "update_status":
 			return action
 		}
 	case "model_management":
@@ -66,9 +64,7 @@ func normalizeAtomicSkillAction(skill, action string) string {
 			return "query_list"
 		case "query_detail":
 			return "query_detail"
-		case "update":
-			return "update_name"
-		case "update_name", "update_endpoint", "update_status":
+		case "update", "update_name", "update_endpoint", "update_status":
 			return action
 		}
 	case "strategy_management":
@@ -77,9 +73,7 @@ func normalizeAtomicSkillAction(skill, action string) string {
 			return "query_list"
 		case "query_detail":
 			return "query_detail"
-		case "update":
-			return "update_name"
-		case "update_name", "update_config", "update_prompt":
+		case "update", "update_name", "update_config", "update_prompt":
 			return action
 		}
 	}
@@ -158,6 +152,7 @@ Rules:
 - Use route "replan" when the user's task is not complete yet and the planner should continue from the new skill outcome.
 - Prefer route "replan" for recoverable errors, unmet goals, missing prerequisites, or cases where another skill/tool sequence may help.
 - If you choose "complete", produce the final user-facing answer in the user's language.
+- ` + cleanUserFacingReplyInstruction + `
 
 Return JSON with this exact shape:
 {"route":"complete|replan","answer":""}`

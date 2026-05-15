@@ -2,5 +2,38 @@
   "name": "trader_diagnosis",
   "kind": "diagnosis",
   "domain": "trader",
-  "description": "当用户反馈交易员无法启动、启动后不交易、绑定模型或交易所缺失、运行状态异常、收益或仓位表现异常时调用。适用于交易员运行过程中的排障与原因定位。不用于创建、修改、删除、启动、停止或查询交易员这类管理操作。"
+  "description": "当用户反馈交易员无法启动、启动后不交易、反复报错、绑定模型或交易所缺失、运行状态异常、收益或仓位表现异常时调用。适用于交易员运行过程中的排障与原因定位。不用于创建、修改、删除、启动、停止或查询交易员这类管理操作。",
+  "capabilities": [
+    "读取交易员当前状态、账户、持仓和最近决策记录",
+    "读取交易员绑定的策略、模型、交易所配置摘要，并把它们纳入不开单诊断证据包",
+    "在用户明确指定目标交易员后，读取该交易员最近的后端日志",
+    "把完整证据合并成适合新手理解的最终原因和下一步行动"
+  ],
+  "dynamic_rules": [
+    "当用户问“为什么报错”“为什么不交易”“为什么停了”这类问题时，优先走诊断而不是管理类 skill。",
+    "如果已经能唯一确定目标交易员，应一次性收集完整诊断证据包：交易员配置/运行状态、绑定策略、绑定模型、绑定交易所、账户权益/可用余额、当前持仓、get_decisions 最近决策记录、get_backend_logs 后台日志。不要只查其中一项就下结论。",
+    "面向普通用户的诊断回复只说最终原因和该怎么办，不要输出证据包清单、工具名、后台日志片段、HTTP 状态码或工程排障过程。",
+    "诊断结论内部必须区分：直接原因、次要影响、待确认因素。直接原因必须来自最近决策记录、交易所下单结果、风控校验或明确运行状态；后台日志里的零散错误只能作为辅助证据。",
+    "证据优先级固定为：最近决策记录 > 交易员运行状态/账户/持仓 > 交易所下单结果 > 后台日志。除非最近决策记录本身显示数据获取失败或 AI 决策中断，否则不要让 backend logs 盖过决策记录。",
+    "交易员不下单的排查顺序固定为：是否运行中 -> 是否已到扫描间隔 -> 策略候选币/行情数据是否为空 -> 最近 AI 决策是否为 hold/wait -> 风控是否拦截 -> 交易所下单是否报错 -> 余额、杠杆、仓位模式或权限是否限制。",
+    "判断“不下单/不开单”的主因时，最近决策记录优先级高于零散 backend error 日志；如果最近决策显示 wait succeeded，应解释为 AI 主动等待；如果最新决策 error_message 显示 opening amount too small / below minimum / must be ≥，应解释为开仓金额低于系统或交易所最小下单门槛。",
+    "遇到 opening amount too small、position value below minimum、must be ≥ 这类错误时，不要建议用户修改 AI 智能策略的 min_position_size 或 position_size_usd。先说明这是系统/交易所门槛或 System enforced 边界，再建议增加账户权益、换更适合小资金的交易标的、调整可编辑策略偏好，或让策略在资金不足时等待。",
+    "AI 智能策略里的 System enforced 字段（max_positions、btceth_max_position_value_ratio、altcoin_max_position_value_ratio、max_margin_usage、min_position_size）只能解释，不能建议用户修改；如果限制来自这些字段，行动建议必须落在产品实际可改项或用户账户/标的选择上。",
+    "不要只因为 backend logs 里出现 402、404、EOF、payment retry failed 就直接归因为数据服务、订阅到期或付款失败；这些内部异常不应在普通用户回答里出现，除非用户明确追问后台日志或技术细节。",
+    "402 不要直接翻译成“订阅到期”。在没有钱包余额、支付状态或服务侧确认前，不能说订阅过期；普通用户回答里也不要主动说 402。",
+    "如果最近决策记录显示 candidate_coins 非空、AI call completed、wait succeeded 或 open_* 决策已生成，则说明核心决策链路并非完全拿不到数据；此时不要把 402/404/EOF 说成不开单主因。",
+    "行动建议必须对应产品里真实存在且可修改的字段或操作。不要编造策略页不存在的 position_size_usd 参数，不要建议修改 System enforced 字段。",
+    "如果模型是 claw402 或 blockrun-base，应单独检查钱包 USDC 余额；余额不足时应说“支付余额不足/需要充值”，不要泛化成“模型没启用”。",
+    "如果日志显示 AI 返回 hold/wait，应解释为模型判断当前没有足够交易信号，不应误判为系统没有运行。",
+    "如果日志显示下单失败，应优先归因到交易所权限、API 凭证、仓位模式、余额、杠杆或 symbol 可交易性，而不是策略没有生效。",
+    "当用户表达“启动不了”“启动失败”“无法启动”“一启动就报错”“为什么启动不起来”这类启动故障时，只要目标交易员能唯一确定，就优先自动读取 get_backend_logs。",
+    "当证据中已经出现明确错误原因时，直接用人话解释最终原因和下一步，不要复述原始日志。"
+  ],
+  "tool_mapping": {
+    "query_runtime_state": "get_trader_system_status",
+    "query_positions": "get_positions",
+    "query_account": "get_account_info",
+    "query_recent_decisions": "get_decisions",
+    "query_backend_logs": "get_backend_logs"
+  }
 }

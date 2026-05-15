@@ -98,6 +98,7 @@ func (c *Claw402DataClient) DoRequest(endpoint string) ([]byte, error) {
 	signFn := payment.MakeClaw402SignFunc(c.privateKey)
 
 	body, err := payment.DoX402Request(
+		context.Background(),
 		c.httpClient,
 		buildReq,
 		signFn,

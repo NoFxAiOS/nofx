@@ -44,13 +44,30 @@ export interface StrategyConfig {
   // Language setting: "zh" for Chinese, "en" for English
   // Determines the language used for data formatting and prompt generation
   language?: 'zh' | 'en';
+  // AI trading configuration. Legacy flat fields below are accepted only for
+  // old data returned before the schema was split by strategy type.
+  ai_config?: AIStrategyConfig;
+  coin_source?: CoinSourceConfig;
+  indicators?: IndicatorConfig;
+  custom_prompt?: string;
+  risk_control?: RiskControlConfig;
+  prompt_sections?: PromptSectionsConfig;
+  // Grid trading configuration (only used when strategy_type is 'grid_trading')
+  grid_config?: GridStrategyConfig | null;
+  publish_config?: PublishStrategyConfig;
+}
+
+export interface AIStrategyConfig {
   coin_source: CoinSourceConfig;
   indicators: IndicatorConfig;
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
-  // Grid trading configuration (only used when strategy_type is 'grid_trading')
-  grid_config?: GridStrategyConfig | null;
+}
+
+export interface PublishStrategyConfig {
+  is_public: boolean;
+  config_visible: boolean;
 }
 
 // Grid trading specific configuration
@@ -88,7 +105,7 @@ export interface GridStrategyConfig {
 }
 
 export interface CoinSourceConfig {
-  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed';
+  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low';
   static_coins?: string[];
   excluded_coins?: string[];   // 排除的币种列表
   use_ai500: boolean;

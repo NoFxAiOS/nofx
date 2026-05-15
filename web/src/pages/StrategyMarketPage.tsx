@@ -179,16 +179,17 @@ export function StrategyMarketPage() {
   }
 
   const getIndicatorList = (config: any) => {
-    if (!config?.indicators) return []
+    const indicatorsConfig = config?.ai_config?.indicators || config?.indicators
+    if (!indicatorsConfig) return []
     const indicators = []
-    if (config.indicators.enable_ema) indicators.push('EMA')
-    if (config.indicators.enable_macd) indicators.push('MACD')
-    if (config.indicators.enable_rsi) indicators.push('RSI')
-    if (config.indicators.enable_atr) indicators.push('ATR')
-    if (config.indicators.enable_boll) indicators.push('BOLL')
-    if (config.indicators.enable_volume) indicators.push('VOL')
-    if (config.indicators.enable_oi) indicators.push('OI')
-    if (config.indicators.enable_funding_rate) indicators.push('FR')
+    if (indicatorsConfig.enable_ema) indicators.push('EMA')
+    if (indicatorsConfig.enable_macd) indicators.push('MACD')
+    if (indicatorsConfig.enable_rsi) indicators.push('RSI')
+    if (indicatorsConfig.enable_atr) indicators.push('ATR')
+    if (indicatorsConfig.enable_boll) indicators.push('BOLL')
+    if (indicatorsConfig.enable_volume) indicators.push('VOL')
+    if (indicatorsConfig.enable_oi) indicators.push('OI')
+    if (indicatorsConfig.enable_funding_rate) indicators.push('FR')
     return indicators
   }
 
@@ -439,7 +440,7 @@ export function StrategyMarketPage() {
                               </div>
 
                               {/* Risk Control */}
-                              {strategy.config.risk_control && (
+                              {(strategy.config.ai_config?.risk_control || strategy.config.risk_control) && (
                                 <div className="flex justify-between items-center text-[10px]">
                                   <div className="flex gap-3">
                                     <div className="flex flex-col">
@@ -447,7 +448,7 @@ export function StrategyMarketPage() {
                                         LEV
                                       </span>
                                       <span className="text-zinc-300 font-bold">
-                                        {strategy.config.risk_control
+                                        {(strategy.config.ai_config?.risk_control || strategy.config.risk_control)
                                           .btc_eth_max_leverage || '-'}
                                         x
                                       </span>
@@ -457,7 +458,7 @@ export function StrategyMarketPage() {
                                         POS
                                       </span>
                                       <span className="text-zinc-300 font-bold">
-                                        {strategy.config.risk_control
+                                        {(strategy.config.ai_config?.risk_control || strategy.config.risk_control)
                                           .max_positions || '-'}
                                       </span>
                                     </div>

@@ -2,5 +2,17 @@
   "name": "exchange_diagnosis",
   "kind": "diagnosis",
   "domain": "exchange",
-  "description": "当用户反馈交易所 API 连接失败、签名错误、timestamp 异常、权限不足、IP 白名单限制、账户不可用等问题时调用。适用于用户在手动配置或运行交易员时遇到的交易所接入故障。不用于创建、修改、删除或查询交易所配置这类管理操作。"
+  "description": "当用户反馈交易所 API 连接失败、签名错误、timestamp 异常、权限不足、IP 白名单限制、账户不可用、余额读取失败、下单失败或仓位模式错误等问题时调用。适用于用户在手动配置或运行交易员时遇到的交易所接入与执行故障。不用于创建、修改、删除或查询交易所配置这类管理操作。",
+  "capabilities": [
+    "区分凭证缺失、签名错误、时间戳偏差、IP 白名单、权限不足、余额不足、仓位模式和 symbol 不可交易等原因",
+    "解释不同交易所的必填字段差异，尤其是 OKX/Bitget/KuCoin passphrase、Hyperliquid 钱包地址、Aster signer/private key、Lighter API key private key",
+    "把交易所原始错误翻译成新手可执行的修复步骤"
+  ],
+  "dynamic_rules": [
+    "交易所连接失败优先按顺序排查：配置是否启用 -> 必填凭证是否齐全 -> API Key/Secret/Passphrase 是否填反或过期 -> 系统时间/timestamp -> IP 白名单 -> 合约/交易权限 -> 测试网/主网是否选错。",
+    "OKX、Bitget、KuCoin 的 passphrase/API 口令不是可选项；如果缺失，必须明确提示补齐。",
+    "下单失败时继续排查：账户余额/可用保证金 -> 杠杆限制 -> 仓位模式（单向/双向） -> symbol 是否支持合约交易 -> 最小下单金额/数量。",
+    "Hyperliquid、Aster、Lighter 这类钱包/DEX 配置错误时，不要用 CEX 的 API Key/Secret 逻辑套用；按各自 required fields 解释。",
+    "诊断回复不得展示完整 API Key、Secret、Passphrase 或私钥。"
+  ]
 }

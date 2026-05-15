@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/logger"
+	"nofx/store"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,11 +32,39 @@ type SafeExchangeConfig struct {
 	Name                  string `json:"name"`          // Display name
 	Type                  string `json:"type"`          // "cex" or "dex"
 	Enabled               bool   `json:"enabled"`
+	HasAPIKey             bool   `json:"has_api_key"`
+	HasSecretKey          bool   `json:"has_secret_key"`
+	HasPassphrase         bool   `json:"has_passphrase"`
 	Testnet               bool   `json:"testnet,omitempty"`
 	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid wallet address (not sensitive)
-	AsterUser             string `json:"asterUser"`             // Aster username (not sensitive)
-	AsterSigner           string `json:"asterSigner"`           // Aster signer (not sensitive)
-	LighterWalletAddr     string `json:"lighterWalletAddr"`     // LIGHTER wallet address (not sensitive)
+	HasAsterPrivateKey    bool   `json:"has_aster_private_key"`
+	AsterUser             string `json:"asterUser"`         // Aster username (not sensitive)
+	AsterSigner           string `json:"asterSigner"`       // Aster signer (not sensitive)
+	LighterWalletAddr     string `json:"lighterWalletAddr"` // LIGHTER wallet address (not sensitive)
+	HasLighterPrivateKey  bool   `json:"has_lighter_private_key"`
+	HasLighterAPIKey      bool   `json:"has_lighter_api_key_private_key"`
+}
+
+func safeExchangeConfigFromStore(exchange *store.Exchange) SafeExchangeConfig {
+	return SafeExchangeConfig{
+		ID:                    exchange.ID,
+		ExchangeType:          exchange.ExchangeType,
+		AccountName:           exchange.AccountName,
+		Name:                  exchange.Name,
+		Type:                  exchange.Type,
+		Enabled:               exchange.Enabled,
+		HasAPIKey:             exchange.APIKey != "",
+		HasSecretKey:          exchange.SecretKey != "",
+		HasPassphrase:         exchange.Passphrase != "",
+		Testnet:               exchange.Testnet,
+		HyperliquidWalletAddr: exchange.HyperliquidWalletAddr,
+		HasAsterPrivateKey:    exchange.AsterPrivateKey != "",
+		AsterUser:             exchange.AsterUser,
+		AsterSigner:           exchange.AsterSigner,
+		LighterWalletAddr:     exchange.LighterWalletAddr,
+		HasLighterPrivateKey:  exchange.LighterPrivateKey != "",
+		HasLighterAPIKey:      exchange.LighterAPIKeyPrivateKey != "",
+	}
 }
 
 type UpdateExchangeConfigRequest struct {
@@ -96,21 +126,12 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	logger.Infof("✅ Found %d exchange configs", len(exchanges))
 
 	// Convert to safe response structure, remove sensitive information
-	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
-	for i, exchange := range exchanges {
-		safeExchanges[i] = SafeExchangeConfig{
-			ID:                    exchange.ID,
-			ExchangeType:          exchange.ExchangeType,
-			AccountName:           exchange.AccountName,
-			Name:                  exchange.Name,
-			Type:                  exchange.Type,
-			Enabled:               exchange.Enabled,
-			Testnet:               exchange.Testnet,
-			HyperliquidWalletAddr: exchange.HyperliquidWalletAddr,
-			AsterUser:             exchange.AsterUser,
-			AsterSigner:           exchange.AsterSigner,
-			LighterWalletAddr:     exchange.LighterWalletAddr,
+	safeExchanges := make([]SafeExchangeConfig, 0, len(exchanges))
+	for _, exchange := range exchanges {
+		if !store.IsVisibleExchange(exchange) {
+			continue
 		}
+		safeExchanges = append(safeExchanges, safeExchangeConfigFromStore(exchange))
 	}
 
 	c.JSON(http.StatusOK, safeExchanges)
@@ -179,13 +200,73 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 	// Update each exchange's configuration and track traders that need reload
 	tradersToReload := make(map[string]bool)
 	for exchangeID, exchangeData := range req.Exchanges {
+		existing, err := s.store.Exchange().GetByID(userID, exchangeID)
+		if err != nil {
+			SafeInternalError(c, fmt.Sprintf("Load exchange %s", exchangeID), err)
+			return
+		}
+		effectiveAPIKey := strings.TrimSpace(exchangeData.APIKey)
+		if effectiveAPIKey == "" {
+			effectiveAPIKey = strings.TrimSpace(string(existing.APIKey))
+		}
+		effectiveSecretKey := strings.TrimSpace(exchangeData.SecretKey)
+		if effectiveSecretKey == "" {
+			effectiveSecretKey = strings.TrimSpace(string(existing.SecretKey))
+		}
+		effectivePassphrase := strings.TrimSpace(exchangeData.Passphrase)
+		if effectivePassphrase == "" {
+			effectivePassphrase = strings.TrimSpace(string(existing.Passphrase))
+		}
+		effectiveAsterPrivateKey := strings.TrimSpace(exchangeData.AsterPrivateKey)
+		if effectiveAsterPrivateKey == "" {
+			effectiveAsterPrivateKey = strings.TrimSpace(string(existing.AsterPrivateKey))
+		}
+		effectiveLighterAPIKeyPrivateKey := strings.TrimSpace(exchangeData.LighterAPIKeyPrivateKey)
+		if effectiveLighterAPIKeyPrivateKey == "" {
+			effectiveLighterAPIKeyPrivateKey = strings.TrimSpace(string(existing.LighterAPIKeyPrivateKey))
+		}
+		effectiveHyperliquidWalletAddr := strings.TrimSpace(exchangeData.HyperliquidWalletAddr)
+		if effectiveHyperliquidWalletAddr == "" {
+			effectiveHyperliquidWalletAddr = strings.TrimSpace(existing.HyperliquidWalletAddr)
+		}
+		effectiveAsterUser := strings.TrimSpace(exchangeData.AsterUser)
+		if effectiveAsterUser == "" {
+			effectiveAsterUser = strings.TrimSpace(existing.AsterUser)
+		}
+		effectiveAsterSigner := strings.TrimSpace(exchangeData.AsterSigner)
+		if effectiveAsterSigner == "" {
+			effectiveAsterSigner = strings.TrimSpace(existing.AsterSigner)
+		}
+		effectiveLighterWalletAddr := strings.TrimSpace(exchangeData.LighterWalletAddr)
+		if effectiveLighterWalletAddr == "" {
+			effectiveLighterWalletAddr = strings.TrimSpace(existing.LighterWalletAddr)
+		}
+		if missing := store.MissingRequiredExchangeCredentialFields(
+			existing.ExchangeType,
+			effectiveAPIKey,
+			effectiveSecretKey,
+			effectivePassphrase,
+			effectiveHyperliquidWalletAddr,
+			effectiveAsterUser,
+			effectiveAsterSigner,
+			effectiveAsterPrivateKey,
+			effectiveLighterWalletAddr,
+			effectiveLighterAPIKeyPrivateKey,
+		); len(missing) > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":          fmt.Sprintf("Missing required exchange fields: %s", strings.Join(missing, ", ")),
+				"missing_fields": missing,
+			})
+			return
+		}
+
 		// Find traders using this exchange BEFORE updating
 		traders, _ := s.store.Trader().ListByExchangeID(userID, exchangeID)
 		for _, t := range traders {
 			tradersToReload[t.ID] = true
 		}
 
-		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.HyperliquidUnifiedAcct, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
+		err = s.store.Exchange().Update(userID, exchangeID, true, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, effectiveHyperliquidWalletAddr, exchangeData.HyperliquidUnifiedAcct, effectiveAsterUser, effectiveAsterSigner, exchangeData.AsterPrivateKey, effectiveLighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
 		if err != nil {
 			SafeInternalError(c, fmt.Sprintf("Update exchange %s", exchangeID), err)
 			return
@@ -271,10 +352,28 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid exchange type: %s", req.ExchangeType)})
 		return
 	}
+	if missing := store.MissingRequiredExchangeCredentialFields(
+		req.ExchangeType,
+		req.APIKey,
+		req.SecretKey,
+		req.Passphrase,
+		req.HyperliquidWalletAddr,
+		req.AsterUser,
+		req.AsterSigner,
+		req.AsterPrivateKey,
+		req.LighterWalletAddr,
+		req.LighterAPIKeyPrivateKey,
+	); len(missing) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":          fmt.Sprintf("Missing required exchange fields: %s", strings.Join(missing, ", ")),
+			"missing_fields": missing,
+		})
+		return
+	}
 
-	// Create new exchange account
+	// Exchange configs only persist once complete; persisted configs are always enabled.
 	id, err := s.store.Exchange().Create(
-		userID, req.ExchangeType, req.AccountName, req.Enabled,
+		userID, req.ExchangeType, req.AccountName, true,
 		req.APIKey, req.SecretKey, req.Passphrase, req.Testnet,
 		req.HyperliquidWalletAddr, req.HyperliquidUnifiedAcct,
 		req.AsterUser, req.AsterSigner, req.AsterPrivateKey,

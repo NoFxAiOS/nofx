@@ -73,6 +73,7 @@ type Client struct {
 	Model      string
 	UseFullURL bool // Whether to use full URL (without appending /chat/completions)
 	MaxTokens  int  // Maximum tokens for AI response
+	ForceStream bool // Whether to force streaming responses for OpenAI-compatible requests
 
 	HTTPClient *http.Client // Exported for sub-packages
 	Log        Logger       // Exported for sub-packages
@@ -126,6 +127,7 @@ func NewClient(opts ...ClientOption) AIClient {
 		BaseURL:    cfg.BaseURL,
 		Model:      cfg.Model,
 		MaxTokens:  cfg.MaxTokens,
+		ForceStream: cfg.ForceStream,
 		UseFullURL: cfg.UseFullURL,
 		HTTPClient: cfg.HTTPClient,
 		Log:        cfg.Logger,
@@ -252,6 +254,9 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 	} else {
 		requestBody["max_tokens"] = client.MaxTokens
 	}
+	if client.ForceStream {
+		requestBody["stream"] = true
+	}
 	return requestBody
 }
 
@@ -275,6 +280,14 @@ func (client *Client) ParseMCPResponse(body []byte) (string, error) {
 // ParseMCPResponseFull parses the OpenAI-format response body and returns both
 // the text content and any tool calls.
 func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
+	if containsSSEData(body) {
+		content, err := parseOpenAIStreamResponse(body)
+		if err != nil {
+			return nil, err
+		}
+		return &LLMResponse{Content: content}, nil
+	}
+
 	var result struct {
 		Choices []struct {
 			Message struct {
@@ -315,6 +328,90 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 		ReasoningContent: msg.ReasoningContent,
 		ToolCalls:        msg.ToolCalls,
 	}, nil
+}
+
+func containsSSEData(body []byte) bool {
+	for _, line := range strings.Split(string(body), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "data:") {
+			return true
+		}
+	}
+	return false
+}
+
+func parseOpenAIStreamResponse(body []byte) (string, error) {
+	type streamChunk struct {
+		Error   any `json:"error"`
+		Choices []struct {
+			Delta struct {
+				Content string `json:"content"`
+			} `json:"delta"`
+		} `json:"choices"`
+	}
+
+	var builder strings.Builder
+	sawChunk := false
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" {
+			continue
+		}
+		if data == "[DONE]" {
+			break
+		}
+
+		var chunk streamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			return "", fmt.Errorf("failed to parse stream chunk: %w", err)
+		}
+		sawChunk = true
+		if chunk.Error != nil {
+			if errMsg := formatOpenAIStreamError(chunk.Error); errMsg != "" {
+				return "", fmt.Errorf("API stream error: %s", errMsg)
+			}
+			return "", fmt.Errorf("API stream error: %v", chunk.Error)
+		}
+
+		for _, choice := range chunk.Choices {
+			builder.WriteString(choice.Delta.Content)
+		}
+	}
+
+	if !sawChunk {
+		return "", fmt.Errorf("API returned empty stream")
+	}
+
+	return builder.String(), nil
+}
+
+func formatOpenAIStreamError(raw any) string {
+	switch v := raw.(type) {
+	case string:
+		return v
+	case map[string]any:
+		message, _ := v["message"].(string)
+		errorType, _ := v["type"].(string)
+		if message != "" && errorType != "" {
+			return fmt.Sprintf("%s (%s)", message, errorType)
+		}
+		if message != "" {
+			return message
+		}
+		encoded, err := json.Marshal(v)
+		if err == nil {
+			return string(encoded)
+		}
+	}
+	encoded, err := json.Marshal(raw)
+	if err == nil {
+		return string(encoded)
+	}
+	return ""
 }
 
 func (client *Client) BuildUrl() string {
@@ -698,7 +795,7 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 		requestBody["tool_choice"] = req.ToolChoice
 	}
 
-	if req.Stream {
+	if req.Stream || client.ForceStream {
 		requestBody["stream"] = true
 	}
 

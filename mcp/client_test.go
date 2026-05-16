@@ -3,6 +3,7 @@ package mcp
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -143,6 +144,91 @@ func TestClient_CallWithMessages_HTTPError(t *testing.T) {
 
 	if err == nil {
 		t.Error("should error on HTTP error")
+	}
+}
+
+func TestClient_ParseMCPResponse_OpenAIStream(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(strings.Join([]string{
+		"",
+		`data: {"choices":[{"delta":{"role":"assistant"}}]}`,
+		`data: {"choices":[{"delta":{"content":"Hello"}}]}`,
+		`data: {"choices":[{"delta":{"content":" world"}}]}`,
+		`data: {"choices":[{"delta":{},"finish_reason":"stop"}]}`,
+		"data: [DONE]",
+		"",
+	}, "\n"))
+
+	got, err := client.ParseMCPResponse(body)
+	if err != nil {
+		t.Fatalf("should not error: %v", err)
+	}
+	if got != "Hello world" {
+		t.Fatalf("expected streamed content, got %q", got)
+	}
+}
+
+func TestClient_ParseMCPResponse_OpenAIStreamErrorChunk(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(`data: {"error":{"message":"model requires stream","type":"invalid_request_error"}}`)
+
+	_, err := client.ParseMCPResponse(body)
+	if err == nil {
+		t.Fatal("expected stream error")
+	}
+	if !strings.Contains(err.Error(), "model requires stream") {
+		t.Fatalf("expected useful stream error, got %v", err)
+	}
+}
+
+func TestClient_BuildMCPRequestBody_ForceStream(t *testing.T) {
+	client := NewClient(WithForceStream(true)).(*Client)
+	body := client.BuildMCPRequestBody("system", "user")
+
+	if body["stream"] != true {
+		t.Fatalf("expected stream=true when force stream is configured, got %v", body["stream"])
+	}
+}
+
+func TestClient_BuildMCPRequestBody_DoesNotForceStreamByDefault(t *testing.T) {
+	client := NewClient(WithModel("stream-required-model")).(*Client)
+	body := client.BuildMCPRequestBody("system", "user")
+
+	if _, ok := body["stream"]; ok {
+		t.Fatalf("did not expect stream field by default, got %v", body["stream"])
+	}
+}
+
+func TestClient_BuildRequestBodyFromRequest_ExplicitStream(t *testing.T) {
+	client := NewClient().(*Client)
+	req, err := NewRequestBuilder().
+		WithModel("test-model").
+		WithUserPrompt("hello").
+		WithStream(true).
+		Build()
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	body := client.BuildRequestBodyFromRequest(req)
+	if body["stream"] != true {
+		t.Fatalf("expected explicit request stream=true, got %v", body["stream"])
+	}
+}
+
+func TestClient_BuildRequestBodyFromRequest_ForceStream(t *testing.T) {
+	client := NewClient(WithForceStream(true)).(*Client)
+	req, err := NewRequestBuilder().
+		WithModel("test-model").
+		WithUserPrompt("hello").
+		Build()
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	body := client.BuildRequestBodyFromRequest(req)
+	if body["stream"] != true {
+		t.Fatalf("expected forced stream=true for request body, got %v", body["stream"])
 	}
 }
 

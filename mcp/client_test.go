@@ -320,6 +320,14 @@ func TestClient_Retry_NonRetryableError(t *testing.T) {
 	}
 }
 
+func TestClient_IsRetryableError_IncludesGatewayTimeout504(t *testing.T) {
+	client := NewClient().(*Client)
+
+	if !client.IsRetryableError(errors.New("API request failed with status 504: Gateway Timeout")) {
+		t.Fatal("expected HTTP 504 gateway timeout errors to be retryable")
+	}
+}
+
 // ============================================================
 // Test Hook Methods
 // ============================================================
@@ -455,6 +463,44 @@ func TestClient_IsRetryableError(t *testing.T) {
 				t.Errorf("expected %v, got %v", tt.expected, result)
 			}
 		})
+	}
+}
+
+// ============================================================
+// Test OpenAI stream parsing
+// ============================================================
+
+func TestParseOpenAIStreamResponseFull_ToolCalls(t *testing.T) {
+	stream := strings.Join([]string{
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"api_request","arguments":"{\"method\":"}}]}}]}`,
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"GET\",\"path\":\"/api/my-traders\"}"}}]},"finish_reason":"tool_calls"}]}`,
+	}, "\n")
+
+	resp, err := parseOpenAIStreamResponseFull(strings.NewReader(stream), nil, nil)
+	if err != nil {
+		t.Fatalf("parseOpenAIStreamResponseFull returned error: %v", err)
+	}
+	if len(resp.ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(resp.ToolCalls))
+	}
+	tc := resp.ToolCalls[0]
+	if tc.ID != "call_1" || tc.Type != "function" || tc.Function.Name != "api_request" {
+		t.Fatalf("unexpected tool call: %+v", tc)
+	}
+	if tc.Function.Arguments != `{"method":"GET","path":"/api/my-traders"}` {
+		t.Fatalf("unexpected args: %s", tc.Function.Arguments)
+	}
+}
+
+func TestParseOpenAIStreamResponseFull_FinishReasonWithoutDone(t *testing.T) {
+	stream := `data: {"choices":[{"delta":{"content":"hello"},"finish_reason":"stop"}]}` + "\n"
+
+	resp, err := parseOpenAIStreamResponseFull(strings.NewReader(stream), nil, nil)
+	if err != nil {
+		t.Fatalf("parseOpenAIStreamResponseFull returned error: %v", err)
+	}
+	if resp.Content != "hello" {
+		t.Fatalf("expected hello, got %q", resp.Content)
 	}
 }
 

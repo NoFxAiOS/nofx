@@ -5,8 +5,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"nofx/mcp"
 	"nofx/store"
 )
+
+type staticClientEmbedder struct {
+	client *mcp.Client
+}
+
+func (s staticClientEmbedder) BaseClient() *mcp.Client { return s.client }
 
 func TestLoadAIClientFromStoreUserPrefersModelWithBalance(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "agent-model-selection.db")
@@ -49,5 +56,50 @@ func TestLoadAIClientFromStoreUserPrefersModelWithBalance(t *testing.T) {
 	}
 	if modelName != "glm-5" {
 		t.Fatalf("expected model with wallet balance to be selected, got %q", modelName)
+	}
+}
+
+func TestAgentNeedsOpenAIForceStreamForCustomOpenAIBaseURL(t *testing.T) {
+	if !agentNeedsOpenAIForceStream(mcp.ProviderOpenAI, "https://gateway.example/v1") {
+		t.Fatalf("expected OpenAI-compatible custom base URL to force stream")
+	}
+	if agentNeedsOpenAIForceStream(mcp.ProviderOpenAI, "") {
+		t.Fatalf("expected default OpenAI base URL not to force stream")
+	}
+	if agentNeedsOpenAIForceStream(mcp.ProviderDeepSeek, "https://gateway.example/v1") {
+		t.Fatalf("expected non-OpenAI provider not to force stream")
+	}
+}
+
+func TestLoadAIClientFromStoreUserForcesStreamForCustomOpenAIBaseURL(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "agent-force-stream.db")
+	st, err := store.New(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	if err := st.AIModel().UpdateWithName("default", "custom_openai", "Custom OpenAI", true, "sk-test", "https://gateway.example/v1", "gpt-5.5"); err != nil {
+		t.Fatalf("create model: %v", err)
+	}
+
+	a := New(nil, st, DefaultConfig(), slog.Default())
+	client, _, ok := a.loadAIClientFromStoreUser("default")
+	if !ok {
+		t.Fatalf("expected model selection to succeed")
+	}
+	embedder, ok := client.(mcp.ClientEmbedder)
+	if !ok {
+		if baseClient, direct := client.(*mcp.Client); direct {
+			embedder = staticClientEmbedder{client: baseClient}
+		} else {
+			t.Fatalf("expected mcp client embedder, got %T", client)
+		}
+	}
+	base := embedder.BaseClient()
+	if !base.ForceStream {
+		t.Fatalf("expected ForceStream on agent-created mcp client")
+	}
+	body := base.BuildRequestBodyFromRequest(&mcp.Request{Messages: []mcp.Message{mcp.NewUserMessage("hi")}})
+	if got, ok := body["stream"].(bool); !ok || !got {
+		t.Fatalf("expected request body stream=true, got %#v", body["stream"])
 	}
 }

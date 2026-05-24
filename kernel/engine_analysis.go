@@ -84,6 +84,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 			return nil, fmt.Errorf("failed to fetch market data: %w", err)
 		}
 	}
+	pruneCandidateCoinsWithoutMarketData(ctx)
 
 	// Ensure OITopDataMap is initialized
 	if ctx.OITopDataMap == nil {
@@ -221,6 +222,21 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 
 	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins", len(ctx.MarketDataMap))
 	return nil
+}
+
+func pruneCandidateCoinsWithoutMarketData(ctx *Context) {
+	if ctx == nil || len(ctx.CandidateCoins) == 0 || len(ctx.MarketDataMap) == 0 {
+		return
+	}
+	kept := make([]CandidateCoin, 0, len(ctx.CandidateCoins))
+	for _, coin := range ctx.CandidateCoins {
+		if _, ok := ctx.MarketDataMap[coin.Symbol]; ok {
+			kept = append(kept, coin)
+			continue
+		}
+		logger.Infof("⚠️  Skipping candidate %s in AI prompt: no valid market/K-line data", coin.Symbol)
+	}
+	ctx.CandidateCoins = kept
 }
 
 // ============================================================================

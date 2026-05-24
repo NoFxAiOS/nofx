@@ -146,6 +146,8 @@ func (c *StrategyConfig) NormalizeProductSchema() {
 		c.CoinSource.UseAI500 = true
 		c.CoinSource.UseOITop = false
 		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
 		if c.CoinSource.AI500Limit <= 0 {
 			c.CoinSource.AI500Limit = 3
 		}
@@ -153,6 +155,8 @@ func (c *StrategyConfig) NormalizeProductSchema() {
 		c.CoinSource.UseAI500 = false
 		c.CoinSource.UseOITop = true
 		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
 		if c.CoinSource.OITopLimit <= 0 {
 			c.CoinSource.OITopLimit = 3
 		}
@@ -160,6 +164,8 @@ func (c *StrategyConfig) NormalizeProductSchema() {
 		c.CoinSource.UseAI500 = false
 		c.CoinSource.UseOITop = false
 		c.CoinSource.UseOILow = true
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
 		if c.CoinSource.OILowLimit <= 0 {
 			c.CoinSource.OILowLimit = 3
 		}
@@ -167,11 +173,53 @@ func (c *StrategyConfig) NormalizeProductSchema() {
 		c.CoinSource.UseAI500 = false
 		c.CoinSource.UseOITop = false
 		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+	case "hyper_all":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = true
+		c.CoinSource.UseHyperMain = false
+	case "hyper_main":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = true
+		if c.CoinSource.HyperMainLimit <= 0 {
+			c.CoinSource.HyperMainLimit = 30
+		}
+	case "hyper_rank":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		if c.CoinSource.HyperRankCategory == "" {
+			c.CoinSource.HyperRankCategory = "stock"
+		}
+		if c.CoinSource.HyperRankDirection == "" {
+			c.CoinSource.HyperRankDirection = "gainers"
+		}
+		if c.CoinSource.HyperRankLimit <= 0 {
+			c.CoinSource.HyperRankLimit = 5
+		}
 	default:
-		c.CoinSource.SourceType = "ai500"
-		c.CoinSource.UseAI500 = true
-		if c.CoinSource.AI500Limit <= 0 {
-			c.CoinSource.AI500Limit = 3
+		c.CoinSource.SourceType = "hyper_rank"
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		if c.CoinSource.HyperRankCategory == "" {
+			c.CoinSource.HyperRankCategory = "stock"
+		}
+		if c.CoinSource.HyperRankDirection == "" {
+			c.CoinSource.HyperRankDirection = "gainers"
+		}
+		if c.CoinSource.HyperRankLimit <= 0 {
+			c.CoinSource.HyperRankLimit = 5
 		}
 	}
 
@@ -209,6 +257,12 @@ func normalizeCoinSourceType(value string) string {
 		return "oi_top"
 	case strings.Contains(compact, "oilow") || strings.Contains(value, "oi low") || strings.Contains(value, "持仓量最低") || strings.Contains(value, "持仓量较低"):
 		return "oi_low"
+	case strings.Contains(compact, "hyperrank") || strings.Contains(compact, "dynamicranking") || strings.Contains(value, "动态榜单") || strings.Contains(value, "涨幅榜"):
+		return "hyper_rank"
+	case strings.Contains(compact, "hyperall"):
+		return "hyper_all"
+	case strings.Contains(compact, "hypermain"):
+		return "hyper_main"
 	case strings.Contains(value, "static") || strings.Contains(value, "固定") || strings.Contains(value, "静态"):
 		return "static"
 	default:
@@ -226,8 +280,14 @@ func inferCoinSourceType(source CoinSourceConfig) string {
 		return "oi_top"
 	case source.UseOILow:
 		return "oi_low"
+	case source.UseHyperAll:
+		return "hyper_all"
+	case source.UseHyperMain:
+		return "hyper_main"
+	case source.HyperRankCategory != "" || source.HyperRankDirection != "" || source.HyperRankLimit > 0:
+		return "hyper_rank"
 	default:
-		return "ai500"
+		return "hyper_rank"
 	}
 }
 
@@ -717,6 +777,12 @@ type CoinSourceConfig struct {
 	UseHyperMain bool `json:"use_hyper_main"`
 	// Hyperliquid Main maximum count (default 20)
 	HyperMainLimit int `json:"hyper_main_limit,omitempty"`
+	// Hyperliquid dynamic ranking category: stock, commodity, index, forex, pre_ipo, crypto, all
+	HyperRankCategory string `json:"hyper_rank_category,omitempty"`
+	// Hyperliquid dynamic ranking direction: gainers, losers, volume
+	HyperRankDirection string `json:"hyper_rank_direction,omitempty"`
+	// Hyperliquid dynamic ranking maximum count. Defaults to 5 and is hard capped at 10 for AI context safety.
+	HyperRankLimit int `json:"hyper_rank_limit,omitempty"`
 	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 
@@ -850,13 +916,19 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 	config := StrategyConfig{
 		Language: normalizedLang,
 		CoinSource: CoinSourceConfig{
-			SourceType: "ai500",
-			UseAI500:   true,
-			AI500Limit: 3,
-			UseOITop:   false,
-			OITopLimit: 3,
-			UseOILow:   false,
-			OILowLimit: 3,
+			SourceType:         "hyper_rank",
+			UseAI500:           false,
+			AI500Limit:         3,
+			UseOITop:           false,
+			OITopLimit:         3,
+			UseOILow:           false,
+			OILowLimit:         3,
+			UseHyperAll:        false,
+			UseHyperMain:       false,
+			HyperMainLimit:     30,
+			HyperRankCategory:  "stock",
+			HyperRankDirection: "gainers",
+			HyperRankLimit:     5,
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{
@@ -880,24 +952,21 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
 			BOLLPeriods:       []int{20},
-			// NofxOS unified API key
-			NofxOSAPIKey: "cm_568c67eae410d912c54c",
-			// Quant data
-			EnableQuantData:    true,
-			EnableQuantOI:      true,
-			EnableQuantNetflow: true,
-			// OI ranking data
-			EnableOIRanking:   true,
-			OIRankingDuration: "1h",
-			OIRankingLimit:    10,
-			// NetFlow ranking data
-			EnableNetFlowRanking:   true,
+			// Hyperliquid strategies must use native Hyperliquid market data by default.
+			// NofxOS datasets do not cover all Hyperliquid XYZ assets, so keep them off.
+			NofxOSAPIKey:           "",
+			EnableQuantData:        false,
+			EnableQuantOI:          false,
+			EnableQuantNetflow:     false,
+			EnableOIRanking:        false,
+			OIRankingDuration:      "1h",
+			OIRankingLimit:         10,
+			EnableNetFlowRanking:   false,
 			NetFlowRankingDuration: "1h",
 			NetFlowRankingLimit:    10,
-			// Price ranking data
-			EnablePriceRanking:   true,
-			PriceRankingDuration: "1h,4h,24h",
-			PriceRankingLimit:    10,
+			EnablePriceRanking:     false,
+			PriceRankingDuration:   "1h,4h,24h",
+			PriceRankingLimit:      10,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)
@@ -914,9 +983,9 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 
 	if lang == "zh" {
 		config.PromptSections = PromptSectionsConfig{
-			RoleDefinition: `# 你是一个专业的加密货币交易AI
+			RoleDefinition: `# 你是一个专业的 Hyperliquid USDC 多资产交易AI
 
-你的任务是根据提供的市场数据做出交易决策。你是一个经验丰富的量化交易员，擅长技术分析和风险管理。`,
+你的任务是根据提供的市场数据做出交易决策。你可以分析并交易 Hyperliquid 上线的 USDC 永续合约，包括美股、大宗商品和加密资产。你是一个经验丰富的量化交易员，擅长跨资产技术分析和风险管理。`,
 			TradingFrequency: `# ⏱️ 交易频率意识
 
 - 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔
@@ -934,9 +1003,9 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 		}
 	} else {
 		config.PromptSections = PromptSectionsConfig{
-			RoleDefinition: `# You are a professional cryptocurrency trading AI
+			RoleDefinition: `# You are a professional Hyperliquid USDC multi-asset trading AI
 
-Your task is to make trading decisions based on the provided market data. You are an experienced quantitative trader skilled in technical analysis and risk management.`,
+Your task is to make trading decisions based on the provided market data. You can analyze and trade Hyperliquid-listed USDC perpetual markets, including US equities, commodities and crypto assets. You are an experienced quantitative trader skilled in cross-asset technical analysis and risk management.`,
 			TradingFrequency: `# ⏱️ Trading Frequency Awareness
 
 - Excellent trader: 2-4 trades per day ≈ 0.1-0.2 trades per hour
@@ -1390,8 +1459,14 @@ func (c *StrategyConfig) getEffectiveCoinCount() int {
 		count = c.CoinSource.OITopLimit
 	case "oi_low":
 		count = c.CoinSource.OILowLimit
+	case "hyper_rank":
+		count = c.CoinSource.HyperRankLimit
+	case "hyper_main":
+		count = c.CoinSource.HyperMainLimit
+	case "hyper_all":
+		count = c.CoinSource.HyperMainLimit
 	default:
-		count = c.CoinSource.AI500Limit
+		count = c.CoinSource.HyperRankLimit
 	}
 	if count <= 0 {
 		count = 3

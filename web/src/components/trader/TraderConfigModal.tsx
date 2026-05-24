@@ -336,7 +336,10 @@ export function TraderConfigModal({
                     return (
                       <div className="grid grid-cols-2 gap-2 text-xs text-[#848E9C]">
                         <div>
-                          {t('coinSource', language)}: {aiConfig.coin_source.source_type === 'static' ? '固定币种' :
+                          {t('coinSource', language)}: {aiConfig.coin_source.source_type === 'static' ? (language === 'zh' ? '固定美股' : 'Fixed US stocks') :
+                            aiConfig.coin_source.source_type === 'hyper_rank' ? (language === 'zh' ? 'Hyperliquid 美股榜单' : 'Hyperliquid US stock ranking') :
+                            aiConfig.coin_source.source_type === 'hyper_all' ? (language === 'zh' ? 'Hyperliquid 全市场' : 'Hyperliquid all markets') :
+                            aiConfig.coin_source.source_type === 'hyper_main' ? (language === 'zh' ? 'Hyperliquid 主流市场' : 'Hyperliquid main markets') :
                             aiConfig.coin_source.source_type === 'ai500' ? 'AI500' :
                             aiConfig.coin_source.source_type === 'oi_top' ? 'OI Top' :
                             aiConfig.coin_source.source_type === 'oi_low' ? 'OI Low' : '-'}

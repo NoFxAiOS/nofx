@@ -285,23 +285,23 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		name, description string
 	}
 	type strategyLocale struct {
-		balanced, conservative, aggressive strategyI18n
+		trend, megaCap, breakout strategyI18n
 	}
 	locales := map[string]strategyLocale{
 		"zh": {
-			balanced:     strategyI18n{"均衡策略", "系统默认策略。均衡风险收益，适合大多数市场环境。5倍杠杆，最多3个仓位。"},
-			conservative: strategyI18n{"稳健策略", "系统默认策略。低杠杆保守操作，优先保护本金。3倍杠杆，专注主流资产。"},
-			aggressive:   strategyI18n{"积极策略", "系统默认策略。高杠杆主动交易，更广泛的币种选择，适合经验丰富的交易者。10倍杠杆，最多5个仓位。"},
+			trend:    strategyI18n{"美股趋势策略", "开箱即用的 Hyperliquid 美股 USDC 策略。只扫描流动性更好的美股合约，低杠杆、低频率，适合直接创建 Agent 后运行。"},
+			megaCap:  strategyI18n{"美股大盘稳健策略", "开箱即用的 Hyperliquid 美股 USDC 策略。固定关注 AAPL、MSFT、GOOGL、AMZN、META 等大盘股，强调趋势确认和回撤控制。"},
+			breakout: strategyI18n{"美股突破策略", "开箱即用的 Hyperliquid 美股 USDC 策略。扫描 24h 强势美股，等待突破确认后再开仓，避免频繁追涨。"},
 		},
 		"en": {
-			balanced:     strategyI18n{"Balanced Strategy", "System default strategy. Balanced risk-reward, suitable for most market conditions. 5x leverage, up to 3 positions."},
-			conservative: strategyI18n{"Conservative Strategy", "System default strategy. Low-leverage conservative trading, capital preservation first. 3x leverage, focused on major assets."},
-			aggressive:   strategyI18n{"Aggressive Strategy", "System default strategy. High-leverage active trading, wider asset selection, for experienced traders. 10x leverage, up to 5 positions."},
+			trend:    strategyI18n{"US Stock Trend Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Scans liquid US stock perps with low leverage and low trade frequency, suitable for one-click Agent deployment."},
+			megaCap:  strategyI18n{"US Mega-Cap Steady Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Fixed universe: AAPL, MSFT, GOOGL, AMZN and META, with trend confirmation and drawdown control."},
+			breakout: strategyI18n{"US Stock Breakout Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Scans 24h strong US stocks and waits for breakout confirmation before entering, avoiding impulsive chasing."},
 		},
 		"id": {
-			balanced:     strategyI18n{"Strategi Seimbang", "Strategi default sistem. Risiko-reward seimbang, cocok untuk sebagian besar kondisi pasar. Leverage 5x, hingga 3 posisi."},
-			conservative: strategyI18n{"Strategi Konservatif", "Strategi default sistem. Trading konservatif leverage rendah, utamakan perlindungan modal. Leverage 3x, fokus aset utama."},
-			aggressive:   strategyI18n{"Strategi Agresif", "Strategi default sistem. Trading aktif leverage tinggi, pilihan aset lebih luas, untuk trader berpengalaman. Leverage 10x, hingga 5 posisi."},
+			trend:    strategyI18n{"Strategi Tren Saham AS", "Strategi saham AS USDC Hyperliquid siap jalan. Memindai perp saham AS likuid dengan leverage rendah dan frekuensi rendah."},
+			megaCap:  strategyI18n{"Strategi Stabil Mega-Cap AS", "Strategi saham AS USDC Hyperliquid siap jalan. Universe tetap: AAPL, MSFT, GOOGL, AMZN, META, dengan konfirmasi tren."},
+			breakout: strategyI18n{"Strategi Breakout Saham AS", "Strategi saham AS USDC Hyperliquid siap jalan. Memindai saham AS kuat 24 jam dan menunggu konfirmasi breakout."},
 		},
 	}
 	locale, ok := locales[lang]
@@ -316,45 +316,76 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		applyConfig func(*store.StrategyConfig)
 	}
 
+	setStockRank := func(c *store.StrategyConfig, direction string, limit int) {
+		c.CoinSource.SourceType = "hyper_rank"
+		c.CoinSource.StaticCoins = nil
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		c.CoinSource.HyperRankCategory = "stock"
+		c.CoinSource.HyperRankDirection = direction
+		c.CoinSource.HyperRankLimit = limit
+	}
+	setStaticStocks := func(c *store.StrategyConfig, symbols []string) {
+		c.CoinSource.SourceType = "static"
+		c.CoinSource.StaticCoins = symbols
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+	}
+	setStableRisk := func(c *store.StrategyConfig) {
+		c.RiskControl.MaxPositions = 2
+		c.RiskControl.BTCETHMaxLeverage = 3
+		c.RiskControl.AltcoinMaxLeverage = 3
+		c.RiskControl.BTCETHMaxPositionValueRatio = 2.0
+		c.RiskControl.AltcoinMaxPositionValueRatio = 0.6
+		c.RiskControl.MaxMarginUsage = 0.45
+		c.RiskControl.MinConfidence = 78
+		c.RiskControl.MinRiskRewardRatio = 3.0
+		c.Indicators.Klines.PrimaryTimeframe = "15m"
+		c.Indicators.Klines.LongerTimeframe = "4h"
+		c.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
+		c.Indicators.EnableEMA = true
+		c.Indicators.EnableMACD = true
+		c.Indicators.EnableRSI = true
+		c.Indicators.EnableATR = true
+		c.Indicators.EnableVolume = true
+	}
+
 	definitions := []strategyDef{
 		{
-			name:        locale.balanced.name,
-			description: locale.balanced.description,
+			name:        locale.trend.name,
+			description: locale.trend.description,
 			isActive:    true,
 			applyConfig: func(c *store.StrategyConfig) {
-				// Uses default config as-is
+				setStockRank(c, "volume", 5)
+				setStableRisk(c)
 			},
 		},
 		{
-			name:        locale.conservative.name,
-			description: locale.conservative.description,
+			name:        locale.megaCap.name,
+			description: locale.megaCap.description,
 			isActive:    false,
 			applyConfig: func(c *store.StrategyConfig) {
-				c.RiskControl.BTCETHMaxLeverage = 3
-				c.RiskControl.AltcoinMaxLeverage = 3
-				c.RiskControl.BTCETHMaxPositionValueRatio = 3.0
-				c.RiskControl.AltcoinMaxPositionValueRatio = 0.5
+				setStaticStocks(c, []string{"AAPL-USDC", "MSFT-USDC", "GOOGL-USDC", "AMZN-USDC", "META-USDC"})
+				setStableRisk(c)
+				c.RiskControl.MaxPositions = 2
 				c.RiskControl.MinConfidence = 80
-				c.RiskControl.MinRiskRewardRatio = 4.0
-				c.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
-				c.Indicators.Klines.PrimaryTimeframe = "15m"
 			},
 		},
 		{
-			name:        locale.aggressive.name,
-			description: locale.aggressive.description,
+			name:        locale.breakout.name,
+			description: locale.breakout.description,
 			isActive:    false,
 			applyConfig: func(c *store.StrategyConfig) {
-				c.RiskControl.BTCETHMaxLeverage = 10
-				c.RiskControl.AltcoinMaxLeverage = 7
-				c.RiskControl.MaxPositions = 5
-				c.RiskControl.AltcoinMaxPositionValueRatio = 2.0
-				c.RiskControl.MinConfidence = 70
-				c.CoinSource.AI500Limit = 5
-				c.CoinSource.UseOITop = true
-				c.CoinSource.OITopLimit = 5
-				c.Indicators.Klines.SelectedTimeframes = []string{"3m", "15m", "1h"}
-				c.Indicators.Klines.PrimaryTimeframe = "3m"
+				setStockRank(c, "gainers", 5)
+				setStableRisk(c)
+				c.RiskControl.MinConfidence = 82
+				c.RiskControl.MinRiskRewardRatio = 3.5
 			},
 		},
 	}
@@ -370,6 +401,7 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 	for _, def := range definitions {
 		config := store.GetDefaultStrategyConfig(configLang)
 		def.applyConfig(&config)
+		config.ClampLimits()
 
 		strategy := &store.Strategy{
 			ID:          uuid.New().String(),
@@ -385,10 +417,45 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		strategies = append(strategies, strategy)
 	}
 
+	legacyDefaultNames := []string{
+		"均衡策略", "稳健策略", "积极策略",
+		"Balanced Strategy", "Conservative Strategy", "Aggressive Strategy",
+		"Strategi Seimbang", "Strategi Konservatif", "Strategi Agresif",
+	}
+
 	return s.store.Transaction(func(tx *gorm.DB) error {
+		// Remove obsolete built-in risk-profile presets for this user. If a trader still
+		// references one of them, keep it to avoid breaking an existing running setup.
+		deleteResult := tx.Where("user_id = ? AND name IN ? AND id NOT IN (SELECT strategy_id FROM traders WHERE user_id = ? AND strategy_id IS NOT NULL)", userID, legacyDefaultNames, userID).
+			Delete(&store.Strategy{})
+		if deleteResult.Error != nil {
+			return fmt.Errorf("failed to remove legacy default strategies: %w", deleteResult.Error)
+		}
+		if deleteResult.RowsAffected > 0 {
+			logger.Infof("  ✓ Removed %d legacy default strategy preset(s)", deleteResult.RowsAffected)
+		}
+
+		var activeCount int64
+		if err := tx.Model(&store.Strategy{}).Where("user_id = ? AND is_active = ?", userID, true).Count(&activeCount).Error; err != nil {
+			return fmt.Errorf("failed to count active strategies: %w", err)
+		}
+
 		for _, strategy := range strategies {
+			var existing int64
+			if err := tx.Model(&store.Strategy{}).Where("user_id = ? AND name = ?", userID, strategy.Name).Count(&existing).Error; err != nil {
+				return fmt.Errorf("failed to check strategy %q: %w", strategy.Name, err)
+			}
+			if existing > 0 {
+				continue
+			}
+			if activeCount > 0 {
+				strategy.IsActive = false
+			}
 			if err := tx.Create(strategy).Error; err != nil {
 				return fmt.Errorf("failed to create strategy %q: %w", strategy.Name, err)
+			}
+			if strategy.IsActive {
+				activeCount++
 			}
 			logger.Infof("  ✓ Created default strategy: %s (active=%v)", strategy.Name, strategy.IsActive)
 		}

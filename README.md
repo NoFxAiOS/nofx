@@ -1,8 +1,8 @@
 <h1 align="center">NOFX</h1>
 
 <p align="center">
-  <strong>Your personal AI trading assistant.</strong><br/>
-  <strong>Any market. Any model. Pay with USDC, not API keys.</strong>
+  <strong>Your AI trading terminal assistant for US stocks, commodities, forex, and crypto.</strong><br/>
+  <strong>One intelligent terminal for multi-market research, strategy, execution, and automation.</strong>
 </p>
 
 <p align="center">
@@ -31,7 +31,11 @@
 
 ---
 
-NOFX is an open-source **autonomous** AI trading assistant. Unlike traditional AI tools that require you to manually configure models, manage API keys, and wire up data sources — NOFX's AI **perceives markets, selects models, and fetches data entirely on its own**. Zero human intervention. You set the strategy, the AI handles everything else.
+NOFX is an open-source **AI intelligent trading terminal assistant** built for **US stocks, commodities, forex, and crypto**. It gives traders one terminal to research markets, generate strategies, connect execution venues, monitor positions, and automate trading workflows with AI.
+
+Unlike traditional AI tools that require you to manually configure models, manage API keys, and wire up data sources — NOFX's AI **perceives markets, selects models, and fetches data entirely on its own**. You define the trading intent; the AI handles model selection, market data, strategy reasoning, and execution support across asset classes.
+
+**Multi-market focus**: US stocks first, then commodities, forex, and crypto — with Hyperliquid-powered access patterns for on-chain perps and a unified AI workflow for every market.
 
 **Fully autonomous**: The AI decides which model to use, what market data to pull, when to trade — all by itself. No manual model configuration. No juggling API keys for different services. Just fund a USDC wallet and let it run.
 
@@ -81,18 +85,21 @@ No accounts. No API keys. No prepaid credits. One wallet, every model.
 
 ## What It Does
 
-| Feature             | Description                                                               |
-| :------------------ | :------------------------------------------------------------------------ |
-| **Multi-AI**        | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — switch anytime |
-| **Multi-Exchange**  | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter    |
-| **Strategy Studio** | Visual builder — coin sources, indicators, risk controls                  |
-| **AI Competition**  | AIs compete in real-time, leaderboard ranks performance                   |
-| **Telegram Agent**  | Chat with your trading assistant — streaming, tool calling, memory        |
-| **Dashboard**       | Live positions, P/L, AI decision logs with Chain of Thought               |
+| Feature                     | Description                                                                 |
+| :-------------------------- | :-------------------------------------------------------------------------- |
+| **AI Trading Terminal**     | One assistant for US stocks, commodities, forex, and crypto trading workflows |
+| **Multi-AI**                | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — switch anytime   |
+| **Multi-Market Execution**  | Hyperliquid plus major CEX/DEX connectors for cross-asset strategy execution |
+| **Strategy Studio**         | Visual builder — market universes, indicators, risk controls                |
+| **AI Competition**          | AIs compete in real-time, leaderboard ranks performance                     |
+| **Telegram Agent**          | Chat with your trading assistant — streaming, tool calling, memory          |
+| **Dashboard**               | Live positions, P/L, AI decision logs with Chain of Thought                 |
 
 ### Markets
 
-Crypto · US Stocks · Forex · Metals
+**US Stocks · Commodities · Forex · Crypto**
+
+NOFX brings AI-assisted research, strategy generation, backtesting, execution, and monitoring into one terminal for US equities, commodity markets, FX pairs, and digital assets.
 
 ### Exchanges (CEX)
 
@@ -269,6 +276,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ┌─────────────────────────────────────────────────┐
     │                 Web Dashboard                     │
     │           React + TypeScript + TradingView        │
+    │      US Stocks · Commodities · Forex · Crypto     │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────┬──────────┬──────────┬────────────────┤

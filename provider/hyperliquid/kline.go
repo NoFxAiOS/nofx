@@ -18,16 +18,16 @@ const (
 
 // Candle represents a single OHLCV candle from Hyperliquid
 type Candle struct {
-	OpenTime   int64   `json:"t"`  // Open time in milliseconds
-	CloseTime  int64   `json:"T"`  // Close time in milliseconds
-	Symbol     string  `json:"s"`  // Coin symbol
-	Interval   string  `json:"i"`  // Interval
-	Open       string  `json:"o"`  // Open price
-	High       string  `json:"h"`  // High price
-	Low        string  `json:"l"`  // Low price
-	Close      string  `json:"c"`  // Close price
-	Volume     string  `json:"v"`  // Volume in base unit
-	TradeCount int     `json:"n"`  // Number of trades
+	OpenTime   int64  `json:"t"` // Open time in milliseconds
+	CloseTime  int64  `json:"T"` // Close time in milliseconds
+	Symbol     string `json:"s"` // Coin symbol
+	Interval   string `json:"i"` // Interval
+	Open       string `json:"o"` // Open price
+	High       string `json:"h"` // High price
+	Low        string `json:"l"` // Low price
+	Close      string `json:"c"` // Close price
+	Volume     string `json:"v"` // Volume in base unit
+	TradeCount int    `json:"n"` // Number of trades
 }
 
 // CandleRequest represents the request for candleSnapshot
@@ -230,19 +230,115 @@ type Meta struct {
 
 // AssetInfo represents information about a single asset
 type AssetInfo struct {
-	Name       string `json:"name"`
-	SzDecimals int    `json:"szDecimals"`
-	MaxLeverage int   `json:"maxLeverage"`
+	Name        string `json:"name"`
+	SzDecimals  int    `json:"szDecimals"`
+	MaxLeverage int    `json:"maxLeverage"`
 }
 
 // NormalizeCoin normalizes coin name for Hyperliquid API
 // Examples:
 //   - "BTCUSDT" -> "BTC"
 //   - "TSLA-USDC" -> "TSLA"
+//   - "TESLA-USDC" -> "TSLA"
+//   - "SAMSUNG-USDC" -> "SMSN"
 //   - "xyz:TSLA" -> "TSLA"
 //   - "BTC" -> "BTC"
 func NormalizeCoin(symbol string) string {
 	return NormalizeCoinBase(symbol)
+}
+
+// XYZDisplayNameToCoin maps user-facing product labels back to Hyperliquid xyz coin names.
+// Hyperliquid routes candles/orders by short names (for example xyz:SMSN), while NOFX
+// shows full names (for example SAMSUNG-USDC) in the UI.
+var XYZDisplayNameToCoin = map[string]string{
+	"TESLA":             "TSLA",
+	"NVIDIA":            "NVDA",
+	"ROBINHOOD":         "HOOD",
+	"INTEL":             "INTC",
+	"PALANTIR":          "PLTR",
+	"COINBASE":          "COIN",
+	"APPLE":             "AAPL",
+	"MICROSOFT":         "MSFT",
+	"ORACLE":            "ORCL",
+	"GOOGLE":            "GOOGL",
+	"ALPHABET":          "GOOGL",
+	"AMAZON":            "AMZN",
+	"MICRON":            "MU",
+	"SANDISK":           "SNDK",
+	"MICROSTRATEGY":     "MSTR",
+	"CIRCLE":            "CRCL",
+	"NETFLIX":           "NFLX",
+	"COSTCO":            "COST",
+	"ELI-LILLY":         "LLY",
+	"SK-HYNIX":          "SKHX",
+	"SKHYNIX":           "SKHX",
+	"TSMC":              "TSM",
+	"RIVIAN":            "RIVN",
+	"ALIBABA":           "BABA",
+	"CRUDE-OIL":         "CL",
+	"CRUDEOIL":          "CL",
+	"NATURAL-GAS":       "NATGAS",
+	"NATURALGAS":        "NATGAS",
+	"SAMSUNG":           "SMSN",
+	"USA-RARE-EARTH":    "USAR",
+	"USARAREEARTH":      "USAR",
+	"COREWEAVE":         "CRWV",
+	"DOLLAR-INDEX":      "DXY",
+	"DOLLARINDEX":       "DXY",
+	"GAMESTOP":          "GME",
+	"KOREA-200":         "KR200",
+	"KOREA200":          "KR200",
+	"JAPAN-225":         "JP225",
+	"JAPAN225":          "JP225",
+	"SOUTH-KOREA-ETF":   "EWY",
+	"SOUTHKOREAETF":     "EWY",
+	"JAPAN-ETF":         "EWJ",
+	"JAPANETF":          "EWJ",
+	"BRENT-OIL":         "BRENTOIL",
+	"BRENTOIL":          "BRENTOIL",
+	"HIMS-HERS":         "HIMS",
+	"HIMSHERS":          "HIMS",
+	"S&P-500":           "SP500",
+	"SP-500":            "SP500",
+	"SP500":             "SP500",
+	"DRAFTKINGS":        "DKNG",
+	"LITECOIN":          "LITE",
+	"ENERGY-SECTOR-ETF": "XLE",
+	"ENERGYSECTORETF":   "XLE",
+	"TTF-GAS":           "TTF",
+	"TTFGAS":            "TTF",
+	"BLACKSTONE":        "BX",
+	"MARVELL":           "MRVL",
+	"ROCKET-LAB":        "RKLB",
+	"ROCKETLAB":         "RKLB",
+	"VOLATILITY":        "VOL",
+	"COINBASE-PRE-IPO":  "CBRS",
+	"COINBASEPREIPO":    "CBRS",
+	"BRAZIL-ETF":        "EWZ",
+	"BRAZILETF":         "EWZ",
+	"ZOOM":              "ZM",
+	"NIFTY-50":          "NIFTY",
+	"NIFTY50":           "NIFTY",
+	"TAIWAN-ETF":        "EWT",
+	"TAIWANETF":         "EWT",
+	"SPACEX-PRE-IPO":    "SPCX",
+	"SPACEXPREIPO":      "SPCX",
+	"IBOVESPA":          "IBOV",
+}
+
+func NormalizeXYZAlias(base string) string {
+	base = strings.ToUpper(strings.TrimSpace(base))
+	base = strings.TrimPrefix(base, "XYZ:")
+	base = strings.TrimSuffix(base, "-USDC")
+	base = strings.TrimSuffix(base, "-USD")
+	if mapped, ok := XYZDisplayNameToCoin[base]; ok {
+		return mapped
+	}
+	compact := strings.NewReplacer(" ", "", "_", "", ".", "", "/", "", "&", "AND").Replace(base)
+	if mapped, ok := XYZDisplayNameToCoin[compact]; ok {
+		return mapped
+	}
+	return base
 }
 
 // MapTimeframe maps common timeframe strings to Hyperliquid format
@@ -379,18 +475,26 @@ func IsXYZAsset(symbol string) bool {
 			return true
 		}
 	}
+	// Check newer xyz assets that are represented by full display-name aliases in NOFX.
+	for _, s := range XYZDisplayNameToCoin {
+		if s == coin {
+			return true
+		}
+	}
 	return false
 }
 
 // NormalizeCoinBase removes common suffixes to get base symbol
 func NormalizeCoinBase(symbol string) string {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	hasXYZPrefix := strings.HasPrefix(symbol, "XYZ:")
 	// Remove xyz: prefix if present
-	if strings.HasPrefix(symbol, "xyz:") {
-		return strings.TrimPrefix(symbol, "xyz:")
+	if hasXYZPrefix {
+		return NormalizeXYZAlias(strings.TrimPrefix(symbol, "XYZ:"))
 	}
 	// Remove -USDC suffix
 	if strings.HasSuffix(symbol, "-USDC") {
-		return strings.TrimSuffix(symbol, "-USDC")
+		return NormalizeXYZAlias(strings.TrimSuffix(symbol, "-USDC"))
 	}
 	// Remove USDT suffix
 	if strings.HasSuffix(symbol, "USDT") {
@@ -400,14 +504,15 @@ func NormalizeCoinBase(symbol string) string {
 	if strings.HasSuffix(symbol, "USD") {
 		return strings.TrimSuffix(symbol, "USD")
 	}
-	return symbol
+	return NormalizeXYZAlias(symbol)
 }
 
 // FormatCoinForAPI formats the coin name for Hyperliquid API
 // Stock perps need xyz:SYMBOL format, crypto uses plain symbol
 func FormatCoinForAPI(symbol string) string {
+	hasExplicitXYZ := strings.HasPrefix(strings.ToLower(strings.TrimSpace(symbol)), "xyz:")
 	base := NormalizeCoinBase(symbol)
-	if IsXYZAsset(base) {
+	if hasExplicitXYZ || IsXYZAsset(base) {
 		return "xyz:" + base
 	}
 	return base

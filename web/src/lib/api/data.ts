@@ -9,7 +9,35 @@ import type {
 } from '../../types'
 import { API_BASE, httpClient } from './helpers'
 
+export interface MarketSymbol {
+  symbol: string
+  display?: string
+  name: string
+  category: 'crypto' | 'stock' | 'forex' | 'commodity' | 'index' | string
+  exchange?: string
+  volume_24h?: number
+  mark_price?: number
+  change_24h_pct?: number
+  prev_day_price?: number
+  maxLeverage?: number
+  sz_decimals?: number
+}
+
+export interface SymbolListResponse {
+  exchange: string
+  symbols: MarketSymbol[]
+  count: number
+}
+
 export const dataApi = {
+  async getSymbols(exchange = 'hyperliquid-xyz'): Promise<SymbolListResponse> {
+    const result = await httpClient.get<SymbolListResponse>(
+      `${API_BASE}/symbols?exchange=${encodeURIComponent(exchange)}`
+    )
+    if (!result.success) throw new Error('Failed to fetch symbol list')
+    return result.data || { exchange, symbols: [], count: 0 }
+  },
+
   async getStatus(traderId?: string, silent?: boolean): Promise<SystemStatus> {
     const url = traderId
       ? `${API_BASE}/status?trader_id=${traderId}`

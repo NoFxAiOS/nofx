@@ -1,3 +1,5 @@
+<p align="center"><strong>Được hỗ trợ bởi <a href="https://vergex.trade">vergex.trade</a></strong></p>
+
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -105,6 +107,54 @@ NOFX tự động định tuyến AI inference qua [Claw402](https://claw402.ai)
 
 ---
 
+## Ảnh chụp màn hình
+
+<details>
+<summary><b>Trang cấu hình</b></summary>
+
+|                         Cấu hình                         |                         Danh sách trader                         |
+| :----------------------------------------------------------: | :----------------------------------------------------------: |
+| <img src="../../../screenshots/config-ai-exchanges.png" width="400"/> | <img src="../../../screenshots/config-traders-list.png" width="400"/> |
+
+</details>
+
+<details>
+<summary><b>Dashboard</b></summary>
+
+|                        Tổng quan                         |                          Biểu đồ thị trường                           |
+| :-----------------------------------------------------: | :-------------------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-page.png" width="400"/> | <img src="../../../screenshots/dashboard-market-chart.png" width="400"/> |
+
+|                          Thống kê giao dịch                           |                          Lịch sử vị thế                           |
+| :--------------------------------------------------------------: | :-----------------------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-trading-stats.png" width="400"/> | <img src="../../../screenshots/dashboard-position-history.png" width="400"/> |
+
+|                          Vị thế                           |                    Chi tiết trader                     |
+| :----------------------------------------------------------: | :---------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-positions.png" width="400"/> | <img src="../../../screenshots/details-page.png" width="400"/> |
+
+</details>
+
+<details>
+<summary><b>Strategy Studio</b></summary>
+
+|                     Trình soạn chiến lược                      |                      Cấu hình chỉ báo                       |
+| :------------------------------------------------------: | :----------------------------------------------------------: |
+| <img src="../../../screenshots/strategy-studio.png" width="400"/> | <img src="../../../screenshots/strategy-indicators.png" width="400"/> |
+
+</details>
+
+<details>
+<summary><b>Cạnh tranh</b></summary>
+
+|                     Chế độ cạnh tranh                      |
+| :-------------------------------------------------------: |
+| <img src="../../../screenshots/competition-page.png" width="400"/> |
+
+</details>
+
+---
+
 ## Cài đặt
 
 ### Linux / macOS
@@ -169,6 +219,50 @@ Tất cả cấu hình có trong Web UI tại **http://127.0.0.1:3000**.
 
 ---
 
+## Triển khai lên máy chủ
+
+**Triển khai HTTP:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+# Truy cập qua http://YOUR_IP:3000
+```
+
+**HTTPS qua Cloudflare:**
+
+1. Thêm domain vào [Cloudflare](https://dash.cloudflare.com) (gói miễn phí)
+2. Bản ghi A → IP máy chủ của bạn (Proxied)
+3. SSL/TLS → Flexible
+4. Đặt `TRANSPORT_ENCRYPTION=true` trong `.env`
+
+---
+
+## Kiến trúc
+
+```
+                              NOFX
+    ┌─────────────────────────────────────────────────┐
+    │                 Trading Terminal                 │
+    │        React + TypeScript + TradingView          │
+    │      US Stocks · Commodities · Forex · Crypto    │
+    ├─────────────────────────────────────────────────┤
+    │                  API Server (Go)                  │
+    ├──────────────┬──────────────┬───────────────────┤
+    │   Strategy    │   Telegram   │   Trader Runtime  │
+    │    Engine     │    Agent     │   Risk Controls   │
+    ├──────────────┴──────────────┴───────────────────┤
+    │                 AI Model Layer                    │
+    │    Unified provider access through Claw402        │
+    │    Model routing · payment · execution support    │
+    ├─────────────────────────────────────────────────┤
+    │              Exchange Connectivity                │
+    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
+    │ KuCoin · Gate · Aster · Lighter                  │
+    └─────────────────────────────────────────────────┘
+```
+
+---
+
 ## Tài liệu
 
 | | |
@@ -211,6 +305,22 @@ NOFX ghi nhận các đóng góp có ý nghĩa và dự định thưởng cho co
 > **Cảnh báo rủi ro**: Giao dịch tự động có rủi ro đáng kể. Hãy dùng kích thước vị thế phù hợp, hiểu từng venue và không giao dịch số vốn bạn không thể mất.
 
 ---
+
+## Nhà tài trợ
+
+<a href="https://github.com/pjl914335852-ux"><img src="https://github.com/pjl914335852-ux.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/cat9999aaa"><img src="https://github.com/cat9999aaa.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/1733055465"><img src="https://github.com/1733055465.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/kolal2020"><img src="https://github.com/kolal2020.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/CyberFFarm"><img src="https://github.com/CyberFFarm.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/vip3001003"><img src="https://github.com/vip3001003.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/mrtluh"><img src="https://github.com/mrtluh.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/cpcp1117-source"><img src="https://github.com/cpcp1117-source.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/match-007"><img src="https://github.com/match-007.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/leiwuhen1715"><img src="https://github.com/leiwuhen1715.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/SHAOXIA1991"><img src="https://github.com/SHAOXIA1991.png" width="50" height="50" style="border-radius:50%"/></a>
+
+[Trở thành nhà tài trợ](https://github.com/sponsors/NoFxAiOS)
 
 ## License
 

@@ -1,3 +1,5 @@
+<p align="center"><strong>За підтримки <a href="https://vergex.trade">vergex.trade</a></strong></p>
+
 <h1 align="center">NOFX</h1>
 
 <p align="center">
@@ -105,6 +107,54 @@ NOFX автоматично маршрутизує AI inference через [Claw
 
 ---
 
+## Скріншоти
+
+<details>
+<summary><b>Сторінка налаштувань</b></summary>
+
+|                         Конфігурація                         |                         Список трейдерів                         |
+| :----------------------------------------------------------: | :----------------------------------------------------------: |
+| <img src="../../../screenshots/config-ai-exchanges.png" width="400"/> | <img src="../../../screenshots/config-traders-list.png" width="400"/> |
+
+</details>
+
+<details>
+<summary><b>Дашборд</b></summary>
+
+|                        Огляд                         |                          Графік ринку                           |
+| :-----------------------------------------------------: | :-------------------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-page.png" width="400"/> | <img src="../../../screenshots/dashboard-market-chart.png" width="400"/> |
+
+|                          Статистика торгів                           |                          Історія позицій                           |
+| :--------------------------------------------------------------: | :-----------------------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-trading-stats.png" width="400"/> | <img src="../../../screenshots/dashboard-position-history.png" width="400"/> |
+
+|                          Позиції                           |                    Деталі трейдера                     |
+| :----------------------------------------------------------: | :---------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-positions.png" width="400"/> | <img src="../../../screenshots/details-page.png" width="400"/> |
+
+</details>
+
+<details>
+<summary><b>Strategy Studio</b></summary>
+
+|                     Редактор стратегій                      |                      Налаштування індикаторів                       |
+| :------------------------------------------------------: | :----------------------------------------------------------: |
+| <img src="../../../screenshots/strategy-studio.png" width="400"/> | <img src="../../../screenshots/strategy-indicators.png" width="400"/> |
+
+</details>
+
+<details>
+<summary><b>Змагання</b></summary>
+
+|                     Режим змагання                      |
+| :-------------------------------------------------------: |
+| <img src="../../../screenshots/competition-page.png" width="400"/> |
+
+</details>
+
+---
+
 ## Установка
 
 ### Linux / macOS
@@ -169,6 +219,50 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ---
 
+## Розгортання на сервері
+
+**HTTP-розгортання:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+# Доступ через http://YOUR_IP:3000
+```
+
+**HTTPS через Cloudflare:**
+
+1. Додайте домен у [Cloudflare](https://dash.cloudflare.com) (безкоштовний план)
+2. A-запис → IP вашого сервера (Proxied)
+3. SSL/TLS → Flexible
+4. Встановіть `TRANSPORT_ENCRYPTION=true` у `.env`
+
+---
+
+## Архітектура
+
+```
+                              NOFX
+    ┌─────────────────────────────────────────────────┐
+    │                 Trading Terminal                 │
+    │        React + TypeScript + TradingView          │
+    │      US Stocks · Commodities · Forex · Crypto    │
+    ├─────────────────────────────────────────────────┤
+    │                  API Server (Go)                  │
+    ├──────────────┬──────────────┬───────────────────┤
+    │   Strategy    │   Telegram   │   Trader Runtime  │
+    │    Engine     │    Agent     │   Risk Controls   │
+    ├──────────────┴──────────────┴───────────────────┤
+    │                 AI Model Layer                    │
+    │    Unified provider access through Claw402        │
+    │    Model routing · payment · execution support    │
+    ├─────────────────────────────────────────────────┤
+    │              Exchange Connectivity                │
+    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
+    │ KuCoin · Gate · Aster · Lighter                  │
+    └─────────────────────────────────────────────────┘
+```
+
+---
+
 ## Документация
 
 | | |
@@ -211,6 +305,22 @@ NOFX отслеживает значимые вклады и планирует 
 > **Попередження про ризики**: автоматизована торгівля має значний ризик. Контролюйте розмір позиції, розумійте механіку кожного майданчика і не торгуйте коштами, втрату яких не можете собі дозволити.
 
 ---
+
+## Спонсори
+
+<a href="https://github.com/pjl914335852-ux"><img src="https://github.com/pjl914335852-ux.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/cat9999aaa"><img src="https://github.com/cat9999aaa.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/1733055465"><img src="https://github.com/1733055465.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/kolal2020"><img src="https://github.com/kolal2020.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/CyberFFarm"><img src="https://github.com/CyberFFarm.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/vip3001003"><img src="https://github.com/vip3001003.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/mrtluh"><img src="https://github.com/mrtluh.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/cpcp1117-source"><img src="https://github.com/cpcp1117-source.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/match-007"><img src="https://github.com/match-007.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/leiwuhen1715"><img src="https://github.com/leiwuhen1715.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/SHAOXIA1991"><img src="https://github.com/SHAOXIA1991.png" width="50" height="50" style="border-radius:50%"/></a>
+
+[Стати спонсором](https://github.com/sponsors/NoFxAiOS)
 
 ## License
 

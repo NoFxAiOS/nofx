@@ -1,3 +1,5 @@
+<p align="center"><strong>Backed by <a href="https://vergex.trade">vergex.trade</a></strong></p>
+
 <h1 align="center">NOFX</h1>
 
 <p align="center">

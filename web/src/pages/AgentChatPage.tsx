@@ -609,6 +609,40 @@ export function AgentChatPage() {
     )
     try {
       const result = await createHyperliquidQuickTrader(symbol, language === 'zh' ? 'zh' : 'en')
+
+      // The reply tells the truth about what happened: created OR reused, AND
+      // whether the trader is now actually running. If start failed we say so
+      // explicitly so the user knows there's still work to do — but we no
+      // longer pretend the user has to "go push a button" when we could've
+      // done it ourselves.
+      const isZh = language === 'zh'
+      let text: string
+      if (result.started) {
+        const verb = isZh
+          ? result.reusedTrader
+            ? '已复用并启动'
+            : '已创建并启动'
+          : result.reusedTrader
+            ? 'Reused and started'
+            : 'Created and started'
+        text = isZh
+          ? `${verb} Hyperliquid ${result.display} 单标的 Trader: ${result.traderName}\n\n• 策略: ${result.strategyName}\n• 标的: ${result.display}\n• 扫描间隔: 每 5 分钟\n\nAgent 已在工作。要看实时持仓在 Dashboard, 想停掉随时回这里说"停掉 ${result.traderName}"。`
+          : `${verb} Hyperliquid ${result.display} single-symbol trader: ${result.traderName}\n\n• Strategy: ${result.strategyName}\n• Symbol: ${result.display}\n• Scan interval: every 5 min\n\nThe agent is live. Watch positions in Dashboard, or tell me "stop ${result.traderName}" to halt it.`
+      } else {
+        const verb = isZh
+          ? result.reusedTrader
+            ? '已找到 Trader'
+            : '已创建 Trader'
+          : result.reusedTrader
+            ? 'Found existing trader'
+            : 'Created trader'
+        const reason = result.startError ? `\n\n启动失败原因: ${result.startError}` : ''
+        const reasonEn = result.startError ? `\n\nStart failed: ${result.startError}` : ''
+        text = isZh
+          ? `${verb}: ${result.traderName}\n\n• 策略: ${result.strategyName}\n• 标的: ${result.display}${reason}\n\n需要先解决启动问题, 我才能让它跑起来。`
+          : `${verb}: ${result.traderName}\n\n• Strategy: ${result.strategyName}\n• Symbol: ${result.display}${reasonEn}\n\nResolve the start error before the trader can run.`
+      }
+
       patchMessagesInStore(
         (prev) =>
           prev.map((m) =>
@@ -617,10 +651,7 @@ export function AgentChatPage() {
                   ...m,
                   streaming: false,
                   time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  text:
-                    language === 'zh'
-                      ? `${result.reusedTrader ? '已找到并复用' : '已创建'} Hyperliquid ${result.display} 单标的 Trader：${result.traderName}\n\n策略：${result.strategyName}\n标的：${result.display}\n\n我没有自动启动实盘交易。请到 Traders 面板确认风控后手动 Start。`
-                      : `${result.reusedTrader ? 'Reused existing' : 'Created'} Hyperliquid ${result.display} single-symbol trader: ${result.traderName}\n\nStrategy: ${result.strategyName}\nSymbol: ${result.display}\n\nLive trading was not auto-started. Review risk controls in Traders, then start manually.`,
+                  text,
                 }
               : m
           ),

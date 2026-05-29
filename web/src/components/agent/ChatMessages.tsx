@@ -10,12 +10,12 @@ interface ChatMessagesProps {
 
 function hasMeaningfulExecutionSteps(steps?: AgentStep[]) {
   if (!steps || steps.length === 0) return false
+  // Tool steps (label "tool:get_positions" etc.) ARE meaningful — they're the
+  // visible signal that the agent is actually doing something. Only drop the
+  // internal routing chatter (central_brain) and pure-planning placeholders.
   return steps.some((step) => {
-    const label = step.label.trim().toLowerCase()
     const detail = (step.detail || '').trim().toLowerCase()
-    if (label.startsWith('tool:') || detail === 'central_brain') {
-      return false
-    }
+    if (detail === 'central_brain') return false
     return step.status !== 'planning'
   })
 }

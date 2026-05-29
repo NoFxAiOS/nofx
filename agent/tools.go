@@ -43,10 +43,22 @@ var (
 // agentTools returns the tools available to the LLM for autonomous action.
 func agentTools() []mcp.Tool { return cachedTools }
 
+// plannerToolsForText returns the tools the LLM can call on this turn.
+//
+// Historically this filtered tools to a "domain" inferred from the user's
+// text (asking about "market" hid trader tools, etc.). The intent was to
+// keep prompts small for older models, but it made cross-domain reasoning
+// structurally impossible — e.g. "BTC dropped, how much am I losing?" needs
+// BOTH market AND position tools. Modern LLMs handle 22-tool surfaces fine,
+// and the agent-feels-blind-and-useless symptom is worse than any prompt
+// bloat. We now always expose the full toolset.
+//
+// `compactStrategy` still trims the giant strategy schema for non-mutation
+// intents (it's a 117-line nested schema; only worth showing in full when
+// the user is actually editing strategy config).
 func plannerToolsForText(text string) []mcp.Tool {
-	domain := plannerToolDomainForText(text)
 	compactStrategy := !looksLikeStrategyMutationIntent(text)
-	names := plannerToolNamesForDomain(domain)
+	names := plannerToolNamesForDomain("__all__")
 	return toolsByName(names, compactStrategy)
 }
 
@@ -80,7 +92,28 @@ func plannerToolDomainForText(text string) string {
 }
 
 func plannerToolNamesForDomain(domain string) []string {
+	// Full toolset — exposed in every turn so the LLM can cross-domain reason.
+	// The `__all__` sentinel is the canonical "give me everything" entry; older
+	// domain switches are kept for callers that explicitly request a subset.
+	all := []string{
+		// Account / lifecycle state
+		"get_preferences", "manage_preferences",
+		"get_decisions", "get_backend_logs",
+		"get_exchange_configs", "manage_exchange_config",
+		"get_model_configs", "manage_model_config",
+		"get_strategies", "manage_strategy",
+		"manage_trader",
+		"get_balance", "get_positions", "get_trade_history",
+		"get_candidate_coins",
+		"get_watchlist", "manage_watchlist",
+		// Trade execution
+		"execute_trade",
+		// Market data
+		"get_market_snapshot", "get_market_price", "get_kline", "search_stock",
+	}
 	switch domain {
+	case "__all__", "":
+		return all
 	case "market":
 		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock"}
 	case "account":
@@ -96,16 +129,7 @@ func plannerToolNamesForDomain(domain string) []string {
 	case "diagnosis":
 		return []string{"get_decisions", "get_backend_logs", "get_model_configs", "get_exchange_configs", "get_strategies", "manage_trader"}
 	default:
-		return []string{
-			"get_preferences", "manage_preferences",
-			"get_decisions", "get_backend_logs",
-			"get_exchange_configs", "manage_exchange_config",
-			"get_model_configs", "manage_model_config",
-			"get_strategies", "manage_strategy",
-			"manage_trader",
-			"get_balance", "get_positions", "get_trade_history",
-			"get_market_snapshot", "get_market_price", "get_kline", "search_stock",
-		}
+		return all
 	}
 }
 

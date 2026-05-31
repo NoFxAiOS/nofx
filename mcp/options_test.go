@@ -64,6 +64,15 @@ func TestWithTemperature(t *testing.T) {
 	}
 }
 
+func TestWithForceStream(t *testing.T) {
+	cfg := DefaultConfig()
+	WithForceStream(true)(cfg)
+
+	if !cfg.ForceStream {
+		t.Error("ForceStream should be true")
+	}
+}
+
 func TestWithUseFullURL(t *testing.T) {
 	cfg := DefaultConfig()
 	WithUseFullURL(true)(cfg)

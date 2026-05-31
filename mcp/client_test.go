@@ -3,6 +3,7 @@ package mcp
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -146,6 +147,91 @@ func TestClient_CallWithMessages_HTTPError(t *testing.T) {
 	}
 }
 
+func TestClient_ParseMCPResponse_OpenAIStream(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(strings.Join([]string{
+		"",
+		`data: {"choices":[{"delta":{"role":"assistant"}}]}`,
+		`data: {"choices":[{"delta":{"content":"Hello"}}]}`,
+		`data: {"choices":[{"delta":{"content":" world"}}]}`,
+		`data: {"choices":[{"delta":{},"finish_reason":"stop"}]}`,
+		"data: [DONE]",
+		"",
+	}, "\n"))
+
+	got, err := client.ParseMCPResponse(body)
+	if err != nil {
+		t.Fatalf("should not error: %v", err)
+	}
+	if got != "Hello world" {
+		t.Fatalf("expected streamed content, got %q", got)
+	}
+}
+
+func TestClient_ParseMCPResponse_OpenAIStreamErrorChunk(t *testing.T) {
+	client := NewClient().(*Client)
+	body := []byte(`data: {"error":{"message":"model requires stream","type":"invalid_request_error"}}`)
+
+	_, err := client.ParseMCPResponse(body)
+	if err == nil {
+		t.Fatal("expected stream error")
+	}
+	if !strings.Contains(err.Error(), "model requires stream") {
+		t.Fatalf("expected useful stream error, got %v", err)
+	}
+}
+
+func TestClient_BuildMCPRequestBody_ForceStream(t *testing.T) {
+	client := NewClient(WithForceStream(true)).(*Client)
+	body := client.BuildMCPRequestBody("system", "user")
+
+	if body["stream"] != true {
+		t.Fatalf("expected stream=true when force stream is configured, got %v", body["stream"])
+	}
+}
+
+func TestClient_BuildMCPRequestBody_DoesNotForceStreamByDefault(t *testing.T) {
+	client := NewClient(WithModel("stream-required-model")).(*Client)
+	body := client.BuildMCPRequestBody("system", "user")
+
+	if _, ok := body["stream"]; ok {
+		t.Fatalf("did not expect stream field by default, got %v", body["stream"])
+	}
+}
+
+func TestClient_BuildRequestBodyFromRequest_ExplicitStream(t *testing.T) {
+	client := NewClient().(*Client)
+	req, err := NewRequestBuilder().
+		WithModel("test-model").
+		WithUserPrompt("hello").
+		WithStream(true).
+		Build()
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	body := client.BuildRequestBodyFromRequest(req)
+	if body["stream"] != true {
+		t.Fatalf("expected explicit request stream=true, got %v", body["stream"])
+	}
+}
+
+func TestClient_BuildRequestBodyFromRequest_ForceStream(t *testing.T) {
+	client := NewClient(WithForceStream(true)).(*Client)
+	req, err := NewRequestBuilder().
+		WithModel("test-model").
+		WithUserPrompt("hello").
+		Build()
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+
+	body := client.BuildRequestBodyFromRequest(req)
+	if body["stream"] != true {
+		t.Fatalf("expected forced stream=true for request body, got %v", body["stream"])
+	}
+}
+
 // ============================================================
 // Test Retry Logic
 // ============================================================
@@ -231,6 +317,14 @@ func TestClient_Retry_NonRetryableError(t *testing.T) {
 	requests := mockHTTP.GetRequests()
 	if len(requests) != 1 {
 		t.Errorf("should not retry for 400 error, got %d requests", len(requests))
+	}
+}
+
+func TestClient_IsRetryableError_IncludesGatewayTimeout504(t *testing.T) {
+	client := NewClient().(*Client)
+
+	if !client.IsRetryableError(errors.New("API request failed with status 504: Gateway Timeout")) {
+		t.Fatal("expected HTTP 504 gateway timeout errors to be retryable")
 	}
 }
 
@@ -369,6 +463,44 @@ func TestClient_IsRetryableError(t *testing.T) {
 				t.Errorf("expected %v, got %v", tt.expected, result)
 			}
 		})
+	}
+}
+
+// ============================================================
+// Test OpenAI stream parsing
+// ============================================================
+
+func TestParseOpenAIStreamResponseFull_ToolCalls(t *testing.T) {
+	stream := strings.Join([]string{
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"api_request","arguments":"{\"method\":"}}]}}]}`,
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"GET\",\"path\":\"/api/my-traders\"}"}}]},"finish_reason":"tool_calls"}]}`,
+	}, "\n")
+
+	resp, err := parseOpenAIStreamResponseFull(strings.NewReader(stream), nil, nil)
+	if err != nil {
+		t.Fatalf("parseOpenAIStreamResponseFull returned error: %v", err)
+	}
+	if len(resp.ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(resp.ToolCalls))
+	}
+	tc := resp.ToolCalls[0]
+	if tc.ID != "call_1" || tc.Type != "function" || tc.Function.Name != "api_request" {
+		t.Fatalf("unexpected tool call: %+v", tc)
+	}
+	if tc.Function.Arguments != `{"method":"GET","path":"/api/my-traders"}` {
+		t.Fatalf("unexpected args: %s", tc.Function.Arguments)
+	}
+}
+
+func TestParseOpenAIStreamResponseFull_FinishReasonWithoutDone(t *testing.T) {
+	stream := `data: {"choices":[{"delta":{"content":"hello"},"finish_reason":"stop"}]}` + "\n"
+
+	resp, err := parseOpenAIStreamResponseFull(strings.NewReader(stream), nil, nil)
+	if err != nil {
+		t.Fatalf("parseOpenAIStreamResponseFull returned error: %v", err)
+	}
+	if resp.Content != "hello" {
+		t.Fatalf("expected hello, got %q", resp.Content)
 	}
 }
 

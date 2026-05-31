@@ -167,9 +167,11 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			modelName := strings.TrimSpace(model.CustomModelName)
 			provider := strings.ToLower(strings.TrimSpace(model.Provider))
 
+			clientOptions := agentAIClientOptions(provider, customAPIURL)
+
 			// Use the provider registry for providers like claw402 that have their own
 			// client implementation (x402 payment, custom auth, etc.).
-			if client := mcp.NewAIClientByProvider(provider); client != nil {
+			if client := mcp.NewAIClientByProvider(provider, clientOptions...); client != nil {
 				if modelName == "" {
 					modelName = model.ID
 				}
@@ -179,6 +181,7 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			}
 
 			customAPIURL, modelName = resolveModelRuntimeConfig(provider, customAPIURL, modelName, model.ID)
+			clientOptions = agentAIClientOptions(provider, customAPIURL)
 			if apiKey == "" || customAPIURL == "" {
 				a.log().Warn(
 					"skipping incomplete enabled AI model",
@@ -192,7 +195,8 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 			}
 
 			httpClient := &http.Client{Timeout: 60 * time.Second}
-			client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
+			clientOptions = append([]mcp.ClientOption{mcp.WithHTTPClient(httpClient)}, clientOptions...)
+			client := mcp.NewClient(clientOptions...)
 			client.SetAPIKey(apiKey, customAPIURL, modelName)
 			a.log().Info("agent AI client selected", "store_user_id", candidateUserID, "model_id", model.ID, "model", modelName)
 			return client, modelName, true
@@ -201,6 +205,20 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 
 	a.log().Warn("no enabled AI model found for store user", "store_user_id", storeUserID)
 	return nil, "", false
+}
+
+func agentAIClientOptions(provider, customURL string) []mcp.ClientOption {
+	if agentNeedsOpenAIForceStream(provider, customURL) {
+		return []mcp.ClientOption{mcp.WithForceStream(true)}
+	}
+	return nil
+}
+
+func agentNeedsOpenAIForceStream(provider, customURL string) bool {
+	if !strings.EqualFold(strings.TrimSpace(provider), mcp.ProviderOpenAI) {
+		return false
+	}
+	return strings.TrimSpace(customURL) != ""
 }
 
 type agentModelCandidate struct {

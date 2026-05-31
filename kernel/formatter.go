@@ -325,20 +325,26 @@ func formatKlineDataZH(symbol string, tfData map[string]*market.TimeframeSeriesD
 			sb.WriteString("```\n")
 			sb.WriteString("时间(UTC)      开盘      最高      最低      收盘      成交量\n")
 
-			// Only show the latest 30 klines
+			// Optimization: Only show the latest 10 klines to save tokens (99% waste fix)
 			startIdx := 0
-			if len(data.Klines) > 30 {
-				startIdx = len(data.Klines) - 30
+			if len(data.Klines) > 10 {
+				startIdx = len(data.Klines) - 10
+			}
+
+			// Add a brief summary of the last 30 periods for context
+			if len(data.Klines) >= 30 {
+				p30 := data.Klines[len(data.Klines)-30].Close
+				pnow := data.Klines[len(data.Klines)-1].Close
+				change := ((pnow - p30) / p30) * 100
+				sb.WriteString(fmt.Sprintf("Last 30 periods change: %+.2f%%\n", change))
 			}
 
 			for i := startIdx; i < len(data.Klines); i++ {
 				k := data.Klines[i]
 				t := time.UnixMilli(k.Time).UTC()
-				sb.WriteString(fmt.Sprintf("%s    %.4f    %.4f    %.4f    %.4f    %.2f\n",
-					t.Format("01-02 15:04"),
-					k.Open,
-					k.High,
-					k.Low,
+				// Compact format: Time | Close | Vol (AI is smart enough to derive trend from Close)
+				sb.WriteString(fmt.Sprintf("%s    %.4f    %.2f\n",
+					t.Format("15:04"),
 					k.Close,
 					k.Volume,
 				))
@@ -592,19 +598,26 @@ func formatKlineDataEN(symbol string, tfData map[string]*market.TimeframeSeriesD
 			sb.WriteString("```\n")
 			sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume\n")
 
+			// Optimization: Only show the latest 10 klines to save tokens (99% waste fix)
 			startIdx := 0
-			if len(data.Klines) > 30 {
-				startIdx = len(data.Klines) - 30
+			if len(data.Klines) > 10 {
+				startIdx = len(data.Klines) - 10
+			}
+
+			// Add a brief summary of the last 30 periods for context
+			if len(data.Klines) >= 30 {
+				p30 := data.Klines[len(data.Klines)-30].Close
+				pnow := data.Klines[len(data.Klines)-1].Close
+				change := ((pnow - p30) / p30) * 100
+				sb.WriteString(fmt.Sprintf("Last 30 periods change: %+.2f%%\n", change))
 			}
 
 			for i := startIdx; i < len(data.Klines); i++ {
 				k := data.Klines[i]
 				t := time.UnixMilli(k.Time).UTC()
-				sb.WriteString(fmt.Sprintf("%s    %.4f    %.4f    %.4f    %.4f    %.2f\n",
-					t.Format("01-02 15:04"),
-					k.Open,
-					k.High,
-					k.Low,
+				// Compact format: Time | Close | Vol (AI is smart enough to derive trend from Close)
+				sb.WriteString(fmt.Sprintf("%s    %.4f    %.2f\n",
+					t.Format("15:04"),
 					k.Close,
 					k.Volume,
 				))

@@ -20,13 +20,14 @@ type MarketType = 'hyperliquid' | 'crypto' | 'stocks' | 'forex' | 'metals'
 
 interface SymbolInfo {
   symbol: string
+  display?: string
   name: string
   category: string
 }
 
 // Market type configuration
 const MARKET_CONFIG = {
-  hyperliquid: { exchange: 'hyperliquid', defaultSymbol: 'BTC', icon: '🔷', labelKey: 'hyperliquid' as const, color: 'cyan', hasDropdown: true },
+  hyperliquid: { exchange: 'hyperliquid-xyz', defaultSymbol: 'BTC', icon: '🔷', labelKey: 'hyperliquid' as const, color: 'cyan', hasDropdown: true },
   crypto: { exchange: 'binance', defaultSymbol: 'BTCUSDT', icon: '₿', labelKey: 'crypto' as const, color: 'yellow', hasDropdown: false },
   stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', labelKey: 'stocks' as const, color: 'green', hasDropdown: false },
   forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', labelKey: 'forex' as const, color: 'blue', hasDropdown: false },
@@ -63,6 +64,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
   const [showDropdown, setShowDropdown] = useState(false)
   const [searchFilter, setSearchFilter] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const chartSymbolDisplay = availableSymbols.find(s => s.symbol === chartSymbol)?.display || chartSymbol
 
   // Auto-switch market type when exchange ID changes
   useEffect(() => {
@@ -82,13 +84,13 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
         .then(res => res.json())
         .then(data => {
           if (data.symbols) {
-            // Sort by category: crypto > stock > forex > commodity > index
-            const categoryOrder: Record<string, number> = { crypto: 0, stock: 1, forex: 2, commodity: 3, index: 4 }
+            // Product order for Hyperliquid XYZ board: stocks → commodities → indices → FX → pre-IPO → crypto
+            const categoryOrder: Record<string, number> = { stock: 0, commodity: 1, index: 2, forex: 3, pre_ipo: 4, crypto: 5 }
             const sorted = [...data.symbols].sort((a: SymbolInfo, b: SymbolInfo) => {
-              const orderA = categoryOrder[a.category] ?? 5
-              const orderB = categoryOrder[b.category] ?? 5
+              const orderA = categoryOrder[a.category] ?? 99
+              const orderB = categoryOrder[b.category] ?? 99
               if (orderA !== orderB) return orderA - orderB
-              return a.symbol.localeCompare(b.symbol)
+              return (a.display || a.symbol).localeCompare(b.display || b.symbol)
             })
             setAvailableSymbols(sorted)
           }
@@ -116,9 +118,12 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
   }
 
   // Filtered symbol list
-  const filteredSymbols = availableSymbols.filter(s =>
-    s.symbol.toLowerCase().includes(searchFilter.toLowerCase())
-  )
+  const filteredSymbols = availableSymbols.filter(s => {
+    const q = searchFilter.toLowerCase()
+    return s.symbol.toLowerCase().includes(q)
+      || (s.display || '').toLowerCase().includes(q)
+      || s.name.toLowerCase().includes(q)
+  })
 
   // Auto-switch to kline chart when symbol selected externally
   useEffect(() => {
@@ -215,7 +220,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                     onClick={() => setShowDropdown(!showDropdown)}
                     className="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main hover:border-nofx-gold/30 hover:text-nofx-gold transition-all"
                   >
-                    <span>{chartSymbol}</span>
+                    <span>{chartSymbolDisplay}</span>
                     <ChevronDown className={`w-3 h-3 text-nofx-text-muted transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
                   </button>
                   {showDropdown && (
@@ -234,10 +239,10 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                         </div>
                       </div>
                       <div className="overflow-y-auto max-h-60 custom-scrollbar">
-                        {['crypto', 'stock', 'forex', 'commodity', 'index'].map(category => {
+                        {['stock', 'commodity', 'index', 'forex', 'pre_ipo', 'crypto'].map(category => {
                           const categorySymbols = filteredSymbols.filter(s => s.category === category)
                           if (categorySymbols.length === 0) return null
-                          const labels: Record<string, string> = { crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', commodity: 'Commodities', index: 'Index' }
+                          const labels: Record<string, string> = { crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', commodity: 'Commodities', index: 'Indices', pre_ipo: 'Pre-IPO' }
                           return (
                             <div key={category}>
                               <div className="px-3 py-1.5 text-[9px] font-bold text-nofx-text-muted/60 bg-white/5 uppercase tracking-wider">{labels[category]}</div>
@@ -247,7 +252,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                                   onClick={() => { setChartSymbol(s.symbol); setShowDropdown(false); setSearchFilter('') }}
                                   className={`w-full px-3 py-2 text-left text-[11px] font-mono hover:bg-white/5 transition-all flex items-center justify-between ${chartSymbol === s.symbol ? 'bg-nofx-gold/10 text-nofx-gold' : 'text-nofx-text-muted'}`}
                                 >
-                                  <span>{s.symbol}</span>
+                                  <span>{s.display || s.symbol}</span>
                                   <span className="text-[9px] opacity-40">{s.name}</span>
                                 </button>
                               ))}

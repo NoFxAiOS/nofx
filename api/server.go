@@ -10,6 +10,7 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/store"
+	"os"
 	"strings"
 	"time"
 
@@ -56,18 +57,62 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	return s
 }
 
-// corsMiddleware CORS middleware
+// corsMiddleware returns a CORS handler. Origins come from CORS_ALLOWED_ORIGINS
+// (comma-separated). The literal value "*" enables permissive mode — DO NOT use
+// in production: the JWT is sent via Authorization header so a wildcard ACAO
+// makes stolen tokens replayable from any site.
 func corsMiddleware() gin.HandlerFunc {
+	raw := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	allowAny := raw == "*"
+	var allowlist map[string]struct{}
+	if !allowAny {
+		allowlist = make(map[string]struct{})
+		for _, o := range strings.Split(raw, ",") {
+			o = strings.TrimSpace(o)
+			if o == "" {
+				continue
+			}
+			allowlist[o] = struct{}{}
+		}
+		if len(allowlist) == 0 {
+			// Safe defaults for local development.
+			for _, o := range []string{
+				"http://localhost:3000",
+				"http://127.0.0.1:3000",
+				"http://localhost:5173",
+				"http://127.0.0.1:5173",
+			} {
+				allowlist[o] = struct{}{}
+			}
+			logger.Warnf("[CORS] CORS_ALLOWED_ORIGINS not set; defaulting to localhost dev origins only. Set this env var for production.")
+		}
+		if allowAny {
+			logger.Warnf("[CORS] CORS_ALLOWED_ORIGINS=* is INSECURE in production; restrict to your deployment origin(s).")
+		}
+	}
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			switch {
+			case allowAny:
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Set("Vary", "Origin")
+			default:
+				if _, ok := allowlist[origin]; ok {
+					c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+					c.Writer.Header().Set("Vary", "Origin")
+				}
+				// Unknown origin: do not set ACAO; the browser will block.
+			}
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Max-Age", "600")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
 			return
 		}
-
 		c.Next()
 	}
 }
@@ -92,6 +137,9 @@ func (s *Server) setupRoutes() {
 		// Wallet validation (no authentication required — used by frontend config form)
 		api.POST("/wallet/validate", s.handleWalletValidate)
 		api.POST("/wallet/generate", s.handleWalletGenerate)
+		s.route(api, "GET", "/hyperliquid/connect-config", "Get NOFX Hyperliquid builder authorization config", s.handleHyperliquidConnectConfig)
+		s.route(api, "GET", "/hyperliquid/account", "Get Hyperliquid account balance summary", s.handleHyperliquidAccount)
+		s.route(api, "POST", "/hyperliquid/submit-exchange", "Submit a user-signed Hyperliquid approval action", s.handleHyperliquidSubmitExchange)
 
 		// Crypto related endpoints (no authentication required, not exposed to bot)
 		api.GET("/crypto/config", s.cryptoHandler.HandleGetCryptoConfig)
@@ -117,8 +165,14 @@ func (s *Server) setupRoutes() {
 		// Authentication related routes (no authentication required)
 		s.route(api, "POST", "/register", "Register new user", s.handleRegister)
 		s.route(api, "POST", "/login", "User login, returns JWT token", s.handleLogin)
-		s.route(api, "POST", "/reset-password", "Reset password", s.handleResetPassword)
-		s.route(api, "POST", "/reset-account", "Clear all users and reset system to allow re-registration", s.handleResetAccount)
+		// SECURITY: /reset-password and /reset-account are PUBLIC by necessity —
+		// they ARE the recovery paths when the user can no longer log in. Both
+		// require a literal confirmation phrase in the request body, which
+		// blocks accidental triggers and drive-by scripts. The historical
+		// takeover path (post-reset wallet-key adoption) was closed by
+		// removing adoptOrphanRecords. See handler_user.go for details.
+		s.route(api, "POST", "/reset-password", "Reset password by email (requires confirm phrase)", s.handleResetPassword)
+		s.route(api, "POST", "/reset-account", "[DESTRUCTIVE] Wipe everything (requires confirm phrase)", s.handleResetAccount)
 
 		// Routes requiring authentication
 		protected := api.Group("/", s.authMiddleware())
@@ -511,31 +565,46 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
-// getTraderFromQuery Get trader from query parameter
+// getTraderFromQuery resolves a trader from the ?trader_id= query parameter.
+//
+// This project is single-user by design, so a strict cross-tenant ownership
+// check would be theatre. We still perform a soft check (the requested trader
+// must appear in the caller's store list when present) — this is cheap defense
+// in depth that future-proofs against accidental multi-account drift and
+// catches typos that would otherwise return another account's data.
 func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, string, error) {
 	userID := c.GetString("user_id")
 	traderID := c.Query("trader_id")
 
-	// Ensure user's traders are loaded into memory
-	err := s.traderManager.LoadUserTradersFromStore(s.store, userID)
-	if err != nil {
+	// Ensure user's traders are loaded into memory.
+	if err := s.traderManager.LoadUserTradersFromStore(s.store, userID); err != nil {
 		logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, err)
 	}
 
 	if traderID == "" {
-		// If no trader_id specified, return first trader for this user
+		// No trader_id specified — return first trader for this user, falling
+		// back to the first in-memory trader if no per-user list exists yet.
+		userTraders, err := s.store.Trader().List(userID)
+		if err == nil && len(userTraders) > 0 {
+			return s.traderManager, userTraders[0].ID, nil
+		}
 		ids := s.traderManager.GetTraderIDs()
 		if len(ids) == 0 {
 			return nil, "", fmt.Errorf("No available traders")
 		}
+		return s.traderManager, ids[0], nil
+	}
 
-		// Get user's trader list, prioritize returning user's own traders
-		userTraders, err := s.store.Trader().List(userID)
-		if err == nil && len(userTraders) > 0 {
-			traderID = userTraders[0].ID
-		} else {
-			traderID = ids[0]
+	// Soft ownership check: if the caller owns any traders in the store and
+	// the requested ID is NOT among them, treat as not-found instead of
+	// silently returning whatever happens to be in the global in-memory map.
+	if userTraders, err := s.store.Trader().List(userID); err == nil && len(userTraders) > 0 {
+		for _, t := range userTraders {
+			if t.ID == traderID {
+				return s.traderManager, traderID, nil
+			}
 		}
+		return nil, "", fmt.Errorf("trader not found for this account")
 	}
 
 	return s.traderManager, traderID, nil

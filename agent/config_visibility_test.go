@@ -286,7 +286,7 @@ func TestLoadExchangeOptionsHidesInvisibleExchangeRows(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed legacy hidden exchange: %v", err)
 	}
-	if _, err := st.Exchange().Create("default", "okx", "我的主力OKX账户", true, "api-test", "secret-test", "pass-test", false, "", false, "", "", "", "", "", "", 0); err != nil {
+	if _, err := st.Exchange().Create("default", "okx", "我的主力OKX账户", true, "api-test", "secret-test", "pass-test", false, "", false, false, "", "", "", "", "", "", 0); err != nil {
 		t.Fatalf("create visible exchange: %v", err)
 	}
 
@@ -307,7 +307,7 @@ func TestDescribeExchangeIncludesTypeSpecificVisibleFields(t *testing.T) {
 	}
 	a := New(nil, st, DefaultConfig(), slog.Default())
 
-	hyperID, err := st.Exchange().Create("default", "hyperliquid", "Dex Pro", true, "hyper-api-key", "", "", true, "0xabc", true, "", "", "", "", "", "", 0)
+	hyperID, err := st.Exchange().Create("default", "hyperliquid", "Dex Pro", true, "hyper-api-key", "", "", true, "0xabc", true, false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed hyperliquid exchange: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestDescribeExchangeIncludesTypeSpecificVisibleFields(t *testing.T) {
 		}
 	}
 
-	lighterID, err := st.Exchange().Create("default", "lighter", "Lighter Main", false, "", "", "", false, "", true, "", "", "", "wallet-1", "", "lighter-secret", 7)
+	lighterID, err := st.Exchange().Create("default", "lighter", "Lighter Main", false, "", "", "", false, "", true, false, "", "", "", "wallet-1", "", "lighter-secret", 7)
 	if err != nil {
 		t.Fatalf("seed lighter exchange: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestToolUpdateTraderRejectsRenameOutsideManualPanel(t *testing.T) {
 	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
-	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}
@@ -515,7 +515,7 @@ func TestToolCreateTraderResponseHidesLegacyTraderTuningFields(t *testing.T) {
 	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
-	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}
@@ -566,7 +566,7 @@ func TestToolCreateTraderAutoReadsInitialBalanceFromExchange(t *testing.T) {
 	if err := st.AIModel().UpdateWithName("default", "default_deepseek", "DeepSeek", true, "sk-test-12345", "", "deepseek-chat"); err != nil {
 		t.Fatalf("seed model: %v", err)
 	}
-	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, "", "", "", "", "", "", 0)
+	exchangeID, err := st.Exchange().Create("default", "binance", "Main", true, "api-test", "secret-test", "", false, "", false, false, "", "", "", "", "", "", 0)
 	if err != nil {
 		t.Fatalf("seed exchange: %v", err)
 	}

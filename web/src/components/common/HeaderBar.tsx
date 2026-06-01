@@ -11,6 +11,7 @@ import {
   type UserMode,
 } from '../../lib/onboarding'
 import { getCurrentPageForPath, ROUTES, type Page } from '../../router/paths'
+import { HyperliquidWalletConnect } from './HyperliquidWalletConnect'
 
 interface HeaderBarProps {
   onLoginClick?: () => void
@@ -208,6 +209,7 @@ export default function HeaderBar({
 
           {/* Right Side - Social Links and User Actions */}
           <div className="flex items-center gap-4">
+            <HyperliquidWalletConnect language={language} isLoggedIn={isLoggedIn} />
             {/* Social Links - Always visible */}
             <div className="flex items-center gap-1">
               {/* GitHub */}

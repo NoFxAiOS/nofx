@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
 import {
   Zap,
-  BarChart3,
   Lightbulb,
   Search,
+  Bot,
 } from 'lucide-react'
 
 interface SuggestionCard {
@@ -21,16 +21,16 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ language, onSend }: WelcomeScreenProps) {
   const suggestions: SuggestionCard[] = language === 'zh'
     ? [
-        { icon: <BarChart3 size={18} />, title: '分析 BTC 走势', subtitle: '技术分析 + 市场情绪', cmd: '分析一下 BTC 的走势' },
-        { icon: <Zap size={18} />, title: '做多 ETH', subtitle: 'Agent 帮你自动下单', cmd: '帮我做多 ETH 0.01 手' },
-        { icon: <Search size={18} />, title: '搜索股票', subtitle: '输入名称或代码即可', cmd: '搜索一下中远海控' },
-        { icon: <Lightbulb size={18} />, title: '策略建议', subtitle: '根据当前市场给出建议', cmd: '当前市场适合什么策略？' },
+        { icon: <Bot size={18} />, title: '创建美股 Agent', subtitle: '强势股 + 严格风控', cmd: '创建一个美股趋势交易 Agent，默认选择5个强势美股，严格风控' },
+        { icon: <Zap size={18} />, title: '一句话建策略', subtitle: '从想法到 Agent', cmd: '我想做美股强趋势突破，帮我生成策略和Agent' },
+        { icon: <Search size={18} />, title: '搜索美股', subtitle: '输入名称或代码即可', cmd: '搜索一下 NVIDIA 和 Apple' },
+        { icon: <Lightbulb size={18} />, title: '全球资产策略', subtitle: '美股/黄金/外汇', cmd: '当前美股、黄金、外汇适合什么策略？' },
       ]
     : [
-        { icon: <BarChart3 size={18} />, title: 'Analyze BTC', subtitle: 'Technical analysis + sentiment', cmd: 'Analyze BTC price action' },
-        { icon: <Zap size={18} />, title: 'Trade ETH', subtitle: 'Agent executes for you', cmd: 'Open a long position on ETH 0.01' },
-        { icon: <Search size={18} />, title: 'Search Stocks', subtitle: 'Enter name or ticker', cmd: 'Search for NVIDIA stock' },
-        { icon: <Lightbulb size={18} />, title: 'Strategy Ideas', subtitle: 'Market-based suggestions', cmd: 'What strategy fits the current market?' },
+        { icon: <Bot size={18} />, title: 'Create US Stock Agent', subtitle: 'Strong stocks + strict risk', cmd: 'Create a US stock trend-following agent with 5 strong stocks and strict risk control' },
+        { icon: <Zap size={18} />, title: 'One-line strategy', subtitle: 'Idea to agent', cmd: 'I want a US stock breakout strategy; build the strategy and agent' },
+        { icon: <Search size={18} />, title: 'Search US stocks', subtitle: 'Name or ticker', cmd: 'Search for NVIDIA and Apple stocks' },
+        { icon: <Lightbulb size={18} />, title: 'Global strategy', subtitle: 'Stocks/gold/FX', cmd: 'What strategy fits US stocks, gold, and FX now?' },
       ]
 
   return (
@@ -72,7 +72,7 @@ export function WelcomeScreen({ language, onSend }: WelcomeScreenProps) {
           margin: '0 0 8px',
           letterSpacing: '-0.02em',
         }}>
-          {language === 'zh' ? '跟 NOFXi 聊点什么' : 'What can I help with?'}
+          {language === 'zh' ? '快速创建你的美股 Agent' : 'Create your US stock agent'}
         </h1>
         <p style={{
           fontSize: 13.5,
@@ -81,8 +81,8 @@ export function WelcomeScreen({ language, onSend }: WelcomeScreenProps) {
           lineHeight: 1.5,
         }}>
           {language === 'zh'
-            ? '分析行情、执行交易、搜索股票 — 用自然语言就行'
-            : 'Analyze markets, execute trades, search stocks — just ask'}
+            ? '美股、大宗、外汇、Pre-IPO — 用自然语言描述策略即可'
+            : 'US stocks, commodities, FX, Pre-IPO — describe the strategy in plain English'}
         </p>
       </motion.div>
 

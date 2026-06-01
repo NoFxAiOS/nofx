@@ -105,6 +105,14 @@ func (s *Server) handleGetStrategies(c *gin.Context) {
 		return
 	}
 
+	lang := c.Query("lang")
+	if lang == "" {
+		lang = "zh"
+	}
+	if err := s.createDefaultStrategies(userID, lang); err != nil {
+		logger.Warnf("Failed to sync default strategy presets for user %s: %v", userID, err)
+	}
+
 	strategies, err := s.store.Strategy().List(userID)
 	if err != nil {
 		SafeInternalError(c, "Failed to get strategy list", err)

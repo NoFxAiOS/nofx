@@ -11,7 +11,6 @@ import {
   BLOCKRUN_MODELS,
   CLAW402_MODELS,
   AI_PROVIDER_CONFIG,
-  DEFAULT_CLAW402_MODEL,
   getShortName,
 } from './model-constants'
 

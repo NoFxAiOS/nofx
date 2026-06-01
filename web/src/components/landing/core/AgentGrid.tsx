@@ -8,8 +8,8 @@ const agents = [
     name: 'ALPHA-1',
     // ... (rest of agents array remains, but I can't skip lines in replacement content easily without context. Wait, let's just replace the top section)
     // Actually, I'll use multi_replace for targeted cleanup.
-    class: 'SCALPER',
-    desc: 'High-frequency microstructure exploitation.',
+    class: 'US_STOCKS',
+    desc: 'Large-cap momentum and breakout trading.',
     apy: '142%',
     winRate: '68%',
     risk: 'HIGH',
@@ -20,8 +20,8 @@ const agents = [
   },
   {
     name: 'BETA-X',
-    class: 'SWING_OPS',
-    desc: 'Multi-day trend extraction engine.',
+    class: 'MACRO_FX',
+    desc: 'FX trend and macro regime allocation.',
     apy: '89%',
     winRate: '55%',
     risk: 'MED',
@@ -32,8 +32,8 @@ const agents = [
   },
   {
     name: 'GAMMA-RAY',
-    class: 'ARBITRAGE',
-    desc: 'Low-risk spatial price equalization.',
+    class: 'PRE_IPO',
+    desc: 'Private-market momentum basket engine.',
     apy: '24%',
     winRate: '99%',
     risk: 'LOW',
@@ -70,18 +70,17 @@ export default function AgentGrid() {
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 md:mb-16 gap-6">
           <div>
             <div className="flex items-center gap-2 text-nofx-gold font-mono text-xs mb-2 tracking-widest uppercase">
-              <Crosshair className="w-4 h-4" /> MARKET SELECT
+              <Crosshair className="w-4 h-4" /> ASSET CLASS SELECT
             </div>
             <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter">
-              STRATEGY{' '}
+              PROFESSIONAL{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold to-white">
-                UNITS
+                AGENTS
               </span>
             </h2>
           </div>
           <div className="font-mono text-right text-xs text-zinc-500 max-w-xs">
-            SELECT AN AUTONOMOUS AGENT TO BEGIN DEPLOYMENT. UNITS ARE
-            PRE-TRAINED ON HISTORICAL TICKS.
+            CREATE AGENTS FOR US STOCKS, COMMODITIES, FX AND PRE-IPO MARKETS. DESCRIBE THE STRATEGY IN ONE SENTENCE.
           </div>
         </div>
 

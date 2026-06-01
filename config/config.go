@@ -1,12 +1,22 @@
 package config
 
 import (
-	"nofx/telemetry"
+	"fmt"
 	"nofx/mcp"
+	"nofx/telemetry"
 	"os"
 	"strconv"
 	"strings"
 )
+
+// insecureDefaultJWTSecret is the historical fallback value. Refusing to boot when
+// JWT_SECRET matches it (or is missing) prevents the server from silently signing
+// tokens with a well-known secret.
+const insecureDefaultJWTSecret = "default-jwt-secret-change-in-production"
+
+// minJWTSecretLength is the minimum byte length we accept for HS256 signing keys.
+// HS256 keys shorter than 32 bytes are brute-forceable.
+const minJWTSecretLength = 32
 
 // Global configuration instance
 var global *Config
@@ -45,8 +55,24 @@ type Config struct {
 
 }
 
-// Init initializes global configuration (from .env)
+// MustInit initializes global configuration or panics. Use from main() so the
+// process refuses to start under an insecure config (e.g. default JWT secret).
+func MustInit() {
+	if err := initConfig(); err != nil {
+		panic(fmt.Sprintf("config: %v", err))
+	}
+}
+
+// Init initializes global configuration (from .env). Prefer MustInit from main.
 func Init() {
+	if err := initConfig(); err != nil {
+		// Preserve historical fail-soft behavior for non-main callers (tests, tools);
+		// the process can still observe the error via Get() returning nil.
+		fmt.Fprintf(os.Stderr, "config init failed: %v\n", err)
+	}
+}
+
+func initConfig() error {
 	cfg := &Config{
 		APIServerPort:         8080,
 		ExperienceImprovement: true, // Default: enabled to help improve the product
@@ -65,7 +91,13 @@ func Init() {
 		cfg.JWTSecret = strings.TrimSpace(v)
 	}
 	if cfg.JWTSecret == "" {
-		cfg.JWTSecret = "default-jwt-secret-change-in-production"
+		return fmt.Errorf("JWT_SECRET is required (set a random %d+ byte value in .env)", minJWTSecretLength)
+	}
+	if cfg.JWTSecret == insecureDefaultJWTSecret {
+		return fmt.Errorf("JWT_SECRET matches the insecure default; generate a fresh random value (e.g. `openssl rand -base64 48`)")
+	}
+	if len(cfg.JWTSecret) < minJWTSecretLength {
+		return fmt.Errorf("JWT_SECRET must be at least %d bytes (got %d); generate via `openssl rand -base64 48`", minJWTSecretLength, len(cfg.JWTSecret))
 	}
 
 	if v := os.Getenv("API_SERVER_PORT"); v != "" {
@@ -134,6 +166,7 @@ func Init() {
 			OutputTokens:  usage.CompletionTokens,
 		})
 	}
+	return nil
 }
 
 // Get returns the global configuration

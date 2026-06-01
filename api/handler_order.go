@@ -357,8 +357,8 @@ func (s *Server) handleOrderFills(c *gin.Context) {
 		return
 	}
 
-	// Get fills for this order
-	fills, err := store.Order().GetOrderFills(orderID)
+	// Get fills for this order, scoped to the trader (ownership boundary).
+	fills, err := store.Order().GetOrderFills(traderID, orderID)
 	if err != nil {
 		SafeInternalError(c, "Get order fills", err)
 		return

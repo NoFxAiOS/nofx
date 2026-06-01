@@ -1,8 +1,10 @@
+<p align="center"><strong><a href="https://vergex.trade">vergex.trade</a>가 지원합니다</strong></p>
+
 <h1 align="center">NOFX</h1>
 
 <p align="center">
-  <strong>당신만의 AI 트레이딩 어시스턴트.</strong><br/>
-  <strong>모든 시장. 모든 모델. API 키 없이 USDC로 결제.</strong>
+  <strong>글로벌 시장을 위한 AI 트레이딩 터미널.</strong><br/>
+  <strong>미국 주식, 원자재, 외환, 암호화폐 리서치, 전략 생성, 실행, 모니터링.</strong>
 </p>
 
 <p align="center">
@@ -15,8 +17,6 @@
 <p align="center">
   <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go" alt="Go"></a>
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
-  <a href="https://x402.org"><img src="https://img.shields.io/badge/x402-USDC%20Payments-2775CA?style=flat" alt="x402"></a>
-  <a href="https://claw402.ai"><img src="https://img.shields.io/badge/Claw402-AI%20Gateway-FF6B35?style=flat" alt="Claw402"></a>
 </p>
 
 <p align="center">
@@ -31,17 +31,33 @@
 
 ---
 
-NOFX는 오픈소스 **자율형** AI 트레이딩 어시스턴트입니다. 수동으로 모델을 설정하고, API 키를 관리하고, 데이터 소스를 연결해야 하는 기존 AI 도구와 달리 — NOFX의 AI는 **시장을 스스로 인식하고, 모델을 스스로 선택하고, 데이터를 스스로 가져옵니다**. 인간 개입 제로. 전략만 설정하면 나머지는 AI가 처리합니다.
+NOFX는 시장 리서치, 전략 개발, 거래 실행, 포트폴리오 모니터링을 하나의 워크스페이스에서 처리하는 오픈소스 AI 트레이딩 터미널입니다.
 
-**완전 자율**: AI가 어떤 모델을 사용할지, 어떤 시장 데이터를 가져올지, 언제 거래할지를 스스로 결정합니다. 수동 모델 설정 불필요. 여러 서비스의 API 키 관리 불필요. USDC 지갑에 충전하고 실행하기만 하면 됩니다.
-
-차별점: **[x402](https://x402.org) 마이크로 결제 내장**. API 키 불필요. USDC 지갑에 충전하고 요청마다 결제. 지갑이 곧 신원.
+제품은 미국 주식, 원자재 계약, FX 페어, 디지털 자산 등 글로벌 유동성 시장을 중심으로 설계되었습니다. AI 레이어는 거래 의도를 워치리스트, 신호, 전략 로직, 리스크 제어, 실행 워크플로로 변환합니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-**http://127.0.0.1:3000** 을 열면 완료.
+**http://127.0.0.1:3000** 을 엽니다.
+
+---
+
+## 거래소 등록
+
+아래 링크를 통해 암호화폐와 지원되는 미국 주식, FX, 원자재 파생상품 시장용 거래 계정을 개설할 수 있습니다. 이 링크는 NOFX 파트너 프로그램을 통해 제공되며 수수료 할인 또는 추천 혜택이 포함될 수 있습니다.
+
+| 거래소 | 상태 | 수수료 할인 등록 |
+| :--- | :---: | :--- |
+| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [등록](https://www.binance.com/join?ref=NOFXENG) |
+| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [등록](https://partner.bybit.com/b/83856) |
+| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [등록](https://www.okx.com/join/1865360) |
+| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [등록](https://app.hyperliquid.xyz/join/AITRADING) |
+| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [등록](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [등록](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [등록](https://www.gatenode.xyz/share/VQBGUAxY) |
+| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster** | ✅ | [등록](https://www.asterdex.com/en/referral/fdfc0e) |
+| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [등록](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 
@@ -49,88 +65,93 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 <p align="center">
   <a href="https://drive.google.com/file/d/1frzw-HDZ3viQvLOQKsAJGc9bT0dXs68D/view">
-    <img src="../../../screenshots/demo-cover.png" alt="NOFX 빠른 데모 영상" width="900"/>
+    <img src="../../../screenshots/demo-cover.png" alt="NOFX quick demo video" width="900"/>
   </a>
 </p>
 
 <p align="center">
-  커버 이미지를 클릭하면 데모 영상을 볼 수 있습니다.
+  커버 이미지를 클릭해 데모 영상을 보세요.
 </p>
 
 ---
 
-## x402 작동 방식
+## 시장
 
-기존 플로우: 계정 등록 → 크레딧 구매 → API 키 받기 → 쿼터 관리 → 키 교체.
+**미국 주식 · 원자재 · 외환 · 암호화폐**
 
-x402 플로우:
+NOFX는 단일 거래소 화면이 아니라 멀티에셋 리서치, 전략 구축, 실행, 모니터링 워크플로를 중심으로 구성됩니다.
 
-```
-요청 → 402 (가격 제시) → 지갑이 USDC 서명 → 재시도 → 완료
-```
+---
 
-계정 불필요. API 키 불필요. 선불 크레딧 불필요. 지갑 하나로 모든 모델.
+## AI 모델 액세스
 
-### 내장 x402 프로바이더
+NOFX는 AI 추론을 [Claw402](https://claw402.ai)를 통해 자동 라우팅합니다. 사용자는 모델 제공업체를 설정하거나 API 키를 관리하거나 별도 AI 계정을 유지할 필요가 없습니다. 터미널은 Claw402의 사용량 기반 인프라를 통해 지원 모델에 온디맨드로 접근하며 공식 할인 채널로 트래픽을 라우팅합니다.
 
-| 프로바이더 | 체인 | 모델 |
-|:---------|:------|:-------|
-| <img src="../../../web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base | GPT-5.4, Claude Opus, DeepSeek, Qwen, Grok, Gemini, Kimi — 15+ 모델 |
+| 제공업체 | 액세스 |
+| :--- | :--- |
+| **Claw402** | [공식 할인으로 사용량 기반 AI 모델 이용](https://claw402.ai) |
 
 ---
 
 ## 기능
 
 | 기능 | 설명 |
-|:--------|:------------|
-| **멀티 AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — 언제든 전환 |
-| **멀티 거래소** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
-| **전략 스튜디오** | 비주얼 빌더 — 코인 소스, 지표, 리스크 관리 |
-| **AI 토론 아레나** | 여러 AI가 거래 토론 (강세 vs 약세 vs 분석가), 투표, 실행 |
-| **AI 경쟁** | AI가 실시간 경쟁, 리더보드 순위 |
-| **Telegram 에이전트** | 트레이딩 어시스턴트와 채팅 — 스트리밍, 도구 호출, 메모리 |
-| **백테스트 랩** | 과거 시뮬레이션, 자산 곡선 및 성과 지표 |
-| **대시보드** | 실시간 포지션, 손익, Chain of Thought AI 결정 로그 |
+| :--- | :--- |
+| **AI 트레이딩 터미널** | 미국 주식, 원자재, 외환, 암호화폐 워크플로를 위한 통합 워크스페이스 |
+| **AI 모델 액세스** | Claw402를 통해 지원 모델 제공업체에 자동 연결 |
+| **거래소 연결** | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, Lighter |
+| **Strategy Studio** | 시장 유니버스, 지표, 리스크 제어, 전략 로직 |
+| **모델 경쟁** | AI 트레이더의 실시간 성과와 리더보드 비교 |
+| **Telegram Agent** | 채팅으로 트레이딩 어시스턴트 제어 및 모니터링 |
+| **포트폴리오 대시보드** | 포지션, 손익, 실행 기록, 모델 의사결정 로그 |
 
-### 시장
+---
 
-암호화폐 · 미국 주식 · 외환 · 귀금속
+## 스크린샷
 
-### 거래소 (CEX)
+<details>
+<summary><b>설정 페이지</b></summary>
 
-| 거래소 | 상태 | 등록 (수수료 할인) |
-|:---------|:------:|:------------------------|
-| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [등록](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [등록](https://partner.bybit.com/b/83856) |
-| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [등록](https://www.okx.com/join/1865360) |
-| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [등록](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [등록](https://www.kucoin.com/r/broker/CXEV7XKK) |
-| <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [등록](https://www.gatenode.xyz/share/VQBGUAxY) |
+|                         설정                         |                         트레이더 목록                         |
+| :----------------------------------------------------: | :----------------------------------------------------------: |
+| <img src="../../../screenshots/config-ai-exchanges.png" width="400"/> | <img src="../../../screenshots/config-traders-list.png" width="400"/> |
 
-### 거래소 (Perp-DEX)
+</details>
 
-| 거래소 | 상태 | 등록 (수수료 할인) |
-|:---------|:------:|:------------------------|
-| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [등록](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster DEX** | ✅ | [등록](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [등록](https://app.lighter.xyz/?referral=68151432) |
+<details>
+<summary><b>대시보드</b></summary>
 
-### AI 모델 (API 키 모드)
+|                        개요                         |                          마켓 차트                           |
+| :-----------------------------------------------------: | :-------------------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-page.png" width="400"/> | <img src="../../../screenshots/dashboard-market-chart.png" width="400"/> |
 
-| AI 모델 | 상태 | API 키 받기 |
-|:---------|:------:|:------------|
-| <img src="../../../web/public/icons/deepseek.svg" width="20" height="20" style="vertical-align: middle;"/> **DeepSeek** | ✅ | [API 키 받기](https://platform.deepseek.com) |
-| <img src="../../../web/public/icons/qwen.svg" width="20" height="20" style="vertical-align: middle;"/> **Qwen** | ✅ | [API 키 받기](https://dashscope.console.aliyun.com) |
-| <img src="../../../web/public/icons/openai.svg" width="20" height="20" style="vertical-align: middle;"/> **OpenAI (GPT)** | ✅ | [API 키 받기](https://platform.openai.com) |
-| <img src="../../../web/public/icons/claude.svg" width="20" height="20" style="vertical-align: middle;"/> **Claude** | ✅ | [API 키 받기](https://console.anthropic.com) |
-| <img src="../../../web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [API 키 받기](https://aistudio.google.com) |
-| <img src="../../../web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [API 키 받기](https://console.x.ai) |
-| <img src="../../../web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [API 키 받기](https://platform.moonshot.cn) |
-| <img src="../../../web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [API 키 받기](https://platform.minimaxi.com) |
+|                          거래 통계                           |                          포지션 기록                           |
+| :--------------------------------------------------------------: | :-----------------------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-trading-stats.png" width="400"/> | <img src="../../../screenshots/dashboard-position-history.png" width="400"/> |
 
-### AI 모델 (x402 모드 — API 키 불필요)
+|                          포지션                           |                    트레이더 상세                     |
+| :----------------------------------------------------------: | :---------------------------------------------------: |
+| <img src="../../../screenshots/dashboard-positions.png" width="400"/> | <img src="../../../screenshots/details-page.png" width="400"/> |
 
-15+ 모델을 [Claw402](https://claw402.ai)로 이용 — USDC 지갑만 있으면 됩니다
+</details>
+
+<details>
+<summary><b>Strategy Studio</b></summary>
+
+|                     전략 에디터                      |                      지표 설정                       |
+| :------------------------------------------------------: | :----------------------------------------------------------: |
+| <img src="../../../screenshots/strategy-studio.png" width="400"/> | <img src="../../../screenshots/strategy-indicators.png" width="400"/> |
+
+</details>
+
+<details>
+<summary><b>경쟁</b></summary>
+
+|                     경쟁 모드                      |
+| :-------------------------------------------------------: |
+| <img src="../../../screenshots/competition-page.png" width="400"/> |
+
+</details>
 
 ---
 
@@ -142,7 +163,7 @@ x402 플로우:
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-### Railway (클라우드)
+### Railway(클라우드)
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
 
@@ -153,32 +174,153 @@ curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-### 소스에서
+### Windows
+
+[Docker Desktop](https://www.docker.com/products/docker-desktop/) 설치 후:
+
+```powershell
+curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 소스에서 빌드
 
 ```bash
-# 필수 조건: Go 1.21+, Node.js 18+, TA-Lib
+# Prerequisites: Go 1.21+, Node.js 18+, TA-Lib
 # macOS: brew install ta-lib
+# Ubuntu: sudo apt-get install libta-lib0-dev
 
 git clone https://github.com/NoFxAiOS/nofx.git && cd nofx
-go build -o nofx && ./nofx          # 백엔드
-cd web && npm install && npm run dev  # 프론트엔드 (새 터미널)
+go build -o nofx && ./nofx
+cd web && npm install && npm run dev
 ```
+
+### 업데이트
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+---
+
+## 설정
+
+**초보자 모드**: 가이드 온보딩이 모델 액세스, 거래소 연결, 전략 설정, 첫 배포까지 안내합니다.
+
+**고급 모드**:
+
+1. AI 모델 액세스 설정
+2. 거래소 인증 정보 연결
+3. 전략 생성 또는 가져오기
+4. AI 트레이더 프로필 생성
+5. 대시보드에서 실행, 모니터링, 개선
+
+모든 설정은 Web UI **http://127.0.0.1:3000** 에서 가능합니다.
+
+---
+
+## 서버에 배포
+
+**HTTP 배포:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+# http://YOUR_IP:3000 으로 접근
+```
+
+**Cloudflare를 통한 HTTPS:**
+
+1. [Cloudflare](https://dash.cloudflare.com)(무료 플랜)에 도메인 추가
+2. A 레코드를 서버 IP로 지정(Proxied)
+3. SSL/TLS를 Flexible로 설정
+4. `.env`에 `TRANSPORT_ENCRYPTION=true` 설정
+
+---
+
+## 아키텍처
+
+```
+                              NOFX
+    ┌─────────────────────────────────────────────────┐
+    │                 Trading Terminal                 │
+    │        React + TypeScript + TradingView          │
+    │      US Stocks · Commodities · Forex · Crypto    │
+    ├─────────────────────────────────────────────────┤
+    │                  API Server (Go)                  │
+    ├──────────────┬──────────────┬───────────────────┤
+    │   Strategy    │   Telegram   │   Trader Runtime  │
+    │    Engine     │    Agent     │   Risk Controls   │
+    ├──────────────┴──────────────┴───────────────────┤
+    │                 AI Model Layer                    │
+    │    Unified provider access through Claw402        │
+    │    Model routing · payment · execution support    │
+    ├─────────────────────────────────────────────────┤
+    │              Exchange Connectivity                │
+    │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
+    │ KuCoin · Gate · Aster · Lighter                  │
+    └─────────────────────────────────────────────────┘
+```
+
+---
+
+## 문서
+
+| | |
+| :--- | :--- |
+| [아키텍처](../../architecture/README.md) | 시스템 설계와 모듈 색인 |
+| [전략 모듈](../../architecture/STRATEGY_MODULE.md) | 종목 선택, AI 프롬프트, 실행 |
+| [FAQ](../../faq/README.md) | 자주 묻는 질문 |
+| [시작하기](../../getting-started/README.md) | 배포 가이드 |
+
+---
+
+## 기여
+
+[기여 가이드](../../../CONTRIBUTING.md), [행동 강령](../../../CODE_OF_CONDUCT.md), [보안 정책](../../../SECURITY.md)을 확인하세요.
+
+### 기여자 프로그램
+
+NOFX는 의미 있는 기여를 기록하며 생태계 성장에 따라 기여자에게 보상할 계획입니다. 우선순위 이슈는 더 높은 보상 가중치를 가집니다.
+
+| Contribution | Weight |
+| :--- | :---: |
+| Pinned Issue PRs | ★★★★★★ |
+| Code (Merged PRs) | ★★★★★ |
+| Bug Fixes | ★★★★ |
+| Feature Ideas | ★★★ |
+| Bug Reports | ★★ |
+| Documentation | ★★ |
 
 ---
 
 ## 링크
 
 | | |
-|:--|:--|
-| 웹사이트 | [nofxai.com](https://nofxai.com) |
-| 대시보드 | [nofxos.ai/dashboard](https://nofxos.ai/dashboard) |
-| API 문서 | [nofxos.ai/api-docs](https://nofxos.ai/api-docs) |
+| :--- | :--- |
+| Website | [vergex.trade](https://vergex.trade) |
+| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
 | Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@nofx_official](https://x.com/nofx_official) |
+| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
 
-> **위험 경고**: AI 자동 거래에는 상당한 위험이 있습니다. 학습/연구 또는 소액 테스트만 권장합니다.
+> **위험 고지**: 자동매매에는 상당한 위험이 따릅니다. 적절한 포지션 규모를 사용하고 각 거래소 구조를 이해하며 감당 가능한 자금만 거래하세요.
 
 ---
+
+## 스폰서
+
+<a href="https://github.com/pjl914335852-ux"><img src="https://github.com/pjl914335852-ux.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/cat9999aaa"><img src="https://github.com/cat9999aaa.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/1733055465"><img src="https://github.com/1733055465.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/kolal2020"><img src="https://github.com/kolal2020.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/CyberFFarm"><img src="https://github.com/CyberFFarm.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/vip3001003"><img src="https://github.com/vip3001003.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/mrtluh"><img src="https://github.com/mrtluh.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/cpcp1117-source"><img src="https://github.com/cpcp1117-source.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/match-007"><img src="https://github.com/match-007.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/leiwuhen1715"><img src="https://github.com/leiwuhen1715.png" width="50" height="50" style="border-radius:50%"/></a>
+<a href="https://github.com/SHAOXIA1991"><img src="https://github.com/SHAOXIA1991.png" width="50" height="50" style="border-radius:50%"/></a>
+
+[스폰서 되기](https://github.com/sponsors/NoFxAiOS)
 
 ## License
 

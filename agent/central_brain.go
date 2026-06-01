@@ -937,17 +937,22 @@ func (a *Agent) executeActiveSkillSession(storeUserID string, userID int64, lang
 	return outcome, ActiveSkillSession{}, false, true
 }
 
-func shouldTrustDeterministicSkillReply(outcome skillOutcome) bool {
-	if outcome.Status != skillOutcomeSuccess || !outcome.GoalAchieved {
-		return false
-	}
-	switch outcome.Skill {
-	case "strategy_management", "trader_management", "model_management", "exchange_management":
-		switch outcome.Action {
-		case "create", "update", "update_name", "update_bindings", "configure_strategy", "configure_exchange", "configure_model", "update_status", "update_endpoint", "update_config", "update_prompt", "delete", "start", "stop", "activate", "duplicate":
-			return true
-		}
-	}
+// shouldTrustDeterministicSkillReply controls whether a Go-generated UserMessage
+// is shown verbatim to the user (true) or whether the LLM gets to review the
+// tool outcome and write a natural reply (false).
+//
+// Historically this returned true for every successful mutation on trader /
+// strategy / model / exchange — which meant the user always saw the same
+// canned `fmt.Sprintf` lines (e.g. "已创建 Trader: X. 我没有自动启动..."), and
+// the agent felt mechanical / "non-agentic". It now always returns false so the
+// LLM owns the voice. The cost is one extra LLM call per mutation; the upside
+// is that the agent can chain ("trader created — want me to start it now?"),
+// apologize on errors in plain language, respect the user's language and
+// tone, and behave like an actual agent instead of a settings panel.
+//
+// The trade-confirmation flow (execute_trade -> "确认 trade_xxx") is unaffected:
+// it runs through handleTradeConfirmation in trade.go before this code path.
+func shouldTrustDeterministicSkillReply(_ skillOutcome) bool {
 	return false
 }
 

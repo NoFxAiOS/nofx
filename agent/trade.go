@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"nofx/market"
 	"nofx/store"
 	"strings"
 	"sync"
@@ -328,7 +329,7 @@ func validateTradeAction(
 
 	maxLeverage := riskControl.AltcoinMaxLeverage
 	maxPositionValueRatio := riskControl.AltcoinMaxPositionValueRatio
-	if isBTCETHSymbol(trade.Symbol) {
+	if isMajorTradeSymbol(trade.Symbol) {
 		maxLeverage = riskControl.BTCETHMaxLeverage
 		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
 	}
@@ -373,6 +374,17 @@ func validateTradeAction(
 func isBTCETHSymbol(symbol string) bool {
 	symbol = strings.ToUpper(strings.TrimSpace(symbol))
 	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
+}
+
+// isMajorTradeSymbol mirrors trader/auto_trader_risk.isMajorAsset for the
+// chat-execute path. BTC/ETH crypto perps and Hyperliquid XYZ assets
+// (US stocks, commodities, forex) get the higher BTC/ETH risk tier — their
+// per-position caps should not be clamped to the 1x altcoin tier.
+func isMajorTradeSymbol(symbol string) bool {
+	if isBTCETHSymbol(symbol) {
+		return true
+	}
+	return market.IsXyzDexAsset(symbol)
 }
 
 // formatTradeConfirmation creates a confirmation message for a pending trade.

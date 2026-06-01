@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"nofx/logger"
+	"nofx/provider/hyperliquid"
 	"strconv"
 	"strings"
 	"sync"
@@ -229,7 +230,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
 	// Get OI data
@@ -540,6 +541,9 @@ var xyzDexAssets = map[string]bool{
 // IsXyzDexAsset checks if a symbol is an xyz dex asset
 func IsXyzDexAsset(symbol string) bool {
 	base := strings.ToUpper(symbol)
+	if strings.HasSuffix(base, "-USDC") || strings.HasPrefix(strings.ToLower(base), "xyz:") {
+		return hyperliquid.IsXYZAsset(base)
+	}
 	// Remove any prefix/suffix
 	base = strings.TrimPrefix(base, "XYZ:")
 	for _, suffix := range []string{"USDT", "USD", "-USDC"} {
@@ -548,7 +552,7 @@ func IsXyzDexAsset(symbol string) bool {
 			break
 		}
 	}
-	return xyzDexAssets[base]
+	return xyzDexAssets[base] || hyperliquid.IsXYZAsset(base)
 }
 
 // Normalize normalizes symbol
@@ -556,22 +560,13 @@ func IsXyzDexAsset(symbol string) bool {
 // For xyz dex assets (stocks, forex, commodities): uses xyz: prefix without USDT suffix
 func Normalize(symbol string) string {
 	symbol = strings.ToUpper(symbol)
+	if strings.HasSuffix(symbol, "-USDC") {
+		return hyperliquid.FormatCoinForAPI(symbol)
+	}
 
 	// Check if this is an xyz dex asset
 	if IsXyzDexAsset(symbol) {
-		// Remove any xyz: prefix (case-insensitive) and USDT suffix, then add xyz: prefix
-		base := symbol
-		// Handle both lowercase and uppercase xyz: prefix
-		if strings.HasPrefix(strings.ToLower(base), "xyz:") {
-			base = base[4:] // Remove first 4 characters ("xyz:")
-		}
-		for _, suffix := range []string{"USDT", "USD", "-USDC"} {
-			if strings.HasSuffix(base, suffix) {
-				base = strings.TrimSuffix(base, suffix)
-				break
-			}
-		}
-		return "xyz:" + base
+		return hyperliquid.FormatCoinForAPI(symbol)
 	}
 
 	// Remove exchange-specific separators (Gate uses BTC_USDT, OKX uses BTC-USDT-SWAP)

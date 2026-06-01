@@ -133,3 +133,8 @@ PR_DESCRIPTION.md
 
 # Go build artifacts
 /nofx-server
+.gstack/
+
+# Local AI agent / skill scaffolding (not part of the runtime app)
+.agents/
+skills-lock.json

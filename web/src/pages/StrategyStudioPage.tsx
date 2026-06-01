@@ -24,7 +24,6 @@ import {
   Clock,
   Bot,
   Terminal,
-  Code,
   Send,
   Download,
   Upload,
@@ -41,7 +40,7 @@ import { confirmToast, notify } from '../lib/notify'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
-import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
+
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import {
   GridConfigEditor,
@@ -52,6 +51,33 @@ import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
+
+
+const strategyPromptTemplates = [
+  '只做强势美股',
+  '低波动稳健做多',
+  '突破新高买入',
+  '回调到均线买入',
+  '只交易大盘股',
+  '避开财报日',
+  '外汇顺势交易',
+  '黄金回调做多',
+  'PreIPO强者恒强',
+  '亏损立即降仓',
+]
+
+const strategyPromptTemplatesEn = [
+  'Buy strong US stocks',
+  'Low-vol steady longs',
+  'Buy fresh breakouts',
+  'Buy MA pullbacks',
+  'Trade mega caps only',
+  'Avoid earnings days',
+  'Follow FX trends',
+  'Buy gold pullbacks',
+  'Pre-IPO momentum',
+  'Cut losers fast',
+]
 
 const getAIConfig = (config: StrategyConfig): AIStrategyConfig | null => {
   if (config.ai_config) return config.ai_config
@@ -76,6 +102,32 @@ const normalizeStrategyConfig = (config: StrategyConfig): StrategyConfig => {
     ai_config: aiConfig || undefined,
     grid_config: config.grid_config,
     publish_config: config.publish_config,
+  }
+}
+
+const isHyperliquidCoinSource = (source?: AIStrategyConfig['coin_source']) => {
+  if (!source) return false
+  return source.source_type === 'hyper_all' || source.source_type === 'hyper_main' || source.source_type === 'hyper_rank' || source.use_hyper_all || source.use_hyper_main
+}
+
+const stripNofxOSDataForHyperliquid = (config: StrategyConfig): StrategyConfig => {
+  const normalized = normalizeStrategyConfig(config)
+  if (!normalized.ai_config || !isHyperliquidCoinSource(normalized.ai_config.coin_source)) return normalized
+  return {
+    ...normalized,
+    ai_config: {
+      ...normalized.ai_config,
+      indicators: {
+        ...normalized.ai_config.indicators,
+        nofxos_api_key: '',
+        enable_quant_data: false,
+        enable_quant_oi: false,
+        enable_quant_netflow: false,
+        enable_oi_ranking: false,
+        enable_netflow_ranking: false,
+        enable_price_ranking: false,
+      },
+    },
   }
 }
 
@@ -122,7 +174,7 @@ export function StrategyStudioPage() {
     config_summary: Record<string, unknown>
   } | null>(null)
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false)
-  const [selectedVariant, setSelectedVariant] = useState('balanced')
+  const selectedVariant = 'balanced'
 
   // AI Test Run states
   const [aiTestResult, setAiTestResult] = useState<{
@@ -511,7 +563,7 @@ export function StrategyStudioPage() {
     try {
       // Always sync the config language with the current interface language
       const configWithLanguage = {
-        ...normalizeStrategyConfig(editingConfig),
+        ...stripNofxOSDataForHyperliquid(editingConfig),
         language: language as 'zh' | 'en',
       }
       const response = await fetch(
@@ -760,39 +812,38 @@ export function StrategyStudioPage() {
       ),
     },
     {
-      key: 'promptSections' as const,
-      icon: FileText,
-      color: '#a855f7',
-      title: tr('promptSections'),
-      forStrategyType: 'ai_trading' as const,
-      content: currentAIConfig && (
-        <PromptSectionsEditor
-          config={currentAIConfig.prompt_sections}
-          onChange={(promptSections) =>
-            updateAIConfig('prompt_sections', promptSections)
-          }
-          disabled={selectedStrategy?.is_default}
-          language={language}
-        />
-      ),
-    },
-    {
       key: 'customPrompt' as const,
       icon: Settings,
       color: '#60a5fa',
-      title: tr('customPrompt'),
+      title: language === 'zh' ? '策略说明' : 'Strategy prompt',
       forStrategyType: 'ai_trading' as const,
       content: currentAIConfig && (
-        <div>
-          <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-            {tr('customPromptDesc')}
+        <div className="space-y-3">
+          <p className="text-xs leading-5" style={{ color: '#848E9C' }}>
+            {language === 'zh'
+              ? '写策略很简单：点一句话模板，或直接写一句你的交易想法。'
+              : 'Strategy writing is simple: click a one-line template or type one trading idea.'}
           </p>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {(language === 'zh' ? strategyPromptTemplates : strategyPromptTemplatesEn).map((template) => (
+              <button
+                key={template}
+                type="button"
+                disabled={selectedStrategy?.is_default}
+                onClick={() => updateAIConfig('custom_prompt', template)}
+                className="rounded-lg px-2 py-2 text-[11px] font-semibold transition hover:scale-[1.02] disabled:opacity-50"
+                style={{ background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.28)', color: '#BFDBFE' }}
+              >
+                {template}
+              </button>
+            ))}
+          </div>
           <textarea
             value={currentAIConfig.custom_prompt || ''}
             onChange={(e) => updateAIConfig('custom_prompt', e.target.value)}
             disabled={selectedStrategy?.is_default}
-            placeholder={tr('customPromptPlaceholder')}
-            className="w-full h-32 px-3 py-2 rounded-lg resize-none font-mono text-xs"
+            placeholder={language === 'zh' ? '例如：只做强趋势突破；避开财报/重大新闻；优先选择成交额高、波动清晰的标的。' : 'Example: trade only strong trend breakouts; avoid major news; prefer high-volume clean setups.'}
+            className="w-full h-36 px-3 py-2 rounded-lg resize-none font-mono text-xs"
             style={{
               background: '#0B0E11',
               border: '1px solid #2B3139',
@@ -1195,15 +1246,6 @@ export function StrategyStudioPage() {
               <div className="p-3 space-y-3">
                 {/* Controls */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={selectedVariant}
-                    onChange={(e) => setSelectedVariant(e.target.value)}
-                    className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text outline-none focus:border-nofx-gold"
-                  >
-                    <option value="balanced">{tr('balanced')}</option>
-                    <option value="aggressive">{tr('aggressive')}</option>
-                    <option value="conservative">{tr('conservative')}</option>
-                  </select>
                   <button
                     onClick={fetchPromptPreview}
                     disabled={isLoadingPrompt || !editingConfig}
@@ -1220,30 +1262,6 @@ export function StrategyStudioPage() {
 
                 {promptPreview ? (
                   <>
-                    {/* Config Summary */}
-                    <div className="p-2 rounded-lg bg-nofx-bg border border-nofx-gold/20">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Code className="w-3 h-3 text-purple-500" />
-                        <span className="text-xs font-medium text-purple-500">
-                          Config
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        {Object.entries(promptPreview.config_summary || {}).map(
-                          ([key, value]) => (
-                            <div key={key}>
-                              <div className="text-nofx-text-muted">
-                                {key.replace(/_/g, ' ')}
-                              </div>
-                              <div className="text-nofx-text">
-                                {String(value)}
-                              </div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
-
                     {/* System Prompt */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
@@ -1303,15 +1321,6 @@ export function StrategyStudioPage() {
                   )}
 
                   <div className="flex items-center gap-2">
-                    <select
-                      value={selectedVariant}
-                      onChange={(e) => setSelectedVariant(e.target.value)}
-                      className="px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                    >
-                      <option value="balanced">{tr('balanced')}</option>
-                      <option value="aggressive">{tr('aggressive')}</option>
-                      <option value="conservative">{tr('conservative')}</option>
-                    </select>
                     <button
                       onClick={runAiTest}
                       disabled={

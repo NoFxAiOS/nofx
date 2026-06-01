@@ -7,7 +7,7 @@ const _e = (s: string) => btoa(s)
 
 // Encoded official links - tampering will break functionality
 const ENCODED_LINKS = {
-  twitter: 'aHR0cHM6Ly94LmNvbS9ub2Z4X29mZmljaWFs', // https://x.com/nofx_official
+  twitter: 'aHR0cHM6Ly94LmNvbS92ZXJnZXhfYWk=',
   telegram: 'aHR0cHM6Ly90Lm1lL25vZnhfZGV2X2NvbW11bml0eQ==', // https://t.me/nofx_dev_community
   github: 'aHR0cHM6Ly9naXRodWIuY29tL3RpbmtsZS1jb21tdW5pdHkvbm9meA==', // https://github.com/NoFxAiOS/nofx
 }
@@ -39,7 +39,7 @@ function getVerifiedLink(key: keyof typeof ENCODED_LINKS): string {
   } catch {
     // Fallback to hardcoded values if decoding fails
     const fallbacks: Record<string, string> = {
-      twitter: 'https://x.com/nofx_official',
+      twitter: 'https://x.com/vergex_ai',
       telegram: 'https://t.me/nofx_dev_community',
       github: 'https://github.com/NoFxAiOS/nofx',
     }

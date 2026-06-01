@@ -269,6 +269,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           email,
           new_password: newPassword,
+          // Server-side guard against accidental/drive-by triggers.
+          // Phrase must match handler_user.go resetPasswordConfirmPhrase.
+          confirm: 'I_UNDERSTAND_THIS_RESETS_MY_PASSWORD',
         }),
       })
 

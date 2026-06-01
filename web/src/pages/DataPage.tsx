@@ -7,10 +7,11 @@ export function DataPage() {
   return (
     <div className="w-full h-[calc(100vh-64px)]">
       <iframe
-        src="https://nofxos.ai/dashboard"
+        src="https://vergex.trade/trending"
         title={t('dataCenter', language)}
         className="w-full h-full border-0"
         allow="fullscreen"
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     </div>
   )

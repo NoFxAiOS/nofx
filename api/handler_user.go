@@ -102,9 +102,11 @@ func (s *Server) handleRegister(c *gin.Context) {
 		return
 	}
 
-	// Adopt orphan records from previous account (e.g. after account reset)
-	// This preserves wallet keys and exchange configs so funds are not lost.
-	s.adoptOrphanRecords(userID)
+	// NOTE: Orphan record adoption was removed for security reasons. Previously,
+	// after a reset-account call, any new user would inherit the prior owner's
+	// wallet keys and exchange API credentials — a catastrophic IDOR/takeover
+	// path. Operators who need to migrate credentials across users must do so
+	// explicitly via export/import, never via implicit adoption on registration.
 
 	// Generate JWT token
 	token, err := auth.GenerateJWT(user.ID, user.Email)
@@ -189,53 +191,108 @@ func (s *Server) handleChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password updated"})
 }
 
-// handleResetPassword Reset password via email and new password
+// resetPasswordConfirmPhrase is the friction step for /api/reset-password.
+// Same security rationale as resetAccountConfirmPhrase — not a cryptographic
+// check, just a guard against accidental and drive-by triggers.
+const resetPasswordConfirmPhrase = "I_UNDERSTAND_THIS_RESETS_MY_PASSWORD"
+
+// handleResetPassword resets the password for the given email.
+//
+// SECURITY NOTE: This endpoint is intentionally callable without a JWT — it
+// IS the recovery path for "forgot password" in the single-user self-hosted
+// threat model this project targets. A logged-in user changes password via
+// PUT /api/user/password; this endpoint exists for users who can no longer
+// log in. Mitigations:
+//
+//  1. Requires the confirm phrase (blocks accidental and drive-by triggers).
+//  2. New password must be ≥ 8 chars.
+//  3. Authenticated session change is preferred (PUT /api/user/password).
+//
+// Operators exposing the API to the public internet should put a reverse-proxy
+// auth layer in front of /api/reset-password OR set up out-of-band recovery
+// (email link, OTP) instead of relying on this endpoint.
 func (s *Server) handleResetPassword(c *gin.Context) {
 	var req struct {
 		Email       string `json:"email" binding:"required,email"`
-		NewPassword string `json:"new_password" binding:"required,min=6"`
+		NewPassword string `json:"new_password" binding:"required,min=8"`
+		Confirm     string `json:"confirm"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SafeBadRequest(c, "Invalid request parameters")
+		SafeBadRequest(c, "email, new_password (min 8 chars), and confirm are required")
+		return
+	}
+	if req.Confirm != resetPasswordConfirmPhrase {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Confirmation phrase required",
+			"hint":  `Body must include {"confirm":"` + resetPasswordConfirmPhrase + `"}`,
+		})
 		return
 	}
 
-	// Query user
 	user, err := s.store.User().GetByEmail(req.Email)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Email does not exist"})
 		return
 	}
 
-	// Generate new password hash
 	newPasswordHash, err := auth.HashPassword(req.NewPassword)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password processing failed"})
+		SafeInternalError(c, "Password processing failed", err)
+		return
+	}
+	if err := s.store.User().UpdatePassword(user.ID, newPasswordHash); err != nil {
+		SafeInternalError(c, "Password update failed", err)
 		return
 	}
 
-	// Update password
-	err = s.store.User().UpdatePassword(user.ID, newPasswordHash)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password update failed"})
-		return
-	}
-
-	logger.Infof("✓ User %s password has been reset", user.Email)
+	logger.Infof("✓ User %s password reset via reset endpoint", user.Email)
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful, please login with new password"})
 }
 
-// handleResetAccount clears user authentication data so the system returns to
-// uninitialized state for re-registration. Wallet keys (ai_models) are preserved
-// so funds are not lost — they will be adopted by the new account during onboarding.
+// resetAccountConfirmPhrase must appear in the request body for /api/reset-account.
+// This is the single intentional friction step that prevents accidental wipes
+// from drive-by scripts and crawlers. It is NOT a cryptographic check — anyone
+// who reads this source can send the phrase. The real safety comes from:
+//
+//  1. Wallet keys are NO LONGER auto-adopted by the next registrant
+//     (adoptOrphanRecords was removed). The historical takeover path was:
+//     reset → register → inherit prior wallet → drain. That path is closed.
+//  2. The destructive action is loud (logged at Warn level).
+//
+// Operators who expose the API to the public internet and want stronger
+// gating can wrap this route with a reverse-proxy auth header check.
+const resetAccountConfirmPhrase = "I_UNDERSTAND_THIS_DELETES_EVERYTHING"
+
+// handleResetAccount wipes all users + traders + strategies + AI models +
+// exchanges, returning the system to uninitialized state.
+//
+// SECURITY NOTE: For the single-user, self-hosted threat model this project
+// targets, this endpoint is intentionally callable without a JWT — the
+// frontend "forgot account" button must still work after the user forgets
+// their password. The confirm phrase blocks accidental and drive-by triggers;
+// the removal of orphan adoption blocks the post-reset takeover. A determined
+// attacker on a public-facing deployment can still grief by wiping local
+// state, but they cannot steal funds (everything is deleted, not transferred).
 func (s *Server) handleResetAccount(c *gin.Context) {
+	var req struct {
+		Confirm string `json:"confirm"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if req.Confirm != resetAccountConfirmPhrase {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Confirmation phrase required",
+			"hint":  `Body must include {"confirm":"` + resetAccountConfirmPhrase + `"}`,
+		})
+		return
+	}
+
 	err := s.store.Transaction(func(tx *gorm.DB) error {
-		// Delete traders and strategies (config, not funds)
+		// Wipe ALL records — including wallet keys and exchange credentials.
+		// Preserving them across user identities is what enabled the takeover.
 		tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.Trader{})
 		tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.Strategy{})
-		// Delete users — ai_models and exchanges are intentionally kept
-		// so wallet private keys and exchange configs survive re-registration
+		tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.AIModel{})
+		tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.Exchange{})
 		if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&store.User{}).Error; err != nil {
 			return fmt.Errorf("failed to delete users: %w", err)
 		}
@@ -246,28 +303,10 @@ func (s *Server) handleResetAccount(c *gin.Context) {
 		return
 	}
 
-	logger.Infof("✓ User accounts cleared (wallets preserved) — system reset to uninitialized")
-	c.JSON(http.StatusOK, gin.H{"message": "Account reset successful, you can now register a new account"})
-}
-
-// adoptOrphanRecords re-assigns ai_models and exchanges whose user_id no longer
-// exists in the users table. This happens after account reset so the new user
-// inherits the previous wallet keys and exchange configurations.
-func (s *Server) adoptOrphanRecords(newUserID string) {
-	db := s.store.GormDB()
-	result := db.Model(&store.AIModel{}).
-		Where("user_id NOT IN (SELECT id FROM users)").
-		Update("user_id", newUserID)
-	if result.RowsAffected > 0 {
-		logger.Infof("✓ Adopted %d orphan ai_model(s) for new user %s", result.RowsAffected, newUserID)
-	}
-
-	result = db.Model(&store.Exchange{}).
-		Where("user_id NOT IN (SELECT id FROM users)").
-		Update("user_id", newUserID)
-	if result.RowsAffected > 0 {
-		logger.Infof("✓ Adopted %d orphan exchange(s) for new user %s", result.RowsAffected, newUserID)
-	}
+	logger.Warnf("⚠ Account reset performed — all users, traders, strategies, ai_models, exchanges wiped")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "System wiped. All wallet keys and exchange credentials were deleted. Register a fresh account and re-import everything.",
+	})
 }
 
 // initUserDefaultConfigs Initialize default configs for new user
@@ -285,23 +324,23 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		name, description string
 	}
 	type strategyLocale struct {
-		balanced, conservative, aggressive strategyI18n
+		trend, megaCap, breakout strategyI18n
 	}
 	locales := map[string]strategyLocale{
 		"zh": {
-			balanced:     strategyI18n{"均衡策略", "系统默认策略。均衡风险收益，适合大多数市场环境。5倍杠杆，最多3个仓位。"},
-			conservative: strategyI18n{"稳健策略", "系统默认策略。低杠杆保守操作，优先保护本金。3倍杠杆，专注主流资产。"},
-			aggressive:   strategyI18n{"积极策略", "系统默认策略。高杠杆主动交易，更广泛的币种选择，适合经验丰富的交易者。10倍杠杆，最多5个仓位。"},
+			trend:    strategyI18n{"美股趋势策略", "开箱即用的 Hyperliquid 美股 USDC 策略。只扫描流动性更好的美股合约，低杠杆、低频率，适合直接创建 Agent 后运行。"},
+			megaCap:  strategyI18n{"美股大盘稳健策略", "开箱即用的 Hyperliquid 美股 USDC 策略。固定关注 AAPL、MSFT、GOOGL、AMZN、META 等大盘股，强调趋势确认和回撤控制。"},
+			breakout: strategyI18n{"美股突破策略", "开箱即用的 Hyperliquid 美股 USDC 策略。扫描 24h 强势美股，等待突破确认后再开仓，避免频繁追涨。"},
 		},
 		"en": {
-			balanced:     strategyI18n{"Balanced Strategy", "System default strategy. Balanced risk-reward, suitable for most market conditions. 5x leverage, up to 3 positions."},
-			conservative: strategyI18n{"Conservative Strategy", "System default strategy. Low-leverage conservative trading, capital preservation first. 3x leverage, focused on major assets."},
-			aggressive:   strategyI18n{"Aggressive Strategy", "System default strategy. High-leverage active trading, wider asset selection, for experienced traders. 10x leverage, up to 5 positions."},
+			trend:    strategyI18n{"US Stock Trend Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Scans liquid US stock perps with low leverage and low trade frequency, suitable for one-click Agent deployment."},
+			megaCap:  strategyI18n{"US Mega-Cap Steady Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Fixed universe: AAPL, MSFT, GOOGL, AMZN and META, with trend confirmation and drawdown control."},
+			breakout: strategyI18n{"US Stock Breakout Strategy", "Ready-to-run Hyperliquid USDC equity strategy. Scans 24h strong US stocks and waits for breakout confirmation before entering, avoiding impulsive chasing."},
 		},
 		"id": {
-			balanced:     strategyI18n{"Strategi Seimbang", "Strategi default sistem. Risiko-reward seimbang, cocok untuk sebagian besar kondisi pasar. Leverage 5x, hingga 3 posisi."},
-			conservative: strategyI18n{"Strategi Konservatif", "Strategi default sistem. Trading konservatif leverage rendah, utamakan perlindungan modal. Leverage 3x, fokus aset utama."},
-			aggressive:   strategyI18n{"Strategi Agresif", "Strategi default sistem. Trading aktif leverage tinggi, pilihan aset lebih luas, untuk trader berpengalaman. Leverage 10x, hingga 5 posisi."},
+			trend:    strategyI18n{"Strategi Tren Saham AS", "Strategi saham AS USDC Hyperliquid siap jalan. Memindai perp saham AS likuid dengan leverage rendah dan frekuensi rendah."},
+			megaCap:  strategyI18n{"Strategi Stabil Mega-Cap AS", "Strategi saham AS USDC Hyperliquid siap jalan. Universe tetap: AAPL, MSFT, GOOGL, AMZN, META, dengan konfirmasi tren."},
+			breakout: strategyI18n{"Strategi Breakout Saham AS", "Strategi saham AS USDC Hyperliquid siap jalan. Memindai saham AS kuat 24 jam dan menunggu konfirmasi breakout."},
 		},
 	}
 	locale, ok := locales[lang]
@@ -316,45 +355,76 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		applyConfig func(*store.StrategyConfig)
 	}
 
+	setStockRank := func(c *store.StrategyConfig, direction string, limit int) {
+		c.CoinSource.SourceType = "hyper_rank"
+		c.CoinSource.StaticCoins = nil
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		c.CoinSource.HyperRankCategory = "stock"
+		c.CoinSource.HyperRankDirection = direction
+		c.CoinSource.HyperRankLimit = limit
+	}
+	setStaticStocks := func(c *store.StrategyConfig, symbols []string) {
+		c.CoinSource.SourceType = "static"
+		c.CoinSource.StaticCoins = symbols
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+	}
+	setStableRisk := func(c *store.StrategyConfig) {
+		c.RiskControl.MaxPositions = 2
+		c.RiskControl.BTCETHMaxLeverage = 3
+		c.RiskControl.AltcoinMaxLeverage = 3
+		c.RiskControl.BTCETHMaxPositionValueRatio = 2.0
+		c.RiskControl.AltcoinMaxPositionValueRatio = 0.6
+		c.RiskControl.MaxMarginUsage = 0.45
+		c.RiskControl.MinConfidence = 78
+		c.RiskControl.MinRiskRewardRatio = 3.0
+		c.Indicators.Klines.PrimaryTimeframe = "15m"
+		c.Indicators.Klines.LongerTimeframe = "4h"
+		c.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
+		c.Indicators.EnableEMA = true
+		c.Indicators.EnableMACD = true
+		c.Indicators.EnableRSI = true
+		c.Indicators.EnableATR = true
+		c.Indicators.EnableVolume = true
+	}
+
 	definitions := []strategyDef{
 		{
-			name:        locale.balanced.name,
-			description: locale.balanced.description,
+			name:        locale.trend.name,
+			description: locale.trend.description,
 			isActive:    true,
 			applyConfig: func(c *store.StrategyConfig) {
-				// Uses default config as-is
+				setStockRank(c, "volume", 5)
+				setStableRisk(c)
 			},
 		},
 		{
-			name:        locale.conservative.name,
-			description: locale.conservative.description,
+			name:        locale.megaCap.name,
+			description: locale.megaCap.description,
 			isActive:    false,
 			applyConfig: func(c *store.StrategyConfig) {
-				c.RiskControl.BTCETHMaxLeverage = 3
-				c.RiskControl.AltcoinMaxLeverage = 3
-				c.RiskControl.BTCETHMaxPositionValueRatio = 3.0
-				c.RiskControl.AltcoinMaxPositionValueRatio = 0.5
+				setStaticStocks(c, []string{"AAPL-USDC", "MSFT-USDC", "GOOGL-USDC", "AMZN-USDC", "META-USDC"})
+				setStableRisk(c)
+				c.RiskControl.MaxPositions = 2
 				c.RiskControl.MinConfidence = 80
-				c.RiskControl.MinRiskRewardRatio = 4.0
-				c.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
-				c.Indicators.Klines.PrimaryTimeframe = "15m"
 			},
 		},
 		{
-			name:        locale.aggressive.name,
-			description: locale.aggressive.description,
+			name:        locale.breakout.name,
+			description: locale.breakout.description,
 			isActive:    false,
 			applyConfig: func(c *store.StrategyConfig) {
-				c.RiskControl.BTCETHMaxLeverage = 10
-				c.RiskControl.AltcoinMaxLeverage = 7
-				c.RiskControl.MaxPositions = 5
-				c.RiskControl.AltcoinMaxPositionValueRatio = 2.0
-				c.RiskControl.MinConfidence = 70
-				c.CoinSource.AI500Limit = 5
-				c.CoinSource.UseOITop = true
-				c.CoinSource.OITopLimit = 5
-				c.Indicators.Klines.SelectedTimeframes = []string{"3m", "15m", "1h"}
-				c.Indicators.Klines.PrimaryTimeframe = "3m"
+				setStockRank(c, "gainers", 5)
+				setStableRisk(c)
+				c.RiskControl.MinConfidence = 82
+				c.RiskControl.MinRiskRewardRatio = 3.5
 			},
 		},
 	}
@@ -370,6 +440,7 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 	for _, def := range definitions {
 		config := store.GetDefaultStrategyConfig(configLang)
 		def.applyConfig(&config)
+		config.ClampLimits()
 
 		strategy := &store.Strategy{
 			ID:          uuid.New().String(),
@@ -385,10 +456,45 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		strategies = append(strategies, strategy)
 	}
 
+	legacyDefaultNames := []string{
+		"均衡策略", "稳健策略", "积极策略",
+		"Balanced Strategy", "Conservative Strategy", "Aggressive Strategy",
+		"Strategi Seimbang", "Strategi Konservatif", "Strategi Agresif",
+	}
+
 	return s.store.Transaction(func(tx *gorm.DB) error {
+		// Remove obsolete built-in risk-profile presets for this user. If a trader still
+		// references one of them, keep it to avoid breaking an existing running setup.
+		deleteResult := tx.Where("user_id = ? AND name IN ? AND id NOT IN (SELECT strategy_id FROM traders WHERE user_id = ? AND strategy_id IS NOT NULL)", userID, legacyDefaultNames, userID).
+			Delete(&store.Strategy{})
+		if deleteResult.Error != nil {
+			return fmt.Errorf("failed to remove legacy default strategies: %w", deleteResult.Error)
+		}
+		if deleteResult.RowsAffected > 0 {
+			logger.Infof("  ✓ Removed %d legacy default strategy preset(s)", deleteResult.RowsAffected)
+		}
+
+		var activeCount int64
+		if err := tx.Model(&store.Strategy{}).Where("user_id = ? AND is_active = ?", userID, true).Count(&activeCount).Error; err != nil {
+			return fmt.Errorf("failed to count active strategies: %w", err)
+		}
+
 		for _, strategy := range strategies {
+			var existing int64
+			if err := tx.Model(&store.Strategy{}).Where("user_id = ? AND name = ?", userID, strategy.Name).Count(&existing).Error; err != nil {
+				return fmt.Errorf("failed to check strategy %q: %w", strategy.Name, err)
+			}
+			if existing > 0 {
+				continue
+			}
+			if activeCount > 0 {
+				strategy.IsActive = false
+			}
 			if err := tx.Create(strategy).Error; err != nil {
 				return fmt.Errorf("failed to create strategy %q: %w", strategy.Name, err)
+			}
+			if strategy.IsActive {
+				activeCount++
 			}
 			logger.Infof("  ✓ Created default strategy: %s (active=%v)", strategy.Name, strategy.IsActive)
 		}

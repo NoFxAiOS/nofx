@@ -273,7 +273,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        # SECURITY: never use @master — upstream compromise = CI compromise.
+        # TODO: pin to a full 40-char SHA from
+        # https://github.com/aquasecurity/trivy-action/releases and configure Dependabot
+        # to keep it current. A version tag is still mutable but is a major upgrade
+        # over @master.
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -299,7 +304,11 @@ jobs:
           fetch-depth: 0
 
       - name: Run TruffleHog OSS
-        uses: trufflesecurity/trufflehog@main
+        # SECURITY: never use @main — upstream compromise = secret exfil.
+        # TODO: pin to a full 40-char SHA from
+        # https://github.com/trufflesecurity/trufflehog/releases and configure
+        # Dependabot. Version tag is still mutable but is a major upgrade over @main.
+        uses: trufflesecurity/trufflehog@v3.82.13
         with:
           path: ./
           base: ${{ github.event.pull_request.base.sha }}

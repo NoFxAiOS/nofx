@@ -34,6 +34,7 @@ export interface Exchange {
   testnet?: boolean
   // Hyperliquid specific
   hyperliquidWalletAddr?: string
+  hyperliquidBuilderApproved?: boolean
   has_hyperliquid_secret?: boolean
   // Aster specific
   asterUser?: string
@@ -82,6 +83,7 @@ export interface CreateExchangeRequest {
   passphrase?: string
   testnet?: boolean
   hyperliquid_wallet_addr?: string
+  hyperliquid_builder_approved?: boolean
   aster_user?: string
   aster_signer?: string
   aster_private_key?: string
@@ -131,6 +133,7 @@ export interface UpdateExchangeConfigRequest {
       testnet?: boolean
       // Hyperliquid 特定字段
       hyperliquid_wallet_addr?: string
+      hyperliquid_builder_approved?: boolean
       // Aster 特定字段
       aster_user?: string
       aster_signer?: string

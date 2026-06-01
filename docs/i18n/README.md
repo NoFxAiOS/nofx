@@ -12,8 +12,11 @@ NOFX 文档提供多种语言版本。
 |----------|-------------|--------|-------------|
 | 🇬🇧 **English** | [README.md](../../README.md) | ✅ Complete | Core Team |
 | 🇨🇳 **Chinese (中文)** | [README.md](zh-CN/README.md) | ✅ Complete | Community |
+| 🇯🇵 **Japanese (日本語)** | [README.md](ja/README.md) | ✅ Complete | Community |
+| 🇰🇷 **Korean (한국어)** | [README.md](ko/README.md) | ✅ Complete | Community |
 | 🇷🇺 **Russian (Русский)** | [README.md](ru/README.md) | ✅ Complete | Community |
 | 🇺🇦 **Ukrainian (Українська)** | [README.md](uk/README.md) | ✅ Complete | Community |
+| 🇻🇳 **Vietnamese (Tiếng Việt)** | [README.md](vi/README.md) | ✅ Complete | Community |
 
 ---
 
@@ -30,6 +33,16 @@ NOFX 文档提供多种语言版本。
 - **安全政策:** [../../SECURITY.md](../../SECURITY.md#中文)
 - **常见问题:** [../guides/faq.zh-CN.md](../guides/faq.zh-CN.md)
 
+### 日本語 🇯🇵
+- **メイン README:** [ja/README.md](ja/README.md)
+- **Contributing:** [../../CONTRIBUTING.md](../../CONTRIBUTING.md)
+- **Security:** [../../SECURITY.md](../../SECURITY.md)
+
+### 한국어 🇰🇷
+- **메인 README:** [ko/README.md](ko/README.md)
+- **Contributing:** [../../CONTRIBUTING.md](../../CONTRIBUTING.md)
+- **Security:** [../../SECURITY.md](../../SECURITY.md)
+
 ### Русский 🇷🇺
 - **Основной README:** [ru/README.md](ru/README.md)
 - **Руководство по участию:** [../../CONTRIBUTING.md](../../CONTRIBUTING.md)
@@ -40,6 +53,11 @@ NOFX 文档提供多种语言版本。
 - **Посібник із внесків:** [../../CONTRIBUTING.md](../../CONTRIBUTING.md)
 - **Політика безпеки:** [../../SECURITY.md](../../SECURITY.md)
 
+### Tiếng Việt 🇻🇳
+- **README chính:** [vi/README.md](vi/README.md)
+- **Contributing:** [../../CONTRIBUTING.md](../../CONTRIBUTING.md)
+- **Security:** [../../SECURITY.md](../../SECURITY.md)
+
 ---
 
 ## 🤝 Help with Translations / 帮助翻译
@@ -49,7 +67,7 @@ NOFX 文档提供多种语言版本。
 We welcome translation contributions! / 我们欢迎翻译贡献！
 
 **What needs translation? / 需要翻译什么？**
-- ✅ Main README (complete for 4 languages)
+- ✅ Main README (complete for 7 languages)
 - 🚧 Deployment guides (partial)
 - 📋 User guides (needed)
 - 📋 Contributing guide (needed for RU/UK)
@@ -94,10 +112,11 @@ faq.zh-CN.md                 → Chinese FAQ
 **Language Codes:**
 - `en` - English (default, no suffix needed)
 - `zh-CN` - Simplified Chinese
+- `ja` - Japanese
+- `ko` - Korean
 - `ru` - Russian
 - `uk` - Ukrainian
-- `ja` - Japanese *(future)*
-- `ko` - Korean *(future)*
+- `vi` - Vietnamese
 
 ### Quality Standards / 质量标准
 

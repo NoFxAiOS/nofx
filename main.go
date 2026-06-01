@@ -34,8 +34,9 @@ func main() {
 	logger.Info("║           🚀 NOFX - AI-Powered Trading System              ║")
 	logger.Info("╚════════════════════════════════════════════════════════════╝")
 
-	// Initialize global configuration (loaded from .env)
-	config.Init()
+	// Initialize global configuration (loaded from .env).
+	// MustInit refuses to start under an insecure config (e.g. missing or default JWT_SECRET).
+	config.MustInit()
 	cfg := config.Get()
 	logger.Info("✅ Configuration loaded")
 

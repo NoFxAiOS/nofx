@@ -26,84 +26,88 @@ type ExchangeConfig struct {
 
 // SafeExchangeConfig Safe exchange configuration structure (does not contain sensitive information)
 type SafeExchangeConfig struct {
-	ID                    string `json:"id"`            // UUID
-	ExchangeType          string `json:"exchange_type"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
-	AccountName           string `json:"account_name"`  // User-defined account name
-	Name                  string `json:"name"`          // Display name
-	Type                  string `json:"type"`          // "cex" or "dex"
-	Enabled               bool   `json:"enabled"`
-	HasAPIKey             bool   `json:"has_api_key"`
-	HasSecretKey          bool   `json:"has_secret_key"`
-	HasPassphrase         bool   `json:"has_passphrase"`
-	Testnet               bool   `json:"testnet,omitempty"`
-	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid wallet address (not sensitive)
-	HasAsterPrivateKey    bool   `json:"has_aster_private_key"`
-	AsterUser             string `json:"asterUser"`         // Aster username (not sensitive)
-	AsterSigner           string `json:"asterSigner"`       // Aster signer (not sensitive)
-	LighterWalletAddr     string `json:"lighterWalletAddr"` // LIGHTER wallet address (not sensitive)
-	HasLighterPrivateKey  bool   `json:"has_lighter_private_key"`
-	HasLighterAPIKey      bool   `json:"has_lighter_api_key_private_key"`
+	ID                         string `json:"id"`            // UUID
+	ExchangeType               string `json:"exchange_type"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+	AccountName                string `json:"account_name"`  // User-defined account name
+	Name                       string `json:"name"`          // Display name
+	Type                       string `json:"type"`          // "cex" or "dex"
+	Enabled                    bool   `json:"enabled"`
+	HasAPIKey                  bool   `json:"has_api_key"`
+	HasSecretKey               bool   `json:"has_secret_key"`
+	HasPassphrase              bool   `json:"has_passphrase"`
+	Testnet                    bool   `json:"testnet,omitempty"`
+	HyperliquidWalletAddr      string `json:"hyperliquidWalletAddr"` // Hyperliquid wallet address (not sensitive)
+	HyperliquidBuilderApproved bool   `json:"hyperliquidBuilderApproved"`
+	HasAsterPrivateKey         bool   `json:"has_aster_private_key"`
+	AsterUser                  string `json:"asterUser"`         // Aster username (not sensitive)
+	AsterSigner                string `json:"asterSigner"`       // Aster signer (not sensitive)
+	LighterWalletAddr          string `json:"lighterWalletAddr"` // LIGHTER wallet address (not sensitive)
+	HasLighterPrivateKey       bool   `json:"has_lighter_private_key"`
+	HasLighterAPIKey           bool   `json:"has_lighter_api_key_private_key"`
 }
 
 func safeExchangeConfigFromStore(exchange *store.Exchange) SafeExchangeConfig {
 	return SafeExchangeConfig{
-		ID:                    exchange.ID,
-		ExchangeType:          exchange.ExchangeType,
-		AccountName:           exchange.AccountName,
-		Name:                  exchange.Name,
-		Type:                  exchange.Type,
-		Enabled:               exchange.Enabled,
-		HasAPIKey:             exchange.APIKey != "",
-		HasSecretKey:          exchange.SecretKey != "",
-		HasPassphrase:         exchange.Passphrase != "",
-		Testnet:               exchange.Testnet,
-		HyperliquidWalletAddr: exchange.HyperliquidWalletAddr,
-		HasAsterPrivateKey:    exchange.AsterPrivateKey != "",
-		AsterUser:             exchange.AsterUser,
-		AsterSigner:           exchange.AsterSigner,
-		LighterWalletAddr:     exchange.LighterWalletAddr,
-		HasLighterPrivateKey:  exchange.LighterPrivateKey != "",
-		HasLighterAPIKey:      exchange.LighterAPIKeyPrivateKey != "",
+		ID:                         exchange.ID,
+		ExchangeType:               exchange.ExchangeType,
+		AccountName:                exchange.AccountName,
+		Name:                       exchange.Name,
+		Type:                       exchange.Type,
+		Enabled:                    exchange.Enabled,
+		HasAPIKey:                  exchange.APIKey != "",
+		HasSecretKey:               exchange.SecretKey != "",
+		HasPassphrase:              exchange.Passphrase != "",
+		Testnet:                    exchange.Testnet,
+		HyperliquidWalletAddr:      exchange.HyperliquidWalletAddr,
+		HyperliquidBuilderApproved: exchange.HyperliquidBuilderApproved,
+		HasAsterPrivateKey:         exchange.AsterPrivateKey != "",
+		AsterUser:                  exchange.AsterUser,
+		AsterSigner:                exchange.AsterSigner,
+		LighterWalletAddr:          exchange.LighterWalletAddr,
+		HasLighterPrivateKey:       exchange.LighterPrivateKey != "",
+		HasLighterAPIKey:           exchange.LighterAPIKeyPrivateKey != "",
 	}
 }
 
 type UpdateExchangeConfigRequest struct {
 	Exchanges map[string]struct {
-		Enabled                 bool   `json:"enabled"`
-		APIKey                  string `json:"api_key"`
-		SecretKey               string `json:"secret_key"`
-		Passphrase              string `json:"passphrase"` // OKX specific
-		Testnet                 bool   `json:"testnet"`
-		HyperliquidWalletAddr   string `json:"hyperliquid_wallet_addr"`
-		HyperliquidUnifiedAcct  bool   `json:"hyperliquid_unified_account"` // Unified Account mode
-		AsterUser               string `json:"aster_user"`
-		AsterSigner             string `json:"aster_signer"`
-		AsterPrivateKey         string `json:"aster_private_key"`
-		LighterWalletAddr       string `json:"lighter_wallet_addr"`
-		LighterPrivateKey       string `json:"lighter_private_key"`
-		LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
-		LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
+		Enabled                    bool   `json:"enabled"`
+		APIKey                     string `json:"api_key"`
+		SecretKey                  string `json:"secret_key"`
+		Passphrase                 string `json:"passphrase"` // OKX specific
+		Testnet                    bool   `json:"testnet"`
+		HyperliquidWalletAddr      string `json:"hyperliquid_wallet_addr"`
+		HyperliquidUnifiedAcct     bool   `json:"hyperliquid_unified_account"` // Unified Account mode
+		HyperliquidBuilderApproved *bool  `json:"hyperliquid_builder_approved"`
+		AsterUser                  string `json:"aster_user"`
+		AsterSigner                string `json:"aster_signer"`
+		AsterPrivateKey            string `json:"aster_private_key"`
+		LighterWalletAddr          string `json:"lighter_wallet_addr"`
+		LighterPrivateKey          string `json:"lighter_private_key"`
+		LighterAPIKeyPrivateKey    string `json:"lighter_api_key_private_key"`
+		LighterAPIKeyIndex         int    `json:"lighter_api_key_index"`
 	} `json:"exchanges"`
 }
 
 // CreateExchangeRequest request structure for creating a new exchange account
 type CreateExchangeRequest struct {
-	ExchangeType            string `json:"exchange_type" binding:"required"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
-	AccountName             string `json:"account_name"`                     // User-defined account name
-	Enabled                 bool   `json:"enabled"`
-	APIKey                  string `json:"api_key"`
-	SecretKey               string `json:"secret_key"`
-	Passphrase              string `json:"passphrase"`
-	Testnet                 bool   `json:"testnet"`
-	HyperliquidWalletAddr   string `json:"hyperliquid_wallet_addr"`
-	HyperliquidUnifiedAcct  bool   `json:"hyperliquid_unified_account"` // Unified Account mode: Spot as Perp collateral
-	AsterUser               string `json:"aster_user"`
-	AsterSigner             string `json:"aster_signer"`
-	AsterPrivateKey         string `json:"aster_private_key"`
-	LighterWalletAddr       string `json:"lighter_wallet_addr"`
-	LighterPrivateKey       string `json:"lighter_private_key"`
-	LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
-	LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
+	ExchangeType               string `json:"exchange_type" binding:"required"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+	AccountName                string `json:"account_name"`                     // User-defined account name
+	Enabled                    bool   `json:"enabled"`
+	APIKey                     string `json:"api_key"`
+	SecretKey                  string `json:"secret_key"`
+	Passphrase                 string `json:"passphrase"`
+	Testnet                    bool   `json:"testnet"`
+	HyperliquidWalletAddr      string `json:"hyperliquid_wallet_addr"`
+	HyperliquidUnifiedAcct     bool   `json:"hyperliquid_unified_account"` // Unified Account mode: Spot as Perp collateral
+	HyperliquidBuilderApproved bool   `json:"hyperliquid_builder_approved"`
+	AsterUser                  string `json:"aster_user"`
+	AsterSigner                string `json:"aster_signer"`
+	AsterPrivateKey            string `json:"aster_private_key"`
+	LighterWalletAddr          string `json:"lighter_wallet_addr"`
+	LighterPrivateKey          string `json:"lighter_private_key"`
+	LighterAPIKeyPrivateKey    string `json:"lighter_api_key_private_key"`
+	LighterAPIKeyIndex         int    `json:"lighter_api_key_index"`
 }
 
 // handleGetExchangeConfigs Get exchange configurations
@@ -241,6 +245,11 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 		if effectiveLighterWalletAddr == "" {
 			effectiveLighterWalletAddr = strings.TrimSpace(existing.LighterWalletAddr)
 		}
+		effectiveHyperliquidBuilderApproved := existing.HyperliquidBuilderApproved
+		if exchangeData.HyperliquidBuilderApproved != nil {
+			effectiveHyperliquidBuilderApproved = *exchangeData.HyperliquidBuilderApproved
+		}
+
 		if missing := store.MissingRequiredExchangeCredentialFields(
 			existing.ExchangeType,
 			effectiveAPIKey,
@@ -266,7 +275,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 			tradersToReload[t.ID] = true
 		}
 
-		err = s.store.Exchange().Update(userID, exchangeID, true, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, effectiveHyperliquidWalletAddr, exchangeData.HyperliquidUnifiedAcct, effectiveAsterUser, effectiveAsterSigner, exchangeData.AsterPrivateKey, effectiveLighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
+		err = s.store.Exchange().Update(userID, exchangeID, true, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, effectiveHyperliquidWalletAddr, exchangeData.HyperliquidUnifiedAcct, effectiveHyperliquidBuilderApproved, effectiveAsterUser, effectiveAsterSigner, exchangeData.AsterPrivateKey, effectiveLighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
 		if err != nil {
 			SafeInternalError(c, fmt.Sprintf("Update exchange %s", exchangeID), err)
 			return
@@ -375,7 +384,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 	id, err := s.store.Exchange().Create(
 		userID, req.ExchangeType, req.AccountName, true,
 		req.APIKey, req.SecretKey, req.Passphrase, req.Testnet,
-		req.HyperliquidWalletAddr, req.HyperliquidUnifiedAcct,
+		req.HyperliquidWalletAddr, req.HyperliquidUnifiedAcct, req.HyperliquidBuilderApproved,
 		req.AsterUser, req.AsterSigner, req.AsterPrivateKey,
 		req.LighterWalletAddr, req.LighterPrivateKey, req.LighterAPIKeyPrivateKey, req.LighterAPIKeyIndex,
 	)

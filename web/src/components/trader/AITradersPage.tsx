@@ -7,6 +7,7 @@ import type {
   CreateTraderRequest,
   AIModel,
   Exchange,
+  ExchangeAccountState,
 } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -44,6 +45,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [editingTrader, setEditingTrader] = useState<any>(null)
   const [allModels, setAllModels] = useState<AIModel[]>([])
   const [allExchanges, setAllExchanges] = useState<Exchange[]>([])
+  const [exchangeAccountStates, setExchangeAccountStates] = useState<Record<string, ExchangeAccountState>>({})
+  const [isExchangeAccountStatesLoading, setIsExchangeAccountStatesLoading] = useState(false)
   const [supportedModels, setSupportedModels] = useState<AIModel[]>([])
   const [visibleTraderAddresses, setVisibleTraderAddresses] = useState<Set<string>>(new Set())
   const [visibleExchangeAddresses, setVisibleExchangeAddresses] = useState<Set<string>>(new Set())
@@ -56,18 +59,26 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       return
     }
 
-    const [
-      modelConfigs,
-      exchangeConfigs,
-      models,
-    ] = await Promise.all([
-      api.getModelConfigs(),
-      api.getExchangeConfigs(),
-      api.getSupportedModels(),
-    ])
-    setAllModels(modelConfigs)
-    setAllExchanges(exchangeConfigs)
-    setSupportedModels(models)
+    setIsExchangeAccountStatesLoading(true)
+    try {
+      const [
+        modelConfigs,
+        exchangeConfigs,
+        models,
+        accountStateResponse,
+      ] = await Promise.all([
+        api.getModelConfigs(),
+        api.getExchangeConfigs(),
+        api.getSupportedModels(),
+        api.getExchangeAccountState().catch(() => ({ states: {} })),
+      ])
+      setAllModels(modelConfigs)
+      setAllExchanges(exchangeConfigs)
+      setExchangeAccountStates(accountStateResponse.states || {})
+      setSupportedModels(models)
+    } finally {
+      setIsExchangeAccountStatesLoading(false)
+    }
   }
 
   // Toggle wallet address visibility for a trader
@@ -95,6 +106,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       return next
     })
   }
+
 
   // Copy wallet address to clipboard
   const handleCopyAddress = async (id: string, address: string) => {
@@ -691,6 +703,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         <ConfigStatusGrid
           configuredModels={configuredModels}
           configuredExchanges={configuredExchanges}
+          exchangeAccountStates={exchangeAccountStates}
+          isExchangeAccountStatesLoading={isExchangeAccountStatesLoading}
           visibleExchangeAddresses={visibleExchangeAddresses}
           copiedId={copiedId}
           language={language}

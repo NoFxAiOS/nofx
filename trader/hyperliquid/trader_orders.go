@@ -15,6 +15,28 @@ import (
 	"github.com/sonirico/go-hyperliquid"
 )
 
+func (t *HyperliquidTrader) placeOrderWithBuilderFee(order hyperliquid.CreateOrderRequest) error {
+	_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
+	if err == nil {
+		return nil
+	}
+	return wrapBuilderFeeNotApproved(err)
+}
+
+func isBuilderFeeNotApprovedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "builder fee has not been approved")
+}
+
+func wrapBuilderFeeNotApproved(err error) error {
+	if isBuilderFeeNotApprovedError(err) {
+		return fmt.Errorf("Hyperliquid builder fee is not approved for NOFX; reconnect Hyperliquid wallet and complete trading authorization: %w", err)
+	}
+	return err
+}
+
 // OpenLong opens a long position (supports both crypto and xyz dex)
 func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// First cancel all pending orders for this coin
@@ -71,7 +93,7 @@ func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage i
 			ReduceOnly: false,
 		}
 
-		_, err = t.exchange.Order(t.ctx, order, defaultBuilder)
+		err = t.placeOrderWithBuilderFee(order)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open long position: %w", err)
 		}
@@ -143,7 +165,7 @@ func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage 
 			ReduceOnly: false,
 		}
 
-		_, err = t.exchange.Order(t.ctx, order, defaultBuilder)
+		err = t.placeOrderWithBuilderFee(order)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open short position: %w", err)
 		}
@@ -225,7 +247,7 @@ func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[stri
 			ReduceOnly: true,
 		}
 
-		_, err = t.exchange.Order(t.ctx, order, defaultBuilder)
+		err = t.placeOrderWithBuilderFee(order)
 		if err != nil {
 			return nil, fmt.Errorf("failed to close long position: %w", err)
 		}
@@ -312,7 +334,7 @@ func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[str
 			ReduceOnly: true,
 		}
 
-		_, err = t.exchange.Order(t.ctx, order, defaultBuilder)
+		err = t.placeOrderWithBuilderFee(order)
 		if err != nil {
 			return nil, fmt.Errorf("failed to close short position: %w", err)
 		}
@@ -634,12 +656,13 @@ func (t *HyperliquidTrader) placeXyzOrder(coin string, isBuy bool, size float64,
 		},
 	}
 
-	// Create OrderAction (no builder to avoid requiring builder fee approval)
+	// Create OrderAction with NOFX builder fee. Trader startup requires a persisted
+	// builder approval flag before this live path can run.
 	action := hyperliquid.OrderAction{
 		Type:     "order",
 		Orders:   []hyperliquid.OrderWire{orderWire},
 		Grouping: "na",
-		Builder:  nil,
+		Builder:  defaultBuilder,
 	}
 
 	// Sign the action
@@ -727,7 +750,7 @@ func (t *HyperliquidTrader) placeXyzOrder(coin string, isBuy bool, size float64,
 	if len(result.Response.Data.Statuses) > 0 {
 		status := result.Response.Data.Statuses[0]
 		if status.Error != nil {
-			return fmt.Errorf("xyz dex order error (coin=%s, assetIndex=%d, size=%.4f, price=%.4f): %s", coin, assetIndex, roundedSize, roundedPrice, *status.Error)
+			return wrapBuilderFeeNotApproved(fmt.Errorf("xyz dex order error (coin=%s, assetIndex=%d, size=%.4f, price=%.4f): %s", coin, assetIndex, roundedSize, roundedPrice, *status.Error))
 		}
 		if status.Filled != nil {
 			logger.Infof("✅ xyz dex order filled: totalSz=%s avgPx=%s oid=%d",
@@ -798,12 +821,13 @@ func (t *HyperliquidTrader) placeXyzTriggerOrder(coin string, isBuy bool, size f
 		},
 	}
 
-	// Create OrderAction (no builder to avoid requiring builder fee approval)
+	// Create OrderAction with NOFX builder fee. Trader startup requires a persisted
+	// builder approval flag before this live path can run.
 	action := hyperliquid.OrderAction{
 		Type:     "order",
 		Orders:   []hyperliquid.OrderWire{orderWire},
 		Grouping: "na",
-		Builder:  nil,
+		Builder:  defaultBuilder,
 	}
 
 	// Sign the action
@@ -885,7 +909,7 @@ func (t *HyperliquidTrader) placeXyzTriggerOrder(coin string, isBuy bool, size f
 	if len(result.Response.Data.Statuses) > 0 {
 		status := result.Response.Data.Statuses[0]
 		if status.Error != nil {
-			return fmt.Errorf("xyz dex %s order error: %s", tpsl, *status.Error)
+			return wrapBuilderFeeNotApproved(fmt.Errorf("xyz dex %s order error: %s", tpsl, *status.Error))
 		}
 		if status.Resting != nil {
 			logger.Infof("✅ xyz dex %s order placed: oid=%d", tpsl, status.Resting.Oid)
@@ -934,7 +958,7 @@ func (t *HyperliquidTrader) SetStopLoss(symbol string, positionSide string, quan
 			ReduceOnly: true,
 		}
 
-		_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
+		err := t.placeOrderWithBuilderFee(order)
 		if err != nil {
 			return fmt.Errorf("failed to set stop loss: %w", err)
 		}
@@ -982,7 +1006,7 @@ func (t *HyperliquidTrader) SetTakeProfit(symbol string, positionSide string, qu
 			ReduceOnly: true,
 		}
 
-		_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
+		err := t.placeOrderWithBuilderFee(order)
 		if err != nil {
 			return fmt.Errorf("failed to set take profit: %w", err)
 		}
@@ -1029,7 +1053,7 @@ func (t *HyperliquidTrader) PlaceLimitOrder(req *types.LimitOrderRequest) (*type
 		ReduceOnly: req.ReduceOnly,
 	}
 
-	_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
+	err := t.placeOrderWithBuilderFee(order)
 	if err != nil {
 		return nil, fmt.Errorf("failed to place limit order: %w", err)
 	}

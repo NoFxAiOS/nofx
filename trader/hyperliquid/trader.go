@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"nofx/logger"
+	hlprovider "nofx/provider/hyperliquid"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,54 +59,25 @@ var xyzDexAssets = map[string]bool{
 	"XYZ100": true,
 }
 
-// defaultBuilder is the builder info for order routing
-// Set to nil to avoid requiring builder fee approval
-//
-//	var defaultBuilder = &hyperliquid.BuilderInfo{
-//		Builder: "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d",
-//		Fee:     10,
-//	}
-var defaultBuilder *hyperliquid.BuilderInfo = nil
-
-// isXyzDexAsset checks if a symbol is an xyz dex asset
-func isXyzDexAsset(symbol string) bool {
-	// Remove common suffixes to get base symbol
-	base := strings.ToUpper(symbol) // Convert to uppercase for case-insensitive matching
-	for _, suffix := range []string{"USDT", "USD", "-USDC", "-USD"} {
-		if strings.HasSuffix(base, suffix) {
-			base = strings.TrimSuffix(base, suffix)
-			break
-		}
-	}
-	// Remove xyz: prefix if present (case-insensitive)
-	base = strings.TrimPrefix(base, "XYZ:")
-	base = strings.TrimPrefix(base, "xyz:")
-	return xyzDexAssets[base]
+// defaultBuilder is the builder info for order routing.
+// Users approve this builder during the top-right Hyperliquid connect flow before
+// their generated agent wallet is saved for live trading.
+var defaultBuilder = &hyperliquid.BuilderInfo{
+	Builder: "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d",
+	Fee:     100,
 }
 
-// convertSymbolToHyperliquid converts standard symbol to Hyperliquid format
-// Example: "BTCUSDT" -> "BTC", "TSLA" -> "xyz:TSLA", "silver" -> "xyz:SILVER"
+// isXyzDexAsset checks if a symbol is an xyz dex asset.
+// Keep this delegated to the provider map so newly listed xyz markets such as
+// SAMSUNG-USDC / SK-HYNIX-USDC cannot accidentally fall through as crypto.
+func isXyzDexAsset(symbol string) bool {
+	return hlprovider.IsXYZAsset(symbol)
+}
+
+// convertSymbolToHyperliquid converts standard/display symbols to Hyperliquid format.
+// Examples: "BTCUSDT" -> "BTC", "TSLA" -> "xyz:TSLA", "SAMSUNG-USDC" -> "xyz:SMSN".
 func convertSymbolToHyperliquid(symbol string) string {
-	// Convert to uppercase for consistent handling
-	base := strings.ToUpper(symbol)
-
-	// Remove common suffixes to get base symbol
-	for _, suffix := range []string{"USDT", "USD", "-USDC", "-USD"} {
-		if strings.HasSuffix(base, suffix) {
-			base = strings.TrimSuffix(base, suffix)
-			break
-		}
-	}
-	// Remove xyz: prefix if present (case-insensitive, will be re-added if needed)
-	if strings.HasPrefix(strings.ToLower(base), "xyz:") {
-		base = base[4:] // Remove first 4 characters
-	}
-
-	// Check if this is an xyz dex asset (stocks, forex, commodities)
-	if isXyzDexAsset(base) {
-		return "xyz:" + base
-	}
-	return base
+	return hlprovider.FormatCoinForAPI(symbol)
 }
 
 // absFloat returns absolute value of float
@@ -161,15 +133,21 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool,
 
 	ctx := context.Background()
 
-	// Create Exchange client (Exchange includes Info functionality)
+	// Create Exchange client (Exchange includes Info functionality).
+	// v0.36 signature: ctx, privateKey, baseURL, meta, vaultAddr, accountAddr,
+	// spotMeta, perpDexs, ...opts. nil values are auto-fetched on first use.
+	// v0.36 fixed the spot-meta indexing panic that crashed earlier versions
+	// when Hyperliquid added new spot tokens whose Tokens[0] index pointed
+	// past the Tokens array end.
 	exchange := hyperliquid.NewExchange(
 		ctx,
 		privateKey,
 		apiURL,
-		nil,        // Meta will be fetched automatically
+		nil,        // Meta — fetched automatically
 		"",         // vault address (empty for personal account)
 		walletAddr, // wallet address
-		nil,        // SpotMeta will be fetched automatically
+		nil,        // SpotMeta — fetched automatically
+		nil,        // perpDexs — fetched automatically
 	)
 
 	logger.Infof("✓ Hyperliquid trader initialized successfully (testnet=%v, wallet=%s)", testnet, walletAddr)

@@ -7,7 +7,6 @@ import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { DeepVoidBackground } from '../common/DeepVoidBackground'
 import { LanguageSwitcher } from '../common/LanguageSwitcher'
-import { invalidateSystemConfig } from '../../lib/config'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -38,31 +37,14 @@ export function LoginPage() {
     }
   }, [language])
 
-  const handleResetAccount = async () => {
-    if (!window.confirm(t('forgotAccountConfirm', language))) return
-    try {
-      const res = await fetch('/api/reset-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          confirm: 'I_UNDERSTAND_THIS_DELETES_EVERYTHING',
-        }),
-      })
-      if (res.ok) {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('auth_user')
-        localStorage.removeItem('user_id')
-        sessionStorage.removeItem('from401')
-        invalidateSystemConfig()
-        toast.success(t('forgotAccountSuccess', language))
-        setTimeout(() => navigate('/setup'), 1500)
-      } else {
-        const data = await res.json()
-        toast.error(data.error || 'Reset failed')
-      }
-    } catch {
-      toast.error('Network error')
-    }
+  // Account wipe was removed from the public API (it was an unauthenticated
+  // destructive endpoint). It now runs as a local CLI command on the server,
+  // so we surface the instruction instead of calling an endpoint.
+  const handleResetAccount = () => {
+    toast(t('resetAccountCliIntro', language), {
+      description: 'nofx reset-account',
+      duration: 10000,
+    })
   }
 
   const handleLogin = async (e: React.FormEvent) => {

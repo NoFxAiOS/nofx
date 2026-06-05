@@ -33,10 +33,6 @@ interface AuthContextType {
     betaCode?: string,
     mode?: UserMode
   ) => Promise<{ success: boolean; message?: string }>
-  resetPassword: (
-    email: string,
-    newPassword: string
-  ) => Promise<{ success: boolean; message?: string }>
   logout: () => void
   isLoading: boolean
 }
@@ -259,36 +255,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const resetPassword = async (email: string, newPassword: string) => {
-    try {
-      const response = await fetch('/api/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          new_password: newPassword,
-          // Server-side guard against accidental/drive-by triggers.
-          // Phrase must match handler_user.go resetPasswordConfirmPhrase.
-          confirm: 'I_UNDERSTAND_THIS_RESETS_MY_PASSWORD',
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        return { success: true, message: data.message }
-      } else {
-        return { success: false, message: data.error }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Password reset failed, please try again',
-      }
-    }
-  }
+  // NOTE: in-browser password reset was removed. Recovery now runs as a local
+  // CLI command on the server (`nofx reset-password`), so it cannot be triggered
+  // remotely. The reset-password page shows the operator how to run it.
 
   const logout = () => {
     const savedToken = localStorage.getItem('auth_token')
@@ -316,7 +285,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         loginAdmin,
         register,
-        resetPassword,
         logout,
         isLoading,
       }}

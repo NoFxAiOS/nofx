@@ -165,14 +165,13 @@ func (s *Server) setupRoutes() {
 		// Authentication related routes (no authentication required)
 		s.route(api, "POST", "/register", "Register new user", s.handleRegister)
 		s.route(api, "POST", "/login", "User login, returns JWT token", s.handleLogin)
-		// SECURITY: /reset-password and /reset-account are PUBLIC by necessity —
-		// they ARE the recovery paths when the user can no longer log in. Both
-		// require a literal confirmation phrase in the request body, which
-		// blocks accidental triggers and drive-by scripts. The historical
-		// takeover path (post-reset wallet-key adoption) was closed by
-		// removing adoptOrphanRecords. See handler_user.go for details.
-		s.route(api, "POST", "/reset-password", "Reset password by email (requires confirm phrase)", s.handleResetPassword)
-		s.route(api, "POST", "/reset-account", "[DESTRUCTIVE] Wipe everything (requires confirm phrase)", s.handleResetAccount)
+		// SECURITY: password/account recovery is NOT exposed over HTTP. An
+		// unauthenticated recovery endpoint is a remote auth-bypass on any
+		// public-facing deployment (the confirm phrase is in the frontend and
+		// returned by the API, so it is friction, not authentication). Recovery
+		// is now a local CLI run on the host — `nofx reset-password` /
+		// `nofx reset-account` — which requires shell access the attacker lacks.
+		// See cli.go.
 
 		// Routes requiring authentication
 		protected := api.Group("/", s.authMiddleware())

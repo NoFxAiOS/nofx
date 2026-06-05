@@ -24,6 +24,14 @@ import (
 )
 
 func main() {
+	// Local admin subcommands (account recovery) run directly against the
+	// database and never start the HTTP server. Recovery therefore requires
+	// shell/file access to the host instead of a network request, which keeps
+	// it safe even when NOFX is exposed to the public internet. See cli.go.
+	if runCLISubcommand(os.Args[1:]) {
+		return
+	}
+
 	// Load .env environment variables
 	_ = godotenv.Load()
 

@@ -60,7 +60,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required,min=6"`
+		Password string `json:"password" binding:"required,min=8"`
 		Lang     string `json:"lang"`
 	}
 
@@ -129,6 +129,13 @@ func (s *Server) handleRegister(c *gin.Context) {
 	})
 }
 
+// dummyPasswordHash is a valid bcrypt hash of a throwaway value. It is compared
+// against when the submitted email does not exist so that login takes roughly
+// the same time whether or not the account exists — closing the timing side
+// channel that would otherwise let an attacker enumerate valid emails (a fast
+// "no such user" vs. a slow bcrypt compare). It is not a secret.
+const dummyPasswordHash = "$2a$10$0iF0bCoQLJ6Ph1bF.MXwHOW.IMTxQjeEW.w38dctRQAB2kwB6ga1q"
+
 // handleLogin Handle user login request
 func (s *Server) handleLogin(c *gin.Context) {
 	var req struct {
@@ -144,6 +151,9 @@ func (s *Server) handleLogin(c *gin.Context) {
 	// Get user information
 	user, err := s.store.User().GetByEmail(req.Email)
 	if err != nil {
+		// Perform a dummy comparison so the response time does not reveal
+		// whether the email exists (anti user-enumeration), then fail uniformly.
+		auth.CheckPassword(req.Password, dummyPasswordHash)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Email or password incorrect"})
 		return
 	}

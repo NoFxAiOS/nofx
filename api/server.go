@@ -27,6 +27,7 @@ type Server struct {
 	httpServer                *http.Server
 	port                      int
 	telegramReloadCh          chan<- struct{} // signal Telegram bot to reload
+	authLimiter               *ipRateLimiter  // per-IP throttle for login/register
 }
 
 // NewServer Creates API server
@@ -49,6 +50,10 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 		cryptoHandler:             cryptoHandler,
 		exchangeAccountStateCache: NewExchangeAccountStateCache(),
 		port:                      port,
+		// Auth throttle: allow a small burst (typos / page reloads) then ~1
+		// attempt every 6s (10/min) sustained per IP. Generous for a human,
+		// hostile to online password brute-force.
+		authLimiter: newIPRateLimiter(1.0/6.0, 8),
 	}
 
 	// Setup routes
@@ -119,6 +124,12 @@ func corsMiddleware() gin.HandlerFunc {
 
 // setupRoutes Setup routes
 func (s *Server) setupRoutes() {
+	// Ensure the auth throttle exists even when the Server was constructed
+	// directly (e.g. in tests) rather than via NewServer.
+	if s.authLimiter == nil {
+		s.authLimiter = newIPRateLimiter(1.0/6.0, 8)
+	}
+
 	// API route group
 	api := s.router.Group("/api")
 	{
@@ -141,10 +152,16 @@ func (s *Server) setupRoutes() {
 		s.route(api, "GET", "/hyperliquid/account", "Get Hyperliquid account balance summary", s.handleHyperliquidAccount)
 		s.route(api, "POST", "/hyperliquid/submit-exchange", "Submit a user-signed Hyperliquid approval action", s.handleHyperliquidSubmitExchange)
 
-		// Crypto related endpoints (no authentication required, not exposed to bot)
+		// Crypto related endpoints (no authentication required, not exposed to bot).
+		// SECURITY: only the config + public-key endpoints are exposed. Transport
+		// encryption is one-directional (client encrypts to the server's public key;
+		// the server decrypts internally on the authenticated config-update handlers).
+		// A public POST /crypto/decrypt would be a decryption oracle: any
+		// unauthenticated caller could replay a captured ciphertext and get the
+		// plaintext (exchange/API credentials) back. It is intentionally NOT
+		// registered. See crypto_handler.go.
 		api.GET("/crypto/config", s.cryptoHandler.HandleGetCryptoConfig)
 		api.GET("/crypto/public-key", s.cryptoHandler.HandleGetPublicKey)
-		api.POST("/crypto/decrypt", s.cryptoHandler.HandleDecryptSensitiveData)
 
 		// Public competition data (no authentication required)
 		s.route(api, "GET", "/traders", "Public trader list", s.handlePublicTraderList)
@@ -162,9 +179,13 @@ func (s *Server) setupRoutes() {
 		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)
 		s.route(api, "POST", "/strategies/estimate-tokens", "Estimate token usage for a strategy config", s.handleEstimateTokens)
 
-		// Authentication related routes (no authentication required)
-		s.route(api, "POST", "/register", "Register new user", s.handleRegister)
-		s.route(api, "POST", "/login", "User login, returns JWT token", s.handleLogin)
+		// Authentication related routes (no authentication required).
+		// These are throttled per-IP to blunt online password brute-force; see
+		// ratelimit.go. Everything else in the public block is read-only or
+		// idempotent, so the throttle is scoped to the credential endpoints.
+		authRoutes := api.Group("/", rateLimitMiddleware(s.authLimiter))
+		s.route(authRoutes, "POST", "/register", "Register new user", s.handleRegister)
+		s.route(authRoutes, "POST", "/login", "User login, returns JWT token", s.handleLogin)
 		// SECURITY: password/account recovery is NOT exposed over HTTP. An
 		// unauthenticated recovery endpoint is a remote auth-bypass on any
 		// public-facing deployment (the confirm phrase is in the frontend and
@@ -564,13 +585,15 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
-// getTraderFromQuery resolves a trader from the ?trader_id= query parameter.
+// getTraderFromQuery resolves a trader from the ?trader_id= query parameter,
+// strictly scoped to the authenticated caller.
 //
-// This project is single-user by design, so a strict cross-tenant ownership
-// check would be theatre. We still perform a soft check (the requested trader
-// must appear in the caller's store list when present) — this is cheap defense
-// in depth that future-proofs against accidental multi-account drift and
-// catches typos that would otherwise return another account's data.
+// Ownership is always enforced against the caller's own trader list in the
+// store. We deliberately never fall back to the global in-memory trader map
+// (TraderManager holds every account's traders): returning an entry from it for
+// a trader the caller does not own is a cross-tenant data leak (IDOR) — a
+// freshly-registered user with no traders of their own could otherwise pass any
+// other account's trader_id and read its balance, positions and AI decisions.
 func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, string, error) {
 	userID := c.GetString("user_id")
 	traderID := c.Query("trader_id")
@@ -580,33 +603,27 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 		logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, err)
 	}
 
+	// Resolve strictly from the caller's own trader list.
+	userTraders, err := s.store.Trader().List(userID)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to load traders for this account: %w", err)
+	}
+	if len(userTraders) == 0 {
+		return nil, "", fmt.Errorf("No available traders")
+	}
+
 	if traderID == "" {
-		// No trader_id specified — return first trader for this user, falling
-		// back to the first in-memory trader if no per-user list exists yet.
-		userTraders, err := s.store.Trader().List(userID)
-		if err == nil && len(userTraders) > 0 {
-			return s.traderManager, userTraders[0].ID, nil
-		}
-		ids := s.traderManager.GetTraderIDs()
-		if len(ids) == 0 {
-			return nil, "", fmt.Errorf("No available traders")
-		}
-		return s.traderManager, ids[0], nil
+		// No trader_id specified — default to the caller's first trader.
+		return s.traderManager, userTraders[0].ID, nil
 	}
 
-	// Soft ownership check: if the caller owns any traders in the store and
-	// the requested ID is NOT among them, treat as not-found instead of
-	// silently returning whatever happens to be in the global in-memory map.
-	if userTraders, err := s.store.Trader().List(userID); err == nil && len(userTraders) > 0 {
-		for _, t := range userTraders {
-			if t.ID == traderID {
-				return s.traderManager, traderID, nil
-			}
+	// A trader_id was supplied — it must belong to the caller.
+	for _, t := range userTraders {
+		if t.ID == traderID {
+			return s.traderManager, traderID, nil
 		}
-		return nil, "", fmt.Errorf("trader not found for this account")
 	}
-
-	return s.traderManager, traderID, nil
+	return nil, "", fmt.Errorf("trader not found for this account")
 }
 
 // authMiddleware JWT authentication middleware

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -48,12 +50,7 @@ func TestMaskSensitiveString(t *testing.T) {
 }
 
 func TestSanitizeModelConfigForLog(t *testing.T) {
-	models := map[string]struct {
-		Enabled         bool   `json:"enabled"`
-		APIKey          string `json:"api_key"`
-		CustomAPIURL    string `json:"custom_api_url"`
-		CustomModelName string `json:"custom_model_name"`
-	}{
+	models := map[string]ModelConfigUpdate{
 		"deepseek": {
 			Enabled:         true,
 			APIKey:          "sk-1234567890abcdefghijklmnopqrstuvwxyz",
@@ -88,32 +85,29 @@ func TestSanitizeModelConfigForLog(t *testing.T) {
 }
 
 func TestSanitizeExchangeConfigForLog(t *testing.T) {
-	exchanges := map[string]struct {
-		Enabled               bool   `json:"enabled"`
-		APIKey                string `json:"api_key"`
-		SecretKey             string `json:"secret_key"`
-		Testnet               bool   `json:"testnet"`
-		HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr"`
-		AsterUser             string `json:"aster_user"`
-		AsterSigner           string `json:"aster_signer"`
-		AsterPrivateKey       string `json:"aster_private_key"`
-		LighterWalletAddr     string `json:"lighter_wallet_addr"`
-		LighterPrivateKey     string `json:"lighter_private_key"`
-	}{
+	exchanges := map[string]ExchangeConfigUpdate{
 		"binance": {
 			Enabled:   true,
 			APIKey:    "binance_api_key_1234567890abcdef",
 			SecretKey: "binance_secret_key_1234567890abcdef",
 			Testnet:   false,
-			LighterWalletAddr:   "",
-			LighterPrivateKey:   "",
+		},
+		"okx": {
+			Enabled:    true,
+			APIKey:     "okx_api_key_1234567890abcdef",
+			SecretKey:  "okx_secret_key_1234567890abcdef",
+			Passphrase: "okx_passphrase_supersecret_value",
+		},
+		"lighter": {
+			Enabled:                 true,
+			LighterWalletAddr:       "0xabcdef0000000000000000000000000000000000",
+			LighterPrivateKey:       "lighter_private_key_1234567890abcdef",
+			LighterAPIKeyPrivateKey: "lighter_api_key_private_key_1234567890abcdef",
 		},
 		"hyperliquid": {
 			Enabled:               true,
 			HyperliquidWalletAddr: "0x1234567890abcdef1234567890abcdef12345678",
 			Testnet:               false,
-			LighterWalletAddr:     "",
-			LighterPrivateKey:     "",
 		},
 	}
 
@@ -143,6 +137,32 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 		t.Errorf("expected masked secret_key='bina****cdef', got %q", maskedSecretKey)
 	}
 
+	// Check OKX passphrase is masked (regression: previously not covered)
+	okxConfig, ok := result["okx"].(map[string]interface{})
+	if !ok {
+		t.Fatal("okx config not found or wrong type")
+	}
+	maskedPassphrase, ok := okxConfig["passphrase"].(string)
+	if !ok {
+		t.Fatal("okx passphrase not found or wrong type")
+	}
+	if maskedPassphrase != "okx_****alue" {
+		t.Errorf("expected masked passphrase='okx_****alue', got %q", maskedPassphrase)
+	}
+
+	// Check Lighter API key private key is masked (regression: previously not covered)
+	lighterConfig, ok := result["lighter"].(map[string]interface{})
+	if !ok {
+		t.Fatal("lighter config not found or wrong type")
+	}
+	maskedLighterAPIKey, ok := lighterConfig["lighter_api_key_private_key"].(string)
+	if !ok {
+		t.Fatal("lighter_api_key_private_key not found or wrong type")
+	}
+	if maskedLighterAPIKey != "ligh****cdef" {
+		t.Errorf("expected masked lighter_api_key_private_key='ligh****cdef', got %q", maskedLighterAPIKey)
+	}
+
 	// Check Hyperliquid configuration
 	hlConfig, ok := result["hyperliquid"].(map[string]interface{})
 	if !ok {
@@ -157,6 +177,41 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 	// Wallet address should not be masked
 	if walletAddr != "0x1234567890abcdef1234567890abcdef12345678" {
 		t.Errorf("wallet address should not be masked, got %q", walletAddr)
+	}
+}
+
+// TestSanitizeExchangeConfigForLog_NoPlaintextSecrets renders the sanitized log
+// output exactly as the handler does (`%+v`) and asserts that no plaintext
+// secret — including the passphrase and lighter API key private key that were
+// historically not redacted — survives into the log line.
+func TestSanitizeExchangeConfigForLog_NoPlaintextSecrets(t *testing.T) {
+	secrets := map[string]string{
+		"api_key":                     "binance_api_key_1234567890abcdef",
+		"secret_key":                  "binance_secret_key_1234567890abcdef",
+		"passphrase":                  "okx_passphrase_supersecret_value",
+		"aster_private_key":           "aster_private_key_1234567890abcdef",
+		"lighter_private_key":         "lighter_private_key_1234567890abcdef",
+		"lighter_api_key_private_key": "lighter_api_key_private_key_1234567890abcdef",
+	}
+
+	exchanges := map[string]ExchangeConfigUpdate{
+		"okx": {
+			Enabled:                 true,
+			APIKey:                  secrets["api_key"],
+			SecretKey:               secrets["secret_key"],
+			Passphrase:              secrets["passphrase"],
+			AsterPrivateKey:         secrets["aster_private_key"],
+			LighterPrivateKey:       secrets["lighter_private_key"],
+			LighterAPIKeyPrivateKey: secrets["lighter_api_key_private_key"],
+		},
+	}
+
+	rendered := fmt.Sprintf("%+v", SanitizeExchangeConfigForLog(exchanges))
+
+	for field, secret := range secrets {
+		if strings.Contains(rendered, secret) {
+			t.Errorf("sanitized log leaked plaintext %s: %q present in %q", field, secret, rendered)
+		}
 	}
 }
 

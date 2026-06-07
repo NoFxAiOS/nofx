@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -100,4 +101,17 @@ func (h *chatHistory) CleanOld(maxAge time.Duration) {
 			}
 		}
 	}
+}
+
+func (a *Agent) getLastAssistantReply(userID int64) string {
+	if a == nil || a.history == nil {
+		return ""
+	}
+	msgs := a.history.Get(userID)
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if strings.EqualFold(strings.TrimSpace(msgs[i].Role), "assistant") {
+			return strings.TrimSpace(msgs[i].Content)
+		}
+	}
+	return ""
 }

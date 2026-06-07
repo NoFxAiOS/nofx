@@ -11,6 +11,7 @@ import {
   type UserMode,
 } from '../../lib/onboarding'
 import { getCurrentPageForPath, ROUTES, type Page } from '../../router/paths'
+import { HyperliquidWalletConnect } from './HyperliquidWalletConnect'
 
 interface HeaderBarProps {
   onLoginClick?: () => void
@@ -108,11 +109,14 @@ export default function HeaderBar({
                 path: string
                 label: string
                 requiresAuth: boolean
+                badge?: string
+                hidden?: boolean
               }[] = [
                 {
                   page: 'agent',
                   path: ROUTES.agent,
                   label: 'Agent',
+                  badge: 'Beta',
                   requiresAuth: false,
                 },
                 {
@@ -182,7 +186,7 @@ export default function HeaderBar({
                 navigateInApp(tab.path)
               }
 
-              return navTabs.map((tab) => (
+              return navTabs.filter((tab) => !tab.hidden).map((tab) => (
                 <button
                   key={tab.page}
                   onClick={() => handleNavClick(tab)}
@@ -193,6 +197,11 @@ export default function HeaderBar({
                     <span className="absolute inset-0 rounded-lg bg-nofx-gold/15 -z-10" />
                   )}
                   {tab.label}
+                  {tab.badge && (
+                    <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-nofx-gold/20 text-nofx-gold font-semibold uppercase align-top relative -top-1">
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
               ))
             })()}
@@ -200,6 +209,7 @@ export default function HeaderBar({
 
           {/* Right Side - Social Links and User Actions */}
           <div className="flex items-center gap-4">
+            <HyperliquidWalletConnect language={language} isLoggedIn={isLoggedIn} />
             {/* Social Links - Always visible */}
             <div className="flex items-center gap-1">
               {/* GitHub */}
@@ -436,6 +446,8 @@ export default function HeaderBar({
                     path: string
                     label: string
                     requiresAuth: boolean
+                    badge?: string
+                    hidden?: boolean
                   }[] = [
                     {
                       page: 'agent',
@@ -510,7 +522,7 @@ export default function HeaderBar({
                     setMobileMenuOpen(false)
                   }
 
-                  return navTabs.map((tab, i) => (
+                  return navTabs.filter((tab) => !tab.hidden).map((tab, i) => (
                     <motion.button
                       key={tab.page}
                       initial={{ x: -20, opacity: 0 }}
@@ -527,6 +539,11 @@ export default function HeaderBar({
                         />
                       )}
                       {tab.label}
+                      {tab.badge && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-nofx-gold/20 text-nofx-gold font-semibold uppercase align-middle relative -top-1">
+                          {tab.badge}
+                        </span>
+                      )}
                       {tab.requiresAuth && !isLoggedIn && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-800 text-zinc-500 font-normal tracking-wide uppercase align-middle relative -top-1">
                           LOGIN_REQ

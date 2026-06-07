@@ -2,22 +2,7 @@ import { forwardRef } from 'react'
 import { motion } from 'framer-motion'
 import { AgentStepPanel } from './AgentStepPanel'
 import { renderMessageContent } from './MessageRenderer'
-
-interface AgentStep {
-  id: string
-  label: string
-  status: 'planning' | 'pending' | 'running' | 'completed' | 'replanned'
-  detail?: string
-}
-
-interface Message {
-  id: string
-  role: 'user' | 'bot'
-  text: string
-  time: string
-  streaming?: boolean
-  steps?: AgentStep[]
-}
+import type { AgentMessage as Message, AgentStep } from '../../types/agent'
 
 interface ChatMessagesProps {
   messages: Message[]
@@ -25,7 +10,14 @@ interface ChatMessagesProps {
 
 function hasMeaningfulExecutionSteps(steps?: AgentStep[]) {
   if (!steps || steps.length === 0) return false
-  return steps.some((step) => step.status !== 'planning')
+  // Tool steps (label "tool:get_positions" etc.) ARE meaningful — they're the
+  // visible signal that the agent is actually doing something. Only drop the
+  // internal routing chatter (central_brain) and pure-planning placeholders.
+  return steps.some((step) => {
+    const detail = (step.detail || '').trim().toLowerCase()
+    if (detail === 'central_brain') return false
+    return step.status !== 'planning'
+  })
 }
 
 export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
@@ -97,9 +89,9 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
                     fontSize: 13.5,
                     lineHeight: 1.7,
                     wordBreak: 'break-word',
-                    background: 'rgba(255,255,255,0.03)',
+                    background: 'rgba(255,255,255,0.05)',
                     color: '#dcdce8',
-                    border: '1px solid rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.08)',
                   }}
                 >
                   <AgentStepPanel steps={m.steps} visible={hasMeaningfulExecutionSteps(m.steps)} />
@@ -131,7 +123,7 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
                 <div
                   style={{
                     fontSize: 10,
-                    color: '#2c2c42',
+                    color: '#5a5a72',
                     marginTop: 4,
                     textAlign: m.role === 'user' ? 'right' : 'left',
                     paddingLeft: m.role === 'bot' ? 4 : 0,

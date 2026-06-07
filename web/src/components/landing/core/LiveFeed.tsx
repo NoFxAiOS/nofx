@@ -10,29 +10,29 @@ interface LogEntry {
 }
 
 const generateLog = (id: number): LogEntry => {
-    const types = ['EXE', 'ARB', 'LIQ', 'NET', 'SYS']
-    const pairs = ['BTC-USDT', 'ETH-PERP', 'SOL-USDT', 'BNB-BUSD']
-    const actions = ['BUY', 'SELL', 'SHORT', 'LONG']
+    const types = ['EXEC', 'SIGNAL', 'RISK', 'MACRO', 'SYS']
+    const pairs = ['AAPL-USDC', 'NVDA-USDC', 'GOLD-USDC', 'EURUSD-USDC', 'OPENAI-IPO']
+    const actions = ['BUY', 'SELL', 'HEDGE', 'ROTATE']
     const type = types[Math.floor(Math.random() * types.length)]
 
     let msg = ''
     let color = ''
 
     switch (type) {
-        case 'EXE':
-            msg = `BOT-${Math.floor(Math.random() * 99)} ${actions[Math.floor(Math.random() * 4)]} ${pairs[Math.floor(Math.random() * 4)]} @ ${Math.floor(Math.random() * 60000)}`
+        case 'EXEC':
+            msg = `AGENT-${Math.floor(Math.random() * 99)} ${actions[Math.floor(Math.random() * 4)]} ${pairs[Math.floor(Math.random() * pairs.length)]} @ ${Math.floor(Math.random() * 600)}`
             color = 'text-green-500'
             break;
-        case 'ARB':
-            msg = `Spread detected: BINANCE <> BYBIT (${(Math.random()).toFixed(3)}%)`
+        case 'SIGNAL':
+            msg = `US equities momentum signal confirmed (${(Math.random()).toFixed(3)} z-score)`
             color = 'text-nofx-gold'
             break;
-        case 'LIQ':
-            msg = `Liquidation Alert: ${pairs[Math.floor(Math.random() * 4)]} $${Math.floor(Math.random() * 100)}k REKT`
+        case 'RISK':
+            msg = `Risk check passed: ${pairs[Math.floor(Math.random() * pairs.length)]} exposure within limits`
             color = 'text-red-500'
             break;
-        case 'NET':
-            msg = `Block propagation latency < ${Math.floor(Math.random() * 10)}ms`
+        case 'MACRO':
+            msg = `Macro feed latency < ${Math.floor(Math.random() * 10)}ms`
             color = 'text-zinc-500'
             break;
         default:
@@ -91,9 +91,9 @@ export default function LiveFeed() {
                                 className="absolute inset-0 flex items-center gap-4"
                             >
                                 <span className="text-zinc-600">[{log.time}]</span>
-                                <span className={`font-bold w-10 ${log.type === 'LIQ' ? 'text-red-500 bg-red-500/10 px-1 rounded' :
-                                    log.type === 'ARB' ? 'text-nofx-gold bg-nofx-gold/10 px-1 rounded' :
-                                        log.type === 'EXE' ? 'text-green-500' : 'text-zinc-500'
+                                <span className={`font-bold w-10 ${log.type === 'RISK' ? 'text-blue-400 bg-blue-500/10 px-1 rounded' :
+                                    log.type === 'SIGNAL' ? 'text-nofx-gold bg-nofx-gold/10 px-1 rounded' :
+                                        log.type === 'EXEC' ? 'text-green-500' : 'text-zinc-500'
                                     }`}>{log.type}</span>
                                 <span className={`${log.color}`}>{log.msg}</span>
                             </motion.div>
@@ -105,8 +105,8 @@ export default function LiveFeed() {
                         {logs.map((log) => (
                             <div key={log.id} className="flex gap-2 w-full truncate border-b border-zinc-900/50 pb-1 last:border-0">
                                 <span className="text-zinc-700 w-16 shrink-0">{log.time.split('.')[0]}</span>
-                                <span className={`font-bold w-8 shrink-0 ${log.type === 'LIQ' ? 'text-red-500' :
-                                    log.type === 'ARB' ? 'text-nofx-gold' :
+                                <span className={`font-bold w-8 shrink-0 ${log.type === 'RISK' ? 'text-blue-400' :
+                                    log.type === 'SIGNAL' ? 'text-nofx-gold' :
                                         'text-zinc-500'
                                     }`}>{log.type}</span>
                                 <span className={`${log.color} truncate`}>{log.msg}</span>

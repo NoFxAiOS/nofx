@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const maxPersistentPreferenceLength = 500
+
 // PersistentPreference is a durable user instruction shown in the UI and
 // injected into the agent context for future conversations.
 type PersistentPreference struct {
@@ -20,6 +22,9 @@ func NewPersistentPreference(text string) (PersistentPreference, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return PersistentPreference{}, fmt.Errorf("text required")
+	}
+	if len([]rune(text)) > maxPersistentPreferenceLength {
+		return PersistentPreference{}, fmt.Errorf("text too long (max %d characters)", maxPersistentPreferenceLength)
 	}
 
 	now := time.Now().UTC()

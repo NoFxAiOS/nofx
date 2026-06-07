@@ -114,18 +114,17 @@ func getKlinesFromCoinAnk(symbol, interval, exchange string, limit int) ([]Kline
 
 // getKlinesFromHyperliquid fetches kline data from Hyperliquid API for xyz dex assets
 func getKlinesFromHyperliquid(symbol, interval string, limit int) ([]Kline, error) {
-	// Remove xyz: prefix if present for the API call
-	baseCoin := strings.TrimPrefix(symbol, "xyz:")
-
-	// Map interval to Hyperliquid format
+	// Pass the symbol AS-IS to GetCandles. It internally calls FormatCoinForAPI
+	// which handles the xyz: prefix correctly. Stripping the prefix here was a
+	// bug: if the base symbol (e.g. "QNT") was not in our hardcoded
+	// StockPerpsSymbols list, FormatCoinForAPI couldn't tell it was an xyz
+	// asset and the request hit the crypto perp endpoint instead — which
+	// returns 500 for stock symbols that have no crypto perp on Hyperliquid.
 	hlInterval := hyperliquid.MapTimeframe(interval)
 
-	// Create Hyperliquid client
 	client := hyperliquid.NewClient()
-
-	// Fetch candles
 	ctx := context.Background()
-	candles, err := client.GetCandles(ctx, baseCoin, hlInterval, limit)
+	candles, err := client.GetCandles(ctx, symbol, hlInterval, limit)
 	if err != nil {
 		return nil, fmt.Errorf("Hyperliquid API error: %w", err)
 	}

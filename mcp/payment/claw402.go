@@ -50,7 +50,7 @@ func shortAddr(addr string) string {
 
 const (
 	DefaultClaw402URL   = "https://claw402.ai"
-	DefaultClaw402Model = "glm-5"
+	DefaultClaw402Model = "deepseek-v4-flash"
 )
 
 // claw402ModelEndpoints maps user-friendly model names to claw402 API paths.
@@ -65,6 +65,8 @@ var claw402ModelEndpoints = map[string]string{
 	// DeepSeek
 	"deepseek":          "/api/v1/ai/deepseek/chat",
 	"deepseek-reasoner": "/api/v1/ai/deepseek/chat/reasoner",
+	"deepseek-v4-flash": "/api/v1/ai/deepseek/v4-flash",
+	"deepseek-v4-pro":   "/api/v1/ai/deepseek/v4-pro",
 	// Qwen
 	"qwen-max":   "/api/v1/ai/qwen/chat/max",
 	"qwen-plus":  "/api/v1/ai/qwen/chat/plus",
@@ -223,18 +225,34 @@ func (c *Claw402Client) signPayment(paymentHeaderB64 string) (string, error) {
 
 // ── Format overrides for Anthropic endpoints ─────────────────────────────────
 
+// stripMaxTokens removes per-call max_tokens caps from a body destined for
+// claw402. The gateway already enforces a per-route default/floor/cap
+// (see providers/*.yaml token_default_max_out / token_min_max_out /
+// token_max_out_cap). Sending a small max_tokens here on a thinking model
+// (Kimi K2.5, DeepSeek R1/V4) caused reasoning tokens to consume the entire
+// budget and left `delta.content` empty, surfacing as "no content received".
+// upto settles on real usage, so removing the cap costs nothing extra.
+func stripMaxTokens(body map[string]any) map[string]any {
+	if body == nil {
+		return body
+	}
+	delete(body, "max_tokens")
+	delete(body, "max_completion_tokens")
+	return body
+}
+
 func (c *Claw402Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildMCPRequestBody(systemPrompt, userPrompt)
 	}
-	return c.Client.BuildMCPRequestBody(systemPrompt, userPrompt)
+	return stripMaxTokens(c.Client.BuildMCPRequestBody(systemPrompt, userPrompt))
 }
 
 func (c *Claw402Client) BuildRequestBodyFromRequest(req *mcp.Request) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildRequestBodyFromRequest(req)
 	}
-	return c.Client.BuildRequestBodyFromRequest(req)
+	return stripMaxTokens(c.Client.BuildRequestBodyFromRequest(req))
 }
 
 func (c *Claw402Client) ParseMCPResponse(body []byte) (string, error) {

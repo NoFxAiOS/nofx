@@ -9,8 +9,14 @@ services:
     stop_grace_period: 30s  # Allow the app 30 seconds for graceful shutdown
     ports:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
-      - "6060:6060"  # pprof profiling
+      # pprof profiling is bound to host loopback only; uncomment for local debug.
+      # - "127.0.0.1:6060:6060"
     volumes:
+      # NOTE: .env is bind-mounted so the beginner-onboarding flow
+      # (persistBeginnerWalletEnv) can write CLAW402_WALLET_* back to the host
+      # file. Without this mount the wallet is regenerated on every container
+      # restart. For threat models where the .env file should not be reachable
+      # via container RCE, deploy via env vars only and remove this mount.
       - ./.env:/app/.env
       - ./data:/app/data
       - /etc/localtime:/etc/localtime:ro

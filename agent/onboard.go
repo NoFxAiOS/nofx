@@ -11,6 +11,7 @@ import (
 )
 
 var titleCaser = cases.Title(language.English)
+
 const setupExchangeAccountName = "Default"
 
 // Onboard handles first-time setup through natural language.
@@ -41,6 +42,11 @@ func (a *Agent) needsSetup() bool {
 
 // getSetupState loads the current setup state from user preferences.
 func (a *Agent) getSetupState(userID int64) *SetupState {
+	if cached, ok := a.setupStates.Load(userID); ok {
+		if state, ok := cached.(*SetupState); ok && state != nil {
+			return cloneSetupState(state)
+		}
+	}
 	step, _ := a.store.GetSystemConfig(fmt.Sprintf("setup_step_%d", userID))
 	if step == "" {
 		return &SetupState{}
@@ -49,46 +55,30 @@ func (a *Agent) getSetupState(userID int64) *SetupState {
 		Step:       step,
 		Exchange:   getConfig(a.store, userID, "exchange"),
 		ExchangeID: getConfig(a.store, userID, "exchange_id"),
-		APIKey:     getConfig(a.store, userID, "api_key"),
-		APISecret:  getConfig(a.store, userID, "api_secret"),
-		Passphrase: getConfig(a.store, userID, "passphrase"),
 		AIProvider: getConfig(a.store, userID, "ai_provider"),
 		AIModel:    getConfig(a.store, userID, "ai_model"),
 		AIModelID:  getConfig(a.store, userID, "ai_model_id"),
-		AIKey:      getConfig(a.store, userID, "ai_key"),
 		AIBaseURL:  getConfig(a.store, userID, "ai_base_url"),
 	}
 }
 
 func (a *Agent) saveSetupState(userID int64, s *SetupState) {
+	a.setupStates.Store(userID, cloneSetupState(s))
 	a.store.SetSystemConfig(fmt.Sprintf("setup_step_%d", userID), s.Step)
 	setConfig(a.store, userID, "exchange", s.Exchange)
 	setConfig(a.store, userID, "exchange_id", s.ExchangeID)
-	// Store only a masked marker for secrets — full values stay in memory only.
-	// This prevents plaintext credentials from lingering in the config store
-	// if the setup flow is interrupted before clearSetupState runs.
-	if s.APIKey != "" {
-		setConfig(a.store, userID, "api_key", "****")
-	}
-	if s.APISecret != "" {
-		setConfig(a.store, userID, "api_secret", "****")
-	}
-	if s.Passphrase != "" {
-		setConfig(a.store, userID, "passphrase", "****")
-	}
 	setConfig(a.store, userID, "ai_provider", s.AIProvider)
 	setConfig(a.store, userID, "ai_model", s.AIModel)
 	setConfig(a.store, userID, "ai_model_id", s.AIModelID)
-	if s.AIKey != "" {
-		setConfig(a.store, userID, "ai_key", "****")
-	}
 	setConfig(a.store, userID, "ai_base_url", s.AIBaseURL)
 }
 
 func (a *Agent) clearSetupState(userID int64) {
-	for _, k := range []string{"step", "exchange", "exchange_id", "api_key", "api_secret", "passphrase", "ai_provider", "ai_model", "ai_model_id", "ai_key", "ai_base_url"} {
+	a.setupStates.Delete(userID)
+	for _, k := range []string{"step", "exchange", "exchange_id", "ai_provider", "ai_model", "ai_model_id", "ai_base_url"} {
 		a.store.SetSystemConfig(fmt.Sprintf("setup_%s_%d", k, userID), "")
 	}
+	a.store.SetSystemConfig(fmt.Sprintf("setup_step_%d", userID), "")
 }
 
 func getConfig(st *store.Store, uid int64, key string) string {
@@ -98,6 +88,14 @@ func getConfig(st *store.Store, uid int64, key string) string {
 
 func setConfig(st *store.Store, uid int64, key, val string) {
 	st.SetSystemConfig(fmt.Sprintf("setup_%s_%d", key, uid), val)
+}
+
+func cloneSetupState(s *SetupState) *SetupState {
+	if s == nil {
+		return &SetupState{}
+	}
+	copy := *s
+	return &copy
 }
 
 // handleSetupFlow processes the setup conversation.
@@ -163,7 +161,7 @@ func (a *Agent) handleSetupFlowForStoreUser(storeUserID string, userID int64, te
 			if L == "zh" {
 				return fmt.Sprintf("⚠️ 交易所配置保存失败: %v\n请再试一次，或稍后去 Web UI 继续。", err), true
 			}
-			return fmt.Sprintf("⚠️ Failed to save exchange config: %v\nPlease try again, or continue later in the Web UI.", err), true
+			return fmt.Sprintf("⚠️ I could not save the exchange settings just now: %v\nPlease try again, or continue later on the web page.", err), true
 		}
 		state.ExchangeID = exchangeID
 		state.Step = "await_ai_model"
@@ -180,7 +178,7 @@ func (a *Agent) handleSetupFlowForStoreUser(storeUserID string, userID int64, te
 			if L == "zh" {
 				return fmt.Sprintf("⚠️ 交易所配置保存失败: %v\n请再试一次，或稍后去 Web UI 继续。", err), true
 			}
-			return fmt.Sprintf("⚠️ Failed to save exchange config: %v\nPlease try again, or continue later in the Web UI.", err), true
+			return fmt.Sprintf("⚠️ I could not save the exchange settings just now: %v\nPlease try again, or continue later on the web page.", err), true
 		}
 		state.ExchangeID = exchangeID
 		state.Step = "await_ai_model"
@@ -199,7 +197,7 @@ func (a *Agent) handleSetupFlowForStoreUser(storeUserID string, userID int64, te
 			if L == "zh" {
 				return fmt.Sprintf("⚠️ AI 模型配置保存失败: %v\n请再试一次，或稍后去 Web UI 继续。", err), true
 			}
-			return fmt.Sprintf("⚠️ Failed to save AI model config: %v\nPlease try again, or continue later in the Web UI.", err), true
+			return fmt.Sprintf("⚠️ I could not save the AI model settings just now: %v\nPlease try again, or continue later on the web page.", err), true
 		}
 		state.AIModelID = aiModelID
 		return a.finishSetup(storeUserID, userID, state, L)
@@ -263,19 +261,19 @@ func (a *Agent) handleAIChoice(storeUserID string, userID int64, text string, st
 	lower := strings.ToLower(strings.TrimSpace(text))
 
 	models := map[string]struct{ provider, model, url string }{
-		"deepseek":  {"deepseek", "deepseek-chat", "https://api.deepseek.com/v1"},
-		"1":         {"deepseek", "deepseek-chat", "https://api.deepseek.com/v1"},
-		"qwen":      {"qwen", "qwen-plus", "https://dashscope.aliyuncs.com/compatible-mode/v1"},
+		"deepseek": {"deepseek", "deepseek-chat", "https://api.deepseek.com/v1"},
+		"1":        {"deepseek", "deepseek-chat", "https://api.deepseek.com/v1"},
+		"qwen":     {"qwen", "qwen-plus", "https://dashscope.aliyuncs.com/compatible-mode/v1"},
 		"通义":       {"qwen", "qwen-plus", "https://dashscope.aliyuncs.com/compatible-mode/v1"},
-		"2":         {"qwen", "qwen-plus", "https://dashscope.aliyuncs.com/compatible-mode/v1"},
-		"openai":    {"openai", "gpt-4o", "https://api.openai.com/v1"},
-		"gpt":       {"openai", "gpt-4o", "https://api.openai.com/v1"},
-		"3":         {"openai", "gpt-4o", "https://api.openai.com/v1"},
-		"claude":    {"claude", "claude-3-5-sonnet-20241022", "https://api.anthropic.com/v1"},
-		"4":         {"claude", "claude-3-5-sonnet-20241022", "https://api.anthropic.com/v1"},
-		"skip":      {"", "", ""},
+		"2":        {"qwen", "qwen-plus", "https://dashscope.aliyuncs.com/compatible-mode/v1"},
+		"openai":   {"openai", "gpt-4o", "https://api.openai.com/v1"},
+		"gpt":      {"openai", "gpt-4o", "https://api.openai.com/v1"},
+		"3":        {"openai", "gpt-4o", "https://api.openai.com/v1"},
+		"claude":   {"claude", "claude-3-5-sonnet-20241022", "https://api.anthropic.com/v1"},
+		"4":        {"claude", "claude-3-5-sonnet-20241022", "https://api.anthropic.com/v1"},
+		"skip":     {"", "", ""},
 		"跳过":       {"", "", ""},
-		"5":         {"", "", ""},
+		"5":        {"", "", ""},
 	}
 
 	choice, ok := models[lower]
@@ -457,7 +455,7 @@ func (a *Agent) saveSetupExchange(storeUserID string, state *SetupState) (string
 				storeUserID, ex.ID, true,
 				apiKey, apiSecret, passphrase,
 				false,
-				hlWallet, hlUnified,
+				hlWallet, hlUnified, false,
 				"", "", "",
 				"", "", "", 0,
 			); err != nil {
@@ -474,7 +472,7 @@ func (a *Agent) saveSetupExchange(storeUserID string, state *SetupState) (string
 		true,
 		apiKey, apiSecret, passphrase,
 		false,
-		hlWallet, hlUnified,
+		hlWallet, hlUnified, false,
 		"", "", "",
 		"", "", "", 0,
 	)

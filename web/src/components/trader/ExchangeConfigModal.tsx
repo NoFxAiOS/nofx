@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import type { Exchange } from '../../types'
 import { t, type Language } from '../../i18n/translations'
 import { api } from '../../lib/api'
+import { useAuth } from '../../contexts/AuthContext'
+import { HyperliquidWalletConnect } from '../common/HyperliquidWalletConnect'
 import { getExchangeIcon } from '../common/ExchangeIcons'
 import {
   TwoStageKeyModal,
@@ -151,6 +153,7 @@ export function ExchangeConfigModal({
   onClose,
   language,
 }: ExchangeConfigModalProps) {
+  const { user } = useAuth()
   // Step: 0 = select exchange, 1 = configure
   const [currentStep, setCurrentStep] = useState(editingExchangeId ? 1 : 0)
   const [selectedExchangeType, setSelectedExchangeType] = useState('')
@@ -169,9 +172,6 @@ export function ExchangeConfigModal({
   const [asterUser, setAsterUser] = useState('')
   const [asterSigner, setAsterSigner] = useState('')
   const [asterPrivateKey, setAsterPrivateKey] = useState('')
-
-  // Hyperliquid fields
-  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('')
 
   // Lighter fields
   const [lighterWalletAddr, setLighterWalletAddr] = useState('')
@@ -219,7 +219,6 @@ export function ExchangeConfigModal({
       setAsterUser(selectedExchange.asterUser || '')
       setAsterSigner(selectedExchange.asterSigner || '')
       setAsterPrivateKey('')
-      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '')
       setLighterWalletAddr(selectedExchange.lighterWalletAddr || '')
       setLighterApiKeyPrivateKey('')
       setLighterApiKeyIndex(selectedExchange.lighterApiKeyIndex || 0)
@@ -278,12 +277,6 @@ export function ExchangeConfigModal({
     setSecureInputTarget(null)
   }
 
-  const maskSecret = (secret: string) => {
-    if (!secret || secret.length === 0) return ''
-    if (secret.length <= 8) return '*'.repeat(secret.length)
-    return secret.slice(0, 4) + '*'.repeat(Math.max(secret.length - 8, 4)) + secret.slice(-4)
-  }
-
   const handleSelectExchange = (exchangeType: string) => {
     setSelectedExchangeType(exchangeType)
     setCurrentStep(1)
@@ -321,8 +314,8 @@ export function ExchangeConfigModal({
         if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), secretKey.trim(), passphrase.trim(), testnet)
       } else if (currentExchangeType === 'hyperliquid') {
-        if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return
-        await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), '', '', testnet, hyperliquidWalletAddr.trim())
+        toast.error(language === 'zh' ? 'Hyperliquid 请使用钱包授权流程连接。' : 'Use the wallet authorization flow to connect Hyperliquid.')
+        return
       } else if (currentExchangeType === 'aster') {
         if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, asterUser.trim(), asterSigner.trim(), asterPrivateKey.trim())
@@ -688,32 +681,28 @@ export function ExchangeConfigModal({
                 </>
               )}
 
-              {/* Hyperliquid Fields */}
+              {/* Hyperliquid Wallet Authorization */}
               {currentExchangeType === 'hyperliquid' && (
-                <>
+                <div className="space-y-4">
                   <div className="p-4 rounded-xl" style={{ background: 'rgba(127, 231, 204, 0.1)', border: '1px solid rgba(127, 231, 204, 0.3)' }}>
                     <div className="flex items-start gap-2">
                       <span style={{ fontSize: '16px' }}>🔐</span>
                       <div>
-                        <div className="text-sm font-semibold mb-1" style={{ color: '#7FE7CC' }}>{t('hyperliquidAgentWalletTitle', language)}</div>
-                        <div className="text-xs" style={{ color: '#848E9C' }}>{t('hyperliquidAgentWalletDesc', language)}</div>
+                        <div className="text-sm font-semibold mb-1" style={{ color: '#7FE7CC' }}>
+                          {language === 'zh' ? 'Hyperliquid 必须走钱包授权' : 'Hyperliquid requires wallet authorization'}
+                        </div>
+                        <div className="text-xs leading-5" style={{ color: '#848E9C' }}>
+                          {language === 'zh'
+                            ? '不再支持手动填写私钥/API Key。请用 MetaMask、Rabby、OKX、Coinbase Wallet 等 EVM 钱包完成连接、Agent 授权和 Builder fee 授权。'
+                            : 'Manual private-key/API-key entry is disabled. Use MetaMask, Rabby, OKX, Coinbase Wallet or another EVM wallet to connect, authorize the agent, and approve the builder fee.'}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>{t('hyperliquidAgentPrivateKey', language)}</label>
-                    <div className="flex gap-2">
-                      <input type="text" value={maskSecret(apiKey)} readOnly placeholder={t('enterHyperliquidAgentPrivateKey', language)} className="flex-1 px-4 py-3 rounded-xl" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }} />
-                      <button type="button" onClick={() => setSecureInputTarget('hyperliquid')} className="px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:scale-105" style={{ background: '#7FE7CC', color: '#000' }}>
-                        {apiKey ? t('secureInputReenter', language) : t('secureInputButton', language)}
-                      </button>
-                    </div>
+                  <div className="flex justify-start">
+                    <HyperliquidWalletConnect language={language} isLoggedIn={Boolean(user)} variant="inline" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>{t('hyperliquidMainWalletAddress', language)}</label>
-                    <input type="text" value={hyperliquidWalletAddr} onChange={(e) => setHyperliquidWalletAddr(e.target.value)} placeholder={t('enterHyperliquidMainWalletAddress', language)} className="w-full px-4 py-3 rounded-xl" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }} required />
-                  </div>
-                </>
+                </div>
               )}
 
               {/* Lighter Fields */}
@@ -758,18 +747,20 @@ export function ExchangeConfigModal({
               {/* Buttons */}
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={handleBack} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5" style={{ background: '#2B3139', color: '#848E9C' }}>
-                  {editingExchangeId ? t('cancel', language) : t('exchangeConfig.back', language)}
+                  {currentExchangeType === 'hyperliquid' ? t('closeGuide', language) : editingExchangeId ? t('cancel', language) : t('exchangeConfig.back', language)}
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSaving || !accountName.trim()}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ background: '#F0B90B', color: '#000' }}
-                >
-                  {isSaving ? t('saving', language) : (
-                    <>{t('saveConfig', language)} <ArrowRight className="w-4 h-4" /></>
-                  )}
-                </button>
+                {currentExchangeType !== 'hyperliquid' && (
+                  <button
+                    type="submit"
+                    disabled={isSaving || !accountName.trim()}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: '#F0B90B', color: '#000' }}
+                  >
+                    {isSaving ? t('saving', language) : (
+                      <>{t('saveConfig', language)} <ArrowRight className="w-4 h-4" /></>
+                    )}
+                  </button>
+                )}
               </div>
             </form>
           )}

@@ -11,15 +11,20 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	gethcrypto "github.com/ethereum/go-ethereum/crypto"
 
 	"nofx/manager"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
+	"nofx/wallet"
 )
 
 type Agent struct {
@@ -34,22 +39,35 @@ type Agent struct {
 	history       *chatHistory
 	pending       *pendingTrades
 	stopCh        chan struct{} // signals background goroutines to stop
+	setupStates   sync.Map
+	flowLocks     sync.Map
 	NotifyFunc    func(userID int64, text string) error
 }
 
 type Config struct {
-	Language       string   `json:"language"`
-	WatchSymbols   []string `json:"watch_symbols"`
-	EnableBriefs   bool     `json:"enable_briefs"`
-	EnableNews     bool     `json:"enable_news"`
-	EnableSentinel bool     `json:"enable_sentinel"`
-	BriefTimes     []int    `json:"brief_times"`
+	Language            string   `json:"language"`
+	WatchSymbols        []string `json:"watch_symbols"`
+	EnableBriefs        bool     `json:"enable_briefs"`
+	EnableNews          bool     `json:"enable_news"`
+	EnableSentinel      bool     `json:"enable_sentinel"`
+	AllowTradeExecution bool     `json:"allow_trade_execution"`
+	BriefTimes          []int    `json:"brief_times"`
 }
+
+var (
+	agentWalletAddressFromPrivateKey = walletAddressFromPrivateKey
+	agentQueryUSDCBalanceCached      = wallet.QueryUSDCBalanceCached
+)
 
 func DefaultConfig() *Config {
 	return &Config{
-		Language: "zh", WatchSymbols: []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"},
-		EnableBriefs: true, EnableNews: true, EnableSentinel: true, BriefTimes: []int{8, 20},
+		Language:            "zh",
+		WatchSymbols:        []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"},
+		EnableBriefs:        true,
+		EnableNews:          true,
+		EnableSentinel:      true,
+		AllowTradeExecution: true,
+		BriefTimes:          []int{8, 20},
 	}
 }
 
@@ -57,16 +75,30 @@ func New(tm *manager.TraderManager, st *store.Store, cfg *Config, logger *slog.L
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
-	return &Agent{traderManager: tm, store: st, config: cfg, logger: logger, history: newChatHistory(100), pending: newPendingTrades(), stopCh: make(chan struct{})}
+	return &Agent{traderManager: tm, store: st, config: cfg, logger: logger, history: newChatHistory(chatHistoryMaxTurns), pending: newPendingTrades(), stopCh: make(chan struct{})}
 }
 
 func (a *Agent) SetAIClient(c mcp.AIClient) { a.aiClient = c }
+
+func (a *Agent) ensureHistory() {
+	if a.history == nil {
+		a.history = newChatHistory(100)
+	}
+}
 
 func (a *Agent) log() *slog.Logger {
 	if a != nil && a.logger != nil {
 		return a.logger
 	}
 	return slog.Default()
+}
+
+func (a *Agent) flowLock(userID int64) *sync.Mutex {
+	if a == nil {
+		return &sync.Mutex{}
+	}
+	lock, _ := a.flowLocks.LoadOrStore(userID, &sync.Mutex{})
+	return lock.(*sync.Mutex)
 }
 
 func (a *Agent) EnsureAIClient() {
@@ -100,45 +132,195 @@ func (a *Agent) loadAIClientFromStoreUser(storeUserID string) (mcp.AIClient, str
 	if storeUserID == "" {
 		storeUserID = "default"
 	}
+	candidateUserIDs := []string{storeUserID}
+	if storeUserID != "default" {
+		candidateUserIDs = append(candidateUserIDs, "default")
+	}
+	for _, candidateUserID := range candidateUserIDs {
+		models, err := a.store.AIModel().List(candidateUserID)
+		if err != nil {
+			a.log().Warn("failed to list AI models for store user", "store_user_id", candidateUserID, "error", err)
+			continue
+		}
+		candidates := rankAgentModelCandidates(models)
+		for _, candidate := range candidates {
+			model := candidate.model
+			if model == nil || !model.Enabled || !agentModelHasUsableAPIKey(model) {
+				continue
+			}
 
-	model, err := a.store.AIModel().GetDefault(storeUserID)
-	if err != nil || model == nil {
-		a.log().Warn("no enabled AI model found for store user", "store_user_id", storeUserID, "error", err)
-		return nil, "", false
+			a.log().Info(
+				"agent evaluating AI model config",
+				"store_user_id", candidateUserID,
+				"model_id", model.ID,
+				"provider", model.Provider,
+				"enabled", model.Enabled,
+				"has_api_key", len(model.APIKey) > 0,
+				"custom_api_url", strings.TrimSpace(model.CustomAPIURL),
+				"custom_model_name", strings.TrimSpace(model.CustomModelName),
+				"prefer_model_with_balance", candidate.preferModelWithBalance,
+				"wallet_balance_usdc", candidate.balanceUSDC,
+			)
+
+			apiKey := strings.TrimSpace(string(model.APIKey))
+			customAPIURL := strings.TrimSpace(model.CustomAPIURL)
+			modelName := strings.TrimSpace(model.CustomModelName)
+			provider := strings.ToLower(strings.TrimSpace(model.Provider))
+
+			// Use the provider registry for providers like claw402 that have their own
+			// client implementation (x402 payment, custom auth, etc.).
+			if client := mcp.NewAIClientByProvider(provider); client != nil {
+				if modelName == "" {
+					modelName = model.ID
+				}
+				client.SetAPIKey(apiKey, customAPIURL, modelName)
+				a.log().Info("agent AI client selected (provider registry)", "store_user_id", candidateUserID, "model_id", model.ID, "provider", provider, "model", modelName)
+				return client, modelName, true
+			}
+
+			customAPIURL, modelName = resolveModelRuntimeConfig(provider, customAPIURL, modelName, model.ID)
+			if apiKey == "" || customAPIURL == "" {
+				a.log().Warn(
+					"skipping incomplete enabled AI model",
+					"store_user_id", candidateUserID,
+					"model_id", model.ID,
+					"provider", provider,
+					"has_api_key", apiKey != "",
+					"has_custom_api_url", customAPIURL != "",
+				)
+				continue
+			}
+
+			httpClient := &http.Client{Timeout: 60 * time.Second}
+			client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
+			client.SetAPIKey(apiKey, customAPIURL, modelName)
+			a.log().Info("agent AI client selected", "store_user_id", candidateUserID, "model_id", model.ID, "model", modelName)
+			return client, modelName, true
+		}
 	}
 
-	a.log().Info(
-		"agent selected AI model config",
-		"store_user_id", storeUserID,
-		"model_id", model.ID,
-		"provider", model.Provider,
-		"enabled", model.Enabled,
-		"has_api_key", len(model.APIKey) > 0,
-		"custom_api_url", strings.TrimSpace(model.CustomAPIURL),
-		"custom_model_name", strings.TrimSpace(model.CustomModelName),
-	)
+	a.log().Warn("no enabled AI model found for store user", "store_user_id", storeUserID)
+	return nil, "", false
+}
 
-	apiKey := string(model.APIKey)
-	customAPIURL := strings.TrimSpace(model.CustomAPIURL)
-	modelName := strings.TrimSpace(model.CustomModelName)
-	customAPIURL, modelName = resolveModelRuntimeConfig(model.Provider, customAPIURL, modelName, model.ID)
-	if apiKey == "" || customAPIURL == "" {
-		a.log().Warn(
-			"enabled AI model is incomplete",
-			"store_user_id", storeUserID,
-			"model_id", model.ID,
-			"provider", model.Provider,
-			"has_api_key", apiKey != "",
-			"has_custom_api_url", customAPIURL != "",
-		)
-		return nil, "", false
+type agentModelCandidate struct {
+	model                  *store.AIModel
+	preferModelWithBalance bool
+	balanceUSDC            float64
+}
+
+func rankAgentModelCandidates(models []*store.AIModel) []agentModelCandidate {
+	candidates := make([]agentModelCandidate, 0, len(models))
+	for _, model := range models {
+		if model == nil {
+			continue
+		}
+		candidate := agentModelCandidate{model: model}
+		if balance, ok := agentModelUSDCBalance(model); ok && balance > 0 {
+			candidate.preferModelWithBalance = true
+			candidate.balanceUSDC = balance
+		}
+		candidates = append(candidates, candidate)
 	}
 
-	httpClient := &http.Client{Timeout: 60 * time.Second}
-	client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
-	name := modelName
-	client.SetAPIKey(apiKey, customAPIURL, name)
-	return client, name, true
+	sort.SliceStable(candidates, func(i, j int) bool {
+		left := candidates[i]
+		right := candidates[j]
+		if left.preferModelWithBalance != right.preferModelWithBalance {
+			return left.preferModelWithBalance
+		}
+		if left.balanceUSDC != right.balanceUSDC {
+			return left.balanceUSDC > right.balanceUSDC
+		}
+		leftUpdatedAt := time.Time{}
+		rightUpdatedAt := time.Time{}
+		if left.model != nil {
+			leftUpdatedAt = left.model.UpdatedAt
+		}
+		if right.model != nil {
+			rightUpdatedAt = right.model.UpdatedAt
+		}
+		if !leftUpdatedAt.Equal(rightUpdatedAt) {
+			return leftUpdatedAt.After(rightUpdatedAt)
+		}
+		leftID := ""
+		rightID := ""
+		if left.model != nil {
+			leftID = left.model.ID
+		}
+		if right.model != nil {
+			rightID = right.model.ID
+		}
+		return leftID < rightID
+	})
+
+	return candidates
+}
+
+func agentModelUSDCBalance(model *store.AIModel) (float64, bool) {
+	if model == nil || !agentProviderSupportsUSDCBalance(model.Provider) {
+		return 0, false
+	}
+	privateKey := strings.TrimSpace(string(model.APIKey))
+	if privateKey == "" {
+		return 0, false
+	}
+	walletAddress, err := agentWalletAddressFromPrivateKey(privateKey)
+	if err != nil || strings.TrimSpace(walletAddress) == "" {
+		return 0, false
+	}
+	balance, err := agentQueryUSDCBalanceCached(walletAddress)
+	if err != nil || balance <= 0 {
+		return 0, false
+	}
+	return balance, true
+}
+
+func agentProviderSupportsUSDCBalance(provider string) bool {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "claw402", "blockrun-base":
+		return true
+	default:
+		return false
+	}
+}
+
+func agentModelHasUsableAPIKey(model *store.AIModel) bool {
+	if model == nil {
+		return false
+	}
+	if strings.TrimSpace(string(model.APIKey)) != "" {
+		return true
+	}
+	envKeyByProvider := map[string]string{
+		"deepseek": "DEEPSEEK_API_KEY",
+		"openai":   "OPENAI_API_KEY",
+		"claude":   "ANTHROPIC_API_KEY",
+		"gemini":   "GEMINI_API_KEY",
+		"grok":     "XAI_API_KEY",
+		"kimi":     "MOONSHOT_API_KEY",
+		"minimax":  "MINIMAX_API_KEY",
+		"qwen":     "DASHSCOPE_API_KEY",
+	}
+	envKey := envKeyByProvider[strings.ToLower(strings.TrimSpace(model.Provider))]
+	return envKey != "" && strings.TrimSpace(os.Getenv(envKey)) != ""
+}
+
+func walletAddressFromPrivateKey(privateKey string) (string, error) {
+	key := strings.TrimSpace(privateKey)
+	if !strings.HasPrefix(key, "0x") {
+		return "", fmt.Errorf("private key must start with 0x")
+	}
+	if len(key) != 66 {
+		return "", fmt.Errorf("private key must be 66 characters")
+	}
+
+	privateKeyObj, err := gethcrypto.HexToECDSA(strings.TrimPrefix(key, "0x"))
+	if err != nil {
+		return "", err
+	}
+
+	return gethcrypto.PubkeyToAddress(privateKeyObj.PublicKey).Hex(), nil
 }
 
 func resolveModelRuntimeConfig(provider, customAPIURL, customModelName, fallbackModelID string) (string, string) {
@@ -160,6 +342,7 @@ func resolveModelRuntimeConfig(provider, customAPIURL, customModelName, fallback
 		"grok":     {url: "https://api.x.ai/v1", model: "grok-3-latest"},
 		"kimi":     {url: "https://api.moonshot.ai/v1", model: "moonshot-v1-auto"},
 		"minimax":  {url: "https://api.minimax.chat/v1", model: "MiniMax-M2.5"},
+		"claw402":  {url: "https://claw402.ai", model: "deepseek"},
 	}
 
 	if customAPIURL == "" {
@@ -248,15 +431,16 @@ func (a *Agent) handleMessageForStoreUser(ctx context.Context, storeUserID strin
 		return a.handleStatus(lang), nil
 	}
 	if text == "/clear" {
-		a.history.Clear(userID)
-		a.clearTaskState(userID)
-		a.clearExecutionState(userID)
+		a.clearConversationState(userID)
 		if lang == "zh" {
 			return "🧹 对话记忆已清除。", nil
 		}
 		return "🧹 Conversation history cleared.", nil
 	}
 	if reply, handled := a.handleTradeConfirmation(ctx, userID, text, lang); handled {
+		return reply, nil
+	}
+	if reply, handled := a.handleModelWalletBalanceQuestion(storeUserID, lang, text); handled {
 		return reply, nil
 	}
 
@@ -294,9 +478,7 @@ func (a *Agent) handleMessageStreamForStoreUser(ctx context.Context, storeUserID
 		return a.handleStatus(lang), nil
 	}
 	if text == "/clear" {
-		a.history.Clear(userID)
-		a.clearTaskState(userID)
-		a.clearExecutionState(userID)
+		a.clearConversationState(userID)
 		if lang == "zh" {
 			return "🧹 对话记忆已清除。", nil
 		}
@@ -304,11 +486,35 @@ func (a *Agent) handleMessageStreamForStoreUser(ctx context.Context, storeUserID
 	}
 	if reply, handled := a.handleTradeConfirmation(ctx, userID, text, lang); handled {
 		if onEvent != nil {
-			onEvent(StreamEventDelta, reply)
+			emitStreamText(onEvent, reply)
+		}
+		return reply, nil
+	}
+	if reply, handled := a.handleModelWalletBalanceQuestion(storeUserID, lang, text); handled {
+		if onEvent != nil {
+			emitStreamText(onEvent, reply)
 		}
 		return reply, nil
 	}
 	return a.thinkAndActStream(ctx, storeUserID, userID, lang, text, onEvent)
+}
+
+func (a *Agent) clearConversationState(userID int64) {
+	if a == nil {
+		return
+	}
+	if a.history != nil {
+		a.history.Clear(userID)
+	}
+	a.clearTaskState(userID)
+	a.clearSkillSession(userID)
+	a.clearActiveSkillSession(userID)
+	a.clearPendingProposalSession(userID)
+	a.clearWorkflowSession(userID)
+	a.clearExecutionState(userID)
+	a.clearReferenceMemory(userID)
+	a.SnapshotManager(userID).Clear()
+	a.clearSetupState(userID)
 }
 
 // StreamEvent types sent via SSE to the frontend.
@@ -326,8 +532,12 @@ const (
 
 // buildSystemPrompt creates the system prompt that makes NOFXi behave like a real agent.
 func (a *Agent) buildSystemPrompt(lang string) string {
+	return a.buildSystemPromptForStoreUser(lang, "default")
+}
+
+func (a *Agent) buildSystemPromptForStoreUser(lang, storeUserID string) string {
 	// Gather live system state
-	traderInfo := a.getTradersSummary()
+	traderInfo := a.getTradersSummaryForStoreUser(storeUserID)
 	watchlist := ""
 	if a.sentinel != nil {
 		watchlist = a.sentinel.FormatWatchlist(lang)
@@ -367,19 +577,24 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 ## 工具使用
 你可以调用以下工具来执行操作：
 - **search_stock** — 搜索股票（支持中文名、英文名、代码）。当用户提到你不认识的股票时，先用这个工具搜索。
-- **execute_trade** — 下单交易（加密货币或美股）。美股：open_long=买入，close_long=卖出。调用后创建待确认订单，用户需回复"确认 trade_xxx"。
+- **execute_trade** — 下单交易（加密货币或美股）。常见写法："做多 BTC 0.01 x10"、"做空 ETH 0.1"、"平多 BTC"、"平空 ETH"；英文也支持 "long BTC 0.01 x10"、"short ETH 0.1"、"close long BTC"、"close short ETH"。美股：open_long=买入，close_long=卖出。调用后先创建待确认订单，不会立刻成交。若触发大额风控，用户必须回复"确认大额 trade_xxx"；待确认订单 5 分钟后自动失效。
 - **get_positions** — 查看当前所有持仓（加密货币 + 股票）
 - **get_balance** — 查看账户余额
 - **get_market_price** — 获取实时价格（加密货币或股票代码）
+- **get_kline** — 获取最近 K 线 / 蜡烛图数据（适合“看 15 分钟 K 线”“最近 50 根 1 小时 K 线”）
 - **get_exchange_configs / manage_exchange_config** — 查看、新增、修改、删除交易所绑定配置
 - **get_model_configs / manage_model_config** — 查看、新增、修改、删除 AI 模型配置
 - **get_strategies / manage_strategy** — 查看、新增、修改、删除、激活、复制策略模板
 - **manage_trader** — 查看、新增、修改、删除、启动、停止交易员
+- **get_watchlist / manage_watchlist** — 查看、添加、移除运行时监控币对，适合“把 BTC 加入监控”“别再监控 SOL”这类请求
 
 ### 配置、策略与交易员管理规则
 - 当用户要求创建、修改、删除、激活、复制策略模板时，优先使用 get_strategies / manage_strategy
 - **策略模板本身是独立资源，不默认依赖交易所或 AI 模型**
-- 只有当用户要求“运行策略 / 创建交易员 / 把策略部署到账户”时，才需要进一步关联交易所、模型或 trader
+- **策略模板创建成功后应立即出现在策略列表/策略页**
+- **策略模板不能直接启动或运行；只有交易员有运行态。**
+- 如果用户说“启动策略 / 运行策略”，要明确说明：应先把策略绑定到交易员，再启动交易员
+- 用户没问运行/部署/创建交易员时，不要主动延伸到交易员、模型或交易所绑定
 - 当用户要求配置交易所、绑定 API Key、修改交易所账户时，优先使用 manage_exchange_config
 - 当用户要求配置大模型、设置 API Key、切换模型、修改模型地址时，优先使用 manage_model_config
 - 当用户要求创建、修改、删除、启动、停止交易员时，优先使用 manage_trader
@@ -391,9 +606,10 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 
 ### 交易安全规则
 - 用户明确要求交易时才调用 execute_trade
+- 下单前先尊重风控：数量过大、仓位太小、杠杆过高、超过权益上限时，不要假装能下单，要直接用人话解释原因
 - 分析和建议不需要调用工具，直接回复即可
 - 交易确认信息要清晰展示：品种、方向、数量、杠杆
-- 提醒用户确认命令格式
+- 提醒用户确认命令格式；普通订单用“确认 trade_xxx”，大额订单用“确认大额 trade_xxx”
 
 ### 数据真实性规则（极其重要！）
 - **持仓信息必须且只能通过 get_positions 工具获取**，绝对禁止编造持仓
@@ -403,12 +619,15 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 - **你不知道用户持有什么股票/币种，除非工具返回了数据**
 - 查股票行情 ≠ 用户持有该股票。不要混淆"查价格"和"有持仓"
 
-## 行为准则
-- 简洁、专业、有观点。不说废话。
-- 用户问什么答什么，不要推销配置。
-- 有实时数据时给具体价位，没有时给策略框架和思路。
-- **诚实是第一原则** — 不确定就说不确定，没数据就说没数据。绝不编造。
-- 用交易相关的 emoji 让回复更直观。
+## 行为准则（最高优先级）
+- **先直接答, 再可选追加一条相关提醒** — 第一句永远是用户问的那个具体答案。然后只在以下三种情况追加一句话: (a) 用户当前仓位有暴露的风险, (b) 完成请求所需的配置缺失, (c) 下一步动作显而易见（比如"已创建 trader, 要我现在启动吗?"）。一次只追加一句, 不要列清单。
+- **System Context 是参考资料, 不是输出模板** — 只用跟用户问题直接相关的那部分, 不要复述整个状态。
+- **回复要短** — 能一句话说清就不要写一段。不要用表格、分隔线、标题, 除非数据真的需要对比。
+- **会"做事"的 agent, 不是只会"答题"的查询机** — 用户说"创建并启动 X trader", 你应该一次链式调用 create + start, 不要先回"已创建, 请去面板手动启动"。用户已经表达意图, 你就去做。
+- **遇到工具错误**: 用一句人话说出原因, 然后给一个最可能的修复建议或一个聚焦的追问。不要默默重试。不要说"稍等一下我去办" — 你没有后台任务。
+- **不要重复自我介绍** — 除非用户首次问"你是谁/你能做什么"。
+- 把用户当交易小白, 语言简单直接。先结论, 再原因。
+- **诚实是第一原则** — 不确定就说不确定, 没数据就说没数据。绝不编造。
 - 用中文回复。
 
 当前时间: %s`, traderInfo, watchlist, skillCatalog, time.Now().Format("2006-01-02 15:04:05"))
@@ -446,10 +665,11 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 ## Tools
 You can call these tools to take action:
 - **search_stock** — Search for stocks by name, ticker, or code. Covers A-share, HK, and US markets. Use when the user mentions an unknown stock.
-- **execute_trade** — Place a trade order (crypto or US stocks). For stocks: open_long=buy, close_long=sell. Creates a pending order that requires user confirmation.
+- **execute_trade** — Place a trade order (crypto or US stocks). Common phrasings include "long BTC 0.01 x10", "short ETH 0.1", "close long BTC", and "close short ETH". For stocks: open_long=buy, close_long=sell. This creates a pending trade first; it does not execute immediately. Large orders require "confirm large trade_xxx", and pending trades expire after 5 minutes.
 - **get_positions** — View all current open positions (crypto + stocks)
 - **get_balance** — View account balance and equity
 - **get_market_price** — Get real-time price from the exchange (crypto or stock symbol)
+- **get_kline** — Get recent candlestick / kline data for a crypto symbol
 - **get_exchange_configs / manage_exchange_config** — View, create, update, and delete exchange bindings
 - **get_model_configs / manage_model_config** — View, create, update, and delete AI model bindings
 - **get_strategies / manage_strategy** — View, create, update, delete, activate, and duplicate strategy templates
@@ -458,10 +678,14 @@ You can call these tools to take action:
 ### Configuration, Strategy, and Trader Rules
 - When the user wants to create, edit, delete, activate, or duplicate a strategy template, prefer get_strategies / manage_strategy
 - **A strategy template is an independent asset and does not require exchange or model bindings by default**
-- Only ask for exchange/model/trader details when the user wants to run, deploy, or attach a strategy to a trader
+- **After creation, a strategy template should immediately appear in the strategy list/page**
+- **A strategy template cannot be started or run directly; only traders have runtime state**
+- If the user says "start the strategy" or "run this strategy", explain that the strategy must be attached to a trader first, then the trader can be started
+- Do not proactively bring up traders, models, or exchange bindings unless the user asks to run, deploy, or create a trader
 - When the user wants to bind or edit an exchange account, prefer manage_exchange_config
 - When the user wants to bind or edit an AI model, prefer manage_model_config
 - When the user wants to create, edit, delete, start, or stop a trader, prefer manage_trader
+- When the user wants to add, remove, or inspect monitored coins, prefer get_watchlist / manage_watchlist
 - If required fields are missing, ask a focused follow-up question first, then call the tool
 - **Do not claim the system lacks these capabilities when the tools exist**
 - For secrets such as API keys, secrets, and private keys: store them, but never echo them back in full
@@ -470,9 +694,10 @@ You can call these tools to take action:
 
 ### Trade Safety Rules
 - Only call execute_trade when user explicitly requests a trade
+- Respect risk guardrails before placing a trade: if the quantity is too large, the notional is too small, leverage is too high, or the order exceeds equity limits, explain the reason plainly instead of pretending it can be placed
 - Analysis and advice don't need tools — just reply directly
 - Show trade details clearly: symbol, direction, quantity, leverage
-- Remind user of the confirmation command format
+- Remind user of the confirmation command format; normal orders use "confirm trade_xxx", large orders use "confirm large trade_xxx"
 
 ### Data Truthfulness Rules (CRITICAL!)
 - **Position data MUST come from get_positions tool only** — NEVER fabricate positions
@@ -482,18 +707,21 @@ You can call these tools to take action:
 - **You do NOT know what the user holds unless a tool tells you**
 - Checking a stock price ≠ user owns that stock. Never confuse "quote lookup" with "holding"
 
-## Behavior
-- Concise, professional, opinionated. No fluff.
-- Answer what's asked. Don't push setup.
-- With real-time data: give specific levels. Without: give strategy frameworks.
-- **Honesty is rule #1** — uncertain = say uncertain, no data = say no data.
-- Use trading emojis.
+## Behavior (HIGHEST PRIORITY)
+- **Answer directly first, then optionally one relevant follow-up** — The first sentence is always the specific answer to what the user asked. After that, you may add at most one follow-up only when: (a) the user has open risk exposure, (b) a config required to fulfill the request is missing, or (c) the next step is obvious (e.g. "Trader created — want me to start it?"). One follow-up max, no checklists.
+- **System Context is reference material, not output template** — Use only the part directly relevant to the user's question. Don't recap the whole state.
+- **Keep it short** — One sentence beats a paragraph. No tables, dividers, or headers unless data really needs comparison.
+- **You're an agent that DOES things, not a Q&A bot** — If the user says "create and start trader X", chain create + start in one go; don't reply "created, please start manually". They already expressed intent; execute it.
+- **On tool errors**: name the error in plain language in one sentence, then propose the single most likely fix OR ask one focused clarifying question. Never silently retry. Never say "I'll get back to you" / "please wait" — you have no background job.
+- **Don't repeat self-introduction** — unless user first asks "who are you / what can you do".
+- Treat the user like a trading beginner. Use plain language. Conclusion first, reason after.
+- **Honesty is rule #1** — uncertain = say uncertain, no data = say no data. Never fabricate.
 
 Current time: %s`, traderInfo, watchlist, skillCatalog, time.Now().Format("2006-01-02 15:04:05"))
 }
 
 // gatherContext collects real-time market data relevant to the user's message.
-func (a *Agent) gatherContext(text string) string {
+func (a *Agent) gatherContext(storeUserID, text string) string {
 	var parts []string
 	upper := strings.ToUpper(text)
 
@@ -558,8 +786,16 @@ func (a *Agent) gatherContext(text string) string {
 	}
 
 	// Trader positions
-	if a.traderManager != nil {
-		for _, t := range a.traderManager.GetAllTraders() {
+	if a.traderManager != nil && a.store != nil {
+		traderConfigs, _ := a.store.Trader().List(storeUserID)
+		for _, traderCfg := range traderConfigs {
+			if strings.TrimSpace(traderCfg.ID) == "" {
+				continue
+			}
+			t, err := a.traderManager.GetTrader(traderCfg.ID)
+			if err != nil {
+				continue
+			}
 			positions, err := t.GetPositions()
 			if err != nil {
 				continue
@@ -579,27 +815,51 @@ func (a *Agent) gatherContext(text string) string {
 }
 
 func (a *Agent) getTradersSummary() string {
+	return a.getTradersSummaryForStoreUser("default")
+}
+
+func (a *Agent) getTradersSummaryForStoreUser(storeUserID string) string {
 	if a.traderManager == nil {
 		return "Traders: none configured"
 	}
-	traders := a.traderManager.GetAllTraders()
-	if len(traders) == 0 {
+	if a.store == nil {
+		return "Traders: none configured"
+	}
+	if strings.TrimSpace(storeUserID) == "" {
+		storeUserID = "default"
+	}
+	traderConfigs, err := a.store.Trader().List(storeUserID)
+	if err != nil || len(traderConfigs) == 0 {
 		return "Traders: none configured"
 	}
 
 	var lines []string
-	for id, t := range traders {
-		s := t.GetStatus()
-		running, _ := s["is_running"].(bool)
+	for _, traderCfg := range traderConfigs {
+		if strings.TrimSpace(traderCfg.ID) == "" {
+			continue
+		}
+		t, err := a.traderManager.GetTrader(traderCfg.ID)
+		isRunning := traderCfg.IsRunning
+		exchange := traderCfg.ExchangeID
+		if err == nil && t != nil {
+			s := t.GetStatus()
+			if running, ok := s["is_running"].(bool); ok {
+				isRunning = running
+			}
+			exchange = t.GetExchange()
+		}
 		status := "stopped"
-		if running {
+		if isRunning {
 			status = "running"
 		}
-		tid := id
+		tid := traderCfg.ID
 		if len(tid) > 8 {
 			tid = tid[:8]
 		}
-		lines = append(lines, fmt.Sprintf("• %s [%s] %s | %s", t.GetName(), tid, status, t.GetExchange()))
+		lines = append(lines, fmt.Sprintf("• %s [%s] %s | %s", traderCfg.Name, tid, status, exchange))
+	}
+	if len(lines) == 0 {
+		return "Traders: none configured"
 	}
 	return "Traders:\n" + strings.Join(lines, "\n")
 }
@@ -627,7 +887,7 @@ func (a *Agent) handleStatus(L string) string {
 }
 
 // noAIFallback — when no AI is available, still try to be useful.
-func (a *Agent) noAIFallback(lang, text string) (string, error) {
+func (a *Agent) noAIFallback(storeUserID, lang, text string) (string, error) {
 	upper := strings.ToUpper(text)
 
 	// Try to provide market data directly
@@ -642,16 +902,16 @@ func (a *Agent) noAIFallback(lang, text string) (string, error) {
 
 	// Check if asking about positions/balance
 	if strings.Contains(text, "持仓") || strings.Contains(upper, "POSITION") {
-		return a.queryPositionsDirect(lang)
+		return a.queryPositionsDirect(storeUserID, lang)
 	}
 	if strings.Contains(text, "余额") || strings.Contains(upper, "BALANCE") {
-		return a.queryBalancesDirect(lang)
+		return a.queryBalancesDirect(storeUserID, lang)
 	}
 
 	if lang == "zh" {
-		return "🤖 我是 NOFXi。配置 AI 模型后我就能理解你的任何问题——分析股票、制定策略、管理交易。\n\n现在可用：\n• 加密货币实时行情（试试「BTC」）\n• `/status` 系统状态\n\n发送 *开始配置* 配置 AI 模型。", nil
+		return "🤖 我是 NOFXi。配置 AI 模型后我就能理解你的任何问题——分析股票、制定策略、管理交易。\n\n现在可用：\n• 加密货币实时行情（试试「BTC」）\n• `/status` 查看系统状态\n• `/clear` 清空当前对话记忆\n\n发送 *开始配置* 配置 AI 模型。", nil
 	}
-	return "🤖 I'm NOFXi. Configure an AI model and I can understand anything — analyze stocks, build strategies, manage trades.\n\nAvailable now:\n• Crypto real-time data (try 'BTC')\n• `/status` system status\n\nSend *setup* to configure AI.", nil
+	return "🤖 I'm NOFXi. Configure an AI model and I can understand anything — analyze stocks, build strategies, manage trades.\n\nAvailable now:\n• Crypto real-time data (try 'BTC')\n• `/status` to check system status\n• `/clear` to clear the current conversation memory\n\nSend *setup* to configure AI.", nil
 }
 
 func (a *Agent) aiServiceFailure(lang string, err error) (string, error) {
@@ -661,19 +921,89 @@ func (a *Agent) aiServiceFailure(lang string, err error) (string, error) {
 	}
 	a.logger.Error("AI service call failed", "error", reason)
 	if lang == "zh" {
-		return fmt.Sprintf("当前 AI 服务调用失败：%s\n\n这不是“未配置模型”。更可能是模型服务余额不足、接口报错或超时。请检查当前启用模型的 API 状态后再试。", reason), nil
+		return fmt.Sprintf("当前 AI 服务调用失败：%s\n\n%s", reason, aiServiceFailureGuidance("zh", reason)), nil
 	}
-	return fmt.Sprintf("The AI service call failed: %s\n\nThis is not a missing-model issue. The active model provider likely returned an error, timed out, or has insufficient balance. Please check the active model API and try again.", reason), nil
+	return fmt.Sprintf("The AI service call failed: %s\n\n%s", reason, aiServiceFailureGuidance(lang, reason)), nil
 }
 
-func (a *Agent) queryPositionsDirect(L string) (string, error) {
+func aiServiceFailureGuidance(lang, reason string) string {
+	lower := strings.ToLower(strings.TrimSpace(reason))
+	looksLikeHTMLGateway := strings.Contains(lower, "invalid character '<'") ||
+		strings.Contains(lower, "unexpected character '<'") ||
+		strings.Contains(lower, "<html") ||
+		strings.Contains(lower, "<!doctype html")
+	looksLikeUpstreamEmptyOutput := strings.Contains(lower, "upstream_empty_output") ||
+		(strings.Contains(lower, "empty output") && strings.Contains(lower, "rate_limit_error"))
+	looksLikeRateLimit := strings.Contains(lower, "status 429") ||
+		strings.Contains(lower, "rate limit") ||
+		strings.Contains(lower, "rate_limit_error")
+	looksLikeBannedAccount := strings.Contains(lower, "user_is_banned") ||
+		strings.Contains(lower, "account is banned") ||
+		strings.Contains(lower, "account banned")
+	looksLikeAuthFailure := strings.Contains(lower, "status 401") ||
+		strings.Contains(lower, "authentication_failed") ||
+		strings.Contains(lower, "authentication_error") ||
+		strings.Contains(lower, "unauthorized") ||
+		strings.Contains(lower, "invalid api key")
+
+	if lang == "zh" {
+		if looksLikeHTMLGateway {
+			return "这不是“未配置模型”。这次更像是上游返回了 HTML 页面或网关/反代错误页，而不是标准 JSON 响应。更可能原因是模型服务地址配错、网关拦截、支付/鉴权页返回、或上游服务临时异常。请优先检查当前启用模型的 custom_api_url、反向代理/网关状态，以及对应 provider 的服务状态。"
+		}
+		if looksLikeBannedAccount {
+			return "这不是“未配置模型”。当前启用模型已经连到了上游，但上游明确拒绝登录，原因是账号被禁用/封禁（USER_IS_BANNED）。请检查当前启用模型配置对应的账号或 API Key，换一个可用账号/API Key，或切换到另一个已启用模型后再试。"
+		}
+		if looksLikeAuthFailure {
+			return "这不是“未配置模型”。当前启用模型已经连到了上游，但鉴权失败了。请检查当前启用模型的 API Key、钱包凭证、provider 账号状态和 custom_api_url 是否匹配；修复凭证或切换到另一个可用模型后再试。"
+		}
+		if looksLikeUpstreamEmptyOutput {
+			return "这不是“未配置模型”。这次更像是上游模型没有返回有效内容，当前 provider 把它包装成了 429 / rate_limit_error。更可能原因是上游临时限流、服务拥塞、模型空响应，或 provider 网关没有拿到有效结果；不应优先归因成“余额不足”。请先重试一次；如果持续出现，再检查当前启用模型的 provider 状态、限流配额、网关日志，或先切换到另一个可用模型。"
+		}
+		if looksLikeRateLimit {
+			return "这不是“未配置模型”。这次更像是当前模型 provider 触发了限流或网关节流。更可能原因是并发过高、调用频率超限、provider 临时拥塞，或上游配额限制。请先稍后重试；如果持续出现，再检查当前启用模型的 provider 配额、限流策略和网关状态。"
+		}
+		return "这不是“未配置模型”。更可能是模型服务余额不足、接口报错、鉴权失败或超时。请检查当前启用模型的 API 状态后再试。"
+	}
+	if looksLikeHTMLGateway {
+		return "This is not a missing-model issue. It looks more like the upstream returned an HTML page or gateway/proxy error page instead of the expected JSON response. The likely causes are a wrong model endpoint URL, gateway interception, a payment/auth page being returned, or a temporary upstream outage. Check the active model's custom_api_url, proxy/gateway status, and the provider service health first."
+	}
+	if looksLikeBannedAccount {
+		return "This is not a missing-model issue. The active model reached the upstream provider, but login was rejected because the account is banned (USER_IS_BANNED). Check the active model account/API key, replace it with a usable credential, or switch to another enabled model."
+	}
+	if looksLikeAuthFailure {
+		return "This is not a missing-model issue. The active model reached the upstream provider, but authentication failed. Check the active model API key, wallet credential, provider account status, and custom_api_url, or switch to another enabled model."
+	}
+	if looksLikeUpstreamEmptyOutput {
+		return "This is not a missing-model issue. The upstream model appears to have returned no usable output, and the provider wrapped it as a 429 / rate_limit_error. The more likely causes are temporary throttling, upstream congestion, an empty model response, or a gateway that did not receive a valid result. Do not treat this as an insufficient-balance issue first. Retry once, then check the active provider status, rate limits, gateway logs, or switch to another model."
+	}
+	if looksLikeRateLimit {
+		return "This is not a missing-model issue. The active model provider more likely hit rate limiting or gateway throttling. Check the provider quota, rate-limit policy, and gateway status, then retry."
+	}
+	return "This is not a missing-model issue. The active model provider more likely returned an API error, authentication failure, timeout, or insufficient-balance response. Please check the active model API and try again."
+}
+
+func (a *Agent) queryPositionsDirect(storeUserID, L string) (string, error) {
 	if a.traderManager == nil {
+		return a.msg(L, "no_traders"), nil
+	}
+	if a.store == nil {
+		return a.msg(L, "no_traders"), nil
+	}
+	traderConfigs, err := a.store.Trader().List(storeUserID)
+	if err != nil {
 		return a.msg(L, "no_traders"), nil
 	}
 	var sb strings.Builder
 	sb.WriteString("📊 *Positions*\n\n")
 	hasAny := false
-	for id, t := range a.traderManager.GetAllTraders() {
+	for _, traderCfg := range traderConfigs {
+		if strings.TrimSpace(traderCfg.ID) == "" {
+			continue
+		}
+		t, err := a.traderManager.GetTrader(traderCfg.ID)
+		if err != nil {
+			continue
+		}
 		positions, err := t.GetPositions()
 		if err != nil {
 			continue
@@ -689,7 +1019,11 @@ func (a *Agent) queryPositionsDirect(L string) (string, error) {
 			if pnl < 0 {
 				e = "🔴"
 			}
-			sb.WriteString(fmt.Sprintf("%s *%s* %s — $%.2f | Trader: %s\n", e, p["symbol"], p["side"], pnl, id[:8]))
+			tid := traderCfg.ID
+			if len(tid) > 8 {
+				tid = tid[:8]
+			}
+			sb.WriteString(fmt.Sprintf("%s *%s* %s — $%.2f | Trader: %s\n", e, p["symbol"], p["side"], pnl, tid))
 		}
 	}
 	if !hasAny {
@@ -698,18 +1032,32 @@ func (a *Agent) queryPositionsDirect(L string) (string, error) {
 	return sb.String(), nil
 }
 
-func (a *Agent) queryBalancesDirect(L string) (string, error) {
+func (a *Agent) queryBalancesDirect(storeUserID, L string) (string, error) {
 	if a.traderManager == nil {
+		return a.msg(L, "no_traders"), nil
+	}
+	if a.store == nil {
+		return a.msg(L, "no_traders"), nil
+	}
+	traderConfigs, err := a.store.Trader().List(storeUserID)
+	if err != nil {
 		return a.msg(L, "no_traders"), nil
 	}
 	var sb strings.Builder
 	sb.WriteString("💰 *Balance*\n\n")
-	for id, t := range a.traderManager.GetAllTraders() {
+	for _, traderCfg := range traderConfigs {
+		if strings.TrimSpace(traderCfg.ID) == "" {
+			continue
+		}
+		t, err := a.traderManager.GetTrader(traderCfg.ID)
+		if err != nil {
+			continue
+		}
 		info, err := t.GetAccountInfo()
 		if err != nil {
 			continue
 		}
-		tid := id
+		tid := traderCfg.ID
 		if len(tid) > 8 {
 			tid = tid[:8]
 		}

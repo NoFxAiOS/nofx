@@ -258,12 +258,17 @@ func (s *OrderStore) GetTraderOrdersFiltered(traderID string, symbol string, sta
 	return orders, nil
 }
 
-// GetOrderFills gets order's fill records
-func (s *OrderStore) GetOrderFills(orderID int64) ([]*TraderFill, error) {
+// GetOrderFills gets fill records for a specific order. The traderID arg
+// scopes the join so a caller cannot read fills for an order that does not
+// belong to their trader (IDOR boundary). Pass an empty traderID only from
+// trusted internal callers that have already verified ownership.
+func (s *OrderStore) GetOrderFills(traderID string, orderID int64) ([]*TraderFill, error) {
+	q := s.db.Where("order_id = ?", orderID)
+	if traderID != "" {
+		q = q.Where("trader_id = ?", traderID)
+	}
 	var fills []*TraderFill
-	err := s.db.Where("order_id = ?", orderID).
-		Order("created_at ASC").
-		Find(&fills).Error
+	err := q.Order("created_at ASC").Find(&fills).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query fills: %w", err)
 	}

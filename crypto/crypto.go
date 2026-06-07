@@ -282,12 +282,16 @@ func isEncryptedStorageValue(value string) bool {
 }
 
 func (cs *CryptoService) DecryptPayload(payload *EncryptedPayload) ([]byte, error) {
-	// 1. Validate timestamp (prevent replay attacks)
-	if payload.TS != 0 {
-		elapsed := time.Since(time.Unix(payload.TS, 0))
-		if elapsed > 5*time.Minute || elapsed < -1*time.Minute {
-			return nil, errors.New("timestamp invalid or expired")
-		}
+	// 1. Validate timestamp (prevent replay attacks).
+	// The timestamp is mandatory: a missing/zero ts previously skipped this check
+	// entirely, which let a captured ciphertext be replayed indefinitely. The
+	// client (web/src/lib/crypto.ts) always stamps ts, so requiring it is safe.
+	if payload.TS == 0 {
+		return nil, errors.New("missing timestamp")
+	}
+	elapsed := time.Since(time.Unix(payload.TS, 0))
+	if elapsed > 5*time.Minute || elapsed < -1*time.Minute {
+		return nil, errors.New("timestamp invalid or expired")
 	}
 
 	// 2. Decode base64url
@@ -455,8 +459,11 @@ func (es EncryptedString) Value() (driver.Value, error) {
 	if globalCryptoService != nil {
 		encrypted, err := globalCryptoService.EncryptForStorage(string(es))
 		if err != nil {
-			// If encryption fails, return the original value
-			return string(es), nil
+			// Fail closed: never silently persist a plaintext secret when
+			// encryption was expected to happen. Returning the error aborts the
+			// write so a misconfigured/broken crypto service cannot leak
+			// credentials into the database in cleartext.
+			return nil, fmt.Errorf("failed to encrypt sensitive field for storage: %w", err)
 		}
 		return encrypted, nil
 	}

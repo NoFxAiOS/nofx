@@ -1,112 +1,610 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
+	"time"
 
+	"nofx/mcp"
 	"nofx/store"
 )
 
 var (
 	firstIntegerPattern = regexp.MustCompile(`\d+`)
+	firstFloatPattern   = regexp.MustCompile(`\d+(?:\.\d+)?`)
 	timeframeTokenRE    = regexp.MustCompile(`(?i)\b\d{1,2}[mhdw]\b`)
+	coinSymbolTokenRE   = regexp.MustCompile(`(?i)^(?:xyz:)?[a-z0-9._-]{2,20}(?:usdt|usd|-usdc)?$`)
+	quotedContentRE     = regexp.MustCompile(`[“"]([^“”"]{1,200})[”"]`)
 )
 
-func parseStandaloneInteger(text string) (int, bool) {
-	match := firstIntegerPattern.FindString(strings.TrimSpace(text))
-	if match == "" {
-		return 0, false
-	}
-	value, err := strconv.Atoi(match)
-	if err != nil {
-		return 0, false
-	}
-	return value, true
+const (
+	strategyPendingUpdateConfigField = "_pending_strategy_update_config"
+	strategyPendingUpdateWarnings    = "_pending_strategy_update_warnings"
+	strategyPendingUpdateZhMsg       = "_pending_strategy_update_zh_msg"
+	strategyPendingUpdateEnMsg       = "_pending_strategy_update_en_msg"
+)
+
+func generatedDraftRequiresConfirmation(session skillSession) bool {
+	return fieldValue(session, "_requires_generated_confirmation") == "true"
 }
 
-func parseEnabledValue(text string) (bool, bool) {
+func clearGeneratedDraftConfirmation(session *skillSession, keys ...string) {
+	if session == nil || session.Fields == nil {
+		return
+	}
+	delete(session.Fields, "_requires_generated_confirmation")
+	for _, key := range keys {
+		if strings.TrimSpace(key) != "" {
+			delete(session.Fields, key)
+		}
+	}
+}
+
+func detectCatalogField(text string, catalog []entityFieldMeta) string {
 	lower := strings.ToLower(strings.TrimSpace(text))
-	switch {
-	case containsAny(lower, []string{"启用", "打开", "开启", "enable", "enabled", "on"}):
-		return true, true
-	case containsAny(lower, []string{"禁用", "关闭", "停用", "disable", "disabled", "off"}):
-		return false, true
+	if lower == "" {
+		return ""
+	}
+	if strings.Contains(lower, "api key index") || strings.Contains(lower, "lighter api key index") {
+		for _, meta := range catalog {
+			if meta.Key == "lighter_api_key_index" {
+				return meta.Key
+			}
+		}
+	}
+	bestKey := ""
+	bestLen := -1
+	for _, meta := range catalog {
+		for _, keyword := range meta.Keywords {
+			normalized := strings.ToLower(strings.TrimSpace(keyword))
+			if normalized == "" {
+				continue
+			}
+			if entityFieldExplicitlyMentioned(lower, []string{normalized}) && len([]rune(normalized)) > bestLen {
+				bestKey = meta.Key
+				bestLen = len([]rune(normalized))
+			}
+		}
+	}
+	return bestKey
+}
+
+func displayCatalogFieldName(field, lang string) string {
+	switch field {
+	case "name":
+		if lang == "zh" {
+			return "名称"
+		}
+		return "name"
+	case "ai_model_id":
+		if lang == "zh" {
+			return "模型"
+		}
+		return "model"
+	case "exchange_id":
+		if lang == "zh" {
+			return "交易所"
+		}
+		return "exchange"
+	case "strategy_id":
+		if lang == "zh" {
+			return "策略"
+		}
+		return "strategy"
+	case "initial_balance":
+		if lang == "zh" {
+			return "初始资金"
+		}
+		return "initial balance"
+	case "scan_interval_minutes":
+		if lang == "zh" {
+			return "扫描间隔"
+		}
+		return "scan interval"
+	case "is_cross_margin":
+		if lang == "zh" {
+			return "全仓模式"
+		}
+		return "cross margin"
+	case "show_in_competition":
+		if lang == "zh" {
+			return "竞技场显示"
+		}
+		return "show in competition"
+	case "enabled":
+		if lang == "zh" {
+			return "启用状态"
+		}
+		return "enabled state"
+	case "api_key":
+		return "API Key"
+	case "custom_api_url":
+		if lang == "zh" {
+			return "接口地址"
+		}
+		return "API URL"
+	case "custom_model_name":
+		if lang == "zh" {
+			return "模型名称"
+		}
+		return "model name"
+	case "account_name":
+		if lang == "zh" {
+			return "账户名"
+		}
+		return "account name"
+	case "exchange_type":
+		if lang == "zh" {
+			return "交易所类型"
+		}
+		return "exchange type"
+	case "secret_key":
+		return "Secret"
+	case "passphrase":
+		return "Passphrase"
+	case "testnet":
+		if lang == "zh" {
+			return "测试网"
+		}
+		return "testnet"
+	case "hyperliquid_wallet_addr":
+		if lang == "zh" {
+			return "Hyperliquid 钱包地址"
+		}
+		return "Hyperliquid wallet address"
+	case "hyperliquid_unified_account":
+		if lang == "zh" {
+			return "Hyperliquid Unified Account"
+		}
+		return "Hyperliquid unified account"
+	case "aster_user":
+		if lang == "zh" {
+			return "Aster User"
+		}
+		return "Aster user"
+	case "aster_signer":
+		if lang == "zh" {
+			return "Aster Signer"
+		}
+		return "Aster signer"
+	case "aster_private_key":
+		if lang == "zh" {
+			return "Aster 私钥"
+		}
+		return "Aster private key"
+	case "lighter_wallet_addr":
+		if lang == "zh" {
+			return "Lighter 钱包地址"
+		}
+		return "Lighter wallet address"
+	case "lighter_private_key":
+		if lang == "zh" {
+			return "Lighter 私钥"
+		}
+		return "Lighter private key"
+	case "lighter_api_key_private_key":
+		if lang == "zh" {
+			return "Lighter API Key 私钥"
+		}
+		return "Lighter API key private key"
+	case "lighter_api_key_index":
+		if lang == "zh" {
+			return "Lighter API Key Index"
+		}
+		return "Lighter API key index"
 	default:
-		return false, false
+		if lang == "zh" {
+			return field
+		}
+		return field
 	}
 }
 
-func parseFlagValue(text string, keywords []string) (bool, bool) {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" || !containsAny(lower, keywords) {
-		return false, false
-	}
-	switch {
-	case containsAny(lower, []string{"启用", "打开", "开启", "使用", "用", "是", "true", "enable", "enabled", "on", "use"}):
-		return true, true
-	case containsAny(lower, []string{"禁用", "关闭", "停用", "不用", "不要", "否", "false", "disable", "disabled", "off", "don't use", "do not use"}):
-		return false, true
-	default:
-		return false, false
-	}
-}
-
-func extractCredentialValue(text string, keywords []string) string {
-	if value := extractQuotedContent(text); value != "" && containsAny(strings.ToLower(text), keywords) {
-		return value
-	}
-	return extractPostKeywordName(text, keywords)
-}
-
-func parseScanIntervalMinutes(text string) (int, bool) {
-	if value, ok := extractLabeledInt(text, []string{"扫描间隔", "扫描频率", "scan interval", "scan frequency"}); ok {
-		return value, true
-	}
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if !containsAny(lower, []string{"扫描间隔", "扫描频率", "scan interval", "scan frequency"}) {
-		return 0, false
-	}
-	return parseStandaloneInteger(text)
-}
-
-func detectStrategyConfigField(text string) string {
+func detectCatalogDomainFromText(text string) string {
 	lower := strings.ToLower(strings.TrimSpace(text))
 	switch {
-	case containsAny(lower, []string{"最大持仓", "最多持仓", "max positions"}):
-		return "max_positions"
-	case containsAny(lower, []string{"最低置信度", "最小置信度", "min confidence"}):
-		return "min_confidence"
-	case containsAny(lower, []string{"btc/eth杠杆", "btc eth杠杆", "btc eth leverage", "btc/eth leverage", "主流币杠杆"}):
-		return "btceth_max_leverage"
-	case containsAny(lower, []string{"山寨币杠杆", "altcoin leverage", "alts leverage"}):
-		return "altcoin_max_leverage"
-	case containsAny(lower, []string{"ema"}):
-		return "enable_ema"
-	case containsAny(lower, []string{"macd"}):
-		return "enable_macd"
-	case containsAny(lower, []string{"rsi"}):
-		return "enable_rsi"
-	case containsAny(lower, []string{"atr"}):
-		return "enable_atr"
-	case containsAny(lower, []string{"boll", "bollinger", "布林"}):
-		return "enable_boll"
-	case containsAny(lower, []string{"核心指标"}) && containsAny(lower, []string{"全选", "全部", "全开", "都开", "都启用", "全部启用"}):
-		return "enable_all_core_indicators"
-	case containsAny(lower, []string{"主周期", "主时间周期", "primary timeframe"}):
-		return "primary_timeframe"
-	case containsAny(lower, []string{"多周期", "时间框架", "timeframes", "selected timeframes"}):
-		return "selected_timeframes"
+	case containsAny(lower, []string{"策略", "strategy"}):
+		return "strategy_management"
+	case containsAny(lower, []string{"交易所", "exchange"}):
+		return "exchange_management"
+	case containsAny(lower, []string{"模型", "model"}):
+		return "model_management"
 	default:
 		return ""
 	}
 }
 
+func (a *Agent) executeAtomicSkillWithSession(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if answer, ok := a.dispatchBridgedSkillSession(storeUserID, userID, lang, text, session); ok {
+		return answer
+	}
+	return ""
+}
+
+func parseLooseTextValue(text string) string {
+	return ""
+}
+
+func entityFieldExplicitlyMentioned(text string, keywords []string) bool {
+	if len(keywords) == 0 {
+		return false
+	}
+	return containsAny(strings.ToLower(text), keywords)
+}
+
+type traderUpdateArgs struct {
+	AIModelID           string
+	ExchangeID          string
+	StrategyID          string
+	ScanIntervalMinutes *int
+	IsCrossMargin       *bool
+	ShowInCompetition   *bool
+}
+
+func (a traderUpdateArgs) hasAny() bool {
+	return a.AIModelID != "" || a.ExchangeID != "" || a.StrategyID != "" ||
+		a.ScanIntervalMinutes != nil || a.IsCrossMargin != nil || a.ShowInCompetition != nil
+}
+
+func parseStandaloneTraderUpdateArgs(text string) traderUpdateArgs {
+	return traderUpdateArgs{}
+}
+
+func mergeTraderUpdateArgs(base, patch traderUpdateArgs) traderUpdateArgs {
+	if patch.AIModelID != "" {
+		base.AIModelID = patch.AIModelID
+	}
+	if patch.ExchangeID != "" {
+		base.ExchangeID = patch.ExchangeID
+	}
+	if patch.StrategyID != "" {
+		base.StrategyID = patch.StrategyID
+	}
+	if patch.ScanIntervalMinutes != nil {
+		base.ScanIntervalMinutes = patch.ScanIntervalMinutes
+	}
+	if patch.IsCrossMargin != nil {
+		base.IsCrossMargin = patch.IsCrossMargin
+	}
+	if patch.ShowInCompetition != nil {
+		base.ShowInCompetition = patch.ShowInCompetition
+	}
+	return base
+}
+
+func applyTraderUpdateArgsToSession(session *skillSession, args traderUpdateArgs) {
+	if args.AIModelID != "" {
+		setField(session, "ai_model_id", args.AIModelID)
+	}
+	if args.ExchangeID != "" {
+		setField(session, "exchange_id", args.ExchangeID)
+	}
+	if args.StrategyID != "" {
+		setField(session, "strategy_id", args.StrategyID)
+	}
+	if args.ScanIntervalMinutes != nil {
+		setField(session, "scan_interval_minutes", strconv.Itoa(*args.ScanIntervalMinutes))
+	}
+	if args.IsCrossMargin != nil {
+		setField(session, "is_cross_margin", strconv.FormatBool(*args.IsCrossMargin))
+	}
+	if args.ShowInCompetition != nil {
+		setField(session, "show_in_competition", strconv.FormatBool(*args.ShowInCompetition))
+	}
+}
+
+func buildTraderUpdateArgsFromSession(session skillSession) traderUpdateArgs {
+	var args traderUpdateArgs
+	args.AIModelID = fieldValue(session, "ai_model_id")
+	args.ExchangeID = fieldValue(session, "exchange_id")
+	args.StrategyID = fieldValue(session, "strategy_id")
+	if value := fieldValue(session, "scan_interval_minutes"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			args.ScanIntervalMinutes = &parsed
+		}
+	}
+	if value := fieldValue(session, "is_cross_margin"); value != "" {
+		parsed := value == "true"
+		args.IsCrossMargin = &parsed
+	}
+	if value := fieldValue(session, "show_in_competition"); value != "" {
+		parsed := value == "true"
+		args.ShowInCompetition = &parsed
+	}
+	return args
+}
+
+type modelUpdatePatch struct {
+	Enabled         *bool
+	APIKey          string
+	CustomAPIURL    string
+	CustomModelName string
+}
+
+func (p modelUpdatePatch) hasAny() bool {
+	return p.Enabled != nil || p.APIKey != "" || p.CustomAPIURL != "" || p.CustomModelName != ""
+}
+
+func applyModelUpdatePatchToSession(session *skillSession, patch modelUpdatePatch) {
+	if patch.CustomAPIURL != "" {
+		setField(session, "custom_api_url", patch.CustomAPIURL)
+	}
+	if patch.Enabled != nil {
+		setField(session, "enabled", strconv.FormatBool(*patch.Enabled))
+	}
+	if patch.APIKey != "" {
+		setField(session, "api_key", patch.APIKey)
+	}
+	if patch.CustomModelName != "" {
+		setField(session, "custom_model_name", patch.CustomModelName)
+	}
+}
+
+func mergeModelUpdatePatch(base, patch modelUpdatePatch) modelUpdatePatch {
+	if patch.Enabled != nil {
+		base.Enabled = patch.Enabled
+	}
+	if patch.APIKey != "" {
+		base.APIKey = patch.APIKey
+	}
+	if patch.CustomAPIURL != "" {
+		base.CustomAPIURL = patch.CustomAPIURL
+	}
+	if patch.CustomModelName != "" {
+		base.CustomModelName = patch.CustomModelName
+	}
+	return base
+}
+
+func buildModelUpdatePatchFromSession(session skillSession) modelUpdatePatch {
+	var patch modelUpdatePatch
+	if value := fieldValue(session, "enabled"); value != "" {
+		parsed := value == "true"
+		patch.Enabled = &parsed
+	}
+	patch.APIKey = fieldValue(session, "api_key")
+	patch.CustomAPIURL = fieldValue(session, "custom_api_url")
+	patch.CustomModelName = fieldValue(session, "custom_model_name")
+	return patch
+}
+
+type exchangeUpdatePatch struct {
+	AccountName             string
+	Enabled                 *bool
+	APIKey                  string
+	SecretKey               string
+	Passphrase              string
+	Testnet                 *bool
+	HyperliquidWalletAddr   string
+	AsterUser               string
+	AsterSigner             string
+	AsterPrivateKey         string
+	LighterWalletAddr       string
+	LighterAPIKeyPrivateKey string
+	LighterAPIKeyIndex      *int
+}
+
+func (p exchangeUpdatePatch) hasAny() bool {
+	return p.AccountName != "" || p.Enabled != nil || p.APIKey != "" || p.SecretKey != "" ||
+		p.Passphrase != "" || p.Testnet != nil || p.HyperliquidWalletAddr != "" || p.AsterUser != "" ||
+		p.AsterSigner != "" || p.AsterPrivateKey != "" || p.LighterWalletAddr != "" ||
+		p.LighterAPIKeyPrivateKey != "" || p.LighterAPIKeyIndex != nil
+}
+
+func applyExchangeUpdatePatchToSession(session *skillSession, patch exchangeUpdatePatch) {
+	if patch.AccountName != "" {
+		setField(session, "account_name", patch.AccountName)
+	}
+	if patch.Enabled != nil {
+		setField(session, "enabled", strconv.FormatBool(*patch.Enabled))
+	}
+	if patch.APIKey != "" {
+		setField(session, "api_key", patch.APIKey)
+	}
+	if patch.SecretKey != "" {
+		setField(session, "secret_key", patch.SecretKey)
+	}
+	if patch.Passphrase != "" {
+		setField(session, "passphrase", patch.Passphrase)
+	}
+	if patch.Testnet != nil {
+		setField(session, "testnet", strconv.FormatBool(*patch.Testnet))
+	}
+	if patch.HyperliquidWalletAddr != "" {
+		setField(session, "hyperliquid_wallet_addr", patch.HyperliquidWalletAddr)
+	}
+	if patch.AsterUser != "" {
+		setField(session, "aster_user", patch.AsterUser)
+	}
+	if patch.AsterSigner != "" {
+		setField(session, "aster_signer", patch.AsterSigner)
+	}
+	if patch.AsterPrivateKey != "" {
+		setField(session, "aster_private_key", patch.AsterPrivateKey)
+	}
+	if patch.LighterWalletAddr != "" {
+		setField(session, "lighter_wallet_addr", patch.LighterWalletAddr)
+	}
+	if patch.LighterAPIKeyPrivateKey != "" {
+		setField(session, "lighter_api_key_private_key", patch.LighterAPIKeyPrivateKey)
+	}
+	if patch.LighterAPIKeyIndex != nil {
+		setField(session, "lighter_api_key_index", strconv.Itoa(*patch.LighterAPIKeyIndex))
+	}
+}
+
+func mergeExchangeUpdatePatch(base, patch exchangeUpdatePatch) exchangeUpdatePatch {
+	if patch.AccountName != "" {
+		base.AccountName = patch.AccountName
+	}
+	if patch.Enabled != nil {
+		base.Enabled = patch.Enabled
+	}
+	if patch.APIKey != "" {
+		base.APIKey = patch.APIKey
+	}
+	if patch.SecretKey != "" {
+		base.SecretKey = patch.SecretKey
+	}
+	if patch.Passphrase != "" {
+		base.Passphrase = patch.Passphrase
+	}
+	if patch.Testnet != nil {
+		base.Testnet = patch.Testnet
+	}
+	if patch.HyperliquidWalletAddr != "" {
+		base.HyperliquidWalletAddr = patch.HyperliquidWalletAddr
+	}
+	if patch.AsterUser != "" {
+		base.AsterUser = patch.AsterUser
+	}
+	if patch.AsterSigner != "" {
+		base.AsterSigner = patch.AsterSigner
+	}
+	if patch.AsterPrivateKey != "" {
+		base.AsterPrivateKey = patch.AsterPrivateKey
+	}
+	if patch.LighterWalletAddr != "" {
+		base.LighterWalletAddr = patch.LighterWalletAddr
+	}
+	if patch.LighterAPIKeyPrivateKey != "" {
+		base.LighterAPIKeyPrivateKey = patch.LighterAPIKeyPrivateKey
+	}
+	if patch.LighterAPIKeyIndex != nil {
+		base.LighterAPIKeyIndex = patch.LighterAPIKeyIndex
+	}
+	return base
+}
+
+func buildExchangeUpdatePatchFromSession(session skillSession) exchangeUpdatePatch {
+	var patch exchangeUpdatePatch
+	patch.AccountName = fieldValue(session, "account_name")
+	if value := fieldValue(session, "enabled"); value != "" {
+		parsed := value == "true"
+		patch.Enabled = &parsed
+	}
+	patch.APIKey = fieldValue(session, "api_key")
+	patch.SecretKey = fieldValue(session, "secret_key")
+	patch.Passphrase = fieldValue(session, "passphrase")
+	if value := fieldValue(session, "testnet"); value != "" {
+		parsed := value == "true"
+		patch.Testnet = &parsed
+	}
+	patch.HyperliquidWalletAddr = fieldValue(session, "hyperliquid_wallet_addr")
+	patch.AsterUser = fieldValue(session, "aster_user")
+	patch.AsterSigner = fieldValue(session, "aster_signer")
+	patch.AsterPrivateKey = fieldValue(session, "aster_private_key")
+	patch.LighterWalletAddr = fieldValue(session, "lighter_wallet_addr")
+	patch.LighterAPIKeyPrivateKey = fieldValue(session, "lighter_api_key_private_key")
+	if value := fieldValue(session, "lighter_api_key_index"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			patch.LighterAPIKeyIndex = &parsed
+		}
+	}
+	return patch
+}
+
 func strategyConfigFieldDisplayName(field, lang string) string {
 	switch field {
+	case "name":
+		if lang == "zh" {
+			return "名称"
+		}
+		return "name"
+	case "strategy_type":
+		if lang == "zh" {
+			return "策略类型"
+		}
+		return "strategy type"
+	case "symbol":
+		if lang == "zh" {
+			return "交易对"
+		}
+		return "symbol"
+	case "grid_count":
+		if lang == "zh" {
+			return "网格数量"
+		}
+		return "grid count"
+	case "total_investment":
+		if lang == "zh" {
+			return "总投资"
+		}
+		return "total investment"
+	case "upper_price":
+		if lang == "zh" {
+			return "上沿价格"
+		}
+		return "upper price"
+	case "lower_price":
+		if lang == "zh" {
+			return "下沿价格"
+		}
+		return "lower price"
+	case "use_atr_bounds":
+		if lang == "zh" {
+			return "ATR 自动边界"
+		}
+		return "use ATR bounds"
+	case "atr_multiplier":
+		if lang == "zh" {
+			return "ATR 倍数"
+		}
+		return "ATR multiplier"
+	case "distribution":
+		if lang == "zh" {
+			return "分布方式"
+		}
+		return "distribution"
+	case "enable_direction_adjust":
+		if lang == "zh" {
+			return "方向自适应"
+		}
+		return "enable direction adjust"
+	case "direction_bias_ratio":
+		if lang == "zh" {
+			return "方向偏置比例"
+		}
+		return "direction bias ratio"
+	case "max_drawdown_pct":
+		if lang == "zh" {
+			return "最大回撤"
+		}
+		return "max drawdown pct"
+	case "stop_loss_pct":
+		if lang == "zh" {
+			return "止损比例"
+		}
+		return "stop loss pct"
+	case "daily_loss_limit_pct":
+		if lang == "zh" {
+			return "日亏损限制"
+		}
+		return "daily loss limit pct"
+	case "use_maker_only":
+		if lang == "zh" {
+			return "仅 Maker"
+		}
+		return "use maker only"
+	case "description":
+		if lang == "zh" {
+			return "描述"
+		}
+		return "description"
+	case "is_public":
+		if lang == "zh" {
+			return "发布到市场"
+		}
+		return "publish to market"
+	case "config_visible":
+		if lang == "zh" {
+			return "配置可见"
+		}
+		return "config visible"
 	case "max_positions":
 		if lang == "zh" {
 			return "最大持仓"
@@ -117,6 +615,16 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "最小置信度"
 		}
 		return "min confidence"
+	case "min_risk_reward_ratio":
+		if lang == "zh" {
+			return "最小盈亏比"
+		}
+		return "min risk reward ratio"
+	case "leverage":
+		if lang == "zh" {
+			return "杠杆"
+		}
+		return "leverage"
 	case "btceth_max_leverage":
 		if lang == "zh" {
 			return "BTC/ETH 最大杠杆"
@@ -127,6 +635,26 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "山寨币最大杠杆"
 		}
 		return "altcoin max leverage"
+	case "btceth_max_position_value_ratio":
+		if lang == "zh" {
+			return "BTC/ETH 最大仓位价值倍数"
+		}
+		return "BTC/ETH max position value ratio"
+	case "altcoin_max_position_value_ratio":
+		if lang == "zh" {
+			return "山寨币最大仓位价值倍数"
+		}
+		return "altcoin max position value ratio"
+	case "max_margin_usage":
+		if lang == "zh" {
+			return "最大保证金使用率"
+		}
+		return "max margin usage"
+	case "min_position_size":
+		if lang == "zh" {
+			return "最小开仓金额"
+		}
+		return "min position size"
 	case "enable_ema":
 		if lang == "zh" {
 			return "EMA"
@@ -167,135 +695,272 @@ func strategyConfigFieldDisplayName(field, lang string) string {
 			return "多周期时间框架"
 		}
 		return "selected timeframes"
+	case "source_type":
+		if lang == "zh" {
+			return "来源类型"
+		}
+		return "source type"
+	case "static_coins":
+		if lang == "zh" {
+			return "静态币种"
+		}
+		return "static coins"
+	case "excluded_coins":
+		if lang == "zh" {
+			return "排除币种"
+		}
+		return "excluded coins"
+	case "use_ai500":
+		if lang == "zh" {
+			return "AI500"
+		}
+		return "use AI500"
+	case "ai500_limit":
+		if lang == "zh" {
+			return "AI500 数量"
+		}
+		return "AI500 limit"
+	case "use_oi_top":
+		if lang == "zh" {
+			return "OI Top"
+		}
+		return "use OI Top"
+	case "oi_top_limit":
+		if lang == "zh" {
+			return "OI Top 数量"
+		}
+		return "OI Top limit"
+	case "use_oi_low":
+		if lang == "zh" {
+			return "OI Low"
+		}
+		return "use OI Low"
+	case "oi_low_limit":
+		if lang == "zh" {
+			return "OI Low 数量"
+		}
+		return "OI Low limit"
+	case "primary_count":
+		if lang == "zh" {
+			return "K线数量"
+		}
+		return "kline count"
+	case "ema_periods":
+		return "EMA periods"
+	case "rsi_periods":
+		return "RSI periods"
+	case "atr_periods":
+		return "ATR periods"
+	case "boll_periods":
+		return "BOLL periods"
+	case "enable_volume":
+		if lang == "zh" {
+			return "成交量"
+		}
+		return "volume"
+	case "enable_oi":
+		if lang == "zh" {
+			return "持仓量"
+		}
+		return "OI"
+	case "enable_funding_rate":
+		if lang == "zh" {
+			return "资金费率"
+		}
+		return "funding rate"
+	case "nofxos_api_key":
+		return "NofxOS API key"
+	case "enable_quant_data":
+		if lang == "zh" {
+			return "量化数据"
+		}
+		return "quant data"
+	case "enable_quant_oi":
+		return "quant OI"
+	case "enable_quant_netflow":
+		return "quant netflow"
+	case "enable_oi_ranking":
+		return "OI ranking"
+	case "oi_ranking_duration":
+		return "OI ranking duration"
+	case "oi_ranking_limit":
+		return "OI ranking limit"
+	case "enable_netflow_ranking":
+		return "netflow ranking"
+	case "netflow_ranking_duration":
+		return "netflow ranking duration"
+	case "netflow_ranking_limit":
+		return "netflow ranking limit"
+	case "enable_price_ranking":
+		return "price ranking"
+	case "price_ranking_duration":
+		return "price ranking duration"
+	case "price_ranking_limit":
+		return "price ranking limit"
+	case "role_definition":
+		if lang == "zh" {
+			return "角色定义"
+		}
+		return "role definition"
+	case "trading_frequency":
+		if lang == "zh" {
+			return "交易频率"
+		}
+		return "trading frequency"
+	case "entry_standards":
+		if lang == "zh" {
+			return "开仓标准"
+		}
+		return "entry standards"
+	case "decision_process":
+		if lang == "zh" {
+			return "决策流程"
+		}
+		return "decision process"
+	case "custom_prompt":
+		if lang == "zh" {
+			return "自定义 Prompt"
+		}
+		return "custom prompt"
 	default:
 		return field
 	}
 }
 
-func extractStrategyConfigValue(text, field string) (string, bool) {
-	switch field {
-	case "max_positions":
-		if value, ok := extractLabeledInt(text, []string{"最大持仓", "最多持仓", "max positions"}); ok {
-			return strconv.Itoa(value), true
-		}
-		if value, ok := parseStandaloneInteger(text); ok {
-			return strconv.Itoa(value), true
-		}
-	case "min_confidence":
-		if value, ok := extractLabeledInt(text, []string{"最低置信度", "最小置信度", "min confidence"}); ok {
-			return strconv.Itoa(value), true
-		}
-		if value, ok := parseStandaloneInteger(text); ok {
-			return strconv.Itoa(value), true
-		}
-	case "btceth_max_leverage":
-		if value, ok := extractLabeledInt(text, []string{"btc/eth杠杆", "btc eth杠杆", "btc/eth leverage", "btc eth leverage", "主流币杠杆"}); ok {
-			return strconv.Itoa(value), true
-		}
-		if value, ok := parseStandaloneInteger(text); ok {
-			return strconv.Itoa(value), true
-		}
-	case "altcoin_max_leverage":
-		if value, ok := extractLabeledInt(text, []string{"山寨币杠杆", "altcoin leverage", "alts leverage"}); ok {
-			return strconv.Itoa(value), true
-		}
-		if value, ok := parseStandaloneInteger(text); ok {
-			return strconv.Itoa(value), true
-		}
-	case "enable_ema", "enable_macd", "enable_rsi", "enable_atr", "enable_boll":
-		if enabled, ok := parseEnabledValue(text); ok {
-			return strconv.FormatBool(enabled), true
-		}
-	case "enable_all_core_indicators":
-		lower := strings.ToLower(strings.TrimSpace(text))
-		switch {
-		case containsAny(lower, []string{"全选", "全部", "全开", "都开", "都启用", "全部启用"}):
-			return "true", true
-		case containsAny(lower, []string{"关闭", "停用", "禁用", "全部关闭", "全部禁用"}):
-			return "false", true
-		}
-	case "primary_timeframe":
-		if tf := extractTimeframeAfterKeywords(text, []string{"主周期", "主时间周期", "primary timeframe", "timeframe"}); tf != "" {
-			return tf, true
-		}
-	case "selected_timeframes":
-		if tfs := extractTimeframes(text); len(tfs) > 0 {
-			return strings.Join(tfs, ","), true
-		}
-	}
-	return "", false
-}
-
-type strategyConfigPatch struct {
-	Field string
-	Value string
-}
-
-func detectStrategyConfigPatches(text string) []strategyConfigPatch {
-	seen := map[string]string{}
-	addPatch := func(field, value string) {
-		field = strings.TrimSpace(field)
-		value = strings.TrimSpace(value)
-		if field == "" || value == "" {
-			return
-		}
-		seen[field] = value
-	}
-
-	for _, field := range []string{
-		"max_positions",
-		"min_confidence",
-		"btceth_max_leverage",
-		"altcoin_max_leverage",
-		"primary_timeframe",
-		"selected_timeframes",
-		"enable_ema",
-		"enable_macd",
-		"enable_rsi",
-		"enable_atr",
-		"enable_boll",
-		"enable_all_core_indicators",
-	} {
-		if value, ok := extractStrategyConfigValue(text, field); ok {
-			if field == "enable_all_core_indicators" {
-				addPatch("enable_ema", value)
-				addPatch("enable_macd", value)
-				addPatch("enable_rsi", value)
-				addPatch("enable_atr", value)
-				addPatch("enable_boll", value)
-				continue
-			}
-			addPatch(field, value)
-		}
-	}
-
-	fields := make([]string, 0, len(seen))
-	for field := range seen {
-		fields = append(fields, field)
-	}
-	sort.Strings(fields)
-
-	patches := make([]strategyConfigPatch, 0, len(fields))
-	for _, field := range fields {
-		patches = append(patches, strategyConfigPatch{Field: field, Value: seen[field]})
-	}
-	return patches
-}
-
 func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) error {
+	ensureGridConfig := func() *store.GridStrategyConfig {
+		if cfg.GridConfig == nil {
+			defaults := store.GetDefaultStrategyConfig(cfg.Language)
+			if defaults.GridConfig != nil {
+				copy := *defaults.GridConfig
+				cfg.GridConfig = &copy
+			} else {
+				cfg.GridConfig = &store.GridStrategyConfig{}
+			}
+		}
+		return cfg.GridConfig
+	}
+
 	switch field {
-	case "max_positions":
+	case "strategy_type":
+		cfg.StrategyType = value
+	case "symbol":
+		ensureGridConfig().Symbol = value
+	case "grid_count":
 		parsed, err := strconv.Atoi(value)
 		if err != nil {
-			return fmt.Errorf("最大持仓需要是整数")
+			return fmt.Errorf("网格数量需要是整数")
 		}
-		cfg.RiskControl.MaxPositions = parsed
+		ensureGridConfig().GridCount = parsed
+	case "total_investment":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("总投资需要是数字")
+		}
+		ensureGridConfig().TotalInvestment = parsed
+	case "upper_price":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("上沿价格需要是数字")
+		}
+		ensureGridConfig().UpperPrice = parsed
+	case "lower_price":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("下沿价格需要是数字")
+		}
+		ensureGridConfig().LowerPrice = parsed
+	case "use_atr_bounds":
+		ensureGridConfig().UseATRBounds = value == "true"
+	case "atr_multiplier":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("ATR 倍数需要是数字")
+		}
+		ensureGridConfig().ATRMultiplier = parsed
+	case "distribution":
+		ensureGridConfig().Distribution = value
+	case "enable_direction_adjust":
+		ensureGridConfig().EnableDirectionAdjust = value == "true"
+	case "direction_bias_ratio":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("方向偏置比例需要是数字")
+		}
+		ensureGridConfig().DirectionBiasRatio = parsed
+	case "max_drawdown_pct":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("最大回撤需要是数字")
+		}
+		ensureGridConfig().MaxDrawdownPct = parsed
+	case "stop_loss_pct":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("止损比例需要是数字")
+		}
+		ensureGridConfig().StopLossPct = parsed
+	case "daily_loss_limit_pct":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("日亏损限制需要是数字")
+		}
+		ensureGridConfig().DailyLossLimitPct = parsed
+	case "use_maker_only":
+		ensureGridConfig().UseMakerOnly = value == "true"
+	case "description", "is_public", "config_visible":
+		return nil
+	case "max_positions":
+		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
+	case "source_type":
+		cfg.CoinSource.SourceType = value
+	case "static_coins":
+		cfg.CoinSource.StaticCoins = cleanStringList(strings.Split(value, ","))
+	case "excluded_coins":
+		cfg.CoinSource.ExcludedCoins = cleanStringList(strings.Split(value, ","))
+	case "use_ai500":
+		cfg.CoinSource.UseAI500 = value == "true"
+	case "ai500_limit":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("AI500 数量需要是整数")
+		}
+		cfg.CoinSource.AI500Limit = parsed
+	case "use_oi_top":
+		cfg.CoinSource.UseOITop = value == "true"
+	case "oi_top_limit":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("OI Top 数量需要是整数")
+		}
+		cfg.CoinSource.OITopLimit = parsed
+	case "use_oi_low":
+		cfg.CoinSource.UseOILow = value == "true"
+	case "oi_low_limit":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("OI Low 数量需要是整数")
+		}
+		cfg.CoinSource.OILowLimit = parsed
 	case "min_confidence":
 		parsed, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("最小置信度需要是整数")
 		}
 		cfg.RiskControl.MinConfidence = parsed
+	case "min_risk_reward_ratio":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("最小盈亏比需要是数字")
+		}
+		cfg.RiskControl.MinRiskRewardRatio = parsed
+	case "leverage":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("杠杆需要是整数")
+		}
+		cfg.RiskControl.BTCETHMaxLeverage = parsed
+		cfg.RiskControl.AltcoinMaxLeverage = parsed
 	case "btceth_max_leverage":
 		parsed, err := strconv.Atoi(value)
 		if err != nil {
@@ -308,12 +973,34 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 			return fmt.Errorf("山寨币最大杠杆需要是整数")
 		}
 		cfg.RiskControl.AltcoinMaxLeverage = parsed
+	case "btceth_max_position_value_ratio":
+		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
+	case "altcoin_max_position_value_ratio":
+		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
+	case "max_margin_usage":
+		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
+	case "min_position_size":
+		return fmt.Errorf("%s", strategyLockedFieldError("zh", field))
 	case "primary_timeframe":
 		cfg.Indicators.Klines.PrimaryTimeframe = value
+	case "primary_count":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("K线数量需要是整数")
+		}
+		cfg.Indicators.Klines.PrimaryCount = parsed
 	case "selected_timeframes":
 		tfs := strings.Split(value, ",")
 		cfg.Indicators.Klines.SelectedTimeframes = tfs
 		cfg.Indicators.Klines.EnableMultiTimeframe = len(tfs) > 1
+	case "ema_periods":
+		cfg.Indicators.EMAPeriods = parseCSVIntegers(value)
+	case "rsi_periods":
+		cfg.Indicators.RSIPeriods = parseCSVIntegers(value)
+	case "atr_periods":
+		cfg.Indicators.ATRPeriods = parseCSVIntegers(value)
+	case "boll_periods":
+		cfg.Indicators.BOLLPeriods = parseCSVIntegers(value)
 	case "enable_ema":
 		cfg.Indicators.EnableEMA = value == "true"
 	case "enable_macd":
@@ -324,13 +1011,465 @@ func applyStrategyConfigPatch(cfg *store.StrategyConfig, field, value string) er
 		cfg.Indicators.EnableATR = value == "true"
 	case "enable_boll":
 		cfg.Indicators.EnableBOLL = value == "true"
+	case "enable_volume":
+		cfg.Indicators.EnableVolume = value == "true"
+	case "enable_oi":
+		cfg.Indicators.EnableOI = value == "true"
+	case "enable_funding_rate":
+		cfg.Indicators.EnableFundingRate = value == "true"
+	case "nofxos_api_key":
+		cfg.Indicators.NofxOSAPIKey = value
+	case "enable_quant_data":
+		cfg.Indicators.EnableQuantData = value == "true"
+	case "enable_quant_oi":
+		cfg.Indicators.EnableQuantOI = value == "true"
+	case "enable_quant_netflow":
+		cfg.Indicators.EnableQuantNetflow = value == "true"
+	case "enable_oi_ranking":
+		cfg.Indicators.EnableOIRanking = value == "true"
+	case "oi_ranking_duration":
+		cfg.Indicators.OIRankingDuration = value
+	case "oi_ranking_limit":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("OI 排行数量需要是整数")
+		}
+		cfg.Indicators.OIRankingLimit = parsed
+	case "enable_netflow_ranking":
+		cfg.Indicators.EnableNetFlowRanking = value == "true"
+	case "netflow_ranking_duration":
+		cfg.Indicators.NetFlowRankingDuration = value
+	case "netflow_ranking_limit":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("资金流排行数量需要是整数")
+		}
+		cfg.Indicators.NetFlowRankingLimit = parsed
+	case "enable_price_ranking":
+		cfg.Indicators.EnablePriceRanking = value == "true"
+	case "price_ranking_duration":
+		cfg.Indicators.PriceRankingDuration = value
+	case "price_ranking_limit":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("涨跌幅排行数量需要是整数")
+		}
+		cfg.Indicators.PriceRankingLimit = parsed
+	case "role_definition":
+		cfg.PromptSections.RoleDefinition = value
+	case "trading_frequency":
+		cfg.PromptSections.TradingFrequency = value
+	case "entry_standards":
+		cfg.PromptSections.EntryStandards = value
+	case "decision_process":
+		cfg.PromptSections.DecisionProcess = value
+	case "custom_prompt":
+		cfg.CustomPrompt = value
 	default:
 		return fmt.Errorf("unsupported strategy config field: %s", field)
 	}
 	return nil
 }
 
+func parseSourceTypeValue(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	switch {
+	case containsAny(lower, []string{"静态", "固定", "static"}):
+		return "static"
+	case containsAny(lower, []string{"ai500"}):
+		return "ai500"
+	case containsAny(lower, []string{"oi top"}):
+		return "oi_top"
+	case containsAny(lower, []string{"oi low"}):
+		return "oi_low"
+	default:
+		return ""
+	}
+}
+
+func extractSymbolList(text string, labels []string) []string {
+	segment := extractLongSegmentAfterKeywords(text, labels)
+	if segment == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(segment, func(r rune) bool {
+		return r == ',' || r == '，' || r == '、' || r == ' ' || r == '\n' || r == '\t'
+	})
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if !looksLikeCoinSymbol(part) {
+			continue
+		}
+		part = normalizeCoinSymbol(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return cleanStringList(out)
+}
+
+func looksLikeCoinSymbol(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	value = strings.Trim(value, `"'“”‘’()[]{}<>`)
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	return coinSymbolTokenRE.MatchString(value)
+}
+
+func normalizeCoinSymbol(symbol string) string {
+	symbol = strings.TrimSpace(strings.ToUpper(symbol))
+	if symbol == "" {
+		return ""
+	}
+	if strings.HasPrefix(symbol, "XYZ:") {
+		return symbol
+	}
+	if strings.HasSuffix(symbol, "USDT") || strings.HasSuffix(symbol, "USD") || strings.HasSuffix(symbol, "-USDC") {
+		return symbol
+	}
+	return symbol + "USDT"
+}
+
+func extractIntegerList(text string) []string {
+	matches := firstIntegerPattern.FindAllString(text, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	return matches
+}
+
+func parseCSVIntegers(value string) []int {
+	parts := strings.Split(value, ",")
+	out := make([]int, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+func extractDurationValue(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	switch {
+	case strings.Contains(lower, "1h,4h,24h"):
+		return "1h,4h,24h"
+	case strings.Contains(lower, "24h"):
+		return "24h"
+	case strings.Contains(lower, "4h"):
+		return "4h"
+	case strings.Contains(lower, "1h"):
+		return "1h"
+	default:
+		return ""
+	}
+}
+
+func parseStrategyTypeValue(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	switch {
+	case lower == "grid_trading":
+		return "grid_trading"
+	case lower == "ai_trading":
+		return "ai_trading"
+	case containsAny(lower, []string{"grid", "网格"}):
+		return "grid_trading"
+	case containsAny(lower, []string{"ai500", "oi top", "oi low", "静态币", "固定币", "选币来源"}):
+		return "ai_trading"
+	case containsAny(lower, []string{"ai trading", "ai策略", "ai 策略", "ai交易", "ai 交易", "ai智能", "智能策略", "普通策略"}):
+		return "ai_trading"
+	default:
+		return ""
+	}
+}
+
+func extractLongSegmentAfterKeywords(text string, keywords []string) string {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	for _, keyword := range keywords {
+		idx := strings.Index(lower, strings.ToLower(keyword))
+		if idx < 0 {
+			continue
+		}
+		segment := strings.TrimSpace(trimmed[idx+len(keyword):])
+		segment = strings.TrimLeft(segment, "“”\"'：: ")
+		for _, prefix := range []string{"改成", "改为", "设为", "设置为", "变成"} {
+			segment = strings.TrimSpace(strings.TrimPrefix(segment, prefix))
+		}
+		for _, marker := range []string{"排除币", "excluded coins", "exclude coins", "ai500", "oi top", "oi low", "并且", "然后"} {
+			if cut := strings.Index(strings.ToLower(segment), marker); cut > 0 {
+				segment = strings.TrimSpace(segment[:cut])
+				break
+			}
+		}
+		segment = strings.Trim(segment, "“”\"'：: ")
+		if segment != "" {
+			return segment
+		}
+	}
+	return ""
+}
+
+func extractDelimitedSegmentAfterKeywords(text string, keywords []string) string {
+	segment := extractLongSegmentAfterKeywords(text, keywords)
+	if segment == "" {
+		return ""
+	}
+	for _, marker := range []string{"，", ",", "。", ".", ";", "；", "\n", "\t", "并且", "然后"} {
+		if cut := strings.Index(segment, marker); cut > 0 {
+			segment = strings.TrimSpace(segment[:cut])
+			break
+		}
+	}
+	return strings.Trim(segment, "“”\"'：: ")
+}
+
+func extractModelNameValue(text string) string {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if !containsAny(lower, []string{"模型名", "模型名称", "model name"}) {
+		return ""
+	}
+	if value := extractDelimitedSegmentAfterKeywords(text, []string{"model name", "模型名称", "模型名"}); value != "" {
+		return value
+	}
+	if containsAny(lower, []string{"改成", "改为"}) {
+		if value := extractDelimitedSegmentAfterKeywords(text, []string{"改成", "改为"}); value != "" {
+			return value
+		}
+	}
+	if value := extractQuotedContent(text); value != "" {
+		return value
+	}
+	return ""
+}
+
+func sanitizeExtractedURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	for _, marker := range []string{"，", ",", "。", ";", "；", "并且", "然后"} {
+		if cut := strings.Index(raw, marker); cut > 0 {
+			raw = strings.TrimSpace(raw[:cut])
+			break
+		}
+	}
+	return raw
+}
+
+func strategyFieldKeywords(field string) []string {
+	switch field {
+	case "source_type":
+		return []string{"来源类型", "source type", "选币来源", "静态来源", "ai500来源", "oi top来源", "oi low来源"}
+	case "strategy_type":
+		return []string{"策略类型", "strategy type", "网格策略", "grid strategy", "ai策略"}
+	case "symbol":
+		return []string{"交易对", "symbol", "币对"}
+	case "grid_count":
+		return []string{"网格数量", "grid count", "grid levels"}
+	case "total_investment":
+		return []string{"总投入", "总投资", "total investment"}
+	case "upper_price":
+		return []string{"上沿价格", "上限价格", "upper price"}
+	case "lower_price":
+		return []string{"下沿价格", "下限价格", "lower price"}
+	case "use_atr_bounds":
+		return []string{"atr自动边界", "atr边界", "use atr bounds"}
+	case "atr_multiplier":
+		return []string{"atr倍数", "atr multiplier"}
+	case "distribution":
+		return []string{"分布方式", "distribution", "均匀分布", "高斯分布", "金字塔分布"}
+	case "enable_direction_adjust":
+		return []string{"方向调整", "direction adjust"}
+	case "direction_bias_ratio":
+		return []string{"方向偏置", "bias ratio", "direction bias"}
+	case "max_drawdown_pct":
+		return []string{"最大回撤", "max drawdown"}
+	case "stop_loss_pct":
+		return []string{"止损比例", "stop loss"}
+	case "daily_loss_limit_pct":
+		return []string{"日亏损限制", "daily loss limit"}
+	case "use_maker_only":
+		return []string{"maker only", "只挂maker", "仅maker"}
+	case "description":
+		return []string{"描述", "description"}
+	case "is_public":
+		return []string{"发布到市场", "公开", "publish"}
+	case "config_visible":
+		return []string{"配置可见", "显示配置", "config visible"}
+	case "nofxos_api_key":
+		return []string{"nofxos api key", "nofxos key", "api key"}
+	case "role_definition":
+		return []string{"角色定义", "role definition"}
+	case "trading_frequency":
+		return []string{"交易频率", "trading frequency"}
+	case "entry_standards":
+		return []string{"开仓标准", "入场标准", "entry standards"}
+	case "decision_process":
+		return []string{"决策流程", "decision process"}
+	case "custom_prompt":
+		return []string{"自定义prompt", "custom prompt", "提示词"}
+	case "ema_periods":
+		return []string{"ema周期", "ema periods"}
+	case "rsi_periods":
+		return []string{"rsi周期", "rsi periods"}
+	case "atr_periods":
+		return []string{"atr周期", "atr periods"}
+	case "boll_periods":
+		return []string{"boll周期", "布林周期", "boll periods"}
+	case "oi_ranking_duration":
+		return []string{"oi ranking duration", "oi排行周期"}
+	case "netflow_ranking_duration":
+		return []string{"netflow ranking duration", "资金流排行周期"}
+	case "price_ranking_duration":
+		return []string{"price ranking duration", "涨跌幅排行周期"}
+	case "oi_ranking_limit":
+		return []string{"oi ranking limit", "oi排行数量"}
+	case "netflow_ranking_limit":
+		return []string{"netflow ranking limit", "资金流排行数量"}
+	case "price_ranking_limit":
+		return []string{"price ranking limit", "涨跌幅排行数量"}
+	case "btceth_max_position_value_ratio":
+		return []string{"btc/eth仓位价值倍数", "btc eth position value", "主流币仓位价值倍数"}
+	case "altcoin_max_position_value_ratio":
+		return []string{"山寨币仓位价值倍数", "altcoin position value"}
+	case "max_margin_usage":
+		return []string{"最大保证金使用率", "max margin usage"}
+	default:
+		return nil
+	}
+}
+
+func matchesStrategyFieldKeywords(text, field string) bool {
+	keywords := strategyFieldKeywords(field)
+	if len(keywords) == 0 {
+		return true
+	}
+	return containsAny(strings.ToLower(text), keywords)
+}
+
+func strategyFieldExplicitlyMentioned(text, field string) bool {
+	keywords := strategyFieldKeywords(field)
+	if len(keywords) == 0 {
+		switch field {
+		case "max_positions":
+			keywords = []string{"最大持仓", "最多持仓", "max positions"}
+		case "symbol":
+			keywords = []string{"交易对", "symbol", "币对"}
+		case "grid_count":
+			keywords = []string{"网格数量", "grid count", "grid levels"}
+		case "total_investment":
+			keywords = []string{"总投入", "总投资", "total investment"}
+		case "upper_price":
+			keywords = []string{"上沿价格", "上限价格", "upper price"}
+		case "lower_price":
+			keywords = []string{"下沿价格", "下限价格", "lower price"}
+		case "use_atr_bounds":
+			keywords = []string{"atr自动边界", "atr边界", "use atr bounds"}
+		case "atr_multiplier":
+			keywords = []string{"atr倍数", "atr multiplier"}
+		case "distribution":
+			keywords = []string{"分布方式", "distribution", "均匀分布", "高斯分布", "金字塔分布"}
+		case "enable_direction_adjust":
+			keywords = []string{"方向调整", "direction adjust"}
+		case "direction_bias_ratio":
+			keywords = []string{"方向偏置", "bias ratio", "direction bias"}
+		case "max_drawdown_pct":
+			keywords = []string{"最大回撤", "max drawdown"}
+		case "stop_loss_pct":
+			keywords = []string{"止损比例", "stop loss"}
+		case "daily_loss_limit_pct":
+			keywords = []string{"日亏损限制", "daily loss limit"}
+		case "use_maker_only":
+			keywords = []string{"maker only", "只挂maker", "仅maker"}
+		case "min_confidence":
+			keywords = []string{"最低置信度", "最小置信度", "min confidence"}
+		case "min_risk_reward_ratio":
+			keywords = []string{"最小盈亏比", "风险回报比", "risk reward", "risk/reward"}
+		case "leverage":
+			keywords = []string{"杠杆", "leverage"}
+		case "btceth_max_leverage":
+			keywords = []string{"btc/eth杠杆", "btc eth杠杆", "btc/eth leverage", "btc eth leverage", "主流币杠杆"}
+		case "altcoin_max_leverage":
+			keywords = []string{"山寨币杠杆", "altcoin leverage", "alts leverage"}
+		case "btceth_max_position_value_ratio":
+			keywords = []string{"btc/eth仓位价值倍数", "btc eth position value", "主流币仓位价值倍数"}
+		case "altcoin_max_position_value_ratio":
+			keywords = []string{"山寨币仓位价值倍数", "altcoin position value"}
+		case "max_margin_usage":
+			keywords = []string{"最大保证金使用率", "max margin usage"}
+		case "primary_timeframe":
+			keywords = []string{"主周期", "主时间周期", "primary timeframe"}
+		case "primary_count":
+			keywords = []string{"k线数量", "k线根数", "primary count", "kline count"}
+		case "selected_timeframes":
+			keywords = []string{"多周期", "时间框架", "timeframes", "selected timeframes"}
+		case "enable_ema":
+			keywords = []string{"ema"}
+		case "enable_macd":
+			keywords = []string{"macd"}
+		case "enable_rsi":
+			keywords = []string{"rsi"}
+		case "enable_atr":
+			keywords = []string{"atr"}
+		case "enable_boll":
+			keywords = []string{"boll", "bollinger", "布林"}
+		case "enable_volume":
+			keywords = []string{"成交量", "volume"}
+		case "enable_oi":
+			keywords = []string{"持仓量", "open interest", "oi"}
+		case "enable_funding_rate":
+			keywords = []string{"资金费率", "funding rate"}
+		case "source_type":
+			keywords = []string{"来源类型", "source type", "选币来源"}
+		case "static_coins":
+			keywords = []string{"静态币", "固定币", "static coins", "static symbols"}
+		case "excluded_coins":
+			keywords = []string{"排除币", "排除币种", "excluded coins", "exclude coins"}
+		case "use_ai500":
+			keywords = []string{"ai500"}
+		case "ai500_limit":
+			keywords = []string{"ai500 limit", "ai500数量", "ai500上限"}
+		case "use_oi_top":
+			keywords = []string{"oi top", "持仓量增长", "持仓量排行上涨"}
+		case "oi_top_limit":
+			keywords = []string{"oi top limit", "oi top数量", "oi top上限"}
+		case "use_oi_low":
+			keywords = []string{"oi low", "持仓量下降", "持仓量排行下跌"}
+		case "oi_low_limit":
+			keywords = []string{"oi low limit", "oi low数量", "oi low上限"}
+		case "enable_all_core_indicators":
+			keywords = []string{"核心指标"}
+		}
+	}
+	if len(keywords) == 0 {
+		return false
+	}
+	return containsAny(strings.ToLower(text), keywords)
+}
+
 func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if session.Action == "query_strategy_binding" || session.Action == "query_exchange_binding" || session.Action == "query_model_binding" {
+		if detail, ok := a.describeTrader(storeUserID, lang, session.TargetRef); ok {
+			return detail
+		}
+		return formatReadFastPathResponse(lang, "list_traders", a.toolListTraders(storeUserID))
+	}
 	switch session.Action {
 	case "query", "query_list":
 		return formatReadFastPathResponse(lang, "list_traders", a.toolListTraders(storeUserID))
@@ -340,10 +1479,19 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 		}
 		return formatReadFastPathResponse(lang, "list_traders", a.toolListTraders(storeUserID))
 	case "start", "stop", "delete":
+		if session.TargetRef == nil && !(session.Action == "delete" && fieldValue(session, "bulk_scope") == "all") {
+			if lang == "zh" {
+				return "请先指定要操作的交易员。"
+			}
+			return "Please specify which trader to operate on."
+		}
 		if fieldValue(session, skillDAGStepField) == "" {
 			setSkillDAGStep(&session, "await_confirmation")
 		}
-		if msg, waiting := beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
+		if session.Action == "delete" && fieldValue(session, "bulk_scope") == "all" {
+			return a.executeBulkTraderDelete(storeUserID, userID, lang, text, session)
+		}
+		if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
 			a.saveSkillSession(userID, session)
 			return msg
 		}
@@ -374,20 +1522,17 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 			return fmt.Sprintf("已完成交易员操作：%s。", session.Action)
 		}
 		return fmt.Sprintf("Completed trader action: %s.", session.Action)
-	case "update", "update_name", "update_bindings":
-		if session.Action == "update_bindings" {
+	case "update", "update_bindings", "configure_strategy", "configure_exchange", "configure_model":
+		if session.Action == "update_bindings" || session.Action == "configure_strategy" || session.Action == "configure_exchange" || session.Action == "configure_model" {
 			if fieldValue(session, skillDAGStepField) == "" {
 				setSkillDAGStep(&session, "collect_bindings")
 			}
-			args := manageTraderArgs{Action: "update", TraderID: session.TargetRef.ID}
-			if match := pickMentionedOption(text, a.loadEnabledModelOptions(storeUserID)); match != nil {
-				args.AIModelID = match.ID
-			}
-			if match := pickMentionedOption(text, a.loadExchangeOptions(storeUserID)); match != nil {
-				args.ExchangeID = match.ID
-			}
-			if match := pickMentionedOption(text, a.loadStrategyOptions(storeUserID)); match != nil {
-				args.StrategyID = match.ID
+			args := manageTraderArgs{
+				Action:     "update",
+				TraderID:   session.TargetRef.ID,
+				AIModelID:  fieldValue(session, "ai_model_id"),
+				ExchangeID: fieldValue(session, "exchange_id"),
+				StrategyID: fieldValue(session, "strategy_id"),
 			}
 			if args.AIModelID != "" {
 				setField(&session, "ai_model_id", args.AIModelID)
@@ -398,115 +1543,374 @@ func (a *Agent) executeTraderManagementAction(storeUserID string, userID int64, 
 			if args.StrategyID != "" {
 				setField(&session, "strategy_id", args.StrategyID)
 			}
-			if value := fieldValue(session, "ai_model_id"); value != "" {
-				args.AIModelID = value
-			}
-			if value := fieldValue(session, "exchange_id"); value != "" {
-				args.ExchangeID = value
-			}
-			if value := fieldValue(session, "strategy_id"); value != "" {
-				args.StrategyID = value
+			selectedField := fieldValue(session, "update_field")
+			if selectedField == "" {
+				switch session.Action {
+				case "configure_strategy":
+					selectedField = "strategy_id"
+				case "configure_exchange":
+					selectedField = "exchange_id"
+				case "configure_model":
+					selectedField = "ai_model_id"
+				default:
+					if args.AIModelID == "" && args.ExchangeID == "" && args.StrategyID == "" {
+						selectedField = detectCatalogField(text, traderFieldCatalog)
+					}
+				}
+				if selectedField == "name" || selectedField == "scan_interval_minutes" || selectedField == "is_cross_margin" || selectedField == "show_in_competition" {
+					selectedField = ""
+				}
+				if selectedField != "" {
+					setField(&session, "update_field", selectedField)
+				}
 			}
 			if args.AIModelID == "" && args.ExchangeID == "" && args.StrategyID == "" {
+				if fieldValue(session, "inline_sub_intent") == "create_sub_resource" {
+					delete(session.Fields, "inline_sub_intent")
+					a.saveSkillSession(userID, session)
+					task := a.buildSuspendedTask(userID, lang)
+					if task.Kind != "" && task.SkillSession != nil {
+						task.ResumeOnSuccess = true
+						var childSkill, childResumeTrigger string
+						switch session.Action {
+						case "configure_strategy":
+							childSkill = "strategy_management"
+							childResumeTrigger = "strategy_management"
+						case "configure_exchange":
+							childSkill = "exchange_management"
+							childResumeTrigger = "exchange_management"
+						case "configure_model":
+							childSkill = "model_management"
+							childResumeTrigger = "model_management"
+						case "create":
+							// infer child skill from which binding slot is missing
+							slots := session.Slots
+							if slots == nil || slots.StrategyID == "" {
+								childSkill = "strategy_management"
+								childResumeTrigger = "strategy_management"
+							} else if slots.ExchangeID == "" {
+								childSkill = "exchange_management"
+								childResumeTrigger = "exchange_management"
+							} else if slots.ModelID == "" {
+								childSkill = "model_management"
+								childResumeTrigger = "model_management"
+							}
+						}
+						if childSkill != "" {
+							task.ResumeTriggers = []string{childResumeTrigger}
+							a.SnapshotManager(userID).Save(task)
+							a.clearSkillSession(userID)
+							child := skillSession{Name: childSkill, Action: "create", Phase: "collecting"}
+							var answer string
+							var handled bool
+							switch childSkill {
+							case "strategy_management":
+								answer, handled = a.handleStrategyManagementSkill(storeUserID, userID, lang, text, child)
+							case "exchange_management":
+								answer, handled = a.handleExchangeManagementSkill(storeUserID, userID, lang, text, child)
+							case "model_management":
+								answer, handled = a.handleModelManagementSkill(storeUserID, userID, lang, text, child)
+							}
+							if !handled {
+								answer = ""
+							}
+							return a.maybeResumeParentTaskAfterSuccessfulSkill(storeUserID, userID, lang, childSkill, "create", answer)
+						}
+					}
+				}
+				if fieldValue(session, "inline_sub_intent") == "edit_sub_resource" {
+					delete(session.Fields, "inline_sub_intent")
+					a.saveSkillSession(userID, session)
+					task := a.buildSuspendedTask(userID, lang)
+					if task.Kind != "" && task.SkillSession != nil {
+						task.ResumeOnSuccess = true
+						var childSkill string
+						switch session.Action {
+						case "configure_strategy":
+							childSkill = "strategy_management"
+						case "configure_exchange":
+							childSkill = "exchange_management"
+						case "configure_model":
+							childSkill = "model_management"
+						case "create", "update_bindings":
+							childSkill = detectCatalogDomainFromText(text)
+						}
+						if childSkill != "" {
+							task.ResumeTriggers = []string{childSkill}
+							a.SnapshotManager(userID).Save(task)
+							a.clearSkillSession(userID)
+							child := skillSession{Name: childSkill, Action: "update", Phase: "collecting"}
+							var answer string
+							var handled bool
+							switch childSkill {
+							case "strategy_management":
+								answer, handled = a.handleStrategyManagementSkill(storeUserID, userID, lang, text, child)
+							case "exchange_management":
+								answer, handled = a.handleExchangeManagementSkill(storeUserID, userID, lang, text, child)
+							case "model_management":
+								answer, handled = a.handleModelManagementSkill(storeUserID, userID, lang, text, child)
+							}
+							if !handled {
+								answer = ""
+							}
+							return a.maybeResumeParentTaskAfterSuccessfulSkill(storeUserID, userID, lang, childSkill, "update", answer)
+						}
+					}
+				}
 				setSkillDAGStep(&session, "collect_bindings")
 				a.saveSkillSession(userID, session)
 				if lang == "zh" {
-					return "这次是更新交易员绑定，请直接说要换成哪个模型、交易所或策略。"
+					if selectedField != "" {
+						return fmt.Sprintf("还差一步：请告诉我你想换成哪个%s。", displayCatalogFieldName(selectedField, lang))
+					}
+					switch session.Action {
+					case "configure_strategy":
+						return "好，我来帮你换策略。直接告诉我想用哪个策略就行。"
+					case "configure_exchange":
+						return "好，我来帮你换交易所。直接告诉我想用哪个交易所就行。"
+					case "configure_model":
+						return "好，我来帮你换模型。直接告诉我想用哪个模型就行。"
+					default:
+						return "好，我来帮你调整交易员绑定。你直接告诉我想换成哪个模型、交易所或策略就行。"
+					}
 				}
-				return "This action updates trader bindings. Tell me which model, exchange, or strategy to switch to."
+				if selectedField != "" {
+					return fmt.Sprintf("One more thing: tell me which %s you want to use.", displayCatalogFieldName(selectedField, lang))
+				}
+				switch session.Action {
+				case "configure_strategy":
+					return "Sure. Tell me which strategy you want to use."
+				case "configure_exchange":
+					return "Sure. Tell me which exchange you want to use."
+				case "configure_model":
+					return "Sure. Tell me which model you want to use."
+				default:
+					return "Sure. Tell me which model, exchange, or strategy you want to switch to."
+				}
 			}
 			setSkillDAGStep(&session, "execute_update")
 			resp := a.toolUpdateTrader(storeUserID, args)
 			a.clearSkillSession(userID)
 			if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 				if lang == "zh" {
-					return "更新交易员绑定失败：" + errMsg
+					return "这次没改成功：" + errMsg
 				}
-				return "Failed to update trader bindings: " + errMsg
+				return "That change did not go through: " + errMsg
 			}
+			a.rememberReferencesFromToolResult(userID, "manage_trader", resp)
 			if lang == "zh" {
-				return "已更新交易员绑定。"
+				switch session.Action {
+				case "configure_strategy":
+					return "已更新交易员策略。"
+				case "configure_exchange":
+					return "已更新交易员交易所。"
+				case "configure_model":
+					return "已更新交易员模型。"
+				default:
+					return "已更新交易员绑定。"
+				}
 			}
-			return "Updated trader bindings."
+			switch session.Action {
+			case "configure_strategy":
+				return "Updated the trader strategy."
+			case "configure_exchange":
+				return "Updated the trader exchange."
+			case "configure_model":
+				return "Updated the trader model."
+			default:
+				return "Updated trader bindings."
+			}
 		}
 		if fieldValue(session, skillDAGStepField) == "" {
 			setSkillDAGStep(&session, "collect_name")
 		}
-		args := manageTraderArgs{Action: "update", TraderID: session.TargetRef.ID}
-		if minutes, ok := parseScanIntervalMinutes(text); ok && minutes > 0 {
-			args.ScanIntervalMinutes = &minutes
-		}
-		if value, ok := extractStrategyConfigValue(text, "btceth_max_leverage"); ok {
-			if parsed, err := strconv.Atoi(value); err == nil {
-				args.BTCETHLeverage = &parsed
+		parsedArgs := buildTraderUpdateArgsFromSession(session)
+		selectedField := fieldValue(session, "update_field")
+		if selectedField == "" {
+			if !parsedArgs.hasAny() {
+				selectedField = detectCatalogField(text, traderFieldCatalog)
+			}
+			if selectedField != "" {
+				setField(&session, "update_field", selectedField)
 			}
 		}
-		if value, ok := extractStrategyConfigValue(text, "altcoin_max_leverage"); ok {
-			if parsed, err := strconv.Atoi(value); err == nil {
-				args.AltcoinLeverage = &parsed
+		applyTraderUpdateArgsToSession(&session, parsedArgs)
+		parsedArgs = mergeTraderUpdateArgs(buildTraderUpdateArgsFromSession(session), parsedArgs)
+		if parsedArgs.hasAny() {
+			normalizedArgs, warnings := normalizeTraderArgsToManualLimits(lang, parsedArgs)
+			applyTraderUpdateArgsToSession(&session, normalizedArgs)
+			args := manageTraderArgs{
+				Action:              "update",
+				TraderID:            session.TargetRef.ID,
+				AIModelID:           normalizedArgs.AIModelID,
+				ExchangeID:          normalizedArgs.ExchangeID,
+				StrategyID:          normalizedArgs.StrategyID,
+				ScanIntervalMinutes: normalizedArgs.ScanIntervalMinutes,
+				IsCrossMargin:       normalizedArgs.IsCrossMargin,
+				ShowInCompetition:   normalizedArgs.ShowInCompetition,
 			}
-		}
-		if prompt := extractCredentialValue(text, []string{"自定义提示词", "提示词", "custom prompt", "prompt"}); prompt != "" &&
-			containsAny(strings.ToLower(text), []string{"提示词", "prompt"}) {
-			args.CustomPrompt = prompt
-		}
-		if enabled, ok := parseFlagValue(text, []string{"ai500"}); ok {
-			args.UseAI500 = &enabled
-		}
-		if enabled, ok := parseFlagValue(text, []string{"oi top", "oitop", "持仓量排名"}); ok {
-			args.UseOITop = &enabled
-		}
-		if args.ScanIntervalMinutes != nil || args.BTCETHLeverage != nil || args.AltcoinLeverage != nil || args.CustomPrompt != "" || args.UseAI500 != nil || args.UseOITop != nil {
 			setSkillDAGStep(&session, "execute_update")
 			resp := a.toolUpdateTrader(storeUserID, args)
 			a.clearSkillSession(userID)
 			if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 				if lang == "zh" {
-					return "更新交易员失败：" + errMsg
+					return "这次没改成功：" + errMsg
 				}
-				return "Failed to update trader: " + errMsg
+				return "That change did not go through: " + errMsg
 			}
 			if lang == "zh" {
-				return "已更新交易员配置。"
+				reply := "已更新交易员配置。"
+				if len(warnings) > 0 {
+					reply += "\n\n已按手动面板范围自动调整：\n- " + strings.Join(warnings, "\n- ")
+				}
+				return reply
 			}
-			return "Updated trader config."
+			reply := "Updated trader config."
+			if len(warnings) > 0 {
+				reply += "\n\nAdjusted to stay within the manual editor limits:\n- " + strings.Join(warnings, "\n- ")
+			}
+			return reply
 		}
-		newName := extractTraderName(text)
-		if newName == "" {
-			newName = extractPostKeywordName(text, []string{"改成", "改为", "rename to"})
-		}
-		if newName != "" {
-			setField(&session, "name", newName)
-		}
-		newName = fieldValue(session, "name")
-		if newName == "" {
+		if selectedField != "" {
+			setSkillDAGStep(&session, "collect_field_value")
+		} else {
 			setSkillDAGStep(&session, "collect_name")
-			a.saveSkillSession(userID, session)
-			if lang == "zh" {
-				return "目前更新交易员这条 skill 先支持改名。请直接告诉我新的名字。"
-			}
-			return "This trader update skill currently supports renaming first. Tell me the new name."
 		}
-		args = manageTraderArgs{Action: "update", TraderID: session.TargetRef.ID, Name: newName}
-		setSkillDAGStep(&session, "execute_update")
-		resp := a.toolUpdateTrader(storeUserID, args)
-		a.clearSkillSession(userID)
-		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
-			if lang == "zh" {
-				return "更新交易员失败：" + errMsg
-			}
-			return "Failed to update trader: " + errMsg
-		}
+		a.saveSkillSession(userID, session)
 		if lang == "zh" {
-			return fmt.Sprintf("已将交易员改名为“%s”。", newName)
+			if selectedField != "" {
+				if selectedField == "ai_model_id" || selectedField == "exchange_id" || selectedField == "strategy_id" {
+					return fmt.Sprintf("还差一步：请告诉我你想换成哪个%s。", displayCatalogFieldName(selectedField, lang))
+				}
+				return fmt.Sprintf("还差一步：请告诉我新的%s。", displayCatalogFieldName(selectedField, lang))
+			}
+			return "你可以直接告诉我想改哪一项，比如绑定的模型、交易所、策略，或者扫描间隔、保证金模式、是否展示到竞技场。若你要改策略参数、模型配置或交易所凭证，我会切到对应配置流程。"
 		}
-		return fmt.Sprintf("Renamed trader to %q.", newName)
+		if selectedField != "" {
+			if selectedField == "ai_model_id" || selectedField == "exchange_id" || selectedField == "strategy_id" {
+				return fmt.Sprintf("One more thing: tell me which %s you want to use.", displayCatalogFieldName(selectedField, lang))
+			}
+			return fmt.Sprintf("One more thing: tell me the new %s.", displayCatalogFieldName(selectedField, lang))
+		}
+		return "Tell me what you want to change first, for example the linked model, exchange, strategy, scan interval, margin mode, or competition visibility. If you want to edit the internals of a strategy, model, or exchange, I'll switch to the right config flow."
 	default:
 		return ""
 	}
 }
 
+func (a *Agent) executeBulkTraderDelete(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if a == nil || a.store == nil {
+		if lang == "zh" {
+			return "我这边暂时无法读取交易员列表。"
+		}
+		return "I cannot load the trader list right now."
+	}
+	traders, err := a.store.Trader().List(storeUserID)
+	if err != nil {
+		if lang == "zh" {
+			return "我这边暂时没读到交易员列表：" + err.Error()
+		}
+		return "I could not load the trader list just now: " + err.Error()
+	}
+	if len(traders) == 0 {
+		a.clearSkillSession(userID)
+		if lang == "zh" {
+			return "当前没有可删除的交易员。"
+		}
+		return "There are no traders to delete."
+	}
+
+	deletable := make([]*store.Trader, 0, len(traders))
+	runningNames := make([]string, 0)
+	for _, trader := range traders {
+		if trader == nil {
+			continue
+		}
+		isRunning := trader.IsRunning
+		if a.traderManager != nil {
+			if memTrader, err := a.traderManager.GetTrader(trader.ID); err == nil {
+				if running, ok := memTrader.GetStatus()["is_running"].(bool); ok {
+					isRunning = running
+				}
+			}
+		}
+		if isRunning {
+			runningNames = append(runningNames, defaultIfEmpty(trader.Name, trader.ID))
+			continue
+		}
+		deletable = append(deletable, trader)
+	}
+
+	if len(deletable) == 0 {
+		a.clearSkillSession(userID)
+		if lang == "zh" {
+			return "当前所有交易员都还在运行中，删除前需要先停止：" + strings.Join(runningNames, "、")
+		}
+		return "All traders are still running. Stop them before deleting: " + strings.Join(runningNames, ", ")
+	}
+
+	targetLabel := fmt.Sprintf("全部已停止交易员（共 %d 个）", len(deletable))
+	if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, targetLabel); waiting {
+		a.saveSkillSession(userID, session)
+		return msg
+	}
+	if msg, waiting := awaitingConfirmationButNotApproved(lang, session, text); waiting {
+		a.saveSkillSession(userID, session)
+		return msg
+	}
+
+	setSkillDAGStep(&session, "execute_delete")
+	deletedNames := make([]string, 0, len(deletable))
+	failedNames := make([]string, 0)
+	for _, trader := range deletable {
+		resp := a.toolDeleteTrader(storeUserID, trader.ID)
+		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
+			failedNames = append(failedNames, fmt.Sprintf("%s（%s）", defaultIfEmpty(trader.Name, trader.ID), errMsg))
+			continue
+		}
+		deletedNames = append(deletedNames, defaultIfEmpty(trader.Name, trader.ID))
+	}
+	a.clearSkillSession(userID)
+
+	if lang == "zh" {
+		parts := []string{fmt.Sprintf("批量删除交易员已完成：成功删除 %d 个。", len(deletedNames))}
+		if len(runningNames) > 0 {
+			parts = append(parts, "这些交易员仍在运行，已跳过，删除前需要先停止："+strings.Join(runningNames, "、"))
+		}
+		if len(failedNames) > 0 {
+			parts = append(parts, "这些没删成功："+strings.Join(failedNames, "；"))
+		}
+		if len(deletedNames) > 0 {
+			parts = append(parts, "已删除："+strings.Join(deletedNames, "、"))
+		}
+		return strings.Join(parts, "\n")
+	}
+
+	parts := []string{fmt.Sprintf("Bulk trader deletion finished: deleted %d trader(s).", len(deletedNames))}
+	if len(runningNames) > 0 {
+		parts = append(parts, "Skipped running traders; stop them before deleting: "+strings.Join(runningNames, ", "))
+	}
+	if len(failedNames) > 0 {
+		parts = append(parts, "These did not delete successfully: "+strings.Join(failedNames, "; "))
+	}
+	if len(deletedNames) > 0 {
+		parts = append(parts, "Deleted: "+strings.Join(deletedNames, ", "))
+	}
+	return strings.Join(parts, "\n")
+}
+
 func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	switch session.Action {
+	case "query", "query_list", "create":
+		// These actions don't need a target — fall through.
+	default:
+		if session.TargetRef == nil {
+			if lang == "zh" {
+				return "请先指定要操作的交易所配置。"
+			}
+			return "Please specify which exchange config to operate on."
+		}
+	}
 	switch session.Action {
 	case "query_detail":
 		if detail, ok := a.describeExchange(storeUserID, lang, session.TargetRef); ok {
@@ -517,7 +1921,7 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 		if fieldValue(session, skillDAGStepField) == "" {
 			setSkillDAGStep(&session, "await_confirmation")
 		}
-		if msg, waiting := beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
+		if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
 			a.saveSkillSession(userID, session)
 			return msg
 		}
@@ -531,14 +1935,14 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 		a.clearSkillSession(userID)
 		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 			if lang == "zh" {
-				return "删除交易所配置失败：" + errMsg
+				return "这次没删成功：" + errMsg
 			}
-			return "Failed to delete exchange config: " + errMsg
+			return "That delete did not go through: " + errMsg
 		}
 		if lang == "zh" {
-			return "已删除交易所配置。"
+			return a.maybeResumeParentTaskAfterSuccessfulSkill(storeUserID, userID, lang, "exchange_management", "delete", "已删除交易所配置。")
 		}
-		return "Deleted exchange config."
+		return a.maybeResumeParentTaskAfterSuccessfulSkill(storeUserID, userID, lang, "exchange_management", "delete", "Deleted exchange config.")
 	case "update", "update_name", "update_status":
 		if fieldValue(session, skillDAGStepField) == "" {
 			if session.Action == "update_status" {
@@ -547,47 +1951,68 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 				setSkillDAGStep(&session, "collect_account_name")
 			}
 		}
-		accountName := extractTraderName(text)
-		if accountName == "" {
-			accountName = extractPostKeywordName(text, []string{"改成", "改为", "账户名改成", "rename to"})
+		patch := buildExchangeUpdatePatchFromSession(session)
+		selectedField := fieldValue(session, "update_field")
+		if selectedField == "" && session.Action == "update_status" {
+			selectedField = "enabled"
+			setField(&session, "update_field", selectedField)
 		}
-		if accountName != "" {
-			setField(&session, "account_name", accountName)
-		}
-		if enabled, ok := parseEnabledValue(text); ok {
-			setField(&session, "enabled", strconv.FormatBool(enabled))
-		}
-		if value := extractCredentialValue(text, []string{"api key", "apikey", "api_key"}); value != "" {
-			setField(&session, "api_key", value)
-		}
-		if value := extractCredentialValue(text, []string{"secret key", "secret", "secret_key"}); value != "" {
-			setField(&session, "secret_key", value)
-		}
-		if value := extractCredentialValue(text, []string{"passphrase", "密码短语"}); value != "" {
-			setField(&session, "passphrase", value)
-		}
-		if testnet, ok := parseFlagValue(text, []string{"testnet", "测试网"}); ok {
-			setField(&session, "testnet", strconv.FormatBool(testnet))
-		}
+		applyExchangeUpdatePatchToSession(&session, patch)
+		patch = mergeExchangeUpdatePatch(buildExchangeUpdatePatchFromSession(session), patch)
+		patch, warnings := normalizeExchangePatchToManualLimits(lang, patch)
+		applyExchangeUpdatePatchToSession(&session, patch)
 		payload := map[string]any{"action": "update", "exchange_id": session.TargetRef.ID}
-		accountName = fieldValue(session, "account_name")
+		accountName := defaultIfEmpty(patch.AccountName, fieldValue(session, "account_name"))
 		if accountName != "" && session.Action != "update_status" {
 			payload["account_name"] = accountName
 		}
-		if enabledRaw := fieldValue(session, "enabled"); enabledRaw != "" {
+		enabledRaw := fieldValue(session, "enabled")
+		if patch.Enabled != nil {
+			enabledRaw = strconv.FormatBool(*patch.Enabled)
+		}
+		if enabledRaw != "" {
 			payload["enabled"] = enabledRaw == "true"
 		}
-		if value := fieldValue(session, "api_key"); value != "" {
+		if value := defaultIfEmpty(patch.APIKey, fieldValue(session, "api_key")); value != "" {
 			payload["api_key"] = value
 		}
-		if value := fieldValue(session, "secret_key"); value != "" {
+		if value := defaultIfEmpty(patch.SecretKey, fieldValue(session, "secret_key")); value != "" {
 			payload["secret_key"] = value
 		}
-		if value := fieldValue(session, "passphrase"); value != "" {
+		if value := defaultIfEmpty(patch.Passphrase, fieldValue(session, "passphrase")); value != "" {
 			payload["passphrase"] = value
 		}
-		if value := fieldValue(session, "testnet"); value != "" {
+		testnetRaw := fieldValue(session, "testnet")
+		if patch.Testnet != nil {
+			testnetRaw = strconv.FormatBool(*patch.Testnet)
+		}
+		if value := testnetRaw; value != "" {
 			payload["testnet"] = value == "true"
+		}
+		if value := defaultIfEmpty(patch.HyperliquidWalletAddr, fieldValue(session, "hyperliquid_wallet_addr")); value != "" {
+			payload["hyperliquid_wallet_addr"] = value
+		}
+		if value := defaultIfEmpty(patch.AsterUser, fieldValue(session, "aster_user")); value != "" {
+			payload["aster_user"] = value
+		}
+		if value := defaultIfEmpty(patch.AsterSigner, fieldValue(session, "aster_signer")); value != "" {
+			payload["aster_signer"] = value
+		}
+		if value := defaultIfEmpty(patch.AsterPrivateKey, fieldValue(session, "aster_private_key")); value != "" {
+			payload["aster_private_key"] = value
+		}
+		if value := defaultIfEmpty(patch.LighterWalletAddr, fieldValue(session, "lighter_wallet_addr")); value != "" {
+			payload["lighter_wallet_addr"] = value
+		}
+		if value := defaultIfEmpty(patch.LighterAPIKeyPrivateKey, fieldValue(session, "lighter_api_key_private_key")); value != "" {
+			payload["lighter_api_key_private_key"] = value
+		}
+		if patch.LighterAPIKeyIndex != nil {
+			payload["lighter_api_key_index"] = *patch.LighterAPIKeyIndex
+		} else if value := fieldValue(session, "lighter_api_key_index"); value != "" {
+			if parsed, err := strconv.Atoi(value); err == nil {
+				payload["lighter_api_key_index"] = parsed
+			}
 		}
 		if session.Action == "update_status" {
 			delete(payload, "account_name")
@@ -596,13 +2021,41 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 			if session.Action == "update_status" {
 				setSkillDAGStep(&session, "collect_enabled")
 			} else {
-				setSkillDAGStep(&session, "collect_account_name")
+				if selectedField != "" {
+					setSkillDAGStep(&session, "collect_field_value")
+				} else {
+					setSkillDAGStep(&session, "collect_account_name")
+				}
 			}
 			a.saveSkillSession(userID, session)
 			if lang == "zh" {
-				return "目前更新交易所 skill 支持改账户名、启用状态、API Key、Secret、Passphrase 和 testnet。请告诉我你要改什么。"
+				if selectedField != "" {
+					return fmt.Sprintf("还差一步：请告诉我你想把交易所配置里的%s改成什么。", displayCatalogFieldName(selectedField, lang))
+				}
+				return "你可以直接告诉我想改交易所配置里的哪一项，比如账户名、启用开关、API Key、Passphrase、钱包地址或 testnet。"
 			}
-			return "This exchange update skill supports account name, enabled state, API key, secret, passphrase, and testnet."
+			if selectedField != "" {
+				return fmt.Sprintf("One more thing: tell me what you want to change the exchange config %s to.", displayCatalogFieldName(selectedField, lang))
+			}
+			return "Tell me which exchange config field you want to change, for example the account name, enabled switch, API key, passphrase, wallet address, or testnet."
+		}
+		if err := a.validateExchangeDraft(
+			storeUserID,
+			session.TargetRef.ID,
+			"",
+			payload["enabled"] == true,
+			asString(payload["api_key"]),
+			asString(payload["secret_key"]),
+			asString(payload["passphrase"]),
+			asString(payload["hyperliquid_wallet_addr"]),
+			asString(payload["aster_user"]),
+			asString(payload["aster_signer"]),
+			asString(payload["aster_private_key"]),
+			asString(payload["lighter_wallet_addr"]),
+			asString(payload["lighter_api_key_private_key"]),
+		); err != nil {
+			a.saveSkillSession(userID, session)
+			return formatValidationFeedback(lang, "exchange", err)
 		}
 		setSkillDAGStep(&session, "execute_update")
 		raw, _ := json.Marshal(payload)
@@ -610,20 +2063,40 @@ func (a *Agent) executeExchangeManagementAction(storeUserID string, userID int64
 		a.clearSkillSession(userID)
 		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 			if lang == "zh" {
-				return "更新交易所配置失败：" + errMsg
+				return "这次没改成功：" + errMsg
 			}
-			return "Failed to update exchange config: " + errMsg
+			return "That change did not go through: " + errMsg
 		}
+		a.rememberReferencesFromToolResult(userID, "manage_exchange_config", resp)
 		if lang == "zh" {
-			return "已更新交易所配置。"
+			reply := "已更新交易所配置。"
+			if len(warnings) > 0 {
+				reply += "\n\n已按手动面板范围自动调整：\n- " + strings.Join(warnings, "\n- ")
+			}
+			return a.maybeResumeParentTaskAfterSuccessfulSkill(storeUserID, userID, lang, "exchange_management", "update", reply)
 		}
-		return "Updated exchange config."
+		reply := "Updated exchange config."
+		if len(warnings) > 0 {
+			reply += "\n\nAdjusted to stay within the manual editor limits:\n- " + strings.Join(warnings, "\n- ")
+		}
+		return a.maybeResumeParentTaskAfterSuccessfulSkill(storeUserID, userID, lang, "exchange_management", "update", reply)
 	default:
 		return ""
 	}
 }
 
 func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	switch session.Action {
+	case "query", "query_list", "create":
+		// These actions don't need a target — fall through.
+	default:
+		if session.TargetRef == nil {
+			if lang == "zh" {
+				return "请先指定要操作的模型。"
+			}
+			return "Please specify which model to operate on."
+		}
+	}
 	switch session.Action {
 	case "query_detail":
 		if detail, ok := a.describeModel(storeUserID, lang, session.TargetRef); ok {
@@ -634,7 +2107,7 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 		if fieldValue(session, skillDAGStepField) == "" {
 			setSkillDAGStep(&session, "await_confirmation")
 		}
-		if msg, waiting := beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
+		if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
 			a.saveSkillSession(userID, session)
 			return msg
 		}
@@ -648,9 +2121,9 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 		a.clearSkillSession(userID)
 		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 			if lang == "zh" {
-				return "删除模型配置失败：" + errMsg
+				return "这次没删成功：" + errMsg
 			}
-			return "Failed to delete model config: " + errMsg
+			return "That delete did not go through: " + errMsg
 		}
 		if lang == "zh" {
 			return "已删除模型配置。"
@@ -668,28 +2141,38 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 			}
 		}
 		payload := map[string]any{"action": "update", "model_id": session.TargetRef.ID}
-		if url := extractURL(text); url != "" {
-			setField(&session, "custom_api_url", url)
+		patch := buildModelUpdatePatchFromSession(session)
+		selectedField := fieldValue(session, "update_field")
+		if selectedField == "" {
+			switch session.Action {
+			case "update_status":
+				selectedField = "enabled"
+			case "update_endpoint":
+				selectedField = "custom_api_url"
+			}
+			if selectedField != "" {
+				setField(&session, "update_field", selectedField)
+			}
 		}
-		if enabled, ok := parseEnabledValue(text); ok {
-			setField(&session, "enabled", strconv.FormatBool(enabled))
+		applyModelUpdatePatchToSession(&session, patch)
+		patch = mergeModelUpdatePatch(buildModelUpdatePatchFromSession(session), patch)
+		urlValue := patch.CustomAPIURL
+		enabledValue := ""
+		if patch.Enabled != nil {
+			enabledValue = strconv.FormatBool(*patch.Enabled)
 		}
-		if apiKey := extractCredentialValue(text, []string{"api key", "apikey", "api_key"}); apiKey != "" {
-			setField(&session, "api_key", apiKey)
-		}
-		if modelName := extractPostKeywordName(text, []string{"model name", "模型名", "模型名称", "改成"}); modelName != "" {
-			setField(&session, "custom_model_name", modelName)
-		}
-		if value := fieldValue(session, "custom_api_url"); value != "" {
+		apiKeyValue := patch.APIKey
+		modelNameValue := patch.CustomModelName
+		if value := defaultIfEmpty(urlValue, fieldValue(session, "custom_api_url")); value != "" {
 			payload["custom_api_url"] = value
 		}
-		if value := fieldValue(session, "enabled"); value != "" {
+		if value := defaultIfEmpty(enabledValue, fieldValue(session, "enabled")); value != "" {
 			payload["enabled"] = value == "true"
 		}
-		if value := fieldValue(session, "api_key"); value != "" {
+		if value := defaultIfEmpty(apiKeyValue, fieldValue(session, "api_key")); value != "" {
 			payload["api_key"] = value
 		}
-		if value := fieldValue(session, "custom_model_name"); value != "" {
+		if value := defaultIfEmpty(modelNameValue, fieldValue(session, "custom_model_name")); value != "" {
 			payload["custom_model_name"] = value
 		}
 		if session.Action == "update_name" {
@@ -714,13 +2197,35 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 			case "update_endpoint":
 				setSkillDAGStep(&session, "collect_custom_api_url")
 			default:
-				setSkillDAGStep(&session, "collect_custom_model_name")
+				if selectedField != "" {
+					setSkillDAGStep(&session, "collect_field_value")
+				} else {
+					setSkillDAGStep(&session, "collect_custom_model_name")
+				}
 			}
 			a.saveSkillSession(userID, session)
 			if lang == "zh" {
-				return "目前更新模型 skill 支持改 API Key、URL、模型名和启用状态。请告诉我你要改什么。"
+				if selectedField != "" {
+					return fmt.Sprintf("还差一步：请告诉我新的%s。", displayCatalogFieldName(selectedField, lang))
+				}
+				return "你可以直接告诉我想改哪一项，比如模型名称、接口地址，或者开关状态。"
 			}
-			return "This model update skill supports API key, URL, model name, and enabled state."
+			if selectedField != "" {
+				return fmt.Sprintf("One more thing: tell me the new %s.", displayCatalogFieldName(selectedField, lang))
+			}
+			return "Tell me what you want to change, for example the model name, endpoint URL, or on or off status."
+		}
+		if err := a.validateModelDraft(
+			storeUserID,
+			session.TargetRef.ID,
+			"",
+			payload["enabled"] == true,
+			asString(payload["api_key"]),
+			asString(payload["custom_api_url"]),
+			asString(payload["custom_model_name"]),
+		); err != nil {
+			a.saveSkillSession(userID, session)
+			return formatValidationFeedback(lang, "model", err)
 		}
 		setSkillDAGStep(&session, "execute_update")
 		raw, _ := json.Marshal(payload)
@@ -731,12 +2236,13 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 				if strings.Contains(errMsg, "cannot enable model config before API key is configured") {
 					return "更新模型配置失败：这个模型还没有配置 API Key，暂时不能启用。你可以直接把 API Key 发给我，我帮你继续配置。"
 				}
-				return "更新模型配置失败：" + errMsg
+				return "这次没改成功：" + errMsg
 			}
 			a.saveSkillSession(userID, session)
-			return "Failed to update model config: " + errMsg
+			return "That change did not go through: " + errMsg
 		}
 		a.clearSkillSession(userID)
+		a.rememberReferencesFromToolResult(userID, "manage_model_config", resp)
 		if lang == "zh" {
 			if session.Action == "update_status" {
 				return "已更新模型配置启用状态。"
@@ -751,6 +2257,18 @@ func (a *Agent) executeModelManagementAction(storeUserID string, userID int64, l
 
 func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64, lang, text string, session skillSession) string {
 	switch session.Action {
+	case "query", "query_list", "create":
+		// These actions don't need a target — fall through.
+	default:
+		isBulkDelete := session.Action == "delete" && fieldValue(session, "bulk_scope") == "all"
+		if session.TargetRef == nil && !isBulkDelete {
+			if lang == "zh" {
+				return "请先指定要操作的策略。"
+			}
+			return "Please specify which strategy to operate on."
+		}
+	}
+	switch session.Action {
 	case "query", "query_list":
 		return formatReadFastPathResponse(lang, "get_strategies", a.toolGetStrategies(storeUserID))
 	case "query_detail":
@@ -764,9 +2282,9 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 		a.clearSkillSession(userID)
 		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 			if lang == "zh" {
-				return "激活策略失败：" + errMsg
+				return "这次没激活成功：" + errMsg
 			}
-			return "Failed to activate strategy: " + errMsg
+			return "That activation did not go through: " + errMsg
 		}
 		if lang == "zh" {
 			return "已激活策略。"
@@ -776,21 +2294,17 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 		if fieldValue(session, skillDAGStepField) == "" {
 			setSkillDAGStep(&session, "collect_name")
 		}
-		newName := extractTraderName(text)
-		if newName == "" {
-			newName = extractPostKeywordName(text, []string{"叫", "名为", "改成", "rename to"})
-		}
+		newName := fieldValue(session, "name")
 		if newName != "" {
 			setField(&session, "name", newName)
 		}
-		newName = fieldValue(session, "name")
 		if newName == "" {
 			setSkillDAGStep(&session, "collect_name")
 			a.saveSkillSession(userID, session)
 			if lang == "zh" {
-				return "复制策略时，我还需要一个新名称。"
+				return "还差一步：请给这个新策略起个名字。"
 			}
-			return "I still need a new name for the duplicated strategy."
+			return "One more thing: give the new strategy a name."
 		}
 		setSkillDAGStep(&session, "execute_duplicate")
 		raw, _ := json.Marshal(map[string]any{"action": "duplicate", "strategy_id": session.TargetRef.ID, "name": newName})
@@ -798,9 +2312,9 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 		a.clearSkillSession(userID)
 		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 			if lang == "zh" {
-				return "复制策略失败：" + errMsg
+				return "这次没复制成功：" + errMsg
 			}
-			return "Failed to duplicate strategy: " + errMsg
+			return "That copy did not go through: " + errMsg
 		}
 		if lang == "zh" {
 			return fmt.Sprintf("已复制策略，新名称为“%s”。", newName)
@@ -814,9 +2328,9 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 			strategies, err := a.store.Strategy().List(storeUserID)
 			if err != nil {
 				if lang == "zh" {
-					return "读取策略列表失败：" + err.Error()
+					return "我这边暂时没读到策略列表：" + err.Error()
 				}
-				return "Failed to load strategies: " + err.Error()
+				return "I could not load the strategy list just now: " + err.Error()
 			}
 
 			deletable := make([]*store.Strategy, 0, len(strategies))
@@ -840,7 +2354,7 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 			}
 
 			targetLabel := fmt.Sprintf("全部自定义策略（共 %d 个）", len(deletable))
-			if msg, waiting := beginConfirmationIfNeeded(userID, lang, &session, targetLabel); waiting {
+			if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, targetLabel); waiting {
 				a.saveSkillSession(userID, session)
 				return msg
 			}
@@ -869,7 +2383,7 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 					parts = append(parts, fmt.Sprintf("已跳过系统默认策略 %d 个。", skippedDefault))
 				}
 				if len(failedNames) > 0 {
-					parts = append(parts, "删除失败："+strings.Join(failedNames, "；"))
+					parts = append(parts, "这些没删成功："+strings.Join(failedNames, "；"))
 				}
 				if len(deletedNames) > 0 {
 					parts = append(parts, "已删除："+strings.Join(deletedNames, "、"))
@@ -882,14 +2396,14 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 				parts = append(parts, fmt.Sprintf("Skipped %d default strategy(ies).", skippedDefault))
 			}
 			if len(failedNames) > 0 {
-				parts = append(parts, "Failed: "+strings.Join(failedNames, "; "))
+				parts = append(parts, "These did not delete successfully: "+strings.Join(failedNames, "; "))
 			}
 			if len(deletedNames) > 0 {
 				parts = append(parts, "Deleted: "+strings.Join(deletedNames, ", "))
 			}
 			return strings.Join(parts, "\n")
 		}
-		if msg, waiting := beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
+		if msg, waiting := a.beginConfirmationIfNeeded(userID, lang, &session, defaultIfEmpty(session.TargetRef.Name, session.TargetRef.ID)); waiting {
 			a.saveSkillSession(userID, session)
 			return msg
 		}
@@ -903,39 +2417,35 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 		a.clearSkillSession(userID)
 		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 			if lang == "zh" {
-				return "删除策略失败：" + errMsg
+				return "这次没删成功：" + errMsg
 			}
-			return "Failed to delete strategy: " + errMsg
+			return "That delete did not go through: " + errMsg
 		}
 		if lang == "zh" {
 			return "已删除策略。"
 		}
 		return "Deleted strategy."
-	case "update", "update_name", "update_config", "update_prompt":
+	case "update_name", "update_config", "update_prompt":
 		if session.Action == "update_prompt" {
 			return a.executeStrategyPromptUpdate(storeUserID, userID, lang, text, session)
 		}
-		if session.Action == "update_config" {
+		if session.Action == "update_config" || fieldValue(session, strategyPendingUpdateConfigField) != "" {
 			return a.executeStrategyConfigUpdate(storeUserID, userID, lang, text, session)
 		}
 		if fieldValue(session, skillDAGStepField) == "" {
 			setSkillDAGStep(&session, "collect_name")
 		}
-		newName := extractTraderName(text)
-		if newName == "" {
-			newName = extractPostKeywordName(text, []string{"改成", "改为", "rename to"})
-		}
+		newName := fieldValue(session, "name")
 		if newName != "" {
 			setField(&session, "name", newName)
 		}
-		newName = fieldValue(session, "name")
 		if newName == "" {
 			setSkillDAGStep(&session, "collect_name")
 			a.saveSkillSession(userID, session)
 			if lang == "zh" {
-				return "目前更新策略 skill 先支持改名。请告诉我新的策略名称。"
+				return "目前这里先支持改策略名称。你直接把新名字发给我就行。"
 			}
-			return "This strategy update skill currently supports renaming first."
+			return "For now, this step supports renaming the strategy. Just send me the new name."
 		}
 		setSkillDAGStep(&session, "execute_update")
 		raw, _ := json.Marshal(map[string]any{"action": "update", "strategy_id": session.TargetRef.ID, "name": newName})
@@ -943,14 +2453,20 @@ func (a *Agent) executeStrategyManagementAction(storeUserID string, userID int64
 		a.clearSkillSession(userID)
 		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 			if lang == "zh" {
-				return "更新策略失败：" + errMsg
+				return "这次没改成功：" + errMsg
 			}
-			return "Failed to update strategy: " + errMsg
+			return "That change did not go through: " + errMsg
 		}
 		if lang == "zh" {
 			return fmt.Sprintf("已将策略改名为“%s”。", newName)
 		}
 		return fmt.Sprintf("Renamed strategy to %q.", newName)
+	case "update":
+		a.clearSkillSession(userID)
+		if lang == "zh" {
+			return "我需要先明确你要改策略的哪一部分：名称、提示词，还是策略参数。"
+		}
+		return "I need to know which part of the strategy to update: name, prompt, or config."
 	default:
 		return ""
 	}
@@ -963,26 +2479,46 @@ func (a *Agent) executeStrategyPromptUpdate(storeUserID string, userID int64, la
 	strategy, cfg, err := a.loadStrategyConfigForUpdate(storeUserID, session.TargetRef.ID)
 	if err != nil {
 		if lang == "zh" {
-			return "读取策略失败：" + err.Error()
+			return "我这边暂时没读到这份策略：" + err.Error()
 		}
-		return "Failed to load strategy: " + err.Error()
+		return "I could not load that strategy just now: " + err.Error()
 	}
 
-	prompt := extractQuotedContent(text)
+	prompt := fieldValue(session, "prompt")
 	if prompt == "" {
-		prompt = extractPostKeywordName(text, []string{"prompt改成", "prompt 改成", "提示词改成", "提示词改为", "custom prompt 改成"})
+		prompt = fieldValue(session, "custom_prompt")
+		if prompt != "" {
+			setField(&session, "prompt", prompt)
+		}
 	}
-	if prompt != "" {
-		setField(&session, "prompt", prompt)
+	if generatedDraftRequiresConfirmation(session) {
+		switch {
+		case createConfirmationReply(text):
+			clearGeneratedDraftConfirmation(&session)
+		case isNoReply(text):
+			clearGeneratedDraftConfirmation(&session, "prompt", "custom_prompt")
+			setSkillDAGStep(&session, "collect_prompt")
+			session.Phase = "collecting"
+			a.saveSkillSession(userID, session)
+			if lang == "zh" {
+				return "好，我先不用这版草稿。你可以告诉我想保留的风格，或者直接让我重新设计一版 prompt。"
+			}
+			return "Okay, I won't use that draft. Tell me the style you want to keep, or ask me to draft another prompt."
+		}
 	}
-	prompt = fieldValue(session, "prompt")
+	if prompt == "" {
+		prompt = extractQuotedContent(text)
+		if prompt != "" {
+			setField(&session, "prompt", prompt)
+		}
+	}
 	if prompt == "" {
 		setSkillDAGStep(&session, "collect_prompt")
 		a.saveSkillSession(userID, session)
 		if lang == "zh" {
-			return "这次是更新策略 prompt，请直接把新的 prompt 内容发给我，最好放在引号里。"
+			return "还差一步：请把新的提示词内容发给我，直接发正文就行。"
 		}
-		return "This action updates the strategy prompt. Send me the new prompt text, ideally inside quotes."
+		return "One more thing: send me the new prompt text."
 	}
 
 	cfg.CustomPrompt = prompt
@@ -991,101 +2527,105 @@ func (a *Agent) executeStrategyPromptUpdate(storeUserID string, userID int64, la
 }
 
 func (a *Agent) executeStrategyConfigUpdate(storeUserID string, userID int64, lang, text string, session skillSession) string {
+	if rawPending := fieldValue(session, strategyPendingUpdateConfigField); rawPending != "" {
+		if createConfirmationReply(text) {
+			var pendingCfg store.StrategyConfig
+			if err := json.Unmarshal([]byte(rawPending), &pendingCfg); err != nil {
+				if session.Fields != nil {
+					delete(session.Fields, strategyPendingUpdateConfigField)
+					delete(session.Fields, strategyPendingUpdateWarnings)
+					delete(session.Fields, strategyPendingUpdateZhMsg)
+					delete(session.Fields, strategyPendingUpdateEnMsg)
+				}
+				session.Phase = "collecting"
+				a.saveSkillSession(userID, session)
+				if lang == "zh" {
+					return "我这边暂时没读到刚才那版草稿。你再告诉我想改哪一项，我马上继续。"
+				}
+				return "I could not read that draft just now. Tell me what you want to change and I will continue."
+			}
+			zhMsg := defaultIfEmpty(fieldValue(session, strategyPendingUpdateZhMsg), "已更新策略参数。")
+			enMsg := defaultIfEmpty(fieldValue(session, strategyPendingUpdateEnMsg), "Updated strategy config.")
+			return a.persistPendingStrategyConfigUpdate(storeUserID, userID, lang, session, pendingCfg, zhMsg, enMsg)
+		}
+		if session.Fields != nil {
+			delete(session.Fields, strategyPendingUpdateConfigField)
+			delete(session.Fields, strategyPendingUpdateWarnings)
+			delete(session.Fields, strategyPendingUpdateZhMsg)
+			delete(session.Fields, strategyPendingUpdateEnMsg)
+		}
+		session.Phase = "collecting"
+	}
+
 	if _, ok := getSkillDAG("strategy_management", "update_config"); ok {
 		if fieldValue(session, skillDAGStepField) == "" {
-			setSkillDAGStep(&session, "resolve_config_field")
+			setSkillDAGStep(&session, "collect_config_patch")
 		}
 	}
 
-	currentStep, _ := currentSkillDAGStep(session)
 	strategy, cfg, err := a.loadStrategyConfigForUpdate(storeUserID, session.TargetRef.ID)
 	if err != nil {
 		if lang == "zh" {
-			return "读取策略失败：" + err.Error()
+			return "我这边暂时没读到这份策略：" + err.Error()
 		}
-		return "Failed to load strategy: " + err.Error()
+		return "I could not load that strategy just now: " + err.Error()
 	}
 
-	if fieldValue(session, "config_field") == "" && fieldValue(session, "config_value") == "" {
-		patches := detectStrategyConfigPatches(text)
-		if len(patches) > 1 {
-			changed := make([]string, 0, len(patches))
-			for _, patch := range patches {
-				if err := applyStrategyConfigPatch(&cfg, patch.Field, patch.Value); err != nil {
-					a.saveSkillSession(userID, session)
-					if lang == "zh" {
-						return "更新策略参数失败：" + err.Error()
-					}
-					return "Failed to update strategy config: " + err.Error()
-				}
-				changed = append(changed, strategyConfigFieldDisplayName(patch.Field, lang))
+	if patchRaw := strings.TrimSpace(fieldValue(session, strategyCreateConfigPatchField)); patchRaw != "" {
+		var patch map[string]any
+		if err := json.Unmarshal([]byte(patchRaw), &patch); err != nil {
+			setSkillDAGStep(&session, "collect_config_patch")
+			a.saveSkillSession(userID, session)
+			if lang == "zh" {
+				return "策略配置 patch 不是合法 JSON：" + err.Error()
 			}
-			cfg.ClampLimits()
-			setSkillDAGStep(&session, "apply_field_update")
-			setSkillDAGStep(&session, "execute_update")
-			msgZH := "已更新策略参数：" + strings.Join(changed, "、") + "。"
-			msgEN := "Updated strategy config fields: " + strings.Join(changed, ", ") + "."
-			return a.persistStrategyConfigUpdate(storeUserID, userID, lang, strategy, cfg, msgZH, msgEN)
+			return "The strategy config patch is not valid JSON: " + err.Error()
 		}
-	}
-
-	field := fieldValue(session, "config_field")
-	if field == "" {
-		field = detectStrategyConfigField(text)
-		if field != "" {
-			setField(&session, "config_field", field)
-			if currentStep.ID == "resolve_config_field" {
-				advanceSkillDAGStep(&session, currentStep.ID)
-				currentStep, _ = currentSkillDAGStep(session)
+		merged, err := store.MergeStrategyConfig(cfg, patch)
+		if err != nil {
+			setSkillDAGStep(&session, "collect_config_patch")
+			a.saveSkillSession(userID, session)
+			if lang == "zh" {
+				return "策略配置 patch 无法应用：" + err.Error()
 			}
+			return "The strategy config patch could not be applied: " + err.Error()
 		}
-	}
-	if field == "" {
-		setSkillDAGStep(&session, "resolve_config_field")
-		a.saveSkillSession(userID, session)
+		beforeClamp := merged
+		merged.ClampLimits()
+		msgZH := "已更新策略配置。"
+		msgEN := "Updated strategy config."
+		setSkillDAGStep(&session, "execute_update")
+		if warnings := store.StrategyClampWarnings(beforeClamp, merged, lang); len(warnings) > 0 {
+			return a.deferStrategyRiskControlledUpdate(userID, lang, &session, merged, warnings, msgZH, msgEN)
+		}
+		setSkillDAGStep(&session, "execute_update")
+		raw, _ := json.Marshal(map[string]any{
+			"action":               "update",
+			"strategy_id":          strategy.ID,
+			"config":               patch,
+			"allow_clamped_update": true,
+		})
+		resp := a.toolManageStrategy(storeUserID, string(raw))
+		a.clearSkillSession(userID)
+		if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
+			if lang == "zh" {
+				return "这次没改成功：" + errMsg
+			}
+			return "That change did not go through: " + errMsg
+		}
+		a.rememberReferencesFromToolResult(userID, "manage_strategy", resp)
 		if lang == "zh" {
-			return "这次是更新策略参数。我当前先支持这些字段：最大持仓、最低置信度、主周期、多周期时间框架。请先告诉我要改哪个字段。"
+			return msgZH
 		}
-		return "This action updates strategy config. I currently support max positions, min confidence, primary timeframe, and selected timeframes. Tell me which field to change first."
+		return msgEN
 	}
 
-	if value, ok := extractStrategyConfigValue(text, field); ok {
-		setField(&session, "config_value", value)
-		if currentStep.ID == "resolve_config_value" {
-			advanceSkillDAGStep(&session, currentStep.ID)
-			currentStep, _ = currentSkillDAGStep(session)
-		}
+	setSkillDAGStep(&session, "collect_config_patch")
+	a.saveSkillSession(userID, session)
+	if lang == "zh" {
+		return "你可以直接说想怎么改策略配置，比如“选币来源改成 AI500，最低置信度 80”。我会按当前策略类型的产品模板生成 config_patch 后再更新。"
 	}
-	value := fieldValue(session, "config_value")
-	if value == "" {
-		setSkillDAGStep(&session, "resolve_config_value")
-		a.saveSkillSession(userID, session)
-		if lang == "zh" {
-			return fmt.Sprintf("要更新策略参数，我还需要 %s 的目标值。", strategyConfigFieldDisplayName(field, lang))
-		}
-		return fmt.Sprintf("I still need the target value for %s.", strategyConfigFieldDisplayName(field, lang))
-	}
-
-	if err := applyStrategyConfigPatch(&cfg, field, value); err != nil {
-		setSkillDAGStep(&session, "resolve_config_value")
-		a.saveSkillSession(userID, session)
-		if lang == "zh" {
-			return err.Error()
-		}
-		return err.Error()
-	}
-
-	cfg.ClampLimits()
-	changed := []string{field}
-	displayChanged := make([]string, 0, len(changed))
-	for _, item := range changed {
-		displayChanged = append(displayChanged, strategyConfigFieldDisplayName(item, lang))
-	}
-	msgZH := "已更新策略参数：" + strings.Join(displayChanged, "、") + "。"
-	msgEN := "Updated strategy config fields: " + strings.Join(displayChanged, ", ") + "."
-	setSkillDAGStep(&session, "apply_field_update")
-	setSkillDAGStep(&session, "execute_update")
-	return a.persistStrategyConfigUpdate(storeUserID, userID, lang, strategy, cfg, msgZH, msgEN)
+	return "Tell me how you want to change the strategy config, for example: set coin source to ai500 and minimum confidence to 80. I will turn it into a config_patch for the current strategy type before updating."
 }
 
 func (a *Agent) loadStrategyConfigForUpdate(storeUserID, strategyID string) (*store.Strategy, store.StrategyConfig, error) {
@@ -1100,26 +2640,75 @@ func (a *Agent) loadStrategyConfigForUpdate(storeUserID, strategyID string) (*st
 	return strategy, cfg, nil
 }
 
+func (a *Agent) deferStrategyRiskControlledUpdate(userID int64, lang string, session *skillSession, cfg store.StrategyConfig, warnings []string, zhMsg, enMsg string) string {
+	rawConfig, _ := json.Marshal(cfg)
+	setField(session, strategyPendingUpdateConfigField, string(rawConfig))
+	setField(session, strategyPendingUpdateWarnings, marshalStringList(warnings))
+	setField(session, strategyPendingUpdateZhMsg, zhMsg)
+	setField(session, strategyPendingUpdateEnMsg, enMsg)
+	session.Phase = "await_confirmation"
+	setSkillDAGStep(session, "await_confirmation")
+	a.saveSkillSession(userID, *session)
+	task := SuspendedTask{
+		Kind: "skill_session",
+		SkillSession: func() *skillSession {
+			copy := normalizeSkillSession(*session)
+			return &copy
+		}(),
+		ResumeHint: buildSkillResumeHint(lang, *session),
+	}
+	a.SnapshotManager(userID).Save(task)
+	return formatRiskControlAcceptancePrompt(lang, warnings, "确认应用")
+}
+
+func (a *Agent) persistPendingStrategyConfigUpdate(storeUserID string, userID int64, lang string, session skillSession, cfg store.StrategyConfig, zhMsg, enMsg string) string {
+	if session.Fields != nil {
+		delete(session.Fields, strategyPendingUpdateConfigField)
+		delete(session.Fields, strategyPendingUpdateWarnings)
+		delete(session.Fields, strategyPendingUpdateZhMsg)
+		delete(session.Fields, strategyPendingUpdateEnMsg)
+	}
+	strategy, _, err := a.loadStrategyConfigForUpdate(storeUserID, session.TargetRef.ID)
+	if err != nil {
+		if lang == "zh" {
+			return "我这边暂时没读到这份策略：" + err.Error()
+		}
+		return "I could not load that strategy just now: " + err.Error()
+	}
+	return a.persistStrategyConfigUpdate(storeUserID, userID, lang, strategy, cfg, zhMsg, enMsg)
+}
+
 func (a *Agent) persistStrategyConfigUpdate(storeUserID string, userID int64, lang string, strategy *store.Strategy, cfg store.StrategyConfig, zhMsg, enMsg string) string {
 	rawConfig, err := json.Marshal(cfg)
 	if err != nil {
 		if lang == "zh" {
-			return "序列化策略配置失败：" + err.Error()
+			return "我这边整理这份策略配置时出了点问题：" + err.Error()
 		}
-		return "Failed to serialize strategy config: " + err.Error()
+		return "I ran into a problem while preparing that strategy config: " + err.Error()
 	}
 	raw, _ := json.Marshal(map[string]any{
-		"action":      "update",
-		"strategy_id": strategy.ID,
-		"config":      json.RawMessage(rawConfig),
+		"action":         "update",
+		"strategy_id":    strategy.ID,
+		"name":           strategy.Name,
+		"description":    strategy.Description,
+		"is_public":      strategy.IsPublic,
+		"config_visible": strategy.ConfigVisible,
+		"config":         json.RawMessage(rawConfig),
 	})
 	resp := a.toolManageStrategy(storeUserID, string(raw))
 	a.clearSkillSession(userID)
 	if errMsg := parseSkillError(resp); strings.Contains(resp, `"error"`) {
 		if lang == "zh" {
-			return "更新策略失败：" + errMsg
+			return "这次没改成功：" + errMsg
 		}
-		return "Failed to update strategy: " + errMsg
+		return "That change did not go through: " + errMsg
+	}
+	if warnings := parseToolWarnings(resp); len(warnings) > 0 {
+		if lang == "zh" {
+			zhMsg += "\n\n已按安全范围自动调整：\n- " + strings.Join(warnings, "\n- ")
+		} else {
+			enMsg += "\n\nAdjusted to stay within safe limits:\n- " + strings.Join(warnings, "\n- ")
+		}
 	}
 	if lang == "zh" {
 		return zhMsg
@@ -1127,8 +2716,18 @@ func (a *Agent) persistStrategyConfigUpdate(storeUserID string, userID int64, la
 	return enMsg
 }
 
+func parseToolWarnings(raw string) []string {
+	var payload struct {
+		Warnings []string `json:"warnings"`
+	}
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil
+	}
+	return payload.Warnings
+}
+
 func extractQuotedContent(text string) string {
-	if matches := quotedNamePattern.FindStringSubmatch(text); len(matches) == 2 {
+	if matches := quotedContentRE.FindStringSubmatch(text); len(matches) == 2 {
 		return strings.TrimSpace(matches[1])
 	}
 	return ""
@@ -1188,20 +2787,398 @@ func extractTimeframes(text string) []string {
 }
 
 func (a *Agent) handleTraderDiagnosisSkill(storeUserID, lang, text string) string {
-	raw := a.toolListTraders(storeUserID)
-	list := formatReadFastPathResponse(lang, "list_traders", raw)
-	if lang == "zh" {
-		reply := "现象：这是交易员运行诊断问题。\n优先排查：\n1. 交易员是否已创建并处于运行状态。\n2. 绑定的模型、交易所、策略是否齐全。\n3. 是“没有启动”、还是“启动了但 AI 没有下单”、还是“下单失败”。\n当前交易员概览：\n" + list
-		if excerpt := backendLogDiagnosisExcerpt(lang, text, "trader"); excerpt != "" {
-			reply += "\n" + excerpt
+	target := resolveDiagnosisTraderTarget(a.loadTraderOptions(storeUserID), text)
+	if target == nil {
+		raw := a.toolListTraders(storeUserID)
+		list := formatReadFastPathResponse(lang, "list_traders", raw)
+		if lang == "zh" {
+			return "我需要先确定要诊断哪个交易员。当前交易员：\n" + list
 		}
-		return reply
+		return "I need to know which trader to diagnose first. Current traders:\n" + list
 	}
-	reply := "This looks like a trader diagnosis issue.\nCheck whether the trader exists, is running, and has model/exchange/strategy bindings.\nCurrent trader overview:\n" + list
-	if excerpt := backendLogDiagnosisExcerpt(lang, text, "trader"); excerpt != "" {
-		reply += "\n" + excerpt
+
+	evidence := a.collectTraderDiagnosisEvidence(storeUserID, target.ID, target.Name)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if answer, ok := a.generateTraderDiagnosisAnswerWithLLM(ctx, lang, text, evidence); ok {
+		return answer
 	}
-	return reply
+	return formatTraderDiagnosisEvidence(lang, evidence)
+}
+
+func resolveDiagnosisTraderTarget(options []traderSkillOption, text string) *traderSkillOption {
+	if opt := findOptionByIDOrName(options, text); opt != nil {
+		return opt
+	}
+	if opt := findUniqueContainingOption(options, text); opt != nil {
+		return opt
+	}
+	if len(options) == 1 {
+		return &options[0]
+	}
+	return nil
+}
+
+type traderDecisionToolResponse struct {
+	Error      string `json:"error"`
+	TraderID   string `json:"trader_id"`
+	TraderName string `json:"trader_name"`
+	Count      int    `json:"count"`
+	Records    []struct {
+		Success             bool             `json:"success"`
+		ErrorMessage        string           `json:"error_message"`
+		AIRequestDurationMs int              `json:"ai_request_duration_ms"`
+		CandidateCoins      []string         `json:"candidate_coins"`
+		ExecutionLog        []string         `json:"execution_log"`
+		DecisionJSON        string           `json:"decision_json"`
+		Decisions           []map[string]any `json:"decisions"`
+	} `json:"records"`
+}
+
+type traderDiagnosisEvidence struct {
+	TraderName   string
+	TraderConfig *store.Trader
+	Model        *safeModelToolConfig
+	Exchange     *safeExchangeToolConfig
+	Strategy     *safeStrategyToolConfig
+	Runtime      map[string]any
+	Account      map[string]any
+	Positions    []map[string]any
+	Decisions    traderDecisionToolResponse
+	Logs         struct {
+		Entries []any  `json:"entries"`
+		Count   int    `json:"count"`
+		Error   string `json:"error"`
+	}
+}
+
+func (a *Agent) collectTraderDiagnosisEvidence(storeUserID, traderID, traderName string) traderDiagnosisEvidence {
+	ev := traderDiagnosisEvidence{TraderName: traderName}
+	if a.store != nil {
+		if traderCfg, err := a.resolveTraderForTool(storeUserID, traderID, traderName); err == nil {
+			ev.TraderConfig = traderCfg
+			ev.TraderName = defaultIfEmpty(traderCfg.Name, ev.TraderName)
+			if model, err := a.store.AIModel().Get(storeUserID, traderCfg.AIModelID); err == nil && model != nil {
+				safeModel := safeModelForTool(model)
+				ev.Model = &safeModel
+			}
+			if exchange, err := a.store.Exchange().GetByID(storeUserID, traderCfg.ExchangeID); err == nil && exchange != nil {
+				safeExchange := safeExchangeForTool(exchange)
+				ev.Exchange = &safeExchange
+			}
+			if strings.TrimSpace(traderCfg.StrategyID) != "" {
+				if strategy, err := a.store.Strategy().Get(storeUserID, traderCfg.StrategyID); err == nil && strategy != nil {
+					safeStrategy := safeStrategyForTool(strategy)
+					ev.Strategy = &safeStrategy
+				}
+			}
+		}
+	}
+	if a.traderManager != nil && ev.TraderConfig != nil {
+		if runtimeTrader, err := a.traderManager.GetTrader(ev.TraderConfig.ID); err == nil && runtimeTrader != nil {
+			ev.Runtime = runtimeTrader.GetStatus()
+			if account, err := runtimeTrader.GetAccountInfo(); err == nil {
+				ev.Account = account
+			}
+			if positions, err := runtimeTrader.GetPositions(); err == nil {
+				ev.Positions = positions
+			}
+		}
+	}
+	if ev.TraderConfig != nil {
+		decisionArgs, _ := json.Marshal(map[string]any{"trader_id": ev.TraderConfig.ID, "limit": 5})
+		_ = json.Unmarshal([]byte(a.toolGetDecisions(storeUserID, string(decisionArgs))), &ev.Decisions)
+		logArgs, _ := json.Marshal(map[string]any{"trader_id": ev.TraderConfig.ID, "limit": 30, "errors_only": false})
+		_ = json.Unmarshal([]byte(a.toolGetBackendLogs(storeUserID, string(logArgs))), &ev.Logs)
+	}
+	return ev
+}
+
+func (a *Agent) generateTraderDiagnosisAnswerWithLLM(ctx context.Context, lang, userText string, ev traderDiagnosisEvidence) (string, bool) {
+	if a == nil || a.aiClient == nil || ev.TraderConfig == nil {
+		return "", false
+	}
+	evidenceJSON, err := json.MarshalIndent(ev, "", "  ")
+	if err != nil {
+		return "", false
+	}
+	stageCtx, cancel := withPlannerStageTimeout(ctx, directReplyTimeout)
+	defer cancel()
+	systemPrompt := `You are the trader diagnosis reasoning layer for NOFXi.
+You receive a complete evidence package collected by tools: trader config, bound model, bound exchange, bound strategy, account/positions, recent AI decisions, and backend logs.
+
+Your job:
+- Reason from the evidence and produce the final user-facing diagnosis in the user's language.
+- The answer must be short and useful: final cause + what the user should do.
+- Prefer recent AI decisions, order validation, exchange result, runtime/account/positions over scattered backend logs.
+- Do not expose evidence-package wording, tool names, raw logs, HTTP status codes, backend internals, or engineering troubleshooting unless the user explicitly asked for technical logs.
+- Do not invent subscriptions, data services, websites, missing product fields, or unsupported actions.
+- Never say "subscription expired" unless the evidence explicitly contains a confirmed subscription state.
+- If an order is blocked because the amount is too small, explain it as account size/order minimum/system limit. Do not suggest editing position_size_usd, min_position_size, max_positions, position value ratios, or other System enforced fields.
+- If the latest decision is wait/hold, explain that the trader is running and the AI chose to wait because the entry standard was not met.
+- If evidence is insufficient, say what is missing and the next concrete check.
+
+Return plain text only. No markdown tables.`
+	userPrompt := fmt.Sprintf("Language: %s\nUser question: %s\n\nEvidence JSON:\n%s", lang, userText, string(evidenceJSON))
+	raw, err := a.aiClient.CallWithRequest(&mcp.Request{
+		Messages: []mcp.Message{
+			mcp.NewSystemMessage(systemPrompt),
+			mcp.NewUserMessage(userPrompt),
+		},
+		Ctx: stageCtx,
+	})
+	if err != nil {
+		a.log().Warn("trader diagnosis LLM failed; using deterministic fallback", "error", err)
+		return "", false
+	}
+	answer := strings.TrimSpace(raw)
+	if answer == "" {
+		return "", false
+	}
+	return answer, true
+}
+
+func formatTraderDiagnosisEvidence(lang string, ev traderDiagnosisEvidence) string {
+	traderName := defaultIfEmpty(ev.TraderName, "未知交易员")
+	if ev.TraderConfig == nil {
+		if lang == "zh" {
+			return fmt.Sprintf("我没有找到交易员“%s”，所以没法继续诊断。", traderName)
+		}
+		return fmt.Sprintf("I could not find trader %q, so I cannot diagnose it yet.", traderName)
+	}
+	latest := struct {
+		Success             bool             `json:"success"`
+		ErrorMessage        string           `json:"error_message"`
+		AIRequestDurationMs int              `json:"ai_request_duration_ms"`
+		CandidateCoins      []string         `json:"candidate_coins"`
+		ExecutionLog        []string         `json:"execution_log"`
+		DecisionJSON        string           `json:"decision_json"`
+		Decisions           []map[string]any `json:"decisions"`
+	}{}
+	hasDecision := len(ev.Decisions.Records) > 0
+	if hasDecision {
+		latest = ev.Decisions.Records[0]
+	}
+	rawDecisions, _ := json.Marshal(ev.Decisions)
+	allEvidence := strings.ToLower(string(rawDecisions))
+	latestEvidence := strings.ToLower(strings.Join(append(append([]string{}, latest.ExecutionLog...), latest.ErrorMessage, latest.DecisionJSON), "\n"))
+	hasAmountTooSmall := containsAny(allEvidence, []string{"opening amount too small", "below minimum", "must be ≥", "must be >=", "position value below minimum"})
+	latestWait := containsAny(latestEvidence, []string{"wait succeeded", `"action":"wait"`, `"action":"hold"`})
+	primarySymbol := primaryDiagnosisSymbol(latest.CandidateCoins, latest.DecisionJSON)
+	amount, minimum := openingAmountAndMinimum(string(rawDecisions))
+	totalEquity := toFloat(ev.Account["total_equity"])
+	available := toFloat(ev.Account["available_balance"])
+	if available == 0 {
+		available = toFloat(ev.Account["available"])
+	}
+	var maxBTCETHPositionValue float64
+	if ev.Strategy != nil && ev.Strategy.Config != nil {
+		if risk, ok := nestedMap(ev.Strategy.Config, "ai_config", "risk_control"); ok {
+			maxBTCETHPositionValue = totalEquity * firstPositiveFloat(risk["btc_eth_max_position_value_ratio"], risk["btceth_max_position_value_ratio"])
+		}
+		if maxBTCETHPositionValue == 0 {
+			if risk, ok := ev.Strategy.Config["risk_control"].(map[string]any); ok {
+				maxBTCETHPositionValue = totalEquity * firstPositiveFloat(risk["btc_eth_max_position_value_ratio"], risk["btceth_max_position_value_ratio"])
+			}
+		}
+	}
+
+	if lang == "zh" {
+		lines := []string{}
+		switch {
+		case !ev.TraderConfig.IsRunning:
+			lines = append(lines, fmt.Sprintf("%s 现在没有运行，所以不会开单。", traderName))
+			lines = append(lines, "该怎么办：先启动这个交易员；启动后等它跑到下一个扫描周期，再看是否有新的 AI 决策。")
+		case strings.TrimSpace(ev.TraderConfig.AIModelID) == "":
+			lines = append(lines, fmt.Sprintf("%s 没有绑定 AI 模型，所以没法做交易决策。", traderName))
+			lines = append(lines, "该怎么办：先给这个交易员绑定一个已启用、可正常调用的模型。")
+		case ev.Model != nil && !modelEnabled(ev.Model):
+			lines = append(lines, fmt.Sprintf("%s 绑定的 AI 模型目前没有启用，所以没法稳定做交易决策。", traderName))
+			lines = append(lines, "该怎么办：启用当前模型，或者把交易员换到另一个可用模型。")
+		case strings.TrimSpace(ev.TraderConfig.ExchangeID) == "":
+			lines = append(lines, fmt.Sprintf("%s 没有绑定交易所账户，所以即使有信号也不能下单。", traderName))
+			lines = append(lines, "该怎么办：先绑定一个可用的交易所账户。")
+		case ev.Exchange != nil && !exchangeEnabled(ev.Exchange):
+			lines = append(lines, fmt.Sprintf("%s 绑定的交易所账户目前没有启用，所以不能下单。", traderName))
+			lines = append(lines, "该怎么办：启用这个交易所账户，或换成另一个可用账户。")
+		case hasAmountTooSmall:
+			summary := fmt.Sprintf("%s 不是没运行。最近它有尝试开 %s 的单，但账户资金太小，算出来的开仓金额", traderName, primarySymbol)
+			if amount > 0 {
+				summary += fmt.Sprintf("约 %.2f USDT", amount)
+			}
+			summary += "，低于系统最小下单要求"
+			if minimum > 0 {
+				summary += fmt.Sprintf(" %.2f USDT", minimum)
+			}
+			summary += "，所以这笔单被拦下了。"
+			lines = append(lines, summary)
+			if totalEquity > 0 && maxBTCETHPositionValue > 0 {
+				lines = append(lines, fmt.Sprintf("当前账户权益约 %.2f USDT，按策略风控算出来的单笔仓位上限约 %.2f USDT，容易达不到最小下单金额。", totalEquity, maxBTCETHPositionValue))
+			}
+			if latestWait {
+				lines = append(lines, "另外，最近也有一些周期是 AI 主动选择等待，说明并不是系统完全没跑。")
+			}
+			lines = append(lines, "该怎么办：增加账户资金，或者换更适合小资金的策略/标的。AI 智能策略里的最小开仓金额是系统限制，不能手动修改。")
+		case latestWait:
+			lines = append(lines, fmt.Sprintf("%s 是运行的，最近 AI 决策也成功了；它不开单的原因是当前信号没有达到入场标准，所以主动选择等待。", traderName))
+			lines = append(lines, "该怎么办：如果你想让它更容易出手，可以调整产品里真实可改的策略偏好，比如降低最低置信度或最低盈亏比；如果你更重视安全，就让它继续等待更明确的机会。")
+		case !hasDecision:
+			lines = append(lines, fmt.Sprintf("%s 目前没有读到最近 AI 决策记录，所以还不能证明它已经跑到完整决策周期。", traderName))
+			lines = append(lines, "该怎么办：确认交易员已启动，并等待一个扫描周期后再查；如果仍然没有决策记录，再检查运行状态和模型调用。")
+		case len(latest.CandidateCoins) == 0:
+			lines = append(lines, fmt.Sprintf("%s 最近没有拿到可交易候选币，所以没有进入开单。", traderName))
+			lines = append(lines, "该怎么办：检查策略的选币方式、指定币种或排除币设置，确认当前策略确实有可交易标的。")
+		case strings.TrimSpace(latest.ErrorMessage) != "":
+			lines = append(lines, fmt.Sprintf("%s 最近没有开单，是因为系统在决策或下单校验时返回了错误：%s", traderName, latest.ErrorMessage))
+			lines = append(lines, "该怎么办：先按这条错误处理；如果它涉及交易所权限、余额、仓位模式或最小下单金额，就优先处理对应账户或策略可编辑项。")
+		default:
+			lines = append(lines, fmt.Sprintf("%s 最近没有开单，但现有记录没有显示明确的拒单原因。", traderName))
+			lines = append(lines, "该怎么办：继续观察下一个扫描周期；如果连续没有开单，再重点看策略门槛、账户余额、交易所权限和模型调用是否正常。")
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	lines := []string{}
+	switch {
+	case !ev.TraderConfig.IsRunning:
+		lines = append(lines, fmt.Sprintf("%s is not running, so it will not open trades.", traderName))
+	case hasAmountTooSmall:
+		lines = append(lines, fmt.Sprintf("%s did try to open a %s trade, but the calculated order size was below the system minimum, so it was blocked.", traderName, primarySymbol))
+	case latestWait:
+		lines = append(lines, fmt.Sprintf("%s is running, but the latest AI decision chose to wait because the signal did not meet its entry standard.", traderName))
+	case !hasDecision:
+		lines = append(lines, fmt.Sprintf("%s has no recent AI decision records yet, so there is not enough evidence that it completed a decision cycle.", traderName))
+	case len(latest.CandidateCoins) == 0:
+		lines = append(lines, fmt.Sprintf("%s has no tradable candidate coins in the latest decision, so it did not open a trade.", traderName))
+	case strings.TrimSpace(latest.ErrorMessage) != "":
+		lines = append(lines, fmt.Sprintf("%s did not open a trade because the latest decision/check returned: %s", traderName, latest.ErrorMessage))
+	default:
+		lines = append(lines, fmt.Sprintf("%s has no clear rejection reason in the latest records yet.", traderName))
+	}
+	lines = append(lines, "What to do: use the real editable product settings or account actions, such as adding funds, changing to a small-account-friendly symbol/strategy, or adjusting confidence/risk-reward preferences. Do not change system-enforced fields.")
+	return strings.Join(lines, "\n")
+}
+
+func primaryDiagnosisSymbol(candidates []string, decisionJSON string) string {
+	for _, candidate := range candidates {
+		if trimmed := strings.TrimSpace(candidate); trimmed != "" {
+			return trimmed
+		}
+	}
+	match := regexp.MustCompile(`(?i)"symbol"\s*:\s*"([^"]+)"`).FindStringSubmatch(decisionJSON)
+	if len(match) >= 2 && strings.TrimSpace(match[1]) != "" {
+		return strings.ToUpper(strings.TrimSpace(match[1]))
+	}
+	return "当前标的"
+}
+
+func openingAmountAndMinimum(evidence string) (float64, float64) {
+	amount := 0.0
+	minimum := 0.0
+	if match := regexp.MustCompile(`(?i)opening amount too small \((\d+(?:\.\d+)?)\s*USDT\)`).FindStringSubmatch(evidence); len(match) >= 2 {
+		amount, _ = strconv.ParseFloat(match[1], 64)
+	}
+	if amount == 0 {
+		if match := regexp.MustCompile(`(?i)"position_size_usd"\s*:\s*(\d+(?:\.\d+)?)`).FindStringSubmatch(evidence); len(match) >= 2 {
+			amount, _ = strconv.ParseFloat(match[1], 64)
+		}
+	}
+	if match := regexp.MustCompile(`(?:must be|must be ≥|>=|≥)\s*(\d+(?:\.\d+)?)\s*USDT`).FindStringSubmatch(evidence); len(match) >= 2 {
+		minimum, _ = strconv.ParseFloat(match[1], 64)
+	}
+	return amount, minimum
+}
+
+func nestedMap(root map[string]any, path ...string) (map[string]any, bool) {
+	var current any = root
+	for _, key := range path {
+		obj, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		current, ok = obj[key]
+		if !ok {
+			return nil, false
+		}
+	}
+	obj, ok := current.(map[string]any)
+	return obj, ok
+}
+
+func firstPositiveFloat(values ...any) float64 {
+	for _, value := range values {
+		parsed := toFloat(value)
+		if parsed > 0 {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func nonZeroPositions(positions []map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(positions))
+	for _, position := range positions {
+		if toFloat(position["size"]) != 0 {
+			out = append(out, position)
+		}
+	}
+	return out
+}
+
+func joinAnyLines(values []any) string {
+	lines := make([]string, 0, len(values))
+	for _, value := range values {
+		switch typed := value.(type) {
+		case string:
+			lines = append(lines, typed)
+		default:
+			raw, _ := json.Marshal(typed)
+			if len(raw) > 0 {
+				lines = append(lines, string(raw))
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func valueOrUnset(value string) string {
+	return defaultIfEmpty(strings.TrimSpace(value), "未设置")
+}
+
+func modelName(model *safeModelToolConfig) string {
+	if model == nil {
+		return ""
+	}
+	return model.Name
+}
+
+func modelProvider(model *safeModelToolConfig) string {
+	if model == nil {
+		return ""
+	}
+	return model.Provider
+}
+
+func modelEnabled(model *safeModelToolConfig) bool {
+	return model != nil && model.Enabled
+}
+
+func exchangeName(exchange *safeExchangeToolConfig) string {
+	if exchange == nil {
+		return ""
+	}
+	return defaultIfEmpty(exchange.AccountName, exchange.ExchangeType)
+}
+
+func exchangeEnabled(exchange *safeExchangeToolConfig) bool {
+	return exchange != nil && exchange.Enabled
+}
+
+func strategyName(strategy *safeStrategyToolConfig) string {
+	if strategy == nil {
+		return ""
+	}
+	return strategy.Name
 }
 
 func (a *Agent) handleStrategyDiagnosisSkill(storeUserID, lang, text string) string {

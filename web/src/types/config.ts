@@ -34,6 +34,7 @@ export interface Exchange {
   testnet?: boolean
   // Hyperliquid specific
   hyperliquidWalletAddr?: string
+  hyperliquidBuilderApproved?: boolean
   has_hyperliquid_secret?: boolean
   // Aster specific
   asterUser?: string
@@ -82,6 +83,7 @@ export interface CreateExchangeRequest {
   passphrase?: string
   testnet?: boolean
   hyperliquid_wallet_addr?: string
+  hyperliquid_builder_approved?: boolean
   aster_user?: string
   aster_signer?: string
   aster_private_key?: string
@@ -96,7 +98,6 @@ export interface CreateTraderRequest {
   ai_model_id: string
   exchange_id: string
   strategy_id?: string // 策略ID（新版，使用保存的策略配置）
-  initial_balance?: number // 可选：创建时由后端自动获取，编辑时可手动更新
   scan_interval_minutes?: number
   is_cross_margin?: boolean
   show_in_competition?: boolean // 是否在竞技场显示
@@ -132,6 +133,7 @@ export interface UpdateExchangeConfigRequest {
       testnet?: boolean
       // Hyperliquid 特定字段
       hyperliquid_wallet_addr?: string
+      hyperliquid_builder_approved?: boolean
       // Aster 特定字段
       aster_user?: string
       aster_signer?: string

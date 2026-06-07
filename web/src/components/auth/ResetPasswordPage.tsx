@@ -1,57 +1,27 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { Header } from '../common/Header'
-import { ArrowLeft, KeyRound, Eye, EyeOff } from 'lucide-react'
-import PasswordChecklist from 'react-password-checklist'
-import { Input } from '../ui/input'
+import { ArrowLeft, KeyRound, Copy, Check } from 'lucide-react'
 import { toast } from 'sonner'
+
+const RESET_PASSWORD_COMMAND = 'nofx reset-password --email you@example.com'
 
 export function ResetPasswordPage() {
   const { language } = useLanguage()
-  const { resetPassword } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [passwordValid, setPasswordValid] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setSuccess(false)
-
-    // 验证两次密码是否一致
-    if (newPassword !== confirmPassword) {
-      setError(t('passwordMismatch', language))
-      return
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(RESET_PASSWORD_COMMAND)
+      setCopied(true)
+      toast.success(t('copy', language))
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error(t('copy', language))
     }
-
-    setLoading(true)
-
-    const result = await resetPassword(email, newPassword)
-
-    if (result.success) {
-      setSuccess(true)
-      toast.success(t('resetPasswordSuccess', language) || '重置成功')
-      // 3秒后跳转到登录页面
-      setTimeout(() => {
-        navigate('/login')
-      }, 3000)
-    } else {
-      const msg = result.message || t('resetPasswordFailed', language)
-      setError(msg)
-      toast.error(msg)
-    }
-
-    setLoading(false)
   }
 
   return (
@@ -84,173 +54,51 @@ export function ResetPasswordPage() {
             <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
               {t('resetPasswordTitle', language)}
             </h1>
-            <p className="text-sm mt-2" style={{ color: '#848E9C' }}>
-              使用邮箱和新密码重置账户密码
-            </p>
           </div>
 
-          {/* Reset Password Form */}
+          {/* CLI recovery instructions */}
           <div
             className="rounded-lg p-6"
             style={{ background: '#1E2329', border: '1px solid #2B3139' }}
           >
-            {success ? (
-              <div className="text-center py-8">
-                <div className="text-5xl mb-4">✅</div>
-                <p
-                  className="text-lg font-semibold mb-2"
-                  style={{ color: '#EAECEF' }}
-                >
-                  {t('resetPasswordSuccess', language)}
-                </p>
-                <p className="text-sm" style={{ color: '#848E9C' }}>
-                  3秒后将自动跳转到登录页面...
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleResetPassword} className="space-y-4">
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    {t('email', language)}
-                  </label>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t('emailPlaceholder', language)}
-                    required
-                  />
-                </div>
+            <p
+              className="text-sm leading-relaxed mb-4"
+              style={{ color: '#EAECEF' }}
+            >
+              {t('resetPasswordCliIntro', language)}
+            </p>
 
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    {t('newPassword', language)}
-                  </label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="pr-10"
-                      placeholder={t('newPasswordPlaceholder', language)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center btn-icon"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    {t('confirmPassword', language)}
-                  </label>
-                  <div className="relative">
-                    <Input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pr-10"
-                      placeholder={t('confirmPasswordPlaceholder', language)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center btn-icon"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 密码强度检查（必须通过才允许提交） */}
-                <div
-                  className="mt-1 text-xs"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  <div
-                    className="mb-1"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {t('passwordRequirements', language)}
-                  </div>
-                  <PasswordChecklist
-                    rules={[
-                      'minLength',
-                      'capital',
-                      'lowercase',
-                      'number',
-                      'specialChar',
-                      'match',
-                    ]}
-                    minLength={8}
-                    value={newPassword}
-                    valueAgain={confirmPassword}
-                    messages={{
-                      minLength: t('passwordRuleMinLength', language),
-                      capital: t('passwordRuleUppercase', language),
-                      lowercase: t('passwordRuleLowercase', language),
-                      number: t('passwordRuleNumber', language),
-                      specialChar: t('passwordRuleSpecial', language),
-                      match: t('passwordRuleMatch', language),
-                    }}
-                    className="space-y-1"
-                    onChange={(isValid) => setPasswordValid(isValid)}
-                  />
-                </div>
-
-                {error && (
-                  <div
-                    className="text-sm px-3 py-2 rounded"
-                    style={{
-                      background: 'rgba(246, 70, 93, 0.1)',
-                      color: '#F6465D',
-                    }}
-                  >
-                    {error}
-                  </div>
+            <div
+              className="flex items-center justify-between gap-3 rounded px-3 py-3 font-mono text-xs"
+              style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+            >
+              <code
+                className="break-all"
+                style={{ color: '#F0B90B' }}
+              >
+                {RESET_PASSWORD_COMMAND}
+              </code>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="shrink-0 btn-icon"
+                style={{ color: '#848E9C' }}
+                aria-label={t('copy', language)}
+              >
+                {copied ? (
+                  <Check className="w-4 h-4" style={{ color: '#0ECB81' }} />
+                ) : (
+                  <Copy className="w-4 h-4" />
                 )}
+              </button>
+            </div>
 
-                <button
-                  type="submit"
-                  disabled={loading || !passwordValid}
-                  className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                  style={{ background: '#F0B90B', color: '#000' }}
-                >
-                  {loading
-                    ? t('loading', language)
-                    : t('resetPasswordButton', language)}
-                </button>
-              </form>
-            )}
+            <p
+              className="text-xs leading-relaxed mt-4"
+              style={{ color: '#848E9C' }}
+            >
+              {t('resetPasswordCliSecurityNote', language)}
+            </p>
           </div>
         </div>
       </div>

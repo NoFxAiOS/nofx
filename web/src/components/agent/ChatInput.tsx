@@ -1,5 +1,12 @@
-import { useRef, useState, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react'
-import { ArrowUp } from 'lucide-react'
+import {
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  forwardRef,
+} from 'react'
+import { ArrowUp, Square } from 'lucide-react'
 
 export interface ChatInputHandle {
   focus: () => void
@@ -10,42 +17,59 @@ export interface ChatInputHandle {
 interface ChatInputProps {
   language: string
   loading: boolean
+  value: string
+  onChange: (value: string) => void
   onSend: (text: string) => void
+  onStop: () => void
 }
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
-  function ChatInput({ language, loading, onSend }, ref) {
-    const [input, setInput] = useState('')
+  function ChatInput(
+    { language, loading, value, onChange, onSend, onStop },
+    ref
+  ) {
     const [composing, setComposing] = useState(false)
     const inputRef = useRef<HTMLTextAreaElement>(null)
 
-    useImperativeHandle(ref, () => ({
-      focus: () => inputRef.current?.focus(),
-      clear: () => {
-        setInput('')
-        if (inputRef.current) inputRef.current.style.height = 'auto'
-      },
-      getValue: () => input,
-    }))
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: () => inputRef.current?.focus(),
+        clear: () => {
+          onChange('')
+          if (inputRef.current) inputRef.current.style.height = 'auto'
+        },
+        getValue: () => value,
+      }),
+      [onChange, value]
+    )
+
+    const resizeInput = useCallback(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.style.height = 'auto'
+      el.style.height = Math.min(el.scrollHeight, 150) + 'px'
+    }, [])
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setInput(e.target.value)
-        const el = e.target
-        el.style.height = 'auto'
-        el.style.height = Math.min(el.scrollHeight, 150) + 'px'
+        onChange(e.target.value)
       },
-      []
+      [onChange]
     )
 
     const handleSend = () => {
-      const msg = input.trim()
+      const msg = value.trim()
       if (!msg || loading) return
-      setInput('')
+      onChange('')
       if (inputRef.current) inputRef.current.style.height = 'auto'
       onSend(msg)
       inputRef.current?.focus()
     }
+
+    useEffect(() => {
+      resizeInput()
+    }, [resizeInput, value])
 
     // Keyboard shortcut: Cmd+K to focus
     useEffect(() => {
@@ -64,7 +88,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         style={{
           padding: '12px 16px 20px',
           borderTop: '1px solid rgba(255,255,255,0.04)',
-          background: 'linear-gradient(to top, #09090b 80%, transparent)',
+          background: 'linear-gradient(to top, #0B0E11 80%, transparent)',
         }}
       >
         <div
@@ -84,7 +108,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         >
           <textarea
             ref={inputRef}
-            value={input}
+            value={value}
             onChange={handleInputChange}
             onCompositionStart={() => setComposing(true)}
             onCompositionEnd={() => setComposing(false)}
@@ -115,26 +139,40 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             }}
           />
           <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
+            onClick={loading ? onStop : handleSend}
+            disabled={!loading && !value.trim()}
+            title={
+              loading
+                ? language === 'zh'
+                  ? '停止当前回复'
+                  : 'Stop current response'
+                : language === 'zh'
+                  ? '发送'
+                  : 'Send'
+            }
             style={{
               width: 36,
               height: 36,
               borderRadius: 12,
               border: 'none',
-              background:
-                loading || !input.trim()
+              background: loading
+                ? 'rgba(239,68,68,0.16)'
+                : !value.trim()
                   ? 'rgba(255,255,255,0.04)'
                   : 'linear-gradient(135deg, #F0B90B, #d4a30a)',
-              color: loading || !input.trim() ? '#3c3c52' : '#000',
-              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+              color: loading ? '#f87171' : !value.trim() ? '#3c3c52' : '#000',
+              cursor: !loading && !value.trim() ? 'not-allowed' : 'pointer',
               display: 'grid',
               placeItems: 'center',
               flexShrink: 0,
               transition: 'all 0.2s ease',
             }}
           >
-            <ArrowUp size={16} strokeWidth={2.5} />
+            {loading ? (
+              <Square size={13} strokeWidth={2.6} fill="currentColor" />
+            ) : (
+              <ArrowUp size={16} strokeWidth={2.5} />
+            )}
           </button>
         </div>
         <div
@@ -143,7 +181,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             margin: '6px auto 0',
             textAlign: 'center',
             fontSize: 10,
-            color: '#1e1e32',
+            color: '#4a4a62',
           }}
         >
           NOFXi may make mistakes. Always verify trading decisions.

@@ -2,41 +2,472 @@
   "name": "strategy_management",
   "kind": "management",
   "domain": "strategy",
-  "description": "当用户想创建、查看、修改、删除、激活或复制策略模板时调用。适用于用户提到策略名称、策略配置、描述、语言、激活状态、复制新版本等管理需求。不用于排查策略未生效、策略输出异常、执行结果异常等诊断问题。",
+  "description": "当用户想创建、查看、修改、删除、激活或复制策略模板时调用。",
+  "field_constraints": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "max_length": 50,
+      "description": "策略模板名称，必填，最多 50 个字符。"
+    },
+    "description": {
+      "type": "string",
+      "description": "策略描述，可选。"
+    },
+    "is_public": {
+      "type": "bool",
+      "default": false,
+      "description": "是否发布到策略市场。"
+    },
+    "config_visible": {
+      "type": "bool",
+      "default": true,
+      "description": "发布到市场后，是否允许别人查看策略配置。"
+    },
+    "lang": {
+      "type": "enum",
+      "values": ["zh", "en"],
+      "default": "zh",
+      "description": "策略语言，zh 或 en，影响 AI 决策时使用的语言。"
+    },
+    "strategy_type": {
+      "type": "enum",
+      "values": ["ai_trading", "grid_trading"],
+      "description": "策略类型：ai_trading（AI 量化）或 grid_trading（网格策略）。创建策略时必须先由用户选择或从用户话语明确识别，不能默认成 ai_trading。"
+    },
+    "symbol": {
+      "type": "enum",
+      "values": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"],
+      "description": "网格策略页面交易对下拉选项，只能从 BTCUSDT、ETHUSDT、SOLUSDT、BNBUSDT、XRPUSDT、DOGEUSDT 中选择。用户问“交易对有哪些选项”时，直接列出这些选项。"
+    },
+    "source_type": {
+      "type": "enum",
+      "values": ["static", "ai500", "oi_top", "oi_low"],
+      "description": "选币来源类型。static=用户指定静态币池，ai500=AI500榜单，oi_top=持仓量增长，oi_low=持仓量下降。"
+    },
+    "static_coins": {
+      "type": "string_array",
+      "max_items": 10,
+      "description": "静态币池，例如 [\"BTCUSDT\", \"ETHUSDT\"]，source_type=static 时使用，手动页面最多 10 个。页面支持常规合约币种，也支持 xyz: 前缀资产（如 xyz:TSLA、xyz:GOLD、xyz:XYZ100）。"
+    },
+    "excluded_coins": {
+      "type": "string_array",
+      "description": "排除币列表，所有来源均会排除这些币。"
+    },
+    "primary_timeframe": {
+      "type": "string",
+      "values": ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"],
+      "description": "主 K 线周期，例如 5m、15m、1h。"
+    },
+    "selected_timeframes": {
+      "type": "string_array",
+      "values": ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"],
+      "max_items": 4,
+      "description": "多周期分析时间框架列表，例如 [\"5m\",\"15m\",\"1h\"]；手动页面最多选择 4 个。"
+    },
+    "btceth_max_leverage": {
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "description": "BTC/ETH 最大杠杆倍数，范围 1～20。"
+    },
+    "altcoin_max_leverage": {
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "description": "山寨币最大杠杆倍数，范围 1～20。"
+    },
+    "min_confidence": {
+      "type": "int",
+      "min": 50,
+      "max": 100,
+      "description": "最小开仓置信度，手动页面范围 50～100，数值越高开单越谨慎。"
+    },
+    "min_risk_reward_ratio": {
+      "type": "float",
+      "min": 1,
+      "max": 10,
+      "description": "最小盈亏比，手动页面范围 1～10，步进 0.5；例如 1.5 表示每笔交易至少 1.5 倍风险收益比。"
+    },
+    "custom_prompt": {
+      "type": "text",
+      "description": "自定义 AI 提示词，追加到策略基础提示词之后。"
+    },
+    "role_definition": {
+      "type": "text",
+      "description": "AI 角色定义，描述 AI 的交易风格和定位。"
+    },
+    "trading_frequency": {
+      "type": "text",
+      "description": "交易频率描述，例如：每天最多开 3 笔。"
+    },
+    "entry_standards": {
+      "type": "text",
+      "description": "入场标准描述，例如：只在趋势明确时开仓。"
+    },
+    "decision_process": {
+      "type": "text",
+      "description": "决策流程描述，例如：先看大周期趋势，再看小周期入场点。"
+    },
+    "grid_count": {
+      "type": "int",
+      "min": 5,
+      "max": 50,
+      "description": "网格数量，grid_trading 类型专用，手动页面范围 5～50。"
+    },
+    "total_investment": {
+      "type": "float",
+      "min": 100,
+      "description": "网格总投入金额，grid_trading 类型专用，表示用户实际投入/保证金预算，不是杠杆后的名义仓位；名义仓位约等于 total_investment × leverage。手动页面最小 100 USDT，步进 100。"
+    },
+    "leverage": {
+      "type": "int",
+      "min": 1,
+      "max": 5,
+      "description": "网格策略杠杆倍数，手动页面当前范围 1～5。"
+    },
+    "upper_price": {
+      "type": "float",
+      "description": "网格上边界价格，grid_trading 类型专用。"
+    },
+    "lower_price": {
+      "type": "float",
+      "description": "网格下边界价格，grid_trading 类型专用，必须小于 upper_price。"
+    },
+    "distribution": {
+      "type": "enum",
+      "values": ["uniform", "gaussian", "pyramid"],
+      "description": "网格分布方式：uniform=均匀，gaussian=正态，pyramid=金字塔。"
+    },
+    "use_atr_bounds": {
+      "type": "bool",
+      "default": false,
+      "description": "网格边界是否改为按 ATR 动态计算。"
+    },
+    "atr_multiplier": {
+      "type": "float",
+      "min": 1,
+      "max": 5,
+      "description": "ATR 边界倍数，use_atr_bounds=true 时使用，手动页面范围 1～5，步进 0.5。"
+    },
+    "enable_direction_adjust": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用方向偏置调整。"
+    },
+    "direction_bias_ratio": {
+      "type": "float",
+      "min": 0.55,
+      "max": 0.9,
+      "description": "方向偏置比例，决定多空倾向强弱；手动页面范围 0.55～0.90，通常以 55%～90% 展示。"
+    },
+    "max_drawdown_pct": {
+      "type": "float",
+      "min": 5,
+      "max": 50,
+      "description": "网格策略最大回撤百分比，手动页面范围 5～50。"
+    },
+    "stop_loss_pct": {
+      "type": "float",
+      "min": 1,
+      "max": 20,
+      "description": "网格策略止损百分比，手动页面范围 1～20。"
+    },
+    "daily_loss_limit_pct": {
+      "type": "float",
+      "min": 1,
+      "max": 30,
+      "description": "网格策略每日最大亏损比例，手动页面范围 1～30，达到后当天停止新开仓。"
+    },
+    "use_maker_only": {
+      "type": "bool",
+      "default": false,
+      "description": "是否优先只挂 maker 单。"
+    },
+    "use_ai500": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 AI500 榜单作为候选币来源。"
+    },
+    "ai500_limit": {
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "description": "AI500 榜单选取数量，手动页面范围 1～10。"
+    },
+    "use_oi_top": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 OI Top 作为候选币来源。"
+    },
+    "oi_top_limit": {
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "description": "OI Top 选取数量，手动页面范围 1～10。"
+    },
+    "use_oi_low": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 OI Low 作为候选币来源。"
+    },
+    "oi_low_limit": {
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "description": "OI Low 选取数量，手动页面范围 1～10。"
+    },
+    "primary_count": {
+      "type": "int",
+      "min": 10,
+      "max": 30,
+      "description": "主周期 K 线样本数量，手动页面范围 10～30。"
+    },
+    "enable_ema": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 EMA 指标。"
+    },
+    "enable_macd": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 MACD 指标。"
+    },
+    "enable_rsi": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 RSI 指标。"
+    },
+    "enable_atr": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 ATR 指标。"
+    },
+    "enable_boll": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用布林带指标。"
+    },
+    "enable_volume": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用成交量指标。"
+    },
+    "enable_oi": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用持仓量指标。"
+    },
+    "enable_funding_rate": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用资金费率指标。"
+    },
+    "ema_periods": {
+      "type": "int_array",
+      "description": "EMA 周期列表，例如 [9,21,55]。"
+    },
+    "rsi_periods": {
+      "type": "int_array",
+      "description": "RSI 周期列表。"
+    },
+    "atr_periods": {
+      "type": "int_array",
+      "description": "ATR 周期列表。"
+    },
+    "boll_periods": {
+      "type": "int_array",
+      "description": "布林带周期列表。"
+    },
+    "nofxos_api_key": {
+      "type": "credential",
+      "description": "量化数据 API Key。"
+    },
+    "enable_quant_data": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用量化数据增强。"
+    },
+    "enable_quant_oi": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用量化持仓量数据。"
+    },
+    "enable_quant_netflow": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用量化净流入数据。"
+    },
+    "enable_oi_ranking": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用 OI 排行榜。"
+    },
+    "oi_ranking_duration": {
+      "type": "enum",
+      "values": ["1h", "4h", "24h"],
+      "description": "OI 排行榜统计周期，页面选项为 1h、4h、24h。"
+    },
+    "oi_ranking_limit": {
+      "type": "int",
+      "min": 5,
+      "max": 20,
+      "description": "OI 排行榜返回数量，页面选项为 5、10、15、20。"
+    },
+    "enable_netflow_ranking": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用净流入排行榜。"
+    },
+    "netflow_ranking_duration": {
+      "type": "enum",
+      "values": ["1h", "4h", "24h"],
+      "description": "净流入排行榜统计周期，页面选项为 1h、4h、24h。"
+    },
+    "netflow_ranking_limit": {
+      "type": "int",
+      "min": 5,
+      "max": 20,
+      "description": "净流入排行榜返回数量，页面选项为 5、10、15、20。"
+    },
+    "enable_price_ranking": {
+      "type": "bool",
+      "default": false,
+      "description": "是否启用价格波动排行榜。"
+    },
+    "price_ranking_duration": {
+      "type": "enum",
+      "values": ["1h", "4h", "24h", "1h,4h,24h"],
+      "description": "价格排行榜统计周期，页面选项为 1h、4h、24h、1h,4h,24h。"
+    },
+    "price_ranking_limit": {
+      "type": "int",
+      "min": 5,
+      "max": 20,
+      "description": "价格排行榜返回数量，页面选项为 5、10、15、20。"
+    }
+  },
+  "validation_rules": [
+    "本 skill 只负责策略模板创建、查看、修改、删除、激活和复制。",
+    "字段选项和范围来自 field_constraints；产品行为规则由 active session prompt 负责。"
+  ],
   "actions": {
     "create": {
       "description": "创建策略模板。",
       "required_slots": ["name"],
-      "optional_slots": ["config", "description", "lang"]
+      "optional_slots": ["strategy_type", "config_patch"],
+      "goal": "创建一个可供 trader 绑定使用的策略模板。",
+      "success_output": "返回 strategy_id 和新策略摘要（名称、类型、主要配置）。",
+      "failure_output": "明确指出仍缺哪些核心参数，或说明需要先确认的风控收敛结果。"
     },
     "update": {
-      "description": "更新策略模板。",
+      "description": "更新策略模板的任意可编辑字段。",
       "required_slots": ["target_ref"],
-      "optional_slots": ["name", "config", "description"]
+      "optional_slots": ["name", "description", "is_public", "config_visible", "config_patch"],
+      "goal": "更新一个已有策略模板的指定配置，而不覆盖未提及字段。",
+      "dynamic_rules": [
+        "只更新用户明确提到的字段，不要覆盖未提及的字段。",
+        "杠杆超出 1～20 范围时，自动收敛并告知用户。",
+        "grid_trading 类型时，lower_price 必须小于 upper_price。"
+      ],
+      "success_output": "返回 strategy_id 和更新后的策略摘要。",
+      "failure_output": "明确指出目标策略不存在、参数非法，或仍缺哪个关键字段。"
     },
-    "delete": {
-      "description": "删除策略模板。",
+    "update_name": {
+      "description": "仅修改策略模板名称。",
+      "required_slots": ["target_ref", "name"],
+      "goal": "仅修改策略模板名称。",
+      "dynamic_rules": [
+        "若输入里还包含其他配置项，应优先转去更通用的 update 或 update_config。"
+      ],
+      "success_output": "返回 strategy_id，并明确告知新的策略名称。",
+      "failure_output": "明确指出目标策略不存在，或新的名称仍未收齐。"
+    },
+    "update_prompt": {
+      "description": "仅修改策略的 custom_prompt 或 prompt_sections（role_definition、trading_frequency、entry_standards、decision_process）。",
       "required_slots": ["target_ref"],
-      "needs_confirmation": true
+      "optional_slots": ["custom_prompt", "role_definition", "trading_frequency", "entry_standards", "decision_process"],
+      "goal": "更新策略模板的提示词相关内容，而不改动其他配置。",
+      "dynamic_rules": [
+        "若用户一次修改多个 prompt section，应整体应用并在结果里清楚说明。",
+        "若用户实际是在改纯配置项，应转去 update_config。",
+        "当需要收集 custom_prompt 或 prompt_sections 等长文本槽位，而用户表达了“交给你”“你帮我写”“你自己设计”等委托生成意图时，严禁再次机械索要原文。",
+        "此时你必须直接以量化专家身份先拟出一版高质量文本，将生成内容写入对应字段，并在回复里展示草稿让用户确认是否直接采用。"
+      ],
+      "success_output": "返回 strategy_id，并明确告知哪些 prompt 字段已更新。",
+      "failure_output": "明确指出目标策略不存在，或新的 prompt 内容仍不完整。"
+    },
+    "update_config": {
+      "description": "修改策略的某个具体配置参数（选币来源、指标、风控参数等）。",
+      "required_slots": ["target_ref"],
+      "optional_slots": ["config_patch"],
+      "goal": "修改策略模板中的一个或一组具体配置参数。",
+      "dynamic_rules": [
+        "配置变更统一通过 config_patch 表达，字段必须来自当前策略类型的产品模板。",
+        "字段选项、范围和非策略字段拦截由 active session prompt 与后端 schema 负责。"
+      ],
+      "success_output": "返回 strategy_id，并明确告知已修改的配置字段及其最终值。",
+      "failure_output": "明确指出目标策略不存在、配置字段非法，或值仍需用户澄清。"
     },
     "activate": {
-      "description": "激活策略模板。",
-      "required_slots": ["target_ref"]
+      "description": "将策略模板设为默认模板（激活）。",
+      "required_slots": ["target_ref"],
+      "goal": "将某个策略模板设为默认模板。",
+      "success_output": "返回 strategy_id，并明确告知该策略已被设为默认模板。",
+      "failure_output": "明确指出目标策略不存在，或激活失败原因。"
     },
     "duplicate": {
-      "description": "复制策略模板。",
-      "required_slots": ["target_ref", "name"]
+      "description": "复制策略模板，生成一个新的同配置模板。",
+      "required_slots": ["target_ref", "name"],
+      "goal": "复制一个现有策略模板并生成新的模板名称。",
+      "dynamic_rules": [
+        "新名称必须单独收齐；若名称有歧义或为空，应先继续追问。"
+      ],
+      "success_output": "返回新的 strategy_id，并明确告知复制后的策略名称。",
+      "failure_output": "明确指出目标策略不存在，或新名称仍未收齐。"
     },
-    "query": {
-      "description": "查询策略模板。"
+    "delete": {
+      "description": "删除策略模板，不可逆操作，必须确认。",
+      "required_slots": ["target_ref"],
+      "needs_confirmation": true,
+      "goal": "删除一个策略模板。",
+      "dynamic_rules": [
+        "必须在确认后执行，并明确提醒删除不可逆。",
+        "若策略是默认模板或受系统保护，应向用户解释限制。"
+      ],
+      "success_output": "返回删除成功结果，并明确告知该策略模板已被移除。",
+      "failure_output": "明确指出缺少确认、目标策略不存在，或删除失败原因。"
+    },
+    "query_list": {
+      "description": "查询所有策略模板列表，包含名称、类型、是否为默认模板。",
+      "goal": "列出当前用户可见的策略模板，便于后续选择或绑定。",
+      "dynamic_rules": [
+        "优先返回名称、类型、默认状态，不必展开全部详细配置。"
+      ],
+      "success_output": "返回策略模板列表摘要。",
+      "failure_output": "若列表为空，应明确告知当前没有策略模板。"
+    },
+    "query_detail": {
+      "description": "查询某个策略模板的详细配置，包括选币来源、指标、风控参数、提示词等。",
+      "required_slots": ["target_ref"],
+      "goal": "读取一个策略模板的详细配置。",
+      "dynamic_rules": [
+        "若目标有歧义，应先澄清再返回详情。"
+      ],
+      "success_output": "返回目标策略模板的详细配置摘要。",
+      "failure_output": "明确指出目标策略不存在，或当前引用已经失效。"
     }
   },
   "tool_mapping": {
     "create": "manage_strategy:create",
     "update": "manage_strategy:update",
-    "delete": "manage_strategy:delete",
+    "update_name": "manage_strategy:update",
+    "update_prompt": "manage_strategy:update",
+    "update_config": "manage_strategy:update",
     "activate": "manage_strategy:activate",
     "duplicate": "manage_strategy:duplicate",
-    "query": "get_strategies"
+    "delete": "manage_strategy:delete",
+    "query_list": "get_strategies",
+    "query_detail": "get_strategies"
   }
 }

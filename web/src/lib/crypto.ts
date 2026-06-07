@@ -179,24 +179,12 @@ export class CryptoService {
     return data.public_key || ''
   }
 
-  static async decryptSensitiveData(
-    payload: EncryptedPayload
-  ): Promise<string> {
-    const response = await fetch('/api/crypto/decrypt', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Decryption failed: ${response.statusText}`)
-    }
-
-    const result = await response.json()
-    return result.plaintext
-  }
+  // NOTE: there is intentionally no decryptSensitiveData() here. Transport
+  // encryption is one-directional: the client encrypts sensitive fields to the
+  // server's public key and the server decrypts them internally on the
+  // authenticated config endpoints. The server exposes no public decrypt route,
+  // so a client-side decrypt helper would be both useless and a security
+  // anti-pattern (it implied an unauthenticated decryption oracle existed).
 }
 
 // 生成混淆字符串（用于剪贴板混淆）

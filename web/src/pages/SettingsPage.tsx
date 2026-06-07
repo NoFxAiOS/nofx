@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 import { ExchangeConfigModal } from '../components/trader/ExchangeConfigModal'
 import { TelegramConfigModal } from '../components/trader/TelegramConfigModal'
 import { ModelConfigModal } from '../components/trader/ModelConfigModal'
-import type { Exchange, AIModel } from '../types'
+import type { Exchange, AIModel, ExchangeAccountState } from '../types'
 
 type Tab = 'account' | 'models' | 'exchanges' | 'telegram'
 
@@ -43,6 +43,8 @@ export function SettingsPage() {
 
   // Exchanges state
   const [exchanges, setExchanges] = useState<Exchange[]>([])
+  const [exchangeStates, setExchangeStates] = useState<Record<string, ExchangeAccountState>>({})
+  const [exchangeStatesLoading, setExchangeStatesLoading] = useState(false)
   const [showExchangeModal, setShowExchangeModal] = useState(false)
   const [editingExchange, setEditingExchange] = useState<string | null>(null)
 
@@ -59,8 +61,24 @@ export function SettingsPage() {
   }
 
   const refreshExchangeConfigs = async () => {
-    const refreshed = await api.getExchangeConfigs()
+    const [refreshed, accountStateResponse] = await Promise.all([
+      api.getExchangeConfigs(),
+      api.getExchangeAccountState().catch(() => ({ states: {} })),
+    ])
     setExchanges(refreshed)
+    setExchangeStates(accountStateResponse.states || {})
+  }
+
+  const refreshExchangeStates = async () => {
+    setExchangeStatesLoading(true)
+    try {
+      const response = await api.getExchangeAccountState()
+      setExchangeStates(response.states || {})
+    } catch {
+      toast.error('Failed to load exchange balances')
+    } finally {
+      setExchangeStatesLoading(false)
+    }
   }
 
   // Fetch data when tabs are visited
@@ -205,6 +223,10 @@ export function SettingsPage() {
     lighterApiKeyIndex?: number
   ) => {
     try {
+      if (exchangeType === 'hyperliquid') {
+        toast.error(language === 'zh' ? 'Hyperliquid 必须通过钱包授权连接，不能手动填写密钥。' : 'Hyperliquid must be connected through wallet authorization, not manual keys.')
+        return
+      }
       if (exchangeId) {
         const request = {
           exchanges: {
@@ -406,13 +428,22 @@ export function SettingsPage() {
                 <p className="text-sm text-zinc-400">
                   {exchanges.length} account{exchanges.length !== 1 ? 's' : ''} connected
                 </p>
-                <button
-                  onClick={() => { setEditingExchange(null); setShowExchangeModal(true) }}
-                  className="flex items-center gap-1.5 text-xs font-medium bg-nofx-gold/10 hover:bg-nofx-gold/20 text-nofx-gold px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Plus size={14} />
-                  Add Exchange
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={refreshExchangeStates}
+                    disabled={exchangeStatesLoading}
+                    className="text-xs font-medium bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-zinc-300 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {exchangeStatesLoading ? 'Refreshing…' : 'Refresh Balances'}
+                  </button>
+                  <button
+                    onClick={() => { setEditingExchange(null); setShowExchangeModal(true) }}
+                    className="flex items-center gap-1.5 text-xs font-medium bg-nofx-gold/10 hover:bg-nofx-gold/20 text-nofx-gold px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus size={14} />
+                    Add Exchange
+                  </button>
+                </div>
               </div>
 
               {exchanges.length === 0 ? (
@@ -421,7 +452,9 @@ export function SettingsPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {exchanges.map((exchange) => (
+                  {exchanges.map((exchange) => {
+                    const accountState = exchangeStates[exchange.id]
+                    return (
                     <button
                       key={exchange.id}
                       onClick={() => { setEditingExchange(exchange.id); setShowExchangeModal(true) }}
@@ -442,11 +475,30 @@ export function SettingsPage() {
                             {exchange.has_aster_private_key ? configBadge('Aster Key', true) : null}
                             {exchange.has_lighter_private_key || exchange.has_lighter_api_key_private_key ? configBadge('Lighter Key', true) : null}
                           </div>
+                          {accountState && (
+                            <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                              {accountState.status === 'ok' ? (
+                                <>
+                                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono text-emerald-300">
+                                    Balance {accountState.display_balance || `${accountState.total_equity?.toFixed(2) ?? '--'} ${accountState.asset || ''}`}
+                                  </span>
+                                  {typeof accountState.available_balance === 'number' && (
+                                    <span className="text-zinc-500">Available {accountState.available_balance.toFixed(2)} {accountState.asset || ''}</span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-300">
+                                  Balance unavailable: {accountState.error_message || accountState.status}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <ChevronRight size={14} className="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
                     </button>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>

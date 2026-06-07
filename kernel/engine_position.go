@@ -3,6 +3,7 @@ package kernel
 import (
 	"fmt"
 	"nofx/logger"
+	"nofx/market"
 )
 
 // ============================================================================
@@ -33,10 +34,18 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	}
 
 	if d.Action == "open_long" || d.Action == "open_short" {
+		// Asset tiering for validation:
+		//   - BTC/ETH crypto perps use the BTC/ETH tier (typically 5x equity).
+		//   - Hyperliquid XYZ assets (US equities, commodities, forex) are
+		//     also treated as the higher tier — they are not crypto altcoins
+		//     and the user's quick-trade flow shows them at the higher cap,
+		//     so the validator must match.
+		//   - Everything else is altcoin (1x equity by default).
 		maxLeverage := altcoinLeverage
 		posRatio := altcoinPosRatio
 		maxPositionValue := accountEquity * posRatio
-		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
+		isMajor := d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" || market.IsXyzDexAsset(d.Symbol)
+		if isMajor {
 			maxLeverage = btcEthLeverage
 			posRatio = btcEthPosRatio
 			maxPositionValue = accountEquity * posRatio
@@ -69,9 +78,12 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 		tolerance := maxPositionValue * 0.01
 		if d.PositionSizeUSD > maxPositionValue+tolerance {
-			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
+			switch {
+			case d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT":
 				return fmt.Errorf("BTC/ETH single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
-			} else {
+			case market.IsXyzDexAsset(d.Symbol):
+				return fmt.Errorf("%s position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", d.Symbol, maxPositionValue, posRatio, d.PositionSizeUSD)
+			default:
 				return fmt.Errorf("altcoin single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
 			}
 		}

@@ -17,10 +17,25 @@ const (
 	MaxTimeframes     = 4
 	MinKlineCount     = 10
 	MaxKlineCount     = 30
+	MinLeverage       = 1
+	MaxBTCETHLeverage = 20
+	MaxAltLeverage    = 20
+	MinPositionRatio  = 0.5
+	MaxPositionRatio  = 10.0
+	MinRiskReward     = 1.0
+	MaxRiskReward     = 10.0
+	MinMarginUsage    = 0.1
+	MaxMarginUsage    = 1.0
+	MinPositionSize   = 10.0
+	MaxPositionSize   = 1000.0
+	MinConfidence     = 50
+	MaxConfidence     = 100
 )
 
 // ClampLimits enforces product-level limits on strategy config to prevent token overflow.
 func (c *StrategyConfig) ClampLimits() {
+	c.NormalizeProductSchema()
+
 	// Clamp coin source limits
 	if c.CoinSource.AI500Limit > MaxCandidateCoins {
 		c.CoinSource.AI500Limit = MaxCandidateCoins
@@ -54,10 +69,486 @@ func (c *StrategyConfig) ClampLimits() {
 	}
 
 	// Clamp max positions
+	if c.RiskControl.MaxPositions < 1 {
+		c.RiskControl.MaxPositions = 1
+	}
 	if c.RiskControl.MaxPositions > MaxPositions {
 		c.RiskControl.MaxPositions = MaxPositions
 	}
 
+	// Clamp leverage limits to the same bounds as the manual config UI.
+	if c.RiskControl.BTCETHMaxLeverage < MinLeverage {
+		c.RiskControl.BTCETHMaxLeverage = MinLeverage
+	}
+	if c.RiskControl.BTCETHMaxLeverage > MaxBTCETHLeverage {
+		c.RiskControl.BTCETHMaxLeverage = MaxBTCETHLeverage
+	}
+	if c.RiskControl.AltcoinMaxLeverage < MinLeverage {
+		c.RiskControl.AltcoinMaxLeverage = MinLeverage
+	}
+	if c.RiskControl.AltcoinMaxLeverage > MaxAltLeverage {
+		c.RiskControl.AltcoinMaxLeverage = MaxAltLeverage
+	}
+
+	// Clamp position value ratio limits.
+	if c.RiskControl.BTCETHMaxPositionValueRatio < MinPositionRatio {
+		c.RiskControl.BTCETHMaxPositionValueRatio = MinPositionRatio
+	}
+	if c.RiskControl.BTCETHMaxPositionValueRatio > MaxPositionRatio {
+		c.RiskControl.BTCETHMaxPositionValueRatio = MaxPositionRatio
+	}
+	if c.RiskControl.AltcoinMaxPositionValueRatio < MinPositionRatio {
+		c.RiskControl.AltcoinMaxPositionValueRatio = MinPositionRatio
+	}
+	if c.RiskControl.AltcoinMaxPositionValueRatio > MaxPositionRatio {
+		c.RiskControl.AltcoinMaxPositionValueRatio = MaxPositionRatio
+	}
+
+	// Clamp risk parameters and entry requirements.
+	if c.RiskControl.MinRiskRewardRatio < MinRiskReward {
+		c.RiskControl.MinRiskRewardRatio = MinRiskReward
+	}
+	if c.RiskControl.MinRiskRewardRatio > MaxRiskReward {
+		c.RiskControl.MinRiskRewardRatio = MaxRiskReward
+	}
+	if c.RiskControl.MaxMarginUsage < MinMarginUsage {
+		c.RiskControl.MaxMarginUsage = MinMarginUsage
+	}
+	if c.RiskControl.MaxMarginUsage > MaxMarginUsage {
+		c.RiskControl.MaxMarginUsage = MaxMarginUsage
+	}
+	if c.RiskControl.MinPositionSize < MinPositionSize {
+		c.RiskControl.MinPositionSize = MinPositionSize
+	}
+	if c.RiskControl.MinPositionSize > MaxPositionSize {
+		c.RiskControl.MinPositionSize = MaxPositionSize
+	}
+	if c.RiskControl.MinConfidence < MinConfidence {
+		c.RiskControl.MinConfidence = MinConfidence
+	}
+	if c.RiskControl.MinConfidence > MaxConfidence {
+		c.RiskControl.MinConfidence = MaxConfidence
+	}
+}
+
+// NormalizeProductSchema keeps saved strategy JSON aligned with the product
+// editor schema. LLMs may emit user-facing labels such as "AI500"; persistence
+// must use the exact frontend/backend enum values.
+func (c *StrategyConfig) NormalizeProductSchema() {
+	c.StrategyType = normalizeStrategyType(c.StrategyType)
+	c.CoinSource.SourceType = normalizeCoinSourceType(c.CoinSource.SourceType)
+	if c.CoinSource.SourceType == "" {
+		c.CoinSource.SourceType = inferCoinSourceType(c.CoinSource)
+	}
+
+	switch c.CoinSource.SourceType {
+	case "ai500":
+		c.CoinSource.UseAI500 = true
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		if c.CoinSource.AI500Limit <= 0 {
+			c.CoinSource.AI500Limit = 3
+		}
+	case "oi_top":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = true
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		if c.CoinSource.OITopLimit <= 0 {
+			c.CoinSource.OITopLimit = 3
+		}
+	case "oi_low":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = true
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		if c.CoinSource.OILowLimit <= 0 {
+			c.CoinSource.OILowLimit = 3
+		}
+	case "static":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+	case "hyper_all":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = true
+		c.CoinSource.UseHyperMain = false
+	case "hyper_main":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = true
+		if c.CoinSource.HyperMainLimit <= 0 {
+			c.CoinSource.HyperMainLimit = 30
+		}
+	case "hyper_rank":
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		if c.CoinSource.HyperRankCategory == "" {
+			c.CoinSource.HyperRankCategory = "stock"
+		}
+		if c.CoinSource.HyperRankDirection == "" {
+			c.CoinSource.HyperRankDirection = "gainers"
+		}
+		if c.CoinSource.HyperRankLimit <= 0 {
+			c.CoinSource.HyperRankLimit = 5
+		}
+	default:
+		c.CoinSource.SourceType = "hyper_rank"
+		c.CoinSource.UseAI500 = false
+		c.CoinSource.UseOITop = false
+		c.CoinSource.UseOILow = false
+		c.CoinSource.UseHyperAll = false
+		c.CoinSource.UseHyperMain = false
+		if c.CoinSource.HyperRankCategory == "" {
+			c.CoinSource.HyperRankCategory = "stock"
+		}
+		if c.CoinSource.HyperRankDirection == "" {
+			c.CoinSource.HyperRankDirection = "gainers"
+		}
+		if c.CoinSource.HyperRankLimit <= 0 {
+			c.CoinSource.HyperRankLimit = 5
+		}
+	}
+
+	c.CoinSource.StaticCoins = normalizeSymbols(c.CoinSource.StaticCoins)
+	c.CoinSource.ExcludedCoins = normalizeSymbols(c.CoinSource.ExcludedCoins)
+	c.Indicators.Klines.PrimaryTimeframe = normalizeTimeframe(c.Indicators.Klines.PrimaryTimeframe)
+	c.Indicators.Klines.LongerTimeframe = normalizeTimeframe(c.Indicators.Klines.LongerTimeframe)
+	c.Indicators.Klines.SelectedTimeframes = normalizeTimeframes(c.Indicators.Klines.SelectedTimeframes)
+	if len(c.Indicators.Klines.SelectedTimeframes) > 0 {
+		c.Indicators.Klines.EnableMultiTimeframe = true
+	}
+}
+
+func normalizeStrategyType(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "grid", "grid_strategy", "grid-trading", "grid trading", "grid_trading", "网格", "网格策略", "网格交易":
+		return "grid_trading"
+	case "", "ai", "ai_strategy", "ai-trading", "ai trading", "ai_trading", "ai策略", "ai 策略", "ai交易策略", "ai智能策略":
+		return "ai_trading"
+	default:
+		return value
+	}
+}
+
+func normalizeCoinSourceType(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	compact := strings.NewReplacer(" ", "", "_", "", "-", "", "数据源", "", "选币", "", "币种", "").Replace(value)
+	switch {
+	case compact == "":
+		return ""
+	case strings.Contains(compact, "ai500"):
+		return "ai500"
+	case strings.Contains(compact, "oitop") || strings.Contains(value, "oi top") || strings.Contains(value, "持仓量最高") || strings.Contains(value, "持仓量靠前"):
+		return "oi_top"
+	case strings.Contains(compact, "oilow") || strings.Contains(value, "oi low") || strings.Contains(value, "持仓量最低") || strings.Contains(value, "持仓量较低"):
+		return "oi_low"
+	case strings.Contains(compact, "hyperrank") || strings.Contains(compact, "dynamicranking") || strings.Contains(value, "动态榜单") || strings.Contains(value, "涨幅榜"):
+		return "hyper_rank"
+	case strings.Contains(compact, "hyperall"):
+		return "hyper_all"
+	case strings.Contains(compact, "hypermain"):
+		return "hyper_main"
+	case strings.Contains(value, "static") || strings.Contains(value, "固定") || strings.Contains(value, "静态"):
+		return "static"
+	default:
+		return value
+	}
+}
+
+func inferCoinSourceType(source CoinSourceConfig) string {
+	switch {
+	case len(source.StaticCoins) > 0:
+		return "static"
+	case source.UseAI500:
+		return "ai500"
+	case source.UseOITop:
+		return "oi_top"
+	case source.UseOILow:
+		return "oi_low"
+	case source.UseHyperAll:
+		return "hyper_all"
+	case source.UseHyperMain:
+		return "hyper_main"
+	case source.HyperRankCategory != "" || source.HyperRankDirection != "" || source.HyperRankLimit > 0:
+		return "hyper_rank"
+	default:
+		return "hyper_rank"
+	}
+}
+
+func normalizeSymbols(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, value := range splitLooseStringList(values) {
+		value = strings.ToUpper(strings.TrimSpace(value))
+		value = strings.Trim(value, "，,;； ")
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func normalizeTimeframes(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, value := range splitLooseStringList(values) {
+		tf := normalizeTimeframe(value)
+		if tf == "" || seen[tf] {
+			continue
+		}
+		seen[tf] = true
+		out = append(out, tf)
+	}
+	return out
+}
+
+func splitLooseStringList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	joined := strings.TrimSpace(strings.Join(values, ","))
+	if strings.HasPrefix(joined, "[") && strings.HasSuffix(joined, "]") {
+		var parsed []string
+		if err := json.Unmarshal([]byte(joined), &parsed); err == nil {
+			return parsed
+		}
+	}
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+			var parsed []string
+			if err := json.Unmarshal([]byte(value), &parsed); err == nil {
+				parts = append(parts, parsed...)
+				continue
+			}
+		}
+		value = strings.Trim(value, "[]")
+		for _, part := range strings.FieldsFunc(value, func(r rune) bool {
+			return r == ',' || r == '，' || r == ';' || r == '；' || r == '\n'
+		}) {
+			part = strings.Trim(strings.TrimSpace(part), "\"'")
+			if part != "" {
+				parts = append(parts, part)
+			}
+		}
+	}
+	return parts
+}
+
+func normalizeTimeframe(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.Trim(value, "\"'，,。 ")
+	if value == "" {
+		return ""
+	}
+	aliases := map[string]string{
+		"1分钟":  "1m",
+		"3分钟":  "3m",
+		"5分钟":  "5m",
+		"15分钟": "15m",
+		"30分钟": "30m",
+		"1小时":  "1h",
+		"2小时":  "2h",
+		"4小时":  "4h",
+		"6小时":  "6h",
+		"8小时":  "8h",
+		"12小时": "12h",
+		"1天":   "1d",
+		"3天":   "3d",
+		"1周":   "1w",
+	}
+	if alias, ok := aliases[value]; ok {
+		return alias
+	}
+	allowed := map[string]bool{
+		"1m": true, "3m": true, "5m": true, "15m": true, "30m": true,
+		"1h": true, "2h": true, "4h": true, "6h": true, "8h": true, "12h": true,
+		"1d": true, "3d": true, "1w": true,
+	}
+	if !allowed[value] {
+		return ""
+	}
+	return value
+}
+
+// MergeStrategyConfig applies a partial JSON-style patch onto a full strategy config.
+// Nested objects are merged recursively so omitted fields keep their previous values.
+func MergeStrategyConfig(base StrategyConfig, patch map[string]any) (StrategyConfig, error) {
+	baseJSON, err := json.Marshal(base)
+	if err != nil {
+		return StrategyConfig{}, err
+	}
+
+	var mergedMap map[string]any
+	if err := json.Unmarshal(baseJSON, &mergedMap); err != nil {
+		return StrategyConfig{}, err
+	}
+
+	normalizeStrategyConfigPatch(patch)
+	if fmt.Sprint(patch["strategy_type"]) == "grid_trading" {
+		ensureDefaultGridConfigMap(mergedMap)
+	}
+	mergeJSONMaps(mergedMap, patch)
+
+	mergedJSON, err := json.Marshal(mergedMap)
+	if err != nil {
+		return StrategyConfig{}, err
+	}
+
+	var merged StrategyConfig
+	if err := json.Unmarshal(mergedJSON, &merged); err != nil {
+		return StrategyConfig{}, err
+	}
+	return merged, nil
+}
+
+func DefaultGridStrategyConfig() GridStrategyConfig {
+	return GridStrategyConfig{
+		Symbol:                "BTCUSDT",
+		GridCount:             10,
+		TotalInvestment:       1000,
+		Leverage:              5,
+		UpperPrice:            0,
+		LowerPrice:            0,
+		UseATRBounds:          true,
+		ATRMultiplier:         2.0,
+		Distribution:          "gaussian",
+		MaxDrawdownPct:        15,
+		StopLossPct:           5,
+		DailyLossLimitPct:     10,
+		UseMakerOnly:          true,
+		EnableDirectionAdjust: false,
+		DirectionBiasRatio:    0.7,
+	}
+}
+
+func ensureDefaultGridConfigMap(config map[string]any) {
+	if config == nil {
+		return
+	}
+	if existing, ok := config["grid_config"].(map[string]any); ok && len(existing) > 0 {
+		return
+	}
+	defaultGrid := DefaultGridStrategyConfig()
+	raw, err := json.Marshal(defaultGrid)
+	if err != nil {
+		return
+	}
+	var gridMap map[string]any
+	if err := json.Unmarshal(raw, &gridMap); err != nil {
+		return
+	}
+	config["grid_config"] = gridMap
+}
+
+func normalizeStrategyConfigPatch(patch map[string]any) {
+	if patch == nil {
+		return
+	}
+
+	if gridConfig, hasGrid := patch["grid_config"]; hasGrid && gridConfig != nil {
+		if _, hasType := patch["strategy_type"]; !hasType {
+			patch["strategy_type"] = "grid_trading"
+		}
+	}
+
+	aiKeys := []string{"coin_source", "indicators", "risk_control", "prompt_sections", "custom_prompt"}
+	for _, key := range aiKeys {
+		value, ok := patch[key]
+		if !ok {
+			continue
+		}
+		aiConfig, _ := patch["ai_config"].(map[string]any)
+		if aiConfig == nil {
+			aiConfig = map[string]any{}
+			patch["ai_config"] = aiConfig
+		}
+		aiConfig[key] = value
+		delete(patch, key)
+	}
+
+	if fmt.Sprint(patch["strategy_type"]) == "grid_trading" {
+		delete(patch, "ai_config")
+	}
+
+	if _, hasType := patch["strategy_type"]; hasType {
+		return
+	}
+	if gridConfig, hasGrid := patch["grid_config"]; hasGrid && gridConfig != nil {
+		patch["strategy_type"] = "grid_trading"
+	}
+}
+
+func mergeJSONMaps(dst, src map[string]any) {
+	for key, srcVal := range src {
+		srcMap, srcIsMap := srcVal.(map[string]any)
+		dstMap, dstIsMap := dst[key].(map[string]any)
+		if srcIsMap && dstIsMap {
+			mergeJSONMaps(dstMap, srcMap)
+			continue
+		}
+		dst[key] = srcVal
+	}
+}
+
+func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
+	if lang != "zh" {
+		lang = "en"
+	}
+	warnings := make([]string, 0, 8)
+	appendInt := func(labelZH, labelEN string, from, to int) {
+		if from == to {
+			return
+		}
+		if lang == "zh" {
+			warnings = append(warnings, fmt.Sprintf("%s 已从 %d 调整为 %d", labelZH, from, to))
+			return
+		}
+		warnings = append(warnings, fmt.Sprintf("%s adjusted from %d to %d", labelEN, from, to))
+	}
+	appendFloat := func(labelZH, labelEN string, from, to float64) {
+		if from == to {
+			return
+		}
+		if lang == "zh" {
+			warnings = append(warnings, fmt.Sprintf("%s 已从 %.2f 调整为 %.2f", labelZH, from, to))
+			return
+		}
+		warnings = append(warnings, fmt.Sprintf("%s adjusted from %.2f to %.2f", labelEN, from, to))
+	}
+
+	appendInt("最大持仓数", "max_positions", before.RiskControl.MaxPositions, after.RiskControl.MaxPositions)
+	appendInt("BTC/ETH 最大杠杆", "btc_eth_max_leverage", before.RiskControl.BTCETHMaxLeverage, after.RiskControl.BTCETHMaxLeverage)
+	appendInt("山寨币最大杠杆", "altcoin_max_leverage", before.RiskControl.AltcoinMaxLeverage, after.RiskControl.AltcoinMaxLeverage)
+	appendFloat("BTC/ETH 最大仓位价值倍数", "btc_eth_max_position_value_ratio", before.RiskControl.BTCETHMaxPositionValueRatio, after.RiskControl.BTCETHMaxPositionValueRatio)
+	appendFloat("山寨币最大仓位价值倍数", "altcoin_max_position_value_ratio", before.RiskControl.AltcoinMaxPositionValueRatio, after.RiskControl.AltcoinMaxPositionValueRatio)
+	appendFloat("最小盈亏比", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
+	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
+	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
+	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
+	return warnings
 }
 
 // StrategyStore strategy storage
@@ -90,19 +581,128 @@ type StrategyConfig struct {
 	// language setting: "zh" for Chinese, "en" for English
 	// This determines the language used for data formatting and prompt generation
 	Language string `json:"language,omitempty"`
-	// coin source configuration
-	CoinSource CoinSourceConfig `json:"coin_source"`
-	// quantitative data configuration
-	Indicators IndicatorConfig `json:"indicators"`
-	// custom prompt (appended at the end)
-	CustomPrompt string `json:"custom_prompt,omitempty"`
-	// risk control configuration
-	RiskControl RiskControlConfig `json:"risk_control"`
-	// editable sections of System Prompt
-	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
+	// AI trading configuration fields are kept on the Go struct for engine
+	// compatibility, but JSON persistence nests them under ai_config.
+	CoinSource     CoinSourceConfig     `json:"-"`
+	Indicators     IndicatorConfig      `json:"-"`
+	CustomPrompt   string               `json:"-"`
+	RiskControl    RiskControlConfig    `json:"-"`
+	PromptSections PromptSectionsConfig `json:"-"`
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+
+	// Publish settings are shared by AI and grid strategies. The database still
+	// stores the authoritative booleans on Strategy, but config JSON may carry
+	// this object for agent/frontend schema consistency.
+	PublishConfig *PublishStrategyConfig `json:"publish_config,omitempty"`
+}
+
+// AIStrategyConfig contains fields only used by AI trading strategies.
+type AIStrategyConfig struct {
+	CoinSource     CoinSourceConfig     `json:"coin_source"`
+	Indicators     IndicatorConfig      `json:"indicators"`
+	CustomPrompt   string               `json:"custom_prompt,omitempty"`
+	RiskControl    RiskControlConfig    `json:"risk_control"`
+	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
+}
+
+// PublishStrategyConfig contains settings shared by all strategy types.
+type PublishStrategyConfig struct {
+	IsPublic      bool `json:"is_public"`
+	ConfigVisible bool `json:"config_visible"`
+}
+
+// MarshalJSON writes the product-facing strategy schema:
+// strategy_type + grid_config or ai_config + shared publish_config.
+func (c StrategyConfig) MarshalJSON() ([]byte, error) {
+	strategyType := strings.TrimSpace(c.StrategyType)
+	if strategyType == "" {
+		strategyType = "ai_trading"
+	}
+
+	out := struct {
+		StrategyType  string                 `json:"strategy_type"`
+		Language      string                 `json:"language,omitempty"`
+		AIConfig      *AIStrategyConfig      `json:"ai_config,omitempty"`
+		GridConfig    *GridStrategyConfig    `json:"grid_config,omitempty"`
+		PublishConfig *PublishStrategyConfig `json:"publish_config,omitempty"`
+	}{
+		StrategyType:  strategyType,
+		Language:      c.Language,
+		PublishConfig: c.PublishConfig,
+	}
+
+	if strategyType == "grid_trading" {
+		out.GridConfig = c.GridConfig
+	} else {
+		out.AIConfig = &AIStrategyConfig{
+			CoinSource:     c.CoinSource,
+			Indicators:     c.Indicators,
+			CustomPrompt:   c.CustomPrompt,
+			RiskControl:    c.RiskControl,
+			PromptSections: c.PromptSections,
+		}
+	}
+
+	return json.Marshal(out)
+}
+
+// UnmarshalJSON accepts both the new nested schema and old flat configs. Old
+// top-level AI fields are normalized into the Go compatibility fields.
+func (c *StrategyConfig) UnmarshalJSON(data []byte) error {
+	type rawStrategyConfig struct {
+		StrategyType  string                 `json:"strategy_type"`
+		Language      string                 `json:"language"`
+		AIConfig      *AIStrategyConfig      `json:"ai_config"`
+		GridConfig    *GridStrategyConfig    `json:"grid_config"`
+		PublishConfig *PublishStrategyConfig `json:"publish_config"`
+
+		CoinSource     *CoinSourceConfig     `json:"coin_source"`
+		Indicators     *IndicatorConfig      `json:"indicators"`
+		CustomPrompt   *string               `json:"custom_prompt"`
+		RiskControl    *RiskControlConfig    `json:"risk_control"`
+		PromptSections *PromptSectionsConfig `json:"prompt_sections"`
+	}
+
+	var raw rawStrategyConfig
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	c.StrategyType = raw.StrategyType
+	c.Language = raw.Language
+	c.GridConfig = raw.GridConfig
+	c.PublishConfig = raw.PublishConfig
+
+	if raw.AIConfig != nil {
+		c.CoinSource = raw.AIConfig.CoinSource
+		c.Indicators = raw.AIConfig.Indicators
+		c.CustomPrompt = raw.AIConfig.CustomPrompt
+		c.RiskControl = raw.AIConfig.RiskControl
+		c.PromptSections = raw.AIConfig.PromptSections
+	} else {
+		if raw.CoinSource != nil {
+			c.CoinSource = *raw.CoinSource
+		}
+		if raw.Indicators != nil {
+			c.Indicators = *raw.Indicators
+		}
+		if raw.CustomPrompt != nil {
+			c.CustomPrompt = *raw.CustomPrompt
+		}
+		if raw.RiskControl != nil {
+			c.RiskControl = *raw.RiskControl
+		}
+		if raw.PromptSections != nil {
+			c.PromptSections = *raw.PromptSections
+		}
+	}
+
+	if strings.TrimSpace(c.StrategyType) == "" && c.GridConfig != nil {
+		c.StrategyType = "grid_trading"
+	}
+	return nil
 }
 
 // GridStrategyConfig grid trading specific configuration
@@ -153,7 +753,7 @@ type PromptSectionsConfig struct {
 
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type: "static" | "ai500" | "oi_top" | "oi_low" | "mixed"
+	// source type shown in the product editor: "static" | "ai500" | "oi_top" | "oi_low"
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`
@@ -177,6 +777,12 @@ type CoinSourceConfig struct {
 	UseHyperMain bool `json:"use_hyper_main"`
 	// Hyperliquid Main maximum count (default 20)
 	HyperMainLimit int `json:"hyper_main_limit,omitempty"`
+	// Hyperliquid dynamic ranking category: stock, commodity, index, forex, pre_ipo, crypto, all
+	HyperRankCategory string `json:"hyper_rank_category,omitempty"`
+	// Hyperliquid dynamic ranking direction: gainers, losers, volume
+	HyperRankDirection string `json:"hyper_rank_direction,omitempty"`
+	// Hyperliquid dynamic ranking maximum count. Defaults to 5 and is hard capped at 10 for AI context safety.
+	HyperRankLimit int `json:"hyper_rank_limit,omitempty"`
 	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 
@@ -310,13 +916,19 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 	config := StrategyConfig{
 		Language: normalizedLang,
 		CoinSource: CoinSourceConfig{
-			SourceType: "ai500",
-			UseAI500:   true,
-			AI500Limit: 3,
-			UseOITop:   false,
-			OITopLimit: 3,
-			UseOILow:   false,
-			OILowLimit: 3,
+			SourceType:         "hyper_rank",
+			UseAI500:           false,
+			AI500Limit:         3,
+			UseOITop:           false,
+			OITopLimit:         3,
+			UseOILow:           false,
+			OILowLimit:         3,
+			UseHyperAll:        false,
+			UseHyperMain:       false,
+			HyperMainLimit:     30,
+			HyperRankCategory:  "stock",
+			HyperRankDirection: "gainers",
+			HyperRankLimit:     5,
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{
@@ -340,24 +952,21 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
 			BOLLPeriods:       []int{20},
-			// NofxOS unified API key
-			NofxOSAPIKey: "cm_568c67eae410d912c54c",
-			// Quant data
-			EnableQuantData:    true,
-			EnableQuantOI:      true,
-			EnableQuantNetflow: true,
-			// OI ranking data
-			EnableOIRanking:   true,
-			OIRankingDuration: "1h",
-			OIRankingLimit:    10,
-			// NetFlow ranking data
-			EnableNetFlowRanking:   true,
+			// Hyperliquid strategies must use native Hyperliquid market data by default.
+			// NofxOS datasets do not cover all Hyperliquid XYZ assets, so keep them off.
+			NofxOSAPIKey:           "",
+			EnableQuantData:        false,
+			EnableQuantOI:          false,
+			EnableQuantNetflow:     false,
+			EnableOIRanking:        false,
+			OIRankingDuration:      "1h",
+			OIRankingLimit:         10,
+			EnableNetFlowRanking:   false,
 			NetFlowRankingDuration: "1h",
 			NetFlowRankingLimit:    10,
-			// Price ranking data
-			EnablePriceRanking:   true,
-			PriceRankingDuration: "1h,4h,24h",
-			PriceRankingLimit:    10,
+			EnablePriceRanking:     false,
+			PriceRankingDuration:   "1h,4h,24h",
+			PriceRankingLimit:      10,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)
@@ -374,9 +983,9 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 
 	if lang == "zh" {
 		config.PromptSections = PromptSectionsConfig{
-			RoleDefinition: `# 你是一个专业的加密货币交易AI
+			RoleDefinition: `# 你是一个专业的 Hyperliquid USDC 多资产交易AI
 
-你的任务是根据提供的市场数据做出交易决策。你是一个经验丰富的量化交易员，擅长技术分析和风险管理。`,
+你的任务是根据提供的市场数据做出交易决策。你可以分析并交易 Hyperliquid 上线的 USDC 永续合约，包括美股、大宗商品和加密资产。你是一个经验丰富的量化交易员，擅长跨资产技术分析和风险管理。`,
 			TradingFrequency: `# ⏱️ 交易频率意识
 
 - 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔
@@ -394,9 +1003,9 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 		}
 	} else {
 		config.PromptSections = PromptSectionsConfig{
-			RoleDefinition: `# You are a professional cryptocurrency trading AI
+			RoleDefinition: `# You are a professional Hyperliquid USDC multi-asset trading AI
 
-Your task is to make trading decisions based on the provided market data. You are an experienced quantitative trader skilled in technical analysis and risk management.`,
+Your task is to make trading decisions based on the provided market data. You can analyze and trade Hyperliquid-listed USDC perpetual markets, including US equities, commodities and crypto assets. You are an experienced quantitative trader skilled in cross-asset technical analysis and risk management.`,
 			TradingFrequency: `# ⏱️ Trading Frequency Awareness
 
 - Excellent trader: 2-4 trades per day ≈ 0.1-0.2 trades per hour
@@ -850,18 +1459,14 @@ func (c *StrategyConfig) getEffectiveCoinCount() int {
 		count = c.CoinSource.OITopLimit
 	case "oi_low":
 		count = c.CoinSource.OILowLimit
-	case "mixed":
-		if c.CoinSource.UseAI500 {
-			count += c.CoinSource.AI500Limit
-		}
-		if c.CoinSource.UseOITop {
-			count += c.CoinSource.OITopLimit
-		}
-		if c.CoinSource.UseOILow {
-			count += c.CoinSource.OILowLimit
-		}
+	case "hyper_rank":
+		count = c.CoinSource.HyperRankLimit
+	case "hyper_main":
+		count = c.CoinSource.HyperMainLimit
+	case "hyper_all":
+		count = c.CoinSource.HyperMainLimit
 	default:
-		count = c.CoinSource.AI500Limit
+		count = c.CoinSource.HyperRankLimit
 	}
 	if count <= 0 {
 		count = 3

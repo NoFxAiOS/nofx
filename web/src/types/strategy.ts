@@ -44,13 +44,30 @@ export interface StrategyConfig {
   // Language setting: "zh" for Chinese, "en" for English
   // Determines the language used for data formatting and prompt generation
   language?: 'zh' | 'en';
+  // AI trading configuration. Legacy flat fields below are accepted only for
+  // old data returned before the schema was split by strategy type.
+  ai_config?: AIStrategyConfig;
+  coin_source?: CoinSourceConfig;
+  indicators?: IndicatorConfig;
+  custom_prompt?: string;
+  risk_control?: RiskControlConfig;
+  prompt_sections?: PromptSectionsConfig;
+  // Grid trading configuration (only used when strategy_type is 'grid_trading')
+  grid_config?: GridStrategyConfig | null;
+  publish_config?: PublishStrategyConfig;
+}
+
+export interface AIStrategyConfig {
   coin_source: CoinSourceConfig;
   indicators: IndicatorConfig;
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
-  // Grid trading configuration (only used when strategy_type is 'grid_trading')
-  grid_config?: GridStrategyConfig | null;
+}
+
+export interface PublishStrategyConfig {
+  is_public: boolean;
+  config_visible: boolean;
 }
 
 // Grid trading specific configuration
@@ -88,7 +105,7 @@ export interface GridStrategyConfig {
 }
 
 export interface CoinSourceConfig {
-  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed';
+  source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'hyper_all' | 'hyper_main' | 'hyper_rank';
   static_coins?: string[];
   excluded_coins?: string[];   // 排除的币种列表
   use_ai500: boolean;
@@ -97,6 +114,12 @@ export interface CoinSourceConfig {
   oi_top_limit?: number;
   use_oi_low: boolean;
   oi_low_limit?: number;
+  use_hyper_all?: boolean;
+  use_hyper_main?: boolean;
+  hyper_main_limit?: number;
+  hyper_rank_category?: 'stock' | 'commodity' | 'index' | 'forex' | 'pre_ipo' | 'crypto' | 'all';
+  hyper_rank_direction?: 'gainers' | 'losers' | 'volume';
+  hyper_rank_limit?: number;
   // Note: API URLs are now built automatically using nofxos_api_key from IndicatorConfig
 }
 

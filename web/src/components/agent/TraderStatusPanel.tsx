@@ -1,4 +1,5 @@
 import useSWR from 'swr'
+import { useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
 import { Activity, CircleOff, Bot } from 'lucide-react'
@@ -7,11 +8,19 @@ import type { TraderInfo } from '../../types'
 export function TraderStatusPanel() {
   const { user, token } = useAuth()
 
-  const { data: traders } = useSWR<TraderInfo[]>(
+  const { data: traders, mutate } = useSWR<TraderInfo[]>(
     user && token ? 'agent-sidebar-traders' : null,
     api.getTraders,
     { refreshInterval: 30000, shouldRetryOnError: false }
   )
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      void mutate()
+    }
+    window.addEventListener('agent-config-refresh', handleRefresh)
+    return () => window.removeEventListener('agent-config-refresh', handleRefresh)
+  }, [mutate])
 
   if (!user || !token) {
     return (

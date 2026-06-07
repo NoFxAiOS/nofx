@@ -15,6 +15,10 @@ export function chatStorageKey(userId?: string) {
   return `nofxi-agent-chat:${userId || 'guest'}`
 }
 
+export function chatDraftStorageKey(userId?: string) {
+  return `nofxi-agent-chat-draft:${userId || 'guest'}`
+}
+
 export function getStoredAuthUserId(storage: Storage = window.localStorage) {
   try {
     const raw = storage.getItem('auth_user')
@@ -65,8 +69,38 @@ export function persistAgentMessages<T>(
   storage.setItem(chatStorageKey(userId), JSON.stringify(messages))
 }
 
+export function loadAgentDraft(storage: Storage, userId?: string) {
+  try {
+    return storage.getItem(chatDraftStorageKey(userId)) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function persistAgentDraft(
+  storage: Storage,
+  userId: string | undefined,
+  draft: string
+) {
+  storage.setItem(chatDraftStorageKey(userId), draft)
+}
+
+export function clearAgentDraft(storage: Storage, userId?: string) {
+  for (const key of [
+    chatDraftStorageKey(userId),
+    chatDraftStorageKey('guest'),
+  ]) {
+    storage.removeItem(key)
+  }
+}
+
 export function prepareAgentMessagesForPersistence<
-  T extends { streaming?: boolean; text?: string; steps?: unknown[]; time?: string }
+  T extends {
+    streaming?: boolean
+    text?: string
+    steps?: unknown[]
+    time?: string
+  },
 >(messages: T[]): T[] {
   return messages.map((message) => {
     if (!message.streaming) {
@@ -89,7 +123,10 @@ export function migrateAgentMessages(storage: Storage, userId?: string) {
   const targetMessages = loadMessagesFromKey(storage, targetKey)
   if (targetMessages.length > 0) return
 
-  for (const sourceKey of [chatStorageKey('guest'), LEGACY_AGENT_CHAT_STORAGE_KEY]) {
+  for (const sourceKey of [
+    chatStorageKey('guest'),
+    LEGACY_AGENT_CHAT_STORAGE_KEY,
+  ]) {
     const sourceMessages = loadMessagesFromKey(storage, sourceKey)
     if (sourceMessages.length === 0) continue
     storage.setItem(targetKey, JSON.stringify(sourceMessages))
@@ -101,4 +138,5 @@ export function clearAgentMessages(storage: Storage, userId?: string) {
   for (const key of candidateStorageKeys(userId)) {
     storage.removeItem(key)
   }
+  clearAgentDraft(storage, userId)
 }

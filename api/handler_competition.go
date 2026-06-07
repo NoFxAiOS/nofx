@@ -119,12 +119,25 @@ func (s *Server) handleCompetition(c *gin.Context) {
 	c.JSON(http.StatusOK, competition)
 }
 
-// handleEquityHistory Return rate historical data
-// Query directly from database, not dependent on trader in memory (so historical data can be retrieved after restart)
+// handleEquityHistory returns equity history for a trader. This endpoint is
+// PUBLIC (used by the competition leaderboard), so it cannot use the
+// authenticated getTraderFromQuery helper. Instead, it validates that the
+// requested trader has explicitly opted into the public competition via
+// show_in_competition=true. Traders without that flag are not exposed.
 func (s *Server) handleEquityHistory(c *gin.Context) {
-	_, traderID, err := s.getTraderFromQuery(c)
-	if err != nil {
-		SafeBadRequest(c, "Invalid trader ID")
+	traderID := c.Query("trader_id")
+	if traderID == "" {
+		SafeBadRequest(c, "trader_id is required")
+		return
+	}
+	trader, err := s.store.Trader().GetByID(traderID)
+	if err != nil || trader == nil {
+		SafeNotFound(c, "Trader")
+		return
+	}
+	if !trader.ShowInCompetition {
+		// Do not leak that a private trader exists; report not found.
+		SafeNotFound(c, "Trader")
 		return
 	}
 

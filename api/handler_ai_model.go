@@ -10,6 +10,7 @@ import (
 	"nofx/crypto"
 	"nofx/logger"
 	"nofx/security"
+	"nofx/store"
 	"nofx/wallet"
 
 	"github.com/gin-gonic/gin"
@@ -37,13 +38,19 @@ type SafeModelConfig struct {
 	BalanceUSDC     string `json:"balanceUsdc,omitempty"`
 }
 
+// ModelConfigUpdate is a single model's update payload. It is a named type
+// (rather than an inline anonymous struct) so the log-sanitizer in utils.go is
+// guaranteed to stay in sync with this shape — a mismatch there is what let
+// plaintext credentials reach the logs previously.
+type ModelConfigUpdate struct {
+	Enabled         bool   `json:"enabled"`
+	APIKey          string `json:"api_key"`
+	CustomAPIURL    string `json:"custom_api_url"`
+	CustomModelName string `json:"custom_model_name"`
+}
+
 type UpdateModelConfigRequest struct {
-	Models map[string]struct {
-		Enabled         bool   `json:"enabled"`
-		APIKey          string `json:"api_key"`
-		CustomAPIURL    string `json:"custom_api_url"`
-		CustomModelName string `json:"custom_model_name"`
-	} `json:"models"`
+	Models map[string]ModelConfigUpdate `json:"models"`
 }
 
 // handleGetModelConfigs Get AI model configurations
@@ -77,8 +84,11 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	logger.Infof("✅ Found %d AI model configs", len(models))
 
 	// Convert to safe response structure, remove sensitive information
-	safeModels := make([]SafeModelConfig, len(models))
-	for i, model := range models {
+	safeModels := make([]SafeModelConfig, 0, len(models))
+	for _, model := range models {
+		if !store.IsVisibleAIModel(model) {
+			continue
+		}
 		safeModel := SafeModelConfig{
 			ID:              model.ID,
 			Name:            model.Name,
@@ -100,7 +110,23 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			}
 		}
 
-		safeModels[i] = safeModel
+		safeModels = append(safeModels, safeModel)
+	}
+
+	if len(safeModels) == 0 {
+		logger.Infof("⚠️ No visible AI models in database, returning defaults")
+		defaultModels := []SafeModelConfig{
+			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false},
+			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false},
+			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false},
+			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false},
+			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false},
+			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false},
+			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false},
+			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false},
+		}
+		c.JSON(http.StatusOK, defaultModels)
+		return
 	}
 
 	c.JSON(http.StatusOK, safeModels)
@@ -205,7 +231,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		// Don't return error here since model config was successfully updated to database
 	}
 
-	logger.Infof("✓ AI model config updated: %+v", req.Models)
+	logger.Infof("✓ AI model config updated: %+v", SanitizeModelConfigForLog(req.Models))
 	c.JSON(http.StatusOK, gin.H{"message": "Model configuration updated"})
 }
 
@@ -220,10 +246,10 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "gemini", "name": "Google Gemini", "provider": "gemini", "defaultModel": "gemini-3.1-pro"},
 		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
 		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
-		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.5"},
+		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.7"},
 		{"id": "blockrun-base", "name": "BlockRun (Base Wallet)", "provider": "blockrun-base", "defaultModel": "auto"},
 		{"id": "blockrun-sol", "name": "BlockRun (Solana Wallet)", "provider": "blockrun-sol", "defaultModel": "auto"},
-		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "deepseek"},
+		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "deepseek-v4-flash"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)

@@ -7,6 +7,7 @@ import {
   Wallet,
   Bot,
   Bookmark,
+  Zap,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react'
@@ -19,24 +20,370 @@ import { WelcomeScreen } from '../components/agent/WelcomeScreen'
 import { ChatMessages } from '../components/agent/ChatMessages'
 import { ChatInput, type ChatInputHandle } from '../components/agent/ChatInput'
 import { UserPreferencesPanel } from '../components/agent/UserPreferencesPanel'
-import {
-  useAgentChatStore,
-  type AgentMessage as Message,
-  type AgentStep,
-} from '../stores/agentChatStore'
+import { HyperliquidSymbolsPanel } from '../components/agent/HyperliquidSymbolsPanel'
+import { createHyperliquidQuickTrader } from '../lib/hyperliquidQuickTrade'
+import { useAgentChatStore } from '../stores/agentChatStore'
+import type { AgentMessage as Message, AgentStep } from '../types/agent'
 import {
   chatStorageKey,
   clearAgentMessages,
   getStoredAuthUserId,
+  loadAgentDraft,
   loadAgentMessages,
   migrateAgentMessages,
   prepareAgentMessagesForPersistence,
+  persistAgentDraft,
   persistAgentMessages,
 } from '../lib/agentChatStorage'
 
 let msgIdCounter = 0
+let activeStreamAbortController: AbortController | null = null
+let activeStreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null
+
 function nextId() {
   return `msg-${Date.now()}-${++msgIdCounter}`
+}
+
+function cleanupActiveAgentStream() {
+  activeStreamAbortController?.abort()
+  activeStreamAbortController = null
+  void activeStreamReader?.cancel().catch(() => {
+    // Ignore stream cancellation races during teardown.
+  })
+  activeStreamReader = null
+}
+
+function stopActiveAgentStream(userId?: string, language = 'zh') {
+  if (!activeStreamAbortController && !activeStreamReader) return
+  const stoppedText =
+    language === 'zh' ? '已中止当前回复。' : 'Stopped the current response.'
+  const now = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  patchMessagesInStore(
+    (prev) =>
+      prev.map((m) => {
+        if (m.role !== 'bot' || !m.streaming) return m
+        const text = m.text?.trim()
+          ? `${m.text.trimEnd()}\n\n${stoppedText}`
+          : stoppedText
+        return {
+          ...m,
+          text,
+          streaming: false,
+          time: m.time || now,
+        }
+      }),
+    userId
+  )
+  cleanupActiveAgentStream()
+  useAgentChatStore.getState().setLoading(false)
+}
+
+function persistMessagesSnapshotForUser(userId?: string) {
+  const { hydrated, messages } = useAgentChatStore.getState()
+  if (!hydrated) return
+  const persistable = prepareAgentMessagesForPersistence(messages).slice(-100)
+  persistAgentMessages(window.localStorage, userId, persistable)
+}
+
+function replaceMessagesInStore(nextMessages: Message[], userId?: string) {
+  useAgentChatStore.getState().setMessages(nextMessages)
+  persistMessagesSnapshotForUser(userId)
+}
+
+function patchMessagesInStore(
+  updater: (prev: Message[]) => Message[],
+  userId?: string
+) {
+  const nextMessages = updater(useAgentChatStore.getState().messages)
+  useAgentChatStore.getState().updateMessages(() => nextMessages)
+  persistMessagesSnapshotForUser(userId)
+}
+
+async function runAgentStream(params: {
+  text: string
+  token?: string | null
+  language: string
+  storageUserId?: string
+  onDone?: () => void
+}) {
+  const { text, token, language, storageUserId, onDone } = params
+  if (!text || useAgentChatStore.getState().loading) return
+
+  const time = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  const userMsg: Message = { id: nextId(), role: 'user', text, time }
+  const botId = nextId()
+  const nextConversation: Message[] = [
+    userMsg,
+    {
+      id: botId,
+      role: 'bot',
+      text: '',
+      time: '',
+      streaming: true,
+    },
+  ]
+
+  replaceMessagesInStore(
+    text.trim() === '/clear'
+      ? nextConversation
+      : [...useAgentChatStore.getState().messages, ...nextConversation],
+    storageUserId
+  )
+  useAgentChatStore.getState().setLoading(true)
+
+  if (text.trim() === '/clear') {
+    try {
+      clearAgentMessages(window.localStorage, storageUserId)
+      useAgentChatStore.getState().setDraftText('')
+    } catch {
+      // Ignore storage cleanup failure.
+    }
+  }
+
+  let controller: AbortController | null = null
+  try {
+    activeStreamAbortController?.abort()
+    controller = new AbortController()
+    activeStreamAbortController = controller
+
+    const res = await fetch('/api/agent/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message: text, lang: language }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.error || `Server error (${res.status})`)
+    }
+
+    const reader = res.body?.getReader()
+    const decoder = new TextDecoder()
+    if (!reader) throw new Error('No response body')
+    activeStreamReader = reader
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        void reader.cancel().catch(() => {
+          // Ignore double-cancel races.
+        })
+      },
+      { once: true }
+    )
+
+    let buffer = ''
+    let finalText = ''
+    let stepCounter = 0
+    const now = () =>
+      new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    const mergeStreamText = (current: string, incoming: string) => {
+      if (!incoming) return current
+      if (!current) return incoming
+      if (incoming === current) return current
+      if (incoming.startsWith(current)) return incoming
+      if (current.startsWith(incoming)) return current
+      return current + incoming
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      let eventType = ''
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim()
+        } else if (line.startsWith('data: ') && eventType) {
+          const rawData = line.slice(6)
+          let data: string
+          try {
+            data = JSON.parse(rawData)
+          } catch {
+            eventType = ''
+            continue
+          }
+          if (eventType === 'delta') {
+            finalText = mergeStreamText(finalText, data)
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId ? { ...m, text: finalText, time: now() } : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'plan') {
+            const parsedSteps = parsePlanSteps(data)
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: parsedSteps.length > 0 ? parsedSteps : m.steps,
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'step_start') {
+            stepCounter += 1
+            const nextStep = parseStepEvent(data, stepCounter)
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: appendStep(m.steps, nextStep),
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'step_complete') {
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: markLatestRunningCompleted(m.steps, data),
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'replan') {
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        steps: appendStep(m.steps, {
+                          id: `replan-${Date.now()}`,
+                          label: data,
+                          status: 'replanned',
+                          detail: data,
+                        }),
+                        time: now(),
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'done') {
+            patchMessagesInStore(
+              (prev) =>
+                prev.map((m) =>
+                  m.id === botId
+                    ? {
+                        ...m,
+                        text: finalText || m.text || data,
+                        time: now(),
+                        streaming: false,
+                      }
+                    : m
+                ),
+              storageUserId
+            )
+          } else if (eventType === 'error') {
+            throw new Error(data)
+          }
+          eventType = ''
+        }
+      }
+    }
+
+    patchMessagesInStore(
+      (prev) =>
+        prev.map((m) =>
+          m.id === botId && m.streaming
+            ? {
+                ...m,
+                text: finalText || m.text || 'No response',
+                streaming: false,
+                time: now(),
+              }
+            : m
+        ),
+      storageUserId
+    )
+    window.dispatchEvent(new CustomEvent('agent-preferences-refresh'))
+    window.dispatchEvent(new CustomEvent('agent-config-refresh'))
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      patchMessagesInStore(
+        (prev) =>
+          prev.map((m) =>
+            m.id === botId
+              ? {
+                  ...m,
+                  streaming: false,
+                  time:
+                    m.time ||
+                    new Date().toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                }
+              : m
+          ),
+        storageUserId
+      )
+    } else {
+      patchMessagesInStore(
+        (prev) =>
+          prev.map((m) =>
+            m.id === botId
+              ? {
+                  ...m,
+                  text: '⚠️ Error: ' + e.message,
+                  time: new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  streaming: false,
+                }
+              : m
+          ),
+        storageUserId
+      )
+    }
+  }
+
+  if (controller && activeStreamAbortController === controller) {
+    activeStreamAbortController = null
+  }
+  if (activeStreamReader) {
+    try {
+      activeStreamReader.releaseLock()
+    } catch {
+      // Ignore lock-release races when the stream is already closed.
+    }
+    activeStreamReader = null
+  }
+  useAgentChatStore.getState().setLoading(false)
+  onDone?.()
 }
 
 function appendStep(
@@ -63,7 +410,9 @@ function parsePlanSteps(data: string): AgentStep[] {
 }
 
 function parseStepEvent(data: string, fallbackIndex: number): AgentStep {
-  const match = data.match(/Step\s+(\d+)\/(\d+):\s+(.+)$/i) || data.match(/步骤\s+(\d+)\/(\d+):\s+(.+)$/)
+  const match =
+    data.match(/Step\s+(\d+)\/(\d+):\s+(.+)$/i) ||
+    data.match(/步骤\s+(\d+)\/(\d+):\s+(.+)$/)
   if (match) {
     const id = `action-${match[1]}`
     return {
@@ -81,7 +430,10 @@ function parseStepEvent(data: string, fallbackIndex: number): AgentStep {
   }
 }
 
-function markLatestRunningCompleted(existing: AgentStep[] | undefined, detail: string): AgentStep[] {
+function markLatestRunningCompleted(
+  existing: AgentStep[] | undefined,
+  detail: string
+): AgentStep[] {
   const prev = existing ?? []
   for (let i = prev.length - 1; i >= 0; i--) {
     if (prev[i].status === 'running') {
@@ -96,20 +448,21 @@ function markLatestRunningCompleted(existing: AgentStep[] | undefined, detail: s
 export function AgentChatPage() {
   const { language } = useLanguage()
   const { token, user } = useAuth()
-  const [storageUserId, setStorageUserId] = useState<string | undefined>(() => getStoredAuthUserId())
+  const [storageUserId, setStorageUserId] = useState<string | undefined>(() =>
+    getStoredAuthUserId()
+  )
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024)
   const storageKey = chatStorageKey(user?.id || storageUserId)
   const messages = useAgentChatStore((state) => state.messages)
+  const draftText = useAgentChatStore((state) => state.draftText)
   const loading = useAgentChatStore((state) => state.loading)
   const historyHydrated = useAgentChatStore((state) => state.hydrated)
   const activeUserId = useAgentChatStore((state) => state.activeUserId)
-  const setMessages = useAgentChatStore((state) => state.setMessages)
-  const updateMessages = useAgentChatStore((state) => state.updateMessages)
-  const setLoading = useAgentChatStore((state) => state.setLoading)
   const resetForUser = useAgentChatStore((state) => state.resetForUser)
+  const setDraftText = useAgentChatStore((state) => state.setDraftText)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputHandle>(null)
-  const abortRef = useRef<AbortController | null>(null)
+  const pendingHyperSymbolRef = useRef<string | null>(null)
 
   // Sidebar section collapse state
   const [sections, setSections] = useState({
@@ -117,6 +470,7 @@ export function AgentChatPage() {
     positions: true,
     traders: false,
     preferences: true,
+    hyperliquid: true,
   })
 
   const toggleSection = (key: keyof typeof sections) => {
@@ -145,38 +499,47 @@ export function AgentChatPage() {
       nextUserId,
       loadAgentMessages<Message>(window.localStorage, nextUserId).messages
     )
-  }, [activeUserId, historyHydrated, resetForUser, storageKey, storageUserId, user?.id])
+    setDraftText(loadAgentDraft(window.localStorage, nextUserId))
+  }, [
+    activeUserId,
+    historyHydrated,
+    resetForUser,
+    setDraftText,
+    storageKey,
+    storageUserId,
+    user?.id,
+  ])
 
   // Persist chat history locally so page navigation does not wipe the conversation.
   useEffect(() => {
     if (!historyHydrated) return
     try {
-      const persistable = prepareAgentMessagesForPersistence(messages).slice(-100)
-      persistAgentMessages(window.localStorage, user?.id || storageUserId, persistable)
+      const persistable =
+        prepareAgentMessagesForPersistence(messages).slice(-100)
+      persistAgentMessages(
+        window.localStorage,
+        user?.id || storageUserId,
+        persistable
+      )
     } catch {
       // Ignore storage failures and keep the chat usable.
     }
   }, [historyHydrated, messages, storageKey, storageUserId, user?.id])
 
-  const persistMessagesSnapshot = (nextMessages: Message[]) => {
-    const persistable = prepareAgentMessagesForPersistence(nextMessages).slice(-100)
-    persistAgentMessages(window.localStorage, user?.id || storageUserId, persistable)
-  }
-
-  const replaceMessages = (nextMessages: Message[]) => {
-    setMessages(nextMessages)
-    if (historyHydrated) {
-      persistMessagesSnapshot(nextMessages)
+  // Persist the unsent draft so navigating away from the Agent page does not
+  // wipe what the user was typing.
+  useEffect(() => {
+    if (!historyHydrated) return
+    try {
+      persistAgentDraft(
+        window.localStorage,
+        user?.id || storageUserId,
+        draftText
+      )
+    } catch {
+      // Ignore storage failures and keep typing responsive.
     }
-  }
-
-  const patchMessages = (updater: (prev: Message[]) => Message[]) => {
-    const nextMessages = updater(useAgentChatStore.getState().messages)
-    updateMessages(() => nextMessages)
-    if (useAgentChatStore.getState().hydrated) {
-      persistMessagesSnapshot(nextMessages)
-    }
-  }
+  }, [draftText, historyHydrated, storageKey, storageUserId, user?.id])
 
   // Responsive sidebar
   useEffect(() => {
@@ -185,6 +548,12 @@ export function AgentChatPage() {
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    const handlePageHide = () => cleanupActiveAgentStream()
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
   }, [])
 
   // Escape to close sidebar on mobile
@@ -199,253 +568,150 @@ export function AgentChatPage() {
   }, [])
 
   const send = async (text: string) => {
-    if (!text || loading) return
-    const time = new Date().toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
+    await runAgentStream({
+      text,
+      token,
+      language,
+      storageUserId: user?.id || storageUserId,
+      onDone: () => chatInputRef.current?.focus(),
     })
-    const userMsg: Message = { id: nextId(), role: 'user', text, time }
-    const botId = nextId()
-    const nextConversation: Message[] = [
-      userMsg,
-      {
-        id: botId,
-        role: 'bot',
-        text: '',
-        time: '',
-        streaming: true,
-      },
-    ]
-    replaceMessages(
-      text.trim() === '/clear'
-        ? nextConversation
-        : [...useAgentChatStore.getState().messages, ...nextConversation]
-    )
-    setLoading(true)
+  }
 
-    if (text.trim() === '/clear') {
-      try {
-        clearAgentMessages(window.localStorage, user?.id || storageUserId)
-      } catch {
-        // Ignore storage cleanup failure.
-      }
-    }
-
-    try {
-      // Abort any in-flight request
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
-
-      const res = await fetch('/api/agent/chat/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message: text, lang: language, user_key: user?.id }),
-        signal: controller.signal,
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.error || `Server error (${res.status})`)
-      }
-
-      // Real SSE streaming
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      if (!reader) throw new Error('No response body')
-
-      let buffer = ''
-      let finalText = ''
-      let stepCounter = 0
-      const now = () =>
-        new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-        let eventType = ''
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim()
-          } else if (line.startsWith('data: ') && eventType) {
-            const rawData = line.slice(6)
-            let data: string
-            try {
-              data = JSON.parse(rawData)
-            } catch {
-              // Ignore malformed SSE data lines
-              eventType = ''
-              continue
-            }
-            if (eventType === 'delta') {
-              // data is the accumulated text so far
-              finalText = data
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? { ...m, text: data, time: now() }
-                    : m
-                )
-              )
-            } else if (eventType === 'plan') {
-              const parsedSteps = parsePlanSteps(data)
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: parsedSteps.length > 0 ? parsedSteps : m.steps,
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'step_start') {
-              stepCounter += 1
-              const nextStep = parseStepEvent(data, stepCounter)
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: appendStep(m.steps, nextStep),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'step_complete') {
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: markLatestRunningCompleted(m.steps, data),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'replan') {
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: appendStep(m.steps, {
-                          id: `replan-${Date.now()}`,
-                          label: data,
-                          status: 'replanned',
-                          detail: data,
-                        }),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (
-              eventType === 'tool'
-            ) {
-              // Show tool being called as a status indicator
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? {
-                        ...m,
-                        steps: appendStep(m.steps, {
-                          id: `tool-${Date.now()}`,
-                          label: `Tool: ${data}`,
-                          status: 'running',
-                          detail: data,
-                        }),
-                        time: now(),
-                      }
-                    : m
-                )
-              )
-            } else if (eventType === 'done') {
-              finalText = data
-              patchMessages((prev) =>
-                prev.map((m) =>
-                  m.id === botId
-                    ? { ...m, text: data, time: now(), streaming: false }
-                    : m
-                )
-              )
-            } else if (eventType === 'error') {
-              throw new Error(data)
-            }
-            eventType = ''
-          }
-        }
-      }
-
-      // If stream ended without a "done" event, mark as done
-      patchMessages((prev) =>
-        prev.map((m) =>
-          m.id === botId && m.streaming
-            ? {
-                ...m,
-                text: finalText || m.text || 'No response',
-                streaming: false,
-                time: now(),
-              }
-            : m
-        )
-      )
-      window.dispatchEvent(new CustomEvent('agent-preferences-refresh'))
-      window.dispatchEvent(new CustomEvent('agent-config-refresh'))
-    } catch (e: any) {
-      if (e.name === 'AbortError') {
-        // Request was cancelled (e.g. user sent a new message), clean up silently
-        patchMessages((prev) => prev.filter((m) => m.id !== botId))
-      } else {
-        patchMessages((prev) =>
-          prev.map((m) =>
-            m.id === botId
-              ? {
-                  ...m,
-                  text: '⚠️ Error: ' + e.message,
-                  time: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                  streaming: false,
-                }
-              : m
-          )
-        )
-      }
-    }
-    setLoading(false)
+  const stopCurrentResponse = () => {
+    stopActiveAgentStream(user?.id || storageUserId, language)
     chatInputRef.current?.focus()
   }
 
-  const quickActions = language === 'zh'
-    ? [
-        { label: '💼 持仓', cmd: '/positions' },
-        { label: '💰 余额', cmd: '/balance' },
-        { label: '📋 Traders', cmd: '/traders' },
-        { label: '🧹 清除记忆', cmd: '/clear' },
-        { label: '❓ 帮助', cmd: '/help' },
-      ]
-    : [
-        { label: '💼 Positions', cmd: '/positions' },
-        { label: '💰 Balance', cmd: '/balance' },
-        { label: '📋 Traders', cmd: '/traders' },
-        { label: '🧹 Clear', cmd: '/clear' },
-        { label: '❓ Help', cmd: '/help' },
-      ]
+  const tradeHyperliquidSymbol = async (symbol: { symbol: string; display?: string; category?: string }) => {
+    const label = symbol.display || symbol.symbol
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    patchMessagesInStore(
+      (prev) => [
+        ...prev,
+        {
+          id: nextId(),
+          role: 'user',
+          text:
+            language === 'zh'
+              ? `快速创建 Hyperliquid ${label} 单标的交易员`
+              : `Quick-create a Hyperliquid ${label} single-symbol trader`,
+          time,
+        },
+        {
+          id: nextId(),
+          role: 'bot',
+          text: language === 'zh' ? '正在直接创建策略和 Trader，不再走聊天意图猜测…' : 'Creating the strategy and trader directly, without routing through chat intent guessing…',
+          time,
+          streaming: true,
+        },
+      ],
+      user?.id || storageUserId
+    )
+    try {
+      const result = await createHyperliquidQuickTrader(symbol, language === 'zh' ? 'zh' : 'en')
+
+      // The reply tells the truth about what happened: created OR reused, AND
+      // whether the trader is now actually running. If start failed we say so
+      // explicitly so the user knows there's still work to do — but we no
+      // longer pretend the user has to "go push a button" when we could've
+      // done it ourselves.
+      const isZh = language === 'zh'
+      let text: string
+      if (result.started) {
+        const verb = isZh
+          ? result.reusedTrader
+            ? '已复用并启动'
+            : '已创建并启动'
+          : result.reusedTrader
+            ? 'Reused and started'
+            : 'Created and started'
+        text = isZh
+          ? `${verb} Hyperliquid ${result.display} 单标的 Trader: ${result.traderName}\n\n• 策略: ${result.strategyName}\n• 标的: ${result.display}\n• 扫描间隔: 每 5 分钟\n\nAgent 已在工作。要看实时持仓在 Dashboard, 想停掉随时回这里说"停掉 ${result.traderName}"。`
+          : `${verb} Hyperliquid ${result.display} single-symbol trader: ${result.traderName}\n\n• Strategy: ${result.strategyName}\n• Symbol: ${result.display}\n• Scan interval: every 5 min\n\nThe agent is live. Watch positions in Dashboard, or tell me "stop ${result.traderName}" to halt it.`
+      } else {
+        const verb = isZh
+          ? result.reusedTrader
+            ? '已找到 Trader'
+            : '已创建 Trader'
+          : result.reusedTrader
+            ? 'Found existing trader'
+            : 'Created trader'
+        const reason = result.startError ? `\n\n启动失败原因: ${result.startError}` : ''
+        const reasonEn = result.startError ? `\n\nStart failed: ${result.startError}` : ''
+        text = isZh
+          ? `${verb}: ${result.traderName}\n\n• 策略: ${result.strategyName}\n• 标的: ${result.display}${reason}\n\n需要先解决启动问题, 我才能让它跑起来。`
+          : `${verb}: ${result.traderName}\n\n• Strategy: ${result.strategyName}\n• Symbol: ${result.display}${reasonEn}\n\nResolve the start error before the trader can run.`
+      }
+
+      patchMessagesInStore(
+        (prev) =>
+          prev.map((m) =>
+            m.streaming
+              ? {
+                  ...m,
+                  streaming: false,
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  text,
+                }
+              : m
+          ),
+        user?.id || storageUserId
+      )
+      window.dispatchEvent(new CustomEvent('agent-config-refresh'))
+    } catch (err: any) {
+      patchMessagesInStore(
+        (prev) =>
+          prev.map((m) =>
+            m.streaming
+              ? {
+                  ...m,
+                  streaming: false,
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  text: `⚠️ ${err?.message || 'Failed to create quick trader'}`,
+                }
+              : m
+          ),
+        user?.id || storageUserId
+      )
+    }
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const symbol = params.get('hyperSymbol')
+    if (!symbol || pendingHyperSymbolRef.current === symbol || loading) return
+    pendingHyperSymbolRef.current = symbol
+    void tradeHyperliquidSymbol({
+      symbol,
+      display: params.get('hyperDisplay') || symbol,
+      category: params.get('hyperCategory') || 'stock',
+    })
+    const cleanUrl = `${window.location.pathname}${window.location.hash}`
+    window.history.replaceState({}, '', cleanUrl)
+  }, [loading, language])
+
+  const quickActions =
+    language === 'zh'
+      ? [
+          { label: '🇺🇸 创建美股Agent', cmd: '创建一个美股趋势交易 Agent，默认选择5个强势美股，严格风控' },
+          { label: '🗣 一句话策略', cmd: '我想做美股强趋势突破，帮我生成策略和Agent' },
+          { label: '💼 持仓', cmd: '/positions' },
+          { label: '💰 余额', cmd: '/balance' },
+          { label: '📋 Traders', cmd: '/traders' },
+          { label: '📊 系统状态', cmd: '/status' },
+          { label: '🧹 清除记忆', cmd: '/clear' },
+          { label: '❓ 帮助', cmd: '/help' },
+        ]
+      : [
+          { label: '🇺🇸 Create US Stock Agent', cmd: 'Create a US stock trend-following agent with 5 strong stocks and strict risk control' },
+          { label: '🗣 One-line strategy', cmd: 'I want a US stock breakout strategy; build the strategy and agent' },
+          { label: '💼 Positions', cmd: '/positions' },
+          { label: '💰 Balance', cmd: '/balance' },
+          { label: '📋 Traders', cmd: '/traders' },
+          { label: '📊 Status', cmd: '/status' },
+          { label: '🧹 Clear', cmd: '/clear' },
+          { label: '❓ Help', cmd: '/help' },
+        ]
 
   const sidebarSections = [
     {
@@ -453,6 +719,18 @@ export function AgentChatPage() {
       icon: <TrendingUp size={14} />,
       title: language === 'zh' ? '市场行情' : 'Market',
       component: <MarketTicker />,
+    },
+    {
+      key: 'hyperliquid' as const,
+      icon: <Zap size={14} />,
+      title: language === 'zh' ? '美股/全球标的' : 'US & Global Markets',
+      component: (
+        <HyperliquidSymbolsPanel
+          language={language}
+          disabled={loading}
+          onTradeSymbol={tradeHyperliquidSymbol}
+        />
+      ),
     },
     {
       key: 'positions' as const,
@@ -481,7 +759,7 @@ export function AgentChatPage() {
       style={{
         display: 'flex',
         height: 'calc(100dvh - 64px)',
-        background: '#09090b',
+        background: '#0B0E11',
         overflow: 'hidden',
       }}
     >
@@ -506,7 +784,7 @@ export function AgentChatPage() {
             overflowX: 'auto',
             flexShrink: 0,
             backdropFilter: 'blur(12px)',
-            background: 'rgba(9,9,11,0.8)',
+            background: 'rgba(11,14,17,0.8)',
           }}
           className="hide-scrollbar"
         >
@@ -548,8 +826,12 @@ export function AgentChatPage() {
               transition: 'color 0.2s',
             }}
             title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#8a8aa0' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = '#4c4c62' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#8a8aa0'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#4c4c62'
+            }}
           >
             {sidebarOpen ? (
               <PanelRightClose size={18} />
@@ -580,7 +862,10 @@ export function AgentChatPage() {
           ref={chatInputRef}
           language={language}
           loading={loading}
+          value={draftText}
+          onChange={setDraftText}
           onSend={send}
+          onStop={stopCurrentResponse}
         />
       </div>
 
@@ -648,7 +933,8 @@ export function AgentChatPage() {
                       fontFamily: 'inherit',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                      e.currentTarget.style.background =
+                        'rgba(255,255,255,0.03)'
                       e.currentTarget.style.color = '#a0a0b0'
                     }}
                     onMouseLeave={(e) => {
@@ -658,7 +944,12 @@ export function AgentChatPage() {
                   >
                     {section.icon}
                     <span>{section.title}</span>
-                    <span style={{ marginLeft: 'auto', transition: 'transform 0.2s' }}>
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        transition: 'transform 0.2s',
+                      }}
+                    >
                       {sections[section.key] ? (
                         <ChevronDown size={14} />
                       ) : (
@@ -675,9 +966,7 @@ export function AgentChatPage() {
                         transition={{ duration: 0.15 }}
                         style={{ overflow: 'hidden', padding: '0 4px' }}
                       >
-                        <div style={{ paddingTop: 4 }}>
-                          {section.component}
-                        </div>
+                        <div style={{ paddingTop: 4 }}>{section.component}</div>
                       </motion.div>
                     )}
                   </AnimatePresence>

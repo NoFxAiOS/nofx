@@ -15,13 +15,10 @@ func MaskSensitiveString(s string) string {
 	return s[:4] + "****" + s[length-4:]
 }
 
-// SanitizeModelConfigForLog Sanitize model configuration for log output
-func SanitizeModelConfigForLog(models map[string]struct {
-	Enabled         bool   `json:"enabled"`
-	APIKey          string `json:"api_key"`
-	CustomAPIURL    string `json:"custom_api_url"`
-	CustomModelName string `json:"custom_model_name"`
-}) map[string]interface{} {
+// SanitizeModelConfigForLog Sanitize model configuration for log output.
+// Takes the same ModelConfigUpdate type used by the request handler so the two
+// can never drift out of sync.
+func SanitizeModelConfigForLog(models map[string]ModelConfigUpdate) map[string]interface{} {
 	safe := make(map[string]interface{})
 	for modelID, cfg := range models {
 		safe[modelID] = map[string]interface{}{
@@ -34,19 +31,12 @@ func SanitizeModelConfigForLog(models map[string]struct {
 	return safe
 }
 
-// SanitizeExchangeConfigForLog Sanitize exchange configuration for log output
-func SanitizeExchangeConfigForLog(exchanges map[string]struct {
-	Enabled               bool   `json:"enabled"`
-	APIKey                string `json:"api_key"`
-	SecretKey             string `json:"secret_key"`
-	Testnet               bool   `json:"testnet"`
-	HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr"`
-	AsterUser             string `json:"aster_user"`
-	AsterSigner           string `json:"aster_signer"`
-	AsterPrivateKey       string `json:"aster_private_key"`
-	LighterWalletAddr     string `json:"lighter_wallet_addr"`
-	LighterPrivateKey     string `json:"lighter_private_key"`
-}) map[string]interface{} {
+// SanitizeExchangeConfigForLog Sanitize exchange configuration for log output.
+// Takes the same ExchangeConfigUpdate type used by the request handler so every
+// sensitive field is guaranteed to be masked — adding a field to the request
+// type without masking it here would not compile around this helper, but more
+// importantly keeps the masking exhaustive.
+func SanitizeExchangeConfigForLog(exchanges map[string]ExchangeConfigUpdate) map[string]interface{} {
 	safe := make(map[string]interface{})
 	for exchangeID, cfg := range exchanges {
 		safeExchange := map[string]interface{}{
@@ -61,11 +51,17 @@ func SanitizeExchangeConfigForLog(exchanges map[string]struct {
 		if cfg.SecretKey != "" {
 			safeExchange["secret_key"] = MaskSensitiveString(cfg.SecretKey)
 		}
+		if cfg.Passphrase != "" {
+			safeExchange["passphrase"] = MaskSensitiveString(cfg.Passphrase)
+		}
 		if cfg.AsterPrivateKey != "" {
 			safeExchange["aster_private_key"] = MaskSensitiveString(cfg.AsterPrivateKey)
 		}
 		if cfg.LighterPrivateKey != "" {
 			safeExchange["lighter_private_key"] = MaskSensitiveString(cfg.LighterPrivateKey)
+		}
+		if cfg.LighterAPIKeyPrivateKey != "" {
+			safeExchange["lighter_api_key_private_key"] = MaskSensitiveString(cfg.LighterAPIKeyPrivateKey)
 		}
 
 		// Add non-sensitive fields directly

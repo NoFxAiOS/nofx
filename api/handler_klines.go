@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -320,61 +321,207 @@ func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([
 	return klines, nil
 }
 
+func hyperliquidXYZDisplayBase(baseSymbol string) string {
+	baseSymbol = strings.ToUpper(strings.TrimSpace(baseSymbol))
+	// User-facing names should be product names, not exchange shorthand tickers.
+	// Keep the internal symbol separate because Hyperliquid's xyz dex still routes
+	// orders/candles by the short coin name (for example xyz:SMSN).
+	fullNames := map[string]string{
+		"XYZ100":    "XYZ100",
+		"TSLA":      "TESLA",
+		"NVDA":      "NVIDIA",
+		"GOLD":      "GOLD",
+		"HOOD":      "ROBINHOOD",
+		"INTC":      "INTEL",
+		"PLTR":      "PALANTIR",
+		"COIN":      "COINBASE",
+		"META":      "META",
+		"AAPL":      "APPLE",
+		"MSFT":      "MICROSOFT",
+		"ORCL":      "ORACLE",
+		"GOOGL":     "GOOGLE",
+		"AMZN":      "AMAZON",
+		"AMD":       "AMD",
+		"MU":        "MICRON",
+		"SNDK":      "SANDISK",
+		"MSTR":      "MICROSTRATEGY",
+		"CRCL":      "CIRCLE",
+		"NFLX":      "NETFLIX",
+		"COST":      "COSTCO",
+		"LLY":       "ELI-LILLY",
+		"SKHX":      "SK-HYNIX",
+		"TSM":       "TSMC",
+		"JPY":       "JPY",
+		"EUR":       "EUR",
+		"SILVER":    "SILVER",
+		"RIVN":      "RIVIAN",
+		"BABA":      "ALIBABA",
+		"CL":        "CRUDE-OIL",
+		"COPPER":    "COPPER",
+		"NATGAS":    "NATURAL-GAS",
+		"URANIUM":   "URANIUM",
+		"ALUMINIUM": "ALUMINIUM",
+		"SMSN":      "SAMSUNG",
+		"PLATINUM":  "PLATINUM",
+		"USAR":      "USA-RARE-EARTH",
+		"CRWV":      "COREWEAVE",
+		"URNM":      "URNM",
+		"PALLADIUM": "PALLADIUM",
+		"DXY":       "DOLLAR-INDEX",
+		"GME":       "GAMESTOP",
+		"KR200":     "KOREA-200",
+		"SOFTBANK":  "SOFTBANK",
+		"JP225":     "JAPAN-225",
+		"HYUNDAI":   "HYUNDAI",
+		"KIOXIA":    "KIOXIA",
+		"EWY":       "SOUTH-KOREA-ETF",
+		"EWJ":       "JAPAN-ETF",
+		"BRENTOIL":  "BRENT-OIL",
+		"VIX":       "VIX",
+		"HIMS":      "HIMS-HERS",
+		"SP500":     "S&P-500",
+		"DKNG":      "DRAFTKINGS",
+		"LITE":      "LITECOIN",
+		"CORN":      "CORN",
+		"XLE":       "ENERGY-SECTOR-ETF",
+		"WHEAT":     "WHEAT",
+		"TTF":       "TTF-GAS",
+		"BX":        "BLACKSTONE",
+		"PURRDAT":   "PURRDAT",
+		"MRVL":      "MARVELL",
+		"RKLB":      "ROCKET-LAB",
+		"BIRD":      "BIRD",
+		"VOL":       "VOLATILITY",
+		"DRAM":      "DRAM",
+		"CBRS":      "COINBASE-PRE-IPO",
+		"EWZ":       "BRAZIL-ETF",
+		"KRW":       "KRW",
+		"ZM":        "ZOOM",
+		"EBAY":      "EBAY",
+		"H100":      "H100",
+		"NIFTY":     "NIFTY-50",
+		"ARM":       "ARM",
+		"EWT":       "TAIWAN-ETF",
+		"GBP":       "GBP",
+		"SPCX":      "SPACEX-PRE-IPO",
+		"IBOV":      "IBOVESPA",
+		"ASML":      "ASML",
+	}
+	if fullName, ok := fullNames[baseSymbol]; ok {
+		return fullName
+	}
+	return baseSymbol
+}
+
+func hyperliquidXYZCategory(baseSymbol string) string {
+	baseSymbol = strings.ToUpper(strings.TrimSpace(baseSymbol))
+	switch baseSymbol {
+	case "GOLD", "SILVER", "CL", "COPPER", "NATGAS", "URANIUM", "ALUMINIUM", "PLATINUM", "PALLADIUM", "BRENTOIL", "CORN", "WHEAT", "TTF":
+		return "commodity"
+	case "XYZ100", "SP500", "JP225", "KR200", "DXY", "VIX", "XLE", "EWY", "EWJ", "EWZ", "EWT", "NIFTY", "IBOV":
+		return "index"
+	case "EUR", "JPY", "GBP", "KRW":
+		return "forex"
+	case "SPCX", "BIRD", "PURRDAT", "H100", "CBRS":
+		return "pre_ipo"
+	default:
+		return "stock"
+	}
+}
+
+func hyperliquidCategoryOrder(category string) int {
+	switch category {
+	case "stock":
+		return 0
+	case "commodity":
+		return 1
+	case "index":
+		return 2
+	case "forex":
+		return 3
+	case "pre_ipo":
+		return 4
+	case "crypto":
+		return 5
+	default:
+		return 99
+	}
+}
+
 // handleSymbols returns available symbols for a given exchange
 func (s *Server) handleSymbols(c *gin.Context) {
 	exchange := c.DefaultQuery("exchange", "hyperliquid")
 
 	type SymbolInfo struct {
-		Symbol      string `json:"symbol"`
-		Name        string `json:"name"`
-		Category    string `json:"category"` // crypto, stock, forex, commodity, index
-		MaxLeverage int    `json:"maxLeverage,omitempty"`
+		Symbol       string  `json:"symbol"`
+		Display      string  `json:"display"`
+		Name         string  `json:"name"`
+		Category     string  `json:"category"` // crypto, stock, forex, commodity, index
+		Exchange     string  `json:"exchange"`
+		Volume24h    float64 `json:"volume_24h"`
+		MarkPrice    float64 `json:"mark_price"`
+		PrevDayPrice float64 `json:"prev_day_price,omitempty"`
+		Change24hPct float64 `json:"change_24h_pct,omitempty"`
+		MaxLeverage  int     `json:"maxLeverage,omitempty"`
+		SzDecimals   int     `json:"sz_decimals,omitempty"`
 	}
 
 	var symbols []SymbolInfo
 
-	switch strings.ToLower(exchange) {
+	exchangeLower := strings.ToLower(exchange)
+	switch exchangeLower {
 	case "hyperliquid", "hyperliquid-xyz", "xyz":
-		// Fetch symbols from Hyperliquid
-		client := hyperliquid.NewClient()
 		ctx := context.Background()
 
-		// Get crypto perps from default dex
-		if exchange == "hyperliquid" || exchange == "hyperliquid-xyz" {
-			mids, err := client.GetAllMids(ctx)
-			if err == nil {
-				for symbol := range mids {
-					// Skip spot tokens (start with @)
-					if strings.HasPrefix(symbol, "@") {
-						continue
-					}
-					symbols = append(symbols, SymbolInfo{
-						Symbol:   symbol,
-						Name:     symbol,
-						Category: "crypto",
-					})
-				}
+		// hyperliquid-xyz returns the full USDC trading board in product order:
+		// stocks → commodities → indices → forex → pre-IPO → crypto.
+		if exchangeLower == "hyperliquid-xyz" || exchangeLower == "xyz" {
+			xyzCoins, err := hyperliquid.GetPerpDexCoins(ctx, hyperliquid.XYZDex)
+			if err != nil {
+				SafeInternalError(c, "Get Hyperliquid XYZ symbols", err)
+				return
+			}
+			for _, coin := range xyzCoins {
+				baseSymbol := strings.TrimPrefix(coin.Symbol, "xyz:")
+				displayBase := hyperliquidXYZDisplayBase(baseSymbol)
+				displaySymbol := displayBase + "-USDC"
+				tradeSymbol := baseSymbol + "-USDC"
+				symbols = append(symbols, SymbolInfo{
+					Symbol:       tradeSymbol,
+					Display:      displaySymbol,
+					Name:         displayBase,
+					Category:     hyperliquidXYZCategory(baseSymbol),
+					Exchange:     "hyperliquid-xyz",
+					Volume24h:    coin.Volume24h,
+					MarkPrice:    coin.MarkPrice,
+					PrevDayPrice: coin.PrevDayPrice,
+					Change24hPct: coin.Change24hPct,
+					MaxLeverage:  coin.MaxLeverage,
+					SzDecimals:   coin.SzDecimals,
+				})
 			}
 		}
 
-		// Get xyz dex symbols (stocks, forex, commodities)
-		xyzMids, err := client.GetAllMidsXYZ(ctx)
-		if err == nil {
-			for symbol := range xyzMids {
-				// Remove xyz: prefix for display
-				displaySymbol := strings.TrimPrefix(symbol, "xyz:")
-				category := "stock"
-				if displaySymbol == "GOLD" || displaySymbol == "SILVER" {
-					category = "commodity"
-				} else if displaySymbol == "EUR" || displaySymbol == "JPY" {
-					category = "forex"
-				} else if displaySymbol == "XYZ100" {
-					category = "index"
-				}
+		// Crypto perps are shown last; only include them on the combined Hyperliquid board.
+		if exchangeLower == "hyperliquid" || exchangeLower == "hyperliquid-xyz" {
+			coins, err := hyperliquid.GetProvider().GetAllCoins(ctx)
+			if err != nil {
+				SafeInternalError(c, "Get Hyperliquid symbols", err)
+				return
+			}
+			for _, coin := range coins {
 				symbols = append(symbols, SymbolInfo{
-					Symbol:   displaySymbol,
-					Name:     displaySymbol,
-					Category: category,
+					Symbol:       coin.Symbol,
+					Display:      coin.Symbol,
+					Name:         coin.Symbol,
+					Category:     "crypto",
+					Exchange:     "hyperliquid",
+					Volume24h:    coin.Volume24h,
+					MarkPrice:    coin.MarkPrice,
+					PrevDayPrice: coin.PrevDayPrice,
+					Change24hPct: coin.Change24hPct,
+					MaxLeverage:  coin.MaxLeverage,
+					SzDecimals:   coin.SzDecimals,
 				})
 			}
 		}
@@ -383,6 +530,15 @@ func (s *Server) handleSymbols(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange for symbol listing"})
 		return
 	}
+
+	sort.SliceStable(symbols, func(i, j int) bool {
+		ci := hyperliquidCategoryOrder(symbols[i].Category)
+		cj := hyperliquidCategoryOrder(symbols[j].Category)
+		if ci != cj {
+			return ci < cj
+		}
+		return symbols[i].Volume24h > symbols[j].Volume24h
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"exchange": exchange,

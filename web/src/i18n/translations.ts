@@ -341,10 +341,10 @@ export const translations = {
     clearSelection: 'Clear All',
     confirmSelection: 'Confirm',
     tradingSymbolsDescription:
-      'Empty = use default symbols. Must end with USDT (e.g., BTCUSDT, ETHUSDT)',
+      'Empty = use default symbols. Use USDT perps (e.g., BTCUSDT, ETHUSDT) or Hyperliquid XYZ USDC markets (e.g., TSLA-USDC)',
     btcEthLeverageValidation: 'BTC/ETH leverage must be between 1-50x',
     altcoinLeverageValidation: 'Altcoin leverage must be between 1-20x',
-    invalidSymbolFormat: 'Invalid symbol format: {symbol}, must end with USDT',
+    invalidSymbolFormat: 'Invalid symbol format: {symbol}, use USDT perps or SYMBOL-USDC',
 
     // System Prompt Templates
     systemPromptTemplate: 'System Prompt Template',
@@ -494,7 +494,7 @@ export const translations = {
     loginNow: 'Sign in now',
     forgotPassword: 'Forgot password?',
     forgotAccount: 'Forgot account?',
-    forgotAccountConfirm: 'This will clear all account data and allow you to register a new account. Continue?',
+    forgotAccountConfirm: '⚠️ This will permanently delete EVERYTHING: users, traders, strategies, AI model API keys, exchange API keys, and your CLAW402 wallet. Export anything you need to keep (especially wallet private keys) BEFORE continuing. Re-registration will NOT restore them. Continue?',
     forgotAccountSuccess: 'Account reset successful! You can now register a new account.',
     rememberMe: 'Remember me',
     resetPassword: 'Reset Password',
@@ -506,6 +506,12 @@ export const translations = {
       'Password reset successful! Please login with your new password',
     resetPasswordFailed: 'Password reset failed',
     backToLogin: 'Back to Login',
+    resetPasswordCliIntro:
+      'For security, password recovery is no longer available from the browser. Run this command on the server where NOFX is installed:',
+    resetPasswordCliSecurityNote:
+      'This requires shell access to the server, which keeps your account safe even when NOFX is exposed to the internet.',
+    resetAccountCliIntro:
+      'To wipe everything and start over, run this command on the server where NOFX is installed:',
     copy: 'Copy',
     loginSuccess: 'Login successful',
     registrationSuccess: 'Registration successful',
@@ -1687,10 +1693,10 @@ export const translations = {
     clearSelection: '清空选择',
     confirmSelection: '确认选择',
     tradingSymbolsDescription:
-      '留空 = 使用默认币种。必须以USDT结尾（如：BTCUSDT, ETHUSDT）',
+      '留空 = 使用默认币种。支持 USDT 合约（如：BTCUSDT, ETHUSDT）或 Hyperliquid XYZ USDC 标的（如：TSLA-USDC）',
     btcEthLeverageValidation: 'BTC/ETH杠杆必须在1-50倍之间',
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
-    invalidSymbolFormat: '无效的币种格式：{symbol}，必须以USDT结尾',
+    invalidSymbolFormat: '无效的币种格式：{symbol}，请使用 USDT 合约或 SYMBOL-USDC',
 
     // System Prompt Templates
     systemPromptTemplate: '系统提示词模板',
@@ -1824,7 +1830,7 @@ export const translations = {
     loginNow: '立即登录',
     forgotPassword: '忘记密码？',
     forgotAccount: '忘记账户？',
-    forgotAccountConfirm: '这将清除所有账户数据，允许您重新注册新账户。是否继续？',
+    forgotAccountConfirm: '⚠️ 这将永久删除全部数据：用户、Trader、策略、AI 模型 API Key、交易所 API Key，以及您的 CLAW402 钱包。请务必在继续前导出需要保留的内容（尤其是钱包私钥）。重新注册不会恢复任何数据。确定要继续吗？',
     forgotAccountSuccess: '账户已重置！现在可以注册新账户了。',
     rememberMe: '记住我',
     resetPassword: '重置密码',
@@ -1835,6 +1841,12 @@ export const translations = {
     resetPasswordSuccess: '密码重置成功！请使用新密码登录',
     resetPasswordFailed: '密码重置失败',
     backToLogin: '返回登录',
+    resetPasswordCliIntro:
+      '出于安全考虑，密码找回不再通过浏览器进行。请在部署 NOFX 的服务器上运行以下命令：',
+    resetPasswordCliSecurityNote:
+      '该操作需要服务器的 shell 访问权限，因此即使 NOFX 暴露在公网上，你的账户依然安全。',
+    resetAccountCliIntro:
+      '如需清空所有数据并重新开始，请在部署 NOFX 的服务器上运行以下命令：',
     copy: '复制',
     loginSuccess: '登录成功',
     registrationSuccess: '注册成功',
@@ -2965,10 +2977,10 @@ export const translations = {
     selectedSymbolsCount: '{count} simbol dipilih',
     clearSelection: 'Hapus Semua',
     confirmSelection: 'Konfirmasi',
-    tradingSymbolsDescription: 'Kosong = gunakan simbol default. Harus berakhiran USDT (misal BTCUSDT, ETHUSDT)',
+    tradingSymbolsDescription: 'Kosong = gunakan simbol default. Gunakan perp USDT (misal BTCUSDT, ETHUSDT) atau market Hyperliquid XYZ USDC (misal TSLA-USDC)',
     btcEthLeverageValidation: 'Leverage BTC/ETH harus antara 1-50x',
     altcoinLeverageValidation: 'Leverage Altcoin harus antara 1-20x',
-    invalidSymbolFormat: 'Format simbol tidak valid: {symbol}, harus berakhiran USDT',
+    invalidSymbolFormat: 'Format simbol tidak valid: {symbol}, gunakan perp USDT atau SYMBOL-USDC',
     systemPromptTemplate: 'Template Prompt Sistem',
     promptTemplateDefault: 'Default Stabil',
     promptTemplateAdaptive: 'Strategi Konservatif',
@@ -3089,7 +3101,7 @@ export const translations = {
     loginNow: 'Masuk sekarang',
     forgotPassword: 'Lupa kata sandi?',
     forgotAccount: 'Lupa akun?',
-    forgotAccountConfirm: 'Ini akan menghapus semua data akun dan memungkinkan Anda mendaftar akun baru. Lanjutkan?',
+    forgotAccountConfirm: '⚠️ Ini akan MENGHAPUS PERMANEN semua data: pengguna, trader, strategi, kunci API model AI, kunci API bursa, dan dompet CLAW402 Anda. Ekspor apa pun yang ingin Anda simpan (terutama kunci privat dompet) SEBELUM melanjutkan. Pendaftaran ulang TIDAK akan memulihkannya. Lanjutkan?',
     forgotAccountSuccess: 'Akun berhasil direset! Anda sekarang dapat mendaftar akun baru.',
     rememberMe: 'Ingat saya',
     resetPassword: 'Reset Kata Sandi',
@@ -3100,6 +3112,12 @@ export const translations = {
     resetPasswordSuccess: 'Kata sandi berhasil direset! Silakan masuk dengan kata sandi baru',
     resetPasswordFailed: 'Gagal mereset kata sandi',
     backToLogin: 'Kembali ke Login',
+    resetPasswordCliIntro:
+      'Demi keamanan, pemulihan kata sandi tidak lagi tersedia dari browser. Jalankan perintah ini di server tempat NOFX dipasang:',
+    resetPasswordCliSecurityNote:
+      'Ini memerlukan akses shell ke server, sehingga akun Anda tetap aman bahkan saat NOFX terekspos ke internet.',
+    resetAccountCliIntro:
+      'Untuk menghapus semua data dan memulai dari awal, jalankan perintah ini di server tempat NOFX dipasang:',
     copy: 'Salin',
     loginSuccess: 'Berhasil masuk',
     registrationSuccess: 'Berhasil mendaftar',

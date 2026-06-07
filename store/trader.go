@@ -110,12 +110,20 @@ func (s *TraderStore) Update(trader *Trader) error {
 		trader.ID, trader.Name, trader.AIModelID, trader.StrategyID)
 
 	updates := map[string]interface{}{
-		"name":           trader.Name,
-		"ai_model_id":    trader.AIModelID,
-		"exchange_id":    trader.ExchangeID,
-		"strategy_id":    trader.StrategyID,
-		"is_cross_margin": trader.IsCrossMargin,
-		"show_in_competition": trader.ShowInCompetition,
+		"name":                   trader.Name,
+		"ai_model_id":            trader.AIModelID,
+		"exchange_id":            trader.ExchangeID,
+		"strategy_id":            trader.StrategyID,
+		"is_cross_margin":        trader.IsCrossMargin,
+		"show_in_competition":    trader.ShowInCompetition,
+		"btc_eth_leverage":       trader.BTCETHLeverage,
+		"altcoin_leverage":       trader.AltcoinLeverage,
+		"trading_symbols":        trader.TradingSymbols,
+		"use_coin_pool":          trader.UseAI500,
+		"use_oi_top":             trader.UseOITop,
+		"custom_prompt":          trader.CustomPrompt,
+		"override_base_prompt":   trader.OverrideBasePrompt,
+		"system_prompt_template": trader.SystemPromptTemplate,
 	}
 
 	// Only update these if > 0

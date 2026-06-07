@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/market"
+	"nofx/provider/hyperliquid"
 	"nofx/store"
 	"nofx/wallet"
 	"strings"
@@ -207,6 +209,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 8. Sort decisions: ensure close positions first, then open positions (prevent position stacking overflow)
 	sortedDecisions := sortDecisionsByPriority(aiDecision.Decisions)
+	sortedDecisions = at.filterDecisionsToStrategyUniverse(sortedDecisions, ctx)
 
 	logger.Info("🔄 Execution order (optimized): Close positions first → Open positions later")
 	for i, d := range sortedDecisions {
@@ -284,6 +287,114 @@ func (at *AutoTrader) runCycle() error {
 	}
 
 	return nil
+}
+
+func normalizeUniverseSymbol(symbol string) string {
+	return market.Normalize(strings.TrimSpace(symbol))
+}
+
+// universeBaseKey returns the bare base ticker used for fuzzy candidate
+// matching. The AI sometimes echoes a candidate as "QNTUSDC", "QNT-USDC",
+// "QNTUSDT", or even just "QNT" instead of the canonical "xyz:QNT" we
+// supplied in the prompt. All of those resolve to the same Hyperliquid
+// instrument, so we accept any of them when the base matches an allowed
+// candidate's base.
+func universeBaseKey(symbol string) string {
+	s := strings.ToUpper(strings.TrimSpace(symbol))
+	if s == "" {
+		return ""
+	}
+	// Drop any xyz:/XYZ: prefix.
+	s = strings.TrimPrefix(s, "XYZ:")
+	// Drop common quote suffixes in order of specificity.
+	for _, suf := range []string{"-USDC", "-USDT", "USDC", "USDT", "USD"} {
+		if strings.HasSuffix(s, suf) && len(s) > len(suf) {
+			s = strings.TrimSuffix(s, suf)
+			break
+		}
+	}
+	// Normalize alias (TESLA -> TSLA, ROBINHOOD -> HOOD, etc.).
+	return hyperliquid.NormalizeXYZAlias(s)
+}
+
+func isOpenDecision(action string) bool {
+	a := strings.ToLower(strings.TrimSpace(action))
+	return a == "open_long" || a == "open_short"
+}
+
+func (at *AutoTrader) filterDecisionsToStrategyUniverse(decisions []kernel.Decision, ctx *kernel.Context) []kernel.Decision {
+	if ctx == nil || len(decisions) == 0 {
+		return decisions
+	}
+
+	allowed := make(map[string]bool, len(ctx.CandidateCoins))
+	allowedBases := make(map[string]bool, len(ctx.CandidateCoins))
+	for _, coin := range ctx.CandidateCoins {
+		allowed[normalizeUniverseSymbol(coin.Symbol)] = true
+		if base := universeBaseKey(coin.Symbol); base != "" {
+			allowedBases[base] = true
+		}
+	}
+
+	positions := make(map[string]bool, len(ctx.Positions))
+	positionBases := make(map[string]bool, len(ctx.Positions))
+	for _, pos := range ctx.Positions {
+		positions[normalizeUniverseSymbol(pos.Symbol)] = true
+		if base := universeBaseKey(pos.Symbol); base != "" {
+			positionBases[base] = true
+		}
+	}
+
+	filtered := make([]kernel.Decision, 0, len(decisions))
+	for _, d := range decisions {
+		sym := normalizeUniverseSymbol(d.Symbol)
+		if sym == "" || sym == "ALL" {
+			filtered = append(filtered, d)
+			continue
+		}
+
+		if allowed[sym] || positions[sym] {
+			filtered = append(filtered, d)
+			continue
+		}
+
+		// Fall back to base-level match so AI outputs like "QNTUSDC" still
+		// resolve to candidate "xyz:QNT". Rewrite the decision's symbol to
+		// the canonical form so downstream order placement works.
+		if base := universeBaseKey(d.Symbol); base != "" {
+			if allowedBases[base] || positionBases[base] {
+				if canonical := canonicalUniverseSymbolForBase(ctx, base); canonical != "" {
+					d.Symbol = canonical
+				}
+				filtered = append(filtered, d)
+				continue
+			}
+		}
+
+		if isOpenDecision(d.Action) {
+			at.logWarnf("🚫 Blocked AI %s for %s: symbol is outside strategy candidate universe", d.Action, d.Symbol)
+		} else {
+			at.logWarnf("🚫 Dropped AI decision for %s: symbol is outside strategy candidate universe", d.Symbol)
+		}
+	}
+	return filtered
+}
+
+// canonicalUniverseSymbolForBase finds the canonical candidate or position
+// symbol that has the given base. Used to rewrite an AI decision's symbol
+// (e.g. "QNTUSDC") to the form our order pipeline expects ("xyz:QNT").
+func canonicalUniverseSymbolForBase(ctx *kernel.Context, base string) string {
+	for _, coin := range ctx.CandidateCoins {
+		if universeBaseKey(coin.Symbol) == base {
+			return coin.Symbol
+		}
+	}
+	for _, pos := range ctx.Positions {
+		if universeBaseKey(pos.Symbol) == base {
+			return pos.Symbol
+		}
+	}
+	return ""
 }
 
 // buildTradingContext builds trading context

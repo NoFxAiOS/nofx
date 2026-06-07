@@ -6,10 +6,11 @@ import "context"
 // Supports plain messages (Role+Content), assistant tool-call messages (ToolCalls),
 // and tool result messages (Role="tool", ToolCallID, Content).
 type Message struct {
-	Role       string     `json:"role"`                  // "system", "user", "assistant", "tool"
-	Content    string     `json:"content,omitempty"`     // Text content (omitted when ToolCalls present)
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`  // Set by assistant when calling tools
-	ToolCallID string     `json:"tool_call_id,omitempty"` // Set on role="tool" result messages
+	Role             string     `json:"role"`                            // "system", "user", "assistant", "tool"
+	Content          string     `json:"content,omitempty"`               // Text content (omitted when ToolCalls present)
+	ReasoningContent string     `json:"reasoning_content,omitempty"`     // Thinking-model reasoning (must be echoed back in multi-turn)
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`            // Set by assistant when calling tools
+	ToolCallID       string     `json:"tool_call_id,omitempty"`          // Set on role="tool" result messages
 }
 
 // ToolCall is a single function call requested by the LLM.
@@ -29,8 +30,9 @@ type ToolCallFunction struct {
 // text reply (Content) and any structured tool calls (ToolCalls).
 // Exactly one of the two fields will be non-empty for a well-formed response.
 type LLMResponse struct {
-	Content   string     // Plain-text reply (final answer)
-	ToolCalls []ToolCall // Structured tool invocations
+	Content          string     // Plain-text reply (final answer)
+	ReasoningContent string     // Thinking-model reasoning content
+	ToolCalls        []ToolCall // Structured tool invocations
 }
 
 // Tool represents a tool/function that AI can call

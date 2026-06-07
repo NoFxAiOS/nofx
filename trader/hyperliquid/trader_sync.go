@@ -11,10 +11,14 @@ import (
 	"time"
 )
 
-// refreshMetaIfNeeded refreshes meta information when invalid (triggered when Asset ID is 0)
+// refreshMetaIfNeeded refreshes meta information when invalid (triggered when Asset ID is 0).
+//
+// NOTE: go-hyperliquid v0.27 renamed `NameToAsset(coin) int` to
+// `CoinToAsset(coin) (int, bool)` — the second return is `ok` for whether
+// the coin exists in the meta cache. We treat `!ok` (or zero asset for a
+// perp) as "need refresh" the same way the old code did.
 func (t *HyperliquidTrader) refreshMetaIfNeeded(coin string) error {
-	assetID := t.exchange.Info().NameToAsset(coin)
-	if assetID != 0 {
+	if assetID, ok := t.exchange.Info().CoinToAsset(coin); ok && assetID != 0 {
 		return nil // Meta is normal, no refresh needed
 	}
 
@@ -34,8 +38,8 @@ func (t *HyperliquidTrader) refreshMetaIfNeeded(coin string) error {
 	logger.Infof("✅ Meta information refreshed, contains %d assets", len(meta.Universe))
 
 	// Verify Asset ID after refresh
-	assetID = t.exchange.Info().NameToAsset(coin)
-	if assetID == 0 {
+	assetID, ok := t.exchange.Info().CoinToAsset(coin)
+	if !ok || assetID == 0 {
 		return fmt.Errorf("❌ Even after refreshing Meta, Asset ID for %s is still 0. Possible reasons:\n"+
 			"  1. This coin is not listed on Hyperliquid\n"+
 			"  2. Coin name is incorrect (should be BTC not BTCUSDT)\n"+

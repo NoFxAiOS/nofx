@@ -47,7 +47,9 @@ type allowedRoute struct {
 //   - PUT  /api/user/password   (password takeover)
 //   - PUT  /api/models          (LLM API key + endpoint swap → exfil)
 //   - POST/PUT/DELETE /api/exchanges*  (exchange credential swap → drain)
-//   - POST /api/reset-password, /api/reset-account  (destructive)
+//   - account recovery (password reset / account wipe) is intentionally
+//     CLI-only (`nofx reset-password` / `nofx reset-account`) and has no
+//     HTTP endpoint, so the bot cannot reach it
 //   - POST /api/wallet/generate, /api/wallet/validate
 //   - POST /api/telegram/* (rebind bot)
 var botAPIAllowlist = []allowedRoute{
@@ -197,4 +199,3 @@ func (t *apiCallTool) execute(req *apiRequest) string {
 	}
 	return string(body)
 }
-

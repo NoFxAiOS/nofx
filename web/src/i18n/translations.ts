@@ -506,6 +506,12 @@ export const translations = {
       'Password reset successful! Please login with your new password',
     resetPasswordFailed: 'Password reset failed',
     backToLogin: 'Back to Login',
+    resetPasswordCliIntro:
+      'For security, password recovery is no longer available from the browser. Run this command on the server where NOFX is installed:',
+    resetPasswordCliSecurityNote:
+      'This requires shell access to the server, which keeps your account safe even when NOFX is exposed to the internet.',
+    resetAccountCliIntro:
+      'To wipe everything and start over, run this command on the server where NOFX is installed:',
     copy: 'Copy',
     loginSuccess: 'Login successful',
     registrationSuccess: 'Registration successful',
@@ -1835,6 +1841,12 @@ export const translations = {
     resetPasswordSuccess: '密码重置成功！请使用新密码登录',
     resetPasswordFailed: '密码重置失败',
     backToLogin: '返回登录',
+    resetPasswordCliIntro:
+      '出于安全考虑，密码找回不再通过浏览器进行。请在部署 NOFX 的服务器上运行以下命令：',
+    resetPasswordCliSecurityNote:
+      '该操作需要服务器的 shell 访问权限，因此即使 NOFX 暴露在公网上，你的账户依然安全。',
+    resetAccountCliIntro:
+      '如需清空所有数据并重新开始，请在部署 NOFX 的服务器上运行以下命令：',
     copy: '复制',
     loginSuccess: '登录成功',
     registrationSuccess: '注册成功',
@@ -3100,6 +3112,12 @@ export const translations = {
     resetPasswordSuccess: 'Kata sandi berhasil direset! Silakan masuk dengan kata sandi baru',
     resetPasswordFailed: 'Gagal mereset kata sandi',
     backToLogin: 'Kembali ke Login',
+    resetPasswordCliIntro:
+      'Demi keamanan, pemulihan kata sandi tidak lagi tersedia dari browser. Jalankan perintah ini di server tempat NOFX dipasang:',
+    resetPasswordCliSecurityNote:
+      'Ini memerlukan akses shell ke server, sehingga akun Anda tetap aman bahkan saat NOFX terekspos ke internet.',
+    resetAccountCliIntro:
+      'Untuk menghapus semua data dan memulai dari awal, jalankan perintah ini di server tempat NOFX dipasang:',
     copy: 'Salin',
     loginSuccess: 'Berhasil masuk',
     registrationSuccess: 'Berhasil mendaftar',

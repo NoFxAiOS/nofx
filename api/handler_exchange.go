@@ -69,24 +69,30 @@ func safeExchangeConfigFromStore(exchange *store.Exchange) SafeExchangeConfig {
 	}
 }
 
+// ExchangeConfigUpdate is a single exchange account's update payload. It is a
+// named type (rather than an inline anonymous struct) so the log-sanitizer in
+// utils.go is guaranteed to cover every sensitive field — a drift between the
+// two shapes is what let passphrases / private keys reach the logs previously.
+type ExchangeConfigUpdate struct {
+	Enabled                    bool   `json:"enabled"`
+	APIKey                     string `json:"api_key"`
+	SecretKey                  string `json:"secret_key"`
+	Passphrase                 string `json:"passphrase"` // OKX specific
+	Testnet                    bool   `json:"testnet"`
+	HyperliquidWalletAddr      string `json:"hyperliquid_wallet_addr"`
+	HyperliquidUnifiedAcct     bool   `json:"hyperliquid_unified_account"` // Unified Account mode
+	HyperliquidBuilderApproved *bool  `json:"hyperliquid_builder_approved"`
+	AsterUser                  string `json:"aster_user"`
+	AsterSigner                string `json:"aster_signer"`
+	AsterPrivateKey            string `json:"aster_private_key"`
+	LighterWalletAddr          string `json:"lighter_wallet_addr"`
+	LighterPrivateKey          string `json:"lighter_private_key"`
+	LighterAPIKeyPrivateKey    string `json:"lighter_api_key_private_key"`
+	LighterAPIKeyIndex         int    `json:"lighter_api_key_index"`
+}
+
 type UpdateExchangeConfigRequest struct {
-	Exchanges map[string]struct {
-		Enabled                    bool   `json:"enabled"`
-		APIKey                     string `json:"api_key"`
-		SecretKey                  string `json:"secret_key"`
-		Passphrase                 string `json:"passphrase"` // OKX specific
-		Testnet                    bool   `json:"testnet"`
-		HyperliquidWalletAddr      string `json:"hyperliquid_wallet_addr"`
-		HyperliquidUnifiedAcct     bool   `json:"hyperliquid_unified_account"` // Unified Account mode
-		HyperliquidBuilderApproved *bool  `json:"hyperliquid_builder_approved"`
-		AsterUser                  string `json:"aster_user"`
-		AsterSigner                string `json:"aster_signer"`
-		AsterPrivateKey            string `json:"aster_private_key"`
-		LighterWalletAddr          string `json:"lighter_wallet_addr"`
-		LighterPrivateKey          string `json:"lighter_private_key"`
-		LighterAPIKeyPrivateKey    string `json:"lighter_api_key_private_key"`
-		LighterAPIKeyIndex         int    `json:"lighter_api_key_index"`
-	} `json:"exchanges"`
+	Exchanges map[string]ExchangeConfigUpdate `json:"exchanges"`
 }
 
 // CreateExchangeRequest request structure for creating a new exchange account
@@ -297,7 +303,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 		// Don't return error here since exchange config was successfully updated to database
 	}
 
-	logger.Infof("✓ Exchange config updated: %+v", req.Exchanges)
+	logger.Infof("✓ Exchange config updated: %+v", SanitizeExchangeConfigForLog(req.Exchanges))
 	c.JSON(http.StatusOK, gin.H{"message": "Exchange configuration updated"})
 }
 

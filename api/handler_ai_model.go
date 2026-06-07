@@ -38,13 +38,19 @@ type SafeModelConfig struct {
 	BalanceUSDC     string `json:"balanceUsdc,omitempty"`
 }
 
+// ModelConfigUpdate is a single model's update payload. It is a named type
+// (rather than an inline anonymous struct) so the log-sanitizer in utils.go is
+// guaranteed to stay in sync with this shape — a mismatch there is what let
+// plaintext credentials reach the logs previously.
+type ModelConfigUpdate struct {
+	Enabled         bool   `json:"enabled"`
+	APIKey          string `json:"api_key"`
+	CustomAPIURL    string `json:"custom_api_url"`
+	CustomModelName string `json:"custom_model_name"`
+}
+
 type UpdateModelConfigRequest struct {
-	Models map[string]struct {
-		Enabled         bool   `json:"enabled"`
-		APIKey          string `json:"api_key"`
-		CustomAPIURL    string `json:"custom_api_url"`
-		CustomModelName string `json:"custom_model_name"`
-	} `json:"models"`
+	Models map[string]ModelConfigUpdate `json:"models"`
 }
 
 // handleGetModelConfigs Get AI model configurations
@@ -225,7 +231,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		// Don't return error here since model config was successfully updated to database
 	}
 
-	logger.Infof("✓ AI model config updated: %+v", req.Models)
+	logger.Infof("✓ AI model config updated: %+v", SanitizeModelConfigForLog(req.Models))
 	c.JSON(http.StatusOK, gin.H{"message": "Model configuration updated"})
 }
 

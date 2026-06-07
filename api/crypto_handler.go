@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"net/http"
 	"nofx/config"
 	"nofx/crypto"
@@ -53,28 +52,16 @@ func (h *CryptoHandler) HandleGetPublicKey(c *gin.Context) {
 	})
 }
 
-// ==================== Encrypted Data Decryption Endpoint ====================
-
-// HandleDecryptSensitiveData Decrypt encrypted data sent from client
-func (h *CryptoHandler) HandleDecryptSensitiveData(c *gin.Context) {
-	var payload crypto.EncryptedPayload
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
-		return
-	}
-
-	// Decrypt
-	decrypted, err := h.cryptoService.DecryptSensitiveData(&payload)
-	if err != nil {
-		log.Printf("❌ Decryption failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Decryption failed"})
-		return
-	}
-
-	c.JSON(http.StatusOK, map[string]string{
-		"plaintext": decrypted,
-	})
-}
+// ==================== Encrypted Data Decryption ====================
+//
+// SECURITY: there is deliberately NO public decrypt endpoint. Transport
+// encryption is one-directional — clients encrypt sensitive fields to the
+// server's RSA public key and the authenticated config-update handlers
+// (handleUpdateModelConfigs / handleUpdateExchangeConfigs / handleCreateExchange)
+// decrypt them server-side via cryptoService.DecryptSensitiveData. Exposing a
+// generic decrypt route would turn the server into a decryption oracle that any
+// unauthenticated caller could use to recover the plaintext of a captured
+// ciphertext, defeating the entire transport-encryption layer.
 
 // ==================== Audit Log Query Endpoint ====================
 

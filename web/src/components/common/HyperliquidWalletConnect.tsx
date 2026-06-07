@@ -48,7 +48,10 @@ interface FlowState {
 const STORAGE_KEY = 'nofx.hyperliquid.connection.v6'
 const AGENT_NAME = 'NOFX Agent'
 const HYPERLIQUID_BUILDER_ADDRESS = '0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d'
-const HYPERLIQUID_BUILDER_MAX_FEE = '0.1%'
+// 0.05% (万5). Must match the server's defaultHyperliquidBuilderMaxFee and
+// the BuilderInfo.Fee=50 (= 5 bps) used at order placement. The user signs
+// this exact string when approving the builder during wallet connect.
+const HYPERLIQUID_BUILDER_MAX_FEE = '0.05%'
 
 function shortAddress(address?: string) {
   if (!address) return ''

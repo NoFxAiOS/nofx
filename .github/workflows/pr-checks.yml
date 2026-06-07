@@ -273,12 +273,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
-        # SECURITY: never use @master — upstream compromise = CI compromise.
-        # TODO: pin to a full 40-char SHA from
-        # https://github.com/aquasecurity/trivy-action/releases and configure Dependabot
-        # to keep it current. A version tag is still mutable but is a major upgrade
-        # over @master.
-        uses: aquasecurity/trivy-action@0.28.0
+        # SECURITY: pinned to a full 40-char commit SHA (v0.36.0) — a mutable
+        # version tag could be re-pointed by an upstream compromise (GHSA-69fq-xp46-6x23:
+        # trivy-action's published artifacts were briefly poisoned). The trailing
+        # comment records the human-readable version; Dependabot updates the SHA.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'

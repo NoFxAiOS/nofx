@@ -104,7 +104,7 @@ maxSafeCoins = floor((budget - staticTokens) / perCoinTokens)
 | gemini   | 1,000,000    | 800,000    |
 | grok     | 131,072      | 104,858    |
 | kimi     | 131,072      | 104,858    |
-| minimax  | 1,000,000    | 800,000    |
+| minimax  | 512,000      | 409,600    |
 
 ---
 

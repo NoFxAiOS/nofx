@@ -337,7 +337,7 @@ func resolveModelRuntimeConfig(provider, customAPIURL, customModelName, fallback
 		"deepseek": {url: "https://api.deepseek.com/v1", model: "deepseek-chat"},
 		"qwen":     {url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen3-max"},
 		"openai":   {url: "https://api.openai.com/v1", model: "gpt-5.2"},
-		"claude":   {url: "https://api.anthropic.com/v1", model: "claude-opus-4-6"},
+		"claude":   {url: "https://api.anthropic.com/v1", model: "claude-opus-4-8"},
 		"gemini":   {url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-3-pro-preview"},
 		"grok":     {url: "https://api.x.ai/v1", model: "grok-3-latest"},
 		"kimi":     {url: "https://api.moonshot.ai/v1", model: "moonshot-v1-auto"},

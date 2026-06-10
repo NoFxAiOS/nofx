@@ -46,6 +46,11 @@ func (a *Agent) shouldUseAgenticTurn(userID int64) bool {
 	if _, ok := a.getPendingProposalSession(userID); ok {
 		return false
 	}
+	// Suspended tasks are parked on the snapshot stack with all active
+	// contexts cleared; only the legacy router knows how to resume them.
+	if len(a.SnapshotManager(userID).Stack()) > 0 {
+		return false
+	}
 	return true
 }
 

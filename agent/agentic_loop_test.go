@@ -274,6 +274,26 @@ func TestShouldUseAgenticTurn(t *testing.T) {
 		}
 	})
 
+	t.Run("suspended task snapshot stays on legacy stack", func(t *testing.T) {
+		st, err := store.New(filepath.Join(t.TempDir(), "agentic-snapshot.db"))
+		if err != nil {
+			t.Fatalf("create store: %v", err)
+		}
+		b := New(nil, st, DefaultConfig(), slog.Default())
+		b.SetAIClient(&scriptedAIClient{})
+		if !b.shouldUseAgenticTurn(12) {
+			t.Fatal("fresh conversation should use the agentic turn")
+		}
+		b.SnapshotManager(12).Save(SuspendedTask{
+			SnapshotID: "snap_test",
+			Kind:       "skill",
+			ResumeHint: "continue strategy create",
+		})
+		if b.shouldUseAgenticTurn(12) {
+			t.Fatal("suspended task snapshot must stay on the legacy stack so it can be resumed")
+		}
+	})
+
 	t.Run("active legacy session stays on legacy stack", func(t *testing.T) {
 		st, err := store.New(filepath.Join(t.TempDir(), "agentic-guard.db"))
 		if err != nil {

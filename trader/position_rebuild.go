@@ -11,6 +11,10 @@ import (
 // All exchanges use this same algorithm to reconstruct position history from trades
 // =============================================================================
 
+// dustQuantityEpsilon is the threshold below which a residual quantity is
+// treated as zero, absorbing float rounding noise from FIFO trade matching.
+const dustQuantityEpsilon = 0.00000001
+
 // openTradeEntry represents an opening trade for position tracking
 type openTradeEntry struct {
 	Price    float64
@@ -130,7 +134,7 @@ func buildClosedPosition(trade TradeRecord, side string, state *positionState) *
 		var weightedSum float64
 		var matchedQty float64
 
-		for i := 0; i < len(state.OpenTrades) && remainingQty > 0.00000001; i++ {
+		for i := 0; i < len(state.OpenTrades) && remainingQty > dustQuantityEpsilon; i++ {
 			ot := &state.OpenTrades[i]
 			matchQty := ot.Quantity
 			if matchQty > remainingQty {
@@ -149,13 +153,13 @@ func buildClosedPosition(trade TradeRecord, side string, state *positionState) *
 			ot.Quantity -= matchQty
 
 			// Remove fully consumed open trade
-			if ot.Quantity <= 0.00000001 {
+			if ot.Quantity <= dustQuantityEpsilon {
 				state.OpenTrades = append(state.OpenTrades[:i], state.OpenTrades[i+1:]...)
 				i--
 			}
 		}
 
-		if matchedQty > 0.00000001 {
+		if matchedQty > dustQuantityEpsilon {
 			entryPrice = weightedSum / matchedQty
 		}
 		state.TotalQty -= trade.Quantity

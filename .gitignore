@@ -138,3 +138,4 @@ PR_DESCRIPTION.md
 # Local AI agent / skill scaffolding (not part of the runtime app)
 .agents/
 skills-lock.json
+img.png

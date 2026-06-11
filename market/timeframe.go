@@ -43,15 +43,6 @@ func TFDuration(tf string) (time.Duration, error) {
 	return supportedTimeframes[norm], nil
 }
 
-// MustNormalizeTimeframe is similar to NormalizeTimeframe, but panics when unsupported.
-func MustNormalizeTimeframe(tf string) string {
-	norm, err := NormalizeTimeframe(tf)
-	if err != nil {
-		panic(err)
-	}
-	return norm
-}
-
 // SupportedTimeframes returns all supported timeframes (sorted slice).
 func SupportedTimeframes() []string {
 	keys := make([]string, 0, len(supportedTimeframes))

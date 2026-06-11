@@ -647,7 +647,7 @@ func buildAgentTools() []mcp.Tool {
 			Type: "function",
 			Function: mcp.FunctionDef{
 				Name:        "manage_strategy",
-				Description: "List, create, update, delete, activate, duplicate strategies, or get the default strategy config template. Use this when the user asks to create or edit a strategy template. Prefer passing precise field-level config patches in `config` instead of vague natural-language summaries.",
+				Description: "List, create, update, delete, activate, duplicate strategies, or get the default strategy config template. Use this when the user asks to create or edit a strategy template. Prefer passing precise field-level config patches in `config` instead of vague natural-language summaries. IMPORTANT: create only requires `name` — every omitted config field is automatically filled from the default template, so do NOT interrogate the user field by field. Flow: build the config from what the user said, present a one-shot summary (including which values were defaulted), and once the user agrees, call create with confirmed=true.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -671,7 +671,7 @@ func buildAgentTools() []mcp.Tool {
 			Type: "function",
 			Function: mcp.FunctionDef{
 				Name:        "manage_trader",
-				Description: "List, create, update, delete, start, or stop traders. Trader edits are limited to exchange/model/strategy bindings, scan interval, margin mode, and competition visibility so they match the manual trader panel. If the user wants to modify the internal config of a strategy, model, or exchange, use the corresponding management tool instead.",
+				Description: "List, create, update, delete, start, or stop traders. Trader edits are limited to exchange/model/strategy bindings, scan interval, margin mode, and competition visibility so they match the manual trader panel. If the user wants to modify the internal config of a strategy, model, or exchange, use the corresponding management tool instead. When creating, resolve bindings yourself: call get_exchange_configs / get_model_configs / get_strategies to find matching IDs instead of asking the user for IDs; only ask when a required binding is missing or genuinely ambiguous, and ask for all missing items in one question.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{

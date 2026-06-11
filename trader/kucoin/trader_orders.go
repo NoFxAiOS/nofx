@@ -14,7 +14,9 @@ import (
 // OpenLong opens long position
 func (t *KuCoinTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// Cancel old orders
-	t.CancelAllOrders(symbol)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
 
 	// Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {
@@ -69,7 +71,9 @@ func (t *KuCoinTrader) OpenLong(symbol string, quantity float64, leverage int) (
 // OpenShort opens short position
 func (t *KuCoinTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// Cancel old orders
-	t.CancelAllOrders(symbol)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
 
 	// Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {
@@ -218,7 +222,9 @@ func (t *KuCoinTrader) CloseLong(symbol string, quantity float64) (map[string]in
 	logger.Infof("✓ KuCoin closed long position: %s", symbol)
 
 	// Cancel pending orders
-	t.CancelAllOrders(symbol)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
+	}
 
 	return map[string]interface{}{
 		"orderId": result.OrderId,
@@ -299,7 +305,9 @@ func (t *KuCoinTrader) CloseShort(symbol string, quantity float64) (map[string]i
 	logger.Infof("✓ KuCoin closed short position: %s", symbol)
 
 	// Cancel pending orders
-	t.CancelAllOrders(symbol)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
+	}
 
 	return map[string]interface{}{
 		"orderId": result.OrderId,

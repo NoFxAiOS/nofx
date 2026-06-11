@@ -47,16 +47,25 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	var summaryType string
 	var summary interface{}
 
+	var parseErr error
 	if t.isCrossMargin {
 		// Cross margin mode: use CrossMarginSummary
-		accountValue, _ = strconv.ParseFloat(accountState.CrossMarginSummary.AccountValue, 64)
-		totalMarginUsed, _ = strconv.ParseFloat(accountState.CrossMarginSummary.TotalMarginUsed, 64)
+		if accountValue, parseErr = types.ParseFloatField("accountValue", accountState.CrossMarginSummary.AccountValue); parseErr != nil {
+			return nil, parseErr
+		}
+		if totalMarginUsed, parseErr = types.ParseFloatField("totalMarginUsed", accountState.CrossMarginSummary.TotalMarginUsed); parseErr != nil {
+			return nil, parseErr
+		}
 		summaryType = "CrossMarginSummary (cross margin)"
 		summary = accountState.CrossMarginSummary
 	} else {
 		// Isolated margin mode: use MarginSummary
-		accountValue, _ = strconv.ParseFloat(accountState.MarginSummary.AccountValue, 64)
-		totalMarginUsed, _ = strconv.ParseFloat(accountState.MarginSummary.TotalMarginUsed, 64)
+		if accountValue, parseErr = types.ParseFloatField("accountValue", accountState.MarginSummary.AccountValue); parseErr != nil {
+			return nil, parseErr
+		}
+		if totalMarginUsed, parseErr = types.ParseFloatField("totalMarginUsed", accountState.MarginSummary.TotalMarginUsed); parseErr != nil {
+			return nil, parseErr
+		}
 		summaryType = "MarginSummary (isolated margin)"
 		summary = accountState.MarginSummary
 	}

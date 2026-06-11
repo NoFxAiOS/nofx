@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// Aggressive limit prices simulate market orders: buy slightly above and sell
+// slightly below the current price so limit orders fill immediately while
+// capping slippage at 1%.
+const (
+	aggressiveBuyPriceFactor  = 1.01
+	aggressiveSellPriceFactor = 0.99
+)
+
 // OpenLong Open long position
 func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// Cancel all pending orders before opening position to prevent position stacking from residual orders
@@ -34,7 +42,7 @@ func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 	}
 
 	// Use limit order to simulate market order (price set slightly higher to ensure execution)
-	limitPrice := price * 1.01
+	limitPrice := price * aggressiveBuyPriceFactor
 
 	// Format price and quantity to correct precision
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)
@@ -107,7 +115,7 @@ func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (
 	}
 
 	// Use limit order to simulate market order (price set slightly lower to ensure execution)
-	limitPrice := price * 0.99
+	limitPrice := price * aggressiveSellPriceFactor
 
 	// Format price and quantity to correct precision
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)
@@ -182,7 +190,7 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		return nil, err
 	}
 
-	limitPrice := price * 0.99
+	limitPrice := price * aggressiveSellPriceFactor
 
 	// Format price and quantity to correct precision
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)
@@ -265,7 +273,7 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		return nil, err
 	}
 
-	limitPrice := price * 1.01
+	limitPrice := price * aggressiveBuyPriceFactor
 
 	// Format price and quantity to correct precision
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)

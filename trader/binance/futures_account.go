@@ -30,9 +30,17 @@ func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
 	}
 
 	result := make(map[string]interface{})
-	result["totalWalletBalance"], _ = strconv.ParseFloat(account.TotalWalletBalance, 64)
-	result["availableBalance"], _ = strconv.ParseFloat(account.AvailableBalance, 64)
-	result["totalUnrealizedProfit"], _ = strconv.ParseFloat(account.TotalUnrealizedProfit, 64)
+	for field, value := range map[string]string{
+		"totalWalletBalance":    account.TotalWalletBalance,
+		"availableBalance":      account.AvailableBalance,
+		"totalUnrealizedProfit": account.TotalUnrealizedProfit,
+	} {
+		parsed, parseErr := types.ParseFloatField(field, value)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		result[field] = parsed
+	}
 
 	logger.Infof("✓ Binance API returned: total balance=%s, available=%s, unrealized PnL=%s",
 		account.TotalWalletBalance,

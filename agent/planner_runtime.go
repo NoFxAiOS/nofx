@@ -821,6 +821,12 @@ func (a *Agent) thinkAndAct(ctx context.Context, storeUserID string, userID int6
 	lock := a.flowLock(userID)
 	lock.Lock()
 	defer lock.Unlock()
+	if a.shouldUseAgenticTurn(userID) {
+		if answer, ok, err := a.runAgenticTurn(ctx, storeUserID, userID, lang, text, nil); ok || err != nil {
+			return a.maybeAppendResumePrompt(userID, lang, text, answer), err
+		}
+		// Not handled — fall through to the legacy routing stack.
+	}
 	if a.aiClient != nil {
 		if answer, ok, err := a.tryLLMIntentRoute(ctx, storeUserID, userID, lang, text, nil); ok || err != nil {
 			return a.maybeAppendResumePrompt(userID, lang, text, answer), err
@@ -852,6 +858,12 @@ func (a *Agent) thinkAndActStream(ctx context.Context, storeUserID string, userI
 	lock := a.flowLock(userID)
 	lock.Lock()
 	defer lock.Unlock()
+	if a.shouldUseAgenticTurn(userID) {
+		if answer, ok, err := a.runAgenticTurn(ctx, storeUserID, userID, lang, text, onEvent); ok || err != nil {
+			return a.maybeAppendResumePrompt(userID, lang, text, answer), err
+		}
+		// Not handled — fall through to the legacy routing stack.
+	}
 	if a.aiClient != nil {
 		if answer, ok, err := a.tryLLMIntentRoute(ctx, storeUserID, userID, lang, text, onEvent); ok || err != nil {
 			answer = a.maybeAppendResumePrompt(userID, lang, text, answer)

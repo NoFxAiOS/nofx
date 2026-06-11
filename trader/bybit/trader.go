@@ -45,16 +45,22 @@ func NewBybitTrader(apiKey, secretKey string) *BybitTrader {
 
 	client := bybit.NewBybitHttpClient(apiKey, secretKey, bybit.WithBaseURL(bybit.MAINNET))
 
-	// Set HTTP transport
-	if client != nil && client.HTTPClient != nil {
-		defaultTransport := client.HTTPClient.Transport
-		if defaultTransport == nil {
-			defaultTransport = http.DefaultTransport
+	// Set HTTP transport. Use a dedicated client instead of mutating the
+	// SDK default (http.DefaultClient): mutating it would leak the referer
+	// header to every other request in the process, and the default client
+	// has no timeout, so a hung connection would stall the trading loop.
+	if client != nil {
+		defaultTransport := http.DefaultTransport
+		if client.HTTPClient != nil && client.HTTPClient != http.DefaultClient && client.HTTPClient.Transport != nil {
+			defaultTransport = client.HTTPClient.Transport
 		}
 
-		client.HTTPClient.Transport = &headerRoundTripper{
-			base:      defaultTransport,
-			refererID: src,
+		client.HTTPClient = &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &headerRoundTripper{
+				base:      defaultTransport,
+				refererID: src,
+			},
 		}
 	}
 

@@ -47,7 +47,9 @@ func (at *AutoTrader) runCycle() error {
 		at.logWarnf("⏸ Risk control: Trading paused, remaining %.0f minutes", remaining.Minutes())
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Risk control paused, remaining %.0f minutes", remaining.Minutes())
-		at.saveDecision(record)
+		if err := at.saveDecision(record); err != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", err)
+		}
 		return nil
 	}
 
@@ -64,7 +66,9 @@ func (at *AutoTrader) runCycle() error {
 		at.logErrorf("failed to build trading context: %v", err)
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Failed to build trading context: %v", err)
-		at.saveDecision(record)
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
+		}
 		return fmt.Errorf("failed to build trading context: %w", err)
 	}
 
@@ -84,7 +88,9 @@ func (at *AutoTrader) runCycle() error {
 			PositionCount:         ctx.Account.PositionCount,
 			InitialBalance:        at.initialBalance,
 		}
-		at.saveDecision(record)
+		if err := at.saveDecision(record); err != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", err)
+		}
 		return nil
 	}
 
@@ -157,7 +163,9 @@ func (at *AutoTrader) runCycle() error {
 			}
 		}
 
-		at.saveDecision(record)
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("⚠ Failed to save decision record: %v", saveErr)
+		}
 
 		// In safe mode, don't return error — keep the loop running to retry next cycle
 		if at.safeMode {

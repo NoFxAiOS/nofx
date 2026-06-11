@@ -55,13 +55,20 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 	var usdtAvail, usdtUPL float64
 	for _, detail := range balance.Details {
 		if detail.Ccy == "USDT" {
-			usdtAvail, _ = strconv.ParseFloat(detail.AvailBal, 64)
-			usdtUPL, _ = strconv.ParseFloat(detail.UPL, 64)
+			if usdtAvail, err = types.ParseFloatField("availBal", detail.AvailBal); err != nil {
+				return nil, err
+			}
+			if usdtUPL, err = types.ParseFloatField("upl", detail.UPL); err != nil {
+				return nil, err
+			}
 			break
 		}
 	}
 
-	totalEq, _ := strconv.ParseFloat(balance.TotalEq, 64)
+	totalEq, err := types.ParseFloatField("totalEq", balance.TotalEq)
+	if err != nil {
+		return nil, err
+	}
 
 	result := map[string]interface{}{
 		"totalWalletBalance":    totalEq,

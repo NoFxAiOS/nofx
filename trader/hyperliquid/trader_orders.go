@@ -15,6 +15,14 @@ import (
 	"github.com/sonirico/go-hyperliquid"
 )
 
+// Aggressive limit prices simulate market orders: buy slightly above and sell
+// slightly below the current price so IOC limit orders fill immediately while
+// capping slippage at 1%.
+const (
+	aggressiveBuyPriceFactor  = 1.01
+	aggressiveSellPriceFactor = 0.99
+)
+
 func (t *HyperliquidTrader) placeOrderWithBuilderFee(order hyperliquid.CreateOrderRequest) error {
 	_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
 	if err == nil {
@@ -66,8 +74,8 @@ func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage i
 	}
 
 	// Price needs to be processed to 5 significant figures
-	aggressivePrice := t.roundPriceToSigfigs(price * 1.01)
-	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*1.01, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(price * aggressiveBuyPriceFactor)
+	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*aggressiveBuyPriceFactor, aggressivePrice)
 
 	// Handle xyz dex assets differently
 	if isXyz {
@@ -138,8 +146,8 @@ func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage 
 	}
 
 	// Price needs to be processed to 5 significant figures
-	aggressivePrice := t.roundPriceToSigfigs(price * 0.99)
-	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*0.99, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(price * aggressiveSellPriceFactor)
+	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*aggressiveSellPriceFactor, aggressivePrice)
 
 	// Handle xyz dex assets differently
 	if isXyz {
@@ -220,8 +228,8 @@ func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[stri
 	}
 
 	// Price needs to be processed to 5 significant figures
-	aggressivePrice := t.roundPriceToSigfigs(price * 0.99)
-	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*0.99, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(price * aggressiveSellPriceFactor)
+	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*aggressiveSellPriceFactor, aggressivePrice)
 
 	// Handle xyz dex assets differently
 	if isXyz {
@@ -307,8 +315,8 @@ func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[str
 	}
 
 	// Price needs to be processed to 5 significant figures
-	aggressivePrice := t.roundPriceToSigfigs(price * 1.01)
-	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*1.01, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(price * aggressiveBuyPriceFactor)
+	logger.Infof("  💰 Price precision handling: %.8f -> %.8f (5 significant figures)", price*aggressiveBuyPriceFactor, aggressivePrice)
 
 	// Handle xyz dex assets differently
 	if isXyz {

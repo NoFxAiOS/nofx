@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"nofx/logger"
+	"nofx/trader/types"
 	"strconv"
 	"strings"
 )
@@ -113,11 +114,26 @@ func (t *LighterTraderV2) GetAccountBalance() (*AccountBalance, error) {
 	}
 
 	// Parse string values to float64
-	availableBalance, _ := strconv.ParseFloat(accountInfo.AvailableBalance, 64)
-	collateral, _ := strconv.ParseFloat(accountInfo.Collateral, 64)
-	crossAssetValue, _ := strconv.ParseFloat(accountInfo.CrossAssetValue, 64)
-	totalEquity, _ := strconv.ParseFloat(accountInfo.TotalEquity, 64)
-	unrealizedPnl, _ := strconv.ParseFloat(accountInfo.UnrealizedPnl, 64)
+	availableBalance, err := types.ParseFloatField("available_balance", accountInfo.AvailableBalance)
+	if err != nil {
+		return nil, err
+	}
+	collateral, err := types.ParseFloatField("collateral", accountInfo.Collateral)
+	if err != nil {
+		return nil, err
+	}
+	crossAssetValue, err := types.ParseFloatField("cross_asset_value", accountInfo.CrossAssetValue)
+	if err != nil {
+		return nil, err
+	}
+	totalEquity, err := types.ParseFloatField("total_equity", accountInfo.TotalEquity)
+	if err != nil {
+		return nil, err
+	}
+	unrealizedPnl, err := types.ParseFloatField("unrealized_pnl", accountInfo.UnrealizedPnl)
+	if err != nil {
+		return nil, err
+	}
 
 	// Use collateral as total equity if total_equity is 0
 	if totalEquity == 0 {

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"nofx/hook"
 	"nofx/logger"
 	"strings"
@@ -63,6 +64,9 @@ type FuturesTrader struct {
 // NewFuturesTrader creates futures trader
 func NewFuturesTrader(apiKey, secretKey string, userId string) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
+	// The SDK defaults to http.DefaultClient, which has no timeout — a hung
+	// connection would stall the trading loop indefinitely.
+	client.HTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 	hookRes := hook.HookExec[hook.NewBinanceTraderResult](hook.NEW_BINANCE_TRADER, userId, client)
 	if hookRes != nil && hookRes.GetResult() != nil {

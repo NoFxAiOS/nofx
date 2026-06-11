@@ -164,9 +164,59 @@ func fetchPerpDexCoins(ctx context.Context, client *http.Client, dex string) ([]
 	return coins, nil
 }
 
-// GetPerpDexCoins fetches current tradable USDC perp assets for a given Hyperliquid dex.
+// perpDexCacheTTL bounds how often the perp-dex symbol board is re-fetched.
+// The tradable symbol list changes rarely; prices/volume on the board are
+// display hints, so short staleness is far better than hammering the
+// Hyperliquid API (which rate-limits with 429) on every panel render.
+const perpDexCacheTTL = 5 * time.Minute
+
+type perpDexCacheEntry struct {
+	coins     []CoinInfo
+	fetchedAt time.Time
+}
+
+type perpDexCacheStore struct {
+	mu      sync.Mutex
+	entries map[string]perpDexCacheEntry
+}
+
+var perpDexCoinCache = &perpDexCacheStore{entries: map[string]perpDexCacheEntry{}}
+
+// fetchPerpDexCoinsFn is swappable in tests.
+var fetchPerpDexCoinsFn = fetchPerpDexCoins
+
+// GetPerpDexCoins returns current tradable USDC perp assets for a given
+// Hyperliquid dex, served from a TTL cache. When the upstream fetch fails
+// (e.g. HTTP 429 rate limiting) and stale data exists, the stale board is
+// served instead of an error so the UI keeps working.
 func GetPerpDexCoins(ctx context.Context, dex string) ([]CoinInfo, error) {
-	return fetchPerpDexCoins(ctx, &http.Client{Timeout: 30 * time.Second}, dex)
+	perpDexCoinCache.mu.Lock()
+	defer perpDexCoinCache.mu.Unlock()
+
+	entry, hasCache := perpDexCoinCache.entries[dex]
+	if hasCache && time.Since(entry.fetchedAt) < perpDexCacheTTL {
+		return copyCoins(entry.coins), nil
+	}
+
+	coins, err := fetchPerpDexCoinsFn(ctx, &http.Client{Timeout: 30 * time.Second}, dex)
+	if err != nil {
+		if hasCache {
+			logger.Infof("⚠️ Hyperliquid perp-dex fetch failed (%v); serving cached board for dex %q from %s",
+				err, dex, entry.fetchedAt.Format(time.RFC3339))
+			return copyCoins(entry.coins), nil
+		}
+		return nil, err
+	}
+
+	perpDexCoinCache.entries[dex] = perpDexCacheEntry{coins: coins, fetchedAt: time.Now()}
+	return copyCoins(coins), nil
+}
+
+// copyCoins returns a defensive copy so callers cannot mutate the cache.
+func copyCoins(coins []CoinInfo) []CoinInfo {
+	out := make([]CoinInfo, len(coins))
+	copy(out, coins)
+	return out
 }
 
 // fetchCoins fetches all default Hyperliquid crypto coins and sorts by volume

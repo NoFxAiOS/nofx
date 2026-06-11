@@ -3,6 +3,7 @@ package gate
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"nofx/trader/types"
 	"strings"
 	"sync"
@@ -34,6 +35,9 @@ type GateTrader struct {
 func NewGateTrader(apiKey, secretKey string) *GateTrader {
 	config := gateapi.NewConfiguration()
 	config.AddDefaultHeader("X-Gate-Channel-Id", "nofx")
+	// The SDK default HTTP client has no timeout — a hung connection would
+	// stall the trading loop indefinitely.
+	config.HTTPClient = &http.Client{Timeout: 30 * time.Second}
 	client := gateapi.NewAPIClient(config)
 
 	ctx := context.WithValue(context.Background(),

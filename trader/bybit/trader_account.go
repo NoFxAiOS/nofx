@@ -51,19 +51,28 @@ func (t *BybitTrader) GetBalance() (map[string]interface{}, error) {
 
 	if len(list) > 0 {
 		account, _ := list[0].(map[string]interface{})
+		var parseErr error
 		if equityStr, ok := account["totalEquity"].(string); ok {
-			totalEquity, _ = strconv.ParseFloat(equityStr, 64)
+			if totalEquity, parseErr = types.ParseFloatField("totalEquity", equityStr); parseErr != nil {
+				return nil, parseErr
+			}
 		}
 		if availStr, ok := account["totalAvailableBalance"].(string); ok {
-			availableBalance, _ = strconv.ParseFloat(availStr, 64)
+			if availableBalance, parseErr = types.ParseFloatField("totalAvailableBalance", availStr); parseErr != nil {
+				return nil, parseErr
+			}
 		}
 		// Bybit UNIFIED account wallet balance field
 		if walletStr, ok := account["totalWalletBalance"].(string); ok {
-			totalWalletBalance, _ = strconv.ParseFloat(walletStr, 64)
+			if totalWalletBalance, parseErr = types.ParseFloatField("totalWalletBalance", walletStr); parseErr != nil {
+				return nil, parseErr
+			}
 		}
 		// Bybit perpetual contract unrealized PnL
 		if uplStr, ok := account["totalPerpUPL"].(string); ok {
-			totalPerpUPL, _ = strconv.ParseFloat(uplStr, 64)
+			if totalPerpUPL, parseErr = types.ParseFloatField("totalPerpUPL", uplStr); parseErr != nil {
+				return nil, parseErr
+			}
 		}
 	}
 

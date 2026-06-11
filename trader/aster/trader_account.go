@@ -36,14 +36,21 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 			foundUSDT = true
 
 			// Parse Aster fields (reference: https://github.com/asterdex/api-docs)
+			var parseErr error
 			if avail, ok := bal["availableBalance"].(string); ok {
-				availableBalance, _ = strconv.ParseFloat(avail, 64)
+				if availableBalance, parseErr = types.ParseFloatField("availableBalance", avail); parseErr != nil {
+					return nil, parseErr
+				}
 			}
 			if unpnl, ok := bal["crossUnPnl"].(string); ok {
-				crossUnPnl, _ = strconv.ParseFloat(unpnl, 64)
+				if crossUnPnl, parseErr = types.ParseFloatField("crossUnPnl", unpnl); parseErr != nil {
+					return nil, parseErr
+				}
 			}
 			if cwb, ok := bal["crossWalletBalance"].(string); ok {
-				crossWalletBalance, _ = strconv.ParseFloat(cwb, 64)
+				if crossWalletBalance, parseErr = types.ParseFloatField("crossWalletBalance", cwb); parseErr != nil {
+					return nil, parseErr
+				}
 			}
 			break
 		}

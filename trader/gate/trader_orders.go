@@ -44,7 +44,9 @@ func (t *GateTrader) OpenLong(symbol string, quantity float64, leverage int) (ma
 	symbol = t.convertSymbol(symbol)
 
 	// Cancel old orders first
-	t.CancelAllOrders(symbol)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
 
 	// Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {
@@ -102,7 +104,9 @@ func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (m
 	symbol = t.convertSymbol(symbol)
 
 	// Cancel old orders first
-	t.CancelAllOrders(symbol)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
 
 	// Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {

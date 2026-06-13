@@ -29,6 +29,20 @@ export interface SymbolListResponse {
   count: number
 }
 
+export interface AI500Coin {
+  pair: string
+  score: number
+  max_score?: number
+  increase_percent?: number
+  start_price?: number
+  start_time?: number
+}
+
+export interface AI500ListResponse {
+  coins: AI500Coin[]
+  count: number
+}
+
 export const dataApi = {
   async getSymbols(exchange = 'hyperliquid-xyz'): Promise<SymbolListResponse> {
     const result = await httpClient.get<SymbolListResponse>(
@@ -36,6 +50,12 @@ export const dataApi = {
     )
     if (!result.success) throw new Error('Failed to fetch symbol list')
     return result.data || { exchange, symbols: [], count: 0 }
+  },
+
+  async getAI500List(limit = 20): Promise<AI500ListResponse> {
+    const result = await httpClient.get<AI500ListResponse>(`${API_BASE}/ai500?limit=${limit}`)
+    if (!result.success) throw new Error('Failed to fetch AI500 list')
+    return result.data || { coins: [], count: 0 }
   },
 
   async getStatus(traderId?: string, silent?: boolean): Promise<SystemStatus> {

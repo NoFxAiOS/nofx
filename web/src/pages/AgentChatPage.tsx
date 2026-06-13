@@ -8,6 +8,7 @@ import {
   Bot,
   Bookmark,
   Zap,
+  Sparkles,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react'
@@ -21,6 +22,8 @@ import { ChatMessages } from '../components/agent/ChatMessages'
 import { ChatInput, type ChatInputHandle } from '../components/agent/ChatInput'
 import { UserPreferencesPanel } from '../components/agent/UserPreferencesPanel'
 import { HyperliquidSymbolsPanel } from '../components/agent/HyperliquidSymbolsPanel'
+import { AI500Panel } from '../components/agent/AI500Panel'
+import type { AI500Coin } from '../lib/api/data'
 import { createHyperliquidQuickTrader } from '../lib/hyperliquidQuickTrade'
 import { useAgentChatStore } from '../stores/agentChatStore'
 import type { AgentMessage as Message, AgentStep } from '../types/agent'
@@ -467,6 +470,7 @@ export function AgentChatPage() {
   // Sidebar section collapse state
   const [sections, setSections] = useState({
     market: true,
+    ai500: true,
     positions: true,
     traders: false,
     preferences: true,
@@ -580,6 +584,15 @@ export function AgentChatPage() {
   const stopCurrentResponse = () => {
     stopActiveAgentStream(user?.id || storageUserId, language)
     chatInputRef.current?.focus()
+  }
+
+  const analyzeAI500Symbol = (coin: AI500Coin) => {
+    const display = coin.pair.replace(/USDT$/i, '')
+    const text =
+      language === 'zh'
+        ? `分析一下 AI500 里的 ${display}（当前 AI 评分 ${coin.score.toFixed(1)}），给出趋势判断和交易建议`
+        : `Analyze ${display} from the AI500 index (current AI score ${coin.score.toFixed(1)}) and give me a trend read plus a trading suggestion`
+    void send(text)
   }
 
   const tradeHyperliquidSymbol = async (symbol: { symbol: string; display?: string; category?: string }) => {
@@ -719,6 +732,18 @@ export function AgentChatPage() {
       icon: <TrendingUp size={14} />,
       title: language === 'zh' ? '市场行情' : 'Market',
       component: <MarketTicker />,
+    },
+    {
+      key: 'ai500' as const,
+      icon: <Sparkles size={14} />,
+      title: language === 'zh' ? 'AI500 精选' : 'AI500 Picks',
+      component: (
+        <AI500Panel
+          language={language}
+          disabled={loading}
+          onAnalyzeSymbol={analyzeAI500Symbol}
+        />
+      ),
     },
     {
       key: 'hyperliquid' as const,

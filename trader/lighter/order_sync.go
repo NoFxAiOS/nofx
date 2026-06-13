@@ -5,6 +5,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/trader/syncloop"
 	"sort"
 	"strings"
 	"time"
@@ -145,17 +146,14 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 }
 
 // StartOrderSync starts background order sync task
-func (t *LighterTraderV2) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	go func() {
-		for range ticker.C {
-			if err := t.SyncOrdersFromLighter(traderID, exchangeID, exchangeType, st); err != nil {
-				// Only log non-404 errors to reduce log spam
-				if !strings.Contains(err.Error(), "status 404") {
-					logger.Infof("⚠️  Order sync failed: %v", err)
-				}
-			}
+func (t *LighterTraderV2) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration, stop <-chan struct{}) {
+	syncloop.Run(stop, interval, "Lighter", func() error {
+		err := t.SyncOrdersFromLighter(traderID, exchangeID, exchangeType, st)
+		// A 404 just means the account has no fills yet — treat as a
+		// successful empty sync to avoid log spam and pointless backoff.
+		if err != nil && strings.Contains(err.Error(), "status 404") {
+			return nil
 		}
-	}()
-	logger.Infof("🔄 Lighter order+position sync started (interval: %v)", interval)
+		return err
+	})
 }

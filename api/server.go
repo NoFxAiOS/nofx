@@ -213,6 +213,9 @@ func (s *Server) setupRoutes() {
 			// Server IP query (requires authentication, for whitelist configuration)
 			s.route(protected, "GET", "/server-ip", "Get server public IP (for exchange whitelist)", s.handleGetServerIP)
 
+			// AI500 index board (cached; routed through claw402 when configured)
+			s.route(protected, "GET", "/ai500", "AI500 index board (?limit=20)", s.handleAI500List)
+
 			// AI trader management
 			s.routeWithSchema(protected, "GET", "/my-traders", "List user's traders with status",
 				`Returns: [{"trader_id":"<EXACT id — use this as trader_id in all ?trader_id= queries and POST /traders/:id/start|stop>","trader_name":"<string>","is_running":<bool>}]

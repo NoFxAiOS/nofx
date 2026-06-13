@@ -6,6 +6,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/trader/syncloop"
 	"sort"
 	"strconv"
 	"strings"
@@ -47,7 +48,6 @@ func (t *BitgetTrader) GetTrades(startTime time.Time, limit int) ([]BitgetTrade,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fill history: %w", err)
 	}
-
 
 	// Bitget fill structure - supports both one-way and hedge mode
 	type BitgetFill struct {
@@ -279,14 +279,8 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 }
 
 // StartOrderSync starts background order sync task for Bitget
-func (t *BitgetTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	go func() {
-		for range ticker.C {
-			if err := t.SyncOrdersFromBitget(traderID, exchangeID, exchangeType, st); err != nil {
-				logger.Infof("⚠️  Bitget order sync failed: %v", err)
-			}
-		}
-	}()
-	logger.Infof("🔄 Bitget order sync started (interval: %v)", interval)
+func (t *BitgetTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration, stop <-chan struct{}) {
+	syncloop.Run(stop, interval, "Bitget", func() error {
+		return t.SyncOrdersFromBitget(traderID, exchangeID, exchangeType, st)
+	})
 }

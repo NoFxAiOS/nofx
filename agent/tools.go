@@ -104,7 +104,7 @@ func plannerToolNamesForDomain(domain string) []string {
 		"get_strategies", "manage_strategy",
 		"manage_trader",
 		"get_balance", "get_positions", "get_trade_history",
-		"get_candidate_coins",
+		"get_candidate_coins", "get_ai500_list",
 		"get_watchlist", "manage_watchlist",
 		// Trade execution
 		"execute_trade",
@@ -115,7 +115,7 @@ func plannerToolNamesForDomain(domain string) []string {
 	case "__all__", "":
 		return all
 	case "market":
-		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock"}
+		return []string{"get_market_snapshot", "get_market_price", "get_kline", "search_stock", "get_ai500_list"}
 	case "account":
 		return []string{"get_balance", "get_positions", "get_trade_history", "get_exchange_configs"}
 	case "trader":
@@ -861,6 +861,22 @@ func buildAgentTools() []mcp.Tool {
 		{
 			Type: "function",
 			Function: mcp.FunctionDef{
+				Name:        "get_ai500_list",
+				Description: "Get the AI500 index board: crypto symbols scored 0-100 by AI with their gain since entering the index, sorted by score. Use this whenever the user asks what's in AI500, wants coin recommendations, or asks you to pick promising/strong coins and hasn't named specific ones — the top entries are the well-performing candidates.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"limit": map[string]any{
+							"type":        "integer",
+							"description": "Max entries to return, default 20, max 100.",
+						},
+					},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: mcp.FunctionDef{
 				Name:        "get_watchlist",
 				Description: "Get the current Sentinel watchlist of monitored crypto symbols. Use this when the user asks which coins are being watched or monitored right now.",
 				Parameters:  map[string]any{"type": "object", "properties": map[string]any{}},
@@ -934,6 +950,8 @@ func (a *Agent) handleToolCall(ctx context.Context, storeUserID string, userID i
 		return a.toolGetTradeHistory(tc.Function.Arguments)
 	case "get_candidate_coins":
 		return a.toolGetCandidateCoins(storeUserID, userID, tc.Function.Arguments)
+	case "get_ai500_list":
+		return a.toolGetAI500List(storeUserID, tc.Function.Arguments)
 	case "get_watchlist":
 		return a.toolGetWatchlist(lang)
 	case "manage_watchlist":

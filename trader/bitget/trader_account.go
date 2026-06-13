@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"nofx/logger"
+	"nofx/trader/types"
 	"strconv"
 	"strings"
 	"time"
@@ -43,9 +44,15 @@ func (t *BitgetTrader) GetBalance() (map[string]interface{}, error) {
 	var totalEquity, availableBalance, unrealizedPnL float64
 	for _, acc := range accounts {
 		if acc.MarginCoin == "USDT" {
-			totalEquity, _ = strconv.ParseFloat(acc.AccountEquity, 64)
-			availableBalance, _ = strconv.ParseFloat(acc.Available, 64)
-			unrealizedPnL, _ = strconv.ParseFloat(acc.UnrealizedPL, 64)
+			if totalEquity, err = types.ParseFloatField("accountEquity", acc.AccountEquity); err != nil {
+				return nil, err
+			}
+			if availableBalance, err = types.ParseFloatField("available", acc.Available); err != nil {
+				return nil, err
+			}
+			if unrealizedPnL, err = types.ParseFloatField("unrealizedPL", acc.UnrealizedPL); err != nil {
+				return nil, err
+			}
 			logger.Infof("✓ [Bitget] Balance: equity=%.2f, available=%.2f", totalEquity, availableBalance)
 			break
 		}

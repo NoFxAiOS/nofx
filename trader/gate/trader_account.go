@@ -27,9 +27,18 @@ func (t *GateTrader) GetBalance() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to get balance: %w", err)
 	}
 
-	total, _ := strconv.ParseFloat(accounts.Total, 64)
-	available, _ := strconv.ParseFloat(accounts.Available, 64)
-	unrealizedPnl, _ := strconv.ParseFloat(accounts.UnrealisedPnl, 64)
+	total, err := types.ParseFloatField("total", accounts.Total)
+	if err != nil {
+		return nil, err
+	}
+	available, err := types.ParseFloatField("available", accounts.Available)
+	if err != nil {
+		return nil, err
+	}
+	unrealizedPnl, err := types.ParseFloatField("unrealisedPnl", accounts.UnrealisedPnl)
+	if err != nil {
+		return nil, err
+	}
 
 	result := map[string]interface{}{
 		"totalWalletBalance":    total,

@@ -143,16 +143,23 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool,
 	// v0.36 fixed the spot-meta indexing panic that crashed earlier versions
 	// when Hyperliquid added new spot tokens whose Tokens[0] index pointed
 	// past the Tokens array end.
-	exchange := hyperliquid.NewExchange(
-		ctx,
-		privateKey,
-		apiURL,
-		nil,        // Meta — fetched automatically
-		"",         // vault address (empty for personal account)
-		walletAddr, // wallet address
-		nil,        // SpotMeta — fetched automatically
-		nil,        // perpDexs — fetched automatically
-	)
+	// The constructor still panics if any auto-fetch fails, so it runs inside
+	// initExchangeClient which converts the panic into a returned error.
+	exchange, err := initExchangeClient(func() *hyperliquid.Exchange {
+		return hyperliquid.NewExchange(
+			ctx,
+			privateKey,
+			apiURL,
+			nil,        // Meta — fetched automatically
+			"",         // vault address (empty for personal account)
+			walletAddr, // wallet address
+			nil,        // SpotMeta — fetched automatically
+			nil,        // perpDexs — fetched automatically
+		)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Hyperliquid API is temporarily unavailable, please retry: %w", err)
+	}
 
 	logger.Infof("✓ Hyperliquid trader initialized successfully (testnet=%v, wallet=%s)", testnet, walletAddr)
 

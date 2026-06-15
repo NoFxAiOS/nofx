@@ -2,6 +2,10 @@ package trader
 
 import (
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/kernel"
 	"nofx/logger"
@@ -20,8 +24,6 @@ import (
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
 	"nofx/wallet"
-	"sync"
-	"time"
 )
 
 func (at *AutoTrader) logTag() string {
@@ -179,6 +181,17 @@ type AutoTrader struct {
 	safeModeReason        string             // Why safe mode was activated
 }
 
+func aiClientOptions(aiModel, customURL string) []mcp.ClientOption {
+	if needsOpenAIForceStream(aiModel, customURL) {
+		return []mcp.ClientOption{mcp.WithForceStream(true)}
+	}
+	return nil
+}
+
+func needsOpenAIForceStream(aiModel, customURL string) bool {
+	return strings.EqualFold(strings.TrimSpace(aiModel), mcp.ProviderOpenAI) && strings.TrimSpace(customURL) != ""
+}
+
 // NewAutoTrader creates an automatic trader
 // st parameter is used to store decision records to database
 func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*AutoTrader, error) {
@@ -218,14 +231,16 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		}
 	}
 
+	clientOpts := aiClientOptions(aiModel, customURL)
+
 	// Create client via registry (covers all registered providers)
 	if aiModel == "custom" {
 		mcpClient = mcp.New()
 	} else if aiModel == "" {
 		aiModel = "deepseek"
-		mcpClient = mcp.NewAIClientByProvider(aiModel)
+		mcpClient = mcp.NewAIClientByProvider(aiModel, clientOpts...)
 	} else {
-		mcpClient = mcp.NewAIClientByProvider(aiModel)
+		mcpClient = mcp.NewAIClientByProvider(aiModel, clientOpts...)
 	}
 	if mcpClient == nil {
 		mcpClient = mcp.New()

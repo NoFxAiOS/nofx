@@ -273,7 +273,7 @@ func newLLMClient(st *store.Store, userID string) mcp.AIClient {
 		if model, err := st.AIModel().Get(userID, tgCfg.ModelID); err == nil && model.Enabled {
 			apiKey := string(model.APIKey)
 			if apiKey != "" {
-				client := clientForProvider(model.Provider)
+				client := clientForProvider(model.Provider, model.CustomAPIURL)
 				client.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 				if isUSDCProvider(model.Provider) {
 					logger.Infof("Telegram agent: provider=%s (USDC payment) user=%s", model.Provider, userID)
@@ -289,7 +289,7 @@ func newLLMClient(st *store.Store, userID string) mcp.AIClient {
 	if model, err := st.AIModel().GetDefault(userID); err == nil {
 		apiKey := string(model.APIKey)
 		if apiKey != "" {
-			client := clientForProvider(model.Provider)
+			client := clientForProvider(model.Provider, model.CustomAPIURL)
 			client.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 			if isUSDCProvider(model.Provider) {
 				logger.Infof("Telegram agent: provider=%s (USDC payment) user=%s", model.Provider, userID)
@@ -320,12 +320,23 @@ func isUSDCProvider(provider string) bool {
 	return provider == "claw402"
 }
 
-func clientForProvider(provider string) mcp.AIClient {
-	client := mcp.NewAIClientByProvider(provider)
+func clientForProvider(provider string, customURL ...string) mcp.AIClient {
+	client := mcp.NewAIClientByProvider(provider, telegramClientOptions(provider, customURL...)...)
 	if client == nil {
 		client = mcp.NewAIClientByProvider("deepseek")
 	}
 	return client
+}
+
+func telegramClientOptions(provider string, customURL ...string) []mcp.ClientOption {
+	if len(customURL) > 0 && needsTelegramOpenAIForceStream(provider, customURL[0]) {
+		return []mcp.ClientOption{mcp.WithForceStream(true)}
+	}
+	return nil
+}
+
+func needsTelegramOpenAIForceStream(provider, customURL string) bool {
+	return strings.EqualFold(strings.TrimSpace(provider), mcp.ProviderOpenAI) && strings.TrimSpace(customURL) != ""
 }
 
 // ── Status message ────────────────────────────────────────────────────────────

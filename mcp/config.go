@@ -23,6 +23,7 @@ type Config struct {
 	MaxContext  int     // Model's max context window in tokens (0 = no limit)
 	Temperature float64
 	UseFullURL  bool
+	ForceStream bool
 
 	// Retry configuration
 	MaxRetries     int

@@ -37,6 +37,7 @@ var (
 		"upstream_empty_output",
 		"status 502", // Bad Gateway
 		"status 503", // Service Unavailable
+		"status 504", // Gateway Timeout
 		"status 520", // Cloudflare origin error
 		"status 524", // Cloudflare timeout
 	}
@@ -67,12 +68,13 @@ func (u TokenUsage) Channel() string {
 
 // Client AI API configuration
 type Client struct {
-	Provider   string
-	APIKey     string
-	BaseURL    string
-	Model      string
-	UseFullURL bool // Whether to use full URL (without appending /chat/completions)
-	MaxTokens  int  // Maximum tokens for AI response
+	Provider    string
+	APIKey      string
+	BaseURL     string
+	Model       string
+	UseFullURL  bool // Whether to use full URL (without appending /chat/completions)
+	MaxTokens   int  // Maximum tokens for AI response
+	ForceStream bool // Whether to force streaming responses for OpenAI-compatible requests
 
 	HTTPClient *http.Client // Exported for sub-packages
 	Log        Logger       // Exported for sub-packages
@@ -121,15 +123,16 @@ func NewClient(opts ...ClientOption) AIClient {
 
 	// 3. Create client instance
 	client := &Client{
-		Provider:   cfg.Provider,
-		APIKey:     cfg.APIKey,
-		BaseURL:    cfg.BaseURL,
-		Model:      cfg.Model,
-		MaxTokens:  cfg.MaxTokens,
-		UseFullURL: cfg.UseFullURL,
-		HTTPClient: cfg.HTTPClient,
-		Log:        cfg.Logger,
-		Cfg:        cfg,
+		Provider:    cfg.Provider,
+		APIKey:      cfg.APIKey,
+		BaseURL:     cfg.BaseURL,
+		Model:       cfg.Model,
+		MaxTokens:   cfg.MaxTokens,
+		ForceStream: cfg.ForceStream,
+		UseFullURL:  cfg.UseFullURL,
+		HTTPClient:  cfg.HTTPClient,
+		Log:         cfg.Logger,
+		Cfg:         cfg,
 	}
 
 	// 4. Set default Provider (if not set)
@@ -252,6 +255,9 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 	} else {
 		requestBody["max_tokens"] = client.MaxTokens
 	}
+	if client.ForceStream {
+		requestBody["stream"] = true
+	}
 	return requestBody
 }
 
@@ -275,6 +281,14 @@ func (client *Client) ParseMCPResponse(body []byte) (string, error) {
 // ParseMCPResponseFull parses the OpenAI-format response body and returns both
 // the text content and any tool calls.
 func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
+	if containsSSEData(body) {
+		content, err := parseOpenAIStreamResponse(body)
+		if err != nil {
+			return nil, err
+		}
+		return &LLMResponse{Content: content}, nil
+	}
+
 	var result struct {
 		Choices []struct {
 			Message struct {
@@ -315,6 +329,163 @@ func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 		ReasoningContent: msg.ReasoningContent,
 		ToolCalls:        msg.ToolCalls,
 	}, nil
+}
+
+func containsSSEData(body []byte) bool {
+	for _, line := range strings.Split(string(body), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "data:") {
+			return true
+		}
+	}
+	return false
+}
+
+func parseOpenAIStreamResponse(body []byte) (string, error) {
+	r, err := parseOpenAIStreamResponseFull(bytes.NewReader(body), nil, nil)
+	if err != nil {
+		return "", err
+	}
+	return r.Content, nil
+}
+
+func parseOpenAIStreamResponseFull(body io.Reader, onChunk func(string), onLine func()) (*LLMResponse, error) {
+	type streamToolCallDelta struct {
+		Index    int    `json:"index"`
+		ID       string `json:"id"`
+		Type     string `json:"type"`
+		Function struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"function"`
+	}
+	type streamChunk struct {
+		Error   any `json:"error"`
+		Choices []struct {
+			Delta struct {
+				Content          string                `json:"content"`
+				ReasoningContent string                `json:"reasoning_content"`
+				ToolCalls        []streamToolCallDelta `json:"tool_calls"`
+			} `json:"delta"`
+			FinishReason *string `json:"finish_reason"`
+		} `json:"choices"`
+	}
+
+	var content, reasoning strings.Builder
+	toolCallsByIndex := map[int]*ToolCall{}
+	toolOrder := []int{}
+	sawChunk := false
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		if onLine != nil {
+			onLine()
+		}
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" {
+			continue
+		}
+		if data == "[DONE]" {
+			break
+		}
+
+		var chunk streamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			return nil, fmt.Errorf("failed to parse stream chunk: %w", err)
+		}
+		sawChunk = true
+		if chunk.Error != nil {
+			if errMsg := formatOpenAIStreamError(chunk.Error); errMsg != "" {
+				return nil, fmt.Errorf("API stream error: %s", errMsg)
+			}
+			return nil, fmt.Errorf("API stream error: %v", chunk.Error)
+		}
+
+		for _, choice := range chunk.Choices {
+			if choice.Delta.Content != "" {
+				content.WriteString(choice.Delta.Content)
+				if onChunk != nil {
+					onChunk(content.String())
+				}
+			}
+			if choice.Delta.ReasoningContent != "" {
+				reasoning.WriteString(choice.Delta.ReasoningContent)
+			}
+			for _, delta := range choice.Delta.ToolCalls {
+				tc, ok := toolCallsByIndex[delta.Index]
+				if !ok {
+					tc = &ToolCall{}
+					toolCallsByIndex[delta.Index] = tc
+					toolOrder = append(toolOrder, delta.Index)
+				}
+				if delta.ID != "" {
+					tc.ID = delta.ID
+				}
+				if delta.Type != "" {
+					tc.Type = delta.Type
+				}
+				if delta.Function.Name != "" {
+					tc.Function.Name += delta.Function.Name
+				}
+				if delta.Function.Arguments != "" {
+					tc.Function.Arguments += delta.Function.Arguments
+				}
+			}
+			// Some OpenAI-compatible gateways omit data:[DONE] after finish_reason.
+			// Do not leave forced-stream Telegram tool calls blocked until HTTP timeout.
+			if choice.FinishReason != nil && *choice.FinishReason != "" {
+				goto done
+			}
+		}
+	}
+
+done:
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("stream interrupted: %w", err)
+	}
+	if !sawChunk {
+		return nil, fmt.Errorf("API returned empty stream")
+	}
+
+	toolCalls := make([]ToolCall, 0, len(toolOrder))
+	for _, idx := range toolOrder {
+		if tc := toolCallsByIndex[idx]; tc != nil {
+			if tc.Type == "" {
+				tc.Type = "function"
+			}
+			toolCalls = append(toolCalls, *tc)
+		}
+	}
+	return &LLMResponse{Content: content.String(), ReasoningContent: reasoning.String(), ToolCalls: toolCalls}, nil
+}
+
+func formatOpenAIStreamError(raw any) string {
+	switch v := raw.(type) {
+	case string:
+		return v
+	case map[string]any:
+		message, _ := v["message"].(string)
+		errorType, _ := v["type"].(string)
+		if message != "" && errorType != "" {
+			return fmt.Sprintf("%s (%s)", message, errorType)
+		}
+		if message != "" {
+			return message
+		}
+		encoded, err := json.Marshal(v)
+		if err == nil {
+			return string(encoded)
+		}
+	}
+	encoded, err := json.Marshal(raw)
+	if err == nil {
+		return string(encoded)
+	}
+	return ""
 }
 
 func (client *Client) BuildUrl() string {
@@ -542,7 +713,13 @@ func (client *Client) callWithRequestFull(req *Request) (*LLMResponse, error) {
 	}
 
 	url := client.Hooks.BuildUrl()
-	httpReq, err := client.buildHTTPRequestWithContext(contextFromRequest(req), url, jsonData)
+	ctx := contextFromRequest(req)
+	var cancel context.CancelFunc
+	if req.Stream || client.ForceStream {
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+	}
+	httpReq, err := client.buildHTTPRequestWithContext(ctx, url, jsonData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -553,14 +730,46 @@ func (client *Client) callWithRequestFull(req *Request) (*LLMResponse, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
+	}
+	if req.Stream || client.ForceStream {
+		const idleTimeout = 60 * time.Second
+		resetCh := make(chan struct{}, 1)
+		go func() {
+			t := time.NewTimer(idleTimeout)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					cancel()
+					return
+				case <-resetCh:
+					if !t.Stop() {
+						select {
+						case <-t.C:
+						default:
+						}
+					}
+					t.Reset(idleTimeout)
+				}
+			}
+		}()
+		return parseOpenAIStreamResponseFull(resp.Body, nil, func() {
+			select {
+			case resetCh <- struct{}{}:
+			default:
+			}
+		})
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
-	}
-
 	return client.Hooks.ParseMCPResponseFull(body)
 }
 
@@ -698,7 +907,7 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 		requestBody["tool_choice"] = req.ToolChoice
 	}
 
-	if req.Stream {
+	if req.Stream || client.ForceStream {
 		requestBody["stream"] = true
 	}
 

@@ -109,6 +109,13 @@ func WithTemperature(temperature float64) ClientOption {
 	}
 }
 
+// WithForceStream forces OpenAI-compatible chat completions requests to use streaming.
+func WithForceStream(force bool) ClientOption {
+	return func(c *Config) {
+		c.ForceStream = force
+	}
+}
+
 // ============================================================
 // Provider Configuration Options
 // ============================================================

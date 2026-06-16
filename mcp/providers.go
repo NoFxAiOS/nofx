@@ -25,5 +25,5 @@ const (
 
 	// Default MiniMax configuration (used by WithMiniMaxConfig convenience option)
 	DefaultMiniMaxBaseURL = "https://api.minimax.io/v1"
-	DefaultMiniMaxModel   = "MiniMax-M2.7"
+	DefaultMiniMaxModel   = "MiniMax-M3"
 )

@@ -1223,7 +1223,7 @@ const (
 	contextLimitGemini   = 1_000_000 // 1M
 	contextLimitGrok     = 131_072   // 128K
 	contextLimitKimi     = 131_072   // 128K
-	contextLimitMinimax  = 1_000_000 // 1M
+	contextLimitMinimax  = 512_000   // 512K
 )
 
 // ModelContextLimits maps provider names to their context window sizes (in tokens)

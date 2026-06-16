@@ -341,7 +341,7 @@ func resolveModelRuntimeConfig(provider, customAPIURL, customModelName, fallback
 		"gemini":   {url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-3-pro-preview"},
 		"grok":     {url: "https://api.x.ai/v1", model: "grok-3-latest"},
 		"kimi":     {url: "https://api.moonshot.ai/v1", model: "moonshot-v1-auto"},
-		"minimax":  {url: "https://api.minimax.chat/v1", model: "MiniMax-M2.5"},
+		"minimax":  {url: "https://api.minimax.io/v1", model: "MiniMax-M3"},
 		"claw402":  {url: "https://claw402.ai", model: "deepseek"},
 	}
 

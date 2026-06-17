@@ -15,21 +15,36 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY_GHCR: ghcr.io
+  # Set to '' to return to automatic branch/semver tags.
+  DOCKER_IMAGE_TAG_FIXED: '20260617'
 
 jobs:
   prepare:
-    name: Prepare repository metadata
+    name: Prepare build metadata
     runs-on: ubuntu-22.04
     outputs:
-      image_base: ${{ steps.lowercase.outputs.image_base }}
+      manual_tag: ${{ steps.tag.outputs.manual_tag }}
+      has_dockerhub: ${{ steps.creds.outputs.has_dockerhub }}
     steps:
-      - name: Convert repository name to lowercase
-        id: lowercase
+      - name: Detect Docker Hub credentials
+        id: creds
         run: |
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "image_base=${REPO_LOWER}" >> $GITHUB_OUTPUT
-          echo "Lowercase repository: ${REPO_LOWER}"
+          if [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ] && [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "has_dockerhub=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_dockerhub=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply fixed image tag from workflow env
+        id: tag
+        run: |
+          if [ -n "${{ env.DOCKER_IMAGE_TAG_FIXED }}" ]; then
+            echo "manual_tag=${{ env.DOCKER_IMAGE_TAG_FIXED }}" >> "$GITHUB_OUTPUT"
+            echo "tag mode: manual (DOCKER_IMAGE_TAG_FIXED=${{ env.DOCKER_IMAGE_TAG_FIXED }})"
+          else
+            echo "manual_tag=" >> "$GITHUB_OUTPUT"
+            echo "tag mode: auto (branch/semver/sha)"
+          fi
 
   build-and-push:
     name: Build ${{ matrix.name }} (${{ matrix.arch_tag }})
@@ -37,7 +52,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
-      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -67,33 +81,44 @@ jobs:
             arch_tag: arm64
             runner: ubuntu-22.04-arm
     steps:
+      - name: Resolve Docker Hub image namespace
+        id: image
+        run: |
+          P='${{ vars.DOCKERHUB_IMAGE_PREFIX }}'
+          S='${{ secrets.DOCKERHUB_USERNAME }}'
+          if [ -z "$P" ]; then
+            P="$S"
+          fi
+          if [ -z "$P" ]; then
+            P=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          fi
+          {
+            echo "image_prefix<<EOF_IMAGE_PREFIX"
+            printf '%s\n' "$P"
+            echo "EOF_IMAGE_PREFIX"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved image_prefix=$P"
+
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY_GHCR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request' && needs.prepare.outputs.has_dockerhub == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-        continue-on-error: true
 
-      - name: Extract metadata
+      - name: Extract metadata (auto tags)
+        if: needs.prepare.outputs.manual_tag == ''
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.REGISTRY_GHCR }}/${{ needs.prepare.outputs.image_base }}/nofx-${{ matrix.image_suffix }}
-            ${{ secrets.DOCKERHUB_USERNAME && format('{0}/nofx-{1}', secrets.DOCKERHUB_USERNAME, matrix.image_suffix) || '' }}
+            ${{ steps.image.outputs.image_prefix }}/nofx-${{ matrix.image_suffix }}
           tags: |
             type=ref,event=branch,suffix=-${{ matrix.arch_tag }}
             type=semver,pattern={{version}},suffix=-${{ matrix.arch_tag }}
@@ -108,8 +133,8 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ needs.prepare.outputs.manual_tag != '' && format('{0}/nofx-{1}:{2}-{3}', steps.image.outputs.image_prefix, matrix.image_suffix, needs.prepare.outputs.manual_tag, matrix.arch_tag) || steps.meta.outputs.tags }}
+          labels: ${{ needs.prepare.outputs.manual_tag == '' && steps.meta.outputs.labels || format('org.opencontainers.image.revision={0}', github.sha) }}
           cache-from: type=gha,scope=${{ matrix.name }}-${{ matrix.arch_tag }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}-${{ matrix.arch_tag }}
           build-args: |
@@ -119,75 +144,86 @@ jobs:
 
       - name: Image digest
         run: |
-          echo "✅ Built: ${{ matrix.name }}-${{ matrix.arch_tag }}"
+          echo "Built: ${{ matrix.name }}-${{ matrix.arch_tag }}"
           echo "Platform: ${{ matrix.platform }}"
-          echo "Tags: ${{ steps.meta.outputs.tags }}"
 
   create-manifest:
-    name: Create multi-arch manifests
+    name: Create multi-arch manifests (Docker Hub)
     if: github.event_name != 'pull_request'
     needs: [prepare, build-and-push]
     runs-on: ubuntu-22.04
     permissions:
       contents: read
-      packages: write
     strategy:
       matrix:
         image_suffix: [backend, frontend]
     steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY_GHCR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve Docker Hub image namespace
+        id: image
+        run: |
+          P='${{ vars.DOCKERHUB_IMAGE_PREFIX }}'
+          S='${{ secrets.DOCKERHUB_USERNAME }}'
+          if [ -z "$P" ]; then
+            P="$S"
+          fi
+          if [ -z "$P" ]; then
+            P=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          fi
+          {
+            echo "image_prefix<<EOF_IMAGE_PREFIX"
+            printf '%s\n' "$P"
+            echo "EOF_IMAGE_PREFIX"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved image_prefix=$P"
 
       - name: Log in to Docker Hub
+        if: needs.prepare.outputs.has_dockerhub == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-        continue-on-error: true
 
       - name: Create and push multi-arch manifest
-        env:
-          IMAGE_BASE: ${{ needs.prepare.outputs.image_base }}
         run: |
-          # Convert branch name: release/stable -> release-stable (matching Docker metadata action)
-          REF_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
-          GHCR_IMAGE="${{ env.REGISTRY_GHCR }}/${IMAGE_BASE}/nofx-${{ matrix.image_suffix }}"
+          if [[ -z "${{ secrets.DOCKERHUB_TOKEN }}" || -z "${{ secrets.DOCKERHUB_USERNAME }}" ]]; then
+            echo "No Docker Hub credentials; skipping manifest."
+            exit 0
+          fi
 
-          echo "📦 Creating manifest for ${{ matrix.image_suffix }}"
-          echo "Repository: ${IMAGE_BASE}"
-          echo "Image: ${GHCR_IMAGE}"
-          echo "Ref name: ${REF_NAME}"
+          PREFIX='${{ steps.image.outputs.image_prefix }}'
+          IMAGE="${PREFIX}/nofx-${{ matrix.image_suffix }}"
 
-          docker buildx imagetools create -t "${GHCR_IMAGE}:${REF_NAME}" \
-            "${GHCR_IMAGE}:${REF_NAME}-amd64" \
-            "${GHCR_IMAGE}:${REF_NAME}-arm64"
+          MANUAL='${{ needs.prepare.outputs.manual_tag }}'
+          if [[ -n "$MANUAL" ]]; then
+            REF_NAME="$MANUAL"
+          else
+            REF_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
+          fi
 
-          # Only main branch gets the 'latest' tag (not dev)
+          echo "Docker Hub manifest: ${IMAGE}"
+          echo "Ref / tag: ${REF_NAME}"
+
+          docker buildx imagetools create -t "${IMAGE}:${REF_NAME}" \
+            "${IMAGE}:${REF_NAME}-amd64" \
+            "${IMAGE}:${REF_NAME}-arm64"
+
+          if [[ -n "$MANUAL" ]]; then
+            echo "Manual tag (DOCKER_IMAGE_TAG_FIXED): single manifest only."
+            exit 0
+          fi
+
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            docker buildx imagetools create -t "${GHCR_IMAGE}:latest" \
-              "${GHCR_IMAGE}:${REF_NAME}-amd64" \
-              "${GHCR_IMAGE}:${REF_NAME}-arm64"
-            echo "✅ Created latest tag (main branch only)"
+            docker buildx imagetools create -t "${IMAGE}:latest" \
+              "${IMAGE}:${REF_NAME}-amd64" \
+              "${IMAGE}:${REF_NAME}-arm64"
+            echo "Created :latest (main)"
           fi
 
-          # release/stable branch gets the 'stable' tag
           if [[ "${{ github.ref }}" == "refs/heads/release/stable" ]]; then
-            docker buildx imagetools create -t "${GHCR_IMAGE}:stable" \
-              "${GHCR_IMAGE}:${REF_NAME}-amd64" \
-              "${GHCR_IMAGE}:${REF_NAME}-arm64"
-            echo "✅ Created stable tag (release/stable branch)"
+            docker buildx imagetools create -t "${IMAGE}:stable" \
+              "${IMAGE}:${REF_NAME}-amd64" \
+              "${IMAGE}:${REF_NAME}-arm64"
+            echo "Created :stable (release/stable)"
           fi
 
-          if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]]; then
-            DOCKERHUB_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/nofx-${{ matrix.image_suffix }}"
-            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${REF_NAME}" \
-              "${DOCKERHUB_IMAGE}:${REF_NAME}-amd64" \
-              "${DOCKERHUB_IMAGE}:${REF_NAME}-arm64" || true
-            echo "✅ Created Docker Hub manifest"
-          fi
-
-          echo "🎉 Multi-arch manifest created successfully!"
+          echo "Multi-arch manifests on Docker Hub done."

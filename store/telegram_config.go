@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"nofx/crypto"
 	"sync"
 	"time"
 
@@ -11,9 +12,9 @@ import (
 
 // TelegramConfig stores the Telegram bot binding (single row, always ID=1)
 type TelegramConfig struct {
-	ID        uint      `gorm:"primaryKey"`
-	BotToken  string    `gorm:"column:bot_token"`
-	ChatID    int64     `gorm:"column:chat_id"`
+	ID        uint                   `gorm:"primaryKey"`
+	BotToken  crypto.EncryptedString `gorm:"column:bot_token"`
+	ChatID    int64                  `gorm:"column:chat_id"`
 	Username  string    `gorm:"column:username"` // @username for display
 	BoundAt   time.Time `gorm:"column:bound_at"`
 	ModelID   string    `gorm:"column:model_id;default:''"` // AI model used for Telegram replies

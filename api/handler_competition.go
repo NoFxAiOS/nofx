@@ -165,32 +165,78 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 		MarginUsedPct    float64 `json:"margin_used_pct"`   // Margin used percentage
 	}
 
-	// Use the balance of the first record as initial balance to calculate return rate
-	initialBalance := snapshots[0].Balance
+	initialBalance := trader.InitialBalance
+	if initialBalance <= 0 {
+		initialBalance = snapshots[0].TotalEquity
+	}
 	if initialBalance == 0 {
 		initialBalance = 1 // Avoid division by zero
 	}
 
 	var history []EquityPoint
+	var lastSnapshotTime time.Time
 	for _, snap := range snapshots {
-		// Calculate PnL percentage
+		totalPnL := snap.TotalEquity - initialBalance
 		totalPnLPct := 0.0
 		if initialBalance > 0 {
-			totalPnLPct = (snap.UnrealizedPnL / initialBalance) * 100
+			totalPnLPct = (totalPnL / initialBalance) * 100
 		}
 
 		history = append(history, EquityPoint{
 			Timestamp:        snap.Timestamp.Format("2006-01-02 15:04:05"),
 			TotalEquity:      snap.TotalEquity,
-			AvailableBalance: snap.Balance,
-			TotalPnL:         snap.UnrealizedPnL,
+			AvailableBalance: equitySnapshotAvailableBalance(snap),
+			TotalPnL:         totalPnL,
 			TotalPnLPct:      totalPnLPct,
 			PositionCount:    snap.PositionCount,
 			MarginUsedPct:    snap.MarginUsedPct,
 		})
+		if snap.Timestamp.After(lastSnapshotTime) {
+			lastSnapshotTime = snap.Timestamp
+		}
+	}
+
+	if runtimeTrader, err := s.traderManager.GetTrader(traderID); err == nil {
+		if accountInfo, err := runtimeTrader.GetAccountInfo(); err == nil && time.Since(lastSnapshotTime) > 30*time.Second {
+			totalEquity := floatFromMap(accountInfo, "total_equity")
+			totalPnL := totalEquity - initialBalance
+			totalPnLPct := 0.0
+			if initialBalance > 0 {
+				totalPnLPct = (totalPnL / initialBalance) * 100
+			}
+			history = append(history, EquityPoint{
+				Timestamp:        time.Now().UTC().Format("2006-01-02 15:04:05"),
+				TotalEquity:      totalEquity,
+				AvailableBalance: floatFromMap(accountInfo, "available_balance"),
+				TotalPnL:         totalPnL,
+				TotalPnLPct:      totalPnLPct,
+				PositionCount:    int(floatFromMap(accountInfo, "position_count")),
+				MarginUsedPct:    floatFromMap(accountInfo, "margin_used_pct"),
+			})
+		}
 	}
 
 	c.JSON(http.StatusOK, history)
+}
+
+func equitySnapshotAvailableBalance(snap *store.EquitySnapshot) float64 {
+	if snap == nil {
+		return 0
+	}
+	if snap.AvailableBalance != 0 || snap.PositionCount > 0 {
+		return snap.AvailableBalance
+	}
+	return snap.Balance
+}
+
+func floatFromMap(values map[string]interface{}, key string) float64 {
+	if value, ok := values[key].(float64); ok {
+		return value
+	}
+	if value, ok := values[key].(int); ok {
+		return float64(value)
+	}
+	return 0
 }
 
 // handlePublicTraderList Get public trader list (no authentication required)
@@ -386,18 +432,20 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string, hours int) map[s
 		history := make([]map[string]interface{}, 0, len(snapshots)+1)
 		var lastSnapshotTime time.Time
 		for _, snap := range snapshots {
+			totalPnL := snap.TotalEquity - initialBalance
 			// Calculate PnL percentage: (current_equity - initial_balance) / initial_balance * 100
 			pnlPct := 0.0
 			if initialBalance > 0 {
-				pnlPct = (snap.TotalEquity - initialBalance) / initialBalance * 100
+				pnlPct = totalPnL / initialBalance * 100
 			}
 
 			history = append(history, map[string]interface{}{
-				"timestamp":     snap.Timestamp,
-				"total_equity":  snap.TotalEquity,
-				"total_pnl":     snap.UnrealizedPnL,
-				"total_pnl_pct": pnlPct,
-				"balance":       snap.Balance,
+				"timestamp":         snap.Timestamp,
+				"total_equity":      snap.TotalEquity,
+				"available_balance": equitySnapshotAvailableBalance(snap),
+				"total_pnl":         totalPnL,
+				"total_pnl_pct":     pnlPct,
+				"balance":           snap.Balance,
 			})
 			if snap.Timestamp.After(lastSnapshotTime) {
 				lastSnapshotTime = snap.Timestamp
@@ -410,29 +458,21 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string, hours int) map[s
 			if accountInfo, err := trader.GetAccountInfo(); err == nil {
 				// Only append if it's been more than 30 seconds since last snapshot
 				if now.Sub(lastSnapshotTime) > 30*time.Second {
-					totalEquity := 0.0
-					if v, ok := accountInfo["total_equity"].(float64); ok {
-						totalEquity = v
-					}
-					totalPnL := 0.0
-					if v, ok := accountInfo["total_pnl"].(float64); ok {
-						totalPnL = v
-					}
-					walletBalance := 0.0
-					if v, ok := accountInfo["wallet_balance"].(float64); ok {
-						walletBalance = v
-					}
+					totalEquity := floatFromMap(accountInfo, "total_equity")
+					totalPnL := totalEquity - initialBalance
+					walletBalance := floatFromMap(accountInfo, "wallet_balance")
 					pnlPct := 0.0
 					if initialBalance > 0 {
 						pnlPct = (totalEquity - initialBalance) / initialBalance * 100
 					}
 
 					history = append(history, map[string]interface{}{
-						"timestamp":     now,
-						"total_equity":  totalEquity,
-						"total_pnl":     totalPnL,
-						"total_pnl_pct": pnlPct,
-						"balance":       walletBalance,
+						"timestamp":         now,
+						"total_equity":      totalEquity,
+						"available_balance": floatFromMap(accountInfo, "available_balance"),
+						"total_pnl":         totalPnL,
+						"total_pnl_pct":     pnlPct,
+						"balance":           walletBalance,
 					})
 				}
 			}

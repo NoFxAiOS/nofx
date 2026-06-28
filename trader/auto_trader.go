@@ -524,9 +524,6 @@ func (at *AutoTrader) Run() error {
 		}
 	}
 
-	ticker := time.NewTicker(at.config.ScanInterval)
-	defer ticker.Stop()
-
 	// Check if this is a grid trading strategy
 	isGridStrategy := at.IsGridStrategy()
 	if isGridStrategy {
@@ -538,6 +535,7 @@ func (at *AutoTrader) Run() error {
 	}
 
 	// Execute immediately on first run
+	at.logInfof("▶️ Running first trading cycle immediately; next cycle starts after %v", at.config.ScanInterval)
 	if isGridStrategy {
 		if err := at.RunGridCycle(); err != nil {
 			at.logErrorf("❌ Grid execution failed: %v", err)
@@ -547,6 +545,9 @@ func (at *AutoTrader) Run() error {
 			at.logErrorf("❌ Execution failed: %v", err)
 		}
 	}
+
+	ticker := time.NewTicker(at.config.ScanInterval)
+	defer ticker.Stop()
 
 	for {
 		at.isRunningMutex.RLock()

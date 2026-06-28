@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type {
@@ -32,6 +32,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showModelModal, setShowModelModal] = useState(false)
@@ -39,6 +40,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [showTelegramModal, setShowTelegramModal] = useState(false)
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingExchange, setEditingExchange] = useState<string | null>(null)
+  const [initialModelId, setInitialModelId] = useState<string | null>(null)
+  const [initialExchangeType, setInitialExchangeType] = useState<string | null>(
+    null
+  )
   const [editingTrader, setEditingTrader] = useState<any>(null)
   const [allModels, setAllModels] = useState<AIModel[]>([])
   const [allExchanges, setAllExchanges] = useState<Exchange[]>([])
@@ -166,19 +171,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       return true
     }) || []
 
-  const isModelInUse = (modelId: string) => {
-    return traders?.some((tr) => tr.ai_model === modelId && tr.is_running)
-  }
-
   const getModelUsageInfo = (modelId: string) => {
     const usingTraders = traders?.filter((tr) => tr.ai_model === modelId) || []
     const runningCount = usingTraders.filter((tr) => tr.is_running).length
     const totalCount = usingTraders.length
     return { runningCount, totalCount, usingTraders }
-  }
-
-  const isExchangeInUse = (exchangeId: string) => {
-    return traders?.some((tr) => tr.exchange_id === exchangeId && tr.is_running)
   }
 
   const getExchangeUsageInfo = (exchangeId: string) => {
@@ -334,17 +331,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleModelClick = (modelId: string) => {
-    if (!isModelInUse(modelId)) {
-      setEditingModel(modelId)
-      setShowModelModal(true)
-    }
+    setInitialModelId(null)
+    setEditingModel(modelId)
+    setShowModelModal(true)
   }
 
   const handleExchangeClick = (exchangeId: string) => {
-    if (!isExchangeInUse(exchangeId)) {
-      setEditingExchange(exchangeId)
-      setShowExchangeModal(true)
-    }
+    setInitialExchangeType(null)
+    setEditingExchange(exchangeId)
+    setShowExchangeModal(true)
   }
 
   const handleDeleteConfig = async <T extends { id: string }>(config: {
@@ -619,14 +614,62 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleAddModel = () => {
+    setInitialModelId(null)
     setEditingModel(null)
     setShowModelModal(true)
   }
 
   const handleAddExchange = () => {
+    setInitialExchangeType(null)
     setEditingExchange(null)
     setShowExchangeModal(true)
   }
+
+  const handleOpenClaw402Config = () => {
+    const configuredClaw402 = allModels?.find(
+      (model) => model.provider === 'claw402'
+    )
+    const supportedClaw402 = supportedModels?.find(
+      (model) => model.provider === 'claw402'
+    )
+    const modelId = configuredClaw402?.id || supportedClaw402?.id || 'claw402'
+
+    setEditingModel(configuredClaw402?.id || null)
+    setInitialModelId(modelId)
+    setShowModelModal(true)
+  }
+
+  const handleOpenHyperliquidConfig = () => {
+    const existingHyperliquid = allExchanges?.find(
+      (exchange) =>
+        exchange.exchange_type === 'hyperliquid' ||
+        exchange.id === 'hyperliquid'
+    )
+
+    setEditingExchange(existingHyperliquid?.id || null)
+    setInitialExchangeType(existingHyperliquid ? null : 'hyperliquid')
+    setShowExchangeModal(true)
+  }
+
+  useEffect(() => {
+    if (!user || !token) return
+
+    const setupTarget = searchParams.get('setup')
+    if (!setupTarget) return
+
+    if (setupTarget === 'claw402') {
+      if (supportedModels.length === 0 && allModels.length === 0) return
+      handleOpenClaw402Config()
+    } else if (setupTarget === 'hyperliquid') {
+      handleOpenHyperliquidConfig()
+    } else {
+      return
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('setup')
+    setSearchParams(nextParams, { replace: true })
+  }, [allExchanges, allModels, searchParams, setSearchParams, supportedModels, token, user])
 
   const refreshLaunchState = async () => {
     await Promise.all([loadConfigs(), mutateTraders()])
@@ -715,9 +758,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           visibleExchangeAddresses={visibleExchangeAddresses}
           copiedId={copiedId}
           language={language}
-          isModelInUse={isModelInUse}
           getModelUsageInfo={getModelUsageInfo}
-          isExchangeInUse={isExchangeInUse}
           getExchangeUsageInfo={getExchangeUsageInfo}
           onModelClick={handleModelClick}
           onExchangeClick={handleExchangeClick}
@@ -733,6 +774,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           isLoggedIn={Boolean(user && token)}
           language={language}
           onRefresh={refreshLaunchState}
+          onOpenClaw402Config={handleOpenClaw402Config}
+          onOpenHyperliquidConfig={handleOpenHyperliquidConfig}
         />
 
         {/* Traders List */}
@@ -789,11 +832,13 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             allModels={supportedModels}
             configuredModels={allModels}
             editingModelId={editingModel}
+            initialModelId={initialModelId}
             onSave={handleSaveModelConfig}
             onDelete={handleDeleteModelConfig}
             onClose={() => {
               setShowModelModal(false)
               setEditingModel(null)
+              setInitialModelId(null)
             }}
             language={language}
           />
@@ -804,11 +849,13 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           <ExchangeConfigModal
             allExchanges={allExchanges}
             editingExchangeId={editingExchange}
+            initialExchangeType={initialExchangeType}
             onSave={handleSaveExchangeConfig}
             onDelete={handleDeleteExchangeConfig}
             onClose={() => {
               setShowExchangeModal(false)
               setEditingExchange(null)
+              setInitialExchangeType(null)
             }}
             language={language}
           />

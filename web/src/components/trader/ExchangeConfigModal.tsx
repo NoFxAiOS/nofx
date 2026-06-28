@@ -38,6 +38,7 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
 interface ExchangeConfigModalProps {
   allExchanges: Exchange[]
   editingExchangeId: string | null
+  initialExchangeType?: string | null
   onSave: (
     exchangeId: string | null,
     exchangeType: string,
@@ -148,6 +149,7 @@ function ExchangeCard({
 export function ExchangeConfigModal({
   allExchanges,
   editingExchangeId,
+  initialExchangeType,
   onSave,
   onDelete,
   onClose,
@@ -155,8 +157,12 @@ export function ExchangeConfigModal({
 }: ExchangeConfigModalProps) {
   const { user } = useAuth()
   // Step: 0 = select exchange, 1 = configure
-  const [currentStep, setCurrentStep] = useState(editingExchangeId ? 1 : 0)
-  const [selectedExchangeType, setSelectedExchangeType] = useState('')
+  const [currentStep, setCurrentStep] = useState(
+    editingExchangeId || initialExchangeType ? 1 : 0
+  )
+  const [selectedExchangeType, setSelectedExchangeType] = useState(
+    initialExchangeType || ''
+  )
   const [apiKey, setApiKey] = useState('')
   const [secretKey, setSecretKey] = useState('')
   const [passphrase, setPassphrase] = useState('')

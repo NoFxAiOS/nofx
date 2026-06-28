@@ -14,15 +14,16 @@ type EquityStore struct {
 
 // EquitySnapshot equity snapshot
 type EquitySnapshot struct {
-	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	TraderID      string    `gorm:"column:trader_id;not null;index:idx_equity_trader_time" json:"trader_id"`
-	Timestamp     time.Time `gorm:"not null;index:idx_equity_trader_time,sort:desc;index:idx_equity_timestamp,sort:desc" json:"timestamp"`
-	TotalEquity   float64   `gorm:"column:total_equity;not null;default:0" json:"total_equity"`
-	Balance       float64   `gorm:"not null;default:0" json:"balance"`
-	UnrealizedPnL float64   `gorm:"column:unrealized_pnl;not null;default:0" json:"unrealized_pnl"`
-	PositionCount int       `gorm:"column:position_count;default:0" json:"position_count"`
-	MarginUsedPct float64   `gorm:"column:margin_used_pct;default:0" json:"margin_used_pct"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID               int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	TraderID         string    `gorm:"column:trader_id;not null;index:idx_equity_trader_time" json:"trader_id"`
+	Timestamp        time.Time `gorm:"not null;index:idx_equity_trader_time,sort:desc;index:idx_equity_timestamp,sort:desc" json:"timestamp"`
+	TotalEquity      float64   `gorm:"column:total_equity;not null;default:0" json:"total_equity"`
+	Balance          float64   `gorm:"not null;default:0" json:"balance"`
+	AvailableBalance float64   `gorm:"column:available_balance;not null;default:0" json:"available_balance"`
+	UnrealizedPnL    float64   `gorm:"column:unrealized_pnl;not null;default:0" json:"unrealized_pnl"`
+	PositionCount    int       `gorm:"column:position_count;default:0" json:"position_count"`
+	MarginUsedPct    float64   `gorm:"column:margin_used_pct;default:0" json:"margin_used_pct"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func (EquitySnapshot) TableName() string { return "trader_equity_snapshots" }
@@ -98,6 +99,7 @@ func (s *EquityStore) GetAllTradersLatest() (map[string]*EquitySnapshot, error) 
 	var snapshots []*EquitySnapshot
 	err := s.db.Raw(`
 		SELECT e.id, e.trader_id, e.timestamp, e.total_equity, e.balance,
+		       e.available_balance,
 		       e.unrealized_pnl, e.position_count, e.margin_used_pct, e.created_at
 		FROM trader_equity_snapshots e
 		INNER JOIN (
@@ -159,12 +161,13 @@ func (s *EquityStore) MigrateFromDecision() (int64, error) {
 	result := s.db.Exec(`
 		INSERT INTO trader_equity_snapshots (
 			trader_id, timestamp, total_equity, balance,
-			unrealized_pnl, position_count, margin_used_pct
+			available_balance, unrealized_pnl, position_count, margin_used_pct
 		)
 		SELECT
 			dr.trader_id,
 			dr.timestamp,
 			das.total_balance,
+			das.total_balance - das.total_unrealized_profit,
 			das.available_balance,
 			das.total_unrealized_profit,
 			das.position_count,

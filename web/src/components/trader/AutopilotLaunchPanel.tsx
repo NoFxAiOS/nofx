@@ -37,6 +37,8 @@ interface AutopilotLaunchPanelProps {
   isLoggedIn: boolean
   language: string
   onRefresh: () => Promise<void>
+  onOpenClaw402Config?: () => void
+  onOpenHyperliquidConfig?: () => void
 }
 
 const MIN_AI_FEE_USDC = 1
@@ -186,6 +188,8 @@ export function AutopilotLaunchPanel({
   isLoggedIn,
   language,
   onRefresh,
+  onOpenClaw402Config,
+  onOpenHyperliquidConfig,
 }: AutopilotLaunchPanelProps) {
   const navigate = useNavigate()
   const [wallet, setWallet] = useState<CurrentBeginnerWalletResponse | null>(
@@ -371,15 +375,34 @@ export function AutopilotLaunchPanel({
         ? `${shortAddress(feeWalletAddress)} · ${formatUSDC(feeWalletBalance)} USDC`
         : 'Base USDC wallet required',
       action: feeWalletAddress ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onOpenClaw402Config?.()}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
+          >
+            <CircleDollarSign className="h-3.5 w-3.5" />
+            Deposit
+          </button>
+          <button
+            type="button"
+            onClick={() => void copyText(feeWalletAddress, 'AI fee wallet')}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy
+          </button>
+        </div>
+      ) : (
         <button
           type="button"
-          onClick={() => void copyText(feeWalletAddress, 'AI fee wallet')}
+          onClick={() => onOpenClaw402Config?.()}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
         >
-          <Copy className="h-3.5 w-3.5" />
-          Copy
+          <ArrowRight className="h-3.5 w-3.5" />
+          Open
         </button>
-      ) : undefined,
+      ),
     },
     {
       title: 'Hyperliquid trading wallet',
@@ -389,6 +412,16 @@ export function AutopilotLaunchPanel({
       meta: hyperliquidExchange?.hyperliquidWalletAddr
         ? `${shortAddress(hyperliquidExchange.hyperliquidWalletAddr)} · authorized`
         : 'Agent and trading authorization required',
+      action: (
+        <button
+          type="button"
+          onClick={() => onOpenHyperliquidConfig?.()}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
+        >
+          <Wallet className="h-3.5 w-3.5" />
+          Open
+        </button>
+      ),
     },
     {
       title: 'Trading balance',
@@ -421,10 +454,16 @@ export function AutopilotLaunchPanel({
       return (
         <button
           type="button"
-          onClick={() => navigate(ROUTES.welcome)}
+          onClick={() => {
+            if (onOpenClaw402Config) {
+              onOpenClaw402Config()
+            } else {
+              navigate(ROUTES.welcome)
+            }
+          }}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-black hover:bg-yellow-400"
         >
-          Prepare AI fee wallet
+          Open Claw402 wallet
           <ArrowRight className="h-4 w-4" />
         </button>
       )
@@ -435,9 +474,13 @@ export function AutopilotLaunchPanel({
         <button
           type="button"
           onClick={() => {
-            document
-              .getElementById('hyperliquid-quick-connect')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            if (onOpenHyperliquidConfig) {
+              onOpenHyperliquidConfig()
+            } else {
+              document
+                .getElementById('hyperliquid-quick-connect')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
           }}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-black hover:bg-yellow-400"
         >

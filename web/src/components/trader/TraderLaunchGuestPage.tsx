@@ -18,24 +18,34 @@ const setupSteps = [
     detail:
       'Your account keeps the Autopilot configuration, wallet authorization state, and trading dashboard in one place.',
     icon: KeyRound,
+    action: 'Create account',
+    to: ROUTES.register,
   },
   {
     title: 'Fund the AI fee wallet',
     detail:
       'NOFX prepares a Base USDC wallet for Claw402.ai data and model calls. This wallet is separate from trading collateral.',
     icon: CircleDollarSign,
+    action: 'Open deposit QR',
+    to: ROUTES.login,
+    returnUrl: `${ROUTES.traders}?setup=claw402`,
   },
   {
     title: 'Authorize Hyperliquid',
     detail:
       'Connect your trading wallet, approve the NOFX Agent, and approve the builder fee. Funds remain in your Hyperliquid account.',
     icon: Wallet,
+    action: 'Connect exchange',
+    to: ROUTES.login,
+    returnUrl: `${ROUTES.traders}?setup=hyperliquid`,
   },
   {
     title: 'Deposit trading USDC',
     detail:
       'Add USDC on Hyperliquid, then start NOFX Autopilot. The strategy is created and launched automatically.',
     icon: Zap,
+    action: 'Open Hyperliquid',
+    href: 'https://app.hyperliquid.xyz/',
   },
 ]
 
@@ -66,6 +76,12 @@ export function TraderLaunchGuestPage() {
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
                 to={ROUTES.login}
+                onClick={() =>
+                  sessionStorage.setItem(
+                    'returnUrl',
+                    `${ROUTES.traders}?setup=claw402`
+                  )
+                }
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-nofx-gold px-5 py-3 text-sm font-bold text-black transition hover:bg-yellow-400"
               >
                 Start setup
@@ -83,11 +99,10 @@ export function TraderLaunchGuestPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {setupSteps.map((step, index) => {
               const Icon = step.icon
-              return (
-                <div
-                  key={step.title}
-                  className="rounded-xl border border-white/10 bg-black/24 p-4"
-                >
+              const cardClass =
+                'group rounded-xl border border-white/10 bg-black/24 p-4 text-left transition hover:border-nofx-gold/35 hover:bg-nofx-gold/[0.04]'
+              const content = (
+                <>
                   <div className="mb-4 flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-nofx-gold/20 bg-nofx-gold/10 text-nofx-gold">
                       <Icon className="h-4 w-4" />
@@ -102,7 +117,44 @@ export function TraderLaunchGuestPage() {
                   <p className="mt-2 text-sm leading-6 text-zinc-500">
                     {step.detail}
                   </p>
-                </div>
+                  <div className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-nofx-gold transition group-hover:text-yellow-300">
+                    {step.action}
+                    {step.href ? (
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </>
+              )
+
+              if (step.href) {
+                return (
+                  <a
+                    key={step.title}
+                    href={step.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cardClass}
+                  >
+                    {content}
+                  </a>
+                )
+              }
+
+              return (
+                <Link
+                  key={step.title}
+                  to={step.to || ROUTES.login}
+                  onClick={() => {
+                    if (step.returnUrl) {
+                      sessionStorage.setItem('returnUrl', step.returnUrl)
+                    }
+                  }}
+                  className={cardClass}
+                >
+                  {content}
+                </Link>
               )
             })}
           </div>

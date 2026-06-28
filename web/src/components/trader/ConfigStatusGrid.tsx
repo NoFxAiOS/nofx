@@ -30,9 +30,7 @@ interface ConfigStatusGridProps {
   visibleExchangeAddresses: Set<string>
   copiedId: string | null
   language: Language
-  isModelInUse: (modelId: string) => boolean | undefined
   getModelUsageInfo: (modelId: string) => UsageInfo
-  isExchangeInUse: (exchangeId: string) => boolean | undefined
   getExchangeUsageInfo: (exchangeId: string) => UsageInfo
   onModelClick: (modelId: string) => void
   onExchangeClick: (exchangeId: string) => void
@@ -48,9 +46,7 @@ export function ConfigStatusGrid({
   visibleExchangeAddresses,
   copiedId,
   language,
-  isModelInUse,
   getModelUsageInfo,
-  isExchangeInUse,
   getExchangeUsageInfo,
   onModelClick,
   onExchangeClick,
@@ -112,14 +108,20 @@ export function ConfigStatusGrid({
 
         <div className="p-4 space-y-3">
           {configuredModels.map((model) => {
-            const inUse = isModelInUse(model.id)
             const usageInfo = getModelUsageInfo(model.id)
             return (
               <div
                 key={model.id}
-                className={`group relative flex items-center justify-between p-3 rounded-md transition-all border border-transparent ${inUse ? 'opacity-80' : 'hover:bg-white/5 hover:border-white/10 cursor-pointer'
-                  } bg-black/20`}
+                role="button"
+                tabIndex={0}
+                className="group relative flex cursor-pointer items-center justify-between rounded-md border border-transparent bg-black/20 p-3 transition-all hover:border-white/10 hover:bg-white/5"
                 onClick={() => onModelClick(model.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onModelClick(model.id)
+                  }
+                }}
               >
                 <div className="flex items-center gap-4">
                   <div className="relative">
@@ -193,16 +195,22 @@ export function ConfigStatusGrid({
 
         <div className="p-4 space-y-3">
           {configuredExchanges.map((exchange) => {
-            const inUse = isExchangeInUse(exchange.id)
             const usageInfo = getExchangeUsageInfo(exchange.id)
             const state = exchangeAccountStates?.[exchange.id]
             const stateMeta = getExchangeStateMeta(state)
             return (
               <div
                 key={exchange.id}
-                className={`group relative flex items-center justify-between p-3 rounded-md transition-all border border-transparent ${inUse ? 'opacity-80' : 'hover:bg-white/5 hover:border-white/10 cursor-pointer'
-                  } bg-black/20`}
+                role="button"
+                tabIndex={0}
+                className="group relative flex cursor-pointer items-center justify-between rounded-md border border-transparent bg-black/20 p-3 transition-all hover:border-white/10 hover:bg-white/5"
                 onClick={() => onExchangeClick(exchange.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onExchangeClick(exchange.id)
+                  }
+                }}
               >
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="relative">

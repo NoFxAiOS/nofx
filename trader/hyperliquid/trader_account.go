@@ -129,23 +129,29 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 		logger.Infof("   └─ %s: size=%s, entryPx=%s, posValue=%s, pnl=%s",
 			pos.Position.Coin, pos.Position.Szi, entryPx, pos.Position.PositionValue, pos.Position.UnrealizedPnl)
 	}
-	xyzWalletBalance := xyzAccountValue - xyzUnrealizedPnl
-
-	// Step 6: Correctly handle Spot + Perpetuals + xyz dex balance
-	// Important: Each account is independent, manual transfers required
-	totalWalletBalance := walletBalanceWithoutUnrealized + spotUSDCBalance + xyzWalletBalance
-	totalUnrealizedPnlAll := totalUnrealizedPnl + xyzUnrealizedPnl
-
-	// Calculate total equity properly: perpAccountValue + spotUSDCBalance + xyzAccountValue
-	// Note: totalWalletBalance + totalUnrealizedPnlAll should equal this
-	totalEquityCalculated := accountValue + spotUSDCBalance + xyzAccountValue
+	xyzMarginUsed := calculateXYZMarginUsed(xyzPositions)
+	balanceBreakdown := calculateHyperliquidBalanceBreakdown(
+		t.isUnifiedAccount,
+		spotUSDCBalance,
+		accountValue,
+		totalUnrealizedPnl,
+		totalMarginUsed,
+		availableBalance,
+		xyzAccountValue,
+		xyzUnrealizedPnl,
+		xyzMarginUsed,
+	)
+	totalWalletBalance := balanceBreakdown.TotalWalletBalance
+	totalUnrealizedPnlAll := balanceBreakdown.TotalUnrealizedProfit
+	totalEquityCalculated := balanceBreakdown.TotalEquity
+	availableBalance = balanceBreakdown.AvailableBalance
 
 	// Step 7: Unified Account mode - Spot USDC is used as collateral for Perps
-	// In this mode, available balance includes Spot USDC since it can be used for Perp margin
+	// In this mode, xyz/core account values are collateral views backed by the
+	// same Spot USDC. They must not be added on top of Spot or the dashboard
+	// will double count equity after a position opens.
 	if t.isUnifiedAccount && spotUSDCBalance > 0 {
-		// Add Spot balance to available balance for trading
-		availableBalance = availableBalance + spotUSDCBalance
-		logger.Infof("✓ Unified Account: Spot %.2f USDC added to available balance (total: %.2f)",
+		logger.Infof("✓ Unified Account: Spot %.2f USDC used as shared collateral (available: %.2f)",
 			spotUSDCBalance, availableBalance)
 	}
 
@@ -160,6 +166,7 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	result["xyzDexBalance"] = xyzAccountValue               // xyz dex equity (stock perps, forex, commodities)
 	result["xyzDexUnrealizedPnl"] = xyzUnrealizedPnl        // xyz dex unrealized PnL
 	result["perpAccountValue"] = accountValue               // Perp account value for debugging
+	result["totalMarginUsed"] = balanceBreakdown.TotalMarginUsed
 
 	logger.Infof("✓ Hyperliquid complete account:")
 	logger.Infof("  • Spot balance: %.2f USDC", spotUSDCBalance)
@@ -171,13 +178,91 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	logger.Infof("  • Margin used: %.2f USDC", totalMarginUsed)
 	logger.Infof("  • xyz dex equity: %.2f USDC (wallet %.2f + unrealized %.2f)",
 		xyzAccountValue,
-		xyzWalletBalance,
+		balanceBreakdown.XYZWalletBalance,
 		xyzUnrealizedPnl)
-	logger.Infof("  • Total assets (Perp+Spot+xyz): %.2f USDC", totalWalletBalance)
-	logger.Infof("  ⭐ Total: %.2f USDC | Perp: %.2f | Spot: %.2f | xyz: %.2f",
-		totalWalletBalance, availableBalance, spotUSDCBalance, xyzAccountValue)
+	logger.Infof("  • Total wallet balance: %.2f USDC", totalWalletBalance)
+	logger.Infof("  ⭐ Total equity: %.2f USDC | Available: %.2f | Spot: %.2f | xyz view: %.2f",
+		totalEquityCalculated, availableBalance, spotUSDCBalance, xyzAccountValue)
 
 	return result, nil
+}
+
+type hyperliquidBalanceBreakdown struct {
+	TotalWalletBalance    float64
+	TotalEquity           float64
+	AvailableBalance      float64
+	TotalUnrealizedProfit float64
+	TotalMarginUsed       float64
+	PerpWalletBalance     float64
+	XYZWalletBalance      float64
+}
+
+func calculateHyperliquidBalanceBreakdown(
+	isUnifiedAccount bool,
+	spotUSDCBalance float64,
+	perpAccountValue float64,
+	perpUnrealizedPnl float64,
+	perpMarginUsed float64,
+	perpWithdrawable float64,
+	xyzAccountValue float64,
+	xyzUnrealizedPnl float64,
+	xyzMarginUsed float64,
+) hyperliquidBalanceBreakdown {
+	perpWalletBalance := perpAccountValue - perpUnrealizedPnl
+	xyzWalletBalance := xyzAccountValue - xyzUnrealizedPnl
+	totalUnrealizedPnl := perpUnrealizedPnl + xyzUnrealizedPnl
+	totalMarginUsed := perpMarginUsed + xyzMarginUsed
+
+	if isUnifiedAccount && spotUSDCBalance > 0 {
+		totalEquity := spotUSDCBalance + totalUnrealizedPnl
+		availableBalance := totalEquity - totalMarginUsed
+		if availableBalance < 0 {
+			availableBalance = 0
+		}
+		return hyperliquidBalanceBreakdown{
+			TotalWalletBalance:    spotUSDCBalance,
+			TotalEquity:           totalEquity,
+			AvailableBalance:      availableBalance,
+			TotalUnrealizedProfit: totalUnrealizedPnl,
+			TotalMarginUsed:       totalMarginUsed,
+			PerpWalletBalance:     perpWalletBalance,
+			XYZWalletBalance:      xyzWalletBalance,
+		}
+	}
+
+	availableBalance := perpWithdrawable
+	if availableBalance == 0 {
+		availableBalance = perpAccountValue - perpMarginUsed
+	}
+	if availableBalance < 0 {
+		availableBalance = 0
+	}
+
+	return hyperliquidBalanceBreakdown{
+		TotalWalletBalance:    perpWalletBalance + spotUSDCBalance + xyzWalletBalance,
+		TotalEquity:           perpAccountValue + spotUSDCBalance + xyzAccountValue,
+		AvailableBalance:      availableBalance,
+		TotalUnrealizedProfit: totalUnrealizedPnl,
+		TotalMarginUsed:       totalMarginUsed,
+		PerpWalletBalance:     perpWalletBalance,
+		XYZWalletBalance:      xyzWalletBalance,
+	}
+}
+
+func calculateXYZMarginUsed(positions []xyzAssetPosition) float64 {
+	total := 0.0
+	for _, pos := range positions {
+		positionValue, _ := strconv.ParseFloat(pos.Position.PositionValue, 64)
+		if positionValue < 0 {
+			positionValue = -positionValue
+		}
+		leverage := float64(pos.Position.Leverage.Value)
+		if leverage <= 0 {
+			leverage = 1
+		}
+		total += positionValue / leverage
+	}
+	return total
 }
 
 // xyzDexState represents the clearinghouse state for xyz dex

@@ -3,11 +3,11 @@ package trader
 import (
 	"fmt"
 	"math"
-	"nofx/telemetry"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"nofx/telemetry"
 	"time"
 )
 
@@ -18,13 +18,14 @@ func (at *AutoTrader) saveEquitySnapshot(ctx *kernel.Context) {
 	}
 
 	snapshot := &store.EquitySnapshot{
-		TraderID:      at.id,
-		Timestamp:     time.Now().UTC(),
-		TotalEquity:   ctx.Account.TotalEquity,
-		Balance:       ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
-		UnrealizedPnL: ctx.Account.UnrealizedPnL,
-		PositionCount: ctx.Account.PositionCount,
-		MarginUsedPct: ctx.Account.MarginUsedPct,
+		TraderID:         at.id,
+		Timestamp:        time.Now().UTC(),
+		TotalEquity:      ctx.Account.TotalEquity,
+		Balance:          ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
+		AvailableBalance: ctx.Account.AvailableBalance,
+		UnrealizedPnL:    ctx.Account.UnrealizedPnL,
+		PositionCount:    ctx.Account.PositionCount,
+		MarginUsedPct:    ctx.Account.MarginUsedPct,
 	}
 
 	if err := at.store.Equity().Save(snapshot); err != nil {

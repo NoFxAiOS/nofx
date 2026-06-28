@@ -382,11 +382,54 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 
 // GetClosedPositions gets closed positions
 func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*TraderPosition, error) {
+	return s.GetClosedPositionsByTraderFilters([]string{traderID}, nil, limit)
+}
+
+func (s *PositionStore) closedPositionsByTraderFilters(traderIDs []string, traderIDPatterns []string) *gorm.DB {
+	query := s.db.Where("status = ?", "CLOSED")
+
+	conditions := make([]string, 0, len(traderIDs)+len(traderIDPatterns))
+	args := make([]interface{}, 0, len(traderIDs)+len(traderIDPatterns))
+
+	cleanTraderIDs := make([]string, 0, len(traderIDs))
+	for _, traderID := range traderIDs {
+		traderID = strings.TrimSpace(traderID)
+		if traderID != "" {
+			cleanTraderIDs = append(cleanTraderIDs, traderID)
+		}
+	}
+	if len(cleanTraderIDs) > 0 {
+		conditions = append(conditions, "trader_id IN ?")
+		args = append(args, cleanTraderIDs)
+	}
+
+	for _, pattern := range traderIDPatterns {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+		conditions = append(conditions, "trader_id LIKE ?")
+		args = append(args, pattern)
+	}
+
+	if len(conditions) == 0 {
+		return query.Where("1 = 0")
+	}
+
+	return query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+}
+
+// GetClosedPositionsByTraderFilters gets closed positions for explicit trader IDs
+// and legacy trader ID patterns. Patterns are used only for same-user Autopilot
+// history continuity when an old trader row was deleted but its position records remain.
+func (s *PositionStore) GetClosedPositionsByTraderFilters(traderIDs []string, traderIDPatterns []string, limit int) ([]*TraderPosition, error) {
 	var positions []*TraderPosition
-	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").
-		Order("exit_time DESC").
-		Limit(limit).
-		Find(&positions).Error
+	query := s.closedPositionsByTraderFilters(traderIDs, traderIDPatterns).Order("exit_time DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&positions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query closed positions: %w", err)
 	}

@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"nofx/logger"
 	"nofx/market"
@@ -206,21 +207,43 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetString("user_id")
+	if fullCfg, cfgErr := s.store.Trader().GetFullConfig(userID, traderID); cfgErr == nil && fullCfg.Exchange != nil {
+		if syncErr := s.syncOrdersFromExchange(
+			trader.GetUnderlyingTrader(),
+			trader.GetID(),
+			fullCfg.Exchange.ID,
+			fullCfg.Exchange.ExchangeType,
+		); syncErr != nil {
+			logger.Infof("⚠️ Position history refresh sync skipped: %v", syncErr)
+		}
+	}
+
+	traderIDs := []string{trader.GetID()}
+	var traderIDPatterns []string
+	if strings.EqualFold(strings.TrimSpace(trader.GetName()), "NOFX Autopilot") && strings.TrimSpace(userID) != "" {
+		// Older one-click launches created new Autopilot trader rows. When a row was
+		// deleted, its closed position records remained under the old generated ID.
+		// The generated Autopilot ID embeds userID + "claw402", so this safely
+		// restores same-user history continuity without joining deleted rows.
+		traderIDPatterns = append(traderIDPatterns, "%_"+userID+"_claw402_%")
+	}
+
 	// Get closed positions
-	positions, err := store.Position().GetClosedPositions(trader.GetID(), limit)
+	positions, err := store.Position().GetClosedPositionsByTraderFilters(traderIDs, traderIDPatterns, limit)
 	if err != nil {
 		SafeInternalError(c, "Get position history", err)
 		return
 	}
 
 	// Get statistics
-	stats, _ := store.Position().GetFullStats(trader.GetID())
+	stats, _ := store.Position().GetFullStatsByTraderFilters(traderIDs, traderIDPatterns)
 
 	// Get symbol stats
-	symbolStats, _ := store.Position().GetSymbolStats(trader.GetID(), 10)
+	symbolStats, _ := store.Position().GetSymbolStatsByTraderFilters(traderIDs, traderIDPatterns, 10)
 
 	// Get direction stats
-	directionStats, _ := store.Position().GetDirectionStats(trader.GetID())
+	directionStats, _ := store.Position().GetDirectionStatsByTraderFilters(traderIDs, traderIDPatterns)
 
 	c.JSON(http.StatusOK, gin.H{
 		"positions":       positions,

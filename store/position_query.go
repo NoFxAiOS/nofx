@@ -56,18 +56,16 @@ func (s *PositionStore) GetPositionStats(traderID string) (map[string]interface{
 
 // GetFullStats gets complete trading statistics
 func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
+	return s.GetFullStatsByTraderFilters([]string{traderID}, nil)
+}
+
+// GetFullStatsByTraderFilters gets complete trading statistics for explicit
+// trader IDs plus optional legacy trader ID patterns.
+func (s *PositionStore) GetFullStatsByTraderFilters(traderIDs []string, traderIDPatterns []string) (*TraderStats, error) {
 	stats := &TraderStats{}
 
-	var count int64
-	if err := s.db.Model(&TraderPosition{}).Where("trader_id = ? AND status = ?", traderID, "CLOSED").Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count == 0 {
-		return stats, nil
-	}
-
 	var positions []TraderPosition
-	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").
+	err := s.closedPositionsByTraderFilters(traderIDs, traderIDPatterns).
 		Order("exit_time ASC").
 		Find(&positions).Error
 	if err != nil {
@@ -234,8 +232,14 @@ type SymbolStats struct {
 
 // GetSymbolStats gets per-symbol trading statistics
 func (s *PositionStore) GetSymbolStats(traderID string, limit int) ([]SymbolStats, error) {
+	return s.GetSymbolStatsByTraderFilters([]string{traderID}, nil, limit)
+}
+
+// GetSymbolStatsByTraderFilters gets per-symbol trading statistics for explicit
+// trader IDs plus optional legacy trader ID patterns.
+func (s *PositionStore) GetSymbolStatsByTraderFilters(traderIDs []string, traderIDPatterns []string, limit int) ([]SymbolStats, error) {
 	var positions []TraderPosition
-	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").Find(&positions).Error
+	err := s.closedPositionsByTraderFilters(traderIDs, traderIDPatterns).Find(&positions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query symbol stats: %w", err)
 	}
@@ -311,8 +315,8 @@ func (s *PositionStore) GetHoldingTimeStats(traderID string) ([]HoldingTimeStats
 	}
 
 	rangeStats := map[string]*struct {
-		count   int
-		wins    int
+		count    int
+		wins     int
 		totalPnL float64
 	}{
 		"<1h":   {},
@@ -374,8 +378,14 @@ type DirectionStats struct {
 
 // GetDirectionStats analyzes long vs short performance
 func (s *PositionStore) GetDirectionStats(traderID string) ([]DirectionStats, error) {
+	return s.GetDirectionStatsByTraderFilters([]string{traderID}, nil)
+}
+
+// GetDirectionStatsByTraderFilters analyzes long vs short performance for
+// explicit trader IDs plus optional legacy trader ID patterns.
+func (s *PositionStore) GetDirectionStatsByTraderFilters(traderIDs []string, traderIDPatterns []string) ([]DirectionStats, error) {
 	var positions []TraderPosition
-	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").Find(&positions).Error
+	err := s.closedPositionsByTraderFilters(traderIDs, traderIDPatterns).Find(&positions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query direction stats: %w", err)
 	}

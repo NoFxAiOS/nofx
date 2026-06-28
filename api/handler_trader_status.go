@@ -267,8 +267,12 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 
 	logger.Infof("✅ Position closed successfully: symbol=%s, side=%s, qty=%.6f, result=%v", req.Symbol, req.Side, posQty, result)
 
-	// Record order to database (for chart markers and history)
-	s.recordClosePositionOrder(traderID, exchangeCfg.ID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result)
+	// Backfill the just-closed fill immediately. Manual closes may happen while
+	// the bot runtime is stopped, so the background OrderSync loop is not enough.
+	if syncErr := s.syncOrdersAfterManualClose(tempTrader, traderID, exchangeCfg.ID, exchangeCfg.ExchangeType); syncErr != nil {
+		logger.Infof("  ⚠️ Manual close sync failed: %v", syncErr)
+		s.recordClosePositionOrder(traderID, exchangeCfg.ID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Position closed successfully",
@@ -276,6 +280,49 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		"side":    req.Side,
 		"result":  result,
 	})
+}
+
+func (s *Server) syncOrdersFromExchange(exchangeTrader trader.Trader, traderID, exchangeID, exchangeType string) error {
+	switch t := exchangeTrader.(type) {
+	case *binance.FuturesTrader:
+		return t.SyncOrdersFromBinance(traderID, exchangeID, exchangeType, s.store)
+	case *hyperliquidtrader.HyperliquidTrader:
+		return t.SyncOrdersFromHyperliquid(traderID, exchangeID, exchangeType, s.store)
+	case *aster.AsterTrader:
+		return t.SyncOrdersFromAster(traderID, exchangeID, exchangeType, s.store)
+	case *bybit.BybitTrader:
+		return t.SyncOrdersFromBybit(traderID, exchangeID, exchangeType, s.store)
+	case *okx.OKXTrader:
+		return t.SyncOrdersFromOKX(traderID, exchangeID, exchangeType, s.store)
+	case *bitget.BitgetTrader:
+		return t.SyncOrdersFromBitget(traderID, exchangeID, exchangeType, s.store)
+	case *gate.GateTrader:
+		return t.SyncOrdersFromGate(traderID, exchangeID, exchangeType, s.store)
+	case *kucoin.KuCoinTrader:
+		return t.SyncOrdersFromKuCoin(traderID, exchangeID, exchangeType, s.store)
+	case *lighter.LighterTraderV2:
+		return t.SyncOrdersFromLighter(traderID, exchangeID, exchangeType, s.store)
+	default:
+		return fmt.Errorf("order sync is not available for exchange type %s", exchangeType)
+	}
+}
+
+func (s *Server) syncOrdersAfterManualClose(exchangeTrader trader.Trader, traderID, exchangeID, exchangeType string) error {
+	var lastErr error
+	for attempt := 1; attempt <= 4; attempt++ {
+		if attempt > 1 {
+			time.Sleep(time.Duration(attempt-1) * 500 * time.Millisecond)
+		}
+		if err := s.syncOrdersFromExchange(exchangeTrader, traderID, exchangeID, exchangeType); err != nil {
+			lastErr = err
+			continue
+		}
+		return nil
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return fmt.Errorf("manual close sync did not run")
 }
 
 // recordClosePositionOrder Record close position order to database (Lighter version - direct FILLED status)

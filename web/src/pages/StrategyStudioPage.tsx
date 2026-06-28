@@ -1545,7 +1545,7 @@ export function StrategyStudioPage() {
         resolveOneClickExchange(),
       ])
 
-      const created = await api.createTrader({
+      const traderRequest = {
         name: traderName,
         ai_model_id: model.id,
         exchange_id: exchange.id,
@@ -1553,17 +1553,27 @@ export function StrategyStudioPage() {
         scan_interval_minutes: 15,
         is_cross_margin: true,
         show_in_competition: true,
-      })
-
-      if (created.startup_warning) {
-        notify.warning(created.startup_warning)
       }
 
-      await api.startTrader(created.trader_id)
-      notify.success(`${traderName} created and started`)
+      const existingTraders = await api.getTraders(true)
+      const existingAutopilot = existingTraders.find(
+        (trader) => trader.trader_name === traderName
+      )
+      const autopilot = existingAutopilot
+        ? await api.updateTrader(existingAutopilot.trader_id, traderRequest)
+        : await api.createTrader(traderRequest)
+
+      if (autopilot.startup_warning) {
+        notify.warning(autopilot.startup_warning)
+      }
+
+      if (!autopilot.is_running) {
+        await api.startTrader(autopilot.trader_id)
+      }
+      notify.success(`${traderName} started`)
       setHasChanges(false)
       await loadStrategies(selectedStrategy.id)
-      navigate(buildDashboardPath(created.trader_id))
+      navigate(buildDashboardPath(autopilot.trader_id))
     } catch (err) {
       notify.error(
         err instanceof Error ? err.message : 'Failed to launch NOFX Autopilot'

@@ -80,14 +80,14 @@ func TestStrategyConfigUnmarshalLegacyFlatAIConfig(t *testing.T) {
 func TestStrategyConfigNormalizeProductSchemaForLLMLabels(t *testing.T) {
 	cfg := GetDefaultStrategyConfig("zh")
 	patch := map[string]any{
-		"strategy_type": "AI 策略",
+		"strategy_type": "AI strategy",
 		"ai_config": map[string]any{
 			"coin_source": map[string]any{
 				"source_type": "AI500",
 			},
 			"indicators": map[string]any{
 				"klines": map[string]any{
-					"primary_timeframe":   "1分钟",
+					"primary_timeframe":   "1 minute",
 					"selected_timeframes": []any{`["1m"`, `"5m"`, `"15m"]`},
 				},
 			},
@@ -126,7 +126,7 @@ func TestStrategyConfigNormalizeProductSchemaForLLMLabels(t *testing.T) {
 func TestStrategyConfigNormalizeProductSchemaForVergexSignal(t *testing.T) {
 	cfg := GetDefaultStrategyConfig("zh")
 	cfg.CoinSource = CoinSourceConfig{
-		SourceType: "Claw402 Vergex 信号榜",
+		SourceType: "Claw402 Vergex signal board",
 	}
 
 	cfg.NormalizeProductSchema()

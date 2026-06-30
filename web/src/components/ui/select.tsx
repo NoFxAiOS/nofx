@@ -73,7 +73,7 @@ export function NofxSelect({ value, onChange, options, disabled, className, styl
       {open && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed z-[9999] rounded border border-[#2B3139] bg-[#0B0E11] shadow-xl shadow-black/50 max-h-60 overflow-y-auto"
+          className="fixed z-[9999] rounded border border-[rgba(26,24,19,0.14)] bg-nofx-bg-lighter shadow-xl shadow-[rgba(26,24,19,0.18)] max-h-60 overflow-y-auto"
           style={{ top: pos.top, left: pos.left, minWidth: pos.width }}
         >
           {options.map((opt) => (
@@ -82,8 +82,8 @@ export function NofxSelect({ value, onChange, options, disabled, className, styl
               className={cn(
                 'px-3 py-1.5 text-sm cursor-pointer transition-colors whitespace-nowrap',
                 String(opt.value) === String(value)
-                  ? 'bg-[#F0B90B]/10 text-[#F0B90B]'
-                  : 'text-[#EAECEF] hover:bg-[#1E2329]',
+                  ? 'bg-[#E0483B]/10 text-[#E0483B]'
+                  : 'text-[#1A1813] hover:bg-[#E8E2D5]',
               )}
               onClick={(e) => {
                 e.stopPropagation()

@@ -22,8 +22,8 @@ type NetFlowResponse struct {
 	Data    struct {
 		Netflows  []NetFlowPosition `json:"netflows"`
 		Count     int               `json:"count"`
-		Type      string            `json:"type"`      // institution or personal
-		Trade     string            `json:"trade"`     // futures or spot
+		Type      string            `json:"type"`  // institution or personal
+		Trade     string            `json:"trade"` // futures or spot
 		TimeRange string            `json:"time_range"`
 		RankType  string            `json:"rank_type"` // top or low
 		Limit     int               `json:"limit"`
@@ -131,13 +131,13 @@ func FormatNetFlowRankingForAI(data *NetFlowRankingData, lang Language) string {
 func formatNetFlowRankingZH(data *NetFlowRankingData) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("## 资金流向排行 (%s)\n\n", data.Duration))
+	sb.WriteString(fmt.Sprintf("## Net Flow Ranking (%s)\n\n", data.Duration))
 
 	// Institution inflow
 	if len(data.InstitutionFutureTop) > 0 {
-		sb.WriteString("### 机构资金流入榜\n")
-		sb.WriteString("Smart Money买入信号:\n\n")
-		sb.WriteString("| 排名 | 币种 | 流入金额(USDT) | 价格 |\n")
+		sb.WriteString("### Institution Inflow Ranking\n")
+		sb.WriteString("Smart Money buy signal:\n\n")
+		sb.WriteString("| Rank | Symbol | Inflow Amount(USDT) | Price |\n")
 		sb.WriteString("|------|------|----------------|------|\n")
 		for _, pos := range data.InstitutionFutureTop {
 			sb.WriteString(fmt.Sprintf("| %d | %s | %s | $%.4f |\n",
@@ -148,9 +148,9 @@ func formatNetFlowRankingZH(data *NetFlowRankingData) string {
 
 	// Institution outflow
 	if len(data.InstitutionFutureLow) > 0 {
-		sb.WriteString("### 机构资金流出榜\n")
-		sb.WriteString("Smart Money卖出信号:\n\n")
-		sb.WriteString("| 排名 | 币种 | 流出金额(USDT) | 价格 |\n")
+		sb.WriteString("### Institution Outflow Ranking\n")
+		sb.WriteString("Smart Money sell signal:\n\n")
+		sb.WriteString("| Rank | Symbol | Outflow Amount(USDT) | Price |\n")
 		sb.WriteString("|------|------|----------------|------|\n")
 		for _, pos := range data.InstitutionFutureLow {
 			sb.WriteString(fmt.Sprintf("| %d | %s | %s | $%.4f |\n",
@@ -161,9 +161,9 @@ func formatNetFlowRankingZH(data *NetFlowRankingData) string {
 
 	// Retail flow summary
 	if len(data.PersonalFutureTop) > 0 || len(data.PersonalFutureLow) > 0 {
-		sb.WriteString("### 散户资金动向\n")
+		sb.WriteString("### Retail Capital Movement\n")
 		if len(data.PersonalFutureTop) > 0 {
-			sb.WriteString("散户买入: ")
+			sb.WriteString("Retail buy: ")
 			for i, pos := range data.PersonalFutureTop {
 				if i >= 3 {
 					break
@@ -176,7 +176,7 @@ func formatNetFlowRankingZH(data *NetFlowRankingData) string {
 			sb.WriteString("\n")
 		}
 		if len(data.PersonalFutureLow) > 0 {
-			sb.WriteString("散户卖出: ")
+			sb.WriteString("Retail sell: ")
 			for i, pos := range data.PersonalFutureLow {
 				if i >= 3 {
 					break
@@ -191,7 +191,7 @@ func formatNetFlowRankingZH(data *NetFlowRankingData) string {
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("**解读**: 机构买入+散户卖出=强烈看多 | 机构卖出+散户买入=强烈看空\n\n")
+	sb.WriteString("**Interpretation**: Institution buy + Retail sell = strongly bullish | Institution sell + Retail buy = strongly bearish\n\n")
 	return sb.String()
 }
 

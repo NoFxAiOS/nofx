@@ -27,6 +27,7 @@ const (
 	SignalRankingPath          = "/api/v1/vergex/signal-ranking"
 	SignalLabPath              = "/api/v1/vergex/signal-lab"
 	CostLiquidationHeatmapPath = "/api/v1/vergex/cost-liquidation-heatmap"
+	FlowMarketsPath            = "/api/v1/vergex/flow-markets"
 )
 
 type Client struct {
@@ -126,6 +127,24 @@ func (c *Client) GetCostLiquidationHeatmap(ctx context.Context, q Query) (json.R
 	params := url.Values{}
 	addQueryDefaults(params, q, true)
 	return c.doGET(ctx, CostLiquidationHeatmapPath, params)
+}
+
+// GetFlowMarkets fetches the Vergex net-flow market ranking via the paid
+// claw402 x402 endpoint. Params mirror the public API: chain (e.g. "mainnet"),
+// window (e.g. "1h"), and limit. The raw JSON is returned for the caller to
+// pass through — the response shape is owned by Vergex.
+func (c *Client) GetFlowMarkets(ctx context.Context, chain, window string, limit int) (json.RawMessage, error) {
+	params := url.Values{}
+	if v := strings.TrimSpace(chain); v != "" {
+		params.Set("chain", v)
+	}
+	if v := strings.TrimSpace(window); v != "" {
+		params.Set("window", v)
+	}
+	if limit > 0 {
+		params.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	return c.doGET(ctx, FlowMarketsPath, params)
 }
 
 func addQueryDefaults(params url.Values, q Query, includeMarket bool) {

@@ -70,14 +70,14 @@ export function LoginPage() {
       <main className="flex-1 grid lg:grid-cols-2">
         {/* ───────── LEFT: brand panel (desktop only) ───────── */}
         <section className="hidden lg:flex flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
-          {/* Ambient gold halo */}
+          {/* Ambient vermilion halo */}
           <div className="absolute -left-32 top-1/3 w-[28rem] h-[28rem] bg-nofx-gold/[0.06] rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -right-16 bottom-0 w-72 h-72 bg-nofx-accent/[0.04] rounded-full blur-3xl pointer-events-none" />
 
           {/* Brand mark */}
           <div className="flex items-center gap-3 relative">
             <img src="/icons/nofx.svg" alt="NOFX" className="w-9 h-9" />
-            <div className="font-mono font-bold text-xl tracking-tight text-white">
+            <div className="font-mono font-bold text-xl tracking-tight text-nofx-text">
               NOFX<span className="text-nofx-gold">.</span>
             </div>
           </div>
@@ -90,33 +90,33 @@ export function LoginPage() {
                 Terminal Online
               </span>
             </div>
-            <h2 className="text-4xl xl:text-5xl font-bold tracking-tight text-white leading-[1.05]">
+            <h2 className="text-4xl xl:text-5xl font-bold tracking-tight text-nofx-text leading-[1.05]">
               {language === 'zh' ? (
                 <>
-                  AI 驱动的<br />
-                  <span className="bg-gradient-to-r from-nofx-gold to-yellow-300 bg-clip-text text-transparent">
-                    多市场交易终端
+                  AI-Powered<br />
+                  <span className="text-nofx-gold">
+                    Multi-Market Trading Terminal
                   </span>
                 </>
               ) : language === 'id' ? (
                 <>
                   Terminal Trading<br />
-                  <span className="bg-gradient-to-r from-nofx-gold to-yellow-300 bg-clip-text text-transparent">
+                  <span className="text-nofx-gold">
                     Multi-Pasar AI
                   </span>
                 </>
               ) : (
                 <>
                   AI-Powered<br />
-                  <span className="bg-gradient-to-r from-nofx-gold to-yellow-300 bg-clip-text text-transparent">
+                  <span className="text-nofx-gold">
                     Trading Terminal
                   </span>
                 </>
               )}
             </h2>
-            <p className="mt-5 text-zinc-400 text-base leading-relaxed max-w-md">
+            <p className="mt-5 text-nofx-text-muted text-base leading-relaxed max-w-md">
               {language === 'zh'
-                ? '一键接入 Hyperliquid、OKX、Aster 等 10+ 交易所与 7 个 LLM 模型, 用自然语言部署 24/7 自动化策略.'
+                ? 'Plug into 10+ exchanges including Hyperliquid, OKX, Aster, and 7 LLM models. Deploy 24/7 automated strategies with natural language.'
                 : language === 'id'
                 ? 'Hubungkan ke 10+ bursa termasuk Hyperliquid, OKX, Aster dan 7 model LLM. Terapkan strategi otomatis 24/7 dengan bahasa alami.'
                 : 'Plug into 10+ exchanges including Hyperliquid, OKX, Aster, and 7 LLM models. Deploy 24/7 automated strategies with natural language.'}
@@ -129,7 +129,7 @@ export function LoginPage() {
               value="10+"
               label={
                 language === 'zh'
-                  ? '交易所'
+                  ? 'Exchanges'
                   : language === 'id'
                   ? 'Bursa'
                   : 'Exchanges'
@@ -139,7 +139,7 @@ export function LoginPage() {
               value="7"
               label={
                 language === 'zh'
-                  ? 'AI 模型'
+                  ? 'AI Models'
                   : language === 'id'
                   ? 'Model AI'
                   : 'AI Models'
@@ -149,7 +149,7 @@ export function LoginPage() {
               value="24/7"
               label={
                 language === 'zh'
-                  ? '全天候'
+                  ? 'Always On'
                   : language === 'id'
                   ? 'Sepanjang Waktu'
                   : 'Always On'
@@ -164,19 +164,19 @@ export function LoginPage() {
             {/* Mobile brand */}
             <div className="lg:hidden flex flex-col items-center gap-3 mb-10">
               <img src="/icons/nofx.svg" alt="NOFX" className="w-12 h-12" />
-              <div className="font-mono font-bold text-lg tracking-tight text-white">
+              <div className="font-mono font-bold text-lg tracking-tight text-nofx-text">
                 NOFX<span className="text-nofx-gold">.</span>
               </div>
             </div>
 
             {/* Form header */}
             <div className="mb-7">
-              <h1 className="text-[26px] sm:text-3xl font-bold tracking-tight text-white">
+              <h1 className="text-[26px] sm:text-3xl font-bold tracking-tight text-nofx-text">
                 {t('signIn', language)}
               </h1>
-              <p className="mt-1.5 text-sm text-zinc-500">
+              <p className="mt-1.5 text-sm text-nofx-text-muted">
                 {language === 'zh'
-                  ? '使用您的邮箱继续'
+                  ? 'Continue with your email'
                   : language === 'id'
                   ? 'Lanjutkan dengan email Anda'
                   : 'Continue with your email'}
@@ -187,14 +187,14 @@ export function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               {/* Email */}
               <div>
-                <label className="block text-[10.5px] font-medium uppercase tracking-[0.14em] text-zinc-500 mb-2">
+                <label className="block text-[10.5px] font-medium uppercase tracking-[0.14em] text-nofx-text-muted mb-2">
                   {t('email', language)}
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-zinc-900/60 border border-white/[0.08] rounded-lg px-4 py-[11px] text-[14px] text-white placeholder-zinc-600 focus:outline-none focus:border-nofx-gold/50 focus:bg-zinc-900 focus:ring-2 focus:ring-nofx-gold/20 transition-all"
+                  className="w-full bg-nofx-bg-lighter border border-[rgba(26,24,19,0.14)] rounded-lg px-4 py-[11px] text-[14px] text-nofx-text placeholder-nofx-text-muted focus:outline-none focus:border-nofx-gold/50 focus:bg-nofx-bg-lighter focus:ring-2 focus:ring-nofx-gold/20 transition-all"
                   placeholder="you@example.com"
                   required
                   autoFocus
@@ -205,13 +205,13 @@ export function LoginPage() {
               {/* Password */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+                  <label className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-nofx-text-muted">
                     {t('password', language)}
                   </label>
                   <button
                     type="button"
                     onClick={() => navigate('/reset-password')}
-                    className="text-xs text-zinc-500 hover:text-nofx-gold transition-colors"
+                    className="text-xs text-nofx-text-muted hover:text-nofx-gold transition-colors"
                   >
                     {t('forgotPassword', language)}
                   </button>
@@ -221,7 +221,7 @@ export function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-zinc-900/60 border border-white/[0.08] rounded-lg px-4 py-[11px] pr-11 text-[14px] text-white placeholder-zinc-600 focus:outline-none focus:border-nofx-gold/50 focus:bg-zinc-900 focus:ring-2 focus:ring-nofx-gold/20 transition-all"
+                    className="w-full bg-nofx-bg-lighter border border-[rgba(26,24,19,0.14)] rounded-lg px-4 py-[11px] pr-11 text-[14px] text-nofx-text placeholder-nofx-text-muted focus:outline-none focus:border-nofx-gold/50 focus:bg-nofx-bg-lighter focus:ring-2 focus:ring-nofx-gold/20 transition-all"
                     placeholder="••••••••"
                     required
                     autoComplete="current-password"
@@ -229,7 +229,7 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-nofx-text-muted hover:text-nofx-text transition-colors"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -239,8 +239,8 @@ export function LoginPage() {
 
               {/* Error banner */}
               {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/[0.08] px-3 py-2.5 text-xs text-red-300">
-                  <span className="text-red-400 font-bold mt-px">!</span>
+                <div className="flex items-start gap-2 rounded-lg border border-nofx-danger/25 bg-nofx-danger/[0.08] px-3 py-2.5 text-xs text-nofx-danger">
+                  <span className="text-nofx-danger font-bold mt-px">!</span>
                   <span className="leading-relaxed">{error}</span>
                 </div>
               )}
@@ -249,7 +249,7 @@ export function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-nofx-gold py-[11px] text-sm font-semibold text-black shadow-lg shadow-nofx-gold/10 transition-all hover:bg-yellow-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="group mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-nofx-gold py-[11px] text-sm font-semibold text-nofx-bg transition-all hover:bg-nofx-gold-highlight active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
                   <>
@@ -269,12 +269,12 @@ export function LoginPage() {
             </form>
 
             {/* Footer */}
-            <div className="mt-8 pt-5 border-t border-white/[0.06] flex items-center justify-between text-[11px]">
-              <span className="font-mono text-zinc-600">v1.0</span>
+            <div className="mt-8 pt-5 border-t border-[rgba(26,24,19,0.14)] flex items-center justify-between text-[11px]">
+              <span className="font-mono text-nofx-text-muted">v1.0</span>
               <button
                 type="button"
                 onClick={handleResetAccount}
-                className="text-zinc-600 transition-colors hover:text-red-400"
+                className="text-nofx-text-muted transition-colors hover:text-nofx-danger"
               >
                 {t('forgotAccount', language)}
               </button>
@@ -289,10 +289,10 @@ export function LoginPage() {
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <div className="font-mono text-2xl xl:text-3xl font-bold text-white">
+      <div className="font-mono text-2xl xl:text-3xl font-bold text-nofx-text">
         {value}
       </div>
-      <div className="mt-1 text-[10.5px] uppercase tracking-[0.14em] text-zinc-500">
+      <div className="mt-1 text-[10.5px] uppercase tracking-[0.14em] text-nofx-text-muted">
         {label}
       </div>
     </div>

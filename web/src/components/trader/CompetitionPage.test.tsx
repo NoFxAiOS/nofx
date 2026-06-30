@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest'
 
 /**
- * PR #678 測試: 修復 CompetitionPage 中 NaN 和缺失數據的顯示問題
+ * PR #678 test: fix display of NaN and missing data in CompetitionPage
  *
- * 問題：當 total_pnl_pct 為 null/undefined/NaN 時，會顯示 "NaN%" 或 "0.00%"
- * 修復：檢查數據有效性，顯示 "—" 表示缺失數據
+ * Problem: when total_pnl_pct is null/undefined/NaN, it would show "NaN%" or "0.00%"
+ * Fix: check data validity and show "—" to indicate missing data
  */
 
 describe('CompetitionPage - Data Validation Logic (PR #678)', () => {
   /**
-   * 測試數據有效性檢查邏輯
-   * 這是 PR #678 引入的核心邏輯
+   * Test the data validity check logic
+   * This is the core logic introduced in PR #678
    */
   describe('hasValidData check', () => {
     it('should return true for valid numbers', () => {
@@ -106,8 +106,8 @@ describe('CompetitionPage - Data Validation Logic (PR #678)', () => {
   })
 
   /**
-   * 測試 gap 計算邏輯
-   * gap 應該只在數據有效時計算
+   * Test the gap calculation logic
+   * The gap should only be calculated when data is valid
    */
   describe('gap calculation', () => {
     it('should calculate gap correctly for valid data', () => {
@@ -164,8 +164,8 @@ describe('CompetitionPage - Data Validation Logic (PR #678)', () => {
   })
 
   /**
-   * 測試顯示邏輯
-   * 修復後應顯示「—」而非「NaN%」或「0.00%」
+   * Test the display logic
+   * After the fix it should show "—" instead of "NaN%" or "0.00%"
    */
   describe('display formatting', () => {
     it('should format valid positive percentage correctly', () => {
@@ -236,8 +236,8 @@ describe('CompetitionPage - Data Validation Logic (PR #678)', () => {
   })
 
   /**
-   * 測試領先/落後訊息顯示邏輯
-   * 只有在數據有效時才顯示 "領先" 或 "落後" 訊息
+   * Test the leading/trailing message display logic
+   * The "leading" or "trailing" message should only show when data is valid
    */
   describe('leading/trailing message display', () => {
     it('should show leading message when winning with positive gap', () => {
@@ -290,7 +290,7 @@ describe('CompetitionPage - Data Validation Logic (PR #678)', () => {
   })
 
   /**
-   * 測試邊界情況
+   * Test edge cases
    */
   describe('edge cases', () => {
     it('should handle very small positive numbers', () => {
@@ -312,7 +312,7 @@ describe('CompetitionPage - Data Validation Logic (PR #678)', () => {
     it('should handle Infinity as invalid (produces NaN in calculations)', () => {
       const total_pnl_pct = Infinity
 
-      // Infinity 本身不是 NaN，但在減法運算中可能導致問題
+      // Infinity itself is not NaN, but it can cause issues in subtraction
       const hasValidData = total_pnl_pct != null && isFinite(total_pnl_pct)
 
       expect(hasValidData).toBe(false)

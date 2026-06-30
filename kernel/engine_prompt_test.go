@@ -11,8 +11,8 @@ func TestBuildSystemPromptUsesVergexClaw402Prompt(t *testing.T) {
 	cfg := store.GetDefaultStrategyConfig("zh")
 	cfg.CoinSource.SourceType = "vergex_signal"
 	cfg.CoinSource.VergexLimit = 5
-	cfg.PromptSections.RoleDefinition = "# 你是一个专业的 Hyperliquid USDC 多资产交易AI"
-	cfg.CustomPrompt = "只做多，不做空。"
+	cfg.PromptSections.RoleDefinition = "# You are a professional Hyperliquid USDC multi-asset trading AI"
+	cfg.CustomPrompt = "Long only, no shorts."
 
 	engine := NewStrategyEngine(&cfg)
 	prompt := engine.BuildSystemPrompt(30, "balanced")
@@ -39,9 +39,9 @@ func TestBuildSystemPromptUsesVergexClaw402Prompt(t *testing.T) {
 		t.Fatalf("system prompt must be English-only, got CJK text:\n%s", prompt)
 	}
 	legacyPhrases := []string{
-		"Hyperliquid USDC 多资产交易AI",
-		"只做多",
-		"山寨币",
+		"Hyperliquid USDC multi-asset trading AI",
+		"Long only",
+		"Altcoin",
 		"BTC/ETH",
 		"LONG-ONLY",
 		"Do not short",
@@ -61,11 +61,11 @@ func TestBuildSystemPromptFallsBackToEnglishWhenConfiguredLanguageIsChinese(t *t
 	cfg.CoinSource.VergexLimit = 0
 	cfg.CoinSource.VergexMarketType = ""
 	cfg.CoinSource.VergexChain = ""
-	cfg.PromptSections.RoleDefinition = "# 你是中文系统提示词"
-	cfg.PromptSections.TradingFrequency = "# 高频交易\n每分钟交易。"
-	cfg.PromptSections.EntryStandards = "# 入场\n随便开仓。"
-	cfg.PromptSections.DecisionProcess = "# 决策\n直接输出。"
-	cfg.CustomPrompt = "中文偏好不应进入系统提示词。"
+	cfg.PromptSections.RoleDefinition = "# You are a Chinese system prompt"
+	cfg.PromptSections.TradingFrequency = "# High-frequency trading\nTrade every minute."
+	cfg.PromptSections.EntryStandards = "# Entry\nOpen positions freely."
+	cfg.PromptSections.DecisionProcess = "# Decision\nOutput directly."
+	cfg.CustomPrompt = "Chinese preference should not enter the system prompt."
 
 	engine := NewStrategyEngine(&cfg)
 	prompt := engine.BuildSystemPrompt(30, "balanced")

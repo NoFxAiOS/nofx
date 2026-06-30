@@ -16,15 +16,15 @@ function StepIndicator({ currentStep, labels }: { currentStep: number; labels: s
             <div
               className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all"
               style={{
-                background: index < currentStep ? '#0ECB81' : index === currentStep ? '#2AABEE' : '#2B3139',
-                color: index <= currentStep ? '#000' : '#848E9C',
+                background: index < currentStep ? '#2E8B57' : index === currentStep ? '#E0483B' : '#E8E2D5',
+                color: index <= currentStep ? '#fff' : '#8A8478',
               }}
             >
               {index < currentStep ? <Check className="w-4 h-4" /> : index + 1}
             </div>
             <span
               className="text-xs font-medium hidden sm:block"
-              style={{ color: index === currentStep ? '#EAECEF' : '#848E9C' }}
+              style={{ color: index === currentStep ? '#1A1813' : '#8A8478' }}
             >
               {label}
             </span>
@@ -32,7 +32,7 @@ function StepIndicator({ currentStep, labels }: { currentStep: number; labels: s
           {index < labels.length - 1 && (
             <div
               className="w-8 h-0.5 mx-1"
-              style={{ background: index < currentStep ? '#0ECB81' : '#2B3139' }}
+              style={{ background: index < currentStep ? '#2E8B57' : '#E8E2D5' }}
             />
           )}
         </React.Fragment>
@@ -123,13 +123,13 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
   // Model selector shared between steps
   const ModelSelector = () => (
     <div className="space-y-2">
-      <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+      <label className="text-sm font-semibold" style={{ color: '#1A1813' }}>
         {t('telegram.selectAiModel', language)}
       </label>
       {models.length === 0 ? (
         <div
           className="px-4 py-3 rounded-xl text-xs"
-          style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#848E9C' }}
+          style={{ background: '#F1ECE2', border: '1px solid rgba(26,24,19,0.14)', color: '#8A8478' }}
         >
           {t('telegram.noEnabledModels', language)}
         </div>
@@ -143,13 +143,13 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
           ]}
           className="w-full px-4 py-3 rounded-xl text-sm"
           style={{
-            background: '#0B0E11',
-            border: '1px solid #2B3139',
-            color: selectedModelId ? '#EAECEF' : '#848E9C',
+            background: '#F1ECE2',
+            border: '1px solid rgba(26,24,19,0.14)',
+            color: selectedModelId ? '#1A1813' : '#8A8478',
           }}
         />
       )}
-      <div className="text-xs" style={{ color: '#848E9C' }}>
+      <div className="text-xs" style={{ color: '#8A8478' }}>
         {t('telegram.autoUseEnabled', language)}
       </div>
     </div>
@@ -159,7 +159,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
       <div
         className="rounded-2xl w-full max-w-lg relative my-8 shadow-2xl"
-        style={{ background: 'linear-gradient(180deg, #1E2329 0%, #181A20 100%)' }}
+        style={{ background: '#F7F4EC' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-2">
@@ -168,14 +168,14 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
               <button
                 type="button"
                 onClick={() => setStep(step - 1)}
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                className="p-2 rounded-lg hover:bg-black/5 transition-colors"
               >
-                <ChevronLeft className="w-5 h-5" style={{ color: '#848E9C' }} />
+                <ChevronLeft className="w-5 h-5" style={{ color: '#8A8478' }} />
               </button>
             )}
             <div className="flex items-center gap-2">
-              <MessageCircle className="w-6 h-6" style={{ color: '#2AABEE' }} />
-              <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+              <MessageCircle className="w-6 h-6" style={{ color: '#E0483B' }} />
+              <h3 className="text-xl font-bold" style={{ color: '#1A1813' }}>
                 {t('telegram.botSetup', language)}
               </h3>
             </div>
@@ -183,8 +183,8 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            style={{ color: '#848E9C' }}
+            className="p-2 rounded-lg hover:bg-black/5 transition-colors"
+            style={{ color: '#8A8478' }}
           >
             ✕
           </button>
@@ -198,7 +198,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
         {/* Content */}
         <div className="px-6 pb-6 space-y-5">
           {isLoading ? (
-            <div className="text-center py-8 text-zinc-500 text-sm font-mono">
+            <div className="text-center py-8 text-nofx-text-muted text-sm font-mono">
               {t('telegram.loading', language)}
             </div>
           ) : (
@@ -208,17 +208,17 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                 <div className="space-y-5">
                   <div
                     className="p-4 rounded-xl space-y-3"
-                    style={{ background: 'rgba(42, 171, 238, 0.1)', border: '1px solid rgba(42, 171, 238, 0.3)' }}
+                    style={{ background: 'rgba(224, 72, 59, 0.1)', border: '1px solid rgba(224, 72, 59, 0.3)' }}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">🤖</span>
                       <div>
-                        <div className="font-semibold mb-1" style={{ color: '#2AABEE' }}>
+                        <div className="font-semibold mb-1" style={{ color: '#E0483B' }}>
                           {t('telegram.step1Title', language)}
                         </div>
-                        <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-                          <div>1. {t('telegram.step1Desc1', language)} <code className="text-blue-400">@BotFather</code></div>
-                          <div>2. {t('telegram.step1Desc2', language)} <code className="text-blue-400">/newbot</code> {t('telegram.step1Desc2Suffix', language)}</div>
+                        <div className="text-xs space-y-1" style={{ color: '#8A8478' }}>
+                          <div>1. {t('telegram.step1Desc1', language)} <code className="text-nofx-accent">@BotFather</code></div>
+                          <div>2. {t('telegram.step1Desc2', language)} <code className="text-nofx-accent">/newbot</code> {t('telegram.step1Desc2Suffix', language)}</div>
                           <div>3. {t('telegram.step1Desc3', language)}</div>
                           <div>4. {t('telegram.step1Desc4', language)}</div>
                         </div>
@@ -231,14 +231,14 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all hover:scale-[1.02]"
-                    style={{ background: '#2AABEE', color: '#000' }}
+                    style={{ background: '#E0483B', color: '#fff' }}
                   >
                     <ExternalLink className="w-4 h-4" />
                     {t('telegram.openBotFather', language)}
                   </a>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                    <label className="text-sm font-semibold" style={{ color: '#1A1813' }}>
                       {t('telegram.pasteToken', language)}
                     </label>
                     <input
@@ -247,9 +247,9 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       onChange={(e) => setToken(e.target.value)}
                       placeholder="123456789:ABCdefGHIjklmNOPQRstuvwxYZ"
                       className="w-full px-4 py-3 rounded-xl font-mono text-sm"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      style={{ background: '#F1ECE2', border: '1px solid rgba(26,24,19,0.14)', color: '#1A1813' }}
                     />
-                    <div className="text-xs" style={{ color: '#848E9C' }}>
+                    <div className="text-xs" style={{ color: '#8A8478' }}>
                       {t('telegram.tokenFormat', language)}
                     </div>
                   </div>
@@ -260,7 +260,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     onClick={handleSaveToken}
                     disabled={isSaving || !token.trim()}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ background: '#2AABEE', color: '#000' }}
+                    style={{ background: '#E0483B', color: '#fff' }}
                   >
                     {isSaving
                       ? t('telegram.savingToken', language)
@@ -275,17 +275,17 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                 <div className="space-y-5">
                   <div
                     className="p-4 rounded-xl space-y-3"
-                    style={{ background: 'rgba(14, 203, 129, 0.1)', border: '1px solid rgba(14, 203, 129, 0.3)' }}
+                    style={{ background: 'rgba(46, 139, 87, 0.1)', border: '1px solid rgba(46, 139, 87, 0.3)' }}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">📱</span>
                       <div>
-                        <div className="font-semibold mb-1" style={{ color: '#0ECB81' }}>
+                        <div className="font-semibold mb-1" style={{ color: '#2E8B57' }}>
                           {t('telegram.step2Title', language)}
                         </div>
-                        <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                        <div className="text-xs space-y-1" style={{ color: '#8A8478' }}>
                           <div>1. {t('telegram.step2Desc1', language)}</div>
-                          <div>2. {t('telegram.step2Desc2', language)} <code className="text-green-400">/start</code></div>
+                          <div>2. {t('telegram.step2Desc2', language)} <code className="text-nofx-success">/start</code></div>
                           <div>3. {t('telegram.step2Desc3', language)}</div>
                         </div>
                       </div>
@@ -295,14 +295,14 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                   {config?.token_masked && (
                     <div
                       className="p-3 rounded-xl flex items-center gap-3"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+                      style={{ background: '#F1ECE2', border: '1px solid rgba(26,24,19,0.14)' }}
                     >
-                      <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse flex-shrink-0" />
+                      <div className="w-2 h-2 rounded-full bg-nofx-gold animate-pulse flex-shrink-0" />
                       <div>
-                        <div className="text-xs font-mono" style={{ color: '#848E9C' }}>
+                        <div className="text-xs font-mono" style={{ color: '#8A8478' }}>
                           {t('telegram.currentToken', language)}
                         </div>
-                        <div className="text-sm font-mono" style={{ color: '#EAECEF' }}>
+                        <div className="text-sm font-mono" style={{ color: '#1A1813' }}>
                           {config.token_masked}
                         </div>
                       </div>
@@ -311,9 +311,9 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
 
                   <div
                     className="p-3 rounded-xl text-center"
-                    style={{ background: 'rgba(240, 185, 11, 0.08)', border: '1px solid rgba(240, 185, 11, 0.2)' }}
+                    style={{ background: 'rgba(224, 72, 59, 0.08)', border: '1px solid rgba(224, 72, 59, 0.2)' }}
                   >
-                    <div className="text-xs" style={{ color: '#F0B90B' }}>
+                    <div className="text-xs" style={{ color: '#E0483B' }}>
                       {t('telegram.waitingForStart', language)}
                     </div>
                   </div>
@@ -321,8 +321,8 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                   <div className="flex gap-3">
                     <button
                       onClick={() => { setStep(0); setToken('') }}
-                      className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5"
-                      style={{ background: '#2B3139', color: '#848E9C' }}
+                      className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-black/5"
+                      style={{ background: '#E8E2D5', color: '#8A8478' }}
                     >
                       {t('telegram.reconfigureToken', language)}
                     </button>
@@ -342,7 +342,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                         }
                       }}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: '#0ECB81', color: '#000' }}
+                      style={{ background: '#2E8B57', color: '#fff' }}
                     >
                       <Check className="w-4 h-4" />
                       {t('telegram.checkStatus', language)}
@@ -356,13 +356,13 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                 <div className="space-y-5">
                   <div
                     className="p-5 rounded-xl text-center space-y-3"
-                    style={{ background: 'rgba(14, 203, 129, 0.1)', border: '1px solid rgba(14, 203, 129, 0.3)' }}
+                    style={{ background: 'rgba(46, 139, 87, 0.1)', border: '1px solid rgba(46, 139, 87, 0.3)' }}
                   >
                     <div className="text-4xl">🎉</div>
-                    <div className="font-bold text-lg" style={{ color: '#0ECB81' }}>
+                    <div className="font-bold text-lg" style={{ color: '#2E8B57' }}>
                       {t('telegram.botActive', language)}
                     </div>
-                    <div className="text-xs" style={{ color: '#848E9C' }}>
+                    <div className="text-xs" style={{ color: '#8A8478' }}>
                       {t('telegram.botActiveDesc', language)}
                     </div>
                   </div>
@@ -370,14 +370,14 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                   {config?.token_masked && (
                     <div
                       className="p-3 rounded-xl flex items-center gap-3"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+                      style={{ background: '#F1ECE2', border: '1px solid rgba(26,24,19,0.14)' }}
                     >
-                      <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                      <div className="w-2 h-2 rounded-full bg-nofx-success flex-shrink-0" />
                       <div className="min-w-0">
-                        <div className="text-xs font-mono" style={{ color: '#848E9C' }}>
+                        <div className="text-xs font-mono" style={{ color: '#8A8478' }}>
                           Bot Token
                         </div>
-                        <div className="text-sm font-mono truncate" style={{ color: '#EAECEF' }}>
+                        <div className="text-sm font-mono truncate" style={{ color: '#1A1813' }}>
                           {config.token_masked}
                         </div>
                       </div>
@@ -397,9 +397,9 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                   {/* What you can do */}
                   <div
                     className="p-4 rounded-xl space-y-2"
-                    style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+                    style={{ background: '#F1ECE2', border: '1px solid rgba(26,24,19,0.14)' }}
                   >
-                    <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#848E9C' }}>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#8A8478' }}>
                       {t('telegram.supportedCommands', language)}
                     </div>
                     {[
@@ -410,10 +410,10 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       { cmd: t('telegram.cmdStrategy', language), desc: t('telegram.cmdStrategyDesc', language) },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-2 text-xs">
-                        <code className="font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: '#1E2329', color: '#2AABEE' }}>
+                        <code className="font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: '#E8E2D5', color: '#E0483B' }}>
                           {item.cmd}
                         </code>
-                        <span style={{ color: '#848E9C' }}>{item.desc}</span>
+                        <span style={{ color: '#8A8478' }}>{item.desc}</span>
                       </div>
                     ))}
                   </div>
@@ -422,8 +422,8 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     <button
                       onClick={handleUnbind}
                       disabled={isUnbinding}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5 disabled:opacity-50"
-                      style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-black/5 disabled:opacity-50"
+                      style={{ background: 'rgba(214, 67, 58, 0.1)', color: '#D6433A', border: '1px solid rgba(214, 67, 58, 0.2)' }}
                     >
                       <Unlink className="w-4 h-4" />
                       {isUnbinding ? t('telegram.unbinding', language) : t('telegram.unbindAccount', language)}
@@ -431,7 +431,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     <button
                       onClick={onClose}
                       className="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: '#2AABEE', color: '#000' }}
+                      style={{ background: '#E0483B', color: '#fff' }}
                     >
                       {t('telegram.done', language)}
                     </button>
@@ -483,7 +483,7 @@ function BoundModelSelector({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+      <label className="text-sm font-semibold" style={{ color: '#1A1813' }}>
         {t('telegram.aiModelLabel', language)}
       </label>
       <div className="flex gap-2">
@@ -496,16 +496,16 @@ function BoundModelSelector({
           ]}
           className="flex-1 px-3 py-2.5 rounded-xl text-sm"
           style={{
-            background: '#0B0E11',
-            border: '1px solid #2B3139',
-            color: modelId ? '#EAECEF' : '#848E9C',
+            background: '#F1ECE2',
+            border: '1px solid rgba(26,24,19,0.14)',
+            color: modelId ? '#1A1813' : '#8A8478',
           }}
         />
         <button
           onClick={handleSave}
           disabled={isSaving || modelId === currentModelId}
           className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: '#F0B90B', color: '#000', whiteSpace: 'nowrap' }}
+          style={{ background: '#E0483B', color: '#fff', whiteSpace: 'nowrap' }}
         >
           {isSaving ? '...' : t('telegram.save', language)}
         </button>

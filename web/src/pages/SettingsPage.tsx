@@ -26,8 +26,8 @@ function configBadge(label: string, active: boolean) {
     <span
       className={`text-[11px] px-2 py-0.5 rounded-full ${
         active
-          ? 'bg-emerald-500/10 text-emerald-300'
-          : 'bg-zinc-800 text-zinc-500'
+          ? 'bg-nofx-success/10 text-nofx-success'
+          : 'bg-nofx-bg-deeper text-nofx-text-muted'
       }`}
     >
       {label}
@@ -257,7 +257,7 @@ export function SettingsPage() {
       if (exchangeType === 'hyperliquid') {
         toast.error(
           language === 'zh'
-            ? 'Hyperliquid 必须通过钱包授权连接，不能手动填写密钥。'
+            ? 'Hyperliquid must be connected through wallet authorization, not manual keys.'
             : 'Hyperliquid must be connected through wallet authorization, not manual keys.'
         )
         return
@@ -337,13 +337,13 @@ export function SettingsPage() {
   return (
     <div
       className="min-h-screen pt-20 pb-12 px-4"
-      style={{ background: '#0B0E11' }}
+      style={{ background: '#F1ECE2' }}
     >
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-xl font-bold text-white mb-6">Settings</h1>
+        <h1 className="text-xl font-bold text-nofx-text mb-6">Settings</h1>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
+        <div className="flex gap-1 mb-6 bg-nofx-bg-lighter border border-[rgba(26,24,19,0.14)] rounded-xl p-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -351,8 +351,8 @@ export function SettingsPage() {
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
                 ${
                   activeTab === tab.key
-                    ? 'bg-nofx-gold text-black'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-nofx-gold text-nofx-bg'
+                    : 'text-nofx-text-muted hover:text-nofx-text'
                 }`}
             >
               {tab.icon}
@@ -362,22 +362,22 @@ export function SettingsPage() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6">
+        <div className="bg-nofx-bg-lighter backdrop-blur-xl border border-[rgba(26,24,19,0.14)] rounded-2xl p-6">
           {/* Account Tab */}
           {activeTab === 'account' && (
             <div className="space-y-6">
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Email</p>
-                <p className="text-sm text-white font-medium">{user?.email}</p>
+                <p className="text-xs text-nofx-text-muted mb-1">Email</p>
+                <p className="text-sm text-nofx-text font-medium">{user?.email}</p>
               </div>
 
-              <div className="border-t border-zinc-800 pt-6">
-                <h3 className="text-sm font-semibold text-white mb-4">
+              <div className="border-t border-[rgba(26,24,19,0.14)] pt-6">
+                <h3 className="text-sm font-semibold text-nofx-text mb-4">
                   Change Password
                 </h3>
                 <form onSubmit={handleChangePassword} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-2">
+                    <label className="block text-xs font-medium text-nofx-text-muted mb-2">
                       New Password
                     </label>
                     <div className="relative">
@@ -385,14 +385,14 @@ export function SettingsPage() {
                         type={showPassword ? 'text' : 'password'}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full bg-zinc-950/80 border border-zinc-700/80 rounded-xl px-4 py-3 pr-11 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-nofx-gold/60 focus:ring-1 focus:ring-nofx-gold/30 transition-all"
+                        className="w-full bg-nofx-bg-deeper border border-[rgba(26,24,19,0.14)] rounded-xl px-4 py-3 pr-11 text-sm text-nofx-text placeholder-nofx-text-muted focus:outline-none focus:border-nofx-gold/60 focus:ring-1 focus:ring-nofx-gold/30 transition-all"
                         placeholder="At least 8 characters"
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-nofx-text-muted hover:text-nofx-text transition-colors"
                       >
                         {showPassword ? (
                           <EyeOff size={16} />
@@ -405,7 +405,7 @@ export function SettingsPage() {
                   <button
                     type="submit"
                     disabled={changingPassword || newPassword.length < 8}
-                    className="w-full bg-nofx-gold hover:bg-yellow-400 active:scale-[0.98] text-black font-semibold py-3 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-nofx-gold hover:bg-nofx-gold-highlight active:scale-[0.98] text-nofx-bg font-semibold py-3 rounded-xl text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {changingPassword ? 'Updating...' : 'Update Password'}
                   </button>
@@ -418,7 +418,7 @@ export function SettingsPage() {
           {activeTab === 'models' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-nofx-text-muted">
                   {configuredModels.length} model
                   {configuredModels.length !== 1 ? 's' : ''} configured
                 </p>
@@ -435,7 +435,7 @@ export function SettingsPage() {
               </div>
 
               {configuredModels.length === 0 ? (
-                <div className="text-center py-8 text-zinc-600 text-sm">
+                <div className="text-center py-8 text-nofx-text-muted text-sm">
                   No AI models configured yet
                 </div>
               ) : (
@@ -447,18 +447,18 @@ export function SettingsPage() {
                         setEditingModel(model.id)
                         setShowModelModal(true)
                       }}
-                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors group"
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-nofx-bg-deeper hover:bg-nofx-bg-deeper border border-[rgba(26,24,19,0.14)] transition-colors group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center">
-                          <Cpu size={14} className="text-zinc-300" />
+                        <div className="w-8 h-8 rounded-lg bg-nofx-bg-deeper flex items-center justify-center">
+                          <Cpu size={14} className="text-nofx-text" />
                         </div>
                         <div className="text-left">
-                          <p className="text-sm font-medium text-white">
+                          <p className="text-sm font-medium text-nofx-text">
                             {model.name}
                           </p>
                           <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                            <p className="text-xs text-zinc-500">
+                            <p className="text-xs text-nofx-text-muted">
                               {model.provider}
                             </p>
                             {configBadge('API Key', !!model.has_api_key)}
@@ -473,13 +473,13 @@ export function SettingsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${model.enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-700 text-zinc-500'}`}
+                          className={`text-xs px-2 py-0.5 rounded-full ${model.enabled ? 'bg-nofx-success/10 text-nofx-success' : 'bg-nofx-bg-deeper text-nofx-text-muted'}`}
                         >
                           {model.enabled ? 'Active' : 'Inactive'}
                         </span>
                         <Pencil
                           size={14}
-                          className="text-zinc-600 group-hover:text-zinc-400 transition-colors"
+                          className="text-nofx-text-muted group-hover:text-nofx-text-muted transition-colors"
                         />
                       </div>
                     </button>
@@ -493,7 +493,7 @@ export function SettingsPage() {
           {activeTab === 'exchanges' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-nofx-text-muted">
                   {exchanges.length} account{exchanges.length !== 1 ? 's' : ''}{' '}
                   connected
                 </p>
@@ -501,7 +501,7 @@ export function SettingsPage() {
                   <button
                     onClick={refreshExchangeStates}
                     disabled={exchangeStatesLoading}
-                    className="text-xs font-medium bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-zinc-300 px-3 py-1.5 rounded-lg transition-colors"
+                    className="text-xs font-medium bg-nofx-bg-deeper hover:bg-nofx-bg-deeper disabled:opacity-60 text-nofx-text px-3 py-1.5 rounded-lg transition-colors"
                   >
                     {exchangeStatesLoading ? 'Refreshing…' : 'Refresh Balances'}
                   </button>
@@ -519,7 +519,7 @@ export function SettingsPage() {
               </div>
 
               {exchanges.length === 0 ? (
-                <div className="text-center py-8 text-zinc-600 text-sm">
+                <div className="text-center py-8 text-nofx-text-muted text-sm">
                   No exchange accounts connected yet
                 </div>
               ) : (
@@ -533,18 +533,18 @@ export function SettingsPage() {
                           setEditingExchange(exchange.id)
                           setShowExchangeModal(true)
                         }}
-                        className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors group"
+                        className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-nofx-bg-deeper hover:bg-nofx-bg-deeper border border-[rgba(26,24,19,0.14)] transition-colors group"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center">
-                            <Building2 size={14} className="text-zinc-300" />
+                          <div className="w-8 h-8 rounded-lg bg-nofx-bg-deeper flex items-center justify-center">
+                            <Building2 size={14} className="text-nofx-text" />
                           </div>
                           <div className="text-left">
-                            <p className="text-sm font-medium text-white">
+                            <p className="text-sm font-medium text-nofx-text">
                               {exchange.account_name || exchange.name}
                             </p>
                             <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                              <p className="text-xs text-zinc-500 capitalize">
+                              <p className="text-xs text-nofx-text-muted capitalize">
                                 {exchange.exchange_type || exchange.type}
                               </p>
                               {configBadge('API Key', !!exchange.has_api_key)}
@@ -567,14 +567,14 @@ export function SettingsPage() {
                               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                                 {accountState.status === 'ok' ? (
                                   <>
-                                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono text-emerald-300">
+                                    <span className="rounded-full bg-nofx-success/10 px-2 py-0.5 font-mono text-nofx-success">
                                       Balance{' '}
                                       {accountState.display_balance ||
                                         `${accountState.total_equity?.toFixed(2) ?? '--'} ${accountState.asset || ''}`}
                                     </span>
                                     {typeof accountState.available_balance ===
                                       'number' && (
-                                      <span className="text-zinc-500">
+                                      <span className="text-nofx-text-muted">
                                         Available{' '}
                                         {accountState.available_balance.toFixed(
                                           2
@@ -584,7 +584,7 @@ export function SettingsPage() {
                                     )}
                                   </>
                                 ) : (
-                                  <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-300">
+                                  <span className="rounded-full bg-nofx-gold/10 px-2 py-0.5 text-nofx-gold">
                                     Balance unavailable:{' '}
                                     {accountState.error_message ||
                                       accountState.status}
@@ -596,7 +596,7 @@ export function SettingsPage() {
                         </div>
                         <ChevronRight
                           size={14}
-                          className="text-zinc-600 group-hover:text-zinc-400 transition-colors"
+                          className="text-nofx-text-muted group-hover:text-nofx-text-muted transition-colors"
                         />
                       </button>
                     )
@@ -609,25 +609,25 @@ export function SettingsPage() {
           {/* Telegram Tab */}
           {activeTab === 'telegram' && (
             <div className="space-y-4">
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-nofx-text-muted">
                 Connect a Telegram bot to receive trading notifications and
                 interact with your traders.
               </p>
               <button
                 onClick={() => setShowTelegramModal(true)}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 transition-colors group"
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-nofx-bg-deeper hover:bg-nofx-bg-deeper border border-[rgba(26,24,19,0.14)] transition-colors group"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-[#0088cc]/20 flex items-center justify-center">
                     <MessageCircle size={14} className="text-[#0088cc]" />
                   </div>
-                  <span className="text-sm font-medium text-white">
+                  <span className="text-sm font-medium text-nofx-text">
                     Configure Telegram Bot
                   </span>
                 </div>
                 <ChevronRight
                   size={14}
-                  className="text-zinc-600 group-hover:text-zinc-400 transition-colors"
+                  className="text-nofx-text-muted group-hover:text-nofx-text-muted transition-colors"
                 />
               </button>
             </div>

@@ -62,156 +62,156 @@ func (d BilingualFieldDef) GetDesc(lang Language) string {
 var DataDictionary = map[string]map[string]BilingualFieldDef{
 	"AccountMetrics": {
 		"Equity": {
-			NameZH:    "总权益",
+			NameZH:    "Total Equity",
 			NameEN:    "Total Equity",
 			Unit:      "USDT",
-			FormulaZH: "可用余额 + 未实现盈亏",
+			FormulaZH: "Available Balance + Unrealized PnL",
 			FormulaEN: "Available Balance + Unrealized PnL",
-			DescZH:    "账户的实际净值，包含所有持仓的浮动盈亏",
+			DescZH:    "Actual net value of the account, including unrealized P&L of all positions",
 			DescEN:    "Actual account value including all unrealized P&L from positions",
 		},
 		"Balance": {
-			NameZH:    "可用余额",
+			NameZH:    "Available Balance",
 			NameEN:    "Available Balance",
 			Unit:      "USDT",
-			FormulaZH: "初始资金 + 已实现盈亏",
+			FormulaZH: "Initial Capital + Realized PnL",
 			FormulaEN: "Initial Capital + Realized PnL",
-			DescZH:    "可用于开新仓位的资金，不包括已用保证金",
+			DescZH:    "Funds available for opening new positions, excluding used margin",
 			DescEN:    "Available funds for opening new positions, excluding used margin",
 		},
 		"PnL": {
-			NameZH:    "总盈亏百分比",
+			NameZH:    "Total PnL Percentage",
 			NameEN:    "Total PnL Percentage",
 			Unit:      "%",
-			FormulaZH: "(总权益 - 初始资金) / 初始资金 × 100",
+			FormulaZH: "(Total Equity - Initial Capital) / Initial Capital × 100",
 			FormulaEN: "(Total Equity - Initial Capital) / Initial Capital × 100",
-			DescZH:    "自系统启动以来的总收益率，+15.87%表示盈利15.87%",
+			DescZH:    "Total return since system startup, +15.87% means 15.87% profit",
 			DescEN:    "Total return since inception, +15.87% means 15.87% profit",
 		},
 		"Margin": {
-			NameZH:    "保证金使用率",
+			NameZH:    "Margin Usage Rate",
 			NameEN:    "Margin Usage Rate",
 			Unit:      "%",
-			FormulaZH: "已用保证金合计 / 总权益 × 100",
+			FormulaZH: "Total Used Margin / Total Equity × 100",
 			FormulaEN: "Total Used Margin / Total Equity × 100",
-			DescZH:    "该值越高，账户风险越大。安全值<30%，危险值>70%",
+			DescZH:    "The higher this value, the greater the account risk. Safe <30%, Dangerous >70%",
 			DescEN:    "Higher value = higher risk. Safe <30%, Dangerous >70%",
 		},
 	},
 
 	"TradeMetrics": {
 		"Entry": {
-			NameZH: "进场价",
+			NameZH: "Entry Price",
 			NameEN: "Entry Price",
 			Unit:   "USDT",
-			DescZH: "开仓时的平均价格",
+			DescZH: "Average price when opening the position",
 			DescEN: "Average price when opening position",
 		},
 		"Exit": {
-			NameZH: "出场价",
+			NameZH: "Exit Price",
 			NameEN: "Exit Price",
 			Unit:   "USDT",
-			DescZH: "平仓时的平均价格",
+			DescZH: "Average price when closing the position",
 			DescEN: "Average price when closing position",
 		},
 		"Profit": {
-			NameZH:    "已实现盈亏",
+			NameZH:    "Realized PnL",
 			NameEN:    "Realized PnL",
 			Unit:      "USDT",
-			FormulaZH: "(出场价 - 进场价) / 进场价 × 杠杆 × 仓位价值",
+			FormulaZH: "(Exit Price - Entry Price) / Entry Price × Leverage × Position Value",
 			FormulaEN: "(Exit Price - Entry Price) / Entry Price × Leverage × Position Value",
-			DescZH:    "已平仓交易的实际盈亏，包含手续费。正值=盈利，负值=亏损",
+			DescZH:    "Actual P&L of closed trades, including fees. Positive=profit, Negative=loss",
 			DescEN:    "Actual profit/loss of closed trades including fees. Positive=profit, Negative=loss",
 		},
 		"PnL%": {
-			NameZH:    "盈亏百分比",
+			NameZH:    "PnL Percentage",
 			NameEN:    "PnL Percentage",
 			Unit:      "%",
-			FormulaZH: "(出场价 - 进场价) / 进场价 × 杠杆 × 100",
+			FormulaZH: "(Exit - Entry) / Entry × Leverage × 100",
 			FormulaEN: "(Exit - Entry) / Entry × Leverage × 100",
-			DescZH:    "已平仓交易的收益率，+6.71%表示盈利6.71%",
+			DescZH:    "Return on a closed trade, +6.71% means 6.71% profit",
 			DescEN:    "Return on closed trade, +6.71% means 6.71% profit",
 		},
 		"HoldDuration": {
-			NameZH: "持仓时长",
+			NameZH: "Holding Duration",
 			NameEN: "Holding Duration",
 			Unit:   "minutes",
-			DescZH: "从开仓到平仓的时间。<15分钟=超短线，15分钟-4小时=日内，>4小时=波段",
+			DescZH: "Time from open to close. <15min=scalping, 15min-4h=intraday, >4h=swing",
 			DescEN: "Time from open to close. <15min=scalping, 15min-4h=intraday, >4h=swing",
 		},
 	},
 
 	"PositionMetrics": {
 		"UnrealizedPnL%": {
-			NameZH:    "未实现盈亏百分比",
+			NameZH:    "Unrealized PnL Percentage",
 			NameEN:    "Unrealized PnL Percentage",
 			Unit:      "%",
-			FormulaZH: "(当前价 - 进场价) / 进场价 × 杠杆 × 100",
+			FormulaZH: "(Current Price - Entry Price) / Entry Price × Leverage × 100",
 			FormulaEN: "(Current Price - Entry Price) / Entry Price × Leverage × 100",
-			DescZH:    "当前持仓的浮动盈亏，未平仓前是浮动的",
+			DescZH:    "Floating P&L of the current position, fluctuating until closed",
 			DescEN:    "Floating P&L of current position, not realized until closed",
 		},
 		"PeakPnL%": {
-			NameZH: "峰值盈亏百分比",
+			NameZH: "Peak PnL Percentage",
 			NameEN: "Peak PnL Percentage",
 			Unit:   "%",
-			DescZH: "该持仓曾经达到的最高未实现盈亏。用于判断是否需要止盈",
+			DescZH: "Highest unrealized P&L this position has reached. Used to decide whether to take profit",
 			DescEN: "Historical max unrealized PnL for this position. Used for take-profit decisions",
 		},
 		"Drawdown": {
-			NameZH:    "从峰值回撤",
+			NameZH:    "Drawdown from Peak",
 			NameEN:    "Drawdown from Peak",
 			Unit:      "%",
-			FormulaZH: "当前盈亏% - 峰值盈亏%",
+			FormulaZH: "Current PnL% - Peak PnL%",
 			FormulaEN: "Current PnL% - Peak PnL%",
-			DescZH:    "负值表示正在回撤。例如：峰值+5%，当前+3%，回撤=-2%",
+			DescZH:    "Negative value means pulling back. E.g., Peak +5%, Current +3%, Drawdown = -2%",
 			DescEN:    "Negative = pulling back. E.g., Peak +5%, Current +3%, Drawdown = -2%",
 		},
 		"Leverage": {
-			NameZH: "杠杆倍数",
+			NameZH: "Leverage",
 			NameEN: "Leverage",
 			Unit:   "x",
-			DescZH: "3x表示价格变动1%，持仓盈亏变动3%。杠杆越高，风险越大",
+			DescZH: "3x means a 1% price move = 3% position PnL. Higher leverage = higher risk",
 			DescEN: "3x means 1% price move = 3% position PnL. Higher leverage = higher risk",
 		},
 		"Margin": {
-			NameZH:    "占用保证金",
+			NameZH:    "Margin Used",
 			NameEN:    "Margin Used",
 			Unit:      "USDT",
-			FormulaZH: "仓位价值 / 杠杆",
+			FormulaZH: "Position Value / Leverage",
 			FormulaEN: "Position Value / Leverage",
-			DescZH:    "该仓位锁定的保证金金额",
+			DescZH:    "Amount of margin locked for this position",
 			DescEN:    "Collateral locked for this position",
 		},
 		"LiqPrice": {
-			NameZH: "强平价格",
+			NameZH: "Liquidation Price",
 			NameEN: "Liquidation Price",
 			Unit:   "USDT",
-			DescZH: "价格触及此值时会被强制平仓。0.0000表示无爆仓风险",
+			DescZH: "Position will be force-closed when price reaches this value. 0.0000 = no liquidation risk",
 			DescEN: "Price at which position will be force-closed. 0.0000 = no liquidation risk",
 		},
 	},
 
 	"MarketData": {
 		"Volume": {
-			NameZH: "成交量",
+			NameZH: "Volume",
 			NameEN: "Volume",
 			Unit:   "base asset",
-			DescZH: "该时间段的交易量",
+			DescZH: "Trading volume in this period",
 			DescEN: "Trading volume in this period",
 		},
 		"OI": {
-			NameZH: "持仓量",
+			NameZH: "Open Interest",
 			NameEN: "Open Interest",
 			Unit:   "USDT",
-			DescZH: "未平仓合约的总价值。持仓量增加=资金流入，减少=资金流出",
+			DescZH: "Total value of open contracts. Increasing OI = capital inflow, decreasing = outflow",
 			DescEN: "Total value of open contracts. Increasing OI = capital inflow, decreasing = outflow",
 		},
 		"OIChange": {
-			NameZH: "持仓量变化",
+			NameZH: "OI Change",
 			NameEN: "OI Change",
 			Unit:   "USDT & %",
-			DescZH: "1小时内持仓量的变化。用于判断市场真实资金流向",
+			DescZH: "OI change within 1 hour. Used to judge the real market capital flow direction",
 			DescEN: "OI change in 1 hour. Used to determine real capital flow direction",
 		},
 	},
@@ -256,30 +256,30 @@ var TradingRules = struct {
 	RiskManagement: map[string]BilingualRuleDef{
 		"MaxMarginUsage": {
 			Value:    0.30,
-			DescZH:   "保证金使用率不得超过30%",
+			DescZH:   "Margin usage must not exceed 30%",
 			DescEN:   "Margin usage must not exceed 30%",
-			ReasonZH: "保留70%的资金应对极端行情和追加保证金",
+			ReasonZH: "Reserve 70% capital for extreme market conditions and margin calls",
 			ReasonEN: "Reserve 70% capital for extreme market conditions and margin calls",
 		},
 		"MaxPositionLoss": {
 			Value:    -0.05,
-			DescZH:   "单个持仓亏损达到-5%时必须止损",
+			DescZH:   "Must stop-loss when single position loss reaches -5%",
 			DescEN:   "Must stop-loss when single position loss reaches -5%",
-			ReasonZH: "避免单笔交易造成过大损失",
+			ReasonZH: "Prevent excessive loss from single trade",
 			ReasonEN: "Prevent excessive loss from single trade",
 		},
 		"MaxDailyLoss": {
 			Value:    -0.10,
-			DescZH:   "单日亏损达到-10%时停止交易",
+			DescZH:   "Stop trading when daily loss reaches -10%",
 			DescEN:   "Stop trading when daily loss reaches -10%",
-			ReasonZH: "防止情绪化交易导致连续亏损",
+			ReasonZH: "Prevent emotional trading leading to consecutive losses",
 			ReasonEN: "Prevent emotional trading leading to consecutive losses",
 		},
 		"PositionSizeLimit": {
 			Value:    0.15,
-			DescZH:   "单个仓位不得超过总权益的15%",
+			DescZH:   "Single position must not exceed 15% of total equity",
 			DescEN:   "Single position must not exceed 15% of total equity",
-			ReasonZH: "避免过度集中风险",
+			ReasonZH: "Avoid excessive risk concentration",
 			ReasonEN: "Avoid excessive risk concentration",
 		},
 	},
@@ -287,16 +287,16 @@ var TradingRules = struct {
 	EntrySignals: map[string]BilingualRuleDef{
 		"VolumeSpike": {
 			Value:    2.0,
-			DescZH:   "成交量是平均值的2倍以上时考虑进场",
+			DescZH:   "Consider entry when volume is 2x above average",
 			DescEN:   "Consider entry when volume is 2x above average",
-			ReasonZH: "放量突破通常意味着强趋势",
+			ReasonZH: "Volume breakout usually indicates strong trend",
 			ReasonEN: "Volume breakout usually indicates strong trend",
 		},
 		"OIChangeThreshold": {
 			Value:    0.02,
-			DescZH:   "持仓量1小时内变化超过2%视为显著变化",
+			DescZH:   "OI change >2% in 1 hour is considered significant",
 			DescEN:   "OI change >2% in 1 hour is considered significant",
-			ReasonZH: "大额资金进出会导致持仓量显著变化",
+			ReasonZH: "Large capital flows cause significant OI changes",
 			ReasonEN: "Large capital flows cause significant OI changes",
 		},
 	},
@@ -304,16 +304,16 @@ var TradingRules = struct {
 	ExitSignals: map[string]BilingualRuleDef{
 		"TrailingStop": {
 			Value:    0.30,
-			DescZH:   "当盈亏从峰值回撤30%时平仓止盈",
+			DescZH:   "Close position when PnL pulls back 30% from peak",
 			DescEN:   "Close position when PnL pulls back 30% from peak",
-			ReasonZH: "锁定大部分利润，避免盈利回吐。例如：峰值+5%，回撤到+3.5%时平仓",
+			ReasonZH: "Lock in most profits, avoid profit giveback. E.g., Peak +5%, close at +3.5%",
 			ReasonEN: "Lock in most profits, avoid profit giveback. E.g., Peak +5%, close at +3.5%",
 		},
 		"StopLoss": {
 			Value:    -0.05,
-			DescZH:   "硬止损设置在-5%",
+			DescZH:   "Hard stop-loss at -5%",
 			DescEN:   "Hard stop-loss at -5%",
-			ReasonZH: "严格控制单笔最大损失",
+			ReasonZH: "Strictly control maximum single-trade loss",
 			ReasonEN: "Strictly control maximum single-trade loss",
 		},
 	},
@@ -321,9 +321,9 @@ var TradingRules = struct {
 	PositionControl: map[string]BilingualRuleDef{
 		"ScaleIn": {
 			Value:    map[string]interface{}{"enabled": true, "max_additions": 2, "price_requirement": 0.01},
-			DescZH:   "只在盈利仓位上加仓，最多加2次，价格需比平均成本高1%",
+			DescZH:   "Only add to winning positions, max 2 additions, price must be 1% above avg cost",
 			DescEN:   "Only add to winning positions, max 2 additions, price must be 1% above avg cost",
-			ReasonZH: "顺势加仓，不追亏损",
+			ReasonZH: "Add to winners, never average down losers",
 			ReasonEN: "Add to winners, never average down losers",
 		},
 		"ScaleOut": {
@@ -332,9 +332,9 @@ var TradingRules = struct {
 				{"pnl": 0.05, "close_pct": 0.50},
 				{"pnl": 0.08, "close_pct": 1.00},
 			},
-			DescZH:   "分批止盈：盈利3%时平33%，5%时平50%，8%时全平",
+			DescZH:   "Scale-out: Close 33% at +3%, 50% at +5%, 100% at +8%",
 			DescEN:   "Scale-out: Close 33% at +3%, 50% at +5%, 100% at +8%",
-			ReasonZH: "在保证利润的同时让盈利奔跑",
+			ReasonZH: "Lock profits while letting winners run",
 			ReasonEN: "Lock profits while letting winners run",
 		},
 	},
@@ -367,28 +367,28 @@ var OIInterpretation = OIInterpretationType{
 		ZH string
 		EN string
 	}{
-		ZH: "强多头趋势（新多单开仓，资金流入做多）",
+		ZH: "Strong bullish trend (new longs opening, capital flowing into long positions)",
 		EN: "Strong bullish trend (new longs opening, capital flowing into long positions)",
 	},
 	OIUp_PriceDown: struct {
 		ZH string
 		EN string
 	}{
-		ZH: "强空头趋势（新空单开仓，资金流入做空）",
+		ZH: "Strong bearish trend (new shorts opening, capital flowing into short positions)",
 		EN: "Strong bearish trend (new shorts opening, capital flowing into short positions)",
 	},
 	OIDown_PriceUp: struct {
 		ZH string
 		EN string
 	}{
-		ZH: "空头平仓（空头止损离场，可能出现反转）",
+		ZH: "Shorts covering (shorts stopped out, potential reversal)",
 		EN: "Shorts covering (shorts stopped out, potential reversal)",
 	},
 	OIDown_PriceDown: struct {
 		ZH string
 		EN string
 	}{
-		ZH: "多头平仓（多头止损离场，可能出现反转）",
+		ZH: "Longs closing (longs stopped out, potential reversal)",
 		EN: "Longs closing (longs stopped out, potential reversal)",
 	},
 }
@@ -407,35 +407,35 @@ type CommonMistake struct {
 
 var CommonMistakes = []CommonMistake{
 	{
-		ErrorZH:   "混淆已实现盈亏和未实现盈亏",
+		ErrorZH:   "Confusing realized and unrealized P&L",
 		ErrorEN:   "Confusing realized and unrealized P&L",
-		ExampleZH: "将历史交易的盈亏与当前持仓的盈亏相加",
+		ExampleZH: "Adding historical trade P&L with current position P&L",
 		ExampleEN: "Adding historical trade P&L with current position P&L",
-		CorrectZH: "已实现盈亏已经计入账户余额，不应重复计算",
+		CorrectZH: "Realized P&L is already included in account balance, don't double count",
 		CorrectEN: "Realized P&L is already included in account balance, don't double count",
 	},
 	{
-		ErrorZH:   "忽略杠杆对盈亏的影响",
+		ErrorZH:   "Ignoring leverage's impact on P&L",
 		ErrorEN:   "Ignoring leverage's impact on P&L",
-		ExampleZH: "价格涨1%，认为盈利1%",
+		ExampleZH: "Price up 1%, thinking profit is 1%",
 		ExampleEN: "Price up 1%, thinking profit is 1%",
-		CorrectZH: "3x杠杆时，价格涨1%，实际盈利约3%",
+		CorrectZH: "With 3x leverage, 1% price move = ~3% P&L",
 		CorrectEN: "With 3x leverage, 1% price move = ~3% P&L",
 	},
 	{
-		ErrorZH:   "不理解Peak PnL的重要性",
+		ErrorZH:   "Not understanding Peak PnL's importance",
 		ErrorEN:   "Not understanding Peak PnL's importance",
-		ExampleZH: "只关注当前PnL，不关注回撤",
+		ExampleZH: "Only watching current PnL, ignoring drawdown",
 		ExampleEN: "Only watching current PnL, ignoring drawdown",
-		CorrectZH: "当前PnL接近Peak PnL时，应考虑止盈以锁定利润",
+		CorrectZH: "When current PnL near Peak PnL, consider taking profit to lock in gains",
 		CorrectEN: "When current PnL near Peak PnL, consider taking profit to lock in gains",
 	},
 	{
-		ErrorZH:   "忽略持仓量(OI)变化",
+		ErrorZH:   "Ignoring Open Interest changes",
 		ErrorEN:   "Ignoring Open Interest changes",
-		ExampleZH: "只看价格K线，不看资金流向",
+		ExampleZH: "Only watching price candles, not capital flows",
 		ExampleEN: "Only watching price candles, not capital flows",
-		CorrectZH: "结合OI变化判断趋势的真实性和持续性",
+		CorrectZH: "Use OI changes to validate trend authenticity and sustainability",
 		CorrectEN: "Use OI changes to validate trend authenticity and sustainability",
 	},
 }
@@ -452,39 +452,39 @@ func GetSchemaPrompt(lang Language) string {
 
 // getSchemaPromptZH generates the Chinese prompt
 func getSchemaPromptZH() string {
-	prompt := "# 📖 数据字典与交易规则\n\n"
-	prompt += "## 📊 字段含义说明\n\n"
+	prompt := "# 📖 Data Dictionary & Trading Rules\n\n"
+	prompt += "## 📊 Field Definitions\n\n"
 
 	// Account metrics
-	prompt += "### 账户指标\n"
+	prompt += "### Account Metrics\n"
 	for key, field := range DataDictionary["AccountMetrics"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
 	// Trade metrics
-	prompt += "\n### 交易指标\n"
+	prompt += "\n### Trade Metrics\n"
 	for key, field := range DataDictionary["TradeMetrics"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
 	// Position metrics
-	prompt += "\n### 持仓指标\n"
+	prompt += "\n### Position Metrics\n"
 	for key, field := range DataDictionary["PositionMetrics"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
 	// Market data
-	prompt += "\n### 市场数据\n"
+	prompt += "\n### Market Data\n"
 	for key, field := range DataDictionary["MarketData"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
 	// OI interpretation
-	prompt += "\n## 💹 持仓量(OI)变化解读\n\n"
-	prompt += "- **OI增加 + 价格上涨**: " + OIInterpretation.OIUp_PriceUp.ZH + "\n"
-	prompt += "- **OI增加 + 价格下跌**: " + OIInterpretation.OIUp_PriceDown.ZH + "\n"
-	prompt += "- **OI减少 + 价格上涨**: " + OIInterpretation.OIDown_PriceUp.ZH + "\n"
-	prompt += "- **OI减少 + 价格下跌**: " + OIInterpretation.OIDown_PriceDown.ZH + "\n"
+	prompt += "\n## 💹 Open Interest (OI) Change Interpretation\n\n"
+	prompt += "- **OI Up + Price Up**: " + OIInterpretation.OIUp_PriceUp.ZH + "\n"
+	prompt += "- **OI Up + Price Down**: " + OIInterpretation.OIUp_PriceDown.ZH + "\n"
+	prompt += "- **OI Down + Price Up**: " + OIInterpretation.OIDown_PriceUp.ZH + "\n"
+	prompt += "- **OI Down + Price Down**: " + OIInterpretation.OIDown_PriceDown.ZH + "\n"
 
 	return prompt
 }
@@ -530,12 +530,12 @@ func getSchemaPromptEN() string {
 
 // formatFieldDefZH formats a field definition in Chinese
 func formatFieldDefZH(key string, field BilingualFieldDef) string {
-	result := "- **" + key + "**（" + field.NameZH + "）: " + field.DescZH
+	result := "- **" + key + "** (" + field.NameZH + "): " + field.DescZH
 	if field.FormulaZH != "" {
-		result += " | 公式: `" + field.FormulaZH + "`"
+		result += " | Formula: `" + field.FormulaZH + "`"
 	}
 	if field.Unit != "" {
-		result += " | 单位: " + field.Unit
+		result += " | Unit: " + field.Unit
 	}
 	result += "\n"
 	return result

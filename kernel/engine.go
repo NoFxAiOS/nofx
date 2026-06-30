@@ -799,14 +799,51 @@ func (e *StrategyEngine) getVergexSignalCoins(limit int, marketType, chain, liqB
 		return candidates, nil
 	}
 
-	items := make([]vergex.SignalRankItem, 0, limit)
+	// Direction-balanced selection: interleave the top bullish and top bearish
+	// signals so the candidate universe carries BOTH long and short ideas every
+	// cycle (instead of filling up with whichever bias ranks highest). This is
+	// what lets the AI actually judge — and trade — both directions.
+	var bullItems, bearItems, otherItems []vergex.SignalRankItem
 	for _, item := range rankedItems {
 		if category != "" && category != "all" && item.Category != category {
 			continue
 		}
-		items = append(items, item)
-		if len(items) >= limit {
-			break
+		switch strings.ToLower(strings.TrimSpace(item.Bias)) {
+		case "bearish", "short", "sell":
+			bearItems = append(bearItems, item)
+		case "bullish", "long", "buy":
+			bullItems = append(bullItems, item)
+		default:
+			otherItems = append(otherItems, item)
+		}
+	}
+	items := make([]vergex.SignalRankItem, 0, limit)
+	bi, ri, oi := 0, 0, 0
+	for len(items) < limit {
+		progressed := false
+		if bi < len(bullItems) {
+			items = append(items, bullItems[bi])
+			bi++
+			progressed = true
+			if len(items) >= limit {
+				break
+			}
+		}
+		if ri < len(bearItems) {
+			items = append(items, bearItems[ri])
+			ri++
+			progressed = true
+			if len(items) >= limit {
+				break
+			}
+		}
+		if !progressed {
+			if oi < len(otherItems) {
+				items = append(items, otherItems[oi])
+				oi++
+			} else {
+				break
+			}
 		}
 	}
 	if len(items) == 0 {
@@ -838,6 +875,47 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// DirectionalCandidates returns bullish (long) and bearish (short) candidate
+// symbols from the most recent Vergex signal ranking, each ordered by upstream
+// rank (strongest first). Only populated for vergex_signal coin sources, since
+// that is the only source carrying a per-symbol directional bias.
+func (e *StrategyEngine) DirectionalCandidates() (bullish []string, bearish []string) {
+	if e == nil || len(e.vergexRankingCache) == 0 {
+		return nil, nil
+	}
+	type ranked struct {
+		sym  string
+		rank int
+	}
+	rankKey := func(r int) int {
+		if r > 0 {
+			return r
+		}
+		return 1 << 30
+	}
+	var bl, br []ranked
+	for sym, item := range e.vergexRankingCache {
+		if item == nil {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(item.Bias)) {
+		case "bearish", "short", "sell":
+			br = append(br, ranked{sym, item.Rank})
+		case "bullish", "long", "buy":
+			bl = append(bl, ranked{sym, item.Rank})
+		}
+	}
+	sort.SliceStable(bl, func(i, j int) bool { return rankKey(bl[i].rank) < rankKey(bl[j].rank) })
+	sort.SliceStable(br, func(i, j int) bool { return rankKey(br[i].rank) < rankKey(br[j].rank) })
+	for _, r := range bl {
+		bullish = append(bullish, r.sym)
+	}
+	for _, r := range br {
+		bearish = append(bearish, r.sym)
+	}
+	return bullish, bearish
 }
 
 func withDefaultText(value, fallback string) string {

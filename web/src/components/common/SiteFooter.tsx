@@ -9,11 +9,11 @@ export function SiteFooter({ language }: SiteFooterProps) {
   return (
     <footer
       className="mt-16"
-      style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
+      style={{ borderTop: '1px solid rgba(26,24,19,0.14)', background: '#F7F4EC' }}
     >
       <div
         className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm"
-        style={{ color: '#5E6673' }}
+        style={{ color: '#8A8478' }}
       >
         <p>{t('footerTitle', language)}</p>
         <p className="mt-1">{t('footerWarning', language)}</p>
@@ -24,19 +24,19 @@ export function SiteFooter({ language }: SiteFooterProps) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
             style={{
-              background: '#1E2329',
-              color: '#848E9C',
-              border: '1px solid #2B3139',
+              background: '#F1ECE2',
+              color: '#8A8478',
+              border: '1px solid rgba(26,24,19,0.14)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#2B3139'
-              e.currentTarget.style.color = '#EAECEF'
-              e.currentTarget.style.borderColor = '#F0B90B'
+              e.currentTarget.style.background = '#E8E2D5'
+              e.currentTarget.style.color = '#1A1813'
+              e.currentTarget.style.borderColor = '#E0483B'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#1E2329'
-              e.currentTarget.style.color = '#848E9C'
-              e.currentTarget.style.borderColor = '#2B3139'
+              e.currentTarget.style.background = '#F1ECE2'
+              e.currentTarget.style.color = '#8A8478'
+              e.currentTarget.style.borderColor = 'rgba(26,24,19,0.14)'
             }}
           >
             <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
@@ -50,19 +50,19 @@ export function SiteFooter({ language }: SiteFooterProps) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
             style={{
-              background: '#1E2329',
-              color: '#848E9C',
-              border: '1px solid #2B3139',
+              background: '#F1ECE2',
+              color: '#8A8478',
+              border: '1px solid rgba(26,24,19,0.14)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#2B3139'
-              e.currentTarget.style.color = '#EAECEF'
+              e.currentTarget.style.background = '#E8E2D5'
+              e.currentTarget.style.color = '#1A1813'
               e.currentTarget.style.borderColor = '#1DA1F2'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#1E2329'
-              e.currentTarget.style.color = '#848E9C'
-              e.currentTarget.style.borderColor = '#2B3139'
+              e.currentTarget.style.background = '#F1ECE2'
+              e.currentTarget.style.color = '#8A8478'
+              e.currentTarget.style.borderColor = 'rgba(26,24,19,0.14)'
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -76,19 +76,19 @@ export function SiteFooter({ language }: SiteFooterProps) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
             style={{
-              background: '#1E2329',
-              color: '#848E9C',
-              border: '1px solid #2B3139',
+              background: '#F1ECE2',
+              color: '#8A8478',
+              border: '1px solid rgba(26,24,19,0.14)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#2B3139'
-              e.currentTarget.style.color = '#EAECEF'
+              e.currentTarget.style.background = '#E8E2D5'
+              e.currentTarget.style.color = '#1A1813'
               e.currentTarget.style.borderColor = '#0088cc'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#1E2329'
-              e.currentTarget.style.color = '#848E9C'
-              e.currentTarget.style.borderColor = '#2B3139'
+              e.currentTarget.style.background = '#F1ECE2'
+              e.currentTarget.style.color = '#8A8478'
+              e.currentTarget.style.borderColor = 'rgba(26,24,19,0.14)'
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

@@ -239,8 +239,8 @@ export function TraderDashboardPage({
                     <div
                         className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center nofx-glass"
                         style={{
-                            background: 'rgba(240, 185, 11, 0.1)',
-                            borderColor: 'rgba(240, 185, 11, 0.3)',
+                            background: 'rgba(224, 72, 59, 0.1)',
+                            borderColor: 'rgba(224, 72, 59, 0.3)',
                         }}
                     >
                         <svg
@@ -282,8 +282,8 @@ export function TraderDashboardPage({
                     <div
                         className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center nofx-glass"
                         style={{
-                            background: 'rgba(240, 185, 11, 0.1)',
-                            borderColor: 'rgba(240, 185, 11, 0.3)',
+                            background: 'rgba(224, 72, 59, 0.1)',
+                            borderColor: 'rgba(224, 72, 59, 0.3)',
                         }}
                     >
                         <svg
@@ -352,7 +352,7 @@ export function TraderDashboardPage({
                 <div
                     className="mb-6 rounded-lg p-6 animate-scale-in nofx-glass group"
                     style={{
-                        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.4) 100%)',
+                        background: '#F7F4EC',
                     }}
                 >
                     <div className="flex items-start justify-between mb-4">
@@ -364,9 +364,9 @@ export function TraderDashboardPage({
                                         selectedTrader.trader_name
                                     )}
                                     size={56}
-                                    className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)]"
+                                    className="rounded-xl border-2 border-nofx-gold/30"
                                 />
-                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
+                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-success rounded-full border-2 border-nofx-bg-lighter animate-pulse" />
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-3xl tracking-tight text-nofx-text font-semibold">
@@ -382,7 +382,7 @@ export function TraderDashboardPage({
                         <div className="flex items-center gap-4">
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
-                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
+                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-[rgba(26,24,19,0.14)]">
                                     <NofxSelect
                                         value={selectedTraderId || ''}
                                         onChange={(val) => onTraderSelect(val)}
@@ -405,7 +405,7 @@ export function TraderDashboardPage({
                                             <button
                                                 type="button"
                                                 onClick={() => setShowWalletAddress(!showWalletAddress)}
-                                                className="p-1 rounded hover:bg-white/10 transition-colors"
+                                                className="p-1 rounded hover:bg-nofx-text/10 transition-colors"
                                                 title={
                                                     showWalletAddress
                                                         ? t('traderDashboard.hideAddress', language)
@@ -421,7 +421,7 @@ export function TraderDashboardPage({
                                             <button
                                                 type="button"
                                                 onClick={handleCopyAddress}
-                                                className="p-1 rounded hover:bg-white/10 transition-colors"
+                                                className="p-1 rounded hover:bg-nofx-text/10 transition-colors"
                                                 title={t('traderDashboard.copyAddress', language)}
                                             >
                                                 {copiedAddress ? (
@@ -457,7 +457,7 @@ export function TraderDashboardPage({
                                 )}
                             </span>
                         </span>
-                        <span className="w-px h-3 bg-white/10 hidden md:block" />
+                        <span className="w-px h-3 bg-nofx-text/10 hidden md:block" />
                         <span className="flex items-center gap-2">
                             <span className="opacity-60">Exchange:</span>
                             <span className="text-nofx-text-main font-semibold">
@@ -467,7 +467,7 @@ export function TraderDashboardPage({
                                 )}
                             </span>
                         </span>
-                        <span className="w-px h-3 bg-white/10 hidden md:block" />
+                        <span className="w-px h-3 bg-nofx-text/10 hidden md:block" />
                         <span className="flex items-center gap-2">
                             <span className="opacity-60">Strategy:</span>
                             <span className="text-nofx-gold font-semibold tracking-wide">
@@ -476,9 +476,9 @@ export function TraderDashboardPage({
                         </span>
                         {status && (
                             <div className="hidden md:contents">
-                                <span className="w-px h-3 bg-white/10" />
+                                <span className="w-px h-3 bg-nofx-text/10" />
                                 <span>Cycles: <span className="text-nofx-text-main">{status.call_count}</span></span>
-                                <span className="w-px h-3 bg-white/10" />
+                                <span className="w-px h-3 bg-nofx-text/10" />
                                 <span>Runtime: <span className="text-nofx-text-main">{status.runtime_minutes} min</span></span>
                             </div>
                         )}
@@ -486,8 +486,8 @@ export function TraderDashboardPage({
                 </div>
 
                 {/* Debug Info */}
-                <div className="mb-4 px-3 py-1.5 rounded bg-black/40 border border-white/5 text-[10px] font-mono text-nofx-text-muted flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
-                    <span style={{ color: '#0ECB81' }}>SYSTEM_STATUS::ONLINE</span>
+                <div className="mb-4 px-3 py-1.5 rounded bg-nofx-bg-deeper border border-[rgba(26,24,19,0.14)] text-[10px] font-mono text-nofx-text-muted flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
+                    <span style={{ color: '#2E8B57' }}>SYSTEM_STATUS::ONLINE</span>
                     {account ? (
                         <div className="flex gap-4">
                             <span>LAST_UPDATE::{lastUpdate}</span>
@@ -495,12 +495,12 @@ export function TraderDashboardPage({
                             <span>PNL::{account.total_pnl?.toFixed(2)}</span>
                         </div>
                     ) : accountFailed ? (
-                        <span style={{ color: '#F6465D' }}>{t('traderDashboard.accountFetchFailed', language)}</span>
+                        <span style={{ color: '#D6433A' }}>{t('traderDashboard.accountFetchFailed', language)}</span>
                     ) : (
                         <div className="flex gap-4">
-                            <span className="inline-block w-32 h-3 rounded bg-white/5 animate-pulse" />
-                            <span className="inline-block w-16 h-3 rounded bg-white/5 animate-pulse" />
-                            <span className="inline-block w-16 h-3 rounded bg-white/5 animate-pulse" />
+                            <span className="inline-block w-32 h-3 rounded bg-nofx-text/5 animate-pulse" />
+                            <span className="inline-block w-16 h-3 rounded bg-nofx-text/5 animate-pulse" />
+                            <span className="inline-block w-16 h-3 rounded bg-nofx-text/5 animate-pulse" />
                         </div>
                     )}
                 </div>
@@ -588,7 +588,7 @@ export function TraderDashboardPage({
                                     <span className="text-blue-500">◈</span> {t('currentPositions', language)}
                                 </h2>
                                 {positions && positions.length > 0 && (
-                                    <div className="text-xs px-2 py-1 rounded bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 font-mono shadow-[0_0_10px_rgba(240,185,11,0.1)]">
+                                    <div className="text-xs px-2 py-1 rounded bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 font-mono">
                                         {positions.length} {t('active', language)}
                                     </div>
                                 )}
@@ -597,7 +597,7 @@ export function TraderDashboardPage({
                                 <div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
-                                            <thead className="text-left border-b border-white/5">
+                                            <thead className="text-left border-b border-[rgba(26,24,19,0.14)]">
                                                 <tr>
                                                     <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-left">{t('symbol', language)}</th>
                                                     <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-center">{t('side', language)}</th>
@@ -615,7 +615,7 @@ export function TraderDashboardPage({
                                                 {paginatedPositions.map((pos, i) => (
                                                     <tr
                                                         key={i}
-                                                        className="border-b border-white/5 last:border-0 transition-all hover:bg-white/5 cursor-pointer group/row"
+                                                        className="border-b border-[rgba(26,24,19,0.14)] last:border-0 transition-all hover:bg-nofx-text/5 cursor-pointer group/row"
                                                         onClick={() => {
                                                             setSelectedChartSymbol(pos.symbol)
                                                             setChartUpdateKey(Date.now())
@@ -627,12 +627,12 @@ export function TraderDashboardPage({
                                                             }
                                                         }}
                                                     >
-                                                        <td className="px-1 py-3 font-mono font-semibold whitespace-nowrap text-left text-nofx-text-main group-hover/row:text-white transition-colors">
+                                                        <td className="px-1 py-3 font-mono font-semibold whitespace-nowrap text-left text-nofx-text-main group-hover/row:text-nofx-text transition-colors">
                                                             {pos.symbol}
                                                         </td>
                                                         <td className="px-1 py-3 whitespace-nowrap text-center">
                                                             <span
-                                                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${pos.side === 'long' ? 'bg-nofx-green/10 text-nofx-green shadow-[0_0_8px_rgba(14,203,129,0.2)]' : 'bg-nofx-red/10 text-nofx-red shadow-[0_0_8px_rgba(246,70,93,0.2)]'}`}
+                                                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${pos.side === 'long' ? 'bg-nofx-success/10 text-nofx-success' : 'bg-nofx-danger/10 text-nofx-danger'}`}
                                                             >
                                                                 {t(pos.side === 'long' ? 'long' : 'short', language)}
                                                             </span>
@@ -645,7 +645,7 @@ export function TraderDashboardPage({
                                                                     handleClosePosition(pos.symbol, pos.side.toUpperCase())
                                                                 }}
                                                                 disabled={closingPosition === pos.symbol}
-                                                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed mx-auto bg-nofx-red/10 text-nofx-red border border-nofx-red/30 hover:bg-nofx-red/20"
+                                                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed mx-auto bg-nofx-danger/10 text-nofx-danger border border-nofx-danger/30 hover:bg-nofx-danger/20"
                                                                 title={t('traderDashboard.closePosition', language)}
                                                             >
                                                                 {closingPosition === pos.symbol ? (
@@ -663,8 +663,7 @@ export function TraderDashboardPage({
                                                         <td className="px-1 py-3 font-mono whitespace-nowrap text-center text-nofx-gold hidden md:table-cell">{pos.leverage}x</td>
                                                         <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
                                                             <span
-                                                                className={`font-bold ${pos.unrealized_pnl >= 0 ? 'text-nofx-green shadow-nofx-green' : 'text-nofx-red shadow-nofx-red'}`}
-                                                                style={{ textShadow: pos.unrealized_pnl >= 0 ? '0 0 10px rgba(14,203,129,0.3)' : '0 0 10px rgba(246,70,93,0.3)' }}
+                                                                className={`font-bold ${pos.unrealized_pnl >= 0 ? 'text-nofx-success' : 'text-nofx-danger'}`}
                                                             >
                                                                 {pos.unrealized_pnl >= 0 ? '+' : ''}
                                                                 {pos.unrealized_pnl.toFixed(2)}
@@ -678,7 +677,7 @@ export function TraderDashboardPage({
                                     </div>
                                     {/* Pagination footer */}
                                     {totalPositions > 10 && (
-                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 text-xs border-t border-white/5 text-nofx-text-muted">
+                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 text-xs border-t border-[rgba(26,24,19,0.14)] text-nofx-text-muted">
                                             <span>
                                                 {t('traderDashboard.showingPositions', language, { shown: paginatedPositions.length, total: totalPositions })}
                                             </span>
@@ -689,7 +688,7 @@ export function TraderDashboardPage({
                                                         value={positionsPageSize}
                                                         onChange={(val) => setPositionsPageSize(Number(val))}
                                                         options={[{ value: 20, label: '20' }, { value: 50, label: '50' }, { value: 100, label: '100' }]}
-                                                        className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-nofx-text-main transition-colors"
+                                                        className="bg-nofx-bg-deeper border border-[rgba(26,24,19,0.14)] rounded px-2 py-1 text-xs text-nofx-text-main transition-colors"
                                                     />
                                                 </div>
                                                 {totalPositionPages > 1 && (
@@ -715,7 +714,7 @@ export function TraderDashboardPage({
                                                                     key={idx}
                                                                     onClick={onClick}
                                                                     disabled={disabled}
-                                                                    className={`px-2 py-1 rounded transition-colors ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 text-nofx-text-main bg-white/5'}`}
+                                                                    className={`px-2 py-1 rounded transition-colors ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-nofx-text/10 text-nofx-text-main bg-nofx-text/5'}`}
                                                                 >
                                                                     {label}
                                                                 </button>
@@ -748,7 +747,7 @@ export function TraderDashboardPage({
                         style={{ animationDelay: '0.2s' }}
                     >
                         {/* Header */}
-                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5 shrink-0">
+                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-[rgba(26,24,19,0.14)] shrink-0">
                             <div
                                 className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-[0_4px_14px_rgba(99,102,241,0.4)]"
                                 style={{
@@ -772,7 +771,7 @@ export function TraderDashboardPage({
                                 value={decisionsLimit}
                                 onChange={(val) => onDecisionsLimitChange(Number(val))}
                                 options={[{ value: 5, label: '5' }, { value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }, { value: 100, label: '100' }]}
-                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent"
+                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-nofx-bg-deeper text-nofx-text-main border border-[rgba(26,24,19,0.14)] hover:border-nofx-accent"
                             />
                         </div>
 
@@ -846,7 +845,7 @@ function StatCard({
     loading?: boolean
 }) {
     return (
-        <div className="group nofx-glass p-5 rounded-lg transition-all duration-300 hover:bg-white/5 hover:translate-y-[-2px] border border-white/5 hover:border-nofx-gold/20 relative overflow-hidden">
+        <div className="group nofx-glass p-5 rounded-lg transition-all duration-300 hover:bg-nofx-text/5 hover:translate-y-[-2px] border border-[rgba(26,24,19,0.14)] hover:border-nofx-gold/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity text-4xl grayscale group-hover:grayscale-0">
                 {icon}
             </div>
@@ -855,13 +854,13 @@ function StatCard({
             </div>
             {loading ? (
                 <div className="space-y-2">
-                    <div className="h-7 w-24 rounded bg-white/5 animate-pulse" />
-                    <div className="h-3 w-16 rounded bg-white/5 animate-pulse" />
+                    <div className="h-7 w-24 rounded bg-nofx-text/5 animate-pulse" />
+                    <div className="h-3 w-16 rounded bg-nofx-text/5 animate-pulse" />
                 </div>
             ) : (
                 <>
                     <div className="flex items-baseline gap-1 mb-1">
-                        <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors">
+                        <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-nofx-text transition-colors">
                             {value}
                         </div>
                         {unit && <span className="text-xs font-mono text-nofx-text-muted opacity-60">{unit}</span>}

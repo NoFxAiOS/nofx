@@ -57,18 +57,18 @@ const pipeline = [
 
 export function TraderLaunchGuestPage() {
   return (
-    <div className="min-h-[calc(100vh-4rem)] overflow-hidden bg-[#06080B] px-4 py-10 md:px-8">
+    <div className="min-h-[calc(100vh-4rem)] overflow-hidden bg-nofx-bg px-4 py-10 md:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-        <section className="grid gap-8 rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(16,18,25,0.94),rgba(7,10,14,0.92)_52%,rgba(18,15,3,0.78))] p-6 shadow-[0_24px_100px_rgba(0,0,0,0.45)] md:p-8 xl:grid-cols-[1.02fr_0.98fr]">
+        <section className="grid gap-8 rounded-2xl border border-nofx-gold/20 bg-nofx-bg-lighter p-6 md:p-8 xl:grid-cols-[1.02fr_0.98fr]">
           <div className="flex flex-col justify-center">
             <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-nofx-gold/25 bg-nofx-gold/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-nofx-gold">
               <ShieldCheck className="h-3.5 w-3.5" />
               NOFX Autopilot
             </div>
-            <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-white md:text-5xl">
+            <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-nofx-text md:text-5xl">
               One strategy. Four setup steps. Then it trades.
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
+            <p className="mt-5 max-w-2xl text-base leading-7 text-nofx-text-muted">
               NOFX runs a single Claw402-driven strategy: board, per-market
               details, liquidation structure, candles, execution. No strategy
               picker, no manual symbol picking required.
@@ -82,14 +82,14 @@ export function TraderLaunchGuestPage() {
                     `${ROUTES.traders}?setup=claw402`
                   )
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-nofx-gold px-5 py-3 text-sm font-bold text-black transition hover:bg-yellow-400"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-nofx-gold px-5 py-3 text-sm font-bold text-white transition hover:bg-nofx-gold/90"
               >
                 Start setup
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 to={ROUTES.register}
-                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-200 transition hover:border-white/20 hover:bg-white/[0.07]"
+                className="inline-flex items-center justify-center rounded-xl border border-nofx-gold/20 bg-nofx-bg-deeper px-5 py-3 text-sm font-semibold text-nofx-text transition hover:border-nofx-gold/40 hover:bg-nofx-bg-deeper"
               >
                 Create account
               </Link>
@@ -100,24 +100,24 @@ export function TraderLaunchGuestPage() {
             {setupSteps.map((step, index) => {
               const Icon = step.icon
               const cardClass =
-                'group rounded-xl border border-white/10 bg-black/24 p-4 text-left transition hover:border-nofx-gold/35 hover:bg-nofx-gold/[0.04]'
+                'group rounded-xl border border-nofx-gold/20 bg-nofx-bg-deeper p-4 text-left transition hover:border-nofx-gold/35 hover:bg-nofx-gold/[0.06]'
               const content = (
                 <>
                   <div className="mb-4 flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-nofx-gold/20 bg-nofx-gold/10 text-nofx-gold">
                       <Icon className="h-4 w-4" />
                     </div>
-                    <span className="font-mono text-xs text-zinc-600">
+                    <span className="font-mono text-xs text-nofx-text-muted">
                       0{index + 1}
                     </span>
                   </div>
-                  <h2 className="text-base font-semibold text-white">
+                  <h2 className="text-base font-semibold text-nofx-text">
                     {step.title}
                   </h2>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">
+                  <p className="mt-2 text-sm leading-6 text-nofx-text-muted">
                     {step.detail}
                   </p>
-                  <div className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-nofx-gold transition group-hover:text-yellow-300">
+                  <div className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-nofx-gold transition group-hover:text-nofx-gold/80">
                     {step.action}
                     {step.href ? (
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -160,12 +160,12 @@ export function TraderLaunchGuestPage() {
           </div>
         </section>
 
-        <section className="grid gap-5 rounded-2xl border border-white/10 bg-[#0A0D12] p-5 md:grid-cols-[0.78fr_1.22fr] md:p-6">
+        <section className="grid gap-5 rounded-2xl border border-nofx-gold/20 bg-nofx-bg-lighter p-5 md:grid-cols-[0.78fr_1.22fr] md:p-6">
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-nofx-gold">
               No trading wallet yet?
             </div>
-            <p className="mt-3 text-sm leading-6 text-zinc-500">
+            <p className="mt-3 text-sm leading-6 text-nofx-text-muted">
               NOFX does not need your main-wallet private key. Install or unlock
               an EVM wallet, fund Hyperliquid with USDC, then authorize the NOFX
               Agent after sign-in.
@@ -176,11 +176,11 @@ export function TraderLaunchGuestPage() {
               href="https://rabby.io/"
               target="_blank"
               rel="noreferrer"
-              className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-nofx-gold/30 hover:bg-nofx-gold/[0.04]"
+              className="group rounded-xl border border-nofx-gold/20 bg-nofx-bg-deeper p-4 transition hover:border-nofx-gold/30 hover:bg-nofx-gold/[0.06]"
             >
               <Download className="mb-3 h-4 w-4 text-nofx-gold" />
-              <div className="font-semibold text-white">Install Rabby</div>
-              <p className="mt-2 text-sm leading-6 text-zinc-500">
+              <div className="font-semibold text-nofx-text">Install Rabby</div>
+              <p className="mt-2 text-sm leading-6 text-nofx-text-muted">
                 Create or import an EVM wallet before connecting to Hyperliquid.
               </p>
             </a>
@@ -188,11 +188,11 @@ export function TraderLaunchGuestPage() {
               href="https://metamask.io/download/"
               target="_blank"
               rel="noreferrer"
-              className="group rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-nofx-gold/30 hover:bg-nofx-gold/[0.04]"
+              className="group rounded-xl border border-nofx-gold/20 bg-nofx-bg-deeper p-4 transition hover:border-nofx-gold/30 hover:bg-nofx-gold/[0.06]"
             >
               <ExternalLink className="mb-3 h-4 w-4 text-nofx-gold" />
-              <div className="font-semibold text-white">MetaMask</div>
-              <p className="mt-2 text-sm leading-6 text-zinc-500">
+              <div className="font-semibold text-nofx-text">MetaMask</div>
+              <p className="mt-2 text-sm leading-6 text-nofx-text-muted">
                 Already use MetaMask? Unlock it, then continue setup inside
                 NOFX.
               </p>
@@ -204,8 +204,8 @@ export function TraderLaunchGuestPage() {
               className="group rounded-xl border border-nofx-gold/20 bg-nofx-gold/10 p-4 transition hover:bg-nofx-gold/15"
             >
               <ExternalLink className="mb-3 h-4 w-4 text-nofx-gold" />
-              <div className="font-semibold text-white">Open Hyperliquid</div>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">
+              <div className="font-semibold text-nofx-text">Open Hyperliquid</div>
+              <p className="mt-2 text-sm leading-6 text-nofx-text-muted">
                 Deposit USDC there. Trading funds stay in your Hyperliquid
                 account.
               </p>
@@ -213,12 +213,12 @@ export function TraderLaunchGuestPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 rounded-2xl border border-white/10 bg-[#0A0D12] p-5 md:grid-cols-[0.72fr_1.28fr] md:p-6">
+        <section className="grid gap-4 rounded-2xl border border-nofx-gold/20 bg-nofx-bg-lighter p-5 md:grid-cols-[0.72fr_1.28fr] md:p-6">
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-nofx-gold">
               What runs after launch
             </div>
-            <p className="mt-3 text-sm leading-6 text-zinc-500">
+            <p className="mt-3 text-sm leading-6 text-nofx-text-muted">
               The same production path runs every cycle. The interface only asks
               you to fund, authorize, and start.
             </p>
@@ -227,10 +227,10 @@ export function TraderLaunchGuestPage() {
             {pipeline.map((item) => (
               <div
                 key={item}
-                className="flex gap-3 rounded-xl border border-white/8 bg-white/[0.03] p-4"
+                className="flex gap-3 rounded-xl border border-nofx-gold/20 bg-nofx-bg-deeper p-4"
               >
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                <p className="text-sm leading-6 text-zinc-300">{item}</p>
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-nofx-success" />
+                <p className="text-sm leading-6 text-nofx-text">{item}</p>
               </div>
             ))}
           </div>

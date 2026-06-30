@@ -12,7 +12,7 @@ type QuantData struct {
 	Symbol      string             `json:"symbol"`
 	Price       float64            `json:"price"`
 	Netflow     *NetflowData       `json:"netflow,omitempty"`
-	OI          map[string]*OIData `json:"oi,omitempty"` // keyed by exchange: "binance", "bybit"
+	OI          map[string]*OIData `json:"oi,omitempty"`           // keyed by exchange: "binance", "bybit"
 	PriceChange map[string]float64 `json:"price_change,omitempty"` // keyed by duration: "1h", "4h", etc.
 }
 
@@ -118,11 +118,11 @@ func FormatQuantDataForAI(symbol string, data *QuantData, lang Language) string 
 func formatQuantDataZH(symbol string, data *QuantData) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("### %s 量化数据\n", symbol))
-	sb.WriteString(fmt.Sprintf("价格: $%.4f\n\n", data.Price))
+	sb.WriteString(fmt.Sprintf("### %s Quant Data\n", symbol))
+	sb.WriteString(fmt.Sprintf("Price: $%.4f\n\n", data.Price))
 
 	if len(data.PriceChange) > 0 {
-		sb.WriteString("**价格变化**:\n")
+		sb.WriteString("**Price Change**:\n")
 		durations := []string{"1h", "4h", "8h", "12h", "24h"}
 		for _, d := range durations {
 			if change, ok := data.PriceChange[d]; ok {
@@ -135,14 +135,14 @@ func formatQuantDataZH(symbol string, data *QuantData) string {
 	if len(data.OI) > 0 {
 		for exchange, oiData := range data.OI {
 			if oiData != nil {
-				sb.WriteString(fmt.Sprintf("**%s持仓**:\n", strings.ToUpper(exchange)))
+				sb.WriteString(fmt.Sprintf("**%s Open Interest**:\n", strings.ToUpper(exchange)))
 				sb.WriteString(fmt.Sprintf("- OI: %.2f\n", oiData.CurrentOI))
 				if oiData.NetLong > 0 || oiData.NetShort > 0 {
-					sb.WriteString(fmt.Sprintf("- 多头: %.2f, 空头: %.2f\n", oiData.NetLong, oiData.NetShort))
+					sb.WriteString(fmt.Sprintf("- Long: %.2f, Short: %.2f\n", oiData.NetLong, oiData.NetShort))
 				}
 				if oiData.Delta != nil {
 					if delta, ok := oiData.Delta["1h"]; ok && delta != nil {
-						sb.WriteString(fmt.Sprintf("- 1h变化: %s (%.2f%%)\n",
+						sb.WriteString(fmt.Sprintf("- 1h Change: %s (%.2f%%)\n",
 							formatValue(delta.OIDeltaValue), delta.OIDeltaPercent))
 					}
 				}
@@ -152,7 +152,7 @@ func formatQuantDataZH(symbol string, data *QuantData) string {
 	}
 
 	if data.Netflow != nil && data.Netflow.Institution != nil && data.Netflow.Institution.Future != nil {
-		sb.WriteString("**机构资金流**:\n")
+		sb.WriteString("**Institution Net Flow**:\n")
 		durations := []string{"1h", "4h", "24h"}
 		for _, d := range durations {
 			if flow, ok := data.Netflow.Institution.Future[d]; ok {

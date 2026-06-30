@@ -5,30 +5,30 @@ export interface Strategy {
   description: string;
   is_active: boolean;
   is_default: boolean;
-  is_public: boolean;           // 是否在策略市场公开
-  config_visible: boolean;      // 配置参数是否公开可见
+  is_public: boolean;           // Whether published in the strategy marketplace
+  config_visible: boolean;      // Whether the config parameters are publicly visible
   config: StrategyConfig;
   created_at: string;
   updated_at: string;
 }
 
-// 策略使用统计
+// Strategy usage statistics
 export interface StrategyStats {
-  clone_count: number;          // 被克隆次数
-  active_users: number;         // 当前使用人数
-  top_performers?: StrategyPerformer[];  // 收益排行
+  clone_count: number;          // Number of times cloned
+  active_users: number;         // Current number of users
+  top_performers?: StrategyPerformer[];  // Performance ranking
 }
 
-// 策略使用者收益排行
+// Strategy user performance ranking
 export interface StrategyPerformer {
   user_id: string;
-  user_name: string;            // 脱敏后的用户名
-  total_pnl_pct: number;        // 总收益率
-  total_pnl: number;            // 总收益金额
-  win_rate: number;             // 胜率
-  trade_count: number;          // 交易次数
-  using_since: string;          // 使用开始时间
-  rank: number;                 // 排名
+  user_name: string;            // Masked user name
+  total_pnl_pct: number;        // Total return percentage
+  total_pnl: number;            // Total PnL amount
+  win_rate: number;             // Win rate
+  trade_count: number;          // Number of trades
+  using_since: string;          // Start time of usage
+  rank: number;                 // Rank
 }
 
 export interface PromptSectionsConfig {
@@ -107,7 +107,7 @@ export interface GridStrategyConfig {
 export interface CoinSourceConfig {
   source_type: 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'hyper_all' | 'hyper_main' | 'hyper_rank' | 'vergex_signal';
   static_coins?: string[];
-  excluded_coins?: string[];   // 排除的币种列表
+  excluded_coins?: string[];   // List of excluded coins
   use_ai500: boolean;
   ai500_limit?: number;
   use_oi_top: boolean;
@@ -146,26 +146,26 @@ export interface IndicatorConfig {
   boll_periods?: number[];
   external_data_sources?: ExternalDataSource[];
 
-  // ========== NofxOS 数据源统一配置 ==========
+  // ========== Unified NofxOS data source configuration ==========
   // Unified NofxOS API Key - used for all NofxOS data sources
   nofxos_api_key?: string;
 
-  // 量化数据源（资金流向、持仓变化、价格变化）
+  // Quant data sources (fund flow, open interest changes, price changes)
   enable_quant_data?: boolean;
   enable_quant_oi?: boolean;
   enable_quant_netflow?: boolean;
 
-  // OI 排行数据（市场持仓量增减排行）
+  // OI ranking data (market open interest increase/decrease ranking)
   enable_oi_ranking?: boolean;
   oi_ranking_duration?: string;  // "1h", "4h", "24h"
   oi_ranking_limit?: number;
 
-  // NetFlow 排行数据（机构/散户资金流向排行）
+  // NetFlow ranking data (institutional/retail fund flow ranking)
   enable_netflow_ranking?: boolean;
   netflow_ranking_duration?: string;  // "1h", "4h", "24h"
   netflow_ranking_limit?: number;
 
-  // Price 排行数据（涨跌幅排行）
+  // Price ranking data (gainers/losers ranking)
   enable_price_ranking?: boolean;
   price_ranking_duration?: string;  // "1h", "4h", "24h" or "1h,4h,24h"
   price_ranking_limit?: number;
@@ -177,7 +177,7 @@ export interface KlineConfig {
   longer_timeframe?: string;
   longer_count?: number;
   enable_multi_timeframe: boolean;
-  // 新增：支持选择多个时间周期
+  // Added: support selecting multiple timeframes
   selected_timeframes?: string[];
 }
 

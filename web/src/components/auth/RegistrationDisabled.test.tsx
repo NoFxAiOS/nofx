@@ -89,15 +89,15 @@ describe('RegistrationDisabled Component', () => {
     it('should have correct background color', () => {
       const { container } = renderComponent()
       const mainDiv = container.firstChild as HTMLElement
-      // Browser converts hex to rgb
-      expect(mainDiv.style.background).toMatch(/rgb\(11,\s*14,\s*17\)|#0B0E11/i)
+      // Browser converts hex to rgb (cream paper theme)
+      expect(mainDiv.style.background).toMatch(/rgb\(241,\s*236,\s*226\)|#F1ECE2/i)
     })
 
     it('should have correct text color', () => {
       const { container } = renderComponent()
       const mainDiv = container.firstChild as HTMLElement
-      // Browser converts hex to rgb
-      expect(mainDiv.style.color).toMatch(/rgb\(234,\s*236,\s*239\)|#EAECEF/i)
+      // Browser converts hex to rgb (ink text)
+      expect(mainDiv.style.color).toMatch(/rgb\(26,\s*24,\s*19\)|#1A1813/i)
     })
 
     it('should have centered layout', () => {

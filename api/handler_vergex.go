@@ -73,6 +73,28 @@ func (s *Server) handleVergexCostLiquidationHeatmap(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }
 
+// handleVergexFlowMarkets proxies the Vergex net-flow market ranking (paid x402
+// endpoint) using the caller's claw402 wallet. The upstream JSON is passed
+// through verbatim: { data: { window, by, inflow: [{ symbol, netFlow,
+// buyNotional, sellNotional, trades, latestPrice }, ...] } }.
+func (s *Server) handleVergexFlowMarkets(c *gin.Context) {
+	client, ok := s.newVergexClientForRequest(c)
+	if !ok {
+		return
+	}
+	chain := withDefault(strings.TrimSpace(c.Query("chain")), "mainnet")
+	window := withDefault(strings.TrimSpace(c.Query("window")), "1h")
+	limit := parsePositiveInt(c.Query("limit"), 25)
+
+	body, err := client.GetFlowMarkets(context.Background(), chain, window, limit)
+	if err != nil {
+		logger.Warnf("Vergex flow-markets failed: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+}
+
 func (s *Server) newVergexClientForRequest(c *gin.Context) (*vergex.Client, bool) {
 	userID := c.GetString("user_id")
 	if userID == "" {

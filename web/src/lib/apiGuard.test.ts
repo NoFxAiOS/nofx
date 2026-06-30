@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest'
 
 /**
- * PR #669 測試: 防止 null token 導致未授權的 API 調用
+ * PR #669 test: prevent a null token from causing unauthorized API calls
  *
- * 問題：當用戶未登入時（user/token 為 null），SWR 仍然會使用空 key 發起 API 請求
- * 修復：在 SWR key 中添加 `user && token` 檢查，當未登入時返回 null，阻止 API 調用
+ * Problem: when the user is not signed in (user/token is null), SWR still fires an API request using an empty key
+ * Fix: add a `user && token` check in the SWR key; return null when not signed in to block the API call
  */
 
 describe('API Guard Logic (PR #669)', () => {
   /**
-   * 測試 SWR key 生成邏輯
-   * 核心修復：key 必須包含 user && token 檢查
+   * Test SWR key generation logic
+   * Core fix: the key must include a user && token check
    */
   describe('SWR key generation', () => {
     it('should return null when user is null', () => {
@@ -99,8 +99,8 @@ describe('API Guard Logic (PR #669)', () => {
   })
 
   /**
-   * 測試不同 API 端點的條件邏輯
-   * 所有需要認證的端點都應該檢查 user && token
+   * Test the conditional logic across different API endpoints
+   * Every endpoint that requires authentication should check user && token
    */
   describe('multiple API endpoints', () => {
     it('should guard status API', () => {
@@ -199,8 +199,8 @@ describe('API Guard Logic (PR #669)', () => {
   })
 
   /**
-   * 測試 EquityChart 組件的條件邏輯
-   * PR #669 同時修復了 EquityChart 中的相同問題
+   * Test the conditional logic of the EquityChart component
+   * PR #669 also fixed the same issue in EquityChart
    */
   describe('EquityChart API guard', () => {
     it('should return null key when user is not authenticated', () => {
@@ -241,7 +241,7 @@ describe('API Guard Logic (PR #669)', () => {
   })
 
   /**
-   * 測試邊界情況和特殊值
+   * Test edge cases and special values
    */
   describe('edge cases', () => {
     it('should treat empty string token as falsy', () => {
@@ -303,7 +303,7 @@ describe('API Guard Logic (PR #669)', () => {
     it('should handle numeric traderId', () => {
       const user = { id: '1', email: 'test@example.com' }
       const token = 'valid-token'
-      const traderId = 123 // 數字而非字串
+      const traderId = 123 // number rather than string
       const currentPage = 'trader'
 
       const key =
@@ -330,7 +330,7 @@ describe('API Guard Logic (PR #669)', () => {
   })
 
   /**
-   * 測試防止 API 調用的邏輯流程
+   * Test the logic flow that prevents API calls
    */
   describe('API call prevention flow', () => {
     it('should prevent API call when key is null', () => {
@@ -348,11 +348,11 @@ describe('API Guard Logic (PR #669)', () => {
     })
 
     it('should simulate SWR behavior with null key', () => {
-      // SWR 不會在 key 為 null 時發起請求
+      // SWR will not fire a request when the key is null
       const key = null
       const fetcher = (k: string) => `API response for ${k}`
 
-      // 模擬 SWR 行為：key 為 null 時不調用 fetcher
+      // Simulate SWR behavior: do not call the fetcher when the key is null
       const data = key ? fetcher(key) : undefined
 
       expect(data).toBeUndefined()

@@ -63,7 +63,7 @@ var xyzDexAssets = map[string]bool{
 // Users approve this builder during the top-right Hyperliquid connect flow before
 // their generated agent wallet is saved for live trading.
 //
-// Fee is in tenths of a basis point: 50 = 5 bps = 0.05% (万5). Existing
+// Fee is in tenths of a basis point: 50 = 5 bps = 0.05% (5 per 10,000). Existing
 // approvals at the prior 0.1% cap remain valid on-chain because 0.05% is
 // still within their approved max.
 var defaultBuilder = &hyperliquid.BuilderInfo{

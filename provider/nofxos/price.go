@@ -12,7 +12,7 @@ import (
 type PriceRankingItem struct {
 	Pair         string  `json:"pair"`
 	Symbol       string  `json:"symbol"`
-	PriceDelta   float64 `json:"price_delta"`    // Decimal format: 0.0723 = 7.23%
+	PriceDelta   float64 `json:"price_delta"` // Decimal format: 0.0723 = 7.23%
 	Price        float64 `json:"price"`
 	FutureFlow   float64 `json:"future_flow"`
 	SpotFlow     float64 `json:"spot_flow"`
@@ -98,7 +98,7 @@ func FormatPriceRankingForAI(data *PriceRankingData, lang Language) string {
 func formatPriceRankingZH(data *PriceRankingData) string {
 	var sb strings.Builder
 
-	sb.WriteString("## 涨跌幅排行\n\n")
+	sb.WriteString("## Price Change Ranking\n\n")
 
 	durationOrder := []string{"1h", "4h", "24h"}
 	for _, duration := range durationOrder {
@@ -107,11 +107,11 @@ func formatPriceRankingZH(data *PriceRankingData) string {
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("### %s 涨跌幅\n\n", duration))
+		sb.WriteString(fmt.Sprintf("### %s Price Change\n\n", duration))
 
 		if len(durationData.Top) > 0 {
-			sb.WriteString("**涨幅榜**\n")
-			sb.WriteString("| 币种 | 涨幅 | 价格 | 资金流 | OI变化 |\n")
+			sb.WriteString("**Gainers**\n")
+			sb.WriteString("| Symbol | Gain | Price | Net Flow | OI Change |\n")
 			sb.WriteString("|------|------|------|--------|--------|\n")
 			for _, item := range durationData.Top {
 				sb.WriteString(fmt.Sprintf("| %s | %+.2f%% | $%.4f | %s | %s |\n",
@@ -122,8 +122,8 @@ func formatPriceRankingZH(data *PriceRankingData) string {
 		}
 
 		if len(durationData.Low) > 0 {
-			sb.WriteString("**跌幅榜**\n")
-			sb.WriteString("| 币种 | 跌幅 | 价格 | 资金流 | OI变化 |\n")
+			sb.WriteString("**Losers**\n")
+			sb.WriteString("| Symbol | Loss | Price | Net Flow | OI Change |\n")
 			sb.WriteString("|------|------|------|--------|--------|\n")
 			for _, item := range durationData.Low {
 				sb.WriteString(fmt.Sprintf("| %s | %.2f%% | $%.4f | %s | %s |\n",
@@ -134,7 +134,7 @@ func formatPriceRankingZH(data *PriceRankingData) string {
 		}
 	}
 
-	sb.WriteString("**解读**: 涨幅大+资金流入+OI增加=强势上涨 | 跌幅大+资金流出+OI减少=弱势下跌\n\n")
+	sb.WriteString("**Interpretation**: Large gain + capital inflow + OI increase = strong uptrend | Large loss + capital outflow + OI decrease = weak downtrend\n\n")
 	return sb.String()
 }
 

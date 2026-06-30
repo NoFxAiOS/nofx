@@ -16,7 +16,7 @@ import (
 
 const (
 	defaultHyperliquidBuilderAddress = "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d"
-	// 0.05% (万5) — matches BuilderInfo.Fee=50 charged at order placement.
+	// 0.05% (5 bps) — matches BuilderInfo.Fee=50 charged at order placement.
 	// New wallet approvals sign this exact value; existing approvals at the
 	// prior 0.1% cap remain valid because 0.05% is within their approved max.
 	defaultHyperliquidBuilderMaxFee = "0.05%"

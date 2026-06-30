@@ -99,9 +99,13 @@ export const traderApi = {
     if (!result.success) throw new Error('Failed to update custom prompt')
   },
 
-  async getTraderConfig(traderId: string): Promise<TraderConfigData> {
-    const result = await httpClient.get<TraderConfigData>(
-      `${API_BASE}/traders/${traderId}/config`
+  async getTraderConfig(
+    traderId: string,
+    silent?: boolean
+  ): Promise<TraderConfigData> {
+    const result = await httpClient.request<TraderConfigData>(
+      `${API_BASE}/traders/${traderId}/config`,
+      { silent }
     )
     if (!result.success) throw new Error('Failed to fetch trader config')
     return result.data!

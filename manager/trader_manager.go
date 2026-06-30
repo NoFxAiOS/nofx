@@ -658,7 +658,16 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 			return fmt.Errorf("failed to parse strategy config for trader %s: %w", traderCfg.Name, err)
 		}
 		strategyConfig.ClampLimits()
-		logger.Infof("✓ Trader %s loaded strategy config: %s", traderCfg.Name, strategy.Name)
+		// Autopilot (vergex_signal/claw402) runs a balanced multi-position book:
+		// hold several instruments with a smaller per-position notional so multiple
+		// long/short positions fit the margin. Applied after ClampLimits so it is
+		// not capped back to the conservative single-position default.
+		if strategyConfig.CoinSource.SourceType == "vergex_signal" {
+			strategyConfig.RiskControl.MaxPositions = 6
+			strategyConfig.RiskControl.BTCETHMaxPositionValueRatio = 1.2
+			strategyConfig.RiskControl.AltcoinMaxPositionValueRatio = 1.2
+		}
+		logger.Infof("✓ Trader %s loaded strategy config: %s (maxPos=%d, posRatio=%.1f)", traderCfg.Name, strategy.Name, strategyConfig.RiskControl.MaxPositions, strategyConfig.RiskControl.AltcoinMaxPositionValueRatio)
 		ensureHyperliquidNativeStrategy(traderCfg.Name, exchangeCfg.ExchangeType, strategyConfig)
 	} else {
 		return fmt.Errorf("trader %s has no strategy configured", traderCfg.Name)

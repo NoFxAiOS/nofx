@@ -1,25 +1,26 @@
 /**
- * 文本工具
+ * Text utilities
  *
- * stripLeadingIcons: 去掉翻译文案或标题前面用于装饰的 Emoji/符号，
- * 以便在组件里自行放置图标时不重复显示。
+ * stripLeadingIcons: removes decorative emoji/symbols at the start of a
+ * translated string or title, so components can place their own icon without
+ * showing a duplicate.
  */
 
 /**
- * 去掉开头的装饰性 Emoji/符号以及随后的分隔符（空格/冒号/点号等）。
+ * Strip leading decorative emoji/symbols and any following separators (spaces/colons/dots, etc.).
  */
 export function stripLeadingIcons(input: string | undefined | null): string {
   if (!input) return ''
   let s = String(input)
 
-  // 1) 去除常见的 Emoji/符号块（箭头、杂项符号、几何图形、表情等）
-  //    覆盖常见范围，兼容性好于使用 Unicode 属性类。
+  // 1) Strip common emoji/symbol blocks (arrows, misc symbols, geometric shapes, emoticons, etc.)
+  //    Covers the common ranges; more compatible than using Unicode property classes.
   s = s.replace(
     /^[\s\u2190-\u21FF\u2300-\u23FF\u2460-\u24FF\u25A0-\u25FF\u2600-\u27BF\u2B00-\u2BFF\u1F000-\u1FAFF]+/u,
     ''
   )
 
-  // 2) 去掉开头可能残留的分隔符（空格、连字符、冒号、居中点等）
+  // 2) Strip any leading separators that may remain (spaces, hyphens, colons, middle dots, etc.)
   s = s.replace(/^[\s\-:•·]+/, '')
 
   return s.trim()

@@ -1,0 +1,139 @@
+/*
+ * NOFX orchestration terminal theme — cream paper + vermilion accent.
+ * Scoped under .nofx-terminal so it can be built and previewed without
+ * disturbing the global Neo-Gold theme. The global flip (task #6) promotes
+ * these tokens to :root once the look is approved.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap');
+
+.nofx-terminal {
+  /* surfaces */
+  --tm-paper: #f1ece2;
+  --tm-panel: #f7f4ec;
+  --tm-ink: #1a1813;
+  --tm-ink-2: #3a372e;
+  --tm-muted: #8a8478;
+  --tm-hair: #d8d2c4;
+  --tm-rule: #1a1813;
+  --tm-head: #16140f;
+
+  /* brand + semantic */
+  --tm-red: #e0483b;
+  --tm-red-soft: #f6d9d2;
+  --tm-up: #2e8b57;
+  --tm-dn: #d6433a;
+
+  --tm-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --tm-px: 'Silkscreen', 'IBM Plex Mono', monospace;
+
+  background: var(--tm-paper);
+  color: var(--tm-ink);
+  font-family: var(--tm-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.nofx-terminal,
+.nofx-terminal * {
+  box-sizing: border-box;
+}
+
+/* pixel display numbers (hero P/L, big counters) */
+.tm-px {
+  font-family: var(--tm-px);
+  letter-spacing: 0.02em;
+}
+
+/* small-caps label, the workhorse meta text */
+.tm-sc {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--tm-muted);
+}
+
+.tm-mono {
+  font-family: var(--tm-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* order-book per-row flash — each row is keyed by PRICE and the flash overlay
+   is keyed by SIZE, so only the levels whose size actually changed flash, and
+   they flash independently (green = size grew / red = size shrank). */
+@keyframes ob-up {
+  0% {
+    background: rgba(46, 139, 87, 0.34);
+  }
+  100% {
+    background: transparent;
+  }
+}
+@keyframes ob-dn {
+  0% {
+    background: rgba(214, 67, 58, 0.34);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.ob-up {
+  animation: ob-up 0.45s ease-out;
+}
+.ob-dn {
+  animation: ob-dn 0.45s ease-out;
+}
+
+.tm-red {
+  color: var(--tm-red);
+}
+.tm-up {
+  color: var(--tm-up);
+}
+.tm-dn {
+  color: var(--tm-dn);
+}
+
+.tm-rule {
+  height: 1px;
+  background: var(--tm-rule);
+}
+.tm-hair {
+  height: 1px;
+  background: var(--tm-hair);
+}
+
+/* bordered cell — the basic terminal box */
+.tm-box {
+  border: 1px solid var(--tm-ink);
+}
+
+/* radar ping + beam motion for the topology */
+@keyframes tm-ping {
+  0% {
+    r: 30;
+    opacity: 0.6;
+  }
+  100% {
+    r: 52;
+    opacity: 0;
+  }
+}
+
+@keyframes tm-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.tm-blink {
+  animation: tm-pulse 1.6s ease-in-out infinite;
+}
+
+@media (max-width: 768px) {
+  .nofx-terminal {
+    font-size: 13px;
+  }
+}

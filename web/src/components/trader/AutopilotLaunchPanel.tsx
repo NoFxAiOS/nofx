@@ -100,10 +100,10 @@ function BeginnerHyperliquidGuide({
   ]
 
   return (
-    <div className="rounded-xl border border-nofx-gold/20 bg-[linear-gradient(180deg,rgba(240,185,11,0.1),rgba(0,0,0,0.16))] p-4">
+    <div className="rounded-xl border border-nofx-gold/20 bg-nofx-bg-lighter p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-sm font-semibold text-white">
+          <div className="text-sm font-semibold text-nofx-text">
             New to Hyperliquid?
           </div>
           <p className="mt-1 text-xs leading-5 text-nofx-text-muted">
@@ -114,7 +114,7 @@ function BeginnerHyperliquidGuide({
         <div
           className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${
             hasInjectedWallet
-              ? 'bg-emerald-500/10 text-emerald-300'
+              ? 'bg-nofx-success/10 text-nofx-success'
               : 'bg-nofx-gold/10 text-nofx-gold'
           }`}
         >
@@ -127,11 +127,11 @@ function BeginnerHyperliquidGuide({
           const Icon = step.icon
           return (
             <div key={step.title} className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-nofx-gold">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-nofx-gold/20 bg-nofx-bg-deeper text-nofx-gold">
                 <Icon className="h-3.5 w-3.5" />
               </div>
               <div>
-                <div className="text-sm font-semibold text-zinc-100">
+                <div className="text-sm font-semibold text-nofx-text">
                   {index + 1}. {step.title}
                 </div>
                 <p className="mt-0.5 text-xs leading-5 text-nofx-text-muted">
@@ -150,7 +150,7 @@ function BeginnerHyperliquidGuide({
               href="https://rabby.io/"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-200 hover:border-white/20 hover:bg-white/[0.07]"
+              className="inline-flex items-center gap-2 rounded-lg border border-nofx-gold/20 bg-nofx-bg-deeper px-3 py-2 text-xs font-semibold text-nofx-text hover:border-nofx-gold/40 hover:bg-nofx-bg"
             >
               <Download className="h-3.5 w-3.5" />
               Install Rabby
@@ -159,7 +159,7 @@ function BeginnerHyperliquidGuide({
               href="https://metamask.io/download/"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-200 hover:border-white/20 hover:bg-white/[0.07]"
+              className="inline-flex items-center gap-2 rounded-lg border border-nofx-gold/20 bg-nofx-bg-deeper px-3 py-2 text-xs font-semibold text-nofx-text hover:border-nofx-gold/40 hover:bg-nofx-bg"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               MetaMask
@@ -170,7 +170,7 @@ function BeginnerHyperliquidGuide({
           href="https://app.hyperliquid.xyz/"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-nofx-gold px-3 py-2 text-xs font-bold text-black hover:bg-yellow-400"
+          className="inline-flex items-center gap-2 rounded-lg bg-nofx-gold px-3 py-2 text-xs font-bold text-white hover:bg-nofx-accent"
         >
           Open Hyperliquid
           <ExternalLink className="h-3.5 w-3.5" />
@@ -331,7 +331,23 @@ export function AutopilotLaunchPanel({
     if (!claw402Model || !hyperliquidExchange) return
     setLaunching(true)
     try {
+      // Re-fetch the live trader list before deciding. The `traders` prop can be
+      // stale (open tab serving an old snapshot), which would make us create a
+      // duplicate "NOFX Autopilot" — paying the ~35s first-create cost again and
+      // orphaning the dashboard onto a deleted id (the "API Not Found" 404). Match
+      // the same way the autopilotTrader memo does, falling back to it on failure.
       let trader = autopilotTrader
+      try {
+        const fresh = await api.getTraders(true)
+        trader =
+          fresh.find((t) => t.trader_name === 'NOFX Autopilot') ||
+          fresh.find((t) =>
+            (t.strategy_name || '').toLowerCase().includes('claw402')
+          ) ||
+          trader
+      } catch {
+        // network hiccup — keep the prop-derived trader rather than risk a dup
+      }
       if (!trader) {
         const strategyId = await ensureClaw402Strategy()
         trader = await api.createTrader({
@@ -339,7 +355,7 @@ export function AutopilotLaunchPanel({
           ai_model_id: claw402Model.id,
           exchange_id: hyperliquidExchange.id,
           strategy_id: strategyId,
-          scan_interval_minutes: 15,
+          scan_interval_minutes: 5,
           is_cross_margin: true,
           show_in_competition: true,
           btc_eth_leverage: 10,
@@ -379,7 +395,7 @@ export function AutopilotLaunchPanel({
           <button
             type="button"
             onClick={() => onOpenClaw402Config?.()}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-nofx-accent"
           >
             <CircleDollarSign className="h-3.5 w-3.5" />
             Deposit
@@ -387,7 +403,7 @@ export function AutopilotLaunchPanel({
           <button
             type="button"
             onClick={() => void copyText(feeWalletAddress, 'AI fee wallet')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-nofx-accent"
           >
             <Copy className="h-3.5 w-3.5" />
             Copy
@@ -397,7 +413,7 @@ export function AutopilotLaunchPanel({
         <button
           type="button"
           onClick={() => onOpenClaw402Config?.()}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-nofx-accent"
         >
           <ArrowRight className="h-3.5 w-3.5" />
           Open
@@ -416,7 +432,7 @@ export function AutopilotLaunchPanel({
         <button
           type="button"
           onClick={() => onOpenHyperliquidConfig?.()}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-yellow-300"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-nofx-accent"
         >
           <Wallet className="h-3.5 w-3.5" />
           Open
@@ -461,7 +477,7 @@ export function AutopilotLaunchPanel({
               navigate(ROUTES.welcome)
             }
           }}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-black hover:bg-yellow-400"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-white hover:bg-nofx-accent"
         >
           Open Claw402 wallet
           <ArrowRight className="h-4 w-4" />
@@ -482,7 +498,7 @@ export function AutopilotLaunchPanel({
                 ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }
           }}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-black hover:bg-yellow-400"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-white hover:bg-nofx-accent"
         >
           Connect Hyperliquid
           <ArrowRight className="h-4 w-4" />
@@ -496,7 +512,7 @@ export function AutopilotLaunchPanel({
           href="https://app.hyperliquid.xyz/"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-black hover:bg-yellow-400"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-white hover:bg-nofx-accent"
         >
           Deposit USDC on Hyperliquid
           <ExternalLink className="h-4 w-4" />
@@ -511,7 +527,7 @@ export function AutopilotLaunchPanel({
           onClick={() =>
             navigate(buildDashboardPath(autopilotTrader.trader_id))
           }
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 py-3 text-sm font-bold text-black hover:bg-emerald-300"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-success px-4 py-3 text-sm font-bold text-white hover:bg-nofx-success/80"
         >
           Open dashboard
           <ArrowRight className="h-4 w-4" />
@@ -524,7 +540,7 @@ export function AutopilotLaunchPanel({
         type="button"
         onClick={launchAutopilot}
         disabled={launching || !allReady}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-black hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-white hover:bg-nofx-accent disabled:cursor-not-allowed disabled:opacity-60"
       >
         {launching ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -537,7 +553,7 @@ export function AutopilotLaunchPanel({
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-nofx-gold/20 bg-[linear-gradient(135deg,rgba(20,17,7,0.92),rgba(8,11,16,0.9)_42%,rgba(7,14,18,0.88))] shadow-[0_20px_80px_rgba(0,0,0,0.28)]">
+    <section className="overflow-hidden rounded-xl border border-nofx-gold/20 bg-nofx-bg-lighter">
       <div className="grid gap-0 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="p-5 md:p-6">
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -546,7 +562,7 @@ export function AutopilotLaunchPanel({
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Guided Launch
               </div>
-              <h2 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+              <h2 className="text-2xl font-bold tracking-tight text-nofx-text md:text-3xl">
                 Start NOFX Autopilot in minutes
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-nofx-text-muted">
@@ -559,7 +575,7 @@ export function AutopilotLaunchPanel({
                 type="button"
                 onClick={() => void refreshEverything()}
                 disabled={refreshing || walletLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-nofx-text-muted hover:text-white disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-nofx-gold/20 bg-nofx-bg-deeper px-3 py-2 text-xs font-semibold text-nofx-text-muted hover:text-nofx-text disabled:opacity-60"
               >
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${refreshing || walletLoading ? 'animate-spin' : ''}`}
@@ -574,16 +590,16 @@ export function AutopilotLaunchPanel({
             {steps.map((step, index) => (
               <div
                 key={step.title}
-                className="rounded-lg border border-white/10 bg-black/20 p-4"
+                className="rounded-lg border border-nofx-gold/20 bg-nofx-bg p-4"
               >
                 <div className="flex items-start gap-3">
                   <div
                     className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${
                       step.status === 'ready'
-                        ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
+                        ? 'border-nofx-success/30 bg-nofx-success/15 text-nofx-success'
                         : step.status === 'action'
                           ? 'border-nofx-gold/30 bg-nofx-gold/15 text-nofx-gold'
-                          : 'border-white/10 bg-white/[0.04] text-nofx-text-muted'
+                          : 'border-nofx-gold/20 bg-nofx-bg-deeper text-nofx-text-muted'
                     }`}
                   >
                     {step.status === 'ready' ? (
@@ -596,7 +612,7 @@ export function AutopilotLaunchPanel({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="font-semibold text-white">{step.title}</h3>
+                      <h3 className="font-semibold text-nofx-text">{step.title}</h3>
                       {step.action}
                     </div>
                     <p className="mt-1 text-xs leading-5 text-nofx-text-muted">
@@ -612,21 +628,21 @@ export function AutopilotLaunchPanel({
           </div>
         </div>
 
-        <aside className="border-t border-white/10 bg-black/20 p-5 md:p-6 xl:border-l xl:border-t-0">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
+        <aside className="border-t border-nofx-gold/20 bg-nofx-bg p-5 md:p-6 xl:border-l xl:border-t-0">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-nofx-text">
             <Wallet className="h-4 w-4 text-nofx-gold" />
             Hyperliquid setup
           </div>
           {hyperliquidConnected ? (
-            <div className="rounded-lg border border-emerald-400/25 bg-emerald-500/10 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-200">
+            <div className="rounded-lg border border-nofx-success/25 bg-nofx-success/10 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-nofx-success">
                 <CheckCircle2 className="h-4 w-4" />
                 Trading authorization is ready
               </div>
-              <div className="mt-2 font-mono text-xs text-emerald-100/80">
+              <div className="mt-2 font-mono text-xs text-nofx-success/90">
                 {shortAddress(hyperliquidExchange?.hyperliquidWalletAddr)}
               </div>
-              <p className="mt-3 text-xs leading-5 text-emerald-100/70">
+              <p className="mt-3 text-xs leading-5 text-nofx-text-muted">
                 Funds stay in your Hyperliquid account. NOFX only stores the
                 authorized Agent key required for automated execution.
               </p>

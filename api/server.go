@@ -214,6 +214,7 @@ func (s *Server) setupRoutes() {
 			s.route(protected, "GET", "/vergex/signal-ranking", "Vergex signal ranking via claw402 (?marketType=all&limit=30)", s.handleVergexSignalRanking)
 			s.route(protected, "GET", "/vergex/signal-lab", "Vergex signal lab via claw402 (?marketType=hip3_perp&symbol=AAPL)", s.handleVergexSignalLab)
 			s.route(protected, "GET", "/vergex/cost-liquidation-heatmap", "Vergex cost/liquidation heatmap via claw402 (?marketType=hip3_perp&symbol=AAPL)", s.handleVergexCostLiquidationHeatmap)
+			s.route(protected, "GET", "/vergex/flow-markets", "Vergex net-flow market ranking via claw402 (?chain=mainnet&window=1h&limit=25)", s.handleVergexFlowMarkets)
 
 			// AI trader management
 			s.routeWithSchema(protected, "GET", "/my-traders", "List user's traders with status",
@@ -435,6 +436,10 @@ Returns the most recent AI decision for each symbol analyzed in the last scan cy
 				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
 Returns: {"total_trades":<int>,"winning_trades":<int>,"win_rate":<float>,"total_pnl":<float>,"sharpe_ratio":<float>,"max_drawdown":<float>}`,
 				s.handleStatistics)
+			s.routeWithSchema(protected, "GET", "/statistics/full", "Full trade-quality metrics (win rate, profit factor, Sharpe, max drawdown)",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
+Returns: {"total_trades","win_trades","loss_trades","win_rate","profit_factor","sharpe_ratio","total_pnl","total_fee","avg_win","avg_loss","max_drawdown_pct"}`,
+				s.handleStatisticsFull)
 
 		}
 	}

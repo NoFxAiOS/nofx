@@ -7,29 +7,30 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Cream-paper + vermilion terminal palette (was Neo-Gold dark)
         'nofx-gold': {
-          DEFAULT: '#F0B90B',
-          dim: 'rgba(240, 185, 11, 0.1)',
-          glow: 'rgba(240, 185, 11, 0.5)',
-          highlight: '#FFD700',
+          DEFAULT: '#E0483B', // vermilion brand accent
+          dim: 'rgba(224, 72, 59, 0.10)',
+          glow: 'rgba(224, 72, 59, 0.30)',
+          highlight: '#C8392B',
         },
         'nofx-bg': {
-          DEFAULT: '#0B0E11', // Deep Void
-          deeper: '#050709',  // Abyssal
-          lighter: '#0E1217', // Surface
+          DEFAULT: '#F1ECE2', // warm paper
+          deeper: '#E8E2D5',  // recessed paper
+          lighter: '#F7F4EC', // panel
         },
-        'nofx-accent': '#00F0FF', // Cyan Cyber
+        'nofx-accent': '#E0483B', // vermilion (was cyan)
         'nofx-text': {
-          DEFAULT: '#EAECEF',
-          main: '#EAECEF',
-          muted: '#848E9C',
+          DEFAULT: '#1A1813', // ink
+          main: '#1A1813',
+          muted: '#8A8478',
         },
-        'nofx-success': '#0ECB81',
-        'nofx-danger': '#F6465D',
+        'nofx-success': '#2E8B57', // forest green
+        'nofx-danger': '#D6433A',  // crimson
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
-        mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
+        sans: ['IBM Plex Mono', 'ui-monospace', 'Menlo', 'monospace'],
+        mono: ['IBM Plex Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(circle at center, var(--tw-gradient-stops))',

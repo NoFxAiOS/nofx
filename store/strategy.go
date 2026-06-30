@@ -13,7 +13,7 @@ import (
 // Hard limits to prevent token explosion in AI requests
 const (
 	MaxCandidateCoins = 10
-	MaxPositions      = 3
+	MaxPositions      = 8
 	MaxTimeframes     = 4
 	MinKlineCount     = 10
 	MaxKlineCount     = 30
@@ -268,9 +268,9 @@ func (c *StrategyConfig) NormalizeProductSchema() {
 func normalizeStrategyType(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
-	case "grid", "grid_strategy", "grid-trading", "grid trading", "grid_trading", "网格", "网格策略", "网格交易":
+	case "grid", "grid_strategy", "grid-trading", "grid trading", "grid_trading", "grid strategy":
 		return "grid_trading"
-	case "", "ai", "ai_strategy", "ai-trading", "ai trading", "ai_trading", "ai策略", "ai 策略", "ai交易策略", "ai智能策略":
+	case "", "ai", "ai_strategy", "ai-trading", "ai trading", "ai_trading", "ai strategy", "ai smart strategy":
 		return "ai_trading"
 	default:
 		return value
@@ -279,25 +279,25 @@ func normalizeStrategyType(value string) string {
 
 func normalizeCoinSourceType(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
-	compact := strings.NewReplacer(" ", "", "_", "", "-", "", "数据源", "", "选币", "", "币种", "").Replace(value)
+	compact := strings.NewReplacer(" ", "", "_", "", "-", "", "datasource", "", "coinselection", "", "coin", "").Replace(value)
 	switch {
 	case compact == "":
 		return ""
 	case strings.Contains(compact, "ai500"):
 		return "ai500"
-	case strings.Contains(compact, "oitop") || strings.Contains(value, "oi top") || strings.Contains(value, "持仓量最高") || strings.Contains(value, "持仓量靠前"):
+	case strings.Contains(compact, "oitop") || strings.Contains(value, "oi top") || strings.Contains(value, "highest open interest") || strings.Contains(value, "top open interest"):
 		return "oi_top"
-	case strings.Contains(compact, "oilow") || strings.Contains(value, "oi low") || strings.Contains(value, "持仓量最低") || strings.Contains(value, "持仓量较低"):
+	case strings.Contains(compact, "oilow") || strings.Contains(value, "oi low") || strings.Contains(value, "lowest open interest") || strings.Contains(value, "low open interest"):
 		return "oi_low"
 	case strings.Contains(compact, "hyperrank"):
 		return "hyper_rank"
-	case strings.Contains(compact, "vergex") || strings.Contains(compact, "claw402") || strings.Contains(compact, "dynamicranking") || strings.Contains(value, "动态榜单") || strings.Contains(value, "涨幅榜") || strings.Contains(value, "信号榜"):
+	case strings.Contains(compact, "vergex") || strings.Contains(compact, "claw402") || strings.Contains(compact, "dynamicranking") || strings.Contains(value, "dynamic board") || strings.Contains(value, "gainers board") || strings.Contains(value, "signal board"):
 		return "vergex_signal"
 	case strings.Contains(compact, "hyperall"):
 		return "hyper_all"
 	case strings.Contains(compact, "hypermain"):
 		return "hyper_main"
-	case strings.Contains(value, "static") || strings.Contains(value, "固定") || strings.Contains(value, "静态"):
+	case strings.Contains(value, "static") || strings.Contains(value, "fixed"):
 		return "static"
 	default:
 		return value
@@ -395,25 +395,25 @@ func splitLooseStringList(values []string) []string {
 
 func normalizeTimeframe(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
-	value = strings.Trim(value, "\"'，,。 ")
+	value = strings.Trim(value, "\"', . ")
 	if value == "" {
 		return ""
 	}
 	aliases := map[string]string{
-		"1分钟":  "1m",
-		"3分钟":  "3m",
-		"5分钟":  "5m",
-		"15分钟": "15m",
-		"30分钟": "30m",
-		"1小时":  "1h",
-		"2小时":  "2h",
-		"4小时":  "4h",
-		"6小时":  "6h",
-		"8小时":  "8h",
-		"12小时": "12h",
-		"1天":   "1d",
-		"3天":   "3d",
-		"1周":   "1w",
+		"1 minute":  "1m",
+		"3 minute":  "3m",
+		"5 minute":  "5m",
+		"15 minute": "15m",
+		"30 minute": "30m",
+		"1 hour":    "1h",
+		"2 hour":    "2h",
+		"4 hour":    "4h",
+		"6 hour":    "6h",
+		"8 hour":    "8h",
+		"12 hour":   "12h",
+		"1 day":     "1d",
+		"3 day":     "3d",
+		"1 week":    "1w",
 	}
 	if alias, ok := aliases[value]; ok {
 		return alias
@@ -559,7 +559,7 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 			return
 		}
 		if lang == "zh" {
-			warnings = append(warnings, fmt.Sprintf("%s 已从 %d 调整为 %d", labelZH, from, to))
+			warnings = append(warnings, fmt.Sprintf("%s adjusted from %d to %d", labelZH, from, to))
 			return
 		}
 		warnings = append(warnings, fmt.Sprintf("%s adjusted from %d to %d", labelEN, from, to))
@@ -569,21 +569,21 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 			return
 		}
 		if lang == "zh" {
-			warnings = append(warnings, fmt.Sprintf("%s 已从 %.2f 调整为 %.2f", labelZH, from, to))
+			warnings = append(warnings, fmt.Sprintf("%s adjusted from %.2f to %.2f", labelZH, from, to))
 			return
 		}
 		warnings = append(warnings, fmt.Sprintf("%s adjusted from %.2f to %.2f", labelEN, from, to))
 	}
 
-	appendInt("最大持仓数", "max_positions", before.RiskControl.MaxPositions, after.RiskControl.MaxPositions)
-	appendInt("BTC/ETH 最大杠杆", "btc_eth_max_leverage", before.RiskControl.BTCETHMaxLeverage, after.RiskControl.BTCETHMaxLeverage)
-	appendInt("山寨币最大杠杆", "altcoin_max_leverage", before.RiskControl.AltcoinMaxLeverage, after.RiskControl.AltcoinMaxLeverage)
-	appendFloat("BTC/ETH 最大仓位价值倍数", "btc_eth_max_position_value_ratio", before.RiskControl.BTCETHMaxPositionValueRatio, after.RiskControl.BTCETHMaxPositionValueRatio)
-	appendFloat("山寨币最大仓位价值倍数", "altcoin_max_position_value_ratio", before.RiskControl.AltcoinMaxPositionValueRatio, after.RiskControl.AltcoinMaxPositionValueRatio)
-	appendFloat("最小盈亏比", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
-	appendFloat("最大保证金使用率", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
-	appendFloat("最小开仓金额", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
-	appendInt("最低置信度", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
+	appendInt("Max Positions", "max_positions", before.RiskControl.MaxPositions, after.RiskControl.MaxPositions)
+	appendInt("BTC/ETH Max Leverage", "btc_eth_max_leverage", before.RiskControl.BTCETHMaxLeverage, after.RiskControl.BTCETHMaxLeverage)
+	appendInt("Altcoin Max Leverage", "altcoin_max_leverage", before.RiskControl.AltcoinMaxLeverage, after.RiskControl.AltcoinMaxLeverage)
+	appendFloat("BTC/ETH Max Position Value Ratio", "btc_eth_max_position_value_ratio", before.RiskControl.BTCETHMaxPositionValueRatio, after.RiskControl.BTCETHMaxPositionValueRatio)
+	appendFloat("Altcoin Max Position Value Ratio", "altcoin_max_position_value_ratio", before.RiskControl.AltcoinMaxPositionValueRatio, after.RiskControl.AltcoinMaxPositionValueRatio)
+	appendFloat("Min Risk/Reward Ratio", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
+	appendFloat("Max Margin Usage", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
+	appendFloat("Min Position Size", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
+	appendInt("Min Confidence", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
 	return warnings
 }
 
@@ -1014,37 +1014,37 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			PriceRankingLimit:      10,
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:                 2,    // Max 2 instruments simultaneously (CODE ENFORCED)
-			BTCETHMaxLeverage:            10,   // BTC/ETH exchange leverage (AI guided)
-			AltcoinMaxLeverage:           10,   // TradeFi exchange leverage (AI guided)
-			BTCETHMaxPositionValueRatio:  10.0, // Claw402 full-size 10x notional: equity × 10
-			AltcoinMaxPositionValueRatio: 10.0, // Claw402 full-size 10x notional: equity × 10
-			MaxMarginUsage:               1.0,  // Claw402 Autopilot intentionally uses full margin when opening
-			MinPositionSize:              12,   // Min 12 USDT per position (CODE ENFORCED)
-			MinRiskRewardRatio:           3.0,  // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                78,   // Min 78% confidence (AI guided)
+			MaxPositions:                 6,   // Hold up to 6 instruments (≈3 long + 3 short) simultaneously (CODE ENFORCED)
+			BTCETHMaxLeverage:            10,  // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage:           10,  // TradeFi exchange leverage (AI guided)
+			BTCETHMaxPositionValueRatio:  1.2, // Per-position notional = equity × 1.2 so several positions fit the margin
+			AltcoinMaxPositionValueRatio: 1.2, // Per-position notional = equity × 1.2 so several positions fit the margin
+			MaxMarginUsage:               1.0, // Claw402 Autopilot intentionally uses full margin when opening
+			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
+			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                78,  // Min 78% confidence (AI guided)
 		},
 	}
 
 	if lang == "zh" {
 		config.PromptSections = PromptSectionsConfig{
-			RoleDefinition: `# 你是 NOFX Claw402 自动交易员
+			RoleDefinition: `# You are the NOFX Claw402 auto-trader
 
-你只交易 Claw402.ai/Vergex 本轮榜单返回的 Hyperliquid 可交易标的。候选池来自 Claw402.ai/Vergex，开仓前必须结合 Signal Lab、成本/清算热力图和原始 K 线判断。`,
-			TradingFrequency: `# 交易频率
+Trade only the Hyperliquid tradable instruments returned by this cycle's Claw402.ai/Vergex board. The candidate pool comes from Claw402.ai/Vergex; before opening a position, you must combine Signal Lab, cost/liquidation heatmap and raw candles.`,
+			TradingFrequency: `# Trading Frequency
 
-- 优先等待高质量机会，不需要每轮都交易。
-- 先管理已有持仓，再考虑新开仓。
-- 同一轮不要频繁开平同一标的。`,
-			EntryStandards: `# 入场标准
+- Prioritize waiting for high-quality opportunities; you do not need to trade every cycle.
+- Manage existing positions first, then consider opening new ones.
+- Do not churn in and out of the same symbol in one cycle.`,
+			EntryStandards: `# Entry Standards
 
-只有 Claw402 Signal Lab、成本/清算热力图和原始 K 线大体一致时才开仓。Claw402 排名只是候选池，不是单独买入理由。任一关键数据缺失或冲突时，默认等待。`,
-			DecisionProcess: `# 决策流程
+Open a position only when Claw402 Signal Lab, cost/liquidation heatmap and raw candles broadly agree. The Claw402 ranking is only the candidate pool, not a standalone buy reason. Wait by default when any key data is missing or contradictory.`,
+			DecisionProcess: `# Decision Process
 
-1. 检查已有持仓，先决定止盈、止损或继续持有。
-2. 从 Claw402 榜单取本轮候选，并对每个候选读取 Claw402 Ranking、Signal Lab、Cost/Liquidation Heatmap。
-3. 用原始 K 线确认入场位置、止损和止盈。
-4. 输出简洁 reasoning 和严格 JSON。`,
+1. Check existing positions first: decide take profit, stop loss or hold.
+2. Pull this cycle's candidates from the Claw402 board, and for each candidate read Claw402 Ranking, Signal Lab and Cost/Liquidation Heatmap.
+3. Use raw candles to confirm entry, stop loss and take profit.
+4. Output concise reasoning and strict JSON.`,
 		}
 	} else {
 		config.PromptSections = PromptSectionsConfig{

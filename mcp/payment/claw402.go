@@ -78,7 +78,7 @@ var claw402ModelEndpoints = map[string]string{
 	"gemini-3.1-pro": "/api/v1/ai/gemini/chat/3.1-pro",
 	// Kimi
 	"kimi-k2.5": "/api/v1/ai/kimi/chat/k2.5",
-	// Z.AI (智谱)
+	// Z.AI (Zhipu)
 	"glm-5":       "/api/v1/ai/zhipu/chat",
 	"glm-5-turbo": "/api/v1/ai/zhipu/chat/turbo",
 }

@@ -25,7 +25,7 @@ export function useCounterAnimation({
       if (startTime === null) startTime = currentTime
       const progress = Math.min((currentTime - startTime) / duration, 1)
 
-      // 使用 easeOutExpo 缓动函数，让数字快速启动后缓慢停止
+      // Use the easeOutExpo easing function so the number starts fast then slows to a stop
       const easeOutExpo = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress)
 
       const currentCount = start + (end - start) * easeOutExpo

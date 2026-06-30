@@ -21,7 +21,7 @@ const generateLog = (id: number): LogEntry => {
     switch (type) {
         case 'EXEC':
             msg = `AGENT-${Math.floor(Math.random() * 99)} ${actions[Math.floor(Math.random() * 4)]} ${pairs[Math.floor(Math.random() * pairs.length)]} @ ${Math.floor(Math.random() * 600)}`
-            color = 'text-green-500'
+            color = 'text-nofx-success'
             break;
         case 'SIGNAL':
             msg = `US equities momentum signal confirmed (${(Math.random()).toFixed(3)} z-score)`
@@ -29,15 +29,15 @@ const generateLog = (id: number): LogEntry => {
             break;
         case 'RISK':
             msg = `Risk check passed: ${pairs[Math.floor(Math.random() * pairs.length)]} exposure within limits`
-            color = 'text-red-500'
+            color = 'text-nofx-danger'
             break;
         case 'MACRO':
             msg = `Macro feed latency < ${Math.floor(Math.random() * 10)}ms`
-            color = 'text-zinc-500'
+            color = 'text-nofx-text-muted'
             break;
         default:
             msg = `System optimization cycle complete. Allocating resources.`
-            color = 'text-blue-400'
+            color = 'text-nofx-accent'
     }
 
     return { id, time: new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' + Math.floor(Math.random() * 999), type, msg, color }
@@ -62,16 +62,15 @@ export default function LiveFeed() {
     }, [])
 
     return (
-        <section className="w-full bg-[#020304] border-y border-zinc-800 py-1 overflow-hidden relative">
-            <div className="absolute inset-0 bg-scanlines opacity-10 pointer-events-none"></div>
+        <section className="w-full bg-nofx-bg-lighter border-y border-[rgba(26,24,19,0.14)] py-1 overflow-hidden relative">
 
             <div className="max-w-[1920px] mx-auto px-4 flex flex-col md:flex-row gap-0 md:gap-8 items-stretch h-[240px] md:h-12 text-xs font-mono">
 
                 {/* Left Status Bar (Static) */}
-                <div className="hidden md:flex items-center gap-6 text-zinc-600 border-r border-zinc-900 pr-6 shrink-0">
+                <div className="hidden md:flex items-center gap-6 text-nofx-text-muted border-r border-[rgba(26,24,19,0.14)] pr-6 shrink-0">
                     <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="font-bold text-zinc-400">WS_CONN: STABLE</span>
+                        <div className="w-1.5 h-1.5 bg-nofx-success rounded-full animate-pulse"></div>
+                        <span className="font-bold text-nofx-text">WS_CONN: STABLE</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-nofx-gold">TPS: 48,291</span>
@@ -90,10 +89,10 @@ export default function LiveFeed() {
                                 animate={{ opacity: 1, x: 0 }}
                                 className="absolute inset-0 flex items-center gap-4"
                             >
-                                <span className="text-zinc-600">[{log.time}]</span>
-                                <span className={`font-bold w-10 ${log.type === 'RISK' ? 'text-blue-400 bg-blue-500/10 px-1 rounded' :
+                                <span className="text-nofx-text-muted">[{log.time}]</span>
+                                <span className={`font-bold w-10 ${log.type === 'RISK' ? 'text-nofx-danger bg-nofx-danger/10 px-1 rounded' :
                                     log.type === 'SIGNAL' ? 'text-nofx-gold bg-nofx-gold/10 px-1 rounded' :
-                                        log.type === 'EXEC' ? 'text-green-500' : 'text-zinc-500'
+                                        log.type === 'EXEC' ? 'text-nofx-success' : 'text-nofx-text-muted'
                                     }`}>{log.type}</span>
                                 <span className={`${log.color}`}>{log.msg}</span>
                             </motion.div>
@@ -103,11 +102,11 @@ export default function LiveFeed() {
                     {/* Mobile View: Vertical Stack */}
                     <div className="md:hidden flex flex-col gap-2 w-full p-4 h-full overflow-hidden">
                         {logs.map((log) => (
-                            <div key={log.id} className="flex gap-2 w-full truncate border-b border-zinc-900/50 pb-1 last:border-0">
-                                <span className="text-zinc-700 w-16 shrink-0">{log.time.split('.')[0]}</span>
-                                <span className={`font-bold w-8 shrink-0 ${log.type === 'RISK' ? 'text-blue-400' :
+                            <div key={log.id} className="flex gap-2 w-full truncate border-b border-[rgba(26,24,19,0.10)] pb-1 last:border-0">
+                                <span className="text-nofx-text-muted w-16 shrink-0">{log.time.split('.')[0]}</span>
+                                <span className={`font-bold w-8 shrink-0 ${log.type === 'RISK' ? 'text-nofx-danger' :
                                     log.type === 'SIGNAL' ? 'text-nofx-gold' :
-                                        'text-zinc-500'
+                                        'text-nofx-text-muted'
                                     }`}>{log.type}</span>
                                 <span className={`${log.color} truncate`}>{log.msg}</span>
                             </div>

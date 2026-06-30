@@ -3,13 +3,13 @@ import type { AIModel, Exchange } from '../types'
 import { api } from '../lib/api'
 
 interface TradersConfigState {
-  // 数据
+  // Data
   allModels: AIModel[]
   allExchanges: Exchange[]
   supportedModels: AIModel[]
   supportedExchanges: Exchange[]
 
-  // 计算属性
+  // Computed properties
   configuredModels: AIModel[]
   configuredExchanges: Exchange[]
 
@@ -19,10 +19,10 @@ interface TradersConfigState {
   setSupportedModels: (models: AIModel[]) => void
   setSupportedExchanges: (exchanges: Exchange[]) => void
 
-  // 异步加载
+  // Async loading
   loadConfigs: (user: any, token: string | null) => Promise<void>
 
-  // 重置
+  // Reset
   reset: () => void
 }
 
@@ -40,7 +40,7 @@ export const useTradersConfigStore = create<TradersConfigState>((set, get) => ({
 
   setAllModels: (models) => {
     set({ allModels: models })
-    // 更新 configuredModels
+    // Update configuredModels
     const configuredModels = models.filter((m) => {
       return m.enabled || (m.customApiUrl && m.customApiUrl.trim() !== '')
     })
@@ -49,7 +49,7 @@ export const useTradersConfigStore = create<TradersConfigState>((set, get) => ({
 
   setAllExchanges: (exchanges) => {
     set({ allExchanges: exchanges })
-    // 更新 configuredExchanges
+    // Update configuredExchanges
     const configuredExchanges = exchanges.filter((e) => {
       if (e.id === 'aster') {
         return e.asterUser && e.asterUser.trim() !== ''
@@ -57,7 +57,7 @@ export const useTradersConfigStore = create<TradersConfigState>((set, get) => ({
       if (e.id === 'hyperliquid') {
         return e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== ''
       }
-      // 修复: 添加 enabled 判断,与原始逻辑保持一致
+      // Fix: add enabled check to stay consistent with the original logic
       return e.enabled || (e.apiKey && e.apiKey.trim() !== '')
     })
     set({ configuredExchanges })
@@ -68,7 +68,7 @@ export const useTradersConfigStore = create<TradersConfigState>((set, get) => ({
 
   loadConfigs: async (user, token) => {
     if (!user || !token) {
-      // 未登录时只加载公开的支持模型和交易所
+      // When not logged in, only load the public supported models and exchanges
       try {
         const [supportedModels, supportedExchanges] = await Promise.all([
           api.getSupportedModels(),

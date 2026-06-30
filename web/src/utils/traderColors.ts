@@ -1,5 +1,5 @@
-// Trader颜色配置 - 统一的颜色分配逻辑
-// 用于 ComparisonChart 和 Leaderboard，确保颜色一致性
+// Trader color configuration - unified color assignment logic
+// Used by ComparisonChart and Leaderboard to ensure color consistency
 
 export const TRADER_COLORS = [
   '#60a5fa', // blue-400
@@ -15,17 +15,17 @@ export const TRADER_COLORS = [
 ]
 
 /**
- * 根据trader的索引位置获取颜色
- * @param traders - trader列表
- * @param traderId - 当前trader的ID
- * @returns 对应的颜色值
+ * Get a color based on the trader's index position
+ * @param traders - list of traders
+ * @param traderId - the current trader's ID
+ * @returns the corresponding color value
  */
 export function getTraderColor(
   traders: Array<{ trader_id: string }>,
   traderId: string
 ): string {
   const traderIndex = traders.findIndex((t) => t.trader_id === traderId)
-  if (traderIndex === -1) return TRADER_COLORS[0] // 默认返回第一个颜色
-  // 如果超出颜色池大小，循环使用
+  if (traderIndex === -1) return TRADER_COLORS[0] // Default to the first color
+  // Wrap around if the index exceeds the color pool size
   return TRADER_COLORS[traderIndex % TRADER_COLORS.length]
 }

@@ -61,21 +61,21 @@ type UpdateTraderRequest struct {
 
 func formatTraderCreationError(reason, nextStep string) string {
 	if nextStep == "" {
-		return fmt.Sprintf("这次未能创建机器人：%s。", reason)
+		return fmt.Sprintf("Failed to create the bot this time: %s.", reason)
 	}
-	return fmt.Sprintf("这次未能创建机器人：%s。%s。", reason, nextStep)
+	return fmt.Sprintf("Failed to create the bot this time: %s. %s.", reason, nextStep)
 }
 
 func traderCreationRequestError(reason string) string {
-	return formatTraderCreationError(reason, "请检查你刚刚填写的内容后，再重新提交")
+	return formatTraderCreationError(reason, "Please check the information you just entered and submit again")
 }
 
 func validateTraderLeverageRange(btcEthLeverage, altcoinLeverage int) (string, string) {
 	if btcEthLeverage < 0 || btcEthLeverage > maxManualBTCETHLeverage {
-		return traderCreationRequestError("BTC/ETH 杠杆倍数需要在 1 到 20 倍之间"), "trader.create.invalid_btc_eth_leverage"
+		return traderCreationRequestError("BTC/ETH leverage must be between 1x and 20x"), "trader.create.invalid_btc_eth_leverage"
 	}
 	if altcoinLeverage < 0 || altcoinLeverage > maxManualAltLeverage {
-		return traderCreationRequestError("山寨币杠杆倍数需要在 1 到 20 倍之间"), "trader.create.invalid_altcoin_leverage"
+		return traderCreationRequestError("Altcoin leverage must be between 1x and 20x"), "trader.create.invalid_altcoin_leverage"
 	}
 	return "", ""
 }
@@ -90,15 +90,15 @@ func isSupportedTraderSymbol(symbol string) bool {
 
 func exchangeDisplayName(exchange *store.Exchange) string {
 	if exchange == nil {
-		return "所选交易所账户"
+		return "the selected exchange account"
 	}
 	if exchange.AccountName != "" {
-		return fmt.Sprintf("%s（%s）", exchange.Name, exchange.AccountName)
+		return fmt.Sprintf("%s (%s)", exchange.Name, exchange.AccountName)
 	}
 	if exchange.Name != "" {
 		return exchange.Name
 	}
-	return "所选交易所账户"
+	return "the selected exchange account"
 }
 
 func missingExchangeFields(exchange *store.Exchange) []string {
@@ -127,10 +127,10 @@ func missingExchangeFields(exchange *store.Exchange) []string {
 		}
 	case "hyperliquid":
 		if exchange.APIKey == "" {
-			missing = append(missing, "私钥")
+			missing = append(missing, "Private Key")
 		}
 		if strings.TrimSpace(exchange.HyperliquidWalletAddr) == "" {
-			missing = append(missing, "钱包地址")
+			missing = append(missing, "Wallet Address")
 		}
 	case "aster":
 		if strings.TrimSpace(exchange.AsterUser) == "" {
@@ -144,7 +144,7 @@ func missingExchangeFields(exchange *store.Exchange) []string {
 		}
 	case "lighter":
 		if strings.TrimSpace(exchange.LighterWalletAddr) == "" {
-			missing = append(missing, "钱包地址")
+			missing = append(missing, "Wallet Address")
 		}
 		if exchange.LighterAPIKeyPrivateKey == "" {
 			missing = append(missing, "API Key Private Key")
@@ -168,21 +168,21 @@ func mapStringPairs(kv ...string) map[string]string {
 
 func validateExchangeForTraderCreation(exchange *store.Exchange) (string, string, map[string]string) {
 	if exchange == nil {
-		return formatTraderCreationError("还没有找到你选择的交易所账户", "请前往「设置 > 交易所配置」先添加一个可用账户，再回来创建机器人"),
+		return formatTraderCreationError("The exchange account you selected was not found", "Please go to \"Settings > Exchange Config\" and add an available account first, then come back to create the bot"),
 			"trader.create.exchange_not_found", nil
 	}
 	if !exchange.Enabled {
 		return formatTraderCreationError(
-			fmt.Sprintf("交易所账户「%s」目前处于未启用状态", exchangeDisplayName(exchange)),
-			"请前往「设置 > 交易所配置」启用该账户后，再重新创建机器人",
+			fmt.Sprintf("Exchange account \"%s\" is currently disabled", exchangeDisplayName(exchange)),
+			"Please go to \"Settings > Exchange Config\" to enable this account, then create the bot again",
 		), "trader.create.exchange_disabled", mapStringPairs("exchange_name", exchangeDisplayName(exchange))
 	}
 
 	missing := missingExchangeFields(exchange)
 	if len(missing) > 0 {
 		return formatTraderCreationError(
-				fmt.Sprintf("交易所账户「%s」的配置还不完整，缺少 %s", exchangeDisplayName(exchange), strings.Join(missing, "、")),
-				"请前往「设置 > 交易所配置」补全该账户的必填信息后，再重新创建机器人",
+				fmt.Sprintf("The configuration for exchange account \"%s\" is incomplete, missing %s", exchangeDisplayName(exchange), strings.Join(missing, ", ")),
+				"Please go to \"Settings > Exchange Config\" to complete the required information for this account, then create the bot again",
 			), "trader.create.exchange_missing_fields", mapStringPairs(
 				"exchange_name", exchangeDisplayName(exchange),
 				"missing_fields", strings.Join(missing, ", "),
@@ -194,8 +194,8 @@ func validateExchangeForTraderCreation(exchange *store.Exchange) (string, string
 		return "", "", nil
 	default:
 		return formatTraderCreationError(
-				fmt.Sprintf("交易所账户「%s」使用了当前版本暂不支持的类型 %s", exchangeDisplayName(exchange), exchange.ExchangeType),
-				"请改用当前版本支持的交易所账户后，再重新创建机器人",
+				fmt.Sprintf("Exchange account \"%s\" uses type %s, which is not supported in the current version", exchangeDisplayName(exchange), exchange.ExchangeType),
+				"Please switch to an exchange account supported by the current version, then create the bot again",
 			), "trader.create.exchange_unsupported", mapStringPairs(
 				"exchange_name", exchangeDisplayName(exchange),
 				"exchange_type", exchange.ExchangeType,
@@ -214,28 +214,28 @@ func classifyTraderSetupReason(reason string) (string, string) {
 	switch {
 	case strings.Contains(lower, "failed to parse strategy config"),
 		strings.Contains(lower, "failed to parse strategy configuration"):
-		return "trader.reason.strategy_config_invalid", "当前策略配置内容已损坏，系统暂时无法解析"
+		return "trader.reason.strategy_config_invalid", "The current strategy configuration is corrupted and the system cannot parse it for now"
 	case strings.Contains(lower, "has no strategy configured"):
-		return "trader.reason.strategy_missing", "当前机器人缺少有效的交易策略配置"
+		return "trader.reason.strategy_missing", "The current bot is missing a valid trading strategy configuration"
 	case strings.Contains(lower, "failed to parse private key"),
 		(strings.Contains(lower, "invalid hex character") && strings.Contains(lower, "private key")):
-		return "trader.reason.private_key_invalid", "私钥格式不正确，系统无法识别"
+		return "trader.reason.private_key_invalid", "The private key format is incorrect and the system cannot recognize it"
 	case strings.Contains(lower, "failed to initialize hyperliquid trader"):
-		return "trader.reason.hyperliquid_init_failed", "Hyperliquid 账户初始化失败，请确认私钥、主钱包地址和 Agent Wallet 配置是否正确"
+		return "trader.reason.hyperliquid_init_failed", "Hyperliquid account initialization failed; please confirm the private key, main wallet address, and Agent Wallet configuration are correct"
 	case strings.Contains(lower, "failed to initialize aster trader"):
-		return "trader.reason.aster_init_failed", "Aster 账户初始化失败，请确认 Aster User、Signer 和私钥是否正确"
+		return "trader.reason.aster_init_failed", "Aster account initialization failed; please confirm the Aster User, Signer, and private key are correct"
 	case strings.Contains(lower, "failed to get meta information"):
-		return "trader.reason.exchange_meta_unavailable", "系统暂时无法从交易所读取账户元信息"
+		return "trader.reason.exchange_meta_unavailable", "The system cannot read account meta information from the exchange for now"
 	case strings.Contains(lower, "security check failed") && strings.Contains(lower, "agent wallet balance too high"):
-		return "trader.reason.hyperliquid_agent_balance_too_high", "Hyperliquid Agent Wallet 余额过高，不符合当前安全要求"
+		return "trader.reason.hyperliquid_agent_balance_too_high", "The Hyperliquid Agent Wallet balance is too high and does not meet the current security requirements"
 	case strings.Contains(lower, "failed to initialize account"):
-		return "trader.reason.exchange_account_init_failed", "交易所账户初始化失败，请确认钱包地址和 API Key 是否匹配"
+		return "trader.reason.exchange_account_init_failed", "Exchange account initialization failed; please confirm the wallet address and API Key match"
 	case strings.Contains(lower, "unsupported trading platform"):
-		return "trader.reason.exchange_unsupported", "当前交易所类型暂不支持机器人初始化"
+		return "trader.reason.exchange_unsupported", "The current exchange type does not support bot initialization"
 	case strings.Contains(lower, "initial balance not set and unable to fetch balance from exchange"):
-		return "trader.reason.exchange_balance_unavailable", "系统暂时无法从交易所读取账户余额"
+		return "trader.reason.exchange_balance_unavailable", "The system cannot read the account balance from the exchange for now"
 	case strings.Contains(lower, "timeout"), strings.Contains(lower, "no such host"), strings.Contains(lower, "connection refused"):
-		return "trader.reason.exchange_service_unreachable", "系统暂时无法连接交易所服务"
+		return "trader.reason.exchange_service_unreachable", "The system cannot connect to the exchange service for now"
 	default:
 		return "trader.reason.unknown", trimmed
 	}
@@ -270,54 +270,54 @@ func traderSetupReasonParams(err error, fallback string, kv ...string) map[strin
 
 func describeTraderLoadError(traderName string, err error) string {
 	if err == nil {
-		return formatTraderCreationError("机器人配置虽然保存了，但运行实例没有成功初始化", "请检查模型、策略和交易所配置是否完整，然后再试一次")
+		return formatTraderCreationError("The bot configuration was saved, but the runtime instance failed to initialize", "Please check that the model, strategy, and exchange configuration are complete, then try again")
 	}
 
 	reason := humanizeTraderSetupReason(SanitizeError(err, ""))
 	if reason == "" {
 		return formatTraderCreationError(
-			fmt.Sprintf("机器人「%s」在初始化运行实例时没有成功启动", traderName),
-			"请检查模型、策略和交易所配置是否完整，然后再试一次",
+			fmt.Sprintf("Bot \"%s\" failed to start when initializing its runtime instance", traderName),
+			"Please check that the model, strategy, and exchange configuration are complete, then try again",
 		)
 	}
 
 	return formatTraderCreationError(
-		fmt.Sprintf("机器人「%s」在初始化运行实例时没有成功启动，原因是：%s", traderName, reason),
-		"请检查模型、策略和交易所配置是否完整，然后再试一次",
+		fmt.Sprintf("Bot \"%s\" failed to start when initializing its runtime instance, because: %s", traderName, reason),
+		"Please check that the model, strategy, and exchange configuration are complete, then try again",
 	)
 }
 
 func describeTraderCreationWarning(traderName string, err error) string {
 	if err == nil {
-		return fmt.Sprintf("机器人「%s」已经保存，但当前还没有通过启动前校验。请先检查模型、策略和交易所配置，修正后再点击启动。", traderName)
+		return fmt.Sprintf("Bot \"%s\" has been saved, but it has not yet passed the pre-start validation. Please check the model, strategy, and exchange configuration first, then click start after fixing them.", traderName)
 	}
 
 	reason := humanizeTraderSetupReason(SanitizeError(err, ""))
 	if reason == "" {
-		return fmt.Sprintf("机器人「%s」已经保存，但当前暂时还不能启动。请先检查模型、策略和交易所配置，修正后再点击启动。", traderName)
+		return fmt.Sprintf("Bot \"%s\" has been saved, but it cannot start for now. Please check the model, strategy, and exchange configuration first, then click start after fixing them.", traderName)
 	}
 
-	return fmt.Sprintf("机器人「%s」已经保存，但当前暂时还不能启动，原因是：%s。请先检查模型、策略和交易所配置，修正后再点击启动。", traderName, reason)
+	return fmt.Sprintf("Bot \"%s\" has been saved, but it cannot start for now, because: %s. Please check the model, strategy, and exchange configuration first, then click start after fixing them.", traderName, reason)
 }
 
 func describeTraderStartError(traderName string, err error) string {
 	if err == nil {
-		return fmt.Sprintf("这次未能启动机器人：机器人「%s」暂时还不能启动。请检查模型、策略和交易所配置后，再重新点击启动。", traderName)
+		return fmt.Sprintf("Failed to start the bot this time: bot \"%s\" cannot start for now. Please check the model, strategy, and exchange configuration, then click start again.", traderName)
 	}
 
 	reason := humanizeTraderSetupReason(SanitizeError(err, ""))
 	if reason == "" {
-		return fmt.Sprintf("这次未能启动机器人：机器人「%s」暂时还不能启动。请检查模型、策略和交易所配置后，再重新点击启动。", traderName)
+		return fmt.Sprintf("Failed to start the bot this time: bot \"%s\" cannot start for now. Please check the model, strategy, and exchange configuration, then click start again.", traderName)
 	}
 
-	return fmt.Sprintf("这次未能启动机器人：机器人「%s」暂时还不能启动，原因是：%s。请检查模型、策略和交易所配置后，再重新点击启动。", traderName, reason)
+	return fmt.Sprintf("Failed to start the bot this time: bot \"%s\" cannot start for now, because: %s. Please check the model, strategy, and exchange configuration, then click start again.", traderName, reason)
 }
 
 func formatTraderStartError(reason, nextStep string) string {
 	if nextStep == "" {
-		return fmt.Sprintf("这次未能启动机器人：%s。", reason)
+		return fmt.Sprintf("Failed to start the bot this time: %s.", reason)
 	}
-	return fmt.Sprintf("这次未能启动机器人：%s。%s。", reason, nextStep)
+	return fmt.Sprintf("Failed to start the bot this time: %s. %s.", reason, nextStep)
 }
 
 // handleCreateTrader Create new AI trader
@@ -325,7 +325,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	var req CreateTraderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SafeBadRequestWithDetails(c, traderCreationRequestError("提交的信息不完整，或者格式不正确"), "trader.create.invalid_request", nil)
+		SafeBadRequestWithDetails(c, traderCreationRequestError("The submitted information is incomplete or has an invalid format"), "trader.create.invalid_request", nil)
 		return
 	}
 
@@ -344,7 +344,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			symbol = strings.TrimSpace(symbol)
 			if !isSupportedTraderSymbol(symbol) {
 				SafeBadRequestWithDetails(c, traderCreationRequestError(
-					fmt.Sprintf("交易对 %s 的格式不正确，目前只支持 USDT 合约或 Hyperliquid XYZ USDC 标的（SYMBOL-USDC）", symbol),
+					fmt.Sprintf("The trading pair %s has an invalid format; only USDT perpetuals or Hyperliquid XYZ USDC instruments (SYMBOL-USDC) are currently supported", symbol),
 				), "trader.create.invalid_symbol", mapStringPairs("symbol", symbol))
 				return
 			}
@@ -354,32 +354,32 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	model, err := s.store.AIModel().Get(userID, req.AIModelID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			SafeBadRequestWithDetails(c, formatTraderCreationError("还没有找到你选择的 AI 模型", "请前往「设置 > 模型配置」先添加并启用一个可用模型，再回来创建机器人"), "trader.create.model_not_found", nil)
+			SafeBadRequestWithDetails(c, formatTraderCreationError("The AI model you selected was not found", "Please go to \"Settings > Model Config\" to add and enable an available model first, then come back to create the bot"), "trader.create.model_not_found", nil)
 			return
 		}
 		SafeError(c, http.StatusInternalServerError,
-			formatTraderCreationError("暂时无法读取你的 AI 模型配置", "请稍后重试；如果问题持续，再检查本地服务是否正常"),
+			formatTraderCreationError("Unable to read your AI model configuration for now", "Please retry later; if the problem persists, check whether the local service is running normally"),
 			err,
 		)
 		return
 	}
 	if !model.Enabled {
 		SafeBadRequestWithDetails(c, formatTraderCreationError(
-			fmt.Sprintf("AI 模型「%s」目前还没有启用", model.Name),
-			"请前往「设置 > 模型配置」启用它后，再重新创建机器人",
+			fmt.Sprintf("AI model \"%s\" is not enabled yet", model.Name),
+			"Please go to \"Settings > Model Config\" to enable it, then create the bot again",
 		), "trader.create.model_disabled", mapStringPairs("model_name", model.Name))
 		return
 	}
 	if model.APIKey == "" {
 		SafeBadRequestWithDetails(c, formatTraderCreationError(
-			fmt.Sprintf("AI 模型「%s」缺少 API Key 或支付凭证", model.Name),
-			"请前往「设置 > 模型配置」补全模型凭证后，再重新创建机器人",
+			fmt.Sprintf("AI model \"%s\" is missing an API Key or payment credentials", model.Name),
+			"Please go to \"Settings > Model Config\" to complete the model credentials, then create the bot again",
 		), "trader.create.model_missing_credentials", mapStringPairs("model_name", model.Name))
 		return
 	}
 
 	if req.StrategyID == "" {
-		SafeBadRequestWithDetails(c, formatTraderCreationError("你还没有选择交易策略", "请先选择一个策略，再继续创建机器人"), "trader.create.strategy_required", nil)
+		SafeBadRequestWithDetails(c, formatTraderCreationError("You have not selected a trading strategy yet", "Please select a strategy first, then continue creating the bot"), "trader.create.strategy_required", nil)
 		return
 	}
 
@@ -387,11 +387,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		_, err = s.store.Strategy().Get(userID, req.StrategyID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				SafeBadRequestWithDetails(c, formatTraderCreationError("你选择的策略不存在，或者已经被删除了", "请重新选择一个可用策略后，再继续创建机器人"), "trader.create.strategy_not_found", nil)
+				SafeBadRequestWithDetails(c, formatTraderCreationError("The strategy you selected does not exist or has been deleted", "Please select another available strategy, then continue creating the bot"), "trader.create.strategy_not_found", nil)
 				return
 			}
 			SafeError(c, http.StatusInternalServerError,
-				formatTraderCreationError("暂时无法读取你选择的策略配置", "请稍后重试；如果问题持续，再检查本地服务是否正常"),
+				formatTraderCreationError("Unable to read the strategy configuration you selected for now", "Please retry later; if the problem persists, check whether the local service is running normally"),
 				err,
 			)
 			return
@@ -445,7 +445,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	exchanges, err := s.store.Exchange().List(userID)
 	if err != nil {
 		SafeError(c, http.StatusInternalServerError,
-			formatTraderCreationError("暂时无法读取你的交易所配置", "请稍后重试；如果问题持续，再检查本地服务是否正常"),
+			formatTraderCreationError("Unable to read your exchange configuration for now", "Please retry later; if the problem persists, check whether the local service is running normally"),
 			err,
 		)
 		return
@@ -469,9 +469,9 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		tempTrader, createErr := buildExchangeProbeTrader(exchangeCfg, userID)
 		if createErr != nil {
 			SafeBadRequestWithDetails(c, formatTraderCreationError(
-				fmt.Sprintf("交易所账户「%s」没有通过初始化校验，原因是：%s", exchangeDisplayName(exchangeCfg), humanizeTraderSetupReason(SanitizeError(createErr, "配置校验未通过"))),
-				"请前往「设置 > 交易所配置」检查这个账户的密钥、地址和账户信息是否填写正确",
-			), "trader.create.exchange_probe_failed", traderSetupReasonParams(createErr, "配置校验未通过",
+				fmt.Sprintf("Exchange account \"%s\" did not pass initialization validation, because: %s", exchangeDisplayName(exchangeCfg), humanizeTraderSetupReason(SanitizeError(createErr, "Configuration validation failed"))),
+				"Please go to \"Settings > Exchange Config\" to check whether this account's keys, address, and account information are entered correctly",
+			), "trader.create.exchange_probe_failed", traderSetupReasonParams(createErr, "Configuration validation failed",
 				"exchange_name", exchangeDisplayName(exchangeCfg),
 			))
 			return
@@ -521,9 +521,9 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	err = s.store.Trader().Create(traderRecord)
 	if err != nil {
 		logger.Infof("❌ Failed to create trader: %v", err)
-		publicMsg := SanitizeError(err, formatTraderCreationError("机器人配置没有保存成功", "请检查名称、模型、策略和交易所配置后，再试一次"))
+		publicMsg := SanitizeError(err, formatTraderCreationError("The bot configuration was not saved successfully", "Please check the name, model, strategy, and exchange configuration, then try again"))
 		statusCode := http.StatusBadRequest
-		if publicMsg == formatTraderCreationError("机器人配置没有保存成功", "请检查名称、模型、策略和交易所配置后，再试一次") {
+		if publicMsg == formatTraderCreationError("The bot configuration was not saved successfully", "Please check the name, model, strategy, and exchange configuration, then try again") {
 			statusCode = http.StatusInternalServerError
 		}
 		SafeError(c, statusCode, publicMsg, err)
@@ -781,8 +781,8 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 
 	if fullCfg != nil && fullCfg.Exchange != nil && fullCfg.Exchange.ExchangeType == "hyperliquid" && !fullCfg.Exchange.HyperliquidBuilderApproved {
 		SafeBadRequestWithDetails(c, formatTraderStartError(
-			fmt.Sprintf("机器人「%s」的 Hyperliquid 交易授权尚未完成", traderName),
-			"请重新连接 Hyperliquid 钱包并完成交易授权后，再启动机器人",
+			fmt.Sprintf("The Hyperliquid trading authorization for bot \"%s\" is not yet complete", traderName),
+			"Please reconnect the Hyperliquid wallet and complete the trading authorization, then start the bot",
 		), "trader.start.hyperliquid_builder_not_approved", mapStringPairs("trader_name", traderName, "exchange_name", exchangeDisplayName(fullCfg.Exchange)))
 		return
 	}
@@ -818,25 +818,25 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 			}
 			// Check AI model
 			if fullCfg.AIModel == nil {
-				SafeBadRequestWithDetails(c, formatTraderStartError("这个机器人关联的 AI 模型不存在", "请前往「设置 > 模型配置」检查后，再重新点击启动"), "trader.start.model_not_found", mapStringPairs("trader_name", traderName))
+				SafeBadRequestWithDetails(c, formatTraderStartError("The AI model associated with this bot does not exist", "Please go to \"Settings > Model Config\" to check, then click start again"), "trader.start.model_not_found", mapStringPairs("trader_name", traderName))
 				return
 			}
 			if !fullCfg.AIModel.Enabled {
 				SafeBadRequestWithDetails(c, formatTraderStartError(
-					fmt.Sprintf("机器人「%s」关联的 AI 模型「%s」目前还没有启用", traderName, fullCfg.AIModel.Name),
-					"请前往「设置 > 模型配置」启用它后，再重新点击启动",
+					fmt.Sprintf("The AI model \"%s\" associated with bot \"%s\" is not enabled yet", fullCfg.AIModel.Name, traderName),
+					"Please go to \"Settings > Model Config\" to enable it, then click start again",
 				), "trader.start.model_disabled", mapStringPairs("trader_name", traderName, "model_name", fullCfg.AIModel.Name))
 				return
 			}
 			// Check exchange
 			if fullCfg.Exchange == nil {
-				SafeBadRequestWithDetails(c, formatTraderStartError("这个机器人关联的交易所账户不存在", "请前往「设置 > 交易所配置」检查后，再重新点击启动"), "trader.start.exchange_not_found", mapStringPairs("trader_name", traderName))
+				SafeBadRequestWithDetails(c, formatTraderStartError("The exchange account associated with this bot does not exist", "Please go to \"Settings > Exchange Config\" to check, then click start again"), "trader.start.exchange_not_found", mapStringPairs("trader_name", traderName))
 				return
 			}
 			if !fullCfg.Exchange.Enabled {
 				SafeBadRequestWithDetails(c, formatTraderStartError(
-					fmt.Sprintf("机器人「%s」关联的交易所账户「%s」目前还没有启用", traderName, exchangeDisplayName(fullCfg.Exchange)),
-					"请前往「设置 > 交易所配置」启用它后，再重新点击启动",
+					fmt.Sprintf("The exchange account \"%s\" associated with bot \"%s\" is not enabled yet", exchangeDisplayName(fullCfg.Exchange), traderName),
+					"Please go to \"Settings > Exchange Config\" to enable it, then click start again",
 				), "trader.start.exchange_disabled", mapStringPairs("trader_name", traderName, "exchange_name", exchangeDisplayName(fullCfg.Exchange)))
 				return
 			}

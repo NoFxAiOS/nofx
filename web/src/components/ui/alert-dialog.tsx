@@ -14,7 +14,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-50 bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'fixed inset-0 z-50 bg-[rgba(26,24,19,0.45)] backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className
     )}
     {...props}
@@ -104,7 +104,7 @@ const AlertDialogAction = React.forwardRef<
   <AlertDialogPrimitive.Action
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--binance-yellow)] disabled:pointer-events-none disabled:opacity-50 bg-[var(--binance-yellow)] text-black hover:brightness-95 h-10 px-8 min-w-[140px] shadow-[0_10px_30px_rgba(240,185,11,0.35)]',
+      'inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#E0483B] disabled:pointer-events-none disabled:opacity-50 bg-[#E0483B] text-white hover:brightness-95 h-10 px-8 min-w-[140px]',
       className
     )}
     {...props}
@@ -119,7 +119,7 @@ const AlertDialogCancel = React.forwardRef<
   <AlertDialogPrimitive.Cancel
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--panel-border)] disabled:pointer-events-none disabled:opacity-50 border border-[var(--panel-border)] bg-transparent text-[var(--text-secondary)] hover:bg-white/5 h-10 px-8 min-w-[140px]',
+      'inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--panel-border)] disabled:pointer-events-none disabled:opacity-50 border border-[var(--panel-border)] bg-transparent text-[var(--text-secondary)] hover:bg-[rgba(26,24,19,0.06)] h-10 px-8 min-w-[140px]',
       className
     )}
     {...props}

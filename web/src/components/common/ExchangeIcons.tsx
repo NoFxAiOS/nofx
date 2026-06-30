@@ -6,7 +6,7 @@ interface IconProps {
   className?: string
 }
 
-// 本地图标路径映射
+// Local icon path mapping
 const ICON_PATHS: Record<string, string> = {
   binance: '/exchange-icons/binance.jpg',
   bybit: '/exchange-icons/bybit.png',
@@ -20,7 +20,7 @@ const ICON_PATHS: Record<string, string> = {
   indodax: '/exchange-icons/indodax.png',
 }
 
-// 通用图标组件
+// Generic icon component
 const ExchangeImage: React.FC<IconProps & { src: string; alt: string }> = ({
   width = 24,
   height = 24,
@@ -36,7 +36,7 @@ const ExchangeImage: React.FC<IconProps & { src: string; alt: string }> = ({
       borderRadius: 6,
       overflow: 'hidden',
       flexShrink: 0,
-      background: '#2B3139',
+      background: '#E8E2D5',
     }}
   >
     <img
@@ -51,7 +51,7 @@ const ExchangeImage: React.FC<IconProps & { src: string; alt: string }> = ({
   </div>
 )
 
-// Fallback 图标
+// Fallback icon
 const FallbackIcon: React.FC<IconProps & { label: string }> = ({
   width = 24,
   height = 24,
@@ -64,13 +64,13 @@ const FallbackIcon: React.FC<IconProps & { label: string }> = ({
       width,
       height,
       borderRadius: 6,
-      background: '#2B3139',
+      background: '#E8E2D5',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: Math.max(10, (width || 24) * 0.4),
       fontWeight: 'bold',
-      color: '#EAECEF',
+      color: '#1A1813',
       flexShrink: 0,
     }}
   >
@@ -78,7 +78,7 @@ const FallbackIcon: React.FC<IconProps & { label: string }> = ({
   </div>
 )
 
-// 获取交易所图标的函数
+// Returns the icon for an exchange
 export const getExchangeIcon = (
   exchangeType: string,
   props: IconProps = {}

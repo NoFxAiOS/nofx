@@ -4,10 +4,55 @@ import type {
   Position,
   DecisionRecord,
   Statistics,
+  TraderFullStats,
   CompetitionData,
   PositionHistoryResponse,
 } from '../../types'
 import { API_BASE, httpClient } from './helpers'
+
+export interface Kline {
+  openTime: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  closeTime: number
+}
+
+// Vergex net-flow market ranking (GET /api/vergex/flow-markets). Numeric fields
+// arrive as strings from the upstream API.
+export interface FlowMarketItem {
+  key: string
+  marketType: string
+  symbol: string
+  netFlow: string
+  buyNotional: string
+  sellNotional: string
+  trades: number
+  latestPrice: string
+}
+export interface FlowMarketsResponse {
+  data?: {
+    by?: string
+    window?: string
+    inflow?: FlowMarketItem[]
+    outflow?: FlowMarketItem[]
+  }
+}
+
+// Vergex signal ranking item (GET /api/vergex/signal-ranking).
+export interface SignalRankItem {
+  rank: number
+  symbol: string
+  market_type: string
+  bias: string // "bullish" | "bearish" | "neutral"
+  score: number
+  category?: string
+}
+export interface SignalRankingResponse {
+  items?: SignalRankItem[]
+}
 
 export interface MarketSymbol {
   symbol: string
@@ -279,6 +324,73 @@ export const dataApi = {
       : `${API_BASE}/statistics`
     const result = await httpClient.request<Statistics>(url, { silent })
     if (!result.success) throw new Error('Failed to fetch statistics')
+    return result.data!
+  },
+
+  async getFullStats(
+    traderId?: string,
+    silent?: boolean
+  ): Promise<TraderFullStats> {
+    const url = traderId
+      ? `${API_BASE}/statistics/full?trader_id=${traderId}`
+      : `${API_BASE}/statistics/full`
+    const result = await httpClient.request<TraderFullStats>(url, { silent })
+    if (!result.success) throw new Error('Failed to fetch full statistics')
+    return result.data!
+  },
+
+  async getKlines(
+    symbol: string,
+    interval = '5m',
+    exchange = 'hyperliquid',
+    limit = 60,
+    silent?: boolean
+  ): Promise<Kline[]> {
+    const params = new URLSearchParams({
+      symbol,
+      interval,
+      exchange,
+      limit: String(limit),
+    })
+    const result = await httpClient.request<Kline[]>(
+      `${API_BASE}/klines?${params}`,
+      { silent }
+    )
+    if (!result.success) throw new Error('Failed to fetch klines')
+    return result.data!
+  },
+
+  async getFlowMarkets(
+    aiModelId?: string,
+    chain = 'mainnet',
+    window = '1h',
+    limit = 25,
+    silent?: boolean
+  ): Promise<FlowMarketsResponse> {
+    const params = new URLSearchParams({ chain, window, limit: String(limit) })
+    if (aiModelId) params.set('ai_model_id', aiModelId)
+    const result = await httpClient.request<FlowMarketsResponse>(
+      `${API_BASE}/vergex/flow-markets?${params}`,
+      { silent }
+    )
+    if (!result.success) throw new Error('Failed to fetch flow markets')
+    return result.data!
+  },
+
+  async getSignalRanking(
+    aiModelId?: string,
+    chain = 'mainnet',
+    marketType = 'all',
+    limit = 25,
+    silent?: boolean
+  ): Promise<SignalRankingResponse> {
+    const params = new URLSearchParams({ chain, marketType, limit: String(limit) })
+    if (aiModelId) params.set('ai_model_id', aiModelId)
+    const result = await httpClient.request<SignalRankingResponse>(
+      `${API_BASE}/vergex/signal-ranking?${params}`,
+      { silent }
+    )
+    if (!result.success) throw new Error('Failed to fetch signal ranking')
     return result.data!
   },
 

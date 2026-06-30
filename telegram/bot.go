@@ -355,12 +355,12 @@ func statusMsg(st *store.Store, userID string, apiPort int, lang string) string 
 		missing := ""
 		if lang == "zh" {
 			if !hasModel {
-				missing += "\n❌ AI 模型 → 设置 → AI 模型 → 添加"
+				missing += "\n❌ AI Model → Settings → AI Models → Add"
 			}
 			if !hasExchange {
-				missing += "\n❌ 交易所 → 设置 → 交易所 → 添加"
+				missing += "\n❌ Exchange → Settings → Exchanges → Add"
 			}
-			return "⚙️ *需要完成初始配置*\n\n打开 Web 管理界面完成配置：\n→ " + webURL + "\n" + missing + "\n\n配置完成后发送 /start"
+			return "⚙️ *Setup required*\n\nOpen the web dashboard to complete setup:\n→ " + webURL + "\n" + missing + "\n\nSend /start when done."
 		}
 		if !hasModel {
 			missing += "\n❌ AI Model → Settings → AI Models → Add"
@@ -373,16 +373,16 @@ func statusMsg(st *store.Store, userID string, apiPort int, lang string) string 
 
 	// All configured — show ready state.
 	if lang == "zh" {
-		return `✅ *NOFX 就绪，开始交易吧！*
+		return `✅ *NOFX is ready!*
 
-直接告诉我你想做什么：
+Just tell me what you want:
 
-📊 "查看我的持仓"
-💰 "账户余额多少"
-🤖 "帮我创建 BTC 趋势策略并启动"
-⏹ "停止所有交易员"
+📊 "Show my positions"
+💰 "What's my balance?"
+🤖 "Create a BTC trend strategy and start it"
+⏹ "Stop all traders"
 
-/help 查看更多 · /lang 切换语言`
+/help for more · /lang to change language`
 	}
 	return `✅ *NOFX is ready!*
 
@@ -399,14 +399,14 @@ Just tell me what you want:
 // ── Language ──────────────────────────────────────────────────────────────────
 
 func langMenuMsg() string {
-	return "🌐 *Choose your language*\n\n1 — English\n2 — 中文\n\nReply with 1 or 2"
+	return "🌐 *Choose your language*\n\n1 — English\n2 — Chinese\n\nReply with 1 or 2"
 }
 
 func parseLangChoice(text string) string {
 	switch strings.TrimSpace(text) {
 	case "1", "en", "EN", "English", "english":
 		return "en"
-	case "2", "zh", "ZH", "中文", "chinese", "Chinese":
+	case "2", "zh", "ZH", "chinese", "Chinese":
 		return "zh"
 	}
 	return ""
@@ -416,26 +416,26 @@ func parseLangChoice(text string) string {
 
 func helpMsg(lang string) string {
 	if lang == "zh" {
-		return `*NOFX 使用指南*
+		return `*NOFX Help*
 
-*查询*
-• "查看我的持仓"
-• "账户余额多少"
-• "列出我的交易员"
+*Query*
+• "Show my positions"
+• "What's my balance?"
+• "List my traders"
 
-*创建 & 启动*
-• "帮我创建 BTC 趋势策略并跑起来"
-• "保守型策略，只交易 BTC 和 ETH"
+*Create & start*
+• "Create a BTC trend strategy and start it"
+• "Conservative strategy, BTC and ETH only"
 
-*控制*
-• "启动交易员"
-• "暂停交易员"
-• "停止所有交易"
+*Control*
+• "Start trader"
+• "Pause trader"
+• "Stop all trading"
 
-*命令*
-/start — 刷新状态
-/lang  — 切换语言
-/help  — 帮助`
+*Commands*
+/start — refresh status
+/lang  — change language
+/help  — show this`
 	}
 	return `*NOFX Help*
 

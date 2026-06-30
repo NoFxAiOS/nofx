@@ -213,7 +213,7 @@ func TestNarrationStructurallyImpossible(t *testing.T) {
 
 	// Simulate a (malformed) response that has both Content and ToolCalls.
 	malformed := &mcp.LLMResponse{
-		Content: "现在我将为您查询策略。", // narration — must NOT reach user
+		Content: "Now I will look up your strategies.", // narration — must NOT reach user
 		ToolCalls: []mcp.ToolCall{{
 			ID:   "c1",
 			Type: "function",
@@ -226,15 +226,15 @@ func TestNarrationStructurallyImpossible(t *testing.T) {
 
 	llm := &mockLLM{responses: []*mcp.LLMResponse{
 		malformed,
-		textReply("你有1个策略：BTC Trend。"),
+		textReply("You have 1 strategy: BTC Trend."),
 	}}
 	a := New(port, "tok", "test-user", mockGetLLM(llm), testPrompt)
-	reply := a.Run("查询我的策略", nil)
+	reply := a.Run("look up my strategies", nil)
 
-	if strings.Contains(reply, "现在我将") {
+	if strings.Contains(reply, "Now I will") {
 		t.Fatalf("narration leaked into final reply: %q", reply)
 	}
-	if reply != "你有1个策略：BTC Trend。" {
+	if reply != "You have 1 strategy: BTC Trend." {
 		t.Fatalf("unexpected reply: %q", reply)
 	}
 }
@@ -276,18 +276,18 @@ func TestOnChunkCalledWithFinalReply(t *testing.T) {
 // Verifies: POST strategy → GET verify → final reply shows strategy info.
 func TestCreateStrategyWorkflow(t *testing.T) {
 	srv, port := mockAPIServer(map[string]string{
-		"POST /api/strategies":   `{"id":"s1","name":"BTC趋势"}`,
-		"GET /api/strategies/s1": `{"id":"s1","name":"BTC趋势","config":{"coin_source":{"source_type":"static","static_coins":["BTC/USDT"]},"leverage":5}}`,
+		"POST /api/strategies":   `{"id":"s1","name":"BTC Trend"}`,
+		"GET /api/strategies/s1": `{"id":"s1","name":"BTC Trend","config":{"coin_source":{"source_type":"static","static_coins":["BTC/USDT"]},"leverage":5}}`,
 	})
 	defer srv.Close()
 
 	llm := &mockLLM{responses: []*mcp.LLMResponse{
-		toolCall("c1", "POST", "/api/strategies", `{"name":"BTC趋势","config":{}}`),
+		toolCall("c1", "POST", "/api/strategies", `{"name":"BTC Trend","config":{}}`),
 		toolCall("c2", "GET", "/api/strategies/s1", "{}"),
-		textReply("策略已创建：BTC趋势，币种 BTC/USDT，杠杆 5x。"),
+		textReply("Strategy created: BTC Trend, coin BTC/USDT, leverage 5x."),
 	}}
 	a := New(port, "tok", "test-user", mockGetLLM(llm), testPrompt)
-	reply := a.Run("帮我配置个btc趋势交易的策略", nil)
+	reply := a.Run("set up a BTC trend trading strategy for me", nil)
 
 	if llm.calls != 3 {
 		t.Fatalf("expected 3 LLM calls, got %d", llm.calls)
@@ -298,7 +298,7 @@ func TestCreateStrategyWorkflow(t *testing.T) {
 }
 
 // TestFullSetupWorkflow: create strategy → verify → create trader → start trader.
-// This is the "帮我配置策略并跑起来" workflow.
+// This is the "create strategy and start it" workflow.
 func TestFullSetupWorkflow(t *testing.T) {
 	calls := map[string]int{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -306,11 +306,11 @@ func TestFullSetupWorkflow(t *testing.T) {
 		calls[key]++
 		switch key {
 		case "POST /api/strategies":
-			w.Write([]byte(`{"id":"s1","name":"BTC趋势"}`)) //nolint:errcheck
+			w.Write([]byte(`{"id":"s1","name":"BTC Trend"}`)) //nolint:errcheck
 		case "GET /api/strategies/s1":
-			w.Write([]byte(`{"id":"s1","name":"BTC趋势","config":{}}`)) //nolint:errcheck
+			w.Write([]byte(`{"id":"s1","name":"BTC Trend","config":{}}`)) //nolint:errcheck
 		case "POST /api/traders":
-			w.Write([]byte(`{"id":"tr1","name":"BTC趋势交易员"}`)) //nolint:errcheck
+			w.Write([]byte(`{"id":"tr1","name":"BTC Trend Trader"}`)) //nolint:errcheck
 		case "POST /api/traders/tr1/start":
 			w.Write([]byte(`{"ok":true}`)) //nolint:errcheck
 		default:
@@ -322,14 +322,14 @@ func TestFullSetupWorkflow(t *testing.T) {
 	fmt.Sscanf(srv.Listener.Addr().String(), "127.0.0.1:%d", &port)
 
 	llm := &mockLLM{responses: []*mcp.LLMResponse{
-		toolCall("c1", "POST", "/api/strategies", `{"name":"BTC趋势"}`),
+		toolCall("c1", "POST", "/api/strategies", `{"name":"BTC Trend"}`),
 		toolCall("c2", "GET", "/api/strategies/s1", "{}"),
-		toolCall("c3", "POST", "/api/traders", `{"name":"BTC趋势交易员","strategy_id":"s1"}`),
+		toolCall("c3", "POST", "/api/traders", `{"name":"BTC Trend Trader","strategy_id":"s1"}`),
 		toolCall("c4", "POST", "/api/traders/tr1/start", "{}"),
-		textReply("策略和交易员已创建并启动！BTC趋势交易员正在运行。"),
+		textReply("Strategy and trader created and started! BTC Trend Trader is running."),
 	}}
 	a := New(port, "tok", "test-user", mockGetLLM(llm), testPrompt)
-	reply := a.Run("帮我配置个btc趋势交易的策略交易 跑起来", nil)
+	reply := a.Run("set up a BTC trend trading strategy and start it", nil)
 
 	if llm.calls != 5 {
 		t.Fatalf("expected 5 LLM calls, got %d", llm.calls)
@@ -370,15 +370,15 @@ func TestStartExistingTrader(t *testing.T) {
 	llm := &mockLLM{responses: []*mcp.LLMResponse{
 		toolCall("c1", "GET", "/api/my-traders", "{}"),
 		toolCall("c2", "POST", "/api/traders/tr1/start", "{}"),
-		textReply("交易员 BTC Trader 已启动。"),
+		textReply("Trader BTC Trader has been started."),
 	}}
 	a := New(port, "tok", "test-user", mockGetLLM(llm), testPrompt)
-	reply := a.Run("启动交易员", nil)
+	reply := a.Run("start the trader", nil)
 
 	if calls["POST /api/traders/tr1/start"] != 1 {
 		t.Errorf("expected trader to be started, got %d start calls", calls["POST /api/traders/tr1/start"])
 	}
-	if reply != "交易员 BTC Trader 已启动。" {
+	if reply != "Trader BTC Trader has been started." {
 		t.Fatalf("unexpected reply: %q", reply)
 	}
 }

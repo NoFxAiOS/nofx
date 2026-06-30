@@ -13,7 +13,7 @@ export default function LoginModal({ onClose, language }: LoginModalProps) {
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0, 0, 0, 0.8)' }}
+      style={{ background: 'rgba(26, 24, 19, 0.55)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -22,8 +22,8 @@ export default function LoginModal({ onClose, language }: LoginModalProps) {
       <motion.div
         className="relative max-w-md w-full rounded-2xl p-8"
         style={{
-          background: 'var(--brand-dark-gray)',
-          border: '1px solid rgba(240, 185, 11, 0.2)',
+          background: '#F7F4EC',
+          border: '1px solid rgba(224, 72, 59, 0.2)',
         }}
         initial={{ scale: 0.9, y: 50 }}
         animate={{ scale: 1, y: 0 }}
@@ -33,7 +33,7 @@ export default function LoginModal({ onClose, language }: LoginModalProps) {
         <motion.button
           onClick={onClose}
           className="absolute top-4 right-4"
-          style={{ color: 'var(--text-secondary)' }}
+          style={{ color: '#8A8478' }}
           whileHover={{ scale: 1.1, rotate: 90 }}
           whileTap={{ scale: 0.9 }}
         >
@@ -41,11 +41,11 @@ export default function LoginModal({ onClose, language }: LoginModalProps) {
         </motion.button>
         <h2
           className="text-2xl font-bold mb-6"
-          style={{ color: 'var(--brand-light-gray)' }}
+          style={{ color: '#1A1813' }}
         >
           {t('accessNofxPlatform', language)}
         </h2>
-        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+        <p className="text-sm mb-6" style={{ color: '#8A8478' }}>
           {t('loginRegisterPrompt', language)}
         </p>
         <div className="space-y-3">
@@ -56,12 +56,12 @@ export default function LoginModal({ onClose, language }: LoginModalProps) {
             }}
             className="block w-full px-6 py-3 rounded-lg font-semibold text-center"
             style={{
-              background: 'var(--brand-yellow)',
-              color: 'var(--brand-black)',
+              background: '#E0483B',
+              color: '#F7F4EC',
             }}
             whileHover={{
               scale: 1.05,
-              boxShadow: '0 10px 30px rgba(240, 185, 11, 0.4)',
+              boxShadow: '0 10px 30px rgba(224, 72, 59, 0.3)',
             }}
             whileTap={{ scale: 0.95 }}
           >

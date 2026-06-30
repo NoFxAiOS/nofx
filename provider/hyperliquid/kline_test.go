@@ -16,10 +16,10 @@ func TestGetCandles_BTC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log("=== BTC 日线数据 (Hyperliquid) ===")
+	t.Log("=== BTC daily data (Hyperliquid) ===")
 	for i, c := range candles {
 		openTime := time.UnixMilli(c.OpenTime).Format("2006-01-02 15:04:05")
-		t.Logf("\n[%d] 时间: %s", i, openTime)
+		t.Logf("\n[%d] Time: %s", i, openTime)
 		t.Logf("    Symbol:     %s", c.Symbol)
 		t.Logf("    Interval:   %s", c.Interval)
 		t.Logf("    Open:       %s", c.Open)
@@ -30,24 +30,24 @@ func TestGetCandles_BTC(t *testing.T) {
 		t.Logf("    TradeCount: %d", c.TradeCount)
 	}
 
-	// 打印原始 JSON
+	// Print raw JSON
 	res, _ := json.MarshalIndent(candles, "", "  ")
-	fmt.Printf("\n原始 JSON:\n%s\n", res)
+	fmt.Printf("\nRaw JSON:\n%s\n", res)
 }
 
 func TestGetCandles_TSLA(t *testing.T) {
 	client := NewClient()
 
-	// 测试股票永续合约 - 使用 xyz dex
+	// Test stock perpetual contracts - using xyz dex
 	candles, err := client.GetCandles(context.TODO(), "TSLA", "1d", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Log("=== TSLA 日线数据 (Hyperliquid xyz dex) ===")
+	t.Log("=== TSLA daily data (Hyperliquid xyz dex) ===")
 	for i, c := range candles {
 		openTime := time.UnixMilli(c.OpenTime).Format("2006-01-02 15:04:05")
-		t.Logf("\n[%d] 时间: %s", i, openTime)
+		t.Logf("\n[%d] Time: %s", i, openTime)
 		t.Logf("    Symbol:     %s", c.Symbol)
 		t.Logf("    Interval:   %s", c.Interval)
 		t.Logf("    Open:       %s", c.Open)
@@ -58,33 +58,33 @@ func TestGetCandles_TSLA(t *testing.T) {
 		t.Logf("    TradeCount: %d", c.TradeCount)
 	}
 
-	// 打印原始 JSON
+	// Print raw JSON
 	res, _ := json.MarshalIndent(candles, "", "  ")
-	fmt.Printf("\n原始 JSON:\n%s\n", res)
+	fmt.Printf("\nRaw JSON:\n%s\n", res)
 }
 
 func TestGetCandles_StockPerps(t *testing.T) {
 	client := NewClient()
 
-	// 测试多个股票永续合约 (xyz dex)
+	// Test multiple stock perpetual contracts (xyz dex)
 	symbols := []string{"TSLA", "NVDA", "AAPL", "MSFT"}
 
 	for _, symbol := range symbols {
-		t.Logf("\n=== %s 日线数据 ===", symbol)
+		t.Logf("\n=== %s daily data ===", symbol)
 		candles, err := client.GetCandles(context.TODO(), symbol, "1d", 3)
 		if err != nil {
-			t.Errorf("%s 获取失败: %v", symbol, err)
+			t.Errorf("%s fetch failed: %v", symbol, err)
 			continue
 		}
 
 		if len(candles) == 0 {
-			t.Logf("%s: 无数据", symbol)
+			t.Logf("%s: no data", symbol)
 			continue
 		}
 
 		latest := candles[len(candles)-1]
 		openTime := time.UnixMilli(latest.OpenTime).Format("2006-01-02")
-		t.Logf("%s 最新: %s Open=%s High=%s Low=%s Close=%s Vol=%s",
+		t.Logf("%s latest: %s Open=%s High=%s Low=%s Close=%s Vol=%s",
 			symbol, openTime, latest.Open, latest.High, latest.Low, latest.Close, latest.Volume)
 	}
 }
@@ -97,19 +97,19 @@ func TestGetAllMids(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log("=== 加密货币资产中间价 (默认 dex) ===")
+	t.Log("=== Crypto asset mid prices (default dex) ===")
 
-	// 显示一些主要加密货币资产
+	// Show some major crypto assets
 	cryptoAssets := []string{"BTC", "ETH", "SOL", "DOGE", "XRP"}
 	for _, asset := range cryptoAssets {
 		if mid, ok := mids[asset]; ok {
 			t.Logf("%s: %s", asset, mid)
 		} else {
-			t.Logf("%s: 不存在", asset)
+			t.Logf("%s: not found", asset)
 		}
 	}
 
-	t.Logf("\n总共 %d 个加密货币交易对", len(mids))
+	t.Logf("\nTotal %d crypto trading pairs", len(mids))
 }
 
 func TestGetAllMidsXYZ(t *testing.T) {
@@ -120,14 +120,14 @@ func TestGetAllMidsXYZ(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log("=== xyz dex 资产中间价 (股票、外汇、大宗商品) ===")
+	t.Log("=== xyz dex asset mid prices (stocks, forex, commodities) ===")
 
-	// 显示所有 xyz dex 资产
+	// Show all xyz dex assets
 	for symbol, mid := range mids {
 		t.Logf("%s: %s", symbol, mid)
 	}
 
-	t.Logf("\n总共 %d 个 xyz dex 交易对", len(mids))
+	t.Logf("\nTotal %d xyz dex trading pairs", len(mids))
 }
 
 func TestGetMeta(t *testing.T) {
@@ -138,11 +138,11 @@ func TestGetMeta(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log("=== 资产元数据 ===")
-	t.Logf("总共 %d 个资产", len(meta.Universe))
+	t.Log("=== Asset metadata ===")
+	t.Logf("Total %d assets", len(meta.Universe))
 
-	// 显示股票永续合约
-	t.Log("\n股票永续合约:")
+	// Show stock perpetual contracts
+	t.Log("\nStock perpetual contracts:")
 	for _, asset := range meta.Universe {
 		if IsStockPerp(asset.Name) {
 			t.Logf("  %s: szDecimals=%d, maxLeverage=%d", asset.Name, asset.SzDecimals, asset.MaxLeverage)

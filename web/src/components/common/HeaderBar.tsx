@@ -93,8 +93,10 @@ export default function HeaderBar({
           }}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
         >
-          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-7 h-7" />
-          <span className="text-lg font-bold text-nofx-gold">NOFX</span>
+          <span className="flex items-center justify-center w-8 h-8 rounded-md overflow-hidden shrink-0" style={{ background: '#fff', border: '1px solid rgba(26,24,19,0.12)' }}>
+            <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
+          </span>
+          <span className="text-lg font-bold text-nofx-gold tracking-wide">NOFX</span>
         </div>
 
         {/* Desktop Menu */}
@@ -117,7 +119,7 @@ export default function HeaderBar({
                   path: ROUTES.data,
                   label:
                     language === 'zh'
-                      ? '数据'
+                      ? 'Data'
                       : language === 'id'
                         ? 'Data'
                         : 'Data',
@@ -128,7 +130,7 @@ export default function HeaderBar({
                   path: ROUTES.strategyMarket,
                   label:
                     language === 'zh'
-                      ? '策略市场'
+                      ? 'Market'
                       : language === 'id'
                         ? 'Pasar'
                         : 'Market',
@@ -201,6 +203,8 @@ export default function HeaderBar({
                   </button>
                 ))
             })()}
+            {/* Dashboard context slot — terminal selector + status portals in here */}
+            <div id="dash-header-slot" className="hidden lg:flex items-center" />
           </div>
 
           {/* Right Side - Social Links and User Actions */}
@@ -216,7 +220,7 @@ export default function HeaderBar({
                 href={OFFICIAL_LINKS.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 rounded-lg transition-all hover:scale-110 text-nofx-text-muted hover:text-white hover:bg-white/5"
+                className="p-2 rounded-lg transition-all hover:scale-110 text-nofx-text-muted hover:text-nofx-text hover:bg-[rgba(26,24,19,0.06)]"
                 title="GitHub"
               >
                 <svg
@@ -265,7 +269,7 @@ export default function HeaderBar({
             </div>
 
             {/* Divider */}
-            <div className="h-5 w-px" style={{ background: '#2B3139' }} />
+            <div className="h-5 w-px" style={{ background: 'rgba(26,24,19,0.15)' }} />
 
             {/* User Info and Actions */}
             {isLoggedIn && user ? (
@@ -274,9 +278,9 @@ export default function HeaderBar({
                 <div className="relative" ref={userDropdownRef}>
                   <button
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center gap-2 px-3 py-2 rounded transition-colors bg-nofx-bg-lighter border border-nofx-gold/20 hover:bg-white/5"
+                    className="flex items-center gap-2 px-3 py-2 rounded transition-colors bg-nofx-bg-lighter border border-nofx-gold/20 hover:bg-[rgba(26,24,19,0.06)]"
                   >
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-nofx-gold text-black">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-nofx-gold text-white">
                       {user.email[0].toUpperCase()}
                     </div>
                     <span className="text-sm text-nofx-text-muted">
@@ -300,7 +304,7 @@ export default function HeaderBar({
                           navigateInApp(ROUTES.settings)
                           setUserDropdownOpen(false)
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-white/5 text-nofx-text-muted hover:text-white"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-[rgba(26,24,19,0.06)] text-nofx-text-muted hover:text-nofx-text"
                       >
                         <Settings className="w-3.5 h-3.5" />
                         Settings
@@ -311,15 +315,15 @@ export default function HeaderBar({
                             userMode === 'beginner' ? 'advanced' : 'beginner'
                           )
                         }
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-white/5 text-nofx-text-muted hover:text-white"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-[rgba(26,24,19,0.06)] text-nofx-text-muted hover:text-nofx-text"
                       >
                         <Settings className="w-3.5 h-3.5" />
                         {userMode === 'beginner'
                           ? language === 'zh'
-                            ? '切到老手模式'
+                            ? 'Switch to Advanced'
                             : 'Switch to Advanced'
                           : language === 'zh'
-                            ? '切到新手模式'
+                            ? 'Switch to Beginner'
                             : 'Switch to Beginner'}
                       </button>
                       {onLogout && (
@@ -345,7 +349,7 @@ export default function HeaderBar({
                   <button
                     type="button"
                     onClick={() => navigateInApp(ROUTES.login)}
-                    className="px-3 py-2 text-sm font-medium transition-colors rounded text-nofx-text-muted hover:text-white"
+                    className="px-3 py-2 text-sm font-medium transition-colors rounded text-nofx-text-muted hover:text-nofx-text"
                   >
                     {t('signIn', language)}
                   </button>
@@ -372,19 +376,19 @@ export default function HeaderBar({
                       onLanguageChange?.('zh')
                       setLanguageDropdownOpen(false)
                     }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-white
-                      ${language === 'zh' ? 'bg-nofx-gold/10' : 'hover:bg-white/5'}`}
+                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-nofx-text
+                      ${language === 'zh' ? 'bg-nofx-gold/10' : 'hover:bg-[rgba(26,24,19,0.06)]'}`}
                   >
                     <span className="text-base">🇨🇳</span>
-                    <span className="text-sm">中文</span>
+                    <span className="text-sm">Chinese</span>
                   </button>
                   <button
                     onClick={() => {
                       onLanguageChange?.('en')
                       setLanguageDropdownOpen(false)
                     }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-white
-                      ${language === 'en' ? 'bg-nofx-gold/10' : 'hover:bg-white/5'}`}
+                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-nofx-text
+                      ${language === 'en' ? 'bg-nofx-gold/10' : 'hover:bg-[rgba(26,24,19,0.06)]'}`}
                   >
                     <span className="text-base">🇺🇸</span>
                     <span className="text-sm">English</span>
@@ -394,8 +398,8 @@ export default function HeaderBar({
                       onLanguageChange?.('id')
                       setLanguageDropdownOpen(false)
                     }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-white
-                      ${language === 'id' ? 'bg-nofx-gold/10' : 'hover:bg-white/5'}`}
+                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-nofx-text
+                      ${language === 'id' ? 'bg-nofx-gold/10' : 'hover:bg-[rgba(26,24,19,0.06)]'}`}
                   >
                     <span className="text-base">🇮🇩</span>
                     <span className="text-sm">Bahasa</span>
@@ -409,7 +413,7 @@ export default function HeaderBar({
         {/* Mobile Menu Button */}
         <motion.button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden text-nofx-text-muted hover:text-white"
+          className="md:hidden text-nofx-text-muted hover:text-nofx-text"
           whileTap={{ scale: 0.9 }}
         >
           {mobileMenuOpen ? (
@@ -453,7 +457,7 @@ export default function HeaderBar({
                       path: ROUTES.data,
                       label:
                         language === 'zh'
-                          ? '数据'
+                          ? 'Data'
                           : language === 'id'
                             ? 'Data'
                             : 'Data',
@@ -464,7 +468,7 @@ export default function HeaderBar({
                       path: ROUTES.strategyMarket,
                       label:
                         language === 'zh'
-                          ? '策略市场'
+                          ? 'Market'
                           : language === 'id'
                             ? 'Pasar'
                             : 'Market',
@@ -657,7 +661,7 @@ export default function HeaderBar({
                           navigateInApp(ROUTES.login)
                           setMobileMenuOpen(false)
                         }}
-                        className="flex items-center justify-center bg-nofx-gold text-black rounded-lg font-bold text-sm hover:bg-yellow-400 transition-colors"
+                        className="flex items-center justify-center bg-nofx-gold text-white rounded-lg font-bold text-sm hover:opacity-90 transition-colors"
                       >
                         {t('signIn', language)}
                       </button>

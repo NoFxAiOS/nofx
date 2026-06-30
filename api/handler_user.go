@@ -229,7 +229,7 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 	}
 	locales := map[string]strategyLocale{
 		"zh": {
-			defaultStrategy: strategyI18n{"NOFX Claw402 自动策略", "唯一内置策略：每轮读取 Claw402.ai 榜单，逐个拉取 Signal Lab 与成本/清算热力图，再结合原始 K 线决策。"},
+			defaultStrategy: strategyI18n{"NOFX Claw402 Auto Strategy", "The only built-in strategy: read the Claw402.ai board each cycle, fetch Signal Lab and cost/liquidation heatmap per candidate, then decide with raw candles."},
 		},
 		"en": {
 			defaultStrategy: strategyI18n{"NOFX Claw402 Auto Strategy", "The only built-in strategy: read the Claw402.ai board each cycle, fetch Signal Lab and cost/liquidation heatmap per candidate, then decide with raw candles."},
@@ -318,8 +318,8 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 	}
 
 	legacyDefaultNames := []string{
-		"均衡策略", "稳健策略", "积极策略",
-		"美股趋势策略", "美股稳健策略", "美股突破策略",
+		"Balanced Strategy", "Steady Strategy", "Aggressive Strategy",
+		"US Stock Trend Strategy", "US Stock Steady Strategy", "US Stock Breakout Strategy",
 		"Balanced Strategy", "Conservative Strategy", "Aggressive Strategy",
 		"US Stock Trend Strategy", "US Stock Steady Strategy", "US Stock Breakout Strategy",
 		"Strategi Seimbang", "Strategi Konservatif", "Strategi Agresif",

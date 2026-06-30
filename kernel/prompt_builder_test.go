@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// TestPromptBuilder 测试提示词构建器
+// TestPromptBuilder tests the prompt builder
 func TestPromptBuilder(t *testing.T) {
 	t.Run("NewPromptBuilder", func(t *testing.T) {
 		builderZH := NewPromptBuilder(LangChinese)
@@ -31,17 +31,17 @@ func TestPromptBuilder(t *testing.T) {
 			t.Fatal("System prompt is empty")
 		}
 
-		// 验证包含关键内容
+		// Verify it contains key content
 		mustContain := []string{
-			"量化交易AI助手",
-			"分析账户状态",
-			"分析当前持仓",
-			"分析候选币种",
-			"做出决策",
-			"风险优先",
-			"跟踪止盈",
-			"顺势交易",
-			"分批操作",
+			"quantitative trading AI assistant",
+			"Analyze account status",
+			"Analyze current positions",
+			"Analyze candidate symbols",
+			"Make decisions",
+			"Risk First",
+			"Trailing Take-Profit",
+			"Trend Following",
+			"Scaling",
 			"JSON",
 			"symbol",
 			"action",
@@ -54,7 +54,7 @@ func TestPromptBuilder(t *testing.T) {
 			}
 		}
 
-		// 验证包含所有有效的action类型
+		// Verify it contains all valid action types
 		actions := []string{"HOLD", "PARTIAL_CLOSE", "FULL_CLOSE", "ADD_POSITION", "OPEN_NEW", "WAIT"}
 		for _, action := range actions {
 			if !strings.Contains(systemPrompt, action) {
@@ -71,7 +71,7 @@ func TestPromptBuilder(t *testing.T) {
 			t.Fatal("System prompt is empty")
 		}
 
-		// 验证包含关键内容
+		// Verify it contains key content
 		mustContain := []string{
 			"quantitative trading AI",
 			"Analyze Account Status",
@@ -96,7 +96,7 @@ func TestPromptBuilder(t *testing.T) {
 	})
 
 	t.Run("BuildUserPrompt", func(t *testing.T) {
-		// 创建测试上下文
+		// Create test context
 		ctx := createTestContext()
 
 		builderZH := NewPromptBuilder(LangChinese)
@@ -106,27 +106,27 @@ func TestPromptBuilder(t *testing.T) {
 			t.Fatal("User prompt is empty")
 		}
 
-		// 验证包含数据字典
-		if !strings.Contains(userPromptZH, "数据字典") {
+		// Verify it contains the data dictionary
+		if !strings.Contains(userPromptZH, "Data Dictionary") {
 			t.Error("User prompt should contain data dictionary")
 		}
 
-		// 验证包含账户信息
+		// Verify it contains account information
 		if !strings.Contains(userPromptZH, "3079.40") { // Equity
 			t.Error("User prompt should contain account equity")
 		}
 
-		// 验证包含持仓信息
+		// Verify it contains position information
 		if !strings.Contains(userPromptZH, "PIPPINUSDT") {
 			t.Error("User prompt should contain position symbol")
 		}
 
-		// 验证包含决策要求
-		if !strings.Contains(userPromptZH, "现在请做出决策") {
+		// Verify it contains decision requirements
+		if !strings.Contains(userPromptZH, "Now Make Your Decision") {
 			t.Error("User prompt should contain decision requirements")
 		}
 
-		// 英文版本
+		// English version
 		builderEN := NewPromptBuilder(LangEnglish)
 		userPromptEN := builderEN.BuildUserPrompt(ctx)
 
@@ -140,7 +140,7 @@ func TestPromptBuilder(t *testing.T) {
 	})
 }
 
-// TestValidateDecisionFormat 测试决策格式验证
+// TestValidateDecisionFormat tests decision format validation
 func TestValidateDecisionFormat(t *testing.T) {
 	t.Run("ValidDecision", func(t *testing.T) {
 		decisions := []Decision{
@@ -152,7 +152,7 @@ func TestValidateDecisionFormat(t *testing.T) {
 				StopLoss:        42000,
 				TakeProfit:      48000,
 				Confidence:      85,
-				Reasoning:       "详细的推理过程",
+				Reasoning:       "Detailed reasoning",
 			},
 		}
 
@@ -319,7 +319,7 @@ func TestValidateDecisionFormat(t *testing.T) {
 				},
 			}
 
-			// OPEN_NEW需要额外字段
+			// OPEN_NEW requires extra fields
 			if action == "OPEN_NEW" {
 				decisions[0].Leverage = 3
 				decisions[0].PositionSizeUSD = 1000
@@ -333,7 +333,7 @@ func TestValidateDecisionFormat(t *testing.T) {
 	})
 }
 
-// TestFormatDecisionExample 测试决策示例格式化
+// TestFormatDecisionExample tests decision example formatting
 func TestFormatDecisionExample(t *testing.T) {
 	t.Run("Chinese", func(t *testing.T) {
 		example := FormatDecisionExample(LangChinese)
@@ -342,7 +342,7 @@ func TestFormatDecisionExample(t *testing.T) {
 			t.Fatal("Decision example is empty")
 		}
 
-		// 应该是有效的JSON
+		// Should be valid JSON
 		if !strings.HasPrefix(strings.TrimSpace(example), "[") {
 			t.Error("Example should be a JSON array")
 		}
@@ -359,14 +359,14 @@ func TestFormatDecisionExample(t *testing.T) {
 			t.Fatal("Decision example is empty")
 		}
 
-		// 验证是有效的JSON格式
+		// Verify it is valid JSON format
 		if !strings.HasPrefix(strings.TrimSpace(example), "[") {
 			t.Error("Example should be a JSON array")
 		}
 	})
 }
 
-// BenchmarkBuildSystemPrompt 性能测试
+// BenchmarkBuildSystemPrompt performance benchmark
 func BenchmarkBuildSystemPrompt(b *testing.B) {
 	builder := NewPromptBuilder(LangChinese)
 
@@ -384,7 +384,7 @@ func BenchmarkBuildSystemPrompt(b *testing.B) {
 	})
 }
 
-// BenchmarkBuildUserPrompt 性能测试
+// BenchmarkBuildUserPrompt performance benchmark
 func BenchmarkBuildUserPrompt(b *testing.B) {
 	builder := NewPromptBuilder(LangChinese)
 	ctx := createTestContext()
@@ -403,7 +403,7 @@ func BenchmarkBuildUserPrompt(b *testing.B) {
 	})
 }
 
-// createTestContext 创建测试用的交易上下文
+// createTestContext creates a trading context for tests
 func createTestContext() *Context {
 	return &Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),

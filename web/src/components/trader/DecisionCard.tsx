@@ -10,12 +10,12 @@ interface DecisionCardProps {
 
 // Action type configuration
 const ACTION_CONFIG: Record<string, { color: string; bg: string; icon: string; label: string }> = {
-  open_long: { color: '#0ECB81', bg: 'rgba(14, 203, 129, 0.15)', icon: '📈', label: 'LONG' },
-  open_short: { color: '#F6465D', bg: 'rgba(246, 70, 93, 0.15)', icon: '📉', label: 'SHORT' },
-  close_long: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
-  close_short: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
-  hold: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏸️', label: 'HOLD' },
-  wait: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏳', label: 'WAIT' },
+  open_long: { color: '#2E8B57', bg: 'rgba(46, 139, 87, 0.15)', icon: '📈', label: 'LONG' },
+  open_short: { color: '#D6433A', bg: 'rgba(214, 67, 58, 0.15)', icon: '📉', label: 'SHORT' },
+  close_long: { color: '#E0483B', bg: 'rgba(224, 72, 59, 0.15)', icon: '💰', label: 'CLOSE' },
+  close_short: { color: '#E0483B', bg: 'rgba(224, 72, 59, 0.15)', icon: '💰', label: 'CLOSE' },
+  hold: { color: '#8A8478', bg: 'rgba(138, 132, 120, 0.15)', icon: '⏸️', label: 'HOLD' },
+  wait: { color: '#8A8478', bg: 'rgba(138, 132, 120, 0.15)', icon: '⏳', label: 'WAIT' },
 }
 
 // Format price with proper decimals
@@ -36,10 +36,10 @@ function calcPctChange(entry: number | undefined, target: number | undefined, is
 
 // Get confidence color
 function getConfidenceColor(confidence: number | undefined): string {
-  if (!confidence) return '#848E9C'
-  if (confidence >= 80) return '#0ECB81'
-  if (confidence >= 60) return '#F0B90B'
-  return '#F6465D'
+  if (!confidence) return '#8A8478'
+  if (confidence >= 80) return '#2E8B57'
+  if (confidence >= 60) return '#E0483B'
+  return '#D6433A'
 }
 
 // Single Action Card Component
@@ -52,9 +52,8 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
     <div
       className="rounded-lg p-4 transition-all duration-200 hover:scale-[1.01]"
       style={{
-        background: 'linear-gradient(135deg, #1E2329 0%, #181C21 100%)',
+        background: '#F7F4EC',
         border: `1px solid ${config.color}33`,
-        boxShadow: `0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.03)`,
       }}
     >
       {/* Header Row */}
@@ -63,7 +62,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           <span className="text-xl">{config.icon}</span>
           <span
             className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110"
-            style={{ color: '#EAECEF' }}
+            style={{ color: '#1A1813' }}
             onClick={() => onSymbolClick?.(action.symbol)}
             title="Click to view chart"
           >
@@ -92,34 +91,34 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
           )}
           <div
             className="w-2 h-2 rounded-full"
-            style={{ background: action.success ? '#0ECB81' : '#F6465D' }}
+            style={{ background: action.success ? '#2E8B57' : '#D6433A' }}
           />
         </div>
       </div>
 
       {/* Trading Details Grid */}
       {isOpen && (
-        <div className="grid grid-cols-4 gap-3 mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
+        <div className="grid grid-cols-4 gap-3 mt-3 pt-3" style={{ borderTop: '1px solid rgba(26,24,19,0.14)' }}>
           {/* Entry Price */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+            <div className="text-xs mb-1" style={{ color: '#8A8478' }}>
               {t('entryPrice', language)}
             </div>
-            <div className="font-mono font-semibold" style={{ color: '#EAECEF' }}>
+            <div className="font-mono font-semibold" style={{ color: '#1A1813' }}>
               {formatPrice(action.price)}
             </div>
           </div>
 
           {/* Stop Loss */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#F6465D' }}>
+            <div className="text-xs mb-1" style={{ color: '#D6433A' }}>
               {t('stopLoss', language)}
             </div>
-            <div className="font-mono font-semibold" style={{ color: '#F6465D' }}>
+            <div className="font-mono font-semibold" style={{ color: '#D6433A' }}>
               {formatPrice(action.stop_loss)}
             </div>
             {action.stop_loss && action.price && (
-              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
+              <div className="text-xs mt-0.5" style={{ color: '#8A8478' }}>
                 {calcPctChange(action.price, action.stop_loss, isLong)}
               </div>
             )}
@@ -127,14 +126,14 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
 
           {/* Take Profit */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#0ECB81' }}>
+            <div className="text-xs mb-1" style={{ color: '#2E8B57' }}>
               {t('takeProfit', language)}
             </div>
-            <div className="font-mono font-semibold" style={{ color: '#0ECB81' }}>
+            <div className="font-mono font-semibold" style={{ color: '#2E8B57' }}>
               {formatPrice(action.take_profit)}
             </div>
             {action.take_profit && action.price && (
-              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
+              <div className="text-xs mt-0.5" style={{ color: '#8A8478' }}>
                 {calcPctChange(action.price, action.take_profit, isLong)}
               </div>
             )}
@@ -142,10 +141,10 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
 
           {/* Leverage */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+            <div className="text-xs mb-1" style={{ color: '#8A8478' }}>
               {t('leverage', language)}
             </div>
-            <div className="font-mono font-semibold" style={{ color: '#F0B90B' }}>
+            <div className="font-mono font-semibold" style={{ color: '#E0483B' }}>
               {action.leverage}x
             </div>
           </div>
@@ -154,26 +153,26 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
 
       {/* Risk/Reward Ratio for open positions */}
       {isOpen && action.stop_loss && action.take_profit && action.price && (
-        <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid #2B3139' }}>
-          <span className="text-xs" style={{ color: '#848E9C' }}>{t('riskReward', language)}</span>
+        <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid rgba(26,24,19,0.14)' }}>
+          <span className="text-xs" style={{ color: '#8A8478' }}>{t('riskReward', language)}</span>
           <div className="flex items-center gap-2">
             {(() => {
               const slDist = Math.abs(action.price - action.stop_loss)
               const tpDist = Math.abs(action.take_profit - action.price)
               const ratio = slDist > 0 ? (tpDist / slDist) : 0
-              const ratioColor = ratio >= 3 ? '#0ECB81' : ratio >= 2 ? '#F0B90B' : '#F6465D'
+              const ratioColor = ratio >= 3 ? '#2E8B57' : ratio >= 2 ? '#E0483B' : '#D6433A'
               return (
                 <>
                   <div className="flex gap-1">
-                    <span style={{ color: '#F6465D' }}>1</span>
-                    <span style={{ color: '#848E9C' }}>:</span>
-                    <span style={{ color: '#0ECB81' }}>{ratio.toFixed(1)}</span>
+                    <span style={{ color: '#D6433A' }}>1</span>
+                    <span style={{ color: '#8A8478' }}>:</span>
+                    <span style={{ color: '#2E8B57' }}>{ratio.toFixed(1)}</span>
                   </div>
                   <div
                     className="h-1.5 rounded-full"
                     style={{
                       width: '60px',
-                      background: '#2B3139',
+                      background: '#E8E2D5',
                     }}
                   >
                     <div
@@ -193,8 +192,8 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
 
       {/* Reasoning */}
       {action.reasoning && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
-          <div className="text-xs line-clamp-2" style={{ color: '#848E9C' }}>
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(26,24,19,0.14)' }}>
+          <div className="text-xs line-clamp-2" style={{ color: '#8A8478' }}>
             💡 {action.reasoning}
           </div>
         </div>
@@ -205,9 +204,9 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
         <div
           className="mt-3 rounded p-2 text-xs"
           style={{
-            background: 'rgba(246, 70, 93, 0.1)',
-            border: '1px solid rgba(246, 70, 93, 0.3)',
-            color: '#F6465D',
+            background: 'rgba(214, 67, 58, 0.1)',
+            border: '1px solid rgba(214, 67, 58, 0.3)',
+            color: '#D6433A',
           }}
         >
           ❌ {action.error}
@@ -249,9 +248,8 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
     <div
       className="rounded-xl p-5 transition-all duration-300 hover:translate-y-[-2px]"
       style={{
-        border: '1px solid #2B3139',
-        background: 'linear-gradient(180deg, #1E2329 0%, #181C21 100%)',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+        border: '1px solid rgba(26,24,19,0.14)',
+        background: '#F7F4EC',
       }}
     >
       {/* Header */}
@@ -259,15 +257,15 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: 'rgba(240, 185, 11, 0.15)' }}
+            style={{ background: 'rgba(224, 72, 59, 0.15)' }}
           >
             <span className="text-xl">🤖</span>
           </div>
           <div>
-            <div className="font-bold" style={{ color: '#EAECEF' }}>
+            <div className="font-bold" style={{ color: '#1A1813' }}>
               {t('cycle', language)} #{decision.cycle_number}
             </div>
-            <div className="text-xs" style={{ color: '#848E9C' }}>
+            <div className="text-xs" style={{ color: '#8A8478' }}>
               {new Date(decision.timestamp).toLocaleString()}
             </div>
           </div>
@@ -276,8 +274,8 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           className="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider"
           style={
             decision.success
-              ? { background: 'rgba(14, 203, 129, 0.15)', color: '#0ECB81', border: '1px solid rgba(14, 203, 129, 0.3)' }
-              : { background: 'rgba(246, 70, 93, 0.15)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.3)' }
+              ? { background: 'rgba(46, 139, 87, 0.15)', color: '#2E8B57', border: '1px solid rgba(46, 139, 87, 0.3)' }
+              : { background: 'rgba(214, 67, 58, 0.15)', color: '#D6433A', border: '1px solid rgba(214, 67, 58, 0.3)' }
           }
         >
           {t(decision.success ? 'success' : 'failed', language)}
@@ -300,11 +298,11 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           <div>
             <button
               onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-nofx-gold/10"
             >
               <div className="flex items-center gap-2">
                 <span className="text-base">⚙️</span>
-                <span className="font-semibold" style={{ color: '#a78bfa' }}>
+                <span className="font-semibold" style={{ color: '#E0483B' }}>
                   System Prompt
                 </span>
               </div>
@@ -315,7 +313,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                     copyToClipboard(decision.system_prompt, 'System Prompt')
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.3)' }}
+                  style={{ background: 'rgba(224, 72, 59, 0.2)', color: '#E0483B', border: '1px solid rgba(224, 72, 59, 0.3)' }}
                   title="Copy to clipboard"
                 >
                   <span>📋</span>
@@ -326,14 +324,14 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                     downloadAsFile(decision.system_prompt, `system-prompt-cycle-${decision.cycle_number}.txt`)
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.3)' }}
+                  style={{ background: 'rgba(224, 72, 59, 0.2)', color: '#E0483B', border: '1px solid rgba(224, 72, 59, 0.3)' }}
                   title="Download as file"
                 >
                   <span>💾</span>
                 </button>
                 <span
                   className="text-xs px-2 py-0.5 rounded"
-                  style={{ background: 'rgba(167, 139, 250, 0.15)', color: '#a78bfa' }}
+                  style={{ background: 'rgba(224, 72, 59, 0.15)', color: '#E0483B' }}
                 >
                   {showSystemPrompt ? t('collapse', language) : t('expand', language)}
                 </span>
@@ -343,9 +341,9 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
               <div
                 className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
                 style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
+                  background: '#E8E2D5',
+                  border: '1px solid rgba(26,24,19,0.14)',
+                  color: '#1A1813',
                 }}
               >
                 {decision.system_prompt}
@@ -359,11 +357,11 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           <div>
             <button
               onClick={() => setShowInputPrompt(!showInputPrompt)}
-              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-nofx-gold/10"
             >
               <div className="flex items-center gap-2">
                 <span className="text-base">📥</span>
-                <span className="font-semibold" style={{ color: '#60a5fa' }}>
+                <span className="font-semibold" style={{ color: '#E0483B' }}>
                   User Prompt
                 </span>
               </div>
@@ -374,7 +372,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                     copyToClipboard(decision.input_prompt, 'User Prompt')
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{ background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.3)' }}
+                  style={{ background: 'rgba(224, 72, 59, 0.2)', color: '#E0483B', border: '1px solid rgba(224, 72, 59, 0.3)' }}
                   title="Copy to clipboard"
                 >
                   <span>📋</span>
@@ -385,14 +383,14 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                     downloadAsFile(decision.input_prompt, `user-prompt-cycle-${decision.cycle_number}.txt`)
                   }}
                   className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
-                  style={{ background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.3)' }}
+                  style={{ background: 'rgba(224, 72, 59, 0.2)', color: '#E0483B', border: '1px solid rgba(224, 72, 59, 0.3)' }}
                   title="Download as file"
                 >
                   <span>💾</span>
                 </button>
                 <span
                   className="text-xs px-2 py-0.5 rounded"
-                  style={{ background: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' }}
+                  style={{ background: 'rgba(224, 72, 59, 0.15)', color: '#E0483B' }}
                 >
                   {showInputPrompt ? t('collapse', language) : t('expand', language)}
                 </span>
@@ -402,9 +400,9 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
               <div
                 className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
                 style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
+                  background: '#E8E2D5',
+                  border: '1px solid rgba(26,24,19,0.14)',
+                  color: '#1A1813',
                 }}
               >
                 {decision.input_prompt}
@@ -418,17 +416,17 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           <div>
             <button
               onClick={() => setShowCoT(!showCoT)}
-              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-nofx-gold/10"
             >
               <div className="flex items-center gap-2">
                 <span className="text-base">🧠</span>
-                <span className="font-semibold" style={{ color: '#F0B90B' }}>
+                <span className="font-semibold" style={{ color: '#E0483B' }}>
                   {t('aiThinking', language)}
                 </span>
               </div>
               <span
                 className="text-xs px-2 py-0.5 rounded"
-                style={{ background: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B' }}
+                style={{ background: 'rgba(224, 72, 59, 0.15)', color: '#E0483B' }}
               >
                 {showCoT ? t('collapse', language) : t('expand', language)}
               </span>
@@ -437,9 +435,9 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
               <div
                 className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
                 style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
+                  background: '#E8E2D5',
+                  border: '1px solid rgba(26,24,19,0.14)',
+                  color: '#1A1813',
                 }}
               >
                 {decision.cot_trace}
@@ -453,10 +451,10 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
       {decision.execution_log && decision.execution_log.length > 0 && (
         <div
           className="rounded-lg p-3 mt-4 text-xs font-mono space-y-1"
-          style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+          style={{ background: '#E8E2D5', border: '1px solid rgba(26,24,19,0.14)' }}
         >
           {decision.execution_log.map((log, index) => (
-            <div key={`${log}-${index}`} style={{ color: '#EAECEF' }}>
+            <div key={`${log}-${index}`} style={{ color: '#1A1813' }}>
               {log}
             </div>
           ))}
@@ -468,9 +466,9 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
         <div
           className="rounded-lg p-3 mt-4 text-sm"
           style={{
-            background: 'rgba(246, 70, 93, 0.1)',
-            border: '1px solid rgba(246, 70, 93, 0.4)',
-            color: '#F6465D',
+            background: 'rgba(214, 67, 58, 0.1)',
+            border: '1px solid rgba(214, 67, 58, 0.4)',
+            color: '#D6433A',
           }}
         >
           ❌ {decision.error_message}

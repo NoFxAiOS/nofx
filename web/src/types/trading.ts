@@ -18,7 +18,7 @@ export interface SystemStatus {
 export interface AccountInfo {
   total_equity: number
   wallet_balance: number
-  unrealized_profit: number // 未实现盈亏（交易所API官方值）
+  unrealized_profit: number // Unrealized PnL (official value from the exchange API)
   available_balance: number
   total_pnl: number
   total_pnl_pct: number
@@ -90,7 +90,23 @@ export interface Statistics {
   total_close_positions: number
 }
 
-// AI Trading相关类型
+// Full trade-quality metrics from GET /api/statistics/full (store.TraderStats).
+// Derived from CLOSED positions — the same numbers the AI sees each cycle.
+export interface TraderFullStats {
+  total_trades: number
+  win_trades: number
+  loss_trades: number
+  win_rate: number // percentage, 0-100
+  profit_factor: number
+  sharpe_ratio: number
+  total_pnl: number
+  total_fee: number
+  avg_win: number
+  avg_loss: number
+  max_drawdown_pct: number
+}
+
+// AI Trading related types
 export interface TraderInfo {
   trader_id: string
   trader_name: string
@@ -132,14 +148,14 @@ export interface TraderConfigData {
   trader_name: string
   ai_model: string
   exchange_id: string
-  strategy_id?: string  // 策略ID
-  strategy_name?: string  // 策略名称
+  strategy_id?: string  // Strategy ID
+  strategy_name?: string  // Strategy name
   is_cross_margin: boolean
-  show_in_competition: boolean  // 是否在竞技场显示
+  show_in_competition: boolean  // Whether to show in the competition arena
   scan_interval_minutes: number
   initial_balance: number
   is_running: boolean
-  // 以下为旧版字段（向后兼容）
+  // Legacy fields below (kept for backward compatibility)
   btc_eth_leverage?: number
   altcoin_leverage?: number
   trading_symbols?: string

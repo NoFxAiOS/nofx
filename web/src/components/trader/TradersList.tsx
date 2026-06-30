@@ -63,11 +63,11 @@ export function TradersList({
       <div className="flex items-center justify-between mb-4 md:mb-5">
         <h2
           className="text-lg md:text-xl font-bold flex items-center gap-2"
-          style={{ color: '#EAECEF' }}
+          style={{ color: '#1A1813' }}
         >
           <Users
             className="w-5 h-5 md:w-6 md:h-6"
-            style={{ color: '#F0B90B' }}
+            style={{ color: '#E0483B' }}
           />
           {t('currentTraders', language)}
         </h2>
@@ -114,7 +114,7 @@ function TradersLoadingSkeleton() {
         <div
           key={i}
           className="flex flex-col md:flex-row md:items-center justify-between p-3 md:p-4 rounded gap-3 md:gap-4 animate-pulse"
-          style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+          style={{ background: '#F7F4EC', border: '1px solid rgba(26,24,19,0.14)' }}
         >
           <div className="flex items-center gap-3 md:gap-4">
             <div className="w-10 h-10 md:w-12 md:h-12 rounded-full skeleton"></div>
@@ -146,7 +146,7 @@ function TradersEmptyState({
   return (
     <div
       className="text-center py-12 md:py-16"
-      style={{ color: '#848E9C' }}
+      style={{ color: '#8A8478' }}
     >
       <Bot className="w-16 h-16 md:w-24 md:h-24 mx-auto mb-3 md:mb-4 opacity-50" />
       <div className="text-base md:text-lg font-semibold mb-2">
@@ -157,7 +157,7 @@ function TradersEmptyState({
       </div>
       {(configuredModelsCount === 0 ||
         configuredExchangesCount === 0) && (
-          <div className="text-xs md:text-sm text-yellow-500">
+          <div className="text-xs md:text-sm text-nofx-gold">
             {configuredModelsCount === 0 &&
               configuredExchangesCount === 0
               ? t('configureModelsAndExchangesFirst', language)
@@ -208,7 +208,7 @@ function TraderRow({
   return (
     <div
       className="flex flex-col md:flex-row md:items-center justify-between p-3 md:p-4 rounded transition-all hover:translate-y-[-1px] gap-3 md:gap-4"
-      style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+      style={{ background: '#F7F4EC', border: '1px solid rgba(26,24,19,0.14)' }}
     >
       <div className="flex items-center gap-3 md:gap-4">
         <div className="flex-shrink-0">
@@ -226,7 +226,7 @@ function TraderRow({
         <div className="min-w-0">
           <div
             className="font-bold text-base md:text-lg truncate"
-            style={{ color: '#EAECEF' }}
+            style={{ color: '#1A1813' }}
           >
             {trader.trader_name}
           </div>
@@ -234,8 +234,8 @@ function TraderRow({
             className="text-xs md:text-sm truncate"
             style={{
               color: trader.ai_model.includes('deepseek')
-                ? '#60a5fa'
-                : '#c084fc',
+                ? '#E0483B'
+                : '#E0483B',
             }}
           >
             {getModelDisplayName(
@@ -252,11 +252,11 @@ function TraderRow({
           <div
             className="flex items-center gap-1 px-2 py-1 rounded"
             style={{
-              background: 'rgba(240, 185, 11, 0.08)',
-              border: '1px solid rgba(240, 185, 11, 0.2)',
+              background: 'rgba(224, 72, 59, 0.08)',
+              border: '1px solid rgba(224, 72, 59, 0.2)',
             }}
           >
-            <span className="text-xs font-mono" style={{ color: '#F0B90B' }}>
+            <span className="text-xs font-mono" style={{ color: '#E0483B' }}>
               {isVisible ? walletAddr : truncateAddress(walletAddr)}
             </span>
             <button
@@ -265,13 +265,13 @@ function TraderRow({
                 e.stopPropagation()
                 onToggleTraderAddress(trader.trader_id)
               }}
-              className="p-0.5 rounded hover:bg-gray-700 transition-colors"
-              title={isVisible ? (language === 'zh' ? '隐藏' : 'Hide') : (language === 'zh' ? '显示' : 'Show')}
+              className="p-0.5 rounded hover:bg-nofx-bg-deeper transition-colors"
+              title={isVisible ? (language === 'zh' ? 'Hide' : 'Hide') : (language === 'zh' ? 'Show' : 'Show')}
             >
               {isVisible ? (
-                <EyeOff className="w-3 h-3" style={{ color: '#848E9C' }} />
+                <EyeOff className="w-3 h-3" style={{ color: '#8A8478' }} />
               ) : (
-                <Eye className="w-3 h-3" style={{ color: '#848E9C' }} />
+                <Eye className="w-3 h-3" style={{ color: '#8A8478' }} />
               )}
             </button>
             <button
@@ -280,13 +280,13 @@ function TraderRow({
                 e.stopPropagation()
                 onCopyAddress(trader.trader_id, walletAddr)
               }}
-              className="p-0.5 rounded hover:bg-gray-700 transition-colors"
-              title={language === 'zh' ? '复制' : 'Copy'}
+              className="p-0.5 rounded hover:bg-nofx-bg-deeper transition-colors"
+              title={language === 'zh' ? 'Copy' : 'Copy'}
             >
               {isCopied ? (
-                <Check className="w-3 h-3" style={{ color: '#0ECB81' }} />
+                <Check className="w-3 h-3" style={{ color: '#2E8B57' }} />
               ) : (
-                <Copy className="w-3 h-3" style={{ color: '#848E9C' }} />
+                <Copy className="w-3 h-3" style={{ color: '#8A8478' }} />
               )}
             </button>
           </div>
@@ -295,18 +295,18 @@ function TraderRow({
         <div className="text-center">
           <div
             className={`px-2 md:px-3 py-1 rounded text-xs font-bold ${trader.is_running
-              ? 'bg-green-100 text-green-800'
-              : 'bg-red-100 text-red-800'
+              ? 'bg-nofx-success/10 text-nofx-success'
+              : 'bg-nofx-danger/10 text-nofx-danger'
               }`}
             style={
               trader.is_running
                 ? {
-                  background: 'rgba(14, 203, 129, 0.1)',
-                  color: '#0ECB81',
+                  background: 'rgba(46, 139, 87, 0.1)',
+                  color: '#2E8B57',
                 }
                 : {
-                  background: 'rgba(246, 70, 93, 0.1)',
-                  color: '#F6465D',
+                  background: 'rgba(214, 67, 58, 0.1)',
+                  color: '#D6433A',
                 }
             }
           >
@@ -329,8 +329,8 @@ function TraderRow({
             }}
             className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 whitespace-nowrap"
             style={{
-              background: 'rgba(99, 102, 241, 0.1)',
-              color: '#6366F1',
+              background: 'rgba(224, 72, 59, 0.1)',
+              color: '#E0483B',
             }}
           >
             <BarChart3 className="w-3 h-3 md:w-4 md:h-4" />
@@ -343,9 +343,9 @@ function TraderRow({
             className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
             style={{
               background: trader.is_running
-                ? 'rgba(132, 142, 156, 0.1)'
-                : 'rgba(255, 193, 7, 0.1)',
-              color: trader.is_running ? '#848E9C' : '#FFC107',
+                ? 'rgba(138, 132, 120, 0.1)'
+                : 'rgba(224, 72, 59, 0.1)',
+              color: trader.is_running ? '#8A8478' : '#E0483B',
             }}
           >
             <Pencil className="w-3 h-3 md:w-4 md:h-4" />
@@ -363,12 +363,12 @@ function TraderRow({
             style={
               trader.is_running
                 ? {
-                  background: 'rgba(246, 70, 93, 0.1)',
-                  color: '#F6465D',
+                  background: 'rgba(214, 67, 58, 0.1)',
+                  color: '#D6433A',
                 }
                 : {
-                  background: 'rgba(14, 203, 129, 0.1)',
-                  color: '#0ECB81',
+                  background: 'rgba(46, 139, 87, 0.1)',
+                  color: '#2E8B57',
                 }
             }
           >
@@ -383,15 +383,15 @@ function TraderRow({
             style={
               trader.show_in_competition !== false
                 ? {
-                  background: 'rgba(14, 203, 129, 0.1)',
-                  color: '#0ECB81',
+                  background: 'rgba(46, 139, 87, 0.1)',
+                  color: '#2E8B57',
                 }
                 : {
-                  background: 'rgba(132, 142, 156, 0.1)',
-                  color: '#848E9C',
+                  background: 'rgba(138, 132, 120, 0.1)',
+                  color: '#8A8478',
                 }
             }
-            title={trader.show_in_competition !== false ? '在竞技场显示' : '在竞技场隐藏'}
+            title={trader.show_in_competition !== false ? 'Shown in arena' : 'Hidden from arena'}
           >
             {trader.show_in_competition !== false ? (
               <Eye className="w-3 h-3 md:w-4 md:h-4" />
@@ -404,8 +404,8 @@ function TraderRow({
             onClick={() => onDeleteTrader(trader.trader_id)}
             className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105"
             style={{
-              background: 'rgba(246, 70, 93, 0.1)',
-              color: '#F6465D',
+              background: 'rgba(214, 67, 58, 0.1)',
+              color: '#D6433A',
             }}
           >
             <Trash2 className="w-3 h-3 md:w-4 md:h-4" />

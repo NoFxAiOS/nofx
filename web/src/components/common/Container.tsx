@@ -5,16 +5,16 @@ interface ContainerProps {
   className?: string
   as?: 'div' | 'main' | 'header' | 'section'
   style?: CSSProperties
-  /** 是否充满宽度（取消 max-width） */
+  /** Whether to fill the full width (removes max-width) */
   fluid?: boolean
-  /** 是否取消水平内边距 */
+  /** Whether to remove horizontal padding */
   noPadding?: boolean
-  /** 自定义最大宽度类（默认 max-w-[1920px]） */
+  /** Custom max-width class (default max-w-[1920px]) */
   maxWidthClass?: string
 }
 
 /**
- * 统一的容器组件，确保所有页面元素使用一致的最大宽度和内边距
+ * Unified container component that ensures all page elements use a consistent max width and padding
  * - max-width: 1920px
  * - padding: 24px (mobile) -> 32px (tablet) -> 48px (desktop)
  */

@@ -12,9 +12,15 @@ import (
 const (
 	autopilotMinHoldDuration        = 45 * time.Minute
 	autopilotNoiseCloseHoldDuration = 90 * time.Minute
-	autopilotReentryCooldown        = 90 * time.Minute
-	autopilotMaxOpensPerHour        = 1
-	autopilotMaxOpensPerCycle       = 1
+	autopilotReentryCooldown        = 30 * time.Minute
+	// Allow one long + one short per cycle. The real exposure/churn limits are
+	// MaxPositions (concurrent) + the 45m min-hold + the 90m per-symbol reentry
+	// cooldown, so the per-hour cap only needs to be high enough not to block the
+	// directional pair from re-establishing after positions close. A tight value
+	// here (e.g. 2) starves the strategy: once a couple opens fire, every later
+	// cycle is blocked and the book drains to flat. Keep it generous.
+	autopilotMaxOpensPerHour        = 30
+	autopilotMaxOpensPerCycle       = 6
 	earlyCloseStopLossBypassPct     = -2.5
 	earlyCloseTakeProfitBypassPct   = 5.0
 	noiseCloseLossFloorPct          = -1.0

@@ -26,7 +26,7 @@ export function ChartWithOrdersSimple({
       setError(null)
 
       try {
-        // 从我们自己的服务获取K线数据
+        // Fetch kline data from our own service
         const limit = 100
         const klineUrl = `/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
 
@@ -40,7 +40,7 @@ export function ChartWithOrdersSimple({
         console.log('[ChartSimple] Received klines:', klineResult.data.length)
         setKlineCount(klineResult.data.length)
 
-        // 测试获取订单数据
+        // Test fetching order data
         if (traderID) {
           const tradesUrl = `/api/trades?trader_id=${traderID}&symbol=${symbol}&limit=100`
           console.log('[ChartSimple] Fetching trades from:', tradesUrl)
@@ -66,51 +66,51 @@ export function ChartWithOrdersSimple({
   }, [symbol, interval, traderID])
 
   return (
-    <div className="relative" style={{ background: '#0B0E11', borderRadius: '8px', overflow: 'hidden', minHeight: height }}>
-      {/* 标题栏 */}
-      <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #2B3139' }}>
+    <div className="relative" style={{ background: '#F1ECE2', borderRadius: '8px', overflow: 'hidden', minHeight: height }}>
+      {/* Title bar */}
+      <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid rgba(26, 24, 19, 0.14)' }}>
         <div className="flex items-center gap-3">
           <span className="text-xl">📈</span>
-          <h3 className="text-lg font-bold" style={{ color: '#EAECEF' }}>
-            {symbol} {interval} (测试模式)
+          <h3 className="text-lg font-bold" style={{ color: '#1A1813' }}>
+            {symbol} {interval} (Test Mode)
           </h3>
         </div>
         {loading && (
-          <div className="text-sm" style={{ color: '#848E9C' }}>
-            加载中...
+          <div className="text-sm" style={{ color: '#8A8478' }}>
+            Loading...
           </div>
         )}
       </div>
 
-      {/* 测试信息 */}
+      {/* Test info */}
       <div className="p-8 space-y-4">
         {error ? (
           <div className="text-center">
             <div className="text-2xl mb-2">⚠️</div>
-            <div style={{ color: '#F6465D' }}>{error}</div>
+            <div style={{ color: '#D6433A' }}>{error}</div>
           </div>
         ) : (
           <>
-            <div className="p-4 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-              <div className="text-sm mb-2" style={{ color: '#848E9C' }}>币安K线数据</div>
-              <div className="text-2xl font-bold" style={{ color: '#0ECB81' }}>
-                {klineCount} 根K线
+            <div className="p-4 rounded" style={{ background: '#F7F4EC', border: '1px solid rgba(26, 24, 19, 0.14)' }}>
+              <div className="text-sm mb-2" style={{ color: '#8A8478' }}>Binance Kline Data</div>
+              <div className="text-2xl font-bold" style={{ color: '#2E8B57' }}>
+                {klineCount} klines
               </div>
             </div>
 
             {traderID && (
-              <div className="p-4 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                <div className="text-sm mb-2" style={{ color: '#848E9C' }}>历史订单数据</div>
-                <div className="text-2xl font-bold" style={{ color: '#F0B90B' }}>
-                  {orderCount} 笔订单
+              <div className="p-4 rounded" style={{ background: '#F7F4EC', border: '1px solid rgba(26, 24, 19, 0.14)' }}>
+                <div className="text-sm mb-2" style={{ color: '#8A8478' }}>Historical Order Data</div>
+                <div className="text-2xl font-bold" style={{ color: '#E0483B' }}>
+                  {orderCount} orders
                 </div>
               </div>
             )}
 
-            <div className="p-4 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-              <div className="text-sm mb-2" style={{ color: '#848E9C' }}>状态</div>
-              <div className="text-lg" style={{ color: '#EAECEF' }}>
-                ✅ 数据获取正常，图表组件开发中
+            <div className="p-4 rounded" style={{ background: '#F7F4EC', border: '1px solid rgba(26, 24, 19, 0.14)' }}>
+              <div className="text-sm mb-2" style={{ color: '#8A8478' }}>Status</div>
+              <div className="text-lg" style={{ color: '#1A1813' }}>
+                ✅ Data fetched successfully, chart component in development
               </div>
             </div>
           </>

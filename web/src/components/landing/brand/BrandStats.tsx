@@ -27,19 +27,19 @@ export default function BrandStats() {
                             initial={{ opacity: 0 }}
                             whileInView={{ opacity: 1 }}
                             transition={{ delay: i * 0.1 }}
-                            className="relative overflow-hidden group bg-black/40 backdrop-blur-md border border-white/10 p-6 rounded-lg md:bg-transparent md:border-0 md:p-0 md:backdrop-blur-none"
+                            className="relative overflow-hidden group bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-lg md:bg-transparent md:border-0 md:p-0 md:backdrop-blur-none"
                         >
-                            {/* Mobile Neon Corners */}
-                            <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-nofx-gold md:hidden opacity-80 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
-                            <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-nofx-gold md:hidden opacity-80 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
+                            {/* Mobile Corners */}
+                            <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-white md:hidden opacity-80"></div>
+                            <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-white md:hidden opacity-80"></div>
 
                             {/* Mobile Inner Glow */}
-                            <div className="absolute inset-0 bg-nofx-gold/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none md:hidden"></div>
+                            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none md:hidden"></div>
 
                             <div className="text-3xl md:text-6xl font-black text-white tracking-tighter mb-2 group-hover:scale-110 transition-transform duration-300 origin-left relative z-10">
                                 {stat.value}
                             </div>
-                            <div className="text-[10px] md:text-base font-bold text-zinc-400 md:text-black/60 uppercase tracking-widest bg-white/5 md:bg-white/20 inline-block px-2 py-1 rounded relative z-10">
+                            <div className="text-[10px] md:text-base font-bold text-white/80 md:text-white/80 uppercase tracking-widest bg-white/10 md:bg-white/20 inline-block px-2 py-1 rounded relative z-10">
                                 {stat.label}
                             </div>
                         </motion.div>

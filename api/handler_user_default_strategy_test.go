@@ -35,7 +35,7 @@ func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
 		if strategy.IsActive {
 			activeCount++
 		}
-		if strategy.Name == "均衡策略" || strategy.Name == "稳健策略" || strategy.Name == "积极策略" {
+		if strategy.Name == "Balanced Strategy" || strategy.Name == "Steady Strategy" || strategy.Name == "Aggressive Strategy" {
 			t.Fatalf("legacy crypto-style default strategy still present: %s", strategy.Name)
 		}
 	}
@@ -43,9 +43,9 @@ func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
 		t.Fatalf("expected exactly one active strategy, got %d", activeCount)
 	}
 
-	defaultStrategy := byName["NOFX Claw402 自动策略"]
+	defaultStrategy := byName["NOFX Claw402 Auto Strategy"]
 	if defaultStrategy == nil || !defaultStrategy.IsActive {
-		t.Fatalf("NOFX Claw402 自动策略 should exist and be active")
+		t.Fatalf("NOFX Claw402 Auto Strategy should exist and be active")
 	}
 	trendCfg, err := defaultStrategy.ParseConfig()
 	if err != nil {
@@ -79,7 +79,7 @@ func TestCreateDefaultStrategiesMigratesLegacyPresetsWithoutOverridingActiveCust
 	legacy := &store.Strategy{
 		ID:          uuid.New().String(),
 		UserID:      userID,
-		Name:        "均衡策略",
+		Name:        "Balanced Strategy",
 		Description: "legacy",
 		IsActive:    false,
 	}
@@ -124,11 +124,11 @@ func TestCreateDefaultStrategiesMigratesLegacyPresetsWithoutOverridingActiveCust
 			activeNames = append(activeNames, strategy.Name)
 		}
 	}
-	if byName["均衡策略"] != 0 {
+	if byName["Balanced Strategy"] != 0 {
 		t.Fatalf("legacy preset should be removed, got names=%+v", byName)
 	}
-	if byName["NOFX Claw402 自动策略"] != 1 {
-		t.Fatalf("expected exactly one NOFX Claw402 自动策略, got names=%+v", byName)
+	if byName["NOFX Claw402 Auto Strategy"] != 1 {
+		t.Fatalf("expected exactly one NOFX Claw402 Auto Strategy, got names=%+v", byName)
 	}
 	if len(activeNames) != 1 || activeNames[0] != "aa" {
 		t.Fatalf("existing active custom strategy should stay the only active one, got %+v", activeNames)

@@ -210,21 +210,21 @@ export function ChartWithOrders({
       width: chartContainerRef.current.clientWidth,
       height: height,
       layout: {
-        background: { color: '#0B0E11' },
-        textColor: '#EAECEF',
+        background: { color: '#F1ECE2' },
+        textColor: '#1A1813',
       },
       grid: {
-        vertLines: { color: 'rgba(43, 49, 57, 0.5)' },
-        horzLines: { color: 'rgba(43, 49, 57, 0.5)' },
+        vertLines: { color: 'rgba(26, 24, 19, 0.08)' },
+        horzLines: { color: 'rgba(26, 24, 19, 0.08)' },
       },
       crosshair: {
         mode: 1, // Normal crosshair
       },
       rightPriceScale: {
-        borderColor: '#2B3139',
+        borderColor: 'rgba(26, 24, 19, 0.14)',
       },
       timeScale: {
-        borderColor: '#2B3139',
+        borderColor: 'rgba(26, 24, 19, 0.14)',
         timeVisible: true,
         secondsVisible: false,
       },
@@ -246,12 +246,12 @@ export function ChartWithOrders({
 
     // Create candlestick series (using v5 API)
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#0ECB81',
-      downColor: '#F6465D',
-      borderUpColor: '#0ECB81',
-      borderDownColor: '#F6465D',
-      wickUpColor: '#0ECB81',
-      wickDownColor: '#F6465D',
+      upColor: '#2E8B57',
+      downColor: '#D6433A',
+      borderUpColor: '#2E8B57',
+      borderDownColor: '#D6433A',
+      wickUpColor: '#2E8B57',
+      wickDownColor: '#D6433A',
     })
 
     candlestickSeriesRef.current = candlestickSeries as any
@@ -380,7 +380,7 @@ export function ChartWithOrders({
             markers.push({
               time: alignedTime as Time,
               position: 'belowBar' as const,
-              color: isBuy ? '#0ECB81' : '#F6465D',
+              color: isBuy ? '#2E8B57' : '#D6433A',
               shape: 'circle' as const,
               text: isBuy ? 'B' : 'S',
               price: order.price,
@@ -431,17 +431,17 @@ export function ChartWithOrders({
   }, [symbol, interval, traderID, language])
 
   return (
-    <div className="relative" style={{ background: '#0B0E11', borderRadius: '8px', overflow: 'hidden' }}>
+    <div className="relative" style={{ background: '#F1ECE2', borderRadius: '8px', overflow: 'hidden' }}>
       {/* Title bar */}
-      <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #2B3139' }}>
+      <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid rgba(26, 24, 19, 0.14)' }}>
         <div className="flex items-center gap-3">
           <span className="text-xl">📈</span>
-          <h3 className="text-lg font-bold" style={{ color: '#EAECEF' }}>
+          <h3 className="text-lg font-bold" style={{ color: '#1A1813' }}>
             {symbol} {interval}
           </h3>
         </div>
         {loading && (
-          <div className="text-sm" style={{ color: '#848E9C' }}>
+          <div className="text-sm" style={{ color: '#8A8478' }}>
             {t('chartWithOrders.loading', language)}
           </div>
         )}
@@ -460,19 +460,19 @@ export function ChartWithOrders({
               left: '10px',
               top: '10px',
               padding: '8px 12px',
-              background: 'rgba(15, 18, 21, 0.95)',
-              border: '1px solid rgba(240, 185, 11, 0.3)',
+              background: 'rgba(247, 244, 236, 0.95)',
+              border: '1px solid rgba(224, 72, 59, 0.3)',
               borderRadius: '6px',
-              color: '#EAECEF',
+              color: '#1A1813',
               fontSize: '12px',
               fontFamily: 'monospace',
               pointerEvents: 'none',
               zIndex: 10,
               backdropFilter: 'blur(10px)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 4px 12px rgba(26, 24, 19, 0.15)',
             }}
           >
-            <div style={{ marginBottom: '6px', color: '#F0B90B', fontWeight: 'bold', fontSize: '11px' }}>
+            <div style={{ marginBottom: '6px', color: '#E0483B', fontWeight: 'bold', fontSize: '11px' }}>
               {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
                 month: 'short',
                 day: 'numeric',
@@ -481,18 +481,18 @@ export function ChartWithOrders({
               })}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: '11px' }}>
-              <span style={{ color: '#848E9C' }}>O:</span>
-              <span style={{ color: '#EAECEF', fontWeight: '500' }}>{tooltipData.open?.toFixed(2)}</span>
+              <span style={{ color: '#8A8478' }}>O:</span>
+              <span style={{ color: '#1A1813', fontWeight: '500' }}>{tooltipData.open?.toFixed(2)}</span>
 
-              <span style={{ color: '#848E9C' }}>H:</span>
-              <span style={{ color: '#0ECB81', fontWeight: '500' }}>{tooltipData.high?.toFixed(2)}</span>
+              <span style={{ color: '#8A8478' }}>H:</span>
+              <span style={{ color: '#2E8B57', fontWeight: '500' }}>{tooltipData.high?.toFixed(2)}</span>
 
-              <span style={{ color: '#848E9C' }}>L:</span>
-              <span style={{ color: '#F6465D', fontWeight: '500' }}>{tooltipData.low?.toFixed(2)}</span>
+              <span style={{ color: '#8A8478' }}>L:</span>
+              <span style={{ color: '#D6433A', fontWeight: '500' }}>{tooltipData.low?.toFixed(2)}</span>
 
-              <span style={{ color: '#848E9C' }}>C:</span>
+              <span style={{ color: '#8A8478' }}>C:</span>
               <span style={{
-                color: tooltipData.close >= tooltipData.open ? '#0ECB81' : '#F6465D',
+                color: tooltipData.close >= tooltipData.open ? '#2E8B57' : '#D6433A',
                 fontWeight: 'bold'
               }}>
                 {tooltipData.close?.toFixed(2)}
@@ -506,23 +506,23 @@ export function ChartWithOrders({
       {error && (
         <div
           className="absolute inset-0 flex items-center justify-center"
-          style={{ background: 'rgba(11, 14, 17, 0.9)' }}
+          style={{ background: 'rgba(241, 236, 226, 0.9)' }}
         >
           <div className="text-center">
             <div className="text-2xl mb-2">⚠️</div>
-            <div style={{ color: '#F6465D' }}>{error}</div>
+            <div style={{ color: '#D6433A' }}>{error}</div>
           </div>
         </div>
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 p-4 text-xs" style={{ borderTop: '1px solid #2B3139', color: '#848E9C' }}>
+      <div className="flex items-center gap-4 p-4 text-xs" style={{ borderTop: '1px solid rgba(26, 24, 19, 0.14)', color: '#8A8478' }}>
         <div className="flex items-center gap-2">
-          <span className="font-bold" style={{ color: '#0ECB81' }}>B</span>
+          <span className="font-bold" style={{ color: '#2E8B57' }}>B</span>
           <span>{t('chartWithOrders.buy', language)}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-bold" style={{ color: '#F6465D' }}>S</span>
+          <span className="font-bold" style={{ color: '#D6433A' }}>S</span>
           <span>{t('chartWithOrders.sell', language)}</span>
         </div>
       </div>

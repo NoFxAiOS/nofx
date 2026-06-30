@@ -102,11 +102,6 @@ export function TerminalDashboard({
     () => api.getFullStats(traderId!, true),
     { refreshInterval: 30000, shouldRetryOnError: false }
   )
-  const { data: equity } = useSWR(
-    traderId ? ['equity-history', traderId] : null,
-    () => api.getEquityHistory(traderId!, true),
-    { refreshInterval: 30000, shouldRetryOnError: false }
-  )
   const { data: history } = useSWR(
     traderId ? ['pos-history', traderId] : null,
     () => api.getPositionHistory(traderId!, 50, true),
@@ -221,23 +216,6 @@ export function TerminalDashboard({
       countdown = `${Math.floor(s / 60)}m ${s % 60}s`
     }
   }
-
-  const equityPath = useMemo(() => {
-    if (!equity || equity.length < 2) return null
-    const vals = equity.map((e: { total_equity: number }) => e.total_equity)
-    const min = Math.min(...vals)
-    const max = Math.max(...vals)
-    const span = max - min || 1
-    const W = 680
-    const H = 80
-    return vals
-      .map((v: number, i: number) => {
-        const x = (i / (vals.length - 1)) * W
-        const y = H - ((v - min) / span) * (H - 10) - 5
-        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
-      })
-      .join(' ')
-  }, [equity])
 
   const recentTrades = (history?.positions ?? []).slice(0, 8)
   const symbolStats = useMemo(
@@ -485,37 +463,17 @@ export function TerminalDashboard({
         </div>
         <div className="tm-rule" />
 
-        {/* equity curve */}
-        {equityPath && (
-          <>
-            <div style={{ ...sc, paddingBottom: 4, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span className="tm-px" style={{ fontSize: 11 }}>Equity curve</span>
-              <span className="tm-sc">Account equity curve · all {equity?.length ?? 0} pts</span>
-            </div>
-            <div style={{ padding: '0 14px 10px' }}>
-              <svg width="100%" height={88} viewBox="0 0 680 80" preserveAspectRatio="none" role="img" aria-label="Equity curve" style={{ display: 'block' }}>
-                <line x1="0" y1="79" x2="680" y2="79" stroke="var(--tm-hair)" vectorEffect="non-scaling-stroke" />
-                <path d={equityPath} fill="none" stroke="var(--tm-red)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-              </svg>
-            </div>
-            <div className="tm-rule" />
-          </>
-        )}
-
-        {/* market net inflow — real Vergex flow-markets via claw402 */}
-        <div style={sc}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-            <span className="tm-px" style={{ fontSize: 12 }}>Market net inflow</span>
-            <span className="tm-sc">Market net inflow · {flow?.data?.window || '1h'} · Vergex</span>
-            <span className="tm-sc" style={{ marginLeft: 'auto' }}>{flowItems.length} markets</span>
-          </div>
-          <FlowMarkets items={flowItems} window={flow?.data?.window} />
-        </div>
-        <div className="tm-rule" />
-
-        {/* by-symbol stats | latest decision */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.3fr)' }}>
+        {/* market net inflow (Vergex) · by-symbol history — balanced two-column footer */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)' }}>
           <div style={{ ...sc, borderRight: cellBorder }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+              <span className="tm-px" style={{ fontSize: 12 }}>Market net inflow</span>
+              <span className="tm-sc">Market net inflow · {flow?.data?.window || '1h'} · Vergex</span>
+              <span className="tm-sc" style={{ marginLeft: 'auto' }}>{flowItems.length} markets</span>
+            </div>
+            <FlowMarkets items={flowItems} window={flow?.data?.window} />
+          </div>
+          <div style={sc}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
               <span className="tm-px" style={{ fontSize: 11 }}>By symbol</span>
               <span className="tm-sc">By-symbol history · trades/win/pnl</span>
@@ -532,30 +490,6 @@ export function TerminalDashboard({
                 </div>
               </div>
             )) : <div className="tm-sc">No symbol history.</div>}
-          </div>
-          <div style={sc}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-              <span className="tm-px" style={{ fontSize: 11 }}>Latest decision</span>
-              <span className="tm-sc">AI rationale</span>
-              {latest && <span className="tm-sc" style={{ marginLeft: 'auto' }}>{fmtTime(latest.timestamp)}{latest.decisions?.[0]?.confidence != null ? ` · conf ${latest.decisions[0].confidence}` : ''}</span>}
-            </div>
-            {latest ? (
-              <>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                  {(latest.decisions ?? []).slice(0, 5).map((d, i) => (
-                    <span key={i} className="tm-mono" style={{ fontSize: 11, background: 'var(--tm-red-soft)', color: '#7a1f16', padding: '2px 9px' }}>{d.action} {baseLabel(d.symbol)}</span>
-                  ))}
-                </div>
-                <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--tm-ink-2)', margin: '0 0 8px', borderLeft: '2px solid var(--tm-red)', paddingLeft: 12 }}>
-                  {latest.decisions?.[0]?.reasoning || latest.cot_trace?.slice(0, 320) || 'No reasoning recorded.'}
-                </p>
-                {(latest.execution_log ?? []).length > 0 && (
-                  <div className="tm-mono" style={{ fontSize: 10, color: 'var(--tm-muted)' }}>
-                    {(latest.execution_log ?? []).slice(0, 3).map((l, i) => <div key={i}>{l}</div>)}
-                  </div>
-                )}
-              </>
-            ) : <div className="tm-sc">No decisions recorded yet.</div>}
           </div>
         </div>
       </div>

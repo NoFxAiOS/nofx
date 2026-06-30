@@ -65,11 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## 快速演示
 
-https://github.com/user-attachments/assets/5e2f7bab-88ce-4c30-882a-0db3b9afd20f
-
-<p align="center">
-  <em>本视频为模拟演示，非真实交易业绩。</em>
-</p>
+https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ---
 

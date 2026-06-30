@@ -63,11 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 ## Коротка демонстрація
 
-https://github.com/user-attachments/assets/5e2f7bab-88ce-4c30-882a-0db3b9afd20f
-
-<p align="center">
-  <em>Демонстраційне відео змодельоване — це не реальні торгові результати.</em>
-</p>
+https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ---
 

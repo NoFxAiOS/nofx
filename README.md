@@ -63,11 +63,7 @@ Use the links below to open trading accounts for crypto and supported US stock, 
 
 ## Quick demo
 
-https://github.com/user-attachments/assets/5e2f7bab-88ce-4c30-882a-0db3b9afd20f
-
-<p align="center">
-  <em>Illustrative simulated preview — not real trading performance.</em>
-</p>
+https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ---
 

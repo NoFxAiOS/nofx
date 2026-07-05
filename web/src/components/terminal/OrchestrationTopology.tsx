@@ -45,6 +45,14 @@ function baseSymbol(raw: string): string {
   return raw.toUpperCase().replace(/^XYZ:/, '').replace(/[-_]/g, '').replace(/(USDT|USDC|USD)$/, '')
 }
 
+// stable pseudo-random in [0,1) from a string — gives each beam its own phase so
+// the funnel flickers randomly (not in lockstep) while staying deterministic.
+function hash01(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619)
+  return ((h >>> 0) % 10000) / 10000
+}
+
 // evenly spread `count` solid items across `capacity` grid cells
 function scatter(count: number, capacity: number): Map<number, number> {
   const m = new Map<number, number>()
@@ -175,20 +183,30 @@ export function OrchestrationTopology({ layers, className }: OrchestrationTopolo
         ))}
       </g>
 
-      {engineTargets.map((n, i) => (
-        <circle key={`b0-${i}`} r={1.8} fill={n.dir === 'short' ? SHORT : LONG}>
-          <animate attributeName="cx" values={`${ENGINE_X};${n.x}`} dur={`${0.5 + (i % 5) * 0.08}s`} begin={`${(i % 8) * 0.07}s`} repeatCount="indefinite" />
-          <animate attributeName="cy" values={`${cy};${n.y}`} dur={`${0.5 + (i % 5) * 0.08}s`} begin={`${(i % 8) * 0.07}s`} repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.9;0.9;0" dur={`${0.5 + (i % 5) * 0.08}s`} begin={`${(i % 8) * 0.07}s`} repeatCount="indefinite" />
-        </circle>
-      ))}
-      {edges.map((e, i) => (
-        <circle key={`be-${e.key}`} r={2.1} fill={e.dir === 'short' ? SHORT : LONG}>
-          <animate attributeName="cx" values={`${e.x1};${e.x2}`} dur={`${0.45 + (i % 4) * 0.08}s`} begin={`${(i % 6) * 0.06}s`} repeatCount="indefinite" />
-          <animate attributeName="cy" values={`${e.y1};${e.y2}`} dur={`${0.45 + (i % 4) * 0.08}s`} begin={`${(i % 6) * 0.06}s`} repeatCount="indefinite" />
-          <animate attributeName="opacity" values="1;1;0" dur={`${0.45 + (i % 4) * 0.08}s`} begin={`${(i % 6) * 0.06}s`} repeatCount="indefinite" />
-        </circle>
-      ))}
+      {engineTargets.map((n, i) => {
+        const r = hash01(`e${i}-${n.x}-${n.y}`)
+        const dur = `${(0.42 + r * 0.55).toFixed(2)}s`
+        const begin = `${(r * 1.4).toFixed(2)}s`
+        return (
+          <circle key={`b0-${i}`} r={1.8} fill={n.dir === 'short' ? SHORT : LONG}>
+            <animate attributeName="cx" values={`${ENGINE_X};${n.x}`} dur={dur} begin={begin} repeatCount="indefinite" />
+            <animate attributeName="cy" values={`${cy};${n.y}`} dur={dur} begin={begin} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.9;0.9;0" dur={dur} begin={begin} repeatCount="indefinite" />
+          </circle>
+        )
+      })}
+      {edges.map((e) => {
+        const r = hash01(e.key)
+        const dur = `${(0.38 + r * 0.6).toFixed(2)}s`
+        const begin = `${(r * 1.6).toFixed(2)}s`
+        return (
+          <circle key={`be-${e.key}`} r={2.1} fill={e.dir === 'short' ? SHORT : LONG}>
+            <animate attributeName="cx" values={`${e.x1};${e.x2}`} dur={dur} begin={begin} repeatCount="indefinite" />
+            <animate attributeName="cy" values={`${e.y1};${e.y2}`} dur={dur} begin={begin} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="1;1;0" dur={dur} begin={begin} repeatCount="indefinite" />
+          </circle>
+        )
+      })}
 
       {cellsByLayer.map((layer, li) =>
         layer.map((cell, ci) => {

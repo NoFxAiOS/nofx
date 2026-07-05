@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { VergexHeatmapBin } from '../../lib/api/data'
+import { demoSeedPrice, demoTick } from '../../lib/demo/demoUniverse'
+
+const lmRnd = (a: number, b: number) => a + Math.random() * (b - a)
 
 /**
  * LiquidationMap renders the vergex (claw402) cost / liquidation heatmap as a
@@ -44,9 +47,11 @@ interface LiquidationMapProps {
   marketType?: string
   /** fixed height of the scrollable ladder (px); auto-centres on the mark */
   height?: number
+  /** showcase mode — render a synthetic ladder centred on the demo seed price */
+  demo?: boolean
 }
 
-export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460 }: LiquidationMapProps) {
+export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460, demo = false }: LiquidationMapProps) {
   // Synthetic markets live under marketType "hip3_perp"; crypto majors under
   // "perp". We try the caller's guess first and fall back to the other so the
   // heatmap resolves for ANY symbol that has one.
@@ -54,15 +59,68 @@ export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460 
     api.getVergexCostLiquidationHeatmap({ marketType: mt, symbol, chain: 'mainnet', liqBand: '15' })
   const opts = { refreshInterval: 300000, revalidateOnFocus: false, keepPreviousData: true }
 
-  const primary = useSWR(symbol ? ['heatmap', marketType, symbol] : null, () => fetcher(marketType), opts)
+  const primary = useSWR(symbol && !demo ? ['heatmap', marketType, symbol] : null, () => fetcher(marketType), opts)
   const primaryHasBins = !!primary.data?.data?.bins?.length
   const altMt = marketType === 'perp' ? 'hip3_perp' : 'perp'
-  const needAlt = !primaryHasBins && !primary.isLoading && primary.data !== undefined
+  const needAlt = !demo && !primaryHasBins && !primary.isLoading && primary.data !== undefined
   const alt = useSWR(needAlt && symbol ? ['heatmap', altMt, symbol] : null, () => fetcher(altMt), opts)
 
-  const data = primaryHasBins ? primary.data : alt.data
-  const isLoading = primary.isLoading || (needAlt && alt.isLoading)
-  const error = primaryHasBins ? undefined : alt.error || primary.error
+  // showcase mode: drive a slow ticker so the synthetic ladder gently breathes
+  const [demoFrame, setDemoFrame] = useState(0)
+  useEffect(() => {
+    if (!demo) return
+    const id = setInterval(() => setDemoFrame((f) => f + 1), 420)
+    return () => clearInterval(id)
+  }, [demo])
+
+  // stable base ladder for the active symbol (regenerated only on symbol change),
+  // centred on the same seed price the order book / candles use so all three
+  // price panels stay consistent.
+  const demoBase = useMemo(() => {
+    if (!demo) return null
+    const base = (symbol || 'SP500').toUpperCase().replace(/^XYZ:/, '')
+    const mark = demoSeedPrice(base)
+    const tick = demoTick(mark)
+    const N = 44
+    const scale = mark * 1.4e4
+    const bins = [] as { px: number; lc: number; sc: number; ll: number; sl: number }[]
+    for (let i = -N / 2; i <= N / 2; i++) {
+      const px = +(mark + i * tick * 2).toFixed(tick < 1 ? 3 : 1)
+      const dist = Math.abs(i) / (N / 2)
+      const near = Math.max(0, 1 - dist) ** 1.4
+      const far = dist ** 1.3
+      const below = i < 0
+      bins.push({
+        px,
+        lc: (below ? near : near * 0.18) * scale * lmRnd(0.5, 1),
+        sc: (!below ? near : near * 0.18) * scale * lmRnd(0.5, 1),
+        ll: (below ? far : 0) * scale * lmRnd(0.4, 0.9),
+        sl: (!below ? far : 0) * scale * lmRnd(0.4, 0.9),
+      })
+    }
+    return { base, mark, bins, costAddrs: Math.round(lmRnd(22000, 31000)), liqAddrs: Math.round(lmRnd(16000, 23000)) }
+  }, [demo, symbol])
+
+  // per-frame view: each bin breathes on its own phase (gentle ±, not a refresh)
+  const demoData = useMemo(() => {
+    if (!demoBase) return undefined
+    const f = demoFrame
+    const w = (v: number, amp: number, ph: number) => v * (1 + amp * Math.sin(f * 0.5 + ph))
+    const bins: VergexHeatmapBin[] = demoBase.bins.map((b, i) => ({
+      px: b.px,
+      longCost: w(b.lc, 0.12, i * 0.6),
+      shortCost: w(b.sc, 0.12, i * 0.9 + 1.7),
+      longLiq: w(b.ll, 0.16, i * 0.5 + 3.1),
+      shortLiq: w(b.sl, 0.16, i * 0.8 + 4.6),
+    }) as unknown as VergexHeatmapBin)
+    return {
+      data: { bins, markPrice: demoBase.mark, costAddrs: demoBase.costAddrs, liqAddrs: demoBase.liqAddrs, market: { symbol: demoBase.base } },
+    }
+  }, [demoBase, demoFrame])
+
+  const data = demo ? demoData : primaryHasBins ? primary.data : alt.data
+  const isLoading = demo ? false : primary.isLoading || (needAlt && alt.isLoading)
+  const error = demo ? undefined : primaryHasBins ? undefined : alt.error || primary.error
 
   const [hover, setHover] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)

@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { demoSeedPrice, demoTick } from '../../lib/demo/demoUniverse'
+
+const rnd = (a: number, b: number) => a + Math.random() * (b - a)
 
 /**
  * OrderBook renders a live L2 depth ladder for a single instrument, streamed
@@ -55,9 +58,11 @@ interface OrderBookProps {
   symbol: string
   /** optional entry price to mark the user's position level on the ladder */
   markPrice?: number
+  /** showcase mode — drive a fast synthetic book instead of the live WS feed */
+  demo?: boolean
 }
 
-export function OrderBook({ symbol, markPrice }: OrderBookProps) {
+export function OrderBook({ symbol, markPrice, demo = false }: OrderBookProps) {
   const base = useMemo(() => baseSymbol(symbol || ''), [symbol])
   const [xyzSet, setXyzSet] = useState<Set<string>>(new Set())
   const [book, setBook] = useState<BookState | null>(null)
@@ -88,10 +93,48 @@ export function OrderBook({ symbol, markPrice }: OrderBookProps) {
 
   const coin = useMemo(() => resolveCoin(base, xyzSet), [base, xyzSet])
 
+  // synthetic showcase feed — keeps price levels stable for stretches (so each
+  // row flashes independently as its size changes) with a gentle upward drift.
+  useEffect(() => {
+    if (!demo || !base) return
+    const seed = demoSeedPrice(base)
+    const tickSz = demoTick(seed)
+    const dp = tickSz < 1 ? 3 : 1
+    let mid = seed
+    let frame = 0
+    const mkSizes = () =>
+      Array.from({ length: DEPTH }, (_, i) => +(rnd(0.4, 6) * (1 + i * 0.12)).toFixed(3))
+    const askSz = mkSizes()
+    const bidSz = mkSizes()
+    const emit = () => {
+      const asks: Level[] = askSz.map((sz, i) => ({ px: +(mid + tickSz * (i + 1)).toFixed(dp), sz }))
+      const bids: Level[] = bidSz.map((sz, i) => ({ px: +(mid - tickSz * (i + 1)).toFixed(dp), sz }))
+      setBook({ coin: `xyz:${base}`, bids, asks })
+    }
+    setStatus('live')
+    emit()
+    const id = setInterval(() => {
+      frame++
+      const n = 2 + Math.floor(Math.random() * 3)
+      for (let k = 0; k < n; k++) {
+        const arr = Math.random() < 0.5 ? askSz : bidSz
+        const i = Math.floor(Math.random() * DEPTH)
+        arr[i] = +Math.max(0.05, arr[i] * rnd(0.6, 1.5)).toFixed(3)
+      }
+      // gentle mean-reverting wiggle around the seed (NO unbounded drift, so the
+      // order book stays aligned with the cost/liq map + candle over a long run)
+      if (frame % 5 === 0) {
+        mid = +(mid + (seed - mid) * 0.3 + (Math.random() - 0.5) * tickSz * 2).toFixed(dp)
+      }
+      emit()
+    }, 130)
+    return () => clearInterval(id)
+  }, [demo, base])
+
   // live L2 stream
   const pending = useRef<BookState | null>(null)
   useEffect(() => {
-    if (!coin) return
+    if (!coin || demo) return
     let ws: WebSocket | null = null
     let raf: number | null = null
     let retry: ReturnType<typeof setTimeout> | null = null

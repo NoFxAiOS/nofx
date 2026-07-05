@@ -6,6 +6,12 @@ import type {
 import { API_BASE, httpClient } from './helpers'
 import { ApiError } from '../httpClient'
 
+// Create/update/start legitimately run long: stopping a live trader waits for
+// its in-flight cycle and monitors, and creation probes the exchange (~35s
+// worst case observed). The default 30s axios timeout aborts mid-operation and
+// reports a false failure, so these calls get their own generous ceiling.
+const TRADER_LIFECYCLE_TIMEOUT_MS = 120_000
+
 function throwApiError(
   message: string,
   errorKey?: string,
@@ -33,10 +39,11 @@ export const traderApi = {
   },
 
   async createTrader(request: CreateTraderRequest): Promise<TraderInfo> {
-    const result = await httpClient.post<TraderInfo>(
-      `${API_BASE}/traders`,
-      request
-    )
+    const result = await httpClient.request<TraderInfo>(`${API_BASE}/traders`, {
+      method: 'POST',
+      data: request,
+      timeout: TRADER_LIFECYCLE_TIMEOUT_MS,
+    })
     if (!result.success) {
       throwApiError(
         result.message || 'Failed to create trader',
@@ -54,8 +61,9 @@ export const traderApi = {
   },
 
   async startTrader(traderId: string): Promise<void> {
-    const result = await httpClient.post(
-      `${API_BASE}/traders/${traderId}/start`
+    const result = await httpClient.request(
+      `${API_BASE}/traders/${traderId}/start`,
+      { method: 'POST', timeout: TRADER_LIFECYCLE_TIMEOUT_MS }
     )
     if (!result.success) {
       throwApiError(
@@ -117,9 +125,9 @@ export const traderApi = {
     traderId: string,
     request: CreateTraderRequest
   ): Promise<TraderInfo> {
-    const result = await httpClient.put<TraderInfo>(
+    const result = await httpClient.request<TraderInfo>(
       `${API_BASE}/traders/${traderId}`,
-      request
+      { method: 'PUT', data: request, timeout: TRADER_LIFECYCLE_TIMEOUT_MS }
     )
     if (!result.success) {
       throwApiError(

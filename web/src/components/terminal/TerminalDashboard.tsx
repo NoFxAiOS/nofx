@@ -339,14 +339,21 @@ export function TerminalDashboard({
         </div>
         <div className="tm-rule" />
 
-        {/* metric row */}
+        {/* metric row — "Total P/L" is equity-based (includes unrealized);
+            "Realized P/L" is closed-trades only and matches PF/win-rate/sharpe,
+            so the two never read as contradicting each other */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)' }}>
           {[
             { l: 'Equity', v: fmtUsd(account?.total_equity), c: 'var(--tm-ink)' },
-            { l: 'Total P/L', v: `${fmtUsd(pnl, true)} (${fmtPct(pnlPct)})`, c: up ? 'var(--tm-up)' : 'var(--tm-dn)' },
-            { l: 'Win rate', v: fullStats != null ? `${fullStats.win_rate.toFixed(1)}%` : '—', c: 'var(--tm-ink)' },
+            { l: 'Total P/L · incl. unrealized', v: `${fmtUsd(pnl, true)} (${fmtPct(pnlPct)})`, c: up ? 'var(--tm-up)' : 'var(--tm-dn)' },
+            {
+              l: 'Realized P/L · closed trades',
+              v: fullStats != null ? fmtUsd(fullStats.total_pnl, true) : '—',
+              c: fullStats != null && fullStats.total_pnl >= 0 ? 'var(--tm-up)' : 'var(--tm-dn)',
+            },
             { l: 'Profit factor', v: fullStats != null ? fullStats.profit_factor.toFixed(2) : '—', c: 'var(--tm-ink)' },
-            { l: 'Max drawdown', v: fullStats != null ? `-${(fullStats.max_drawdown_pct * 100).toFixed(1)}%` : '—', c: 'var(--tm-dn)' },
+            // max_drawdown_pct is already a percent (18.5 = -18.5%)
+            { l: 'Max drawdown', v: fullStats != null ? `-${fullStats.max_drawdown_pct.toFixed(1)}%` : '—', c: 'var(--tm-dn)' },
           ].map((m, i) => (
             <div key={m.l} style={{ padding: '12px 14px', borderRight: i < 4 ? cellBorder : 'none' }}>
               <div className="tm-sc">{m.l}</div>
@@ -361,11 +368,14 @@ export function TerminalDashboard({
           <>
             <div className="tm-mono" style={{ display: 'flex', gap: 18, padding: '6px 14px', fontSize: 11, color: 'var(--tm-ink-2)', flexWrap: 'wrap' }}>
               <span className="tm-sc">trades <b style={{ color: 'var(--tm-ink)' }}>{fullStats.total_trades}</b></span>
-              <span className="tm-sc tm-up">win {fullStats.win_trades}</span>
+              <span className="tm-sc tm-up">win {fullStats.win_trades} ({fullStats.win_rate.toFixed(1)}%)</span>
               <span className="tm-sc tm-dn">loss {fullStats.loss_trades}</span>
-              <span className="tm-sc">sharpe <b style={{ color: 'var(--tm-ink)' }}>{fullStats.sharpe_ratio.toFixed(2)}</b></span>
+              {/* fee-drag chain: gross realized − fees = net realized */}
+              <span className="tm-sc">gross <b style={{ color: 'var(--tm-ink)' }}>{fmtUsd(fullStats.total_pnl + fullStats.total_fee, true)}</b></span>
+              <span className="tm-sc">fees <b style={{ color: 'var(--tm-ink)' }}>-{fmtUsd(fullStats.total_fee)}</b></span>
+              <span className="tm-sc">net <b style={{ color: fullStats.total_pnl >= 0 ? 'var(--tm-up)' : 'var(--tm-dn)' }}>{fmtUsd(fullStats.total_pnl, true)}</b></span>
+              <span className="tm-sc">sharpe/trade <b style={{ color: 'var(--tm-ink)' }}>{fullStats.sharpe_ratio.toFixed(2)}</b></span>
               <span className="tm-sc">avg win/loss <b style={{ color: 'var(--tm-ink)' }}>{fullStats.avg_win.toFixed(2)}/{fullStats.avg_loss.toFixed(2)}</b></span>
-              <span className="tm-sc">fees <b style={{ color: 'var(--tm-ink)' }}>{fmtUsd(fullStats.total_fee)}</b></span>
             </div>
             <div className="tm-rule" />
           </>

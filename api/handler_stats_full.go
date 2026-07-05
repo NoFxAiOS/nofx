@@ -48,7 +48,7 @@ func (s *Server) handleStatisticsFull(c *gin.Context) {
 		traderIDPatterns = append(traderIDPatterns, "%_"+userID+"_claw402_%")
 	}
 
-	stats, err := store.Position().GetFullStatsByTraderFilters(traderIDs, traderIDPatterns)
+	stats, err := store.Position().GetFullStatsByTraderFilters(traderIDs, traderIDPatterns, trader.GetInitialBalance())
 	if err != nil {
 		SafeInternalError(c, "Get full statistics", err)
 		return

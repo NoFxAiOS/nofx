@@ -20,7 +20,9 @@ function fmtUsd(n: number): string {
   const sign = n < 0 ? '-' : ''
   if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(2)}M`
   if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(1)}K`
-  return `${sign}$${a.toFixed(0)}`
+  if (a >= 100) return `${sign}$${a.toFixed(0)}`
+  // small PnLs matter here: -$0.22 must not render as -$0
+  return `${sign}$${a.toFixed(2)}`
 }
 
 function pct(n: number): string {
@@ -40,8 +42,9 @@ function utilColor(p: number): string {
 
 interface RiskRadarProps {
   positions?: Position[]
-  account?: { total_equity?: number; total_unrealized_profit?: number; margin_used_pct?: number } | null
+  account?: { total_equity?: number; unrealized_profit?: number; margin_used_pct?: number } | null
   config?: { btc_eth_leverage?: number; altcoin_leverage?: number; max_positions?: number } | null
+  /** max_drawdown_pct is a percent (18.5 = -18.5%), not a fraction. */
   fullStats?: { max_drawdown_pct?: number; profit_factor?: number; sharpe_ratio?: number; win_rate?: number } | null
 }
 
@@ -93,14 +96,13 @@ export function RiskRadar({ positions, account, config, fullStats }: RiskRadarPr
 
     const concentration = totalNotional > 0 ? (topNotional / totalNotional) * 100 : 0
 
-    const ddFrac = fullStats?.max_drawdown_pct ?? 0
-    const drawdown = ddFrac * 100
+    const drawdown = fullStats?.max_drawdown_pct ?? 0
 
     const count = pos.length
     const maxPositions = config?.max_positions ?? 0
     const countUse = maxPositions > 0 ? Math.min(100, (count / maxPositions) * 100) : 0
 
-    const upnl = account?.total_unrealized_profit ?? 0
+    const upnl = account?.unrealized_profit ?? 0
 
     return {
       longNotional,

@@ -237,7 +237,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	}
 
 	// Get statistics
-	stats, _ := store.Position().GetFullStatsByTraderFilters(traderIDs, traderIDPatterns)
+	stats, _ := store.Position().GetFullStatsByTraderFilters(traderIDs, traderIDPatterns, trader.GetInitialBalance())
 
 	// Get symbol stats
 	symbolStats, _ := store.Position().GetSymbolStatsByTraderFilters(traderIDs, traderIDPatterns, 10)

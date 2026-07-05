@@ -126,11 +126,32 @@ func TestGetClosedPositionsByTraderFiltersIncludesLegacyAutopilotIDs(t *testing.
 	stats, err := positions.GetFullStatsByTraderFilters(
 		[]string{"current-trader"},
 		[]string{"%_user-123_claw402_%"},
+		0,
 	)
 	if err != nil {
 		t.Fatalf("get stats: %v", err)
 	}
 	if stats.TotalTrades != 2 || stats.TotalPnL != -1 {
 		t.Fatalf("unexpected stats: trades=%d pnl=%.2f", stats.TotalTrades, stats.TotalPnL)
+	}
+}
+
+func TestCalculateMaxDrawdownUsesRealBaseline(t *testing.T) {
+	// +50 then -100: peak 550, trough 450 on a 500 account → 100/550 ≈ 18.18%.
+	pnls := []float64{50, -100}
+
+	got := calculateMaxDrawdownFromPnls(pnls, 500)
+	if got < 18.1 || got > 18.3 {
+		t.Fatalf("expected ~18.18%% drawdown on a 500 baseline, got %.2f", got)
+	}
+
+	// Unknown baseline falls back to the neutral 10k curve: 100/10050 ≈ 1%.
+	fallback := calculateMaxDrawdownFromPnls(pnls, 0)
+	if fallback < 0.9 || fallback > 1.1 {
+		t.Fatalf("expected ~1%% drawdown on the 10k fallback, got %.2f", fallback)
+	}
+
+	if calculateMaxDrawdownFromPnls(nil, 500) != 0 {
+		t.Fatalf("no trades must mean zero drawdown")
 	}
 }

@@ -54,14 +54,16 @@ func (s *PositionStore) GetPositionStats(traderID string) (map[string]interface{
 	return stats, nil
 }
 
-// GetFullStats gets complete trading statistics
-func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
-	return s.GetFullStatsByTraderFilters([]string{traderID}, nil)
+// GetFullStats gets complete trading statistics. startingEquity is the real
+// account baseline used for the drawdown equity curve; pass 0 when unknown.
+func (s *PositionStore) GetFullStats(traderID string, startingEquity float64) (*TraderStats, error) {
+	return s.GetFullStatsByTraderFilters([]string{traderID}, nil, startingEquity)
 }
 
 // GetFullStatsByTraderFilters gets complete trading statistics for explicit
-// trader IDs plus optional legacy trader ID patterns.
-func (s *PositionStore) GetFullStatsByTraderFilters(traderIDs []string, traderIDPatterns []string) (*TraderStats, error) {
+// trader IDs plus optional legacy trader ID patterns. startingEquity is the
+// real account baseline for the drawdown calculation; pass 0 when unknown.
+func (s *PositionStore) GetFullStatsByTraderFilters(traderIDs []string, traderIDPatterns []string, startingEquity float64) (*TraderStats, error) {
 	stats := &TraderStats{}
 
 	var positions []TraderPosition
@@ -106,7 +108,7 @@ func (s *PositionStore) GetFullStatsByTraderFilters(traderIDs []string, traderID
 		stats.SharpeRatio = calculateSharpeRatioFromPnls(pnls)
 	}
 	if len(pnls) > 0 {
-		stats.MaxDrawdownPct = calculateMaxDrawdownFromPnls(pnls)
+		stats.MaxDrawdownPct = calculateMaxDrawdownFromPnls(pnls, startingEquity)
 	}
 
 	return stats, nil
@@ -192,13 +194,21 @@ func calculateSharpeRatioFromPnls(pnls []float64) float64 {
 	return mean / stdDev
 }
 
-// calculateMaxDrawdownFromPnls calculates maximum drawdown
-func calculateMaxDrawdownFromPnls(pnls []float64) float64 {
+// calculateMaxDrawdownFromPnls reconstructs an equity curve from the realized
+// PnL sequence on top of startingEquity and returns the max peak-to-trough
+// drawdown as a PERCENT (e.g. 18.5 = -18.5%). The baseline matters: the same
+// $87 dip is 0.9% of a $10k account but 18% of a $480 one, so callers should
+// pass the trader's real initial balance. A non-positive baseline falls back
+// to a neutral $10k so the metric stays defined (but understated) when the
+// account baseline is unknown.
+func calculateMaxDrawdownFromPnls(pnls []float64, startingEquity float64) float64 {
 	if len(pnls) == 0 {
 		return 0
 	}
 
-	const startingEquity = 10000.0
+	if startingEquity <= 0 {
+		startingEquity = 10000.0
+	}
 	equity := startingEquity
 	peak := startingEquity
 	var maxDD float64

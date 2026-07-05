@@ -110,6 +110,7 @@ export interface TraderFullStats {
   total_fee: number
   avg_win: number
   avg_loss: number
+  /** Percent, not a fraction: 18.5 means -18.5% peak drawdown. */
   max_drawdown_pct: number
 }
 

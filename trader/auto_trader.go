@@ -612,6 +612,12 @@ func (at *AutoTrader) GetID() string {
 	return at.id
 }
 
+// GetInitialBalance returns the account baseline used for performance metrics
+// (e.g. the drawdown equity curve).
+func (at *AutoTrader) GetInitialBalance() float64 {
+	return at.initialBalance
+}
+
 // GetUnderlyingTrader returns the underlying Trader interface implementation
 // This is used by grid trading and other components that need direct exchange access
 func (at *AutoTrader) GetUnderlyingTrader() Trader {

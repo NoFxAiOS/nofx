@@ -652,7 +652,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			}
 		}
 		// Get trading statistics for AI context
-		stats, err := at.store.Position().GetFullStats(at.id)
+		stats, err := at.store.Position().GetFullStats(at.id, at.initialBalance)
 		if err != nil {
 			at.logWarnf("⚠️ Failed to get trading stats: %v", err)
 		} else if stats == nil {

@@ -282,7 +282,8 @@ function build(S: SimState): DemoDataset {
     total_fee: S.fee,
     avg_win: avgWin,
     avg_loss: avgLoss,
-    max_drawdown_pct: 0.052,
+    // percent semantics (5.2 = -5.2%), matching the real stats endpoint
+    max_drawdown_pct: 5.2,
   }
 
   // recent closed trades

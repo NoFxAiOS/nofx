@@ -38,7 +38,9 @@ type HistorySummary struct {
 func (s *PositionStore) GetHistorySummary(traderID string) (*HistorySummary, error) {
 	summary := &HistorySummary{}
 
-	fullStats, err := s.GetFullStats(traderID)
+	// Baseline 0 is fine here: the summary only reads counts/win-rate/PnL, not
+	// the drawdown that depends on it.
+	fullStats, err := s.GetFullStats(traderID, 0)
 	if err != nil {
 		return nil, err
 	}

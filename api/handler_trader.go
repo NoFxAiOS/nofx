@@ -731,7 +731,10 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		"trader_id":   traderID,
 		"trader_name": req.Name,
 		"ai_model":    req.AIModelID,
-		"message":     "Trader updated successfully",
+		// A running trader is restarted with the new config (async above), so
+		// report it as running — callers must not fire a redundant start.
+		"is_running": wasRunning,
+		"message":    "Trader updated successfully",
 	})
 }
 
@@ -792,7 +795,10 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	if existingTrader != nil {
 		status := existingTrader.GetStatus()
 		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Trader is already running"})
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":     "Trader is already running",
+				"error_key": "trader.start.already_running",
+			})
 			return
 		}
 		// Trader exists but is stopped - remove from memory to reload fresh config

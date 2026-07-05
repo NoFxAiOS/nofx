@@ -101,7 +101,16 @@ export async function launchAutopilot(
       : await api.createTrader(traderRequest)
 
     if (!autopilot.is_running) {
-      await api.startTrader(autopilot.trader_id)
+      try {
+        await api.startTrader(autopilot.trader_id)
+      } catch (err) {
+        // Launch is idempotent: the update path restarts a running trader
+        // asynchronously, so a racing "already running" rejection is success.
+        const alreadyRunning =
+          err instanceof ApiError &&
+          err.errorKey === 'trader.start.already_running'
+        if (!alreadyRunning) throw err
+      }
     }
 
     return {

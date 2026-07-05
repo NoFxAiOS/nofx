@@ -129,6 +129,33 @@ describe('launchAutopilot', () => {
     )
   })
 
+  it('treats a racing already-running rejection as success', async () => {
+    mocks.runLaunchPreflight.mockResolvedValue(readyPreflight())
+    mocks.api.getTraders.mockResolvedValue([
+      { trader_id: 't-1', trader_name: 'NOFX Autopilot', is_running: false },
+    ])
+    mocks.api.updateTrader.mockResolvedValue({
+      trader_id: 't-1',
+      is_running: false,
+    })
+    mocks.api.startTrader.mockRejectedValue(
+      new ApiError(
+        'Trader is already running',
+        'trader.start.already_running',
+        undefined,
+        400
+      )
+    )
+
+    const outcome = await launchAutopilot({
+      ensureStrategy: vi.fn().mockResolvedValue('strat-1'),
+    })
+
+    expect(outcome).toEqual(
+      expect.objectContaining({ ok: true, traderId: 't-1' })
+    )
+  })
+
   it('surfaces the server-side preflight result when start is rejected', async () => {
     mocks.runLaunchPreflight.mockResolvedValue(readyPreflight())
     mocks.api.startTrader.mockRejectedValue(

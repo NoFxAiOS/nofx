@@ -58,6 +58,34 @@ export function BeginnerOnboardingPage() {
     void loadOnboarding(true)
   }, [])
 
+  // Poll the balance while the user is depositing so the page updates on its
+  // own. Uses the lightweight current-wallet endpoint (server caches 30s), not
+  // the heavier prepare call that re-writes .env.
+  const walletAddress = data?.address
+  useEffect(() => {
+    if (!walletAddress) return
+    let cancelled = false
+    const timer = setInterval(() => {
+      void api
+        .getCurrentBeginnerWallet()
+        .then((wallet) => {
+          if (cancelled || !wallet.found || !wallet.balance_usdc) return
+          setData((prev) =>
+            prev && prev.address === wallet.address
+              ? { ...prev, balance_usdc: wallet.balance_usdc! }
+              : prev
+          )
+        })
+        .catch(() => {
+          // transient — the manual refresh button still works
+        })
+    }, 15000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [walletAddress])
+
   const noticeText = useMemo(
     () =>
       isZh

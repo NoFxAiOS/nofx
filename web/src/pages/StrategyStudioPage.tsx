@@ -27,12 +27,7 @@ import type {
   Strategy,
   StrategyConfig,
 } from '../types'
-import type {
-  AIModel,
-  CurrentBeginnerWalletResponse,
-  Exchange,
-  ExchangeAccountState,
-} from '../types'
+import { launchAutopilot } from '../lib/launch/launchAutopilot'
 import type {
   MarketSymbol,
   VergexHeatmapBin,
@@ -80,84 +75,9 @@ const topNOptions = [5, 6, 7, 8, 9, 10]
 const detailBandOptions = ['5', '10', '15', '20']
 const claw402BoardLimit = 30
 const confidenceOptions = [65, 75, 82]
-const MIN_AI_FEE_USDC = 1
-const MIN_TRADING_USDC = 12
-
-type LaunchSetupTarget = 'claw402' | 'hyperliquid' | 'hyperliquid-funds'
-type FeeWalletSnapshot = Pick<
-  CurrentBeginnerWalletResponse,
-  'address' | 'balance_usdc'
->
-
-class LaunchSetupError extends Error {
-  target: LaunchSetupTarget
-
-  constructor(message: string, target: LaunchSetupTarget) {
-    super(message)
-    this.name = 'LaunchSetupError'
-    this.target = target
-  }
-}
 
 const text = (language: string, zh: string, en: string) =>
   language === 'zh' ? zh : en
-
-function modelHasCredential(model: AIModel) {
-  return Boolean(
-    model.has_api_key ||
-    model.apiKey ||
-    (model.provider === 'claw402' && model.walletAddress)
-  )
-}
-
-function parseUsdc(value?: string | number) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
-  if (!value) return 0
-  const parsed = Number(value.replace(/[,$\s]/g, ''))
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function pickTradingModel(models: AIModel[]) {
-  return (
-    models.find(
-      (model) =>
-        model.provider === 'claw402' &&
-        model.enabled &&
-        modelHasCredential(model)
-    ) ||
-    models.find((model) => model.enabled && modelHasCredential(model)) ||
-    null
-  )
-}
-
-function isHyperliquidExchange(exchange: Exchange) {
-  return exchange.exchange_type === 'hyperliquid'
-}
-
-function hyperliquidWalletAddress(exchange: Exchange) {
-  return exchange.hyperliquidWalletAddr || ''
-}
-
-function pickTradingExchange(exchanges: Exchange[]) {
-  return (
-    exchanges.find(
-      (exchange) =>
-        isHyperliquidExchange(exchange) &&
-        exchange.enabled &&
-        modelHasExchangeKey(exchange) &&
-        Boolean(exchange.hyperliquidBuilderApproved) &&
-        hyperliquidWalletAddress(exchange).trim() !== ''
-    ) || null
-  )
-}
-
-function modelHasExchangeKey(exchange: Exchange) {
-  return Boolean(exchange.has_api_key || exchange.apiKey)
-}
-
-function exchangeAvailableUsdc(state?: ExchangeAccountState) {
-  return parseUsdc(state?.available_balance ?? state?.total_equity)
-}
 
 type Profile = 'careful' | 'balanced' | 'active'
 
@@ -1484,236 +1404,48 @@ export function StrategyStudioPage() {
     return base
   }
 
-  const requireClaw402FeeWallet = async (
-    model: AIModel,
-    wallet?: FeeWalletSnapshot | null
-  ) => {
-    if (model.provider !== 'claw402') return
-
-    const address = model.walletAddress || wallet?.address || ''
-    const balance = parseUsdc(model.balanceUsdc ?? wallet?.balance_usdc)
-
-    if (!address.trim()) {
-      throw new LaunchSetupError(
-        'Claw402 wallet is not ready. Open the guided setup and create the Base USDC payment wallet first.',
-        'claw402'
-      )
-    }
-
-    if (balance < MIN_AI_FEE_USDC) {
-      throw new LaunchSetupError(
-        `Claw402 wallet needs at least ${MIN_AI_FEE_USDC} USDC on Base before Autopilot can pay for data and model calls.`,
-        'claw402'
-      )
-    }
-  }
-
-  const requireHyperliquidBalance = async (exchange: Exchange) => {
-    let accountState: ExchangeAccountState | undefined
-    try {
-      const response = await api.getExchangeAccountState()
-      accountState = response.states[exchange.id]
-    } catch {
-      throw new LaunchSetupError(
-        'Could not verify the Hyperliquid trading balance. Open the guided setup and refresh the account state first.',
-        'hyperliquid-funds'
-      )
-    }
-
-    if (!accountState) {
-      throw new LaunchSetupError(
-        'Could not verify the Hyperliquid trading balance. Open the guided setup and refresh the account state first.',
-        'hyperliquid-funds'
-      )
-    }
-
-    if (accountState.status !== 'ok') {
-      throw new LaunchSetupError(
-        accountState.error_message ||
-          'Hyperliquid account is not ready. Reconnect the wallet and approve the NOFX Agent.',
-        'hyperliquid'
-      )
-    }
-
-    const balance = exchangeAvailableUsdc(accountState)
-    if (balance < MIN_TRADING_USDC) {
-      throw new LaunchSetupError(
-        `Hyperliquid needs at least ${MIN_TRADING_USDC} USDC available before Autopilot can place its first trade.`,
-        'hyperliquid-funds'
-      )
-    }
-  }
-
-  const resolveOneClickModel = async () => {
-    let models = await api.getModelConfigs()
-    let model = pickTradingModel(models)
-    if (model) {
-      let wallet: CurrentBeginnerWalletResponse | null = null
-      try {
-        wallet = await api.getCurrentBeginnerWallet()
-      } catch {
-        wallet = null
-      }
-      await requireClaw402FeeWallet(model, wallet)
-      return model
-    }
-
-    const onboarding = await api.prepareBeginnerOnboarding()
-    models = await api.getModelConfigs()
-    model =
-      models.find(
-        (item) =>
-          item.id === onboarding.configured_model_id &&
-          item.enabled &&
-          modelHasCredential(item)
-      ) || pickTradingModel(models)
-
-    if (!model && onboarding.configured_model_id && onboarding.private_key) {
-      await api.updateModelConfigs({
-        models: {
-          [onboarding.configured_model_id]: {
-            enabled: true,
-            api_key: onboarding.private_key,
-            custom_api_url: '',
-            custom_model_name: onboarding.default_model,
-          },
-        },
-      })
-      models = await api.getModelConfigs()
-      model =
-        models.find(
-          (item) =>
-            item.id === onboarding.configured_model_id &&
-            item.enabled &&
-            modelHasCredential(item)
-        ) || pickTradingModel(models)
-    }
-
-    if (!model) {
-      throw new LaunchSetupError(
-        'No enabled AI model is ready. Create or fund the Claw402 wallet first.',
-        'claw402'
-      )
-    }
-
-    await requireClaw402FeeWallet(model, onboarding)
-    return model
-  }
-
-  const resolveOneClickExchange = async () => {
-    const exchanges = await api.getExchangeConfigs()
-    const exchange = pickTradingExchange(exchanges)
-    if (exchange) {
-      await requireHyperliquidBalance(exchange)
-      return exchange
-    }
-
-    const hyperliquid = exchanges.find(isHyperliquidExchange)
-    if (!hyperliquid) {
-      throw new LaunchSetupError(
-        'No Hyperliquid account is ready. Connect Hyperliquid and authorize the NOFX agent first.',
-        'hyperliquid'
-      )
-    }
-    if (!hyperliquid.enabled) {
-      throw new LaunchSetupError(
-        'The Hyperliquid account is disabled. Enable it first.',
-        'hyperliquid'
-      )
-    }
-    if (!modelHasExchangeKey(hyperliquid)) {
-      throw new LaunchSetupError(
-        'The Hyperliquid agent key is missing. Reconnect Hyperliquid and save the agent wallet.',
-        'hyperliquid'
-      )
-    }
-    if (!hyperliquid.hyperliquidBuilderApproved) {
-      throw new LaunchSetupError(
-        'Hyperliquid builder authorization is not complete. Finish wallet authorization first.',
-        'hyperliquid'
-      )
-    }
-    if (!hyperliquidWalletAddress(hyperliquid).trim()) {
-      throw new LaunchSetupError(
-        'The Hyperliquid wallet address is missing. Reconnect Hyperliquid first.',
-        'hyperliquid'
-      )
-    }
-
-    throw new LaunchSetupError(
-      'No ready Hyperliquid account found. Check the wallet authorization.',
-      'hyperliquid'
-    )
-  }
-
   const startUnifiedClaw402Agent = async () => {
     if (!selectedStrategy) return
-    const config = buildUnifiedClaw402Config()
-    const traderName = 'NOFX Autopilot'
 
     setSaving(true)
     try {
-      setEditingConfig(config)
-      setHasChanges(true)
-
-      await api.updateStrategy(selectedStrategy.id, {
-        name: selectedStrategy.name,
-        description:
-          selectedStrategy.description ||
-          'Autonomous market selection powered by Claw402.ai Signal Lab, liquidation structure, and raw candles.',
-        config,
+      // The shared launcher runs the server-side preflight (fresh wallet and
+      // exchange balances) BEFORE ensureStrategy, so a failed launch never
+      // mutates or activates the strategy as a side effect.
+      const outcome = await launchAutopilot({
+        scanIntervalMinutes: 15,
+        ensureStrategy: async () => {
+          const config = buildUnifiedClaw402Config()
+          setEditingConfig(config)
+          await api.updateStrategy(selectedStrategy.id, {
+            name: selectedStrategy.name,
+            description:
+              selectedStrategy.description ||
+              'Autonomous market selection powered by Claw402.ai Signal Lab, liquidation structure, and raw candles.',
+            config,
+          })
+          await api.activateStrategy(selectedStrategy.id)
+          return selectedStrategy.id
+        },
       })
-      await api.activateStrategy(selectedStrategy.id)
 
-      const [model, exchange] = await Promise.all([
-        resolveOneClickModel(),
-        resolveOneClickExchange(),
-      ])
-
-      const traderRequest = {
-        name: traderName,
-        ai_model_id: model.id,
-        exchange_id: exchange.id,
-        strategy_id: selectedStrategy.id,
-        scan_interval_minutes: 15,
-        is_cross_margin: true,
-        show_in_competition: true,
-      }
-
-      const existingTraders = await api.getTraders(true)
-      const existingAutopilot = existingTraders.find(
-        (trader) => trader.trader_name === traderName
-      )
-      const autopilot = existingAutopilot
-        ? await api.updateTrader(existingAutopilot.trader_id, traderRequest)
-        : await api.createTrader(traderRequest)
-
-      if (autopilot.startup_warning) {
-        notify.warning(autopilot.startup_warning)
-      }
-
-      if (!autopilot.is_running) {
-        await api.startTrader(autopilot.trader_id)
-      }
-      notify.success(`${traderName} started`)
-      setHasChanges(false)
-      await loadStrategies(selectedStrategy.id)
-      navigate(buildDashboardPath(autopilot.trader_id))
-    } catch (err) {
-      if (err instanceof LaunchSetupError) {
-        notify.error(err.message)
-        navigate(
-          err.target === 'claw402'
-            ? `${ROUTES.traders}?setup=claw402`
-            : err.target === 'hyperliquid'
-              ? `${ROUTES.traders}?setup=hyperliquid`
-              : ROUTES.traders
-        )
+      if (!outcome.ok) {
+        notify.error(outcome.message)
+        const setupTarget =
+          outcome.kind === 'error' ? null : outcome.setupTarget
+        if (setupTarget) {
+          navigate(`${ROUTES.traders}?setup=${setupTarget}`)
+        }
         return
       }
-      notify.error(
-        err instanceof Error ? err.message : 'Failed to launch NOFX Autopilot'
-      )
+
+      if (outcome.warning) {
+        notify.warning(outcome.warning)
+      }
+      notify.success('NOFX Autopilot started')
+      setHasChanges(false)
+      await loadStrategies(selectedStrategy.id)
+      navigate(buildDashboardPath(outcome.traderId))
     } finally {
       setSaving(false)
     }

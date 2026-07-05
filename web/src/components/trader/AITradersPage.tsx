@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
+import { ApiError } from '../../lib/httpClient'
 import type {
   TraderInfo,
   CreateTraderRequest,
@@ -305,7 +306,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       await mutateTraders()
     } catch (error) {
-      console.error('Failed to toggle trader:', error)
+      // Launch preflight rejections carry an actionable reason (e.g. "AI fee
+      // wallet is empty") — show it instead of a generic failure toast.
+      if (
+        error instanceof ApiError &&
+        error.errorKey === 'trader.start.preflight_failed'
+      ) {
+        toast.error(error.message)
+        return
+      }
       toast.error(t('operationFailed', language))
     }
   }
@@ -662,6 +671,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       handleOpenClaw402Config()
     } else if (setupTarget === 'hyperliquid') {
       handleOpenHyperliquidConfig()
+    } else if (setupTarget === 'hyperliquid-funds') {
+      // Funding shortfall: bring the guided launch panel (with the trading
+      // balance step and live preflight polling) into view.
+      document
+        .getElementById('autopilot-launch-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      toast.info(
+        'Deposit USDC to your Hyperliquid account, the balance check updates automatically.'
+      )
     } else {
       return
     }

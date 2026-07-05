@@ -18,6 +18,12 @@ import {
 import { toast } from 'sonner'
 import { api } from '../../lib/api'
 import { buildDashboardPath, ROUTES } from '../../router/paths'
+import {
+  ensureClaw402Strategy,
+  launchAutopilot,
+} from '../../lib/launch/launchAutopilot'
+import { runLaunchPreflight } from '../../lib/launch/preflight'
+import type { LaunchPreflightResult } from '../../lib/launch/types'
 import type {
   AIModel,
   CurrentBeginnerWalletResponse,
@@ -219,13 +225,6 @@ export function AutopilotLaunchPanel({
     [models]
   )
 
-  const feeWalletAddress = claw402Model?.walletAddress || wallet?.address || ''
-  const feeWalletBalance = parseNumber(
-    claw402Model?.balanceUsdc || wallet?.balance_usdc
-  )
-  const feeReady =
-    Boolean(feeWalletAddress) && feeWalletBalance >= MIN_AI_FEE_USDC
-
   const hyperliquidExchange = useMemo(
     () =>
       exchanges.find(
@@ -238,17 +237,80 @@ export function AutopilotLaunchPanel({
     [exchanges]
   )
 
+  // Any hyperliquid account (even partially configured) is enough for the
+  // server preflight — it reports exactly which prerequisite is missing.
+  const preflightExchange = useMemo(
+    () =>
+      hyperliquidExchange ||
+      exchanges.find((exchange) => exchange.exchange_type === 'hyperliquid') ||
+      null,
+    [exchanges, hyperliquidExchange]
+  )
+
+  // Server-side preflight is the source of truth for balances: it queries the
+  // chain / exchange live (30s server cache) instead of trusting the balance
+  // snapshot cached in the model object. Poll while the panel is visible so
+  // deposits show up without a manual refresh.
+  const [preflight, setPreflight] = useState<LaunchPreflightResult | null>(null)
+  const claw402ModelId = claw402Model?.id
+  const preflightExchangeId = preflightExchange?.id
+  useEffect(() => {
+    if (!isLoggedIn || !claw402ModelId || !preflightExchangeId) {
+      setPreflight(null)
+      return
+    }
+    let cancelled = false
+    const check = async () => {
+      try {
+        const result = await runLaunchPreflight({
+          ai_model_id: claw402ModelId,
+          exchange_id: preflightExchangeId,
+        })
+        if (!cancelled) setPreflight(result)
+      } catch {
+        // keep the last known result; client-derived fallbacks still render
+      }
+    }
+    void check()
+    const timer = setInterval(() => void check(), 20000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [isLoggedIn, claw402ModelId, preflightExchangeId])
+
+  const preflightCheck = (id: string) =>
+    preflight?.checks.find((check) => check.id === id)
+
+  const feeWalletAddress =
+    claw402Model?.walletAddress ||
+    wallet?.address ||
+    preflightCheck('ai_wallet')?.address ||
+    ''
+  const feeFundsCheck = preflightCheck('ai_wallet_funds')
+  const feeWalletBalance =
+    feeFundsCheck?.actual ??
+    parseNumber(claw402Model?.balanceUsdc || wallet?.balance_usdc)
+  const minAIFeeUSDC = preflight?.min_ai_fee_usdc ?? MIN_AI_FEE_USDC
+  const feeReady = feeFundsCheck
+    ? feeFundsCheck.status !== 'failed' && Boolean(feeWalletAddress)
+    : Boolean(feeWalletAddress) && feeWalletBalance >= minAIFeeUSDC
+
   const hyperliquidConnected = Boolean(hyperliquidExchange)
   const exchangeState = hyperliquidExchange
     ? exchangeAccountStates[hyperliquidExchange.id]
     : undefined
-  const tradingBalance = parseNumber(
-    exchangeState?.available_balance ?? exchangeState?.total_equity
-  )
+  const accountCheck = preflightCheck('exchange_account')
+  const tradingFundsCheck = preflightCheck('exchange_funds')
+  const tradingBalance =
+    tradingFundsCheck?.actual ??
+    parseNumber(exchangeState?.available_balance ?? exchangeState?.total_equity)
+  const minTradingUSDC = preflight?.min_trading_usdc ?? MIN_TRADING_USDC
   const tradingBalanceReady =
     hyperliquidConnected &&
-    exchangeState?.status === 'ok' &&
-    tradingBalance >= MIN_TRADING_USDC
+    (accountCheck && tradingFundsCheck
+      ? accountCheck.status === 'ok' && tradingFundsCheck.status !== 'failed'
+      : exchangeState?.status === 'ok' && tradingBalance >= minTradingUSDC)
 
   const autopilotTrader = useMemo(
     () =>
@@ -286,90 +348,39 @@ export function AutopilotLaunchPanel({
     }
   }
 
-  const ensureClaw402Strategy = async () => {
-    const strategies = await api.getStrategies()
-    const existing =
-      strategies.find(
-        (strategy) =>
-          strategy.is_active &&
-          strategy.config?.ai_config?.coin_source?.source_type ===
-            'vergex_signal'
-      ) ||
-      strategies.find((strategy) =>
-        strategy.name.toLowerCase().includes('claw402')
-      )
-
-    if (existing) {
-      if (!existing.is_active) {
-        await api.activateStrategy(existing.id)
-      }
-      return existing.id
-    }
-
-    const config = await api.getDefaultStrategyConfig()
-    const created = await api.createStrategy({
-      name: 'NOFX Claw402 Auto Strategy',
-      description:
-        'Single built-in strategy: Claw402 board, per-symbol details, raw candles, then execution.',
-      config,
-    })
-    if (created?.id) {
-      await api.activateStrategy(created.id)
-      return created.id
-    }
-
-    const refreshed = await api.getStrategies()
-    const fallback = refreshed.find((strategy) =>
-      strategy.name.toLowerCase().includes('claw402')
-    )
-    if (!fallback) throw new Error('Failed to create Claw402 strategy')
-    await api.activateStrategy(fallback.id)
-    return fallback.id
-  }
-
-  const launchAutopilot = async () => {
+  const handleLaunch = async () => {
     if (!claw402Model || !hyperliquidExchange) return
     setLaunching(true)
     try {
-      // Re-fetch the live trader list before deciding. The `traders` prop can be
-      // stale (open tab serving an old snapshot), which would make us create a
-      // duplicate "NOFX Autopilot" — paying the ~35s first-create cost again and
-      // orphaning the dashboard onto a deleted id (the "API Not Found" 404). Match
-      // the same way the autopilotTrader memo does, falling back to it on failure.
-      let trader = autopilotTrader
-      try {
-        const fresh = await api.getTraders(true)
-        trader =
-          fresh.find((t) => t.trader_name === 'NOFX Autopilot') ||
-          fresh.find((t) =>
-            (t.strategy_name || '').toLowerCase().includes('claw402')
-          ) ||
-          trader
-      } catch {
-        // network hiccup — keep the prop-derived trader rather than risk a dup
+      // Shared launch path (same as Strategy Studio): server preflight with
+      // fresh balances first, then strategy provisioning, then create/start.
+      const outcome = await launchAutopilot({
+        ensureStrategy: ensureClaw402Strategy,
+        scanIntervalMinutes: 5,
+      })
+
+      if (!outcome.ok) {
+        toast.error(outcome.message)
+        if (outcome.kind === 'preflight') {
+          setPreflight(outcome.preflight)
+        }
+        if (outcome.kind !== 'error') {
+          if (outcome.setupTarget === 'claw402') {
+            onOpenClaw402Config?.()
+          } else if (outcome.setupTarget === 'hyperliquid') {
+            onOpenHyperliquidConfig?.()
+          }
+        }
+        await refreshEverything()
+        return
       }
-      if (!trader) {
-        const strategyId = await ensureClaw402Strategy()
-        trader = await api.createTrader({
-          name: 'NOFX Autopilot',
-          ai_model_id: claw402Model.id,
-          exchange_id: hyperliquidExchange.id,
-          strategy_id: strategyId,
-          scan_interval_minutes: 5,
-          is_cross_margin: true,
-          show_in_competition: true,
-          btc_eth_leverage: 10,
-          altcoin_leverage: 10,
-        })
-      }
-      if (!trader.is_running) {
-        await api.startTrader(trader.trader_id)
+
+      if (outcome.warning) {
+        toast.warning(outcome.warning)
       }
       await onRefresh()
       toast.success('NOFX Autopilot is running')
-      navigate(buildDashboardPath(trader.trader_id))
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Launch failed')
+      navigate(buildDashboardPath(outcome.traderId))
     } finally {
       setLaunching(false)
     }
@@ -388,7 +399,9 @@ export function AutopilotLaunchPanel({
         'Pays Claw402.ai data and model calls with Base USDC. This is separate from trading collateral.',
       status: feeReady ? 'ready' : 'action',
       meta: feeWalletAddress
-        ? `${shortAddress(feeWalletAddress)} · ${formatUSDC(feeWalletBalance)} USDC`
+        ? `${shortAddress(feeWalletAddress)} · ${formatUSDC(feeWalletBalance)} USDC${
+            feeReady ? '' : ` · needs ≥ ${minAIFeeUSDC} USDC`
+          }`
         : 'Base USDC wallet required',
       action: feeWalletAddress ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -449,7 +462,9 @@ export function AutopilotLaunchPanel({
           ? 'action'
           : 'blocked',
       meta: hyperliquidConnected
-        ? `${formatUSDC(tradingBalance)} USDC available`
+        ? `${formatUSDC(tradingBalance)} USDC available${
+            tradingBalanceReady ? '' : ` · needs ≥ ${minTradingUSDC} USDC`
+          }`
         : 'Connect Hyperliquid first',
     },
     {
@@ -538,7 +553,7 @@ export function AutopilotLaunchPanel({
     return (
       <button
         type="button"
-        onClick={launchAutopilot}
+        onClick={() => void handleLaunch()}
         disabled={launching || !allReady}
         className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-white hover:bg-nofx-accent disabled:cursor-not-allowed disabled:opacity-60"
       >
@@ -553,7 +568,10 @@ export function AutopilotLaunchPanel({
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-nofx-gold/20 bg-nofx-bg-lighter">
+    <section
+      id="autopilot-launch-panel"
+      className="overflow-hidden rounded-xl border border-nofx-gold/20 bg-nofx-bg-lighter"
+    >
       <div className="grid gap-0 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="p-5 md:p-6">
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

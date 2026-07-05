@@ -10,9 +10,10 @@ function throwApiError(
   message: string,
   errorKey?: string,
   errorParams?: Record<string, string>,
-  statusCode?: number
+  statusCode?: number,
+  errorData?: Record<string, any>
 ): never {
-  throw new ApiError(message, errorKey, errorParams, statusCode)
+  throw new ApiError(message, errorKey, errorParams, statusCode, errorData)
 }
 
 export const traderApi = {
@@ -61,7 +62,8 @@ export const traderApi = {
         result.message || 'Failed to start trader',
         result.errorKey,
         result.errorParams,
-        result.statusCode
+        result.statusCode,
+        result.errorData
       )
     }
   },

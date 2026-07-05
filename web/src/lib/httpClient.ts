@@ -22,24 +22,29 @@ export interface ApiResponse<T = any> {
   errorKey?: string
   errorParams?: Record<string, string>
   statusCode?: number
+  /** Full error response body for endpoints that return structured details. */
+  errorData?: Record<string, any>
 }
 
 export class ApiError extends Error {
   errorKey?: string
   errorParams?: Record<string, string>
   statusCode?: number
+  errorData?: Record<string, any>
 
   constructor(
     message: string,
     errorKey?: string,
     errorParams?: Record<string, string>,
-    statusCode?: number
+    statusCode?: number,
+    errorData?: Record<string, any>
   ) {
     super(message)
     this.name = 'ApiError'
     this.errorKey = errorKey
     this.errorParams = errorParams
     this.statusCode = statusCode
+    this.errorData = errorData
   }
 }
 
@@ -254,6 +259,8 @@ export class HttpClient {
           errorKey: errorData?.error_key,
           errorParams: errorData?.error_params,
           statusCode: error.response.status,
+          errorData:
+            errorData && typeof errorData === 'object' ? errorData : undefined,
         }
       }
 

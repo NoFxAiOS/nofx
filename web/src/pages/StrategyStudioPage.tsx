@@ -27,7 +27,12 @@ import type {
   Strategy,
   StrategyConfig,
 } from '../types'
-import type { AIModel, Exchange } from '../types'
+import type {
+  AIModel,
+  CurrentBeginnerWalletResponse,
+  Exchange,
+  ExchangeAccountState,
+} from '../types'
 import type {
   MarketSymbol,
   VergexHeatmapBin,
@@ -36,7 +41,7 @@ import type {
   VergexSignalItem,
   VergexSignalLabResponse,
 } from '../lib/api/data'
-import { buildDashboardPath } from '../router/paths'
+import { buildDashboardPath, ROUTES } from '../router/paths'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -75,12 +80,41 @@ const topNOptions = [5, 6, 7, 8, 9, 10]
 const detailBandOptions = ['5', '10', '15', '20']
 const claw402BoardLimit = 30
 const confidenceOptions = [65, 75, 82]
+const MIN_AI_FEE_USDC = 1
+const MIN_TRADING_USDC = 12
+
+type LaunchSetupTarget = 'claw402' | 'hyperliquid' | 'hyperliquid-funds'
+type FeeWalletSnapshot = Pick<
+  CurrentBeginnerWalletResponse,
+  'address' | 'balance_usdc'
+>
+
+class LaunchSetupError extends Error {
+  target: LaunchSetupTarget
+
+  constructor(message: string, target: LaunchSetupTarget) {
+    super(message)
+    this.name = 'LaunchSetupError'
+    this.target = target
+  }
+}
 
 const text = (language: string, zh: string, en: string) =>
   language === 'zh' ? zh : en
 
 function modelHasCredential(model: AIModel) {
-  return Boolean(model.has_api_key || model.apiKey)
+  return Boolean(
+    model.has_api_key ||
+    model.apiKey ||
+    (model.provider === 'claw402' && model.walletAddress)
+  )
+}
+
+function parseUsdc(value?: string | number) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (!value) return 0
+  const parsed = Number(value.replace(/[,$\s]/g, ''))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function pickTradingModel(models: AIModel[]) {
@@ -119,6 +153,10 @@ function pickTradingExchange(exchanges: Exchange[]) {
 
 function modelHasExchangeKey(exchange: Exchange) {
   return Boolean(exchange.has_api_key || exchange.apiKey)
+}
+
+function exchangeAvailableUsdc(state?: ExchangeAccountState) {
+  return parseUsdc(state?.available_balance ?? state?.total_equity)
 }
 
 type Profile = 'careful' | 'balanced' | 'active'
@@ -379,7 +417,8 @@ function signalBiasInfo(bias: string | undefined) {
   return {
     label: 'Neutral',
     hint: 'Neutral bias',
-    classes: 'border-[rgba(26,24,19,0.14)] bg-nofx-bg-deeper text-nofx-text-muted',
+    classes:
+      'border-[rgba(26,24,19,0.14)] bg-nofx-bg-deeper text-nofx-text-muted',
     icon: Target,
   }
 }
@@ -1388,7 +1427,11 @@ export function StrategyStudioPage() {
       notify.success(
         successMessage ||
           (activateAfter
-            ? text(language, 'Strategy saved and activated', 'Strategy saved and activated')
+            ? text(
+                language,
+                'Strategy saved and activated',
+                'Strategy saved and activated'
+              )
             : text(language, 'Strategy saved', 'Strategy saved'))
       )
       await loadStrategies(selectedStrategy.id)
@@ -1441,10 +1484,79 @@ export function StrategyStudioPage() {
     return base
   }
 
+  const requireClaw402FeeWallet = async (
+    model: AIModel,
+    wallet?: FeeWalletSnapshot | null
+  ) => {
+    if (model.provider !== 'claw402') return
+
+    const address = model.walletAddress || wallet?.address || ''
+    const balance = parseUsdc(model.balanceUsdc ?? wallet?.balance_usdc)
+
+    if (!address.trim()) {
+      throw new LaunchSetupError(
+        'Claw402 wallet is not ready. Open the guided setup and create the Base USDC payment wallet first.',
+        'claw402'
+      )
+    }
+
+    if (balance < MIN_AI_FEE_USDC) {
+      throw new LaunchSetupError(
+        `Claw402 wallet needs at least ${MIN_AI_FEE_USDC} USDC on Base before Autopilot can pay for data and model calls.`,
+        'claw402'
+      )
+    }
+  }
+
+  const requireHyperliquidBalance = async (exchange: Exchange) => {
+    let accountState: ExchangeAccountState | undefined
+    try {
+      const response = await api.getExchangeAccountState()
+      accountState = response.states[exchange.id]
+    } catch {
+      throw new LaunchSetupError(
+        'Could not verify the Hyperliquid trading balance. Open the guided setup and refresh the account state first.',
+        'hyperliquid-funds'
+      )
+    }
+
+    if (!accountState) {
+      throw new LaunchSetupError(
+        'Could not verify the Hyperliquid trading balance. Open the guided setup and refresh the account state first.',
+        'hyperliquid-funds'
+      )
+    }
+
+    if (accountState.status !== 'ok') {
+      throw new LaunchSetupError(
+        accountState.error_message ||
+          'Hyperliquid account is not ready. Reconnect the wallet and approve the NOFX Agent.',
+        'hyperliquid'
+      )
+    }
+
+    const balance = exchangeAvailableUsdc(accountState)
+    if (balance < MIN_TRADING_USDC) {
+      throw new LaunchSetupError(
+        `Hyperliquid needs at least ${MIN_TRADING_USDC} USDC available before Autopilot can place its first trade.`,
+        'hyperliquid-funds'
+      )
+    }
+  }
+
   const resolveOneClickModel = async () => {
     let models = await api.getModelConfigs()
     let model = pickTradingModel(models)
-    if (model) return model
+    if (model) {
+      let wallet: CurrentBeginnerWalletResponse | null = null
+      try {
+        wallet = await api.getCurrentBeginnerWallet()
+      } catch {
+        wallet = null
+      }
+      await requireClaw402FeeWallet(model, wallet)
+      return model
+    }
 
     const onboarding = await api.prepareBeginnerOnboarding()
     models = await api.getModelConfigs()
@@ -1478,46 +1590,59 @@ export function StrategyStudioPage() {
     }
 
     if (!model) {
-      throw new Error(
-        'No enabled AI model is ready. Create or fund the Claw402 wallet first.'
+      throw new LaunchSetupError(
+        'No enabled AI model is ready. Create or fund the Claw402 wallet first.',
+        'claw402'
       )
     }
 
+    await requireClaw402FeeWallet(model, onboarding)
     return model
   }
 
   const resolveOneClickExchange = async () => {
     const exchanges = await api.getExchangeConfigs()
     const exchange = pickTradingExchange(exchanges)
-    if (exchange) return exchange
+    if (exchange) {
+      await requireHyperliquidBalance(exchange)
+      return exchange
+    }
 
     const hyperliquid = exchanges.find(isHyperliquidExchange)
     if (!hyperliquid) {
-      throw new Error(
-        'No Hyperliquid account is ready. Connect Hyperliquid and authorize the NOFX agent first.'
+      throw new LaunchSetupError(
+        'No Hyperliquid account is ready. Connect Hyperliquid and authorize the NOFX agent first.',
+        'hyperliquid'
       )
     }
     if (!hyperliquid.enabled) {
-      throw new Error('The Hyperliquid account is disabled. Enable it first.')
+      throw new LaunchSetupError(
+        'The Hyperliquid account is disabled. Enable it first.',
+        'hyperliquid'
+      )
     }
     if (!modelHasExchangeKey(hyperliquid)) {
-      throw new Error(
-        'The Hyperliquid agent key is missing. Reconnect Hyperliquid and save the agent wallet.'
+      throw new LaunchSetupError(
+        'The Hyperliquid agent key is missing. Reconnect Hyperliquid and save the agent wallet.',
+        'hyperliquid'
       )
     }
     if (!hyperliquid.hyperliquidBuilderApproved) {
-      throw new Error(
-        'Hyperliquid builder authorization is not complete. Finish wallet authorization first.'
+      throw new LaunchSetupError(
+        'Hyperliquid builder authorization is not complete. Finish wallet authorization first.',
+        'hyperliquid'
       )
     }
     if (!hyperliquidWalletAddress(hyperliquid).trim()) {
-      throw new Error(
-        'The Hyperliquid wallet address is missing. Reconnect Hyperliquid first.'
+      throw new LaunchSetupError(
+        'The Hyperliquid wallet address is missing. Reconnect Hyperliquid first.',
+        'hyperliquid'
       )
     }
 
-    throw new Error(
-      'No ready Hyperliquid account found. Check the wallet authorization.'
+    throw new LaunchSetupError(
+      'No ready Hyperliquid account found. Check the wallet authorization.',
+      'hyperliquid'
     )
   }
 
@@ -1575,6 +1700,17 @@ export function StrategyStudioPage() {
       await loadStrategies(selectedStrategy.id)
       navigate(buildDashboardPath(autopilot.trader_id))
     } catch (err) {
+      if (err instanceof LaunchSetupError) {
+        notify.error(err.message)
+        navigate(
+          err.target === 'claw402'
+            ? `${ROUTES.traders}?setup=claw402`
+            : err.target === 'hyperliquid'
+              ? `${ROUTES.traders}?setup=hyperliquid`
+              : ROUTES.traders
+        )
+        return
+      }
       notify.error(
         err instanceof Error ? err.message : 'Failed to launch NOFX Autopilot'
       )
@@ -2381,7 +2517,11 @@ export function StrategyStudioPage() {
                   <div className="rounded-lg border border-[rgba(26,24,19,0.14)] bg-nofx-bg-lighter p-4">
                     <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-nofx-text">
                       <Shield className="h-4 w-4 text-nofx-success" />
-                      {text(language, 'Trading parameters', 'Trading parameters')}
+                      {text(
+                        language,
+                        'Trading parameters',
+                        'Trading parameters'
+                      )}
                     </div>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <label className="space-y-2">
@@ -2424,7 +2564,11 @@ export function StrategyStudioPage() {
                       </label>
                       <label className="space-y-2">
                         <span className="text-xs text-nofx-text-muted">
-                          {text(language, 'Entry confidence', 'Entry confidence')}
+                          {text(
+                            language,
+                            'Entry confidence',
+                            'Entry confidence'
+                          )}
                         </span>
                         <select
                           value={risk.min_confidence}

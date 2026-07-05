@@ -850,6 +850,24 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 		return
 	}
 
+	// Server-side launch gate: the trader cannot function without a funded AI
+	// wallet and a ready exchange account, so verify both before the run loop
+	// starts. `?force=true` skips the gate for deliberate manual overrides.
+	if c.Query("force") != "true" {
+		// strategyRequired=false: a trader that loaded into memory necessarily
+		// has a valid strategy (the manager refuses to load without one), so the
+		// preflight strategy check would be redundant here.
+		preflight := s.runLaunchPreflight(userID, fullCfg.AIModel, fullCfg.Exchange, fullCfg.Strategy, false)
+		if !preflight.Ready {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":     formatTraderStartError(preflight.Summary(), "Complete the failing checks, then start the bot again"),
+				"error_key": "trader.start.preflight_failed",
+				"preflight": preflight,
+			})
+			return
+		}
+	}
+
 	// Start trader
 	go func() {
 		logger.Infof("▶️  Starting trader %s (%s)", traderID, trader.GetName())

@@ -26,6 +26,7 @@ type beginnerOnboardingResponse struct {
 	DefaultModel      string `json:"default_model"`
 	ConfiguredModelID string `json:"configured_model_id"`
 	BalanceUSDC       string `json:"balance_usdc"`
+	BalanceStatus     string `json:"balance_status,omitempty"`
 	EnvSaved          bool   `json:"env_saved"`
 	EnvPath           string `json:"env_path,omitempty"`
 	ReusedExisting    bool   `json:"reused_existing"`
@@ -36,8 +37,20 @@ type currentBeginnerWalletResponse struct {
 	Found         bool   `json:"found"`
 	Address       string `json:"address,omitempty"`
 	BalanceUSDC   string `json:"balance_usdc,omitempty"`
+	BalanceStatus string `json:"balance_status,omitempty"`
 	Source        string `json:"source,omitempty"`
 	Claw402Status string `json:"claw402_status"`
+}
+
+// queryBeginnerWalletBalance returns the wallet balance plus a status flag so
+// the UI can distinguish "RPC unreachable" from a genuinely empty wallet.
+// Uses the 30s cache — safe for UI polling.
+func queryBeginnerWalletBalance(address string) (balanceUSDC string, balanceStatus string) {
+	balance, err := wallet.QueryUSDCBalanceCached(address)
+	if err != nil {
+		return "", "unknown"
+	}
+	return fmt.Sprintf("%.2f", balance), "ok"
 }
 
 func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
@@ -72,6 +85,7 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 	os.Setenv("CLAW402_DEFAULT_MODEL", payment.DefaultClaw402Model)
 
 	envSaved, envPath, envErr := persistBeginnerWalletEnv(privateKey, address)
+	balanceUSDC, balanceStatus := queryBeginnerWalletBalance(address)
 	resp := beginnerOnboardingResponse{
 		Address:           address,
 		PrivateKey:        privateKey,
@@ -80,7 +94,8 @@ func (s *Server) handleBeginnerOnboarding(c *gin.Context) {
 		Provider:          "claw402",
 		DefaultModel:      payment.DefaultClaw402Model,
 		ConfiguredModelID: configuredModelID,
-		BalanceUSDC:       wallet.QueryUSDCBalanceStr(address),
+		BalanceUSDC:       balanceUSDC,
+		BalanceStatus:     balanceStatus,
 		EnvSaved:          envSaved,
 		EnvPath:           envPath,
 		ReusedExisting:    reusedExisting,
@@ -124,10 +139,12 @@ func (s *Server) handleCurrentBeginnerWallet(c *gin.Context) {
 			continue
 		}
 
+		balanceUSDC, balanceStatus := queryBeginnerWalletBalance(address)
 		c.JSON(http.StatusOK, currentBeginnerWalletResponse{
 			Found:         true,
 			Address:       address,
-			BalanceUSDC:   wallet.QueryUSDCBalanceStr(address),
+			BalanceUSDC:   balanceUSDC,
+			BalanceStatus: balanceStatus,
 			Source:        "model",
 			Claw402Status: claw402Status,
 		})
@@ -136,10 +153,12 @@ func (s *Server) handleCurrentBeginnerWallet(c *gin.Context) {
 
 	address := strings.TrimSpace(os.Getenv("CLAW402_WALLET_ADDRESS"))
 	if address != "" {
+		balanceUSDC, balanceStatus := queryBeginnerWalletBalance(address)
 		c.JSON(http.StatusOK, currentBeginnerWalletResponse{
 			Found:         true,
 			Address:       address,
-			BalanceUSDC:   wallet.QueryUSDCBalanceStr(address),
+			BalanceUSDC:   balanceUSDC,
+			BalanceStatus: balanceStatus,
 			Source:        "env",
 			Claw402Status: claw402Status,
 		})

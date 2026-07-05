@@ -91,6 +91,19 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		}
 	}
 
+	// Runtime health: safe mode + AI fee wallet, so the dashboard can show a
+	// persistent banner instead of the user digging through logs.
+	safeMode, safeModeReason := at.safeModeState()
+	result["safe_mode"] = safeMode
+	if safeModeReason != "" {
+		result["safe_mode_reason"] = safeModeReason
+	}
+	if status, balance, checkedAt := at.aiWalletHealth(); status != "" {
+		result["ai_wallet_status"] = status
+		result["ai_wallet_balance_usdc"] = balance
+		result["ai_wallet_checked_at"] = checkedAt.Format(time.RFC3339)
+	}
+
 	return result
 }
 

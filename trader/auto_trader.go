@@ -177,8 +177,12 @@ type AutoTrader struct {
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
 	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
 	consecutiveAIFailures int                // Consecutive AI call failures
+	runtimeHealthMu       sync.RWMutex       // Guards safe mode + AI wallet health (loop writes, API reads)
 	safeMode              bool               // Safe mode: no new positions, protect existing ones
 	safeModeReason        string             // Why safe mode was activated
+	aiWalletStatus        string             // "ok"|"low"|"empty"|"unknown" — see runtime_health.go
+	aiWalletBalanceUSDC   float64            // Last observed Base USDC balance of the claw402 wallet
+	aiWalletCheckedAt     time.Time          // When the balance was last observed
 }
 
 // NewAutoTrader creates an automatic trader
@@ -710,7 +714,9 @@ func (at *AutoTrader) runPreLaunchChecks() {
 			balance, err := wallet.QueryUSDCBalance(addr)
 			if err != nil {
 				logger.Warnf("⚠️ [%s] Could not query USDC balance: %v", at.name, err)
+				at.markAIWalletHealthUnknown()
 			} else {
+				at.setAIWalletHealth(balance)
 				// Estimate runway
 				scanMinutes := int(at.config.ScanInterval.Minutes())
 				modelName := at.config.CustomModelName

@@ -21,7 +21,7 @@ import (
 //   - never exceeds MaxPositions,
 //   - never doubles a base symbol already held or already in the decision set.
 func (at *AutoTrader) ensureLongShortCoverage(decisions []kernel.Decision, ctx *kernel.Context, equity float64) []kernel.Decision {
-	if at == nil || ctx == nil || at.safeMode {
+	if at == nil || ctx == nil || at.isSafeMode() {
 		return decisions
 	}
 	if at.config.StrategyConfig == nil || at.config.StrategyConfig.CoinSource.SourceType != "vergex_signal" {

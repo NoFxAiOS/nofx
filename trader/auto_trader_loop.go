@@ -2,10 +2,12 @@ package trader
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
+	"nofx/mcp/payment"
 	"nofx/provider/hyperliquid"
 	"nofx/store"
 	"nofx/wallet"
@@ -141,10 +143,21 @@ func (at *AutoTrader) runCycle() error {
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Failed to get AI decision: %v", err)
 
+		// Payment-layer rejection means the AI fee wallet is definitively out
+		// of funds — surface it as structured health state (GetStatus), not
+		// just a log line.
+		var insufficientFunds *payment.ErrInsufficientFunds
+		if errors.As(err, &insufficientFunds) {
+			at.markAIWalletEmptyFromPayment(insufficientFunds.Balance)
+			record.ErrorMessage = fmt.Sprintf(
+				"AI fee wallet out of funds: balance $%.2f USDC, next call needs ~$%.2f. Top up the Base USDC wallet.",
+				insufficientFunds.Balance, insufficientFunds.Needed,
+			)
+		}
+
 		// Activate safe mode after 3 consecutive failures
-		if at.consecutiveAIFailures >= 3 && !at.safeMode {
-			at.safeMode = true
-			at.safeModeReason = fmt.Sprintf("AI failed %d consecutive times: %v", at.consecutiveAIFailures, err)
+		if at.consecutiveAIFailures >= 3 && !at.isSafeMode() {
+			at.setSafeMode(true, fmt.Sprintf("AI failed %d consecutive times: %v", at.consecutiveAIFailures, err))
 			at.logErrorf("🛡️ SAFE MODE ACTIVATED — AI failed %d times in a row. No new positions will be opened. Existing positions are protected with current stop-loss settings.", at.consecutiveAIFailures)
 			at.logErrorf("🛡️ Reason: %v", err)
 			at.logErrorf("🛡️ Action: Will keep trying AI each cycle. Safe mode auto-deactivates when AI recovers.")
@@ -172,7 +185,7 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		// In safe mode, don't return error — keep the loop running to retry next cycle
-		if at.safeMode {
+		if at.isSafeMode() {
 			at.logWarnf("🛡️ Safe mode: skipping this cycle, will retry in %v", at.config.ScanInterval)
 			return nil
 		}
@@ -185,10 +198,9 @@ func (at *AutoTrader) runCycle() error {
 		at.logInfof("✅ AI recovered after %d consecutive failures", at.consecutiveAIFailures)
 	}
 	at.consecutiveAIFailures = 0
-	if at.safeMode {
+	if at.isSafeMode() {
 		at.logInfof("🛡️ SAFE MODE DEACTIVATED — AI is working again. Resuming normal trading.")
-		at.safeMode = false
-		at.safeModeReason = ""
+		at.setSafeMode(false, "")
 	}
 
 	// // 5. Print system prompt
@@ -242,7 +254,7 @@ func (at *AutoTrader) runCycle() error {
 	}
 
 	// Safe mode: filter out open positions, only allow close/hold
-	if at.safeMode {
+	if at.isSafeMode() {
 		filtered := make([]kernel.Decision, 0)
 		for _, d := range sortedDecisions {
 			if d.Action == "open_long" || d.Action == "open_short" {
@@ -770,10 +782,12 @@ func (at *AutoTrader) checkClaw402Balance() {
 		balance, err := wallet.QueryUSDCBalance(at.claw402WalletAddr)
 		if err != nil {
 			at.logWarnf("⚠️ Failed to query USDC balance: %v", err)
+			at.markAIWalletHealthUnknown()
 			return
 		}
 
-		if balance < 1.0 {
+		at.setAIWalletHealth(balance)
+		if balance < aiWalletLowThresholdUSDC {
 			at.logWarnf("⚠️ Low USDC balance: $%.2f — AI may stop soon!", balance)
 		}
 		if balance <= 0 {

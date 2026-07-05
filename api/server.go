@@ -237,8 +237,17 @@ Only include fields you want to change.`,
 				`:id = trader_id from GET /api/my-traders. Stops and permanently removes the trader and all its data.`,
 				s.handleDeleteTrader)
 			s.routeWithSchema(protected, "POST", "/traders/:id/start", "Start trader — begins live trading",
-				`:id = trader_id from GET /api/my-traders. No request body needed. The trader must have a valid exchange and AI model configured.`,
+				`:id = trader_id from GET /api/my-traders. No request body needed. The trader must have a valid exchange and AI model configured.
+Runs launch preflight first and returns 400 with {"error_key":"trader.start.preflight_failed","preflight":{...}} when checks fail. Append ?force=true to skip balance gates.`,
 				s.handleStartTrader)
+			s.routeWithSchema(protected, "GET", "/traders/:id/preflight", "Run launch readiness checks for a trader",
+				`:id = trader_id from GET /api/my-traders.
+Returns: {"ready":<bool>,"checks":[{"id":"ai_model|ai_wallet|ai_wallet_funds|strategy|exchange_config|exchange_account|exchange_funds","status":"ok|failed|warning|skipped","code":"<string>","message":"<string>","required":<number>,"actual":<number>,"asset":"<string>","address":"<string>"}],"min_ai_fee_usdc":<number>,"min_trading_usdc":<number>}`,
+				s.handleTraderPreflight)
+			s.routeWithSchema(protected, "POST", "/launch/preflight", "Run launch readiness checks before creating a trader",
+				`Body: {"ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<optional, EXACT id from GET /api/strategies>"}
+Returns the same shape as GET /api/traders/:id/preflight. Use this before POST /api/traders to surface every missing prerequisite at once.`,
+				s.handleLaunchPreflight)
 			s.routeWithSchema(protected, "POST", "/traders/:id/stop", "Stop trader — halts live trading",
 				`:id = trader_id from GET /api/my-traders. No request body needed. Gracefully stops the trading loop.`,
 				s.handleStopTrader)

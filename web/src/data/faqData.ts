@@ -257,6 +257,49 @@ export const faqCategories: FAQCategory[] = [
     icon: TrendingUp,
     items: [
       {
+        id: 'autopilot-pipeline',
+        question: 'How does the Autopilot strategy work, step by step?',
+        blocks: [
+          {
+            type: 'p',
+            text: 'Every cycle runs the same four-stage funnel — each stage can reject a candidate, and only setups that survive all four get traded:',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Build the universe — pull the live Claw402.ai ranking and take the top candidates (default 10) across crypto majors and the xyz synthetic markets (US stocks, indices, commodities, FX), each with a direction bias and signal z-score.',
+              'Verify each candidate — fetch its Signal Lab deep signal plus the cost/liquidation structure around price: liquidation clusters and cost bases show whether a move has fuel ahead of it or walls against it.',
+              'Confirm timing — read the raw 15-minute OHLCV candles (30 bars) to check the entry is riding structure, not chasing an extended move.',
+              'Decide and size — only setups clearing the confidence threshold (default `78/100`) with roughly `3:1` risk/reward get positions at 10x; closes always execute before opens, and both long and short books are considered every cycle.',
+            ],
+          },
+          {
+            type: 'p',
+            text: 'A fifth layer sits outside the AI entirely: hard risk controls (position cap, leverage caps, margin ceiling, trade throttle) reject any decision that violates them, no matter how confident the model is.',
+          },
+        ],
+      },
+      {
+        id: 'data-sources',
+        question: 'What data does it use, and which parts are paid?',
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Claw402.ai signal data — the ranking board, per-symbol Signal Lab deep signals, and market net-flow. These are paid endpoints, billed per call in USDC from your AI fee wallet (x402 micropayments).',
+              'Cost/liquidation heatmaps — aggregated position-cost and liquidation-cluster structure for each market.',
+              'Hyperliquid market data — raw OHLCV candles and the live L2 order book (free public data).',
+              'Your account via the agent wallet — equity, available margin, open positions with PnL.',
+              'Its own history — closed trades feed win rate, profit factor and drawdown back into the next prompt, so the AI knows its recent form.',
+            ],
+          },
+          {
+            type: 'note',
+            text: 'The dashboard polls the paid Claw402 endpoints slowly (every few minutes) to conserve your fee wallet — market-data panels stay live from the free feeds.',
+          },
+        ],
+      },
+      {
         id: 'decision-cycle',
         question: 'How often does the AI make decisions?',
         blocks: [

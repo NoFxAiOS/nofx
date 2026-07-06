@@ -1,158 +1,121 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { HelpCircle } from 'lucide-react'
 import { DeepVoidBackground } from '../common/DeepVoidBackground'
-import { t, type Language } from '../../i18n/translations'
 import { FAQSearchBar } from './FAQSearchBar'
 import { FAQSidebar } from './FAQSidebar'
 import { FAQContent } from './FAQContent'
-import { faqCategories } from '../../data/faqData'
+import { faqCategories, faqItemSearchText } from '../../data/faqData'
 import type { FAQCategory } from '../../data/faqData'
 
-interface FAQLayoutProps {
-  language: Language
-}
-
-export function FAQLayout({ language }: FAQLayoutProps) {
+export function FAQLayout() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeItemId, setActiveItemId] = useState<string | null>(null)
 
-  // Filter categories based on search term
   const filteredCategories = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return faqCategories
-    }
+    if (!searchTerm.trim()) return faqCategories
 
     const term = searchTerm.toLowerCase()
     const filtered: FAQCategory[] = []
-
     faqCategories.forEach((category) => {
-      const matchingItems = category.items.filter((item) => {
-        const question = t(item.questionKey, language).toLowerCase()
-        const answer = t(item.answerKey, language).toLowerCase()
-        return question.includes(term) || answer.includes(term)
-      })
-
+      const matchingItems = category.items.filter((item) =>
+        faqItemSearchText(item).includes(term)
+      )
       if (matchingItems.length > 0) {
-        filtered.push({
-          ...category,
-          items: matchingItems,
-        })
+        filtered.push({ ...category, items: matchingItems })
       }
     })
-
     return filtered
-  }, [searchTerm, language])
+  }, [searchTerm])
+
+  const totalItems = useMemo(
+    () => faqCategories.reduce((sum, category) => sum + category.items.length, 0),
+    []
+  )
 
   const handleItemClick = (_categoryId: string, itemId: string) => {
     const element = document.getElementById(itemId)
-    if (element) {
-      const offset = 100
-      const elementPosition = element.getBoundingClientRect().top
-      const offsetPosition = elementPosition + window.pageYOffset - offset
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth',
-      })
-    }
+    if (!element) return
+    const offset = 100
+    const top =
+      element.getBoundingClientRect().top + window.pageYOffset - offset
+    window.scrollTo({ top, behavior: 'smooth' })
   }
 
   return (
-    <DeepVoidBackground className="py-6 pt-24" disableAnimation>
-      <div className="w-full px-4 md:px-8">
-        {/* Page Header */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center bg-nofx-gold shadow-lg">
-              <HelpCircle className="w-8 h-8 text-nofx-bg" />
+    <DeepVoidBackground className="py-8 pt-24" disableAnimation>
+      <div className="mx-auto w-full max-w-6xl px-4 md:px-8">
+        {/* page header — same strip language as the other terminal pages */}
+        <div className="mb-8 border-b border-nofx-gold/20 pb-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-nofx-gold/30 bg-nofx-bg-lighter text-nofx-gold md:h-14 md:w-14">
+                <HelpCircle className="h-6 w-6 md:h-7 md:w-7" />
+              </div>
+              <div>
+                <h1 className="font-mono text-2xl font-bold tracking-tight text-nofx-text md:text-3xl">
+                  FAQ
+                </h1>
+                <p className="mt-1 font-mono text-xs uppercase tracking-[0.14em] text-nofx-text-muted">
+                  {totalItems} answers · wallets · launch · trading · self-hosting
+                </p>
+              </div>
             </div>
-          </div>
-          <h1 className="text-4xl font-bold mb-4 text-nofx-text">
-            {t('faqTitle', language)}
-          </h1>
-          <p className="text-lg mb-8 text-nofx-text-muted">
-            {t('faqSubtitle', language)}
-          </p>
-
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto">
-            <FAQSearchBar
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              placeholder={
-                language === 'zh' ? 'Search FAQ...' : 'Search FAQ...'
-              }
-            />
+            <div className="w-full md:w-80">
+              <FAQSearchBar
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* content */}
         <div className="flex gap-8">
-          {/* Sidebar - Hidden on mobile, visible on desktop */}
-          <aside className="hidden lg:block w-64 flex-shrink-0">
+          <aside className="hidden w-64 flex-shrink-0 lg:block">
             <FAQSidebar
               categories={filteredCategories}
               activeItemId={activeItemId}
-              language={language}
               onItemClick={handleItemClick}
             />
           </aside>
 
-          {/* Content Area */}
-          <main className="flex-1 min-w-0">
+          <main className="min-w-0 flex-1">
             {filteredCategories.length > 0 ? (
               <FAQContent
                 categories={filteredCategories}
-                language={language}
                 onActiveItemChange={setActiveItemId}
               />
             ) : (
-              <div className="text-center py-12">
-                <p className="text-lg" style={{ color: '#8A8478' }}>
-                  {language === 'zh'
-                    ? 'No matching questions found'
-                    : 'No matching questions found'}
+              <div className="rounded-xl border border-nofx-gold/20 bg-nofx-bg-lighter py-16 text-center">
+                <p className="font-mono text-sm text-nofx-text-muted">
+                  No matching questions for “{searchTerm}”.
                 </p>
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="mt-4 px-6 py-2 rounded-lg font-semibold transition-all hover:opacity-90"
-                  style={{
-                    background: '#E0483B',
-                    color: '#F1ECE2',
-                  }}
+                  className="mt-4 rounded-lg border border-nofx-gold/30 bg-nofx-gold/10 px-5 py-2 font-mono text-xs font-bold uppercase tracking-[0.12em] text-nofx-gold hover:bg-nofx-gold/20"
                 >
-                  {language === 'zh' ? 'Clear Search' : 'Clear Search'}
+                  Clear search
                 </button>
               </div>
             )}
           </main>
         </div>
 
-        {/* Contact Section */}
-        <div
-          className="mt-16 p-8 rounded-lg text-center"
-          style={{
-            background: 'rgba(224, 72, 59, 0.08)',
-            border: '1px solid rgba(224, 72, 59, 0.2)',
-          }}
-        >
-          <h3 className="text-xl font-bold mb-3" style={{ color: '#1A1813' }}>
-            {t('faqStillHaveQuestions', language)}
+        {/* still stuck */}
+        <div className="mt-12 rounded-xl border border-nofx-gold/20 bg-nofx-bg-lighter p-6 text-center md:p-8">
+          <h3 className="font-mono text-sm font-bold uppercase tracking-[0.16em] text-nofx-text">
+            Still have questions?
           </h3>
-          <p className="mb-6" style={{ color: '#8A8478' }}>
-            {t('faqContactUs', language)}
+          <p className="mt-2 text-sm text-nofx-text-muted">
+            Ask in the community or open an issue — both are answered by the
+            people building NOFX.
           </p>
-          <div className="flex items-center justify-center gap-4">
+          <div className="mt-5 flex items-center justify-center gap-3">
             <a
               href="https://github.com/NoFxAiOS/nofx"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105"
-              style={{
-                background: '#F7F4EC',
-                color: '#1A1813',
-                border: '1px solid rgba(26,24,19,0.14)',
-              }}
+              className="rounded-lg border border-[rgba(26,24,19,0.14)] bg-nofx-bg-deeper px-5 py-2.5 font-mono text-xs font-bold uppercase tracking-[0.12em] text-nofx-text hover:border-nofx-gold/40"
             >
               GitHub
             </a>
@@ -160,13 +123,9 @@ export function FAQLayout({ language }: FAQLayoutProps) {
               href="https://t.me/nofx_dev_community"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105"
-              style={{
-                background: '#E0483B',
-                color: '#F1ECE2',
-              }}
+              className="rounded-lg bg-nofx-gold px-5 py-2.5 font-mono text-xs font-bold uppercase tracking-[0.12em] text-white hover:bg-nofx-accent"
             >
-              {t('community', language)}
+              Telegram community
             </a>
           </div>
         </div>

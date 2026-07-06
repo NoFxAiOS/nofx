@@ -1,52 +1,44 @@
-import { t, type Language } from '../../i18n/translations'
 import type { FAQCategory } from '../../data/faqData'
 
 interface FAQSidebarProps {
   categories: FAQCategory[]
   activeItemId: string | null
-  language: Language
   onItemClick: (categoryId: string, itemId: string) => void
 }
 
 export function FAQSidebar({
   categories,
   activeItemId,
-  language,
   onItemClick,
 }: FAQSidebarProps) {
   return (
     <nav
-      className="sticky top-24 h-[calc(100vh-120px)] overflow-y-auto pr-4"
-      style={{
-        scrollbarWidth: 'thin',
-        scrollbarColor: '#E8E2D5 #F7F4EC',
-      }}
+      className="sticky top-24 h-[calc(100vh-120px)] overflow-y-auto pr-2"
+      style={{ scrollbarWidth: 'thin', scrollbarColor: '#E8E2D5 transparent' }}
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {categories.map((category) => (
-          <div key={category.id} className="nofx-glass p-4 rounded-xl border border-[rgba(26,24,19,0.14)]">
-            {/* Category Title */}
-            <div className="flex items-center gap-2 mb-3 px-3">
-              <category.icon className="w-5 h-5 text-nofx-gold" />
-              <h3 className="text-sm font-bold uppercase tracking-wide text-nofx-gold">
-                {t(category.titleKey, language)}
+          <div key={category.id}>
+            <div className="mb-2 flex items-center gap-2 px-2">
+              <category.icon className="h-3.5 w-3.5 text-nofx-gold" />
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-nofx-gold">
+                {category.title}
               </h3>
             </div>
-
-            {/* Category Items */}
-            <ul className="space-y-1">
+            <ul className="space-y-0.5 border-l border-[rgba(26,24,19,0.12)]">
               {category.items.map((item) => {
                 const isActive = activeItemId === item.id
                 return (
                   <li key={item.id}>
                     <button
                       onClick={() => onItemClick(category.id, item.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all border-l-[3px] ${isActive
-                        ? 'bg-nofx-gold/10 text-nofx-gold border-nofx-gold pl-[9px]'
-                        : 'bg-transparent text-nofx-text-muted border-transparent pl-3 hover:bg-nofx-gold/5 hover:text-nofx-text'
-                        }`}
+                      className={`-ml-px w-full border-l-2 py-1.5 pl-3 pr-2 text-left text-[13px] leading-5 transition-colors ${
+                        isActive
+                          ? 'border-nofx-gold bg-nofx-gold/5 font-medium text-nofx-text'
+                          : 'border-transparent text-nofx-text-muted hover:border-nofx-gold/40 hover:text-nofx-text'
+                      }`}
                     >
-                      {t(item.questionKey, language)}
+                      {item.question}
                     </button>
                   </li>
                 )

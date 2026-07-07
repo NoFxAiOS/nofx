@@ -186,10 +186,12 @@ export interface HistoricalPosition {
   entry_quantity: number
   entry_price: number
   entry_order_id: string
-  entry_time: string
+  /** Epoch milliseconds. */
+  entry_time: number
   exit_price: number
   exit_order_id: string
-  exit_time: string
+  /** Epoch milliseconds. */
+  exit_time: number
   realized_pnl: number
   fee: number
   leverage: number

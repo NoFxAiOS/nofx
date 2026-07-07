@@ -26,6 +26,14 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	zh := false
 	singleSymbol, primarySymbol := e.singleSymbolInfo()
 
+	// Configs created in the Chinese-UI era carry legacy stored prompt sections
+	// and custom prompts written for a different contract; ignore them wholesale
+	// and fall back to the canonical built-in English sections.
+	legacyZhConfig := strings.EqualFold(strings.TrimSpace(e.config.Language), "zh")
+	if legacyZhConfig {
+		promptSections = store.PromptSectionsConfig{}
+	}
+
 	if e.usesVergexSignalPrompt() {
 		return e.buildVergexSystemPrompt(accountEquity, variant, lang, zh, singleSymbol, primarySymbol)
 	}
@@ -147,6 +155,9 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	//   2. It guarantees a stock-specific, US-equity-tuned briefing
 	//      regardless of when the strategy was first created.
 	customPrompt := englishOnlyPromptSection(e.config.CustomPrompt)
+	if legacyZhConfig {
+		customPrompt = ""
+	}
 	if singleSymbol && market.IsXyzDexAsset(primarySymbol) {
 		customPrompt = buildXYZStockCustomPrompt(primarySymbol)
 	}
@@ -204,7 +215,8 @@ func (e *StrategyEngine) buildVergexSystemPrompt(accountEquity float64, variant 
 		sb.WriteString("- Ranking alone is not an entry reason; it only defines the candidate pool.\n")
 		sb.WriteString("- Every symbol in Candidate Coins is part of the allowed trading universe; missing detail can lower confidence or trigger waiting, but does not make the symbol non-tradable.\n")
 		sb.WriteString("- If Signal Lab or heatmap is absent from that symbol's Vergex Claw402 Signals, state it in reasoning; if it is present, never claim the symbol lacks that data.\n")
-		sb.WriteString("- Avoid churn: unless stopping out or taking a strong profit, hold new positions for at least 45 minutes; avoid flat/noise closes until roughly 90 minutes; after closing a symbol, wait 90 minutes before re-entry; open at most 1 new position per hour.\n")
+		sb.WriteString("- Avoid churn: unless stopping out or taking a strong profit, hold new positions for at least 60 minutes; avoid flat/noise closes until roughly 90 minutes; after closing a symbol, wait 90 minutes before re-entry; open at most 1 new position per hour.\n")
+		sb.WriteString("- Fees are the main edge killer: a round trip costs roughly 0.1%% of notional (about 1%% of margin at 10x). Only take setups whose expected move to target is at least 3x that cost; fewer, higher-conviction, longer-hold trades beat frequent scalps.\n")
 		sb.WriteString("- Stops must sit beyond invalidation; targets should prefer heatmap resistance/liquidation zones or valid risk/reward levels.\n\n")
 	} else {
 		sb.WriteString("# You are the NOFX Claw402 auto-trader\n\n")
@@ -220,7 +232,8 @@ func (e *StrategyEngine) buildVergexSystemPrompt(accountEquity float64, variant 
 		sb.WriteString("- Ranking alone is not an entry reason; it only defines the candidate pool.\n")
 		sb.WriteString("- Every symbol in Candidate Coins is part of the allowed trading universe; missing detail can lower confidence or trigger waiting, but does not make the symbol non-tradable.\n")
 		sb.WriteString("- If Signal Lab or heatmap is absent from that symbol's Vergex Claw402 Signals, state it in reasoning; if it is present, never claim the symbol lacks that data.\n")
-		sb.WriteString("- Avoid churn: unless stopping out or taking a strong profit, hold new positions for at least 45 minutes; avoid flat/noise closes until roughly 90 minutes; after closing a symbol, wait 90 minutes before re-entry; open at most 1 new position per hour.\n")
+		sb.WriteString("- Avoid churn: unless stopping out or taking a strong profit, hold new positions for at least 60 minutes; avoid flat/noise closes until roughly 90 minutes; after closing a symbol, wait 90 minutes before re-entry; open at most 1 new position per hour.\n")
+		sb.WriteString("- Fees are the main edge killer: a round trip costs roughly 0.1%% of notional (about 1%% of margin at 10x). Only take setups whose expected move to target is at least 3x that cost; fewer, higher-conviction, longer-hold trades beat frequent scalps.\n")
 		sb.WriteString("- Stops must sit beyond invalidation; targets should prefer heatmap resistance/liquidation zones or valid risk/reward levels.\n\n")
 	}
 
@@ -233,7 +246,7 @@ func (e *StrategyEngine) buildVergexSystemPrompt(accountEquity float64, variant 
 	writeVergexHardConstraints(&sb, accountEquity, riskControl, altcoinPosValueRatio, zh)
 	writeVergexOutputFormat(&sb, accountEquity, riskControl, altcoinPosValueRatio, singleSymbol, primarySymbol, zh)
 
-	customPrompt := englishOnlyPromptSection(e.config.CustomPrompt)
+	customPrompt := vergexCustomPromptSection(e.config.CustomPrompt)
 	if customPrompt != "" {
 		sb.WriteString("# User Preference\n\n")
 		sb.WriteString(customPrompt)
@@ -241,6 +254,32 @@ func (e *StrategyEngine) buildVergexSystemPrompt(accountEquity float64, variant 
 	}
 
 	return sb.String()
+}
+
+// vergexCustomPromptSection returns the user's custom prompt for the vergex
+// path, dropping legacy directional overrides ("long only" era) that would
+// contradict the data-driven direction rule baked into this prompt.
+func vergexCustomPromptSection(section string) string {
+	trimmed := englishOnlyPromptSection(section)
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	legacyDirectives := []string{
+		"long only",
+		"long-only",
+		"do not short",
+		"no shorts",
+		"must open a long",
+		"short only",
+		"short-only",
+	}
+	for _, directive := range legacyDirectives {
+		if strings.Contains(lower, directive) {
+			return ""
+		}
+	}
+	return trimmed
 }
 
 func englishOnlyPromptSection(section string) string {
@@ -335,13 +374,13 @@ func writeVergexOutputFormat(sb *strings.Builder, accountEquity float64, riskCon
 		sb.WriteString("Use XML tags <reasoning> and <decision> to separate concise analysis from the decision JSON.\n\n")
 		sb.WriteString("Direction must be data-driven: use `open_long` for confirmed upside structures and `open_short` for confirmed downside structures; never default to long-only or short-only behavior.\n\n")
 		if !singleSymbol {
-			sb.WriteString("This cycle you MUST include at least one `open_long` (pick the strongest net-inflow / bullish name) AND at least one `open_short` (pick the strongest net-outflow / bearish name); omit a side only if no suitable name exists for it.\n\n")
+			sb.WriteString("Evaluate both directions every cycle, but enter a side only when its own signals independently justify it. Never open a position just to balance the book — an unbalanced book beats a forced trade.\n\n")
 		}
 	} else {
 		sb.WriteString("Use XML tags <reasoning> and <decision> to separate concise analysis from the decision JSON.\n\n")
 		sb.WriteString("Direction must be data-driven: use `open_long` for confirmed upside structures and `open_short` for confirmed downside structures; never default to long-only or short-only behavior.\n\n")
 		if !singleSymbol {
-			sb.WriteString("This cycle you MUST include at least one `open_long` (pick the strongest net-inflow / bullish name) AND at least one `open_short` (pick the strongest net-outflow / bearish name); omit a side only if no suitable name exists for it.\n\n")
+			sb.WriteString("Evaluate both directions every cycle, but enter a side only when its own signals independently justify it. Never open a position just to balance the book — an unbalanced book beats a forced trade.\n\n")
 		}
 	}
 	sb.WriteString("<reasoning>\n")

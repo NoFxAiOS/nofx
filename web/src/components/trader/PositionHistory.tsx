@@ -36,9 +36,9 @@ function formatDuration(minutes: number): string {
 }
 
 // Format date
-function formatDate(dateStr: string): string {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
+function formatDate(value: number | string): string {
+  if (!value) return '-'
+  const date = new Date(value)
   if (isNaN(date.getTime())) return '-'
   return date.toLocaleDateString('zh-CN', {
     month: '2-digit',

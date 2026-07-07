@@ -877,16 +877,24 @@ func minInt(a, b int) int {
 	return b
 }
 
-// DirectionalCandidates returns bullish (long) and bearish (short) candidate
-// symbols from the most recent Vergex signal ranking, each ordered by upstream
-// rank (strongest first). Only populated for vergex_signal coin sources, since
-// that is the only source carrying a per-symbol directional bias.
-func (e *StrategyEngine) DirectionalCandidates() (bullish []string, bearish []string) {
+// DirectionalCandidate is a Vergex board candidate with its directional
+// signal strength (the board z-score; sign follows the bias direction).
+type DirectionalCandidate struct {
+	Symbol string
+	Score  float64
+}
+
+// DirectionalCandidates returns bullish (long) and bearish (short) candidates
+// from the most recent Vergex signal ranking, each ordered by upstream rank
+// (strongest first) and carrying the signal score so callers can require a
+// minimum strength. Only populated for vergex_signal coin sources, since that
+// is the only source carrying a per-symbol directional bias.
+func (e *StrategyEngine) DirectionalCandidates() (bullish []DirectionalCandidate, bearish []DirectionalCandidate) {
 	if e == nil || len(e.vergexRankingCache) == 0 {
 		return nil, nil
 	}
 	type ranked struct {
-		sym  string
+		cand DirectionalCandidate
 		rank int
 	}
 	rankKey := func(r int) int {
@@ -900,20 +908,21 @@ func (e *StrategyEngine) DirectionalCandidates() (bullish []string, bearish []st
 		if item == nil {
 			continue
 		}
+		entry := ranked{DirectionalCandidate{Symbol: sym, Score: item.Score}, item.Rank}
 		switch strings.ToLower(strings.TrimSpace(item.Bias)) {
 		case "bearish", "short", "sell":
-			br = append(br, ranked{sym, item.Rank})
+			br = append(br, entry)
 		case "bullish", "long", "buy":
-			bl = append(bl, ranked{sym, item.Rank})
+			bl = append(bl, entry)
 		}
 	}
 	sort.SliceStable(bl, func(i, j int) bool { return rankKey(bl[i].rank) < rankKey(bl[j].rank) })
 	sort.SliceStable(br, func(i, j int) bool { return rankKey(br[i].rank) < rankKey(br[j].rank) })
 	for _, r := range bl {
-		bullish = append(bullish, r.sym)
+		bullish = append(bullish, r.cand)
 	}
 	for _, r := range br {
-		bearish = append(bearish, r.sym)
+		bearish = append(bearish, r.cand)
 	}
 	return bullish, bearish
 }

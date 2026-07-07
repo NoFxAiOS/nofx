@@ -1,23 +1,31 @@
 package trader
 
 import (
+	"math"
 	"strings"
 
 	"nofx/kernel"
 )
 
-// ensureLongShortCoverage keeps a balanced book each cycle: it fills toward
-// roughly half the MaxPositions slots long and half short. The AI still drives
-// selection/sizing whenever it acts; this is a deterministic top-up — if the
-// AI's decisions plus existing positions fall short of the per-direction target,
-// the engine force-opens the strongest unused bullish/bearish candidates to
-// reach it (never exceeding MaxPositions).
+// forcedCoverageMinScore is the minimum absolute board z-score a candidate
+// needs before the engine will force-open it for book balance. Live trade
+// history showed forced entries on near-neutral signals (|z| < 0.3) were a
+// systematic money loser — especially shorts — while trades on strong signals
+// carried the edge. Below this bar the book is simply left unbalanced.
+const forcedCoverageMinScore = 0.75
+
+// ensureLongShortCoverage tops the book up toward roughly half the
+// MaxPositions slots long and half short — but only with candidates whose
+// directional signal is actually strong (see forcedCoverageMinScore). The AI
+// still drives selection/sizing whenever it acts; this is a deterministic
+// top-up, and an unbalanced book is preferred over a forced weak trade.
 //
 // Forced opens are sized from account equity via applyAutopilotFullSizeOpen and
 // run through the same code-enforced risk checks (position-value ratio, minimum
 // size, margin) as any other open. Guards:
 //   - skipped entirely in safe mode (AI unhealthy),
 //   - scoped to the vergex_signal source (the only one with directional bias),
+//   - requires |signal score| >= forcedCoverageMinScore,
 //   - never exceeds MaxPositions,
 //   - never doubles a base symbol already held or already in the decision set.
 func (at *AutoTrader) ensureLongShortCoverage(decisions []kernel.Decision, ctx *kernel.Context, equity float64) []kernel.Decision {
@@ -65,8 +73,9 @@ func (at *AutoTrader) ensureLongShortCoverage(decisions []kernel.Decision, ctx *
 	bullish, bearish := at.strategyEngine.DirectionalCandidates()
 
 	// fill a direction up to its target, drawing from the strongest unused
-	// candidates, never exceeding MaxPositions.
-	fill := func(action string, cands []string, have, target int) {
+	// candidates that clear the signal-strength floor, never exceeding
+	// MaxPositions.
+	fill := func(action string, cands []kernel.DirectionalCandidate, have, target int) {
 		for _, c := range cands {
 			if have >= target {
 				return
@@ -74,13 +83,19 @@ func (at *AutoTrader) ensureLongShortCoverage(decisions []kernel.Decision, ctx *
 			if maxPos > 0 && posCount >= maxPos {
 				return
 			}
-			b := universeBaseKey(c)
+			if math.Abs(c.Score) < forcedCoverageMinScore {
+				// candidates are rank-ordered; weaker ones may still follow,
+				// so keep scanning instead of breaking
+				at.logInfof("⚖️ Skipped forced %s %s: signal score %.2f below %.2f floor", action, c.Symbol, c.Score, forcedCoverageMinScore)
+				continue
+			}
+			b := universeBaseKey(c.Symbol)
 			if b == "" || held[b] {
 				continue
 			}
 			d := kernel.Decision{
 				Action:     action,
-				Symbol:     c,
+				Symbol:     c.Symbol,
 				Confidence: 70,
 				Reasoning:  "Forced " + action + " to fill the balanced long/short book (autopilot)",
 			}
@@ -89,7 +104,7 @@ func (at *AutoTrader) ensureLongShortCoverage(decisions []kernel.Decision, ctx *
 			held[b] = true
 			have++
 			posCount++
-			at.logInfof("⚖️ Forced %s %s (account-sized %.2f USDT, %dx)", action, c, d.PositionSizeUSD, d.Leverage)
+			at.logInfof("⚖️ Forced %s %s (score %.2f, account-sized %.2f USDT, %dx)", action, c.Symbol, c.Score, d.PositionSizeUSD, d.Leverage)
 		}
 	}
 

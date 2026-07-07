@@ -17,6 +17,7 @@ import { KlineChart } from './KlineChart'
 import { ExecutionLog } from './ExecutionLog'
 import { SignalMatrix } from './SignalMatrix'
 import { RiskRadar } from './RiskRadar'
+import { EdgeProfile } from './EdgeProfile'
 import { useDemoEngine } from '../../lib/demo/useDemoEngine'
 
 // crypto majors trade on the Hyperliquid main dex (no hip3 cost/liq heatmap);
@@ -540,8 +541,8 @@ export function TerminalDashboard({
         </div>
         <div className="tm-rule" />
 
-        {/* market net inflow (Vergex) · by-symbol history — balanced two-column footer */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)' }}>
+        {/* market net inflow (Vergex) · by-symbol history · edge profile — footer */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,0.9fr) minmax(0,0.9fr)' }}>
           <div style={{ ...sc, borderRight: cellBorder }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
               <span className="tm-px" style={{ fontSize: 12 }}>Market net inflow</span>
@@ -550,7 +551,7 @@ export function TerminalDashboard({
             </div>
             <FlowMarkets items={flowItems} window={flow?.data?.window} />
           </div>
-          <div style={sc}>
+          <div style={{ ...sc, borderRight: cellBorder }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
               <span className="tm-px" style={{ fontSize: 11 }}>By symbol</span>
               <span className="tm-sc">By-symbol history · trades/win/pnl</span>
@@ -567,6 +568,13 @@ export function TerminalDashboard({
                 </div>
               </div>
             )) : <div className="tm-sc">No symbol history.</div>}
+          </div>
+          <div style={sc}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+              <span className="tm-px" style={{ fontSize: 11 }}>Edge profile</span>
+              <span className="tm-sc">Net by hold time &amp; side · after fees</span>
+            </div>
+            <EdgeProfile positions={history?.positions} />
           </div>
         </div>
       </div>

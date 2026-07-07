@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	autopilotMinHoldDuration        = 45 * time.Minute
+	// Live history: trades held under an hour were net-negative after fees
+	// (the 15-60m bucket bled), while the edge concentrated in 1h+ holds.
+	autopilotMinHoldDuration        = 60 * time.Minute
 	autopilotNoiseCloseHoldDuration = 90 * time.Minute
 	autopilotReentryCooldown        = 30 * time.Minute
 	// Allow one long + one short per cycle. The real exposure/churn limits are

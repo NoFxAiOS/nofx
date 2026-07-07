@@ -249,17 +249,21 @@ export function HyperliquidWalletConnect({
       title: language === 'zh' ? 'Hyperliquid Wallet' : 'Hyperliquid Wallet',
       connect: language === 'zh' ? 'Connect Hyperliquid' : 'Connect Hyperliquid',
       connected: language === 'zh' ? 'Connected' : 'Connected',
-      mainWallet: language === 'zh' ? 'EVM main wallet' : 'EVM main wallet',
+      mainWallet: language === 'zh' ? 'Connect your wallet' : 'Connect your wallet',
       generateAgent:
         language === 'zh'
-          ? 'Generate NOFX agent wallet'
-          : 'Generate NOFX agent wallet',
+          ? 'Create a trading key for NOFX'
+          : 'Create a trading key for NOFX',
       approveAgent:
-        language === 'zh' ? 'Authorize agent trading' : 'Authorize agent trading',
+        language === 'zh'
+          ? 'Approve it in your wallet (trade-only, cannot withdraw)'
+          : 'Approve it in your wallet (trade-only, cannot withdraw)',
       approveBuilder:
-        language === 'zh' ? 'Finalize trading authorization' : 'Finalize trading authorization',
-      save: language === 'zh' ? 'Save to NOFX' : 'Save to NOFX',
-      done: language === 'zh' ? 'Flow complete' : 'Flow complete',
+        language === 'zh'
+          ? 'Approve the small per-trade builder fee'
+          : 'Approve the small per-trade builder fee',
+      save: language === 'zh' ? 'Save to NOFX — done' : 'Save to NOFX — done',
+      done: language === 'zh' ? 'All set — trading authorized' : 'All set — trading authorized',
       balance: language === 'zh' ? 'Hyperliquid balance' : 'Hyperliquid balance',
       withdrawable: language === 'zh' ? 'Withdrawable' : 'Withdrawable',
       equity: language === 'zh' ? 'Equity' : 'Equity',

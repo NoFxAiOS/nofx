@@ -322,6 +322,16 @@ export function TerminalDashboard({
             </span>
           </div>
         )}
+        {/* first-run reassurance — a fresh autopilot looks idle for its first
+            minute (the AI is reading the market); tell newcomers what to expect */}
+        {!on && status?.is_running && (status.call_count ?? 0) <= 1 && !status.safe_mode && (
+          <div className="tm-mono" style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '8px 14px 0', padding: '8px 12px', fontSize: 11, border: '1px solid var(--tm-up)', color: 'var(--tm-ink)', background: 'rgba(40,140,80,0.06)', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: 'var(--tm-up)' }}>Your AI is live.</span>
+            <span style={{ color: 'var(--tm-ink-2)' }}>
+              It reads the whole market before acting — the first decision usually lands within a minute or two and will appear in the Execution Log below. You can stop it anytime from the Config page.
+            </span>
+          </div>
+        )}
         {/* config / identity strip — first row, flows directly under the global nav */}
         <div className="tm-mono" style={{ display: 'flex', gap: 16, padding: '6px 14px', fontSize: 11, color: 'var(--tm-ink-2)', flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 500 }}>{selectedTrader?.trader_name ?? 'NOFX'}</span>

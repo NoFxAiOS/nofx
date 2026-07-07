@@ -455,7 +455,7 @@ export function AutopilotLaunchPanel({
     {
       title: 'Step 3 · Add trading money ($12+)',
       detail:
-        'Deposit USDC into your Hyperliquid account. This is what the AI trades with — start small, you can add more anytime.',
+        'Deposit USDC into your Hyperliquid account (app.hyperliquid.xyz → Deposit, USDC on Arbitrum). This is what the AI trades with — start small, you can add more anytime.',
       status: tradingBalanceReady
         ? 'ready'
         : hyperliquidConnected

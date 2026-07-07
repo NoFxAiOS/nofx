@@ -31,7 +31,6 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useSystemConfig } from '../hooks/useSystemConfig'
 import { t } from '../i18n/translations'
 import { api } from '../lib/api'
-import { getUserMode } from '../lib/onboarding'
 import type {
   AccountInfo,
   DecisionRecord,
@@ -446,12 +445,11 @@ export function AppRoutes() {
         <Route
           path={ROUTES.welcome}
           element={
+            // The welcome overlay is the AI-wallet deposit page (QR +
+            // auto-refreshing balance) — useful to every signed-in user, so
+            // no legacy "beginner mode" gate here.
             isAuthenticated ? (
-              getUserMode() === 'beginner' ? (
-                <TradersRoute showBeginnerOnboarding />
-              ) : (
-                <Navigate to={ROUTES.traders} replace />
-              )
+              <TradersRoute showBeginnerOnboarding />
             ) : (
               <Navigate to={ROUTES.login} replace />
             )

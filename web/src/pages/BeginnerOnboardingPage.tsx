@@ -204,9 +204,19 @@ export function BeginnerOnboardingPage() {
                     </div>
 
                     <div className="mt-4 text-sm text-nofx-text-muted">
-                      {isZh
-                        ? '$5-$10 usually lasts a long time'
-                        : '$5-$10 usually lasts a long time'}
+                      $5–$10 usually lasts a long time · balance updates by
+                      itself after you deposit
+                    </div>
+
+                    {/* the wall every true beginner hits: where does USDC come from? */}
+                    <div className="mt-5 rounded-2xl border border-nofx-gold/20 bg-nofx-gold/10 px-5 py-4 text-left text-[13px] leading-6 text-nofx-text">
+                      <div className="mb-1 font-semibold">
+                        Don&apos;t have USDC yet?
+                      </div>
+                      Buy USDC on Binance, OKX or Coinbase, then withdraw it to
+                      the address above — and pick the{' '}
+                      <b>Base network</b> when the exchange asks. It usually
+                      arrives in about a minute. Only send USDC on Base.
                     </div>
                   </div>
                 </section>
@@ -298,9 +308,7 @@ export function BeginnerOnboardingPage() {
                         isZh ? 'text-[20px]' : 'text-[16px] sm:text-[18px]'
                       }`}
                     >
-                      <span>
-                        {isZh ? 'Go to Traders' : 'Go to Traders'}
-                      </span>
+                      <span>Continue setup</span>
                       <ArrowRight className="h-5 w-5" />
                     </button>
 

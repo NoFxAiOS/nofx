@@ -1,22 +1,14 @@
 <p align="center"><strong>За підтримки <a href="https://vergex.trade">vergex.trade</a></strong></p>
 
-<h1 align="center">NOFX</h1>
-
 <p align="center">
-  <strong>AI-термінал для глобальних ринків.</strong><br/>
-  <strong>Дослідження, генерація стратегій, виконання та моніторинг для акцій США, сировинних товарів, FX і криптоактивів.</strong>
+  <img src="../../assets/nofx-banner.svg" alt="NOFX — AI trading terminal" width="100%"/>
 </p>
 
 <p align="center">
-  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=for-the-badge" alt="Stars"></a>
-  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=for-the-badge" alt="Release"></a>
-  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
-  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/Telegram-Community-blue?style=for-the-badge&logo=telegram" alt="Telegram"></a>
-</p>
-
-<p align="center">
-  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go" alt="Go"></a>
-  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=flat-square&labelColor=1A1813&color=E0483B" alt="Stars"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=flat-square&labelColor=1A1813&color=E0483B" alt="Release"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-E0483B?style=flat-square&labelColor=1A1813" alt="License"></a>
+  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/telegram-community-E0483B?style=flat-square&labelColor=1A1813&logo=telegram&logoColor=white" alt="Telegram"></a>
 </p>
 
 <p align="center">
@@ -29,223 +21,137 @@
   <a href="../vi/README.md">Tiếng Việt</a>
 </p>
 
----
+<br/>
 
-NOFX — open-source AI-термінал для активних трейдерів, яким потрібен єдиний робочий простір для аналізу ринків, розробки стратегій, виконання угод і моніторингу портфеля.
+NOFX — торговий термінал з відкритим кодом, у якому стратегією є мовна модель. Кожен трейдер працює в безперервному циклі — читає структуру ринку, приймає рішення, виконує його, фіксує хід міркувань — а рантайм на Go обмежує кожен ордер жорсткими ризик-лімітами, які модель не може обійти.
 
-Продукт орієнтований на ліквідні глобальні ринки: акції США, товарні контракти, валютні пари й цифрові активи. AI-шар перетворює торговий намір на watchlists, сигнали, логіку стратегії, ризик-контроль і робочі процеси виконання.
+Трейдери компонуються вільно: будь-яка модель, будь-яка з дев'яти бірж, будь-яка стратегія. Запускайте кілька одночасно та порівнюйте їх у публічній таблиці лідерів за реалізованою дохідністю. Усе працює на вашій власній машині; облікові дані бірж зашифровані на диску й ніколи її не покидають.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-**http://127.0.0.1:3000** 을 엽니다.
+Термінал відкривається за адресою `http://127.0.0.1:3000`.
 
----
+**Перший запуск**
+
+1. Зареєструйтеся — перший акаунт стає власником інстансу.
+2. Пройдіть покроковий запуск: покладіть **$1+ USDC** (мережа Base) у гаманець для оплати AI, який він створить для вас, потім підключіть Hyperliquid і внесіть **$12+ USDC** для торгівлі.
+3. Запустіть **Autopilot**. AI сканує ринок кожні кілька хвилин і торгує самостійно; кожне рішення з'являється на дашборді в момент ухвалення. Зупинити його можна будь-коли одним кліком.
+
+<br/>
 
 ## Реєстрація на біржах
 
-Скористайтеся посиланнями нижче, щоб відкрити торгові акаунти для крипторинків і підтримуваних деривативів на акції США, FX та сировинні товари. Ці маршрути належать до партнерських програм NOFX і можуть містити знижки на комісії або реферальні переваги.
+NOFX безкоштовний і має відкритий код. Відкриття акаунта за партнерськими посиланнями нижче дає знижку на торгові комісії та фінансує подальшу розробку.
 
-| Біржа | Статус | Реєстрація зі знижкою |
-| :--- | :---: | :--- |
-| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [Реєстрація](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [Реєстрація](https://partner.bybit.com/b/83856) |
-| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [Реєстрація](https://www.okx.com/join/1865360) |
-| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [Реєстрація](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [Реєстрація](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [Реєстрація](https://www.kucoin.com/r/broker/CXEV7XKK) |
-| <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [Реєстрація](https://www.gatenode.xyz/share/VQBGUAxY) |
-| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster** | ✅ | [Реєстрація](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [Реєстрація](https://app.lighter.xyz/?referral=68151432) |
+| Біржа                                                                                                                      | Статус | Реєстрація зі знижкою на комісії                                                          |
+| :---------------------------------------------------------------------------------------------------------------------------- | :----: | :---------------------------------------------------------------------------------- |
+| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance**       |   ✅   | [Реєстрація](https://www.binance.com/join?ref=NOFXENG)                                |
+| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit**           |   ✅   | [Реєстрація](https://partner.bybit.com/b/83856)                                       |
+| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX**               |   ✅   | [Реєстрація](https://www.okx.com/join/1865360)                                        |
+| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** |   ✅   | [Реєстрація](https://app.hyperliquid.xyz/join/AITRADING)                              |
+| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget**         |   ✅   | [Реєстрація](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin**         |   ✅   | [Реєстрація](https://www.kucoin.com/r/broker/CXEV7XKK)                                |
+| <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate**             |   ✅   | [Реєстрація](https://www.gatenode.xyz/share/VQBGUAxY)                                 |
+| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster**           |   ✅   | [Реєстрація](https://www.asterdex.com/en/referral/fdfc0e)                             |
+| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter**       |   ✅   | [Реєстрація](https://app.lighter.xyz/?referral=68151432)                              |
 
----
+<br/>
 
-## Коротка демонстрація
+## Демо
 
 https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
----
+<br/>
 
-## Ринки
+## Модель пропонує. Рантайм вирішує.
 
-**Акції США · Сировинні товари · FX · Криптоактиви**
+Рішення приймає мовна модель, що читає живу структуру ринку — свічки, EMA/MACD/RSI/ATR/Bollinger, відкритий інтерес, чистий потік, ранжування сигналів. Виконання — ні.
 
-NOFX организует исследования, построение стратегий, исполнение и мониторинг вокруг мультиактивных рабочих процессов, а не вокруг одного торгового экрана.
+Кожен ордер проходить через ліміти, зашиті в код поза досяжністю моделі:
 
----
+|                          |                                                                                    |
+| :----------------------- | :--------------------------------------------------------------------------------- |
+| Ліміти позицій           | Максимум одночасних позицій, номінал обмежено часткою від капіталу, одна позиція на символ |
+| Обмеження плеча          | Жорсткі стелі застосовуються під час розрахунку розміру ордера, незалежно від запиту моделі |
+| Захист на боці біржі     | Стоп-лос і тейк-профіт розміщуються на біржі одразу після кожного входу            |
+| Автозакриття за просадкою | Прибуткові позиції, що віддають надто багато від свого піку, закриваються          |
+| Обмеження частоти угод   | Мінімальний час утримання, кулдауни на повторний вхід за символом, ліміти входів на цикл і на годину |
+| Безпечний режим          | Повторювані збої моделі блокують нові входи, доки модель не відновиться            |
+| Передстартова перевірка  | Доступ до моделі, кошти в гаманці, стратегія та баланси бірж перевіряються, перш ніж трейдер зможе стартувати |
 
-## Доступ до AI-моделей
+Кожне рішення зберігається разом із повним ходом міркувань моделі. Жодної позиції без документального сліду.
 
-NOFX автоматично маршрутизує AI inference через [Claw402](https://claw402.ai). Користувачам не потрібно налаштовувати провайдерів моделей, керувати API-ключами або підтримувати окремі AI-акаунти. Термінал звертається до підтримуваних моделей на вимогу через pay-as-you-go інфраструктуру Claw402 та офіційний канал зі знижкою.
+<br/>
 
-| Провайдер | Доступ |
+## Термінал
+
+| | |
 | :--- | :--- |
-| **Claw402** | [Доступ до AI-моделей pay-as-you-go з офіційною знижкою](https://claw402.ai) |
-
----
-
-## Можливості
-
-| Возможность | Описание |
-| :--- | :--- |
-| **AI trading terminal** | Единое рабочее пространство для акций США, сырья, FX и криптоактивов |
-| **Доступ к AI-моделям** | Автоматический доступ к поддерживаемым провайдерам через Claw402 |
-| **Подключение бирж** | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, Lighter |
-| **Strategy Studio** | Рыночные универсумы, индикаторы, риск-контроль и логика стратегий |
-| **Соревнование моделей** | Сравнение AI-трейдеров по live-результатам и таблице лидеров |
-| **Telegram Agent** | Управление и мониторинг ассистента через чат |
-| **Портфельный дашборд** | Позиции, P/L, история исполнения и логи решений модели |
-
----
-
-## Скріншоти
+| **Autopilot** | Покроковий запуск: поповнення, підключення, депозит, старт — із серверною передстартовою перевіркою на кожному кроці |
+| **Strategy Studio** | Пресети стилів, набори монет, індикатори, плече, впевненість входу, власні промпти |
+| **Змагання** | Публічна таблиця лідерів за реалізованою дохідністю; кожен запис прив'язаний до своєї моделі |
+| **Дашборд** | Живі позиції, ордери, статистика та обґрунтування кожного рішення |
 
 <details>
-<summary><b>Сторінка налаштувань</b></summary>
+<summary>Скріншоти</summary>
 
-|                         Конфігурація                         |                         Список трейдерів                         |
-| :----------------------------------------------------------: | :----------------------------------------------------------: |
-| <img src="../../../screenshots/config-ai-exchanges.png" width="400"/> | <img src="../../../screenshots/config-traders-list.png" width="400"/> |
+<br/>
 
-</details>
-
-<details>
-<summary><b>Дашборд</b></summary>
-
-|                        Огляд                         |                          Графік ринку                           |
+|                        Огляд                            |                          Графік ринку                           |
 | :-----------------------------------------------------: | :-------------------------------------------------------------: |
 | <img src="../../../screenshots/dashboard-page.png" width="400"/> | <img src="../../../screenshots/dashboard-market-chart.png" width="400"/> |
 
-|                          Статистика торгів                           |                          Історія позицій                           |
+|                          Статистика торгівлі                     |                          Історія позицій                            |
 | :--------------------------------------------------------------: | :-----------------------------------------------------------------: |
 | <img src="../../../screenshots/dashboard-trading-stats.png" width="400"/> | <img src="../../../screenshots/dashboard-position-history.png" width="400"/> |
 
-|                          Позиції                           |                    Деталі трейдера                     |
-| :----------------------------------------------------------: | :---------------------------------------------------: |
-| <img src="../../../screenshots/dashboard-positions.png" width="400"/> | <img src="../../../screenshots/details-page.png" width="400"/> |
-
-</details>
-
-<details>
-<summary><b>Strategy Studio</b></summary>
-
-|                     Редактор стратегій                      |                      Налаштування індикаторів                       |
+|                     Редактор стратегій                   |                      Налаштування індикаторів                |
 | :------------------------------------------------------: | :----------------------------------------------------------: |
 | <img src="../../../screenshots/strategy-studio.png" width="400"/> | <img src="../../../screenshots/strategy-indicators.png" width="400"/> |
 
-</details>
-
-<details>
-<summary><b>Змагання</b></summary>
-
-|                     Режим змагання                      |
-| :-------------------------------------------------------: |
-| <img src="../../../screenshots/competition-page.png" width="400"/> |
+|                     Змагання                              |                    Конфігурація                               |
+| :-------------------------------------------------------: | :-----------------------------------------------------------: |
+| <img src="../../../screenshots/competition-page.png" width="400"/> | <img src="../../../screenshots/config-ai-exchanges.png" width="400"/>  |
 
 </details>
 
----
+<br/>
 
-## Установка
+## Моделі
 
-### Linux / macOS
+Вісім провайдерів із вашими власними ключами — DeepSeek, OpenAI, Claude, Qwen, Gemini, Grok, Kimi, MiniMax — включно з власними ендпоінтами та назвами моделей.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-```
+Або взагалі без ключів: [Claw402](https://claw402.ai) тарифікує використання моделей за кожен виклик у USDC через протокол x402. Гаманець у мережі Base замінює всі API-ключі.
 
-### Railway (облако)
+| Провайдер | Доступ |
+| :------- | :----- |
+| **Claw402** | [AI-моделі з оплатою за використання та офіційною знижкою](https://claw402.ai) |
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
+## Ринки
 
-### Docker
+Криптовалютні безстрокові контракти на всіх дев'яти біржах. На Hyperliquid той самий рантайм також торгує токенізованими акціями США, сировинними товарами, індексами, валютами та pre-IPO перпетуалами — TSLA, NVDA, GOLD, SPX, EUR, OPENAI — поряд із криптою.
 
-```bash
-curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### Windows
-
-Установите [Docker Desktop](https://www.docker.com/products/docker-desktop/), затем:
-
-```powershell
-curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### Сборка из исходников
-
-```bash
-# Prerequisites: Go 1.21+, Node.js 18+, TA-Lib
-# macOS: brew install ta-lib
-# Ubuntu: sudo apt-get install libta-lib0-dev
-
-git clone https://github.com/NoFxAiOS/nofx.git && cd nofx
-go build -o nofx && ./nofx
-cd web && npm install && npm run dev
-```
-
-### Обновление
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-```
-
----
-
-## Настройка
-
-**Режим для новичков**: пошаговый onboarding проводит через доступ к моделям, подключение биржи, настройку стратегии и первый запуск.
-
-**Продвинутый режим**:
-
-1. Настройте доступ к AI-моделям
-2. Подключите учетные данные биржи
-3. Создайте или импортируйте стратегию
-4. Создайте профиль AI-трейдера
-5. Запустите, мониторьте и улучшайте через дашборд
-
-Все настройки доступны в Web UI по адресу **http://127.0.0.1:3000**.
-
----
-
-## Розгортання на сервері
-
-**HTTP-розгортання:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-# Доступ через http://YOUR_IP:3000
-```
-
-**HTTPS через Cloudflare:**
-
-1. Додайте домен у [Cloudflare](https://dash.cloudflare.com) (безкоштовний план)
-2. A-запис → IP вашого сервера (Proxied)
-3. SSL/TLS → Flexible
-4. Встановіть `TRANSPORT_ENCRYPTION=true` у `.env`
-
----
+<br/>
 
 ## Архітектура
 
 ```
-                              NOFX
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
-    │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │        React · TypeScript · TradingView          │
+    │   Dashboard · Strategy Studio · Competition      │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
+    │      JWT auth · encrypted credential store        │
     ├──────────────┬──────────────┬───────────────────┤
-    │   Strategy    │   Telegram   │   Trader Runtime  │
-    │    Engine     │    Agent     │   Risk Controls   │
+    │   Strategy    │  Autopilot   │   Trader Runtime  │
+    │    Engine     │  Preflight   │    Risk Engine    │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │  DeepSeek · OpenAI · Claude · Qwen · Gemini      │
+    │  Grok · Kimi · MiniMax · Claw402 (x402 USDC)     │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
     │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
@@ -253,50 +159,99 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     └─────────────────────────────────────────────────┘
 ```
 
----
+<br/>
 
-## Документация
+## Встановлення
 
-| | |
-| :--- | :--- |
-| [Архитектура](../../architecture/README.md) | Дизайн системы и индекс модулей |
-| [Модуль стратегий](../../architecture/STRATEGY_MODULE.md) | Выбор инструментов, AI-промпты, исполнение |
-| [FAQ](../../faq/README.md) | Частые вопросы |
-| [Начало работы](../../getting-started/README.md) | Гайд по деплою |
+**Linux / macOS**
 
----
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
 
-## Участие
+**Railway**
 
-См. [Contributing Guide](../../../CONTRIBUTING.md), [Code of Conduct](../../../CODE_OF_CONDUCT.md) и [Security Policy](../../../SECURITY.md).
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
 
-### Программа для контрибьюторов
+**Docker**
 
-NOFX отслеживает значимые вклады и планирует вознаграждать контрибьюторов по мере роста экосистемы. Приоритетные issues имеют более высокий вес награды.
+```bash
+curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
 
-| Contribution | Weight |
-| :--- | :---: |
-| Pinned Issue PRs | ★★★★★★ |
-| Code (Merged PRs) | ★★★★★ |
-| Bug Fixes | ★★★★ |
-| Feature Ideas | ★★★ |
-| Bug Reports | ★★ |
-| Documentation | ★★ |
+**Windows** — встановіть [Docker Desktop](https://www.docker.com/products/docker-desktop/), потім:
 
----
+```powershell
+curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
 
-## Посилання
+**З вихідного коду** — Go 1.21+, Node.js 18+:
 
-| | |
-| :--- | :--- |
-| Website | [vergex.trade](https://vergex.trade) |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
-| Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
+```bash
+git clone https://github.com/NoFxAiOS/nofx.git && cd nofx
+go build -o nofx && ./nofx            # backend
+cd web && npm install && npm run dev  # frontend, in a second terminal
+```
 
-> **Попередження про ризики**: автоматизована торгівля має значний ризик. Контролюйте розмір позиції, розумійте механіку кожного майданчика і не торгуйте коштами, втрату яких не можете собі дозволити.
+**Оновлення** — запустіть інсталяційний скрипт ще раз; він оновить усе на місці.
 
----
+<details>
+<summary>Розгортання на сервері</summary>
+
+<br/>
+
+**HTTP**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+# http://YOUR_IP:3000
+```
+
+**HTTPS через Cloudflare**
+
+1. Додайте домен у [Cloudflare](https://dash.cloudflare.com) (безкоштовний план)
+2. A-запис → IP сервера, проксійований
+3. SSL/TLS → Flexible
+4. `TRANSPORT_ENCRYPTION=true` у `.env`
+
+</details>
+
+<br/>
+
+## Документація
+
+|                                                         |                                       |
+| :------------------------------------------------------ | :------------------------------------ |
+| [Початок роботи](../../getting-started/README.md)       | Посібники з розгортання та біржових API |
+| [Архітектура](../../architecture/README.md)             | Дизайн системи та індекс модулів      |
+| [Модуль стратегій](../../architecture/STRATEGY_MODULE.md) | Вибір монет, AI-промпти, виконання  |
+| [FAQ](../../guides/faq.en.md)                           | Поширені запитання                    |
+| [Усунення несправностей](../../guides/TROUBLESHOOTING.md) | Діагностика типових проблем         |
+
+## Спільнота
+
+[Telegram](https://t.me/nofx_dev_community) · [Twitter/X](https://x.com/vergex_ai) · [Issues](https://github.com/NoFxAiOS/nofx/issues) · [vergex.trade](https://vergex.trade) · [Живий дашборд](https://vergex.trade/explore)
+
+## Участь у розробці
+
+Код, документація, переклади та звіти про помилки — усе це вітається; див. [Посібник для контриб'юторів](../../../CONTRIBUTING.md), [Кодекс поведінки](../../../CODE_OF_CONDUCT.md) і [Політику безпеки](../../../SECURITY.md).
+
+NOFX відстежує значущі внески й має намір винагороджувати контриб'юторів у міру зростання екосистеми. Пріоритетні issues мають більшу вагу.
+
+| Внесок            | Вага |
+| :---------------- | :----: |
+| PR до закріплених issues | ★★★★★★ |
+| Код (змерджені PR) | ★★★★★  |
+| Виправлення багів |  ★★★★  |
+| Ідеї функцій      |  ★★★   |
+| Звіти про баги    |   ★★   |
+| Документація      |   ★★   |
+
+<a href="https://github.com/NoFxAiOS/nofx/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=NoFxAiOS/nofx" alt="Contributors"/>
+</a>
 
 ## Спонсори
 
@@ -314,8 +269,14 @@ NOFX отслеживает значимые вклады и планирует 
 
 [Стати спонсором](https://github.com/sponsors/NoFxAiOS)
 
-## License
+<br/>
+
+Якщо NOFX вам корисний, зірка допоможе іншим трейдерам його знайти.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+
+## Ліцензія
 
 [AGPL-3.0](../../../LICENSE)
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+<sub>Автоматизована торгівля пов'язана зі значним ризиком. Стратегії на основі AI експериментальні й можуть втрачати гроші. Обирайте розмір позицій розважливо, розумійте кожен майданчик і ніколи не торгуйте коштами, втрату яких не можете собі дозволити. Повний [дисклеймер](../../../DISCLAIMER.md).</sub>

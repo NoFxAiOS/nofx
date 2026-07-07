@@ -1,22 +1,14 @@
-<p align="center"><strong>Được hỗ trợ bởi <a href="https://vergex.trade">vergex.trade</a></strong></p>
-
-<h1 align="center">NOFX</h1>
+<p align="center"><strong>Được hậu thuẫn bởi <a href="https://vergex.trade">vergex.trade</a></strong></p>
 
 <p align="center">
-  <strong>Thiết bị đầu cuối giao dịch AI cho thị trường toàn cầu.</strong><br/>
-  <strong>Nghiên cứu, tạo chiến lược, thực thi và giám sát cho cổ phiếu Mỹ, hàng hóa, ngoại hối và crypto.</strong>
+  <img src="../../assets/nofx-banner.svg" alt="NOFX — AI trading terminal" width="100%"/>
 </p>
 
 <p align="center">
-  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=for-the-badge" alt="Stars"></a>
-  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=for-the-badge" alt="Release"></a>
-  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
-  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/Telegram-Community-blue?style=for-the-badge&logo=telegram" alt="Telegram"></a>
-</p>
-
-<p align="center">
-  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go" alt="Go"></a>
-  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=flat-square&labelColor=1A1813&color=E0483B" alt="Stars"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=flat-square&labelColor=1A1813&color=E0483B" alt="Release"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-E0483B?style=flat-square&labelColor=1A1813" alt="License"></a>
+  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/telegram-community-E0483B?style=flat-square&labelColor=1A1813&logo=telegram&logoColor=white" alt="Telegram"></a>
 </p>
 
 <p align="center">
@@ -29,89 +21,83 @@
   <a href="README.md">Tiếng Việt</a>
 </p>
 
----
+<br/>
 
-NOFX là thiết bị đầu cuối giao dịch AI mã nguồn mở cho các trader cần một không gian làm việc thống nhất để nghiên cứu thị trường, phát triển chiến lược, thực thi giao dịch và giám sát danh mục.
+NOFX là một terminal giao dịch mã nguồn mở, nơi chiến lược chính là một mô hình ngôn ngữ. Mỗi trader chạy một vòng lặp liên tục — đọc cấu trúc thị trường, ra quyết định, thực thi, ghi lại lập luận — trong khi một runtime viết bằng Go ép mọi lệnh vào các giới hạn rủi ro cứng mà mô hình không thể vượt qua.
 
-Sản phẩm tập trung vào các thị trường thanh khoản toàn cầu: cổ phiếu Mỹ, hợp đồng hàng hóa, cặp FX và tài sản số. Lớp AI chuyển ý định giao dịch thành watchlist, tín hiệu, logic chiến lược, kiểm soát rủi ro và workflow thực thi.
+Trader được kết hợp tự do: bất kỳ mô hình nào, bất kỳ sàn nào trong chín sàn, bất kỳ chiến lược nào. Chạy nhiều trader song song và so sánh chúng trên bảng xếp hạng công khai theo lợi nhuận đã thực hiện. Mọi thứ chạy trên máy của chính bạn; thông tin xác thực sàn được mã hóa khi lưu trữ và không bao giờ rời khỏi máy.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-**http://127.0.0.1:3000** 을 엽니다.
+Terminal mở tại `http://127.0.0.1:3000`.
 
----
+**Lần chạy đầu tiên**
+
+1. Đăng ký — tài khoản đầu tiên trở thành chủ sở hữu của instance.
+2. Làm theo quy trình khởi chạy có hướng dẫn: nạp **$1+ USDC** (mạng Base) vào ví phí AI được tạo sẵn cho bạn, sau đó kết nối Hyperliquid và nạp **$12+ USDC** để giao dịch.
+3. Khởi động **Autopilot**. AI quét thị trường vài phút một lần và tự mình giao dịch; mọi quyết định hiện lên dashboard ngay khi diễn ra. Dừng lại bất cứ lúc nào chỉ với một cú nhấp.
+
+<br/>
 
 ## Đăng ký sàn giao dịch
 
-Sử dụng các liên kết bên dưới để mở tài khoản giao dịch cho crypto và các thị trường phái sinh cổ phiếu Mỹ, FX, hàng hóa được hỗ trợ. Các tuyến này thuộc chương trình đối tác NOFX và có thể bao gồm ưu đãi phí hoặc quyền lợi giới thiệu.
+NOFX miễn phí và mã nguồn mở. Mở tài khoản qua các liên kết đối tác bên dưới sẽ được giảm phí giao dịch và góp phần tài trợ cho việc phát triển lâu dài.
 
-| Sàn | Trạng thái | Đăng ký kèm ưu đãi phí |
-| :--- | :---: | :--- |
-| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [Đăng ký](https://www.binance.com/join?ref=NOFXENG) |
-| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [Đăng ký](https://partner.bybit.com/b/83856) |
-| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [Đăng ký](https://www.okx.com/join/1865360) |
-| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [Đăng ký](https://app.hyperliquid.xyz/join/AITRADING) |
-| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [Đăng ký](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [Đăng ký](https://www.kucoin.com/r/broker/CXEV7XKK) |
-| <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [Đăng ký](https://www.gatenode.xyz/share/VQBGUAxY) |
-| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster** | ✅ | [Đăng ký](https://www.asterdex.com/en/referral/fdfc0e) |
-| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [Đăng ký](https://app.lighter.xyz/?referral=68151432) |
+| Sàn giao dịch                                                                                                                      | Trạng thái | Đăng ký kèm ưu đãi phí                                                          |
+| :---------------------------------------------------------------------------------------------------------------------------- | :----: | :---------------------------------------------------------------------------------- |
+| <img src="../../../web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance**       |   ✅   | [Đăng ký](https://www.binance.com/join?ref=NOFXENG)                                |
+| <img src="../../../web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit**           |   ✅   | [Đăng ký](https://partner.bybit.com/b/83856)                                       |
+| <img src="../../../web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX**               |   ✅   | [Đăng ký](https://www.okx.com/join/1865360)                                        |
+| <img src="../../../web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** |   ✅   | [Đăng ký](https://app.hyperliquid.xyz/join/AITRADING)                              |
+| <img src="../../../web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget**         |   ✅   | [Đăng ký](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| <img src="../../../web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin**         |   ✅   | [Đăng ký](https://www.kucoin.com/r/broker/CXEV7XKK)                                |
+| <img src="../../../web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate**             |   ✅   | [Đăng ký](https://www.gatenode.xyz/share/VQBGUAxY)                                 |
+| <img src="../../../web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster**           |   ✅   | [Đăng ký](https://www.asterdex.com/en/referral/fdfc0e)                             |
+| <img src="../../../web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter**       |   ✅   | [Đăng ký](https://app.lighter.xyz/?referral=68151432)                              |
 
----
+<br/>
 
-## Demo nhanh
+## Demo
 
 https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
----
+<br/>
 
-## Thị trường
+## Mô hình đề xuất. Runtime định đoạt.
 
-**Cổ phiếu Mỹ · Hàng hóa · Ngoại hối · Crypto**
+Các quyết định đến từ một mô hình ngôn ngữ đọc cấu trúc thị trường trực tiếp — nến, EMA/MACD/RSI/ATR/Bollinger, open interest, dòng tiền ròng, xếp hạng tín hiệu. Việc thực thi thì không.
 
-NOFX tổ chức nghiên cứu, xây dựng chiến lược, thực thi và giám sát theo workflow đa tài sản thay vì một màn hình sàn đơn lẻ.
+Mọi lệnh đều phải đi qua các giới hạn được thực thi bằng code, nằm ngoài tầm với của mô hình:
 
----
+|                          |                                                                                    |
+| :----------------------- | :--------------------------------------------------------------------------------- |
+| Giới hạn vị thế          | Số vị thế đồng thời tối đa, giá trị danh nghĩa bị chặn theo tỷ lệ vốn, mỗi symbol chỉ một vị thế |
+| Kẹp đòn bẩy          | Trần cứng áp dụng ngay khi tính khối lượng lệnh, bất kể mô hình yêu cầu gì     |
+| Bảo vệ phía sàn | Stop-loss và take-profit được đặt trên sàn ngay sau mỗi lần vào lệnh     |
+| Tự đóng khi rút vốn từ đỉnh      | Vị thế đang lãi nhưng để mất quá nhiều so với đỉnh sẽ bị đóng            |
+| Điều tiết giao dịch         | Thời gian giữ tối thiểu, thời gian chờ vào lại theo từng symbol, giới hạn số lần vào lệnh theo chu kỳ và theo giờ |
+| Chế độ an toàn                | Mô hình lỗi liên tiếp sẽ bị chặn vào lệnh mới cho đến khi mô hình hồi phục                 |
+| Kiểm tra tiền khởi chạy         | Quyền truy cập mô hình, tiền trong ví, chiến lược và số dư sàn được xác minh trước khi trader được phép khởi động |
 
-## Truy cập mô hình AI
+Mỗi quyết định được lưu kèm toàn bộ lập luận của mô hình. Không có vị thế nào thiếu hồ sơ lưu vết.
 
-NOFX tự động định tuyến AI inference qua [Claw402](https://claw402.ai). Người dùng không cần cấu hình nhà cung cấp mô hình, quản lý API key hoặc duy trì tài khoản AI riêng. Terminal truy cập các mô hình được hỗ trợ theo nhu cầu qua hạ tầng pay-as-you-go của Claw402 và định tuyến qua kênh ưu đãi chính thức.
+<br/>
 
-| Nhà cung cấp | Truy cập |
+## Terminal
+
+| | |
 | :--- | :--- |
-| **Claw402** | [Truy cập mô hình AI pay-as-you-go với ưu đãi chính thức](https://claw402.ai) |
-
----
-
-## Năng lực
-
-| Năng lực | Mô tả |
-| :--- | :--- |
-| **AI trading terminal** | Không gian làm việc thống nhất cho cổ phiếu Mỹ, hàng hóa, ngoại hối và crypto |
-| **Truy cập mô hình AI** | Tự động kết nối nhà cung cấp được hỗ trợ qua Claw402 |
-| **Kết nối sàn** | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, Lighter |
-| **Strategy Studio** | Universe thị trường, chỉ báo, kiểm soát rủi ro và logic chiến lược |
-| **Cạnh tranh mô hình** | So sánh AI trader bằng hiệu suất live và bảng xếp hạng |
-| **Telegram Agent** | Điều khiển và giám sát trợ lý giao dịch qua chat |
-| **Dashboard danh mục** | Vị thế, P/L, lịch sử thực thi và log quyết định của mô hình |
-
----
-
-## Ảnh chụp màn hình
+| **Autopilot** | Khởi chạy có hướng dẫn: nạp phí, kết nối, nạp tiền, khởi động — với kiểm tra preflight phía máy chủ xuyên suốt |
+| **Strategy Studio** | Preset phong cách, tập coin, chỉ báo, đòn bẩy, độ tin cậy vào lệnh, prompt tùy chỉnh |
+| **Cạnh tranh** | Bảng xếp hạng công khai theo lợi nhuận đã thực hiện, mỗi mục được ghi nhận cho mô hình tạo ra nó |
+| **Dashboard** | Vị thế trực tiếp, lệnh, thống kê và lập luận đằng sau mỗi quyết định |
 
 <details>
-<summary><b>Trang cấu hình</b></summary>
+<summary>Ảnh chụp màn hình</summary>
 
-|                         Cấu hình                         |                         Danh sách trader                         |
-| :----------------------------------------------------------: | :----------------------------------------------------------: |
-| <img src="../../../screenshots/config-ai-exchanges.png" width="400"/> | <img src="../../../screenshots/config-traders-list.png" width="400"/> |
-
-</details>
-
-<details>
-<summary><b>Dashboard</b></summary>
+<br/>
 
 |                        Tổng quan                         |                          Biểu đồ thị trường                           |
 | :-----------------------------------------------------: | :-------------------------------------------------------------: |
@@ -121,131 +107,51 @@ NOFX tự động định tuyến AI inference qua [Claw402](https://claw402.ai)
 | :--------------------------------------------------------------: | :-----------------------------------------------------------------: |
 | <img src="../../../screenshots/dashboard-trading-stats.png" width="400"/> | <img src="../../../screenshots/dashboard-position-history.png" width="400"/> |
 
-|                          Vị thế                           |                    Chi tiết trader                     |
-| :----------------------------------------------------------: | :---------------------------------------------------: |
-| <img src="../../../screenshots/dashboard-positions.png" width="400"/> | <img src="../../../screenshots/details-page.png" width="400"/> |
-
-</details>
-
-<details>
-<summary><b>Strategy Studio</b></summary>
-
 |                     Trình soạn chiến lược                      |                      Cấu hình chỉ báo                       |
 | :------------------------------------------------------: | :----------------------------------------------------------: |
 | <img src="../../../screenshots/strategy-studio.png" width="400"/> | <img src="../../../screenshots/strategy-indicators.png" width="400"/> |
 
-</details>
-
-<details>
-<summary><b>Cạnh tranh</b></summary>
-
-|                     Chế độ cạnh tranh                      |
-| :-------------------------------------------------------: |
-| <img src="../../../screenshots/competition-page.png" width="400"/> |
+|                     Cạnh tranh                           |                    Cấu hình                              |
+| :-------------------------------------------------------: | :-----------------------------------------------------------: |
+| <img src="../../../screenshots/competition-page.png" width="400"/> | <img src="../../../screenshots/config-ai-exchanges.png" width="400"/>  |
 
 </details>
 
----
+<br/>
 
-## Cài đặt
+## Mô hình
 
-### Linux / macOS
+Tám nhà cung cấp với key của riêng bạn — DeepSeek, OpenAI, Claude, Qwen, Gemini, Grok, Kimi, MiniMax — bao gồm cả endpoint và tên mô hình tùy chỉnh.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-```
+Hoặc không cần key nào cả: [Claw402](https://claw402.ai) tính phí sử dụng mô hình theo từng lần gọi bằng USDC qua giao thức x402. Một chiếc ví trên Base thay thế mọi API key.
 
-### Railway (Cloud)
+| Nhà cung cấp | Truy cập |
+| :------- | :----- |
+| **Claw402** | [Mô hình AI trả theo mức dùng với ưu đãi chính thức](https://claw402.ai) |
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
+## Thị trường
 
-### Docker
+Hợp đồng vĩnh cửu crypto trên cả chín sàn. Trên Hyperliquid, cùng một runtime còn giao dịch cổ phiếu Mỹ token hóa, hàng hóa, chỉ số, ngoại hối và hợp đồng vĩnh cửu pre-IPO — TSLA, NVDA, GOLD, SPX, EUR, OPENAI — song song với crypto.
 
-```bash
-curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### Windows
-
-Cài [Docker Desktop](https://www.docker.com/products/docker-desktop/), sau đó:
-
-```powershell
-curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### Build từ source
-
-```bash
-# Prerequisites: Go 1.21+, Node.js 18+, TA-Lib
-# macOS: brew install ta-lib
-# Ubuntu: sudo apt-get install libta-lib0-dev
-
-git clone https://github.com/NoFxAiOS/nofx.git && cd nofx
-go build -o nofx && ./nofx
-cd web && npm install && npm run dev
-```
-
-### Cập nhật
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-```
-
----
-
-## Thiết lập
-
-**Chế độ người mới**: onboarding có hướng dẫn giúp người dùng mới hoàn tất truy cập mô hình, kết nối sàn, cấu hình chiến lược và lần triển khai đầu tiên.
-
-**Chế độ nâng cao**:
-
-1. Cấu hình truy cập mô hình AI
-2. Kết nối thông tin xác thực sàn
-3. Xây dựng hoặc import chiến lược
-4. Tạo hồ sơ AI trader
-5. Khởi chạy, giám sát và cải thiện từ dashboard
-
-Tất cả cấu hình có trong Web UI tại **http://127.0.0.1:3000**.
-
----
-
-## Triển khai lên máy chủ
-
-**Triển khai HTTP:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-# Truy cập qua http://YOUR_IP:3000
-```
-
-**HTTPS qua Cloudflare:**
-
-1. Thêm domain vào [Cloudflare](https://dash.cloudflare.com) (gói miễn phí)
-2. Bản ghi A → IP máy chủ của bạn (Proxied)
-3. SSL/TLS → Flexible
-4. Đặt `TRANSPORT_ENCRYPTION=true` trong `.env`
-
----
+<br/>
 
 ## Kiến trúc
 
 ```
-                              NOFX
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
-    │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │        React · TypeScript · TradingView          │
+    │   Dashboard · Strategy Studio · Competition      │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
+    │      JWT auth · encrypted credential store        │
     ├──────────────┬──────────────┬───────────────────┤
-    │   Strategy    │   Telegram   │   Trader Runtime  │
-    │    Engine     │    Agent     │   Risk Controls   │
+    │   Strategy    │  Autopilot   │   Trader Runtime  │
+    │    Engine     │  Preflight   │    Risk Engine    │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │  DeepSeek · OpenAI · Claude · Qwen · Gemini      │
+    │  Grok · Kimi · MiniMax · Claw402 (x402 USDC)     │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
     │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
@@ -253,50 +159,99 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     └─────────────────────────────────────────────────┘
 ```
 
----
+<br/>
+
+## Cài đặt
+
+**Linux / macOS**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+**Railway**
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
+
+**Docker**
+
+```bash
+curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Windows** — cài [Docker Desktop](https://www.docker.com/products/docker-desktop/), sau đó:
+
+```powershell
+curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Từ mã nguồn** — Go 1.21+, Node.js 18+:
+
+```bash
+git clone https://github.com/NoFxAiOS/nofx.git && cd nofx
+go build -o nofx && ./nofx            # backend
+cd web && npm install && npm run dev  # frontend, in a second terminal
+```
+
+**Cập nhật** — chạy lại script cài đặt; nó tự nâng cấp tại chỗ.
+
+<details>
+<summary>Triển khai lên máy chủ</summary>
+
+<br/>
+
+**HTTP**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+# http://YOUR_IP:3000
+```
+
+**HTTPS qua Cloudflare**
+
+1. Thêm domain vào [Cloudflare](https://dash.cloudflare.com) (gói miễn phí)
+2. Bản ghi A → IP máy chủ, bật proxy
+3. SSL/TLS → Flexible
+4. `TRANSPORT_ENCRYPTION=true` trong `.env`
+
+</details>
+
+<br/>
 
 ## Tài liệu
 
-| | |
-| :--- | :--- |
-| [Kiến trúc](../../architecture/README.md) | Thiết kế hệ thống và chỉ mục module |
-| [Module chiến lược](../../architecture/STRATEGY_MODULE.md) | Chọn công cụ, prompt AI, thực thi |
-| [FAQ](../../faq/README.md) | Câu hỏi thường gặp |
-| [Bắt đầu](../../getting-started/README.md) | Hướng dẫn triển khai |
+|                                                         |                                       |
+| :------------------------------------------------------ | :------------------------------------ |
+| [Bắt đầu](../../getting-started/README.md)       | Hướng dẫn triển khai và API sàn    |
+| [Kiến trúc](../../architecture/README.md)             | Thiết kế hệ thống và chỉ mục module        |
+| [Module chiến lược](../../architecture/STRATEGY_MODULE.md) | Chọn coin, prompt AI, thực thi |
+| [FAQ](../../guides/faq.en.md)                            | Câu hỏi thường gặp                      |
+| [Khắc phục sự cố](../../guides/TROUBLESHOOTING.md)       | Chẩn đoán các sự cố thường gặp              |
 
----
+## Cộng đồng
+
+[Telegram](https://t.me/nofx_dev_community) · [Twitter/X](https://x.com/vergex_ai) · [Issues](https://github.com/NoFxAiOS/nofx/issues) · [vergex.trade](https://vergex.trade) · [Dashboard trực tiếp](https://vergex.trade/explore)
 
 ## Đóng góp
 
-Xem [Contributing Guide](../../../CONTRIBUTING.md), [Code of Conduct](../../../CODE_OF_CONDUCT.md), và [Security Policy](../../../SECURITY.md).
+Code, tài liệu, bản dịch và báo cáo lỗi đều được hoan nghênh — xem [Hướng dẫn đóng góp](../../../CONTRIBUTING.md), [Quy tắc ứng xử](../../../CODE_OF_CONDUCT.md) và [Chính sách bảo mật](../../../SECURITY.md).
 
-### Chương trình contributor
+NOFX theo dõi các đóng góp có ý nghĩa và dự định thưởng cho người đóng góp khi hệ sinh thái phát triển. Issue ưu tiên có trọng số cao hơn.
 
-NOFX ghi nhận các đóng góp có ý nghĩa và dự định thưởng cho contributor khi hệ sinh thái phát triển. Issue ưu tiên có trọng số thưởng cao hơn.
+| Đóng góp      | Trọng số |
+| :---------------- | :----: |
+| PR cho issue được ghim  | ★★★★★★ |
+| Code (PR đã merge) | ★★★★★  |
+| Sửa lỗi         |  ★★★★  |
+| Ý tưởng tính năng     |  ★★★   |
+| Báo cáo lỗi       |   ★★   |
+| Tài liệu     |   ★★   |
 
-| Contribution | Weight |
-| :--- | :---: |
-| Pinned Issue PRs | ★★★★★★ |
-| Code (Merged PRs) | ★★★★★ |
-| Bug Fixes | ★★★★ |
-| Feature Ideas | ★★★ |
-| Bug Reports | ★★ |
-| Documentation | ★★ |
-
----
-
-## Liên kết
-
-| | |
-| :--- | :--- |
-| Website | [vergex.trade](https://vergex.trade) |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore) |
-| Telegram | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter | [@vergex_ai](https://x.com/vergex_ai) |
-
-> **Cảnh báo rủi ro**: Giao dịch tự động có rủi ro đáng kể. Hãy dùng kích thước vị thế phù hợp, hiểu từng venue và không giao dịch số vốn bạn không thể mất.
-
----
+<a href="https://github.com/NoFxAiOS/nofx/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=NoFxAiOS/nofx" alt="Contributors"/>
+</a>
 
 ## Nhà tài trợ
 
@@ -314,8 +269,14 @@ NOFX ghi nhận các đóng góp có ý nghĩa và dự định thưởng cho co
 
 [Trở thành nhà tài trợ](https://github.com/sponsors/NoFxAiOS)
 
-## License
+<br/>
+
+Nếu NOFX hữu ích với bạn, một ngôi sao sẽ giúp các trader khác tìm thấy nó.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+
+## Giấy phép
 
 [AGPL-3.0](../../../LICENSE)
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+<sub>Giao dịch tự động tiềm ẩn rủi ro đáng kể. Các chiến lược do AI điều khiển mang tính thử nghiệm và có thể thua lỗ. Hãy đặt kích thước vị thế hợp lý, hiểu rõ từng sàn giao dịch, và đừng bao giờ giao dịch bằng số tiền mà bạn không thể để mất. Xem đầy đủ [tuyên bố miễn trừ trách nhiệm](../../../DISCLAIMER.md).</sub>

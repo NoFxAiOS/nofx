@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ## Mô hình đề xuất. Runtime định đoạt.
 
-Các quyết định đến từ một mô hình ngôn ngữ đọc cấu trúc thị trường trực tiếp — nến, EMA/MACD/RSI/ATR/Bollinger, open interest, dòng tiền ròng, xếp hạng tín hiệu. Việc thực thi thì không.
+Các quyết định đến từ một mô hình ngôn ngữ đọc bộ dữ liệu [Claw402.ai](https://claw402.ai) · Vergex: bảng tín hiệu trực tiếp xếp hạng mọi thị trường theo thiên hướng và độ mạnh tín hiệu, tín hiệu chuyên sâu Signal Lab cho từng mã, bản đồ nhiệt chi phí vốn và thanh lý cho thấy "nhiên liệu" và "bức tường" của đám đông nằm ở đâu, cùng dòng tiền ròng theo thời gian thực — tất cả được đối chiếu với nến thô và thành tích thực chiến của chính trader. Việc thực thi thì không.
 
 Mọi lệnh đều phải đi qua các giới hạn được thực thi bằng code, nằm ngoài tầm với của mô hình:
 

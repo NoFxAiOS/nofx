@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ## The model proposes. The runtime disposes.
 
-Decisions come from a language model reading live market structure — candles, EMA/MACD/RSI/ATR/Bollinger, open interest, net flow, signal rankings. Execution does not.
+Decisions come from a language model reading the [Claw402.ai](https://claw402.ai) · Vergex data stack: a live signal board that ranks every market with directional bias and signal strength, per-symbol Signal Lab deep signals, cost-basis and liquidation heatmaps that show where the crowd's fuel and walls sit, and real-time market net flow — cross-checked against raw candles and the trader's own live track record. Execution does not.
 
 Every order passes through limits enforced in code, outside the model's reach:
 

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { ArrowRight, Shield, Activity, CircuitBoard, Wifi, Globe, Zap, Star, GitFork, Users, MessageCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useGitHubStats } from '../../../hooks/useGitHubStats'
 import AgentTerminal from '../brand/AgentTerminal'
 
@@ -16,6 +17,7 @@ const tickerLabels: Record<string, string> = {
 }
 
 export default function TerminalHero() {
+    const navigate = useNavigate()
 
     // Real-time price state
     const [prices, setPrices] = useState<Record<string, string>>({
@@ -231,16 +233,28 @@ export default function TerminalHero() {
                     {/* CTA Buttons */}
                     <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
                         <button
-                            onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}
+                            onClick={() => navigate('/traders')}
                             className="group relative overflow-hidden bg-nofx-gold text-nofx-bg-lighter px-8 py-4 font-bold font-mono tracking-wider hover:scale-105 transition-transform duration-200"
                             style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}
                         >
                             <span className="relative z-10 flex items-center gap-2">
-                                CREATE STOCK TRADER <ArrowRight className="w-4 h-4" />
+                                START THE AUTOPILOT <ArrowRight className="w-4 h-4" />
                             </span>
                             <div className="absolute inset-0 bg-nofx-text/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                         </button>
+                        <button
+                            onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}
+                            className="px-8 py-4 font-bold font-mono tracking-wider text-nofx-text border border-[rgba(26,24,19,0.2)] rounded hover:border-nofx-gold/50 hover:text-nofx-gold transition-colors"
+                        >
+                            SEE IT WORK
+                        </button>
                     </div>
+
+                    {/* Plain-language promise — the anti-jargon line */}
+                    <p className="mt-5 text-sm text-nofx-text-muted font-mono">
+                        Self-hosted &amp; open source · about $13 is enough to start · guided
+                        setup, no API keys — first trade in minutes
+                    </p>
 
                     {/* Community Stats Row */}
                     <CommunityStats />

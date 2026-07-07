@@ -1,0 +1,44 @@
+<svg width="1200" height="380" viewBox="0 0 1200 380" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="frame"><rect width="1200" height="380" rx="14"/></clipPath>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1.2" fill="#1A1813" opacity="0.07"/>
+    </pattern>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="1200" height="380" fill="#F1ECE2"/>
+    <rect width="1200" height="380" fill="url(#dots)"/>
+
+    <!-- title bar -->
+    <rect width="1200" height="52" fill="#F7F4EC"/>
+    <line x1="0" y1="52.5" x2="1200" y2="52.5" stroke="#1A1813" stroke-opacity="0.14"/>
+    <circle cx="30" cy="26" r="6" fill="#D6433A" opacity="0.9"/>
+    <circle cx="54" cy="26" r="6" fill="#B4B2A9"/>
+    <circle cx="78" cy="26" r="6" fill="#2E8B57" opacity="0.9"/>
+    <text x="600" y="31" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" letter-spacing="2" fill="#8A8478">nofx — ai trading terminal</text>
+
+    <!-- wordmark -->
+    <text x="64" y="182" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="92" font-weight="700" letter-spacing="4" fill="#1A1813">NOFX<tspan fill="#E0483B">_</tspan></text>
+    <text x="64" y="228" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" letter-spacing="9" fill="#6B6557">AI TRADING TERMINAL</text>
+
+    <text x="64" y="286" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="15" fill="#6B6557">Language models make the decisions.</text>
+    <text x="64" y="312" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="15" fill="#6B6557">A Go runtime enforces the limits.</text>
+
+    <!-- divider -->
+    <line x1="672" y1="84" x2="672" y2="344" stroke="#1A1813" stroke-opacity="0.12"/>
+
+    <!-- session log -->
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14.5">
+      <text x="712" y="112" fill="#8A8478">$ nofx start</text>
+      <text x="712" y="146"><tspan fill="#2E8B57">✓</tspan><tspan fill="#1A1813" dx="10">preflight passed</tspan><tspan fill="#8A8478" dx="10">7/7 checks</tspan></text>
+      <text x="712" y="180"><tspan fill="#2E8B57">✓</tspan><tspan fill="#1A1813" dx="10">trader online</tspan><tspan fill="#8A8478" dx="10">deepseek · hyperliquid</tspan></text>
+      <text x="712" y="222"><tspan fill="#8A8478">decision</tspan><tspan fill="#E0483B" dx="12" font-weight="700">OPEN_LONG</tspan><tspan fill="#1A1813" dx="12">BTC ×3</tspan></text>
+      <text x="712" y="252"><tspan fill="#8A8478">reason</tspan><tspan fill="#6B6557" dx="12">oi rising · funding neutral · 4h breakout</tspan></text>
+      <text x="712" y="282"><tspan fill="#8A8478">risk</tspan><tspan fill="#6B6557" dx="12">sl −2.5% · tp +5.0% · placed on exchange</tspan></text>
+      <text x="712" y="324"><tspan fill="#8A8478">equity</tspan><tspan fill="#1A1813" dx="12">$12,847</tspan><tspan fill="#8A8478" dx="18">pnl</tspan><tspan fill="#2E8B57" dx="12">+4.2%</tspan></text>
+    </g>
+  </g>
+
+  <rect x="0.5" y="0.5" width="1199" height="379" rx="14" fill="none" stroke="#1A1813" stroke-opacity="0.22"/>
+</svg>

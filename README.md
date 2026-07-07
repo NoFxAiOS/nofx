@@ -1,22 +1,14 @@
 <p align="center"><strong>Backed by <a href="https://vergex.trade">vergex.trade</a></strong></p>
 
-<h1 align="center">NOFX</h1>
-
 <p align="center">
-  <strong>AI trading terminal for global markets.</strong><br/>
-  <strong>Research, strategy generation, execution, and monitoring for US stocks, commodities, forex, and crypto.</strong>
+  <img src="docs/assets/nofx-banner.svg" alt="NOFX — AI trading terminal" width="100%"/>
 </p>
 
 <p align="center">
-  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=for-the-badge" alt="Stars"></a>
-  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=for-the-badge" alt="Release"></a>
-  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
-  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/Telegram-Community-blue?style=for-the-badge&logo=telegram" alt="Telegram"></a>
-</p>
-
-<p align="center">
-  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go" alt="Go"></a>
-  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=flat-square&labelColor=1A1813&color=E0483B" alt="Stars"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=flat-square&labelColor=1A1813&color=E0483B" alt="Release"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-E0483B?style=flat-square&labelColor=1A1813" alt="License"></a>
+  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/telegram-community-E0483B?style=flat-square&labelColor=1A1813&logo=telegram&logoColor=white" alt="Telegram"></a>
 </p>
 
 <p align="center">
@@ -29,23 +21,29 @@
   <a href="docs/i18n/vi/README.md">Tiếng Việt</a>
 </p>
 
----
+<br/>
 
-NOFX is an open-source AI trading terminal for active traders who want one workspace for market research, strategy development, execution, and portfolio monitoring.
+NOFX is an open-source trading terminal where the strategy is a language model. Each trader runs a continuous loop — read market structure, decide, execute, record the reasoning — while a Go runtime clamps every order to hard risk limits the model cannot override.
 
-The product is built around global liquid markets: US equities, commodity contracts, FX pairs, and digital assets. The AI layer helps translate market intent into watchlists, signals, strategy logic, risk controls, and execution workflows.
+Traders compose freely: any model, any of nine exchanges, any strategy. Run several side by side and compare them on a public leaderboard by realized return. Everything runs on your own machine; exchange credentials are encrypted at rest and never leave it.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-Open **http://127.0.0.1:3000**.
+The terminal opens at `http://127.0.0.1:3000`.
 
----
+**First run**
+
+1. Register — the first account becomes the owner of the instance.
+2. Follow the guided launch: put **$1+ USDC** (Base network) in the AI fee wallet it creates for you, then connect Hyperliquid and deposit **$12+ USDC** to trade with.
+3. Start **Autopilot**. The AI scans the market every few minutes and trades on its own; every decision appears on the dashboard as it happens. Stop it anytime with one click.
+
+<br/>
 
 ## Register exchanges
 
-Use the links below to open trading accounts for crypto and supported US stock, FX, and commodity derivative markets. These routes are part of NOFX partner programs and may include fee discounts or referral benefits.
+NOFX is free and open source. Opening an account through the partner links below carries reduced trading fees and funds continued development.
 
 | Exchange                                                                                                                      | Status | Register with fee discount                                                          |
 | :---------------------------------------------------------------------------------------------------------------------------- | :----: | :---------------------------------------------------------------------------------- |
@@ -59,59 +57,47 @@ Use the links below to open trading accounts for crypto and supported US stock, 
 | <img src="web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster**           |   ✅   | [Register](https://www.asterdex.com/en/referral/fdfc0e)                             |
 | <img src="web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter**       |   ✅   | [Register](https://app.lighter.xyz/?referral=68151432)                              |
 
----
+<br/>
 
-## Quick demo
+## Demo
 
 https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
----
+<br/>
 
-## Markets
+## The model proposes. The runtime disposes.
 
-**US Stocks · Commodities · Forex · Crypto**
+Decisions come from a language model reading live market structure — candles, EMA/MACD/RSI/ATR/Bollinger, open interest, net flow, signal rankings. Execution does not.
 
-NOFX organizes research, strategy construction, execution, and monitoring around multi-asset workflows instead of single-venue screens.
+Every order passes through limits enforced in code, outside the model's reach:
 
----
+|                          |                                                                                    |
+| :----------------------- | :--------------------------------------------------------------------------------- |
+| Position limits          | Max concurrent positions, notional capped as a ratio of equity, one position per symbol |
+| Leverage clamps          | Hard caps applied at order-sizing time, independent of what the model requests     |
+| Exchange-side protection | Stop-loss and take-profit placed on the exchange immediately after every entry     |
+| Drawdown auto-close      | Profitable positions that give back too much from their peak are closed            |
+| Trade throttling         | Minimum hold times, per-symbol re-entry cooldowns, per-cycle and per-hour entry limits |
+| Safe mode                | Repeated model failures block new entries until the model recovers                 |
+| Launch preflight         | Model access, wallet funds, strategy, and exchange balances verified before a trader may start |
 
-## AI model access
+Each decision is stored with the model's full reasoning. There is no position without a paper trail.
 
-NOFX routes AI inference through [Claw402](https://claw402.ai) automatically. Users do not need to configure model providers, manage API keys, or maintain separate AI accounts. The terminal accesses supported models on demand through Claw402's pay-as-you-go infrastructure, with traffic routed through the official discounted channel.
+<br/>
 
-| Provider | Access |
-| :------- | :----- |
-| **Claw402** | [Access pay-as-you-go AI models with official discount](https://claw402.ai) |
+## Terminal
 
----
-
-## Capabilities
-
-| Capability                  | Description                                                                 |
-| :-------------------------- | :-------------------------------------------------------------------------- |
-| **AI trading terminal**     | Unified workspace for US stocks, commodities, forex, and crypto workflows   |
-| **AI model access**         | Unified model access through Claw402-supported providers                    |
-| **Exchange connectivity**   | Binance, Bybit, OKX, Hyperliquid, Bitget, KuCoin, Gate, Aster, and Lighter  |
-| **Strategy Studio**         | Market universes, indicators, risk controls, and strategy logic             |
-| **Model competition**       | Compare model-driven traders with live performance and leaderboard tracking  |
-| **Telegram agent**          | Control and monitor the trading assistant through chat                      |
-| **Portfolio dashboard**     | Positions, P/L, execution history, and model decision logs                  |
-
----
-
-## Screenshots
+| | |
+| :--- | :--- |
+| **Autopilot** | Guided launch: fund, connect, deposit, start — with server-side preflight throughout |
+| **Strategy Studio** | Style presets, coin universes, indicators, leverage, entry confidence, custom prompts |
+| **Competition** | Public leaderboard ranked by realized return, each entry attributed to its model |
+| **Dashboard** | Live positions, orders, statistics, and the reasoning behind every decision |
 
 <details>
-<summary><b>Config Page</b></summary>
+<summary>Screenshots</summary>
 
-|                         Configuration                         |                         Traders List                         |
-| :----------------------------------------------------------: | :----------------------------------------------------------: |
-| <img src="screenshots/config-ai-exchanges.png" width="400"/> | <img src="screenshots/config-traders-list.png" width="400"/> |
-
-</details>
-
-<details>
-<summary><b>Dashboard</b></summary>
+<br/>
 
 |                        Overview                         |                          Market Chart                           |
 | :-----------------------------------------------------: | :-------------------------------------------------------------: |
@@ -121,131 +107,51 @@ NOFX routes AI inference through [Claw402](https://claw402.ai) automatically. Us
 | :--------------------------------------------------------------: | :-----------------------------------------------------------------: |
 | <img src="screenshots/dashboard-trading-stats.png" width="400"/> | <img src="screenshots/dashboard-position-history.png" width="400"/> |
 
-|                          Positions                           |                    Trader Details                     |
-| :----------------------------------------------------------: | :---------------------------------------------------: |
-| <img src="screenshots/dashboard-positions.png" width="400"/> | <img src="screenshots/details-page.png" width="400"/> |
-
-</details>
-
-<details>
-<summary><b>Strategy Studio</b></summary>
-
 |                     Strategy Editor                      |                      Indicators Config                       |
 | :------------------------------------------------------: | :----------------------------------------------------------: |
 | <img src="screenshots/strategy-studio.png" width="400"/> | <img src="screenshots/strategy-indicators.png" width="400"/> |
 
-</details>
-
-<details>
-<summary><b>Competition</b></summary>
-
-|                     Competition Mode                      |
-| :-------------------------------------------------------: |
-| <img src="screenshots/competition-page.png" width="400"/> |
+|                     Competition                           |                    Configuration                              |
+| :-------------------------------------------------------: | :-----------------------------------------------------------: |
+| <img src="screenshots/competition-page.png" width="400"/> | <img src="screenshots/config-ai-exchanges.png" width="400"/>  |
 
 </details>
 
----
+<br/>
 
-## Install
+## Models
 
-### Linux / macOS
+Eight providers with your own keys — DeepSeek, OpenAI, Claude, Qwen, Gemini, Grok, Kimi, MiniMax — including custom endpoints and model names.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-```
+Or no keys at all: [Claw402](https://claw402.ai) meters model usage per call in USDC over the x402 protocol. A wallet on Base replaces every API key.
 
-### Railway (Cloud)
+| Provider | Access |
+| :------- | :----- |
+| **Claw402** | [Pay-as-you-go AI models with official discount](https://claw402.ai) |
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
+## Markets
 
-### Docker
+Crypto perpetuals on all nine exchanges. On Hyperliquid, the same runtime also trades tokenized US equities, commodities, indices, FX, and pre-IPO perps — TSLA, NVDA, GOLD, SPX, EUR, OPENAI — alongside crypto.
 
-```bash
-curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### Windows
-
-Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then:
-
-```powershell
-curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### From Source
-
-```bash
-# Prerequisites: Go 1.21+, Node.js 18+, TA-Lib
-# macOS: brew install ta-lib
-# Ubuntu: sudo apt-get install libta-lib0-dev
-
-git clone https://github.com/NoFxAiOS/nofx.git && cd nofx
-go build -o nofx && ./nofx          # backend
-cd web && npm install && npm run dev  # frontend (new terminal)
-```
-
-### Update
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-```
-
----
-
-## Setup
-
-**Beginner mode**: Guided onboarding walks new users through model selection, exchange connection, strategy setup, and first deployment.
-
-**Advanced mode**:
-
-1. Configure AI model access
-2. Connect exchange credentials
-3. Build or import a strategy
-4. Create an AI trader profile
-5. Launch, monitor, and iterate from the dashboard
-
-All configuration is available from the web UI at **http://127.0.0.1:3000**.
-
----
-
-## Deploy to server
-
-**HTTP deployment:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
-# Access via http://YOUR_IP:3000
-```
-
-**HTTPS via Cloudflare:**
-
-1. Add domain to [Cloudflare](https://dash.cloudflare.com) (free plan)
-2. A record → your server IP (Proxied)
-3. SSL/TLS → Flexible
-4. Set `TRANSPORT_ENCRYPTION=true` in `.env`
-
----
+<br/>
 
 ## Architecture
 
 ```
-                              NOFX
     ┌─────────────────────────────────────────────────┐
     │                 Trading Terminal                 │
-    │        React + TypeScript + TradingView          │
-    │      US Stocks · Commodities · Forex · Crypto    │
+    │        React · TypeScript · TradingView          │
+    │   Dashboard · Strategy Studio · Competition      │
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
+    │      JWT auth · encrypted credential store        │
     ├──────────────┬──────────────┬───────────────────┤
-    │   Strategy    │   Telegram   │   Trader Runtime  │
-    │    Engine     │    Agent     │   Risk Controls   │
+    │   Strategy    │  Autopilot   │   Trader Runtime  │
+    │    Engine     │  Preflight   │    Risk Engine    │
     ├──────────────┴──────────────┴───────────────────┤
     │                 AI Model Layer                    │
-    │    Unified provider access through Claw402        │
-    │    Model routing · payment · execution support    │
+    │  DeepSeek · OpenAI · Claude · Qwen · Gemini      │
+    │  Grok · Kimi · MiniMax · Claw402 (x402 USDC)     │
     ├─────────────────────────────────────────────────┤
     │              Exchange Connectivity                │
     │ Binance · Bybit · OKX · Hyperliquid · Bitget     │
@@ -253,26 +159,86 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     └─────────────────────────────────────────────────┘
 ```
 
----
+<br/>
 
-## Docs
+## Install
+
+**Linux / macOS**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+**Railway**
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
+
+**Docker**
+
+```bash
+curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Windows** — install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then:
+
+```powershell
+curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**From source** — Go 1.21+, Node.js 18+:
+
+```bash
+git clone https://github.com/NoFxAiOS/nofx.git && cd nofx
+go build -o nofx && ./nofx            # backend
+cd web && npm install && npm run dev  # frontend, in a second terminal
+```
+
+**Update** — re-run the install script; it upgrades in place.
+
+<details>
+<summary>Server deployment</summary>
+
+<br/>
+
+**HTTP**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+# http://YOUR_IP:3000
+```
+
+**HTTPS via Cloudflare**
+
+1. Add the domain to [Cloudflare](https://dash.cloudflare.com) (free plan)
+2. A record → server IP, proxied
+3. SSL/TLS → Flexible
+4. `TRANSPORT_ENCRYPTION=true` in `.env`
+
+</details>
+
+<br/>
+
+## Documentation
 
 |                                                         |                                       |
 | :------------------------------------------------------ | :------------------------------------ |
+| [Getting Started](docs/getting-started/README.md)       | Deployment and exchange API guides    |
 | [Architecture](docs/architecture/README.md)             | System design and module index        |
 | [Strategy Module](docs/architecture/STRATEGY_MODULE.md) | Coin selection, AI prompts, execution |
-| [FAQ](docs/faq/README.md)                               | Common questions                      |
-| [Getting Started](docs/getting-started/README.md)       | Deployment guide                      |
+| [FAQ](docs/guides/faq.en.md)                            | Common questions                      |
+| [Troubleshooting](docs/guides/TROUBLESHOOTING.md)       | Diagnosing common issues              |
 
----
+## Community
+
+[Telegram](https://t.me/nofx_dev_community) · [Twitter/X](https://x.com/vergex_ai) · [Issues](https://github.com/NoFxAiOS/nofx/issues) · [vergex.trade](https://vergex.trade) · [Live dashboard](https://vergex.trade/explore)
 
 ## Contributing
 
-See [Contributing Guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [Security Policy](SECURITY.md).
+Code, documentation, translations, and bug reports are all welcome — see the [Contributing Guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [Security Policy](SECURITY.md).
 
-### Contributor Airdrop Program
-
-NOFX tracks meaningful contributions and intends to reward contributors as the ecosystem grows. Priority issues carry higher reward weight.
+NOFX tracks meaningful contributions and intends to reward contributors as the ecosystem grows. Priority issues carry higher weight.
 
 | Contribution      | Weight |
 | :---------------- | :----: |
@@ -283,20 +249,9 @@ NOFX tracks meaningful contributions and intends to reward contributors as the e
 | Bug Reports       |   ★★   |
 | Documentation     |   ★★   |
 
----
-
-## Links
-
-|           |                                                       |
-| :-------- | :---------------------------------------------------- |
-| Website   | [vergex.trade](https://vergex.trade)                  |
-| Dashboard | [vergex.trade/explore](https://vergex.trade/explore)  |
-| Telegram  | [nofx_dev_community](https://t.me/nofx_dev_community) |
-| Twitter   | [@vergex_ai](https://x.com/vergex_ai)                 |
-
-> **Risk warning**: Automated trading involves substantial risk. Use appropriate position sizing, understand each exchange venue, and do not trade funds you cannot afford to lose.
-
----
+<a href="https://github.com/NoFxAiOS/nofx/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=NoFxAiOS/nofx" alt="Contributors"/>
+</a>
 
 ## Sponsors
 
@@ -314,8 +269,14 @@ NOFX tracks meaningful contributions and intends to reward contributors as the e
 
 [Become a sponsor](https://github.com/sponsors/NoFxAiOS)
 
+<br/>
+
+If NOFX is useful to you, a star helps other traders find it.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+
 ## License
 
 [AGPL-3.0](LICENSE)
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+<sub>Automated trading involves substantial risk. AI-driven strategies are experimental and can lose money. Size positions appropriately, understand each venue, and never trade funds you cannot afford to lose. Full [disclaimer](DISCLAIMER.md).</sub>

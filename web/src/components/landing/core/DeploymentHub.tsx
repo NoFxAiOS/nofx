@@ -31,14 +31,33 @@ export default function DeploymentHub() {
                         </h2>
 
                         <p className="text-nofx-text-muted text-lg leading-relaxed font-light">
-                            Initialize your own high-frequency trading node in seconds.
-                            Our optimized installer handles all dependencies, bringing the trading system online with a single command.
+                            One command on your laptop or any server installs
+                            everything. Open the address it prints, create your
+                            account, and the guided launch takes you to your
+                            first AI trade in about five minutes — around $13
+                            is enough to start.
                         </p>
+
+                        {/* the first five minutes, in plain words */}
+                        <ol className="space-y-2 pt-2 font-mono text-sm text-nofx-text-muted">
+                            {[
+                                'Register — the first account owns this instance.',
+                                'Fund two small wallets: $1+ for AI fees, $12+ to trade with (guided, with QR codes).',
+                                'Press Start — the AI trades on its own; stop it anytime.',
+                            ].map((step, i) => (
+                                <li key={i} className="flex gap-3">
+                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-nofx-gold/30 bg-nofx-gold/10 text-[11px] font-bold text-nofx-gold">
+                                        {i + 1}
+                                    </span>
+                                    <span>{step}</span>
+                                </li>
+                            ))}
+                        </ol>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
                             {[
-                                { icon: Command, label: "One-Line Install", desc: "No configuration needed" },
-                                { icon: Shield, label: "Secure Core", desc: "Sandboxed execution env" }
+                                { icon: Command, label: "One-Line Install", desc: "Docker handles every dependency" },
+                                { icon: Shield, label: "Your Keys Stay Home", desc: "Runs on your machine, keys encrypted locally" }
                             ].map((item, i) => (
                                 <div key={i} className="flex gap-4 items-start p-4 rounded bg-nofx-bg-lighter border border-[rgba(26,24,19,0.14)] hover:border-nofx-gold/30 transition-colors group">
                                     <div className="p-2 rounded bg-nofx-bg-deeper border border-[rgba(26,24,19,0.14)] text-nofx-gold group-hover:bg-nofx-gold/10 transition-colors">

@@ -394,20 +394,20 @@ export function AutopilotLaunchPanel({
     action?: JSX.Element
   }> = [
     {
-      title: 'AI fee wallet',
+      title: 'Step 1 · Fund the AI wallet ($1+)',
       detail:
-        'Pays Claw402.ai data and model calls with Base USDC. This is separate from trading collateral.',
+        'The AI pays a tiny fee each time it thinks. Send $1 or more of USDC on the Base network to this address — from Binance, OKX, Coinbase or any wallet. Separate from your trading money.',
       status: feeReady ? 'ready' : 'action',
       meta: feeWalletAddress
         ? `${shortAddress(feeWalletAddress)} · ${formatUSDC(feeWalletBalance)} USDC${
             feeReady ? '' : ` · needs ≥ ${minAIFeeUSDC} USDC`
           }`
-        : 'Base USDC wallet required',
+        : 'Takes 1 minute — we create the wallet for you',
       action: feeWalletAddress ? (
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => onOpenClaw402Config?.()}
+            onClick={() => navigate(ROUTES.welcome)}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-nofx-accent"
           >
             <CircleDollarSign className="h-3.5 w-3.5" />
@@ -425,22 +425,22 @@ export function AutopilotLaunchPanel({
       ) : (
         <button
           type="button"
-          onClick={() => onOpenClaw402Config?.()}
+          onClick={() => navigate(ROUTES.welcome)}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-nofx-gold hover:text-nofx-accent"
         >
           <ArrowRight className="h-3.5 w-3.5" />
-          Open
+          Create
         </button>
       ),
     },
     {
-      title: 'Hyperliquid trading wallet',
+      title: 'Step 2 · Connect Hyperliquid',
       detail:
-        'Connect an EVM wallet, approve a NOFX Agent, approve the builder fee, then save it to NOFX.',
+        'Approve NOFX once with your crypto wallet (Rabby or MetaMask). This lets the AI place trades for you — it can never withdraw your money.',
       status: hyperliquidConnected ? 'ready' : 'action',
       meta: hyperliquidExchange?.hyperliquidWalletAddr
         ? `${shortAddress(hyperliquidExchange.hyperliquidWalletAddr)} · authorized`
-        : 'Agent and trading authorization required',
+        : 'A few clicks + 3 wallet signatures',
       action: (
         <button
           type="button"
@@ -453,9 +453,9 @@ export function AutopilotLaunchPanel({
       ),
     },
     {
-      title: 'Trading balance',
+      title: 'Step 3 · Add trading money ($12+)',
       detail:
-        'Deposit USDC to Hyperliquid. NOFX uses it as margin for the Claw402 Autopilot strategy.',
+        'Deposit USDC into your Hyperliquid account. This is what the AI trades with — start small, you can add more anytime.',
       status: tradingBalanceReady
         ? 'ready'
         : hyperliquidConnected
@@ -465,18 +465,20 @@ export function AutopilotLaunchPanel({
         ? `${formatUSDC(tradingBalance)} USDC available${
             tradingBalanceReady ? '' : ` · needs ≥ ${minTradingUSDC} USDC`
           }`
-        : 'Connect Hyperliquid first',
+        : 'Finish step 2 first',
     },
     {
-      title: 'NOFX Autopilot',
+      title: 'Step 4 · Press start',
       detail:
-        'Reads the Claw402 board, fetches Signal Lab and liquidation structure, confirms with candles, then trades full-size 10x only when the setup is strong enough.',
+        'The AI reads the market every few minutes, picks its trades, and manages them on its own. Watch every decision live on the dashboard — stop it with one click anytime.',
       status: allReady ? 'ready' : 'blocked',
       meta: autopilotTrader?.is_running
-        ? 'Running'
+        ? 'Running — open the dashboard to watch'
         : autopilotTrader
           ? 'Ready to start'
-          : 'Ready to create when setup is complete',
+          : allReady
+            ? 'Everything is ready — press the button'
+            : 'Unlocks when steps 1–3 are green',
     },
   ]
 
@@ -485,16 +487,10 @@ export function AutopilotLaunchPanel({
       return (
         <button
           type="button"
-          onClick={() => {
-            if (onOpenClaw402Config) {
-              onOpenClaw402Config()
-            } else {
-              navigate(ROUTES.welcome)
-            }
-          }}
+          onClick={() => navigate(ROUTES.welcome)}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-nofx-gold px-4 py-3 text-sm font-bold text-white hover:bg-nofx-accent"
         >
-          Open Claw402 wallet
+          Set up the AI wallet
           <ArrowRight className="h-4 w-4" />
         </button>
       )
@@ -584,8 +580,8 @@ export function AutopilotLaunchPanel({
                 Start NOFX Autopilot in minutes
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-nofx-text-muted">
-                One strategy, one launch path. Fund the AI fee wallet, authorize
-                Hyperliquid, deposit USDC, then run the Claw402 Autopilot.
+                Four small steps, about $13 total. No API keys, no config
+                files — the AI trades for you, and you can stop it anytime.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

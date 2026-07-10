@@ -1391,8 +1391,10 @@ export function StrategyStudioPage() {
         max_positions: 2,
         btc_eth_max_leverage: 10,
         altcoin_max_leverage: 10,
-        btc_eth_max_position_value_ratio: 10,
-        altcoin_max_position_value_ratio: 10,
+        // 4× equity notional per position — at 10x leverage two full
+        // positions use ~80% of margin (concentrated but solvent)
+        btc_eth_max_position_value_ratio: 4,
+        altcoin_max_position_value_ratio: 4,
         max_margin_usage: 1.0,
         min_confidence: 78,
         min_risk_reward_ratio: 3,

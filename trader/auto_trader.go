@@ -422,15 +422,11 @@ func (at *AutoTrader) reloadStrategyConfigIfChanged() error {
 	}
 	strategyConfig.ClampLimits()
 
-	// Autopilot (vergex_signal/claw402) runs a balanced multi-position book:
-	// hold several instruments at once with a smaller per-position notional so
-	// multiple long/short positions fit the margin. Applied after ClampLimits so
-	// the book size is not capped back down to the conservative default.
-	if strategyConfig.CoinSource.SourceType == "vergex_signal" {
-		strategyConfig.RiskControl.MaxPositions = 6
-		strategyConfig.RiskControl.BTCETHMaxPositionValueRatio = 1.2
-		strategyConfig.RiskControl.AltcoinMaxPositionValueRatio = 1.2
-	}
+	// NOTE: this used to hardcode the Autopilot book shape (6 positions ×
+	// equity×1.2 notional), silently overriding whatever the user configured in
+	// their strategy. Sizing now comes from the strategy's own RiskControl —
+	// ClampLimits above bounds it (ratio 0.5–10, leverage caps), and the
+	// margin auto-reduce at order time keeps the book solvent.
 
 	claw402Key := at.config.Claw402WalletKey
 	if claw402Key == "" && at.config.AIModel == "claw402" && at.config.CustomAPIKey != "" {

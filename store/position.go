@@ -347,6 +347,27 @@ func (s *PositionStore) GetOpenPositions(traderID string) ([]*TraderPosition, er
 	return positions, nil
 }
 
+// GetOpenPositionsByExchange returns every OPEN row on an exchange account,
+// across all trader IDs. An exchange account is shared by every "NOFX
+// Autopilot" relaunch (each relaunch mints a fresh trader_id), so reconciling
+// must be scoped to the exchange — not the current trader_id — or rows left by
+// prior incarnations become permanent orphans that never close.
+func (s *PositionStore) GetOpenPositionsByExchange(exchangeID string) ([]*TraderPosition, error) {
+	var positions []*TraderPosition
+	err := s.db.Where("exchange_id = ? AND status = ?", exchangeID, "OPEN").
+		Order("entry_time DESC").
+		Find(&positions).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to query open positions by exchange: %w", err)
+	}
+	for _, pos := range positions {
+		if pos.EntryQuantity == 0 {
+			pos.EntryQuantity = pos.Quantity
+		}
+	}
+	return positions, nil
+}
+
 // GetOpenPositionBySymbol gets open position for specified symbol and direction
 func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (*TraderPosition, error) {
 	var pos TraderPosition

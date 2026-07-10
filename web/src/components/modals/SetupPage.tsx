@@ -5,7 +5,6 @@ import { invalidateSystemConfig } from '../../lib/config'
 import { OnboardingModeSelector } from '../auth/OnboardingModeSelector'
 import type { UserMode } from '../../lib/onboarding'
 import { useLanguage } from '../../contexts/LanguageContext'
-import { LanguageSwitcher } from '../common/LanguageSwitcher'
 
 const labels = {
   zh: {
@@ -127,7 +126,6 @@ export function SetupPage() {
       {/* Blur overlay */}
       <div className="absolute inset-0 backdrop-blur-md bg-nofx-bg/60" />
 
-      <LanguageSwitcher />
 
       {/* Modal card */}
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-16">

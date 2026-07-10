@@ -30,8 +30,7 @@ export default function HeaderBar({
   isLoggedIn = false,
   isHomePage = false,
   currentPage,
-  language = 'zh' as Language,
-  onLanguageChange,
+  language = 'en' as Language,
   user,
   onLogout,
   onPageChange,
@@ -40,12 +39,10 @@ export default function HeaderBar({
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [userMode, setUserModeState] = useState<UserMode>(
     () => getUserMode() ?? 'advanced'
   )
-  const dropdownRef = useRef<HTMLDivElement>(null)
   const userDropdownRef = useRef<HTMLDivElement>(null)
   const resolvedCurrentPage =
     currentPage ?? getCurrentPageForPath(location.pathname)
@@ -63,12 +60,6 @@ export default function HeaderBar({
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setLanguageDropdownOpen(false)
-      }
       if (
         userDropdownRef.current &&
         !userDropdownRef.current.contains(event.target as Node)
@@ -357,56 +348,7 @@ export default function HeaderBar({
               )
             )}
 
-            {/* Language Toggle - Always at the rightmost */}
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setLanguageDropdownOpen(!languageDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-2 rounded transition-colors text-nofx-text-muted hover:bg-white/5"
-              >
-                <span className="text-lg">
-                  {language === 'zh' ? '🇨🇳' : language === 'id' ? '🇮🇩' : '🇺🇸'}
-                </span>
-                <ChevronDown className="w-4 h-4" />
-              </button>
-
-              {languageDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-32 rounded-lg shadow-lg overflow-hidden z-50 bg-nofx-bg-lighter border border-nofx-gold/20">
-                  <button
-                    onClick={() => {
-                      onLanguageChange?.('zh')
-                      setLanguageDropdownOpen(false)
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-nofx-text
-                      ${language === 'zh' ? 'bg-nofx-gold/10' : 'hover:bg-[rgba(26,24,19,0.06)]'}`}
-                  >
-                    <span className="text-base">🇨🇳</span>
-                    <span className="text-sm">Chinese</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onLanguageChange?.('en')
-                      setLanguageDropdownOpen(false)
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-nofx-text
-                      ${language === 'en' ? 'bg-nofx-gold/10' : 'hover:bg-[rgba(26,24,19,0.06)]'}`}
-                  >
-                    <span className="text-base">🇺🇸</span>
-                    <span className="text-sm">English</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onLanguageChange?.('id')
-                      setLanguageDropdownOpen(false)
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-nofx-text
-                      ${language === 'id' ? 'bg-nofx-gold/10' : 'hover:bg-[rgba(26,24,19,0.06)]'}`}
-                  >
-                    <span className="text-base">🇮🇩</span>
-                    <span className="text-sm">Bahasa</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* Language switcher removed — the product UI is English-only. */}
           </div>
         </div>
 
@@ -619,28 +561,8 @@ export default function HeaderBar({
                   ))}
                 </div>
 
-                {/* Account / Lang */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Lang Switcher */}
-                  <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
-                    {['zh', 'en', 'id'].map((lang) => (
-                      <button
-                        key={lang}
-                        onClick={() => {
-                          onLanguageChange?.(lang as Language)
-                          setMobileMenuOpen(false)
-                        }}
-                        className={`flex-1 py-3 text-sm font-bold rounded-md transition-colors ${
-                          language === lang
-                            ? 'bg-zinc-800 text-white shadow-sm'
-                            : 'text-zinc-500'
-                        }`}
-                      >
-                        {lang === 'zh' ? 'CN' : lang === 'id' ? 'ID' : 'EN'}
-                      </button>
-                    ))}
-                  </div>
-
+                {/* Account (language switcher removed — English-only UI) */}
+                <div className="grid grid-cols-1 gap-4">
                   {/* Auth Actions */}
                   {isLoggedIn && user ? (
                     <button

@@ -133,7 +133,41 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 	}
 
 	logger.Infof("✅ Order sync completed: %d new trades synced", syncedCount)
+
+	// Reconcile local OPEN rows against the exchange's live book. Without
+	// this, any missed/unmatched fill leaves a zombie OPEN row that swallows
+	// every later close as a "partial close" — its realized PnL then never
+	// reaches the closed-trade statistics. Scoped by exchange account so rows
+	// left by prior autopilot incarnations are healed too.
+	if err := t.reconcilePositions(exchangeID, positionStore); err != nil {
+		logger.Infof("⚠️ Position reconcile skipped: %v", err)
+	}
+
 	return nil
+}
+
+// reconcilePositions builds the live (symbol, side) → quantity map from the
+// exchange (core perps + xyz dex) and lets the store close/trim any local
+// OPEN rows on this exchange account the exchange no longer backs.
+func (t *HyperliquidTrader) reconcilePositions(exchangeID string, positionStore *store.PositionStore) error {
+	livePositions, err := t.GetPositions()
+	if err != nil {
+		return fmt.Errorf("failed to get live positions: %w", err)
+	}
+
+	liveQty := make(map[string]float64, len(livePositions))
+	for _, pos := range livePositions {
+		symbol, _ := pos["symbol"].(string)
+		side, _ := pos["side"].(string)
+		qty, _ := pos["positionAmt"].(float64)
+		if symbol == "" || qty <= 0 {
+			continue
+		}
+		liveQty[store.LivePositionKey(market.Normalize(symbol), side)] += qty
+	}
+
+	_, err = positionStore.ReconcileOpenPositionsWithLive(exchangeID, liveQty)
+	return err
 }
 
 // StartOrderSync starts background order sync task

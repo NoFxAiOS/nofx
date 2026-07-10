@@ -6,7 +6,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { DeepVoidBackground } from '../common/DeepVoidBackground'
-import { LanguageSwitcher } from '../common/LanguageSwitcher'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -64,7 +63,6 @@ export function LoginPage() {
 
   return (
     <DeepVoidBackground disableAnimation>
-      <LanguageSwitcher />
 
       {/* Self-contained centering grid — works regardless of parent flex setup */}
       <main className="flex-1 grid lg:grid-cols-2">

@@ -53,6 +53,12 @@ function fmtPct(n: number | undefined): string {
   if (n == null || Number.isNaN(n)) return '—'
   return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`
 }
+/** Price with magnitude-aware precision: 64,416 · 184.2 · 2.3775 · 0.0067 */
+function fmtPx(n: number | undefined): string {
+  if (n == null || Number.isNaN(n) || n === 0) return '—'
+  const dp = n >= 1000 ? 0 : n >= 100 ? 1 : n >= 1 ? 2 : 4
+  return n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })
+}
 function baseLabel(raw?: string): string {
   if (!raw) return ''
   return raw.toUpperCase().replace(/^XYZ:/, '').replace(/[-_]/g, '').replace(/(USDT|USDC|USD)$/, '')
@@ -500,8 +506,9 @@ export function TerminalDashboard({
                 <thead>
                   <tr className="tm-sc" style={{ fontSize: 9 }}>
                     <td style={{ padding: '0 0 3px' }}>symbol</td>
-                    <td style={{ padding: '0 0 3px' }}>side</td>
-                    <td style={{ padding: '0 0 3px', textAlign: 'right' }}>lev</td>
+                    <td style={{ padding: '0 0 3px' }}>side·lev</td>
+                    <td style={{ padding: '0 0 3px', textAlign: 'right' }}>entry</td>
+                    <td style={{ padding: '0 0 3px', textAlign: 'right' }}>size</td>
                     <td style={{ padding: '0 0 3px', textAlign: 'right' }}>PnL</td>
                     <td style={{ padding: '0 0 3px', textAlign: 'right' }}>return%</td>
                   </tr>
@@ -510,11 +517,13 @@ export function TerminalDashboard({
                   {positions.map((p, i) => {
                     const long = /long|buy/i.test(p.side)
                     const win = (p.unrealized_pnl ?? 0) >= 0
+                    const notional = Math.abs(p.quantity ?? 0) * (p.mark_price || p.entry_price || 0)
                     return (
                       <tr key={`${p.symbol}-${i}`} style={{ borderTop: '1px solid var(--tm-hair)' }}>
                         <td style={{ padding: '5px 0', fontWeight: 500 }}>{baseLabel(p.symbol)}</td>
-                        <td style={{ padding: '5px 0' }} className={long ? 'tm-up' : 'tm-dn'}>{long ? 'long' : 'short'}</td>
-                        <td style={{ padding: '5px 0', textAlign: 'right', color: 'var(--tm-muted)' }}>{p.leverage}×</td>
+                        <td style={{ padding: '5px 0' }} className={long ? 'tm-up' : 'tm-dn'}>{long ? 'long' : 'short'} <span style={{ color: 'var(--tm-muted)' }}>{p.leverage}×</span></td>
+                        <td style={{ padding: '5px 0', textAlign: 'right', color: 'var(--tm-ink-2)' }}>{fmtPx(p.entry_price)}</td>
+                        <td style={{ padding: '5px 0', textAlign: 'right', color: 'var(--tm-ink-2)' }}>{fmtUsd(notional)}</td>
                         <td style={{ padding: '5px 0', textAlign: 'right' }} className={win ? 'tm-up' : 'tm-dn'}>{fmtUsd(p.unrealized_pnl, true)}</td>
                         <td style={{ padding: '5px 0', textAlign: 'right' }} className={win ? 'tm-up' : 'tm-dn'}>{(p.unrealized_pnl_pct ?? 0).toFixed(2)}%</td>
                       </tr>

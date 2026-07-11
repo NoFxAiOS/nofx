@@ -1014,11 +1014,11 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			PriceRankingLimit:      10,
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:                 2,   // Concentrated book: two full-size positions (CODE ENFORCED)
-			BTCETHMaxLeverage:            10,  // BTC/ETH exchange leverage (AI guided)
-			AltcoinMaxLeverage:           10,  // TradeFi exchange leverage (AI guided)
-			BTCETHMaxPositionValueRatio:  4.0, // Per-position notional = equity × 4; at 10x two positions ≈ 80% margin
-			AltcoinMaxPositionValueRatio: 4.0, // Per-position notional = equity × 4; at 10x two positions ≈ 80% margin
+			MaxPositions:                 4,   // Room for ~2 long + 2 short (CODE ENFORCED)
+			BTCETHMaxLeverage:            20,  // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage:           20,  // TradeFi exchange leverage (AI guided)
+			BTCETHMaxPositionValueRatio:  5.0, // Per-position notional = equity × 5; 4 positions = 20x total (full margin at 20x)
+			AltcoinMaxPositionValueRatio: 5.0, // Per-position notional = equity × 5; 4 positions = 20x total (full margin at 20x)
 			MaxMarginUsage:               1.0, // Claw402 Autopilot intentionally uses full margin when opening
 			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
 			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)

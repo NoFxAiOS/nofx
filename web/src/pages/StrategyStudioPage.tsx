@@ -1388,13 +1388,14 @@ export function StrategyStudioPage() {
       }),
       risk_control: defaultRisk({
         ...base.ai_config?.risk_control,
-        max_positions: 2,
-        btc_eth_max_leverage: 10,
-        altcoin_max_leverage: 10,
-        // 4× equity notional per position — at 10x leverage two full
-        // positions use ~80% of margin (concentrated but solvent)
-        btc_eth_max_position_value_ratio: 4,
-        altcoin_max_position_value_ratio: 4,
+        max_positions: 4,
+        btc_eth_max_leverage: 20,
+        altcoin_max_leverage: 20,
+        // 5× equity notional per position — 4 positions = 20x total account
+        // notional (full margin at 20x). Bigger single positions, room for
+        // a balanced long/short book.
+        btc_eth_max_position_value_ratio: 5,
+        altcoin_max_position_value_ratio: 5,
         max_margin_usage: 1.0,
         min_confidence: 78,
         min_risk_reward_ratio: 3,

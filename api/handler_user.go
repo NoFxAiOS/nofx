@@ -266,8 +266,9 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		c.RiskControl.BTCETHMaxLeverage = 20
 		c.RiskControl.AltcoinMaxLeverage = 20
 		// 5× equity notional per position: 4 positions = 20x total account
-		// notional (full margin at 20x). Bigger single positions with room for
-		// a balanced long/short book.
+		// notional (full margin, ~5% liquidation cushion). Aggressive by
+		// operator choice — bigger single positions; the 0.4 short-signal
+		// floor keeps the book balanced so it is not a one-directional bet.
 		c.RiskControl.BTCETHMaxPositionValueRatio = 5.0
 		c.RiskControl.AltcoinMaxPositionValueRatio = 5.0
 		c.RiskControl.MaxMarginUsage = 1.0

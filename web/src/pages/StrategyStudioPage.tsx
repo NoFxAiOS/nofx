@@ -1392,8 +1392,8 @@ export function StrategyStudioPage() {
         btc_eth_max_leverage: 20,
         altcoin_max_leverage: 20,
         // 5× equity notional per position — 4 positions = 20x total account
-        // notional (full margin at 20x). Bigger single positions, room for
-        // a balanced long/short book.
+        // notional (full margin, ~5% liquidation cushion). Aggressive by
+        // operator choice; the 0.4 short-signal floor keeps the book balanced.
         btc_eth_max_position_value_ratio: 5,
         altcoin_max_position_value_ratio: 5,
         max_margin_usage: 1.0,

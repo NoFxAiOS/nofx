@@ -8,11 +8,13 @@ import (
 )
 
 // forcedCoverageMinScore is the minimum absolute board z-score a candidate
-// needs before the engine will force-open it for book balance. Live trade
-// history showed forced entries on near-neutral signals (|z| < 0.3) were a
-// systematic money loser — especially shorts — while trades on strong signals
-// carried the edge. Below this bar the book is simply left unbalanced.
-const forcedCoverageMinScore = 0.75
+// needs before the engine will force-open it for book balance. Near-neutral
+// signals (|z| < ~0.3) proved a systematic loser, but a 0.75 floor was too
+// strict: in a long-leaning tape every bearish candidate scored below it, so
+// no short ever opened and the book became a one-directional long bet that
+// drew down hard. 0.4 keeps genuine directional signals while still filtering
+// pure noise, so the book can actually hedge.
+const forcedCoverageMinScore = 0.4
 
 // ensureLongShortCoverage tops the book up toward roughly half the
 // MaxPositions slots long and half short — but only with candidates whose

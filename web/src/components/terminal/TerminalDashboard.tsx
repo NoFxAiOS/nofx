@@ -83,6 +83,18 @@ function fmtTime(raw?: string | number): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-GB', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+/** Hold duration from entry/exit epoch-ms as a compact 45m / 2h10 / 1d3h. */
+function fmtHold(entry?: number, exit?: number): string {
+  if (!entry || !exit || exit <= entry) return '—'
+  const mins = Math.round((exit - entry) / 60000)
+  if (mins < 60) return `${mins}m`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h < 24) return m ? `${h}h${m}` : `${h}h`
+  const d = Math.floor(h / 24)
+  return `${d}d${h % 24}h`
+}
+
 function useTick(ms = 1000) {
   const [, set] = useState(0)
   useEffect(() => {
@@ -537,10 +549,19 @@ export function TerminalDashboard({
 
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
               <span className="tm-px" style={{ fontSize: 11 }}>Recent trades</span>
-              <span className="tm-sc">Recent closes · symbol/side/time/pnl</span>
+              <span className="tm-sc">Recent closes · symbol/side/hold/pnl</span>
             </div>
             {recentTrades.length > 0 ? (
               <table className="tm-mono" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead>
+                  <tr className="tm-sc" style={{ fontSize: 9 }}>
+                    <td style={{ padding: '0 0 3px' }}>symbol</td>
+                    <td style={{ padding: '0 0 3px' }}>side</td>
+                    <td style={{ padding: '0 0 3px', textAlign: 'right' }}>hold</td>
+                    <td style={{ padding: '0 0 3px' }}> closed</td>
+                    <td style={{ padding: '0 0 3px', textAlign: 'right' }}>PnL</td>
+                  </tr>
+                </thead>
                 <tbody>
                   {recentTrades.map((p) => {
                     const win = p.realized_pnl >= 0
@@ -548,7 +569,8 @@ export function TerminalDashboard({
                       <tr key={p.id} style={{ borderTop: '1px solid var(--tm-hair)' }}>
                         <td style={{ padding: '5px 0', fontWeight: 500 }}>{baseLabel(p.symbol)}</td>
                         <td style={{ padding: '5px 0' }} className={p.side === 'long' || p.side === 'LONG' ? 'tm-up' : 'tm-dn'}>{p.side.toLowerCase()}</td>
-                        <td style={{ padding: '5px 0', color: 'var(--tm-muted)' }}>{fmtTime(p.exit_time)}</td>
+                        <td style={{ padding: '5px 0', textAlign: 'right', color: 'var(--tm-ink-2)' }}>{fmtHold(p.entry_time, p.exit_time)}</td>
+                        <td style={{ padding: '5px 0 5px 6px', color: 'var(--tm-muted)' }}>{fmtTime(p.exit_time)}</td>
                         <td style={{ padding: '5px 0', textAlign: 'right' }} className={win ? 'tm-up' : 'tm-dn'}>{fmtUsd(p.realized_pnl, true)}</td>
                       </tr>
                     )

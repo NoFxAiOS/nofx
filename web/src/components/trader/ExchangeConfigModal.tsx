@@ -548,17 +548,15 @@ export function ExchangeConfigModal({
                     className="text-sm font-semibold mb-1"
                     style={{ color: '#2E8B57' }}
                   >
-                    {language === 'ja'
-                      ? 'MEXC価格で安全に模擬取引'
-                      : 'Safe paper trading with MEXC prices'}
+                    Safe paper trading with MEXC prices
                   </div>
                   <div
                     className="text-xs leading-5"
                     style={{ color: '#5F5A50' }}
                   >
-                    {language === 'ja'
-                      ? 'MEXCの公開価格だけを取得し、残高・ポジション・注文はこのNOFX内でシミュレーションします。APIキーは不要で、実注文は送信されません。初期残高は10,000 USDTです。'
-                      : 'NOFX reads public MEXC prices while balances, positions, and orders remain simulated locally. No API key is required and no real order can be sent. Initial balance is 10,000 USDT.'}
+                    NOFX reads public MEXC prices while balances, positions, and
+                    orders remain simulated locally. No API key is required and
+                    no real order can be sent. Initial balance is 10,000 USDT.
                   </div>
                 </div>
               )}

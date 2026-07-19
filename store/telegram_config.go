@@ -17,7 +17,7 @@ type TelegramConfig struct {
 	Username  string    `gorm:"column:username"` // @username for display
 	BoundAt   time.Time `gorm:"column:bound_at"`
 	ModelID   string    `gorm:"column:model_id;default:''"` // AI model used for Telegram replies
-	Language  string    `gorm:"column:language;default:''"` // "zh" or "en"; empty = not chosen yet
+	Language  string    `gorm:"column:language;default:''"` // "zh", "en", or "ja"; empty = not chosen yet
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -34,15 +34,15 @@ func (tc TelegramConfig) String() string {
 
 // TelegramConfigStore defines the interface for Telegram bot binding operations
 type TelegramConfigStore interface {
-	Get() (*TelegramConfig, error)                    // Get current config (may not exist)
-	SaveToken(botToken string) error                  // Save bot token only (Web UI sets this)
-	Save(botToken, modelID string) error              // Save bot token + selected AI model
-	BindUser(chatID int64, username string) error     // Called on first /start
-	IsBound() (bool, error)                           // Check if any user is bound
-	GetBoundChatID() (int64, error)                   // Get bound chat ID (0 if not bound)
-	Unbind() error                                    // Remove binding
-	SetLanguage(lang string) error                    // Set UI language ("en" or "zh")
-	GetLanguage() string                              // Get UI language; returns "en" if not set
+	Get() (*TelegramConfig, error)                // Get current config (may not exist)
+	SaveToken(botToken string) error              // Save bot token only (Web UI sets this)
+	Save(botToken, modelID string) error          // Save bot token + selected AI model
+	BindUser(chatID int64, username string) error // Called on first /start
+	IsBound() (bool, error)                       // Check if any user is bound
+	GetBoundChatID() (int64, error)               // Get bound chat ID (0 if not bound)
+	Unbind() error                                // Remove binding
+	SetLanguage(lang string) error                // Set UI language ("en", "zh", or "ja")
+	GetLanguage() string                          // Get UI language; returns "en" if not set
 }
 
 type telegramConfigStore struct {

@@ -1,6 +1,9 @@
 import { motion } from 'framer-motion'
+import { useLanguage } from '../../../contexts/LanguageContext'
+import { t } from '../../../i18n/translations'
 
 export default function AgentTerminal() {
+    const { language } = useLanguage()
     return (
         <motion.div
             initial={{ opacity: 0, y: 30, rotate: 0 }}
@@ -23,19 +26,19 @@ export default function AgentTerminal() {
                     </div>
                     {/* Title */}
                     <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-                        <span className="text-nofx-text-muted text-xs font-mono">NOFX Trader Terminal</span>
+                        <span className="text-nofx-text-muted text-xs font-mono">{t('landing.terminalTitle', language)}</span>
                     </div>
                     {/* Live indicator */}
                     <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-nofx-success/10 border border-nofx-success/20">
                         <div className="w-1.5 h-1.5 bg-nofx-success rounded-full animate-pulse" />
-                        <span className="text-nofx-success text-[10px] font-mono uppercase tracking-wider">Live</span>
+                        <span className="text-nofx-success text-[10px] font-mono uppercase tracking-wider">{t('landing.live', language)}</span>
                     </div>
                 </div>
 
                 {/* Portfolio PnL Section */}
                 <div className="p-4 border-b border-[rgba(26,24,19,0.14)]">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-nofx-text-muted text-xs font-mono uppercase tracking-wider">Portfolio PnL</span>
+                        <span className="text-nofx-text-muted text-xs font-mono uppercase tracking-wider">{t('landing.portfolioPnl', language)}</span>
                         <div className="flex gap-1">
                             <button className="px-2 py-0.5 bg-nofx-gold/20 border border-nofx-gold/30 rounded text-[10px] text-nofx-gold font-mono">24H</button>
                             <button className="px-2 py-0.5 text-[10px] text-nofx-text-muted font-mono hover:text-nofx-text transition-colors">7D</button>
@@ -78,12 +81,12 @@ export default function AgentTerminal() {
                         <div className="text-nofx-success text-[10px] font-mono">↑ 2.1%</div>
                     </div>
                     <div className="p-3 text-center">
-                        <div className="text-nofx-text-muted text-[10px] font-mono uppercase tracking-wider mb-1">Netflow</div>
+                        <div className="text-nofx-text-muted text-[10px] font-mono uppercase tracking-wider mb-1">{t('landing.netflow', language)}</div>
                         <div className="text-nofx-success font-bold font-mono">+$124M</div>
-                        <div className="text-nofx-text-muted text-[10px] font-mono">24h inflow</div>
+                        <div className="text-nofx-text-muted text-[10px] font-mono">{t('landing.inflow24h', language)}</div>
                     </div>
                     <div className="p-3 text-center">
-                        <div className="text-nofx-text-muted text-[10px] font-mono uppercase tracking-wider mb-1">L/S Ratio</div>
+                        <div className="text-nofx-text-muted text-[10px] font-mono uppercase tracking-wider mb-1">{t('landing.lsRatio', language)}</div>
                         <div className="text-nofx-text font-bold font-mono">1.24</div>
                         <div className="flex gap-0.5 mt-1 px-2">
                             <div className="h-1 bg-nofx-success/60 rounded-l flex-[55]" />
@@ -95,8 +98,8 @@ export default function AgentTerminal() {
                 {/* Order Book */}
                 <div className="p-4 border-b border-[rgba(26,24,19,0.14)]">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-nofx-text text-xs font-mono uppercase tracking-wider">Order Book</span>
-                        <span className="text-nofx-text-muted text-[10px] font-mono">Spread: <span className="text-nofx-gold">0.02%</span></span>
+                        <span className="text-nofx-text text-xs font-mono uppercase tracking-wider">{t('landing.orderBook', language)}</span>
+                        <span className="text-nofx-text-muted text-[10px] font-mono">{t('landing.spread', language)}: <span className="text-nofx-gold">0.02%</span></span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         {/* Asks */}
@@ -133,7 +136,7 @@ export default function AgentTerminal() {
                 {/* Active Positions */}
                 <div className="p-4">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-nofx-text text-xs font-mono uppercase tracking-wider">Positions</span>
+                        <span className="text-nofx-text text-xs font-mono uppercase tracking-wider">{t('positions', language)}</span>
                         <span className="text-nofx-success text-xs font-mono font-medium">+$12,847</span>
                     </div>
                     <div className="space-y-2">
@@ -157,7 +160,7 @@ export default function AgentTerminal() {
                                     <div>
                                         <div className="text-nofx-text text-sm font-mono">{pos.name}</div>
                                         <div className="flex items-center gap-2 text-[10px]">
-                                            <span className="text-nofx-success bg-nofx-success/10 px-1.5 py-0.5 rounded font-mono">LONG</span>
+                                            <span className="text-nofx-success bg-nofx-success/10 px-1.5 py-0.5 rounded font-mono">{t('long', language)}</span>
                                             <span className="text-nofx-text-muted font-mono">{pos.size} {pos.coin}</span>
                                         </div>
                                     </div>
@@ -176,9 +179,9 @@ export default function AgentTerminal() {
                     <div className="flex items-center gap-3 text-[10px] font-mono text-nofx-text-muted">
                         <span className="flex items-center gap-1">
                             <div className="w-1.5 h-1.5 bg-nofx-success rounded-full" />
-                            Connected
+                            {t('landing.connected', language)}
                         </span>
-                        <span>Latency: 12ms</span>
+                        <span>{t('landing.latency', language)}: 12ms</span>
                     </div>
                     <div className="text-[10px] font-mono text-nofx-text-muted">
                         mainnet • v2.4.0

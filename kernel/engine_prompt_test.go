@@ -87,6 +87,43 @@ func TestBuildSystemPromptFallsBackToEnglishWhenConfiguredLanguageIsChinese(t *t
 	}
 }
 
+func TestBuildSystemPromptRequestsJapaneseReasoningWithoutChangingContract(t *testing.T) {
+	cfg := store.GetDefaultStrategyConfig("ja")
+	cfg.CoinSource.SourceType = "static"
+	cfg.CoinSource.StaticCoins = []string{"BTCUSDT", "ETHUSDT"}
+	cfg.CoinSource.VergexLimit = 0
+	cfg.CoinSource.VergexMarketType = ""
+	cfg.CoinSource.VergexChain = ""
+
+	engine := NewStrategyEngine(&cfg)
+	prompt := engine.BuildSystemPrompt(30, "balanced")
+
+	if !strings.Contains(prompt, "Write every user-facing natural-language value, including reasoning fields, in Japanese") {
+		t.Fatalf("prompt is missing the Japanese output instruction:\n%s", prompt)
+	}
+	for _, contractValue := range []string{`"action"`, "open_long", "open_short", "hold"} {
+		if !strings.Contains(prompt, contractValue) {
+			t.Fatalf("localized prompt is missing contract value %q:\n%s", contractValue, prompt)
+		}
+	}
+}
+
+func TestBuildVergexPromptRequestsJapaneseReasoning(t *testing.T) {
+	cfg := store.GetDefaultStrategyConfig("ja")
+	cfg.CoinSource.SourceType = "vergex_signal"
+	cfg.CoinSource.VergexLimit = 5
+
+	engine := NewStrategyEngine(&cfg)
+	prompt := engine.BuildSystemPrompt(30, "balanced")
+
+	if !strings.Contains(prompt, "NOFX Claw402 auto-trader") {
+		t.Fatalf("prompt did not use the Claw402/Vergex role:\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "in Japanese") {
+		t.Fatalf("Vergex prompt is missing the Japanese output instruction:\n%s", prompt)
+	}
+}
+
 func TestBuildSystemPromptDoesNotForceLongOnlyForSingleXYZ(t *testing.T) {
 	prompt := buildXYZStockCustomPrompt("XYZ:INTC")
 

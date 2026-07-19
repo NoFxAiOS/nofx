@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestEstimateTokens_DefaultConfig(t *testing.T) {
 	config := GetDefaultStrategyConfig("en")
@@ -45,6 +48,24 @@ func TestEstimateTokens_ZhVsEn(t *testing.T) {
 	// but total can vary — just ensure both are reasonable
 	if enEst.Total <= 0 || zhEst.Total <= 0 {
 		t.Errorf("both estimates should be positive: en=%d, zh=%d", enEst.Total, zhEst.Total)
+	}
+}
+
+func TestDefaultStrategyPreservesJapaneseLanguage(t *testing.T) {
+	config := GetDefaultStrategyConfig("ja")
+	if config.Language != "ja" {
+		t.Fatalf("default strategy language = %q, want ja", config.Language)
+	}
+}
+
+func TestStrategyClampWarningsSupportJapanese(t *testing.T) {
+	before := GetDefaultStrategyConfig("ja")
+	after := before
+	after.RiskControl.MaxPositions = before.RiskControl.MaxPositions + 1
+
+	warnings := StrategyClampWarnings(before, after, "ja")
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "最大ポジション数") {
+		t.Fatalf("unexpected Japanese clamp warning: %#v", warnings)
 	}
 }
 

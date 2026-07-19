@@ -35,7 +35,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	}
 
 	if e.usesVergexSignalPrompt() {
-		return e.buildVergexSystemPrompt(accountEquity, variant, lang, zh, singleSymbol, primarySymbol)
+		return e.localizeDecisionOutput(e.buildVergexSystemPrompt(accountEquity, variant, lang, zh, singleSymbol, primarySymbol))
 	}
 
 	// 0. Data Dictionary & Schema (ensure AI understands all fields)
@@ -177,7 +177,22 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		}
 	}
 
-	return sb.String()
+	return e.localizeDecisionOutput(sb.String())
+}
+
+// localizeDecisionOutput keeps the parser-facing prompt contract stable while
+// allowing operators to read the model's explanatory text in their UI language.
+func (e *StrategyEngine) localizeDecisionOutput(prompt string) string {
+	if e == nil || e.config == nil || !strings.EqualFold(strings.TrimSpace(e.config.Language), "ja") {
+		return prompt
+	}
+
+	return prompt + `
+
+# Output Language
+
+Write every user-facing natural-language value, including reasoning fields, in Japanese. Keep JSON keys, XML tags, action enum values, symbols, numbers, and units exactly as specified above.
+`
 }
 
 func (e *StrategyEngine) usesVergexSignalPrompt() bool {

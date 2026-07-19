@@ -2,6 +2,8 @@ import { motion } from 'framer-motion'
 import { TrendingUp, Layers, Zap, Hexagon, Crosshair } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../contexts/AuthContext'
+import { useLanguage } from '../../../contexts/LanguageContext'
+import { t } from '../../../i18n/translations'
 
 const traderPresets = [
   {
@@ -9,10 +11,10 @@ const traderPresets = [
     // ... (rest of agents array remains, but I can't skip lines in replacement content easily without context. Wait, let's just replace the top section)
     // Actually, I'll use multi_replace for targeted cleanup.
     class: 'US_STOCKS',
-    desc: 'Large-cap momentum and breakout trading.',
+    descKey: 'landing.alphaDescription',
     apy: '142%',
     winRate: '68%',
-    risk: 'HIGH',
+    riskKey: 'landing.riskHigh',
     color: 'text-nofx-gold',
     border: 'border-nofx-gold/50',
     bg_glow: 'shadow-sm',
@@ -21,10 +23,10 @@ const traderPresets = [
   {
     name: 'BETA-X',
     class: 'MACRO_FX',
-    desc: 'FX trend and macro regime allocation.',
+    descKey: 'landing.betaDescription',
     apy: '89%',
     winRate: '55%',
-    risk: 'MED',
+    riskKey: 'landing.riskMedium',
     color: 'text-nofx-accent',
     border: 'border-nofx-accent/30',
     bg_glow: 'shadow-sm',
@@ -33,10 +35,10 @@ const traderPresets = [
   {
     name: 'GAMMA-RAY',
     class: 'PRE_IPO',
-    desc: 'Private-market momentum basket engine.',
+    descKey: 'landing.gammaDescription',
     apy: '24%',
     winRate: '99%',
-    risk: 'LOW',
+    riskKey: 'landing.riskLow',
     color: 'text-nofx-text',
     border: 'border-nofx-gold/20',
     bg_glow: 'shadow-sm',
@@ -46,6 +48,7 @@ const traderPresets = [
 
 export default function AgentGrid() {
   const { user } = useAuth()
+  const { language } = useLanguage()
   const navigate = useNavigate()
 
   const handleInitialize = () => {
@@ -70,18 +73,18 @@ export default function AgentGrid() {
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 md:mb-16 gap-6">
           <div>
             <div className="flex items-center gap-2 text-nofx-gold font-mono text-xs mb-2 tracking-widest uppercase">
-              <Crosshair className="w-4 h-4" /> ASSET CLASS SELECT
+              <Crosshair className="w-4 h-4" />{' '}
+              {t('landing.assetClassSelect', language)}
             </div>
             <h2 className="text-4xl md:text-5xl font-black text-nofx-text uppercase tracking-tighter">
-              PROFESSIONAL{' '}
+              {t('landing.professional', language)}{' '}
               <span className="text-nofx-gold">
-                TRADERS
+                {t('landing.traders', language)}
               </span>
             </h2>
           </div>
           <div className="font-mono text-right text-xs text-nofx-text-muted max-w-xs">
-            CREATE TRADERS FOR US STOCKS, COMMODITIES, FX AND PRE-IPO MARKETS.
-            DESCRIBE THE STRATEGY IN ONE SENTENCE.
+            {t('landing.traderIntro', language)}
           </div>
         </div>
 
@@ -109,7 +112,7 @@ export default function AgentGrid() {
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] font-mono text-nofx-text-muted uppercase">
-                        Class
+                        {t('landing.class', language)}
                       </div>
                       <div
                         className={`font-bold font-mono tracking-wider ${preset.color}`}
@@ -124,7 +127,7 @@ export default function AgentGrid() {
                     {preset.name}
                   </h3>
                   <p className="text-nofx-text-muted text-sm mb-8 leading-relaxed h-10">
-                    {preset.desc}
+                    {t(preset.descKey, language)}
                   </p>
 
                   {/* Stats Grid */}
@@ -139,7 +142,7 @@ export default function AgentGrid() {
                     </div>
                     <div className="bg-nofx-bg-deeper p-3 text-center group-hover:bg-nofx-bg transition-colors">
                       <div className="text-[10px] text-nofx-text-muted uppercase font-mono mb-1">
-                        Win %
+                        {t('landing.winRate', language)}
                       </div>
                       <div className="text-nofx-text font-bold">
                         {preset.winRate}
@@ -147,10 +150,10 @@ export default function AgentGrid() {
                     </div>
                     <div className="bg-nofx-bg-deeper p-3 text-center group-hover:bg-nofx-bg transition-colors">
                       <div className="text-[10px] text-nofx-text-muted uppercase font-mono mb-1">
-                        Risk
+                        {t('landing.risk', language)}
                       </div>
                       <div className={`${preset.color} font-bold`}>
-                        {preset.risk}
+                        {t(preset.riskKey, language)}
                       </div>
                     </div>
                   </div>
@@ -160,7 +163,8 @@ export default function AgentGrid() {
                     onClick={handleInitialize}
                     className={`w-full py-4 text-xs font-bold font-mono uppercase tracking-[0.2em] border border-[rgba(26,24,19,0.14)] hover:border-${preset.color === 'text-nofx-gold' ? 'nofx-gold' : 'nofx-text'} hover:bg-nofx-text/5 transition-all flex items-center justify-center gap-2 group-hover:text-nofx-text cursor-pointer text-nofx-text`}
                   >
-                    <span className={preset.color}>[</span> INITIALIZE{' '}
+                    <span className={preset.color}>[</span>{' '}
+                    {t('landing.initialize', language)}{' '}
                     <span className={preset.color}>]</span>
                   </button>
                 </div>

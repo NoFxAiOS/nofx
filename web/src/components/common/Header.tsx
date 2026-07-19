@@ -58,6 +58,17 @@ export function Header({ simple = false }: HeaderProps) {
               EN
             </button>
             <button
+              onClick={() => setLanguage('ja')}
+              className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
+              style={
+                language === 'ja'
+                  ? { background: '#E0483B', color: '#F1ECE2' }
+                  : { background: 'transparent', color: '#8A8478' }
+              }
+            >
+              日本語
+            </button>
+            <button
               onClick={() => setLanguage('id')}
               className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
               style={

@@ -473,7 +473,7 @@ export function ChartWithOrders({
             }}
           >
             <div style={{ marginBottom: '6px', color: '#E0483B', fontWeight: 'bold', fontSize: '11px' }}>
-              {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
+              {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : language === 'ja' ? 'ja-JP' : 'en-US', {
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',

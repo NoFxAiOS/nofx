@@ -24,10 +24,23 @@ var modelPrices = map[string]float64{
 	"deepseek-reasoner": 0.005,
 	"deepseek-v4-flash": 0.003,
 	"deepseek-v4-pro":   0.01,
-	"gpt-5.4":           0.05,
-	"gpt-5.4-pro":       0.50,
-	"gpt-5.3":           0.01,
-	"gpt-5-mini":        0.005,
+	// GPT-5.6 family — pricing derived from openai.com/docs/models pricing
+	// sheet (Feb-2026). "gpt-5.6" is the unsuffixed alias for Sol.
+	// Sol: input $5 / cached $0.50 / output $30 per 1M tokens.
+	// Terra: input $2.50 / cached $0.25 / output $15 per 1M tokens.
+	// Luna: input $1 / cached $0.10 / output $6 per 1M tokens.
+	// Per-call estimates assume ~30K mix of input + output tokens.
+	"gpt-5.6":        0.20,
+	"gpt-5.6-sol":    0.20,
+	"gpt-5.6-terra":  0.10,
+	"gpt-5.6-luna":   0.04,
+	// GPT-5.5 — input $5 / output $30 per 1M tokens per openai.com quick
+	// comparison; same tier as Sol so analogous ~$0.15/call estimate.
+	"gpt-5.5":        0.15,
+	"gpt-5.4":        0.05,
+	"gpt-5.4-pro":    0.50,
+	"gpt-5.3":        0.01,
+	"gpt-5-mini":     0.005,
 	"claude-opus":       0.12,
 	"qwen-max":          0.01,
 	"qwen-plus":         0.005,

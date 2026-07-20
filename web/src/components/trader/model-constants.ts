@@ -31,6 +31,8 @@ export function getModelDisplayName(modelId: string): string {
       return 'Qwen'
     case 'claude':
       return 'Claude'
+    case 'atlascloud':
+      return 'Atlas Cloud'
     default:
       return modelId.toUpperCase()
   }
@@ -128,6 +130,11 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     defaultModel: 'MiniMax-M2.7',
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
+  },
+  atlascloud: {
+    defaultModel: 'qwen/qwen3.5-flash',
+    apiUrl: 'https://www.atlascloud.ai/console/api-keys',
+    apiName: 'Atlas Cloud',
   },
   claw402: {
     defaultModel: DEFAULT_CLAW402_MODEL,

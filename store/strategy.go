@@ -550,12 +550,16 @@ func mergeJSONMaps(dst, src map[string]any) {
 }
 
 func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
-	if lang != "zh" {
+	if lang != "zh" && lang != "ja" {
 		lang = "en"
 	}
 	warnings := make([]string, 0, 8)
-	appendInt := func(labelZH, labelEN string, from, to int) {
+	appendInt := func(labelZH, labelEN, labelJA string, from, to int) {
 		if from == to {
+			return
+		}
+		if lang == "ja" {
+			warnings = append(warnings, fmt.Sprintf("%sを%dから%dに調整しました", labelJA, from, to))
 			return
 		}
 		if lang == "zh" {
@@ -564,8 +568,12 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 		}
 		warnings = append(warnings, fmt.Sprintf("%s adjusted from %d to %d", labelEN, from, to))
 	}
-	appendFloat := func(labelZH, labelEN string, from, to float64) {
+	appendFloat := func(labelZH, labelEN, labelJA string, from, to float64) {
 		if from == to {
+			return
+		}
+		if lang == "ja" {
+			warnings = append(warnings, fmt.Sprintf("%sを%.2fから%.2fに調整しました", labelJA, from, to))
 			return
 		}
 		if lang == "zh" {
@@ -575,15 +583,15 @@ func StrategyClampWarnings(before, after StrategyConfig, lang string) []string {
 		warnings = append(warnings, fmt.Sprintf("%s adjusted from %.2f to %.2f", labelEN, from, to))
 	}
 
-	appendInt("Max Positions", "max_positions", before.RiskControl.MaxPositions, after.RiskControl.MaxPositions)
-	appendInt("BTC/ETH Max Leverage", "btc_eth_max_leverage", before.RiskControl.BTCETHMaxLeverage, after.RiskControl.BTCETHMaxLeverage)
-	appendInt("Altcoin Max Leverage", "altcoin_max_leverage", before.RiskControl.AltcoinMaxLeverage, after.RiskControl.AltcoinMaxLeverage)
-	appendFloat("BTC/ETH Max Position Value Ratio", "btc_eth_max_position_value_ratio", before.RiskControl.BTCETHMaxPositionValueRatio, after.RiskControl.BTCETHMaxPositionValueRatio)
-	appendFloat("Altcoin Max Position Value Ratio", "altcoin_max_position_value_ratio", before.RiskControl.AltcoinMaxPositionValueRatio, after.RiskControl.AltcoinMaxPositionValueRatio)
-	appendFloat("Min Risk/Reward Ratio", "min_risk_reward_ratio", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
-	appendFloat("Max Margin Usage", "max_margin_usage", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
-	appendFloat("Min Position Size", "min_position_size", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
-	appendInt("Min Confidence", "min_confidence", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
+	appendInt("Max Positions", "max_positions", "最大ポジション数", before.RiskControl.MaxPositions, after.RiskControl.MaxPositions)
+	appendInt("BTC/ETH Max Leverage", "btc_eth_max_leverage", "BTC/ETH最大レバレッジ", before.RiskControl.BTCETHMaxLeverage, after.RiskControl.BTCETHMaxLeverage)
+	appendInt("Altcoin Max Leverage", "altcoin_max_leverage", "アルトコイン最大レバレッジ", before.RiskControl.AltcoinMaxLeverage, after.RiskControl.AltcoinMaxLeverage)
+	appendFloat("BTC/ETH Max Position Value Ratio", "btc_eth_max_position_value_ratio", "BTC/ETH最大ポジション価値比率", before.RiskControl.BTCETHMaxPositionValueRatio, after.RiskControl.BTCETHMaxPositionValueRatio)
+	appendFloat("Altcoin Max Position Value Ratio", "altcoin_max_position_value_ratio", "アルトコイン最大ポジション価値比率", before.RiskControl.AltcoinMaxPositionValueRatio, after.RiskControl.AltcoinMaxPositionValueRatio)
+	appendFloat("Min Risk/Reward Ratio", "min_risk_reward_ratio", "最小リスクリワード比率", before.RiskControl.MinRiskRewardRatio, after.RiskControl.MinRiskRewardRatio)
+	appendFloat("Max Margin Usage", "max_margin_usage", "最大証拠金使用率", before.RiskControl.MaxMarginUsage, after.RiskControl.MaxMarginUsage)
+	appendFloat("Min Position Size", "min_position_size", "最小ポジションサイズ", before.RiskControl.MinPositionSize, after.RiskControl.MinPositionSize)
+	appendInt("Min Confidence", "min_confidence", "最小信頼度", before.RiskControl.MinConfidence, after.RiskControl.MinConfidence)
 	return warnings
 }
 
@@ -614,7 +622,7 @@ type StrategyConfig struct {
 	// Strategy type: "ai_trading" (default) or "grid_trading"
 	StrategyType string `json:"strategy_type,omitempty"`
 
-	// language setting: "zh" for Chinese, "en" for English
+	// language setting: "zh" for Chinese, "en" for English, "ja" for Japanese
 	// This determines the language used for data formatting and prompt generation
 	Language string `json:"language,omitempty"`
 	// AI trading configuration fields are kept on the Go struct for engine
@@ -951,10 +959,10 @@ func (s *StrategyStore) initDefaultData() error {
 
 // GetDefaultStrategyConfig returns the default strategy configuration for the given language
 func GetDefaultStrategyConfig(lang string) StrategyConfig {
-	// Normalize language to "zh" or "en"
+	// Normalize language to a supported locale.
 	normalizedLang := "en"
-	if lang == "zh" {
-		normalizedLang = "zh"
+	if lang == "zh" || lang == "ja" {
+		normalizedLang = lang
 	}
 
 	config := StrategyConfig{

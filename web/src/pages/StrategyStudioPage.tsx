@@ -1208,7 +1208,7 @@ export function StrategyStudioPage() {
       const base = simplifyConfig(prev)
       return {
         ...base,
-        language: language as 'zh' | 'en',
+        language: language as 'zh' | 'en' | 'ja',
         ai_config: {
           ...base.ai_config!,
           ...patch,
@@ -1255,7 +1255,7 @@ export function StrategyStudioPage() {
       const defaultConfig = response.ok
         ? simplifyConfig(await response.json())
         : simplifyConfig(null)
-      defaultConfig.language = language as 'zh' | 'en'
+      defaultConfig.language = language as 'zh' | 'en' | 'ja'
       defaultConfig.ai_config = {
         ...defaultConfig.ai_config!,
         coin_source: defaultCoinSource({
@@ -1321,7 +1321,7 @@ export function StrategyStudioPage() {
     setSaving(true)
     try {
       const config = simplifyConfig(overrideConfig || editingConfig)
-      config.language = language as 'zh' | 'en'
+      config.language = language as 'zh' | 'en' | 'ja'
       const response = await fetch(
         `${API_BASE}/api/strategies/${selectedStrategy.id}`,
         {
@@ -1366,7 +1366,7 @@ export function StrategyStudioPage() {
 
   const buildUnifiedClaw402Config = (): StrategyConfig => {
     const base = simplifyConfig(editingConfig)
-    base.language = language as 'zh' | 'en'
+    base.language = language as 'zh' | 'en' | 'ja'
     base.ai_config = {
       ...base.ai_config!,
       coin_source: defaultCoinSource({
@@ -1547,7 +1547,7 @@ export function StrategyStudioPage() {
       const currentAI = base.ai_config!
       return {
         ...base,
-        language: language as 'zh' | 'en',
+        language: language as 'zh' | 'en' | 'ja',
         ai_config: {
           ...currentAI,
           coin_source: defaultCoinSource({

@@ -270,6 +270,8 @@ func (e *StrategyEngine) GetLanguage() Language {
 	switch e.config.Language {
 	case "zh":
 		return LangChinese
+	case "ja":
+		return LangJapanese
 	case "en":
 		return LangEnglish
 	default:

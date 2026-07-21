@@ -1,4 +1,6 @@
-export type Language = 'en' | 'zh' | 'id'
+import { jaTranslations } from './translations.ja'
+
+export type Language = 'en' | 'zh' | 'id' | 'ja'
 
 export const translations = {
   en: {
@@ -1231,6 +1233,80 @@ export const translations = {
       close: 'Close',
       yes: 'Yes',
       no: 'No',
+    },
+    landing: {
+      heroBadge: 'NOFX PROFESSIONAL MULTI-ASSET AGENT OS',
+      heroTitleTop: 'AGENTIC',
+      heroTitleBottom: 'TRADING',
+      heroDescription:
+        'Professional AI trading agents for US stocks, commodities, FX and Pre-IPO synthetic markets. Build institutional-grade strategies by chatting in plain English.',
+      liveFeeds: 'Live Data Feeds Active',
+      usStocks: 'US STOCKS',
+      commodities: 'COMMODITIES',
+      forex: 'FOREX',
+      preIpo: 'PRE-IPO',
+      commandExample: 'create US stock trader --idea="breakouts"',
+      startAutopilot: 'START THE AUTOPILOT',
+      seeItWork: 'SEE IT WORK',
+      promise:
+        'Self-hosted & open source · about $13 is enough to start · guided setup, no API keys — first trade in minutes',
+      systemDiagnostics: 'SYSTEM DIAGNOSTICS',
+      kernelLatency: 'KERNEL LATENCY',
+      memoryIntegrity: 'MEMORY INTEGRITY',
+      uptime: 'UPTIME',
+      securityProtocols: 'SECURITY PROTOCOLS',
+      levelActive: 'LEVEL 3 ACTIVE',
+      connectingMarket: 'CONNECTING TO MARKET DATA... OK',
+      syncingVenues: 'SYNCING VENUES (424/424)... OK',
+      loadingUniverse: 'LOADING MULTI-ASSET UNIVERSE... DONE',
+      awaitingInput: 'AWAITING USER INPUT_',
+      globalMarketAccess: 'GLOBAL MARKET ACCESS',
+      routingEnabled: 'MULTI-ASSET ROUTING ENABLED',
+      lowLatency: 'LOW LATENCY LINK: 12ms',
+      assetClassSelect: 'ASSET CLASS SELECT',
+      professional: 'PROFESSIONAL',
+      traders: 'TRADERS',
+      traderIntro:
+        'CREATE TRADERS FOR US STOCKS, COMMODITIES, FX AND PRE-IPO MARKETS. DESCRIBE THE STRATEGY IN ONE SENTENCE.',
+      class: 'Class',
+      alphaDescription: 'Large-cap momentum and breakout trading.',
+      betaDescription: 'FX trend and macro regime allocation.',
+      gammaDescription: 'Private-market momentum basket engine.',
+      winRate: 'Win %',
+      risk: 'Risk',
+      riskHigh: 'HIGH',
+      riskMedium: 'MED',
+      riskLow: 'LOW',
+      initialize: 'INITIALIZE',
+      systemDeployment: 'System Deployment',
+      deploy: 'DEPLOY',
+      instantly: 'INSTANTLY',
+      deploymentDescription:
+        'One command on your laptop or any server installs everything. Open the address it prints, create your account, and the guided launch takes you to your first AI trade in about five minutes — around $13 is enough to start.',
+      deployStep1: 'Register — the first account owns this instance.',
+      deployStep2:
+        'Fund two small wallets: $1+ for AI fees, $12+ to trade with (guided, with QR codes).',
+      deployStep3: 'Press Start — the AI trades on its own; stop it anytime.',
+      oneLineInstall: 'One-Line Install',
+      dependencies: 'Docker handles every dependency',
+      keysStayHome: 'Your Keys Stay Home',
+      keysDescription: 'Runs on your machine, keys encrypted locally',
+      initializeCore: 'Initialize NoFX Core Protocol',
+      wsStable: 'WS CONNECTION: STABLE',
+      signalLog: 'US equities momentum signal confirmed',
+      riskLog: 'Risk check passed: exposure within limits',
+      macroLog: 'Macro feed latency',
+      systemLog: 'System optimization cycle complete. Allocating resources.',
+      terminalTitle: 'NOFX Trader Terminal',
+      live: 'Live',
+      portfolioPnl: 'Portfolio PnL',
+      netflow: 'Netflow',
+      inflow24h: '24h inflow',
+      lsRatio: 'L/S Ratio',
+      orderBook: 'Order Book',
+      spread: 'Spread',
+      connected: 'Connected',
+      latency: 'Latency',
     },
   },
   zh: {
@@ -3508,6 +3584,7 @@ export const translations = {
       no: 'Tidak',
     },
   },
+  ja: jaTranslations,
 }
 
 export function t(
@@ -3518,12 +3595,19 @@ export function t(
   // Handle nested keys like 'twoStageKey.title'
   const keys = key.split('.')
   let value: any = translations[lang]
+  let fallback: any = translations.en
 
   for (const k of keys) {
     value = value?.[k]
+    fallback = fallback?.[k]
   }
 
-  let text = typeof value === 'string' ? value : key
+  let text =
+    typeof value === 'string'
+      ? value
+      : typeof fallback === 'string'
+        ? fallback
+        : key
 
   // Replace parameters like {count}, {gap}, etc.
   if (params) {

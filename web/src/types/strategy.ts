@@ -41,9 +41,9 @@ export interface PromptSectionsConfig {
 export interface StrategyConfig {
   // Strategy type: "ai_trading" (default) or "grid_trading"
   strategy_type?: 'ai_trading' | 'grid_trading';
-  // Language setting: "zh" for Chinese, "en" for English
+  // Language setting for UI-facing AI reasoning. Machine-readable fields stay stable.
   // Determines the language used for data formatting and prompt generation
-  language?: 'zh' | 'en';
+  language?: 'zh' | 'en' | 'ja';
   // AI trading configuration. Legacy flat fields below are accepted only for
   // old data returned before the schema was split by strategy type.
   ai_config?: AIStrategyConfig;

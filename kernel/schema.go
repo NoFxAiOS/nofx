@@ -15,8 +15,9 @@ const (
 type Language string
 
 const (
-	LangChinese Language = "zh-CN"
-	LangEnglish Language = "en-US"
+	LangChinese  Language = "zh-CN"
+	LangEnglish  Language = "en-US"
+	LangJapanese Language = "ja-JP"
 )
 
 // ========== Bilingual Field Definitions ==========

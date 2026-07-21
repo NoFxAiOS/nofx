@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { useLanguage } from '../../../contexts/LanguageContext'
+import { t, type Language } from '../../../i18n/translations'
 
 interface LogEntry {
     id: number
@@ -9,7 +11,7 @@ interface LogEntry {
     color: string
 }
 
-const generateLog = (id: number): LogEntry => {
+const generateLog = (id: number, language: Language): LogEntry => {
     const types = ['EXEC', 'SIGNAL', 'RISK', 'MACRO', 'SYS']
     const pairs = ['AAPL-USDC', 'NVDA-USDC', 'GOLD-USDC', 'EURUSD-USDC', 'OPENAI-IPO']
     const actions = ['BUY', 'SELL', 'HEDGE', 'ROTATE']
@@ -24,42 +26,43 @@ const generateLog = (id: number): LogEntry => {
             color = 'text-nofx-success'
             break;
         case 'SIGNAL':
-            msg = `US equities momentum signal confirmed (${(Math.random()).toFixed(3)} z-score)`
+            msg = `${t('landing.signalLog', language)} (${(Math.random()).toFixed(3)} z-score)`
             color = 'text-nofx-gold'
             break;
         case 'RISK':
-            msg = `Risk check passed: ${pairs[Math.floor(Math.random() * pairs.length)]} exposure within limits`
+            msg = `${t('landing.riskLog', language)}: ${pairs[Math.floor(Math.random() * pairs.length)]}`
             color = 'text-nofx-danger'
             break;
         case 'MACRO':
-            msg = `Macro feed latency < ${Math.floor(Math.random() * 10)}ms`
+            msg = `${t('landing.macroLog', language)} < ${Math.floor(Math.random() * 10)}ms`
             color = 'text-nofx-text-muted'
             break;
         default:
-            msg = `System optimization cycle complete. Allocating resources.`
+            msg = t('landing.systemLog', language)
             color = 'text-nofx-accent'
     }
 
-    return { id, time: new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' + Math.floor(Math.random() * 999), type, msg, color }
+    return { id, time: new Date().toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US', { hour12: false }) + '.' + Math.floor(Math.random() * 999), type, msg, color }
 }
 
 export default function LiveFeed() {
     const [logs, setLogs] = useState<LogEntry[]>([])
+    const { language } = useLanguage()
 
     useEffect(() => {
         // Initial population
-        const initialLogs = Array.from({ length: 8 }).map((_, i) => generateLog(i))
+        const initialLogs = Array.from({ length: 8 }).map((_, i) => generateLog(i, language))
         setLogs(initialLogs)
 
         const interval = setInterval(() => {
             setLogs(prev => {
-                const newLog = generateLog(Date.now())
+                const newLog = generateLog(Date.now(), language)
                 return [newLog, ...prev.slice(0, 7)]
             })
         }, 800) // Fast 800ms updates for HFT feel
 
         return () => clearInterval(interval)
-    }, [])
+    }, [language])
 
     return (
         <section className="w-full bg-nofx-bg-lighter border-y border-[rgba(26,24,19,0.14)] py-1 overflow-hidden relative">
@@ -70,7 +73,7 @@ export default function LiveFeed() {
                 <div className="hidden md:flex items-center gap-6 text-nofx-text-muted border-r border-[rgba(26,24,19,0.14)] pr-6 shrink-0">
                     <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-nofx-success rounded-full animate-pulse"></div>
-                        <span className="font-bold text-nofx-text">WS_CONN: STABLE</span>
+                        <span className="font-bold text-nofx-text">{t('landing.wsStable', language)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-nofx-gold">TPS: 48,291</span>

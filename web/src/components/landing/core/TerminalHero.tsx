@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGitHubStats } from '../../../hooks/useGitHubStats'
 import AgentTerminal from '../brand/AgentTerminal'
+import { useLanguage } from '../../../contexts/LanguageContext'
+import { t } from '../../../i18n/translations'
 
 const tickerLabels: Record<string, string> = {
     AAPL: 'AAPL',
@@ -18,6 +20,7 @@ const tickerLabels: Record<string, string> = {
 
 export default function TerminalHero() {
     const navigate = useNavigate()
+    const { language } = useLanguage()
 
     // Real-time price state
     const [prices, setPrices] = useState<Record<string, string>>({
@@ -119,11 +122,11 @@ export default function TerminalHero() {
                     <div className="space-y-6">
                         <div className="border border-[rgba(26,24,19,0.14)] rounded p-4 bg-nofx-bg-lighter">
                             <h3 className="text-xs font-mono text-nofx-gold mb-4 flex items-center gap-2">
-                                <Activity className="w-3 h-3" /> SYSTEM_DIAGNOSTICS
+                                <Activity className="w-3 h-3" /> {t('landing.systemDiagnostics', language)}
                             </h3>
                             <div className="space-y-3 font-mono text-[10px] text-nofx-text-muted">
                                 <div className="flex justify-between items-center">
-                                    <span>KERNEL_LATENCY</span>
+                                    <span>{t('landing.kernelLatency', language)}</span>
                                     <span className="text-nofx-accent">12ms</span>
                                 </div>
                                 <div className="w-full h-1 bg-nofx-bg-deeper rounded-full overflow-hidden">
@@ -131,7 +134,7 @@ export default function TerminalHero() {
                                 </div>
 
                                 <div className="flex justify-between items-center">
-                                    <span>MEMORY_INTEGRITY</span>
+                                    <span>{t('landing.memoryIntegrity', language)}</span>
                                     <span className="text-nofx-success">100%</span>
                                 </div>
                                 <div className="w-full h-1 bg-nofx-bg-deeper rounded-full overflow-hidden">
@@ -139,7 +142,7 @@ export default function TerminalHero() {
                                 </div>
 
                                 <div className="flex justify-between items-center">
-                                    <span>UPTIME</span>
+                                    <span>{t('landing.uptime', language)}</span>
                                     <span className="text-nofx-text">99.999%</span>
                                 </div>
                             </div>
@@ -148,7 +151,7 @@ export default function TerminalHero() {
                         <div className="p-4 border border-[rgba(26,24,19,0.14)] rounded bg-nofx-bg-lighter">
                             <div className="flex items-center gap-3 text-nofx-text-muted mb-2">
                                 <Shield className="w-4 h-4" />
-                                <span className="text-[10px] font-mono tracking-widest">SECURITY PROTOCOLS</span>
+                                <span className="text-[10px] font-mono tracking-widest">{t('landing.securityProtocols', language)}</span>
                             </div>
                             <div className="flex gap-1">
                                 <div className="h-1 flex-1 bg-nofx-gold"></div>
@@ -156,16 +159,16 @@ export default function TerminalHero() {
                                 <div className="h-1 flex-1 bg-nofx-gold"></div>
                                 <div className="h-1 flex-1 bg-nofx-bg-deeper"></div>
                             </div>
-                            <div className="mt-2 text-right text-[10px] text-nofx-gold/80 font-mono">LEVEL 3 ACTIVATE</div>
+                            <div className="mt-2 text-right text-[10px] text-nofx-gold/80 font-mono">{t('landing.levelActive', language)}</div>
                         </div>
                     </div>
 
                     {/* Bottom: Network Log */}
                     <div className="font-mono text-[10px] text-nofx-text-muted space-y-1 opacity-70">
-                        <div>&gt; CONNECTING TO MARKET DATA... OK</div>
-                        <div>&gt; SYNCING VENUES (424/424)... OK</div>
-                        <div>&gt; LOADING MULTI-ASSET UNIVERSE... DONE</div>
-                        <div className="animate-pulse">&gt; AWAITING USER INPUT_</div>
+                        <div>&gt; {t('landing.connectingMarket', language)}</div>
+                        <div>&gt; {t('landing.syncingVenues', language)}</div>
+                        <div>&gt; {t('landing.loadingUniverse', language)}</div>
+                        <div className="animate-pulse">&gt; {t('landing.awaitingInput', language)}</div>
                     </div>
                 </div>
 
@@ -182,20 +185,19 @@ export default function TerminalHero() {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-gold opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-gold"></span>
                         </span>
-                        <span className="text-xs font-mono text-nofx-gold tracking-widest">NOFX PROFESSIONAL MULTI-ASSET AGENT OS</span>
+                        <span className="text-xs font-mono text-nofx-gold tracking-widest">{t('landing.heroBadge', language)}</span>
                     </motion.div>
 
                     {/* Main Title - Massive & Impactful */}
                     {/* Main Title - Massive & Impactful */}
                     <div className="relative z-20">
-                        <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] md:leading-[0.8] mb-6 select-none text-nofx-text">
-                            AGENTIC<br />
-                            <span className="text-nofx-gold animate-shimmer tracking-tight">TRADING</span>
+                        <h1 className={`${language === 'ja' ? 'text-5xl sm:text-6xl md:text-7xl lg:text-7xl leading-[1.05]' : 'text-5xl sm:text-6xl md:text-8xl lg:text-9xl leading-[0.9] md:leading-[0.8]'} font-black tracking-tighter mb-6 select-none text-nofx-text`}>
+                            {t('landing.heroTitleTop', language)}<br />
+                            <span className="text-nofx-gold animate-shimmer tracking-tight">{t('landing.heroTitleBottom', language)}</span>
                         </h1>
 
                         <p className="max-w-xl text-nofx-text-muted text-lg mb-6 font-light leading-relaxed">
-                            Professional AI trading agents for US stocks, commodities, FX and Pre-IPO synthetic markets.
-                            Build institutional-grade strategies by chatting in plain English.
+                            {t('landing.heroDescription', language)}
                         </p>
                     </div>
 
@@ -207,10 +209,10 @@ export default function TerminalHero() {
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-success opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-success"></span>
                             </span>
-                            Live Data Feeds Active
+                            {t('landing.liveFeeds', language)}
                         </div>
                         <div className="flex flex-wrap gap-4 font-mono">
-                            {['US STOCKS', 'COMMODITIES', 'FOREX', 'PRE-IPO'].map((market) => (
+                            {[t('landing.usStocks', language), t('landing.commodities', language), t('landing.forex', language), t('landing.preIpo', language)].map((market) => (
                                 <div key={market} className="relative group cursor-default">
                                     <div className="absolute -inset-0.5 bg-nofx-gold/15 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
                                     <div className="relative flex items-center gap-3 px-6 py-3 rounded-lg bg-nofx-bg-lighter border border-[rgba(26,24,19,0.14)] hover:border-nofx-gold/50 transition-all duration-300">
@@ -226,7 +228,7 @@ export default function TerminalHero() {
                     <div className="w-full max-w-lg h-12 bg-nofx-bg-lighter border border-[rgba(26,24,19,0.14)] rounded flex items-center px-4 mb-10 font-mono text-sm shadow-sm group hover:border-nofx-gold/50 transition-colors cursor-text" onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}>
                         <span className="text-nofx-success mr-2">➜</span>
                         <span className="text-nofx-accent mr-2">~</span>
-                        <span className="text-nofx-text-muted">create US stock trader --idea="breakouts"</span>
+                        <span className="text-nofx-text-muted">{t('landing.commandExample', language)}</span>
                         <span className="w-2 h-4 bg-nofx-gold ml-1 animate-pulse"></span>
                     </div>
 
@@ -238,7 +240,7 @@ export default function TerminalHero() {
                             style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}
                         >
                             <span className="relative z-10 flex items-center gap-2">
-                                START THE AUTOPILOT <ArrowRight className="w-4 h-4" />
+                                {t('landing.startAutopilot', language)} <ArrowRight className="w-4 h-4" />
                             </span>
                             <div className="absolute inset-0 bg-nofx-text/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                         </button>
@@ -246,14 +248,13 @@ export default function TerminalHero() {
                             onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}
                             className="px-8 py-4 font-bold font-mono tracking-wider text-nofx-text border border-[rgba(26,24,19,0.2)] rounded hover:border-nofx-gold/50 hover:text-nofx-gold transition-colors"
                         >
-                            SEE IT WORK
+                            {t('landing.seeItWork', language)}
                         </button>
                     </div>
 
                     {/* Plain-language promise — the anti-jargon line */}
                     <p className="mt-5 text-sm text-nofx-text-muted font-mono">
-                        Self-hosted &amp; open source · about $13 is enough to start · guided
-                        setup, no API keys — first trade in minutes
+                        {t('landing.promise', language)}
                     </p>
 
                     {/* Community Stats Row */}
@@ -287,9 +288,9 @@ export default function TerminalHero() {
             {/* FLOATING TICKER FOOTER */}
             <div className="absolute bottom-0 w-full bg-nofx-bg-lighter border-t border-[rgba(26,24,19,0.14)] backdrop-blur-md z-30 overflow-hidden py-2 flex items-center">
                 <div className="flex animate-marquee whitespace-nowrap gap-12 text-xs font-mono text-nofx-text-muted px-4">
-                    <span className="flex items-center gap-2"><Globe className="w-3 h-3 text-nofx-text-muted" /> GLOBAL MARKET ACCESS</span>
-                    <span className="flex items-center gap-2 text-nofx-gold"><Zap className="w-3 h-3" /> MULTI-ASSET ROUTING ENABLED</span>
-                    <span className="flex items-center gap-2"><Wifi className="w-3 h-3 text-nofx-success" /> LOW LATENCY LINK: 12ms</span>
+                    <span className="flex items-center gap-2"><Globe className="w-3 h-3 text-nofx-text-muted" /> {t('landing.globalMarketAccess', language)}</span>
+                    <span className="flex items-center gap-2 text-nofx-gold"><Zap className="w-3 h-3" /> {t('landing.routingEnabled', language)}</span>
+                    <span className="flex items-center gap-2"><Wifi className="w-3 h-3 text-nofx-success" /> {t('landing.lowLatency', language)}</span>
 
                     {/* Dynamic Coins */}
                     {Object.entries(prices).map(([symbol, price]) => (

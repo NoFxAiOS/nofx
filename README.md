@@ -33,6 +33,8 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 The terminal opens at `http://127.0.0.1:3000`.
 
+Choose **日本語** in the header to use the Japanese interface. Japanese strategy mode localizes user-facing AI reasoning while keeping JSON keys and trading action values unchanged for safe execution.
+
 **First run**
 
 1. Register — the first account becomes the owner of the instance.

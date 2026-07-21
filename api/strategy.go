@@ -488,7 +488,7 @@ func (s *Server) handleGetActiveStrategy(c *gin.Context) {
 func (s *Server) handleGetDefaultStrategyConfig(c *gin.Context) {
 	// Get language from query parameter, default to "en"
 	lang := c.Query("lang")
-	if lang != "zh" {
+	if lang != "zh" && lang != "ja" {
 		lang = "en"
 	}
 

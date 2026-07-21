@@ -353,6 +353,15 @@ func statusMsg(st *store.Store, userID string, apiPort int, lang string) string 
 
 	if !hasModel || !hasExchange {
 		missing := ""
+		if lang == "ja" {
+			if !hasModel {
+				missing += "\n❌ AIモデル → 設定 → AIモデル → 追加"
+			}
+			if !hasExchange {
+				missing += "\n❌ 取引所 → 設定 → 取引所 → 追加"
+			}
+			return "⚙️ *初期設定が必要です*\n\nWebダッシュボードで設定を完了してください:\n→ " + webURL + "\n" + missing + "\n\n完了後に /start を送信してください。"
+		}
 		if lang == "zh" {
 			if !hasModel {
 				missing += "\n❌ AI Model → Settings → AI Models → Add"
@@ -372,6 +381,18 @@ func statusMsg(st *store.Store, userID string, apiPort int, lang string) string 
 	}
 
 	// All configured — show ready state.
+	if lang == "ja" {
+		return `✅ *NOFXの準備ができました！*
+
+やりたいことをそのまま伝えてください:
+
+📊 「ポジションを表示して」
+💰 「残高はいくら？」
+🤖 「BTCのトレンド戦略を作成して開始して」
+⏹ 「すべてのトレーダーを停止して」
+
+詳細は /help · 言語変更は /lang`
+	}
 	if lang == "zh" {
 		return `✅ *NOFX is ready!*
 
@@ -399,7 +420,7 @@ Just tell me what you want:
 // ── Language ──────────────────────────────────────────────────────────────────
 
 func langMenuMsg() string {
-	return "🌐 *Choose your language*\n\n1 — English\n2 — Chinese\n\nReply with 1 or 2"
+	return "🌐 *Choose your language*\n\n1 — English\n2 — Chinese\n3 — 日本語\n\nReply with 1, 2, or 3"
 }
 
 func parseLangChoice(text string) string {
@@ -408,6 +429,8 @@ func parseLangChoice(text string) string {
 		return "en"
 	case "2", "zh", "ZH", "chinese", "Chinese":
 		return "zh"
+	case "3", "ja", "JA", "jp", "JP", "japanese", "Japanese", "日本語":
+		return "ja"
 	}
 	return ""
 }
@@ -415,6 +438,28 @@ func parseLangChoice(text string) string {
 // ── Help ──────────────────────────────────────────────────────────────────────
 
 func helpMsg(lang string) string {
+	if lang == "ja" {
+		return `*NOFX ヘルプ*
+
+*照会*
+• 「ポジションを表示して」
+• 「残高はいくら？」
+• 「トレーダー一覧を表示して」
+
+*作成と開始*
+• 「BTCのトレンド戦略を作成して開始して」
+• 「BTCとETHだけの保守的な戦略」
+
+*操作*
+• 「トレーダーを開始して」
+• 「トレーダーを停止して」
+• 「すべての取引を停止して」
+
+*コマンド*
+/start — 状態を更新
+/lang  — 言語を変更
+/help  — このヘルプを表示`
+	}
 	if lang == "zh" {
 		return `*NOFX Help*
 

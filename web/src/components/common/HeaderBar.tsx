@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, ChevronDown, Settings } from 'lucide-react'
+import { Menu, X, ChevronDown, Settings, Globe2 } from 'lucide-react'
 import { t, type Language } from '../../i18n/translations'
 import { OFFICIAL_LINKS } from '../../constants/branding'
 import {
@@ -31,6 +31,7 @@ export default function HeaderBar({
   isHomePage = false,
   currentPage,
   language = 'en' as Language,
+  onLanguageChange,
   user,
   onLogout,
   onPageChange,
@@ -84,10 +85,18 @@ export default function HeaderBar({
           }}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-md overflow-hidden shrink-0" style={{ background: '#fff', border: '1px solid rgba(26,24,19,0.12)' }}>
+          <span
+            className="flex items-center justify-center w-8 h-8 rounded-md overflow-hidden shrink-0"
+            style={{
+              background: '#fff',
+              border: '1px solid rgba(26,24,19,0.12)',
+            }}
+          >
             <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
           </span>
-          <span className="text-lg font-bold text-nofx-gold tracking-wide">NOFX</span>
+          <span className="text-lg font-bold text-nofx-gold tracking-wide">
+            NOFX
+          </span>
         </div>
 
         {/* Desktop Menu */}
@@ -108,20 +117,15 @@ export default function HeaderBar({
                 {
                   page: 'data',
                   path: ROUTES.data,
-                  label:
-                    language === 'zh'
-                      ? 'Data'
-                      : language === 'id'
-                        ? 'Data'
-                        : 'Data',
+                  label: language === 'ja' ? 'データ' : 'Data',
                   requiresAuth: false,
                 },
                 {
                   page: 'strategy-market',
                   path: ROUTES.strategyMarket,
                   label:
-                    language === 'zh'
-                      ? 'Market'
+                    language === 'ja'
+                      ? 'マーケット'
                       : language === 'id'
                         ? 'Pasar'
                         : 'Market',
@@ -195,7 +199,10 @@ export default function HeaderBar({
                 ))
             })()}
             {/* Dashboard context slot — terminal selector + status portals in here */}
-            <div id="dash-header-slot" className="hidden lg:flex items-center" />
+            <div
+              id="dash-header-slot"
+              className="hidden lg:flex items-center"
+            />
           </div>
 
           {/* Right Side - Social Links and User Actions */}
@@ -260,7 +267,10 @@ export default function HeaderBar({
             </div>
 
             {/* Divider */}
-            <div className="h-5 w-px" style={{ background: 'rgba(26,24,19,0.15)' }} />
+            <div
+              className="h-5 w-px"
+              style={{ background: 'rgba(26,24,19,0.15)' }}
+            />
 
             {/* User Info and Actions */}
             {isLoggedIn && user ? (
@@ -298,7 +308,7 @@ export default function HeaderBar({
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-[rgba(26,24,19,0.06)] text-nofx-text-muted hover:text-nofx-text"
                       >
                         <Settings className="w-3.5 h-3.5" />
-                        Settings
+                        {language === 'ja' ? '設定' : 'Settings'}
                       </button>
                       <button
                         onClick={() =>
@@ -310,11 +320,11 @@ export default function HeaderBar({
                       >
                         <Settings className="w-3.5 h-3.5" />
                         {userMode === 'beginner'
-                          ? language === 'zh'
-                            ? 'Switch to Advanced'
+                          ? language === 'ja'
+                            ? '詳細モードへ切替'
                             : 'Switch to Advanced'
-                          : language === 'zh'
-                            ? 'Switch to Beginner'
+                          : language === 'ja'
+                            ? '初心者モードへ切替'
                             : 'Switch to Beginner'}
                       </button>
                       {onLogout && (
@@ -348,7 +358,25 @@ export default function HeaderBar({
               )
             )}
 
-            {/* Language switcher removed — the product UI is English-only. */}
+            {onLanguageChange && (
+              <label className="flex items-center gap-1.5 text-nofx-text-muted">
+                <Globe2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="sr-only">Language</span>
+                <select
+                  value={language}
+                  onChange={(event) =>
+                    onLanguageChange(event.target.value as Language)
+                  }
+                  className="rounded-md border border-nofx-gold/20 bg-nofx-bg-lighter px-2 py-1.5 text-xs font-semibold text-nofx-text outline-none transition-colors hover:border-nofx-gold/50 focus:border-nofx-gold"
+                  aria-label="Language"
+                >
+                  <option value="en">English</option>
+                  <option value="zh">中文</option>
+                  <option value="id">Indonesia</option>
+                  <option value="ja">日本語</option>
+                </select>
+              </label>
+            )}
           </div>
         </div>
 
@@ -397,20 +425,15 @@ export default function HeaderBar({
                     {
                       page: 'data',
                       path: ROUTES.data,
-                      label:
-                        language === 'zh'
-                          ? 'Data'
-                          : language === 'id'
-                            ? 'Data'
-                            : 'Data',
+                      label: language === 'ja' ? 'データ' : 'Data',
                       requiresAuth: false,
                     },
                     {
                       page: 'strategy-market',
                       path: ROUTES.strategyMarket,
                       label:
-                        language === 'zh'
-                          ? 'Market'
+                        language === 'ja'
+                          ? 'マーケット'
                           : language === 'id'
                             ? 'Pasar'
                             : 'Market',
@@ -561,8 +584,39 @@ export default function HeaderBar({
                   ))}
                 </div>
 
-                {/* Account (language switcher removed — English-only UI) */}
                 <div className="grid grid-cols-1 gap-4">
+                  {onLanguageChange && (
+                    <label className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-zinc-300">
+                      <Globe2
+                        className="h-4 w-4 text-nofx-gold"
+                        aria-hidden="true"
+                      />
+                      <span className="text-sm font-semibold">
+                        {language === 'ja' ? '表示言語' : 'Language'}
+                      </span>
+                      <select
+                        value={language}
+                        onChange={(event) =>
+                          onLanguageChange(event.target.value as Language)
+                        }
+                        className="ml-auto bg-transparent text-sm font-semibold text-white outline-none"
+                        aria-label="Language"
+                      >
+                        <option className="bg-zinc-900" value="en">
+                          English
+                        </option>
+                        <option className="bg-zinc-900" value="zh">
+                          中文
+                        </option>
+                        <option className="bg-zinc-900" value="id">
+                          Indonesia
+                        </option>
+                        <option className="bg-zinc-900" value="ja">
+                          日本語
+                        </option>
+                      </select>
+                    </label>
+                  )}
                   {/* Auth Actions */}
                   {isLoggedIn && user ? (
                     <button

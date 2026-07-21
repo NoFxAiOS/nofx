@@ -54,16 +54,16 @@ func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
 	if trendCfg.CoinSource.SourceType != "vergex_signal" || trendCfg.CoinSource.VergexLimit != 10 || trendCfg.CoinSource.VergexMarketType != "all" {
 		t.Fatalf("default strategy should use the Claw402/Vergex all-market signal ranking, got %+v", trendCfg.CoinSource)
 	}
-	if trendCfg.CoinSource.UseAI500 || trendCfg.RiskControl.MaxPositions != 4 {
-		t.Fatalf("default strategy should be Claw402/Vergex native with a 4-position balanced book, got coin=%+v risk=%+v", trendCfg.CoinSource, trendCfg.RiskControl)
+	if trendCfg.CoinSource.UseAI500 || trendCfg.RiskControl.MaxPositions != 2 {
+		t.Fatalf("default strategy should be Claw402/Vergex native with a 2-position concentrated book, got coin=%+v risk=%+v", trendCfg.CoinSource, trendCfg.RiskControl)
 	}
-	if trendCfg.RiskControl.BTCETHMaxLeverage != 20 || trendCfg.RiskControl.AltcoinMaxLeverage != 20 {
-		t.Fatalf("default strategy should use 20x leverage for all Claw402 opens, got risk=%+v", trendCfg.RiskControl)
+	if trendCfg.RiskControl.BTCETHMaxLeverage != 5 || trendCfg.RiskControl.AltcoinMaxLeverage != 5 {
+		t.Fatalf("default strategy should use 5x leverage for all Claw402 opens, got risk=%+v", trendCfg.RiskControl)
 	}
-	if trendCfg.RiskControl.BTCETHMaxPositionValueRatio != 5 ||
-		trendCfg.RiskControl.AltcoinMaxPositionValueRatio != 5 ||
+	if trendCfg.RiskControl.BTCETHMaxPositionValueRatio != 2.5 ||
+		trendCfg.RiskControl.AltcoinMaxPositionValueRatio != 2.5 ||
 		trendCfg.RiskControl.MaxMarginUsage != 1.0 {
-		t.Fatalf("default strategy should size Claw402 opens at 5x equity notional (4 positions = 20x total at 20x), got risk=%+v", trendCfg.RiskControl)
+		t.Fatalf("default strategy should size Claw402 opens at 2.5x equity notional (2 positions = 5x total at 5x), got risk=%+v", trendCfg.RiskControl)
 	}
 }
 

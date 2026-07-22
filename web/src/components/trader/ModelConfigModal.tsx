@@ -7,6 +7,7 @@ import { t } from '../../i18n/translations'
 import { getModelIcon } from '../common/ModelIcons'
 import { ModelStepIndicator } from './ModelStepIndicator'
 import { ModelCard } from './ModelCard'
+import { MODAL_LAYERS, ModalPortal } from '../ui/modal-portal'
 import {
   BLOCKRUN_MODELS,
   CLAW402_MODELS,
@@ -97,7 +98,10 @@ export function ModelConfigModal({
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
+    <ModalPortal>
+      <div
+        className={`fixed inset-0 bg-black/60 flex items-center justify-center ${MODAL_LAYERS.primary} p-4 overflow-y-auto backdrop-blur-sm`}
+      >
       <div
         className="rounded-2xl w-full max-w-[52rem] relative my-8 shadow-2xl bg-nofx-bg-lighter"
         style={{
@@ -220,7 +224,8 @@ export function ModelConfigModal({
             )}
         </div>
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   )
 }
 

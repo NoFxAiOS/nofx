@@ -215,9 +215,9 @@ func (e *StrategyEngine) buildVergexSystemPrompt(accountEquity float64, variant 
 		sb.WriteString("- Ranking alone is not an entry reason; it only defines the candidate pool.\n")
 		sb.WriteString("- Every symbol in Candidate Coins is part of the allowed trading universe; missing detail can lower confidence or trigger waiting, but does not make the symbol non-tradable.\n")
 		sb.WriteString("- If Signal Lab or heatmap is absent from that symbol's Vergex Claw402 Signals, state it in reasoning; if it is present, never claim the symbol lacks that data.\n")
-		sb.WriteString("- Avoid churn: unless stopping out or taking a strong profit, hold new positions for at least 60 minutes; avoid flat/noise closes until roughly 90 minutes; after closing a symbol, wait 90 minutes before re-entry; open at most 1 new position per hour.\n")
-		sb.WriteString("- Fees are the main edge killer: a round trip costs roughly 0.1%% of notional (about 1%% of margin at 10x). Only take setups whose expected move to target is at least 3x that cost; fewer, higher-conviction, longer-hold trades beat frequent scalps.\n")
-		sb.WriteString("- Stops must sit beyond invalidation; targets should prefer heatmap resistance/liquidation zones or valid risk/reward levels.\n\n")
+		sb.WriteString("- Hold for BIG moves, do not churn: hold new positions for at least 4 hours; never close inside the -4%% to +6%% noise band before ~8 hours; after closing a symbol wait 3 hours before re-entry; open at most 1-2 new positions per hour. Small in-and-out trades bled this account to death on fees.\n")
+		sb.WriteString("- Fees are the main edge killer: a round trip costs ~0.1%% of notional. Only enter setups where the realistic target is a LARGE move: stop-loss around -5%% and take-profit around +10-12%% (roughly 2:1 or better). Do not aim for 0.5%% scalps — they cannot cover fees. Fewer, high-conviction, wide-target, multi-hour holds only.\n")
+		sb.WriteString("- Set WIDE stops and targets: place the stop well beyond short-term noise (around -5%%) and the target at a distant heatmap resistance/liquidation zone (around +10-12%%). Give the position room to develop; do not exit on small green or small red.\n\n")
 	} else {
 		sb.WriteString("# You are the NOFX Claw402 auto-trader\n\n")
 		sb.WriteString("Trade only Hyperliquid instruments returned by this cycle's Claw402.ai/Vergex board. You may trade only the current candidate symbols and existing positions; never invent tickers or rotate outside the provided universe.\n\n")
@@ -232,9 +232,9 @@ func (e *StrategyEngine) buildVergexSystemPrompt(accountEquity float64, variant 
 		sb.WriteString("- Ranking alone is not an entry reason; it only defines the candidate pool.\n")
 		sb.WriteString("- Every symbol in Candidate Coins is part of the allowed trading universe; missing detail can lower confidence or trigger waiting, but does not make the symbol non-tradable.\n")
 		sb.WriteString("- If Signal Lab or heatmap is absent from that symbol's Vergex Claw402 Signals, state it in reasoning; if it is present, never claim the symbol lacks that data.\n")
-		sb.WriteString("- Avoid churn: unless stopping out or taking a strong profit, hold new positions for at least 60 minutes; avoid flat/noise closes until roughly 90 minutes; after closing a symbol, wait 90 minutes before re-entry; open at most 1 new position per hour.\n")
-		sb.WriteString("- Fees are the main edge killer: a round trip costs roughly 0.1%% of notional (about 1%% of margin at 10x). Only take setups whose expected move to target is at least 3x that cost; fewer, higher-conviction, longer-hold trades beat frequent scalps.\n")
-		sb.WriteString("- Stops must sit beyond invalidation; targets should prefer heatmap resistance/liquidation zones or valid risk/reward levels.\n\n")
+		sb.WriteString("- Hold for BIG moves, do not churn: hold new positions for at least 4 hours; never close inside the -4%% to +6%% noise band before ~8 hours; after closing a symbol wait 3 hours before re-entry; open at most 1-2 new positions per hour. Small in-and-out trades bled this account to death on fees.\n")
+		sb.WriteString("- Fees are the main edge killer: a round trip costs ~0.1%% of notional. Only enter setups where the realistic target is a LARGE move: stop-loss around -5%% and take-profit around +10-12%% (roughly 2:1 or better). Do not aim for 0.5%% scalps — they cannot cover fees. Fewer, high-conviction, wide-target, multi-hour holds only.\n")
+		sb.WriteString("- Set WIDE stops and targets: place the stop well beyond short-term noise (around -5%%) and the target at a distant heatmap resistance/liquidation zone (around +10-12%%). Give the position room to develop; do not exit on small green or small red.\n\n")
 	}
 
 	writeModeVariant(&sb, variant, zh)

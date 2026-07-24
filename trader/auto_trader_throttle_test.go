@@ -32,7 +32,8 @@ func TestTradeThrottleBlocksEarlyNoiseClose(t *testing.T) {
 
 func TestTradeThrottleAllowsEarlyHardStop(t *testing.T) {
 	at := &AutoTrader{}
-	ctx := throttleContext("xyz:INTC", "long", 20*time.Minute, -3.0)
+	// Only a real -5% stop bypasses the min hold now.
+	ctx := throttleContext("xyz:INTC", "long", 20*time.Minute, -6.0)
 
 	reason := at.tradeThrottleReason(kernel.Decision{Symbol: "xyz:INTC", Action: "close_long"}, ctx, 0)
 	if reason != "" {
@@ -42,7 +43,8 @@ func TestTradeThrottleAllowsEarlyHardStop(t *testing.T) {
 
 func TestTradeThrottleBlocksFlatCloseInsideNoiseWindow(t *testing.T) {
 	at := &AutoTrader{}
-	ctx := throttleContext("xyz:INTC", "long", 60*time.Minute, 0.4)
+	// Held past the 4h min hold but still inside the wide -4%..+6% noise band.
+	ctx := throttleContext("xyz:INTC", "long", 5*time.Hour, 0.4)
 
 	reason := at.tradeThrottleReason(kernel.Decision{Symbol: "xyz:INTC", Action: "close_long"}, ctx, 0)
 	if !strings.Contains(reason, "noise band") {
@@ -52,7 +54,8 @@ func TestTradeThrottleBlocksFlatCloseInsideNoiseWindow(t *testing.T) {
 
 func TestTradeThrottleAllowsConfirmedLossAfterMinimumHold(t *testing.T) {
 	at := &AutoTrader{}
-	ctx := throttleContext("xyz:INTC", "long", 60*time.Minute, -1.2)
+	// Past the 4h min hold, loss beyond the -4% noise floor → close allowed.
+	ctx := throttleContext("xyz:INTC", "long", 5*time.Hour, -4.5)
 
 	reason := at.tradeThrottleReason(kernel.Decision{Symbol: "xyz:INTC", Action: "close_long"}, ctx, 0)
 	if reason != "" {
@@ -76,13 +79,13 @@ func TestTradeThrottleBlocksOpensOverCycleCap(t *testing.T) {
 	at := &AutoTrader{}
 	ctx := &kernel.Context{}
 
-	// under the 6-per-cycle cap, a further open is allowed
-	if reason := at.tradeThrottleReason(kernel.Decision{Symbol: "xyz:INTC", Action: "open_long"}, ctx, 5); reason != "" {
-		t.Fatalf("expected open within the 6-per-cycle cap to be allowed, got %q", reason)
+	// under the 2-per-cycle cap, a further open is allowed
+	if reason := at.tradeThrottleReason(kernel.Decision{Symbol: "xyz:INTC", Action: "open_long"}, ctx, 1); reason != "" {
+		t.Fatalf("expected open within the 2-per-cycle cap to be allowed, got %q", reason)
 	}
 	// at the cap, the next open is blocked
-	if reason := at.tradeThrottleReason(kernel.Decision{Symbol: "xyz:INTC", Action: "open_long"}, ctx, 6); !strings.Contains(reason, "6 new position") {
-		t.Fatalf("expected open beyond the 6-per-cycle cap to be blocked, got %q", reason)
+	if reason := at.tradeThrottleReason(kernel.Decision{Symbol: "xyz:INTC", Action: "open_long"}, ctx, 2); !strings.Contains(reason, "2 new position") {
+		t.Fatalf("expected open beyond the 2-per-cycle cap to be blocked, got %q", reason)
 	}
 }
 

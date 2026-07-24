@@ -56,6 +56,11 @@ const (
 // claw402ModelEndpoints maps user-friendly model names to claw402 API paths.
 var claw402ModelEndpoints = map[string]string{
 	// OpenAI
+	"gpt-5.6":      "/api/v1/ai/openai/chat/5.6",
+	"gpt-5.6-sol":  "/api/v1/ai/openai/chat/5.6-sol",
+	"gpt-5.6-terra": "/api/v1/ai/openai/chat/5.6-terra",
+	"gpt-5.6-luna":  "/api/v1/ai/openai/chat/5.6-luna",
+	"gpt-5.5":     "/api/v1/ai/openai/chat/5.5",
 	"gpt-5.4":     "/api/v1/ai/openai/chat/5.4",
 	"gpt-5.4-pro": "/api/v1/ai/openai/chat/5.4-pro",
 	"gpt-5.3":     "/api/v1/ai/openai/chat/5.3",

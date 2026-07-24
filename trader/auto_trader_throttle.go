@@ -10,23 +10,25 @@ import (
 )
 
 const (
-	// Live history: trades held under an hour were net-negative after fees
-	// (the 15-60m bucket bled), while the edge concentrated in 1h+ holds.
-	autopilotMinHoldDuration        = 60 * time.Minute
-	autopilotNoiseCloseHoldDuration = 90 * time.Minute
-	autopilotReentryCooldown        = 30 * time.Minute
-	// Allow one long + one short per cycle. The real exposure/churn limits are
-	// MaxPositions (concurrent) + the 45m min-hold + the 90m per-symbol reentry
-	// cooldown, so the per-hour cap only needs to be high enough not to block the
-	// directional pair from re-establishing after positions close. A tight value
-	// here (e.g. 2) starves the strategy: once a couple opens fire, every later
-	// cycle is blocked and the book drains to flat. Keep it generous.
-	autopilotMaxOpensPerHour        = 30
-	autopilotMaxOpensPerCycle       = 6
-	earlyCloseStopLossBypassPct     = -2.5
-	earlyCloseTakeProfitBypassPct   = 5.0
-	noiseCloseLossFloorPct          = -1.0
-	noiseCloseProfitCeilingPct      = 2.0
+	// "Hold for big moves, don't churn" regime. Live history showed the
+	// account bleeding to death by fees: 0.3-0.5% in/out moves where a ~0.14%
+	// round-trip fee ate 30-50% of every small winner. These values force
+	// positions to be held for hours and to develop meaningful moves before
+	// closing, and cut the trade frequency hard.
+	autopilotMinHoldDuration        = 4 * time.Hour
+	autopilotNoiseCloseHoldDuration = 8 * time.Hour
+	autopilotReentryCooldown        = 3 * time.Hour
+	// Drastically cut churn: at most a couple of new positions per hour/cycle.
+	autopilotMaxOpensPerHour        = 3
+	autopilotMaxOpensPerCycle       = 2
+	// Wide, asymmetric exits. Cut a loser only at a real -5% (at 5x leverage
+	// that is -25% of margin — survivable), let a winner run to +12% before
+	// any early take-profit. The noise band (-4%..+6%) blocks closing on the
+	// small moves that were grinding the account to nothing.
+	earlyCloseStopLossBypassPct     = -5.0
+	earlyCloseTakeProfitBypassPct   = 12.0
+	noiseCloseLossFloorPct          = -4.0
+	noiseCloseProfitCeilingPct      = 6.0
 )
 
 func isOpenAction(action string) bool {

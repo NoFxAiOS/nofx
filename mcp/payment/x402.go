@@ -12,6 +12,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -201,7 +202,35 @@ func SignBasePaymentHeader(privateKey *ecdsa.PrivateKey, paymentHeaderB64 string
 	return SignX402Payment(privateKey, senderAddr, req.Accepts[0], req.Resource)
 }
 
+// X402SettledUSDHeader carries the actually-settled cost (USD) of an upto
+// call, set by the claw402 gateway on the paid response.
+const X402SettledUSDHeader = "X-Claw402-Settled-Usd"
+
+func storeRespHeader(sink []*http.Header, h http.Header) {
+	for _, p := range sink {
+		if p != nil {
+			*p = h
+		}
+	}
+}
+
+// captureSettledUSD records the gateway-reported settled cost on the client.
+// Zero when the response carried no settlement header (e.g. exact-scheme
+// routes, where the flat catalog price applies instead).
+func captureSettledUSD(c *mcp.Client, h http.Header) {
+	c.LastCallSettledUSD = 0
+	if h == nil {
+		return
+	}
+	if v := h.Get(X402SettledUSDHeader); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			c.LastCallSettledUSD = f
+		}
+	}
+}
+
 // DoX402Request executes an HTTP request and handles the x402 v2 payment flow.
+// An optional headerSink receives the headers of the successful response.
 func DoX402Request(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -209,6 +238,7 @@ func DoX402Request(
 	signFn X402SignFunc,
 	providerTag string,
 	logger mcp.Logger,
+	headerSink ...*http.Header,
 ) ([]byte, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -277,6 +307,7 @@ func DoX402Request(
 				if attempt > 1 {
 					logger.Infof("✅ [%s] Payment retry succeeded on attempt %d", providerTag, attempt)
 				}
+				storeRespHeader(headerSink, resp2.Header)
 				return body2, nil
 			}
 
@@ -333,6 +364,7 @@ func DoX402Request(
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s API error (status %d): %s", providerTag, resp.StatusCode, string(body))
 	}
+	storeRespHeader(headerSink, resp.Header)
 	return body, nil
 }
 
@@ -494,6 +526,8 @@ func X402CallStream(c *mcp.Client, signFn X402SignFunc, tag string, systemPrompt
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	c.LastCallSettledUSD = 0
+	c.LastCallUsage = nil
 	resp, err := DoX402RequestStream(ctx, c.HTTPClient, func() (*http.Request, error) {
 		return c.Hooks.BuildRequest(c.Hooks.BuildUrl(), jsonData)
 	}, signFn, tag, c.Log)
@@ -501,6 +535,7 @@ func X402CallStream(c *mcp.Client, signFn X402SignFunc, tag string, systemPrompt
 		return "", err
 	}
 	defer resp.Body.Close()
+	captureSettledUSD(c, resp.Header)
 
 	ct := resp.Header.Get("Content-Type")
 	c.Log.Infof("📡 [%s] Response Content-Type: %s", tag, ct)
@@ -544,6 +579,7 @@ func X402CallStream(c *mcp.Client, signFn X402SignFunc, tag string, systemPrompt
 
 	text, usage, sseErr := mcp.ParseSSEStream(tee, onChunk, onLine)
 	mcp.ReportStreamUsage(usage, c.Provider, c.Model)
+	c.LastCallUsage = usage
 
 	if text != "" {
 		c.Log.Infof("📡 [%s] SSE stream complete, got %d chars", tag, len(text))
@@ -590,12 +626,15 @@ func X402Call(c *mcp.Client, signFn X402SignFunc, tag string, systemPrompt, user
 		return "", err
 	}
 
+	c.LastCallSettledUSD = 0
+	var respHeader http.Header
 	body, err := DoX402Request(context.Background(), c.HTTPClient, func() (*http.Request, error) {
 		return c.Hooks.BuildRequest(c.Hooks.BuildUrl(), jsonData)
-	}, signFn, tag, c.Log)
+	}, signFn, tag, c.Log, &respHeader)
 	if err != nil {
 		return "", err
 	}
+	captureSettledUSD(c, respHeader)
 	return c.Hooks.ParseMCPResponse(body)
 }
 
@@ -616,12 +655,15 @@ func X402CallFull(c *mcp.Client, signFn X402SignFunc, tag string, req *mcp.Reque
 		return nil, err
 	}
 
+	c.LastCallSettledUSD = 0
+	var respHeader http.Header
 	body, err := DoX402Request(x402ContextFromRequest(req), c.HTTPClient, func() (*http.Request, error) {
 		return c.Hooks.BuildRequest(c.Hooks.BuildUrl(), jsonData)
-	}, signFn, tag, c.Log)
+	}, signFn, tag, c.Log, &respHeader)
 	if err != nil {
 		return nil, err
 	}
+	captureSettledUSD(c, respHeader)
 	return c.Hooks.ParseMCPResponseFull(body)
 }
 
@@ -663,6 +705,13 @@ func SignX402Payment(privateKey *ecdsa.PrivateKey, senderAddr string, opt X402Ac
 	maxTimeout := opt.MaxTimeoutSeconds
 	if maxTimeout == 0 {
 		maxTimeout = 300
+	}
+	// Echo the scheme offered by the server ("exact" or "upto") instead of
+	// hardcoding — under "upto" the signed amount is a cap and the gateway
+	// settles on actual usage.
+	scheme := opt.Scheme
+	if scheme == "" {
+		scheme = "exact"
 	}
 
 	resourceURL := ""
@@ -734,7 +783,7 @@ func SignX402Payment(privateKey *ecdsa.PrivateKey, senderAddr string, opt X402Ac
 			"mimeType":    resourceMime,
 		},
 		"accepted": map[string]interface{}{
-			"scheme":            "exact",
+			"scheme":            scheme,
 			"network":           network,
 			"amount":            amount,
 			"asset":             asset,

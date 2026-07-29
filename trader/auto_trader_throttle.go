@@ -10,24 +10,36 @@ import (
 )
 
 const (
-	// Live history: trades held under an hour were net-negative after fees
-	// (the 15-60m bucket bled), while the edge concentrated in 1h+ holds.
-	autopilotMinHoldDuration        = 60 * time.Minute
-	autopilotNoiseCloseHoldDuration = 90 * time.Minute
-	autopilotReentryCooldown        = 30 * time.Minute
-	// Allow one long + one short per cycle. The real exposure/churn limits are
-	// MaxPositions (concurrent) + the 45m min-hold + the 90m per-symbol reentry
-	// cooldown, so the per-hour cap only needs to be high enough not to block the
-	// directional pair from re-establishing after positions close. A tight value
-	// here (e.g. 2) starves the strategy: once a couple opens fire, every later
-	// cycle is blocked and the book drains to flat. Keep it generous.
-	autopilotMaxOpensPerHour        = 30
-	autopilotMaxOpensPerCycle       = 6
-	earlyCloseStopLossBypassPct     = -2.5
-	earlyCloseTakeProfitBypassPct   = 5.0
-	noiseCloseLossFloorPct          = -1.0
-	noiseCloseProfitCeilingPct      = 2.0
+	// Anti-churn open caps: at most a couple of new positions per hour/cycle.
+	autopilotMaxOpensPerHour  = 3
+	autopilotMaxOpensPerCycle = 2
+
+	// Exit gates, validated by decision replay (2026-07-26, 4154 cycles,
+	// 3-fold robustness): gates beat no-gates by 34 pts and the old rigid
+	// 4h/8h by 16 pts of worst-fold score; the searched optimum sits at these
+	// values. Thresholds are PRICE-move percentages (leverage-independent).
+	autopilotMinHoldDuration        = 90 * time.Minute
+	autopilotNoiseCloseHoldDuration = 3 * time.Hour
+	// Re-entering a just-closed symbol was a consistent loss source: the
+	// replay's top-20 configs cluster tightly at ~4h.
+	autopilotReentryCooldown        = 4 * time.Hour
+	earlyCloseStopLossBypassPct     = -3.0
+	earlyCloseTakeProfitBypassPct   = 8.0
+	noiseCloseLossFloorPct          = -2.0
+	noiseCloseProfitCeilingPct      = 3.0
 )
+
+// positionPricePnLPct converts the margin-based UnrealizedPnLPct reported for
+// a position into the underlying price-move percentage.
+func positionPricePnLPct(pos *kernel.PositionInfo) float64 {
+	if pos == nil {
+		return 0
+	}
+	if pos.Leverage > 1 {
+		return pos.UnrealizedPnLPct / float64(pos.Leverage)
+	}
+	return pos.UnrealizedPnLPct
+}
 
 func isOpenAction(action string) bool {
 	switch strings.ToLower(strings.TrimSpace(action)) {
@@ -132,7 +144,7 @@ func (at *AutoTrader) closeThrottleReason(decision kernel.Decision, ctx *kernel.
 	pnlPct := 0.0
 	entryTime := int64(0)
 	if pos != nil {
-		pnlPct = pos.UnrealizedPnLPct
+		pnlPct = positionPricePnLPct(pos)
 		entryTime = pos.UpdateTime
 	}
 
@@ -156,7 +168,7 @@ func (at *AutoTrader) closeThrottleReason(decision kernel.Decision, ctx *kernel.
 
 		remaining := autopilotNoiseCloseHoldDuration - heldFor
 		return fmt.Sprintf(
-			"trade throttle: %s %s has been held for %s with PnL %.2f%%; it is still inside the noise band %.1f%% to %.1f%%, so wait about %s before a flat/small close",
+			"trade throttle: %s %s has been held for %s with price PnL %.2f%%; it is still inside the noise band %.1f%% to %.1f%%, so wait about %s before a flat/small close",
 			symbol,
 			side,
 			roundDuration(heldFor),
@@ -174,7 +186,7 @@ func (at *AutoTrader) closeThrottleReason(decision kernel.Decision, ctx *kernel.
 
 	remaining := autopilotMinHoldDuration - heldFor
 	return fmt.Sprintf(
-		"trade throttle: %s %s has only been held for %s with PnL %.2f%%; min AI-managed hold is %s unless loss <= %.1f%% or profit >= %.1f%%",
+		"trade throttle: %s %s has only been held for %s with price PnL %.2f%%; min AI-managed hold is %s unless price loss <= %.1f%% or price profit >= %.1f%%",
 		symbol,
 		side,
 		roundDuration(heldFor),

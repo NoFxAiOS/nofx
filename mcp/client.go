@@ -78,6 +78,17 @@ type Client struct {
 	Log        Logger       // Exported for sub-packages
 	Cfg        *Config      // Exported for sub-packages
 
+	// LastCallSettledUSD is the actually-settled cost (USD) of the most
+	// recent call, reported by x402 upto gateways via response header.
+	// Zero when the last call carried no settlement information.
+	LastCallSettledUSD float64
+
+	// LastCallUsage is the token usage of the most recent streamed call.
+	// On SSE responses the gateway cannot deliver the settlement header
+	// (headers are flushed before usage is known), so callers derive the
+	// actual cost from this instead. Nil when the stream carried no usage.
+	LastCallUsage *TokenUsage
+
 	// Hooks are used to implement dynamic dispatch (polymorphism)
 	// When provider.DeepSeekClient embeds Client, Hooks point to DeepSeekClient
 	// This way methods called in Call() are automatically dispatched to the overridden version
@@ -213,6 +224,18 @@ func (client *Client) SetAuthHeader(reqHeader http.Header) {
 	reqHeader.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
 }
 
+// modelSupportsCustomTemperature reports whether the target model accepts a
+// non-default temperature. OpenAI reasoning models (gpt-5 family, o-series)
+// reject any value other than the default and fail the whole request with
+// "unsupported_value", so temperature must be omitted for them.
+func modelSupportsCustomTemperature(model string) bool {
+	m := strings.ToLower(model)
+	return !strings.HasPrefix(m, "gpt-5") &&
+		!strings.HasPrefix(m, "o1") &&
+		!strings.HasPrefix(m, "o3") &&
+		!strings.HasPrefix(m, "o4")
+}
+
 func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	// Build messages array
 	messages := []map[string]string{}
@@ -242,9 +265,11 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 
 	// Build request body
 	requestBody := map[string]interface{}{
-		"model":       client.Model,
-		"messages":    messages,
-		"temperature": client.Cfg.Temperature, // Use configured temperature
+		"model":    client.Model,
+		"messages": messages,
+	}
+	if modelSupportsCustomTemperature(client.Model) {
+		requestBody["temperature"] = client.Cfg.Temperature
 	}
 	// OpenAI newer models use max_completion_tokens instead of max_tokens
 	if client.Provider == ProviderOpenAI {
@@ -655,11 +680,13 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 	}
 
 	// Add optional parameters (only add non-nil parameters)
-	if req.Temperature != nil {
-		requestBody["temperature"] = *req.Temperature
-	} else {
-		// If not set in Request, use Client's configuration
-		requestBody["temperature"] = client.Cfg.Temperature
+	if modelSupportsCustomTemperature(req.Model) {
+		if req.Temperature != nil {
+			requestBody["temperature"] = *req.Temperature
+		} else {
+			// If not set in Request, use Client's configuration
+			requestBody["temperature"] = client.Cfg.Temperature
+		}
 	}
 
 	// OpenAI newer models use max_completion_tokens instead of max_tokens

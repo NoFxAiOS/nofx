@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	hl "github.com/sonirico/go-hyperliquid"
 )
 
 // GetBalance gets account balance
@@ -548,15 +550,23 @@ func (t *HyperliquidTrader) GetClosedPnL(startTime time.Time, limit int) ([]type
 
 // GetTrades retrieves trade history from Hyperliquid
 func (t *HyperliquidTrader) GetTrades(startTime time.Time, limit int) ([]types.TradeRecord, error) {
-	// Use UserFillsByTime API
+	// Use UserFills (returns up to 2000 recent fills) rather than
+	// UserFillsByTime, which is hard-capped at 100 fills per response. At
+	// this trading frequency the account exceeds 100 fills/24h, so
+	// UserFillsByTime silently dropped ~20% of fills — skewing recorded PnL
+	// and fees away from the exchange truth. 2000 recent fills covers many
+	// days of history; we filter to startTime client-side.
 	startTimeMs := startTime.UnixMilli()
-	fills, err := t.exchange.Info().UserFillsByTime(t.ctx, t.walletAddr, startTimeMs, nil, nil)
+	fills, err := t.exchange.Info().UserFills(t.ctx, hl.UserFillsParams{Address: t.walletAddr})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user fills: %w", err)
 	}
 
 	var trades []types.TradeRecord
 	for _, fill := range fills {
+		if fill.Time < startTimeMs {
+			continue
+		}
 		price, _ := strconv.ParseFloat(fill.Price, 64)
 		qty, _ := strconv.ParseFloat(fill.Size, 64)
 		fee, _ := strconv.ParseFloat(fill.Fee, 64)

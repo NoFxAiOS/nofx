@@ -16,6 +16,7 @@ const MODEL_COLORS: Record<string, string> = {
   minimax: '#E45735',
   claw402: '#7C3AED',
   atlascloud: '#2563EB',
+  zhipu: '#3859F3',
 }
 
 // Returns the icon for an AI model

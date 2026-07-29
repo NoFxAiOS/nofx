@@ -20,13 +20,16 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 		return fmt.Errorf("store is nil")
 	}
 
-	// Get recent trades (last 24 hours)
-	startTime := time.Now().Add(-24 * time.Hour)
+	// Look back 7 days. GetTrades now pulls up to 2000 recent fills (UserFills)
+	// and filters to this window, so a wide lookback backfills any fills missed
+	// during past outages/gaps without dropping recent ones. Dedup by trade ID
+	// keeps re-processing idempotent.
+	startTime := time.Now().Add(-7 * 24 * time.Hour)
 
 	logger.Infof("🔄 Syncing Hyperliquid trades from: %s", startTime.Format(time.RFC3339))
 
 	// Use GetTrades method to fetch trade records
-	trades, err := t.GetTrades(startTime, 1000)
+	trades, err := t.GetTrades(startTime, 2000)
 	if err != nil {
 		return fmt.Errorf("failed to get trades: %w", err)
 	}

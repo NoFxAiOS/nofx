@@ -4,12 +4,12 @@ import { Trash2, Brain, ExternalLink } from 'lucide-react'
 import type { AIModel } from '../../types'
 import type { Language } from '../../i18n/translations'
 import { t } from '../../i18n/translations'
-import { getModelIcon } from '../common/ModelIcons'
+import { getModelIcon, getModelColor } from '../common/ModelIcons'
 import { ModelStepIndicator } from './ModelStepIndicator'
 import { ModelCard } from './ModelCard'
 import {
-  BLOCKRUN_MODELS,
   CLAW402_MODELS,
+  DEFAULT_CLAW402_MODEL,
   AI_PROVIDER_CONFIG,
   getShortName,
 } from './model-constants'
@@ -50,11 +50,18 @@ export function ModelConfigModal({
   const [baseUrl, setBaseUrl] = useState('')
   const [modelName, setModelName] = useState('')
 
-  // Always prefer allModels (supportedModels) for provider/id lookup;
-  // fall back to configuredModels for edit mode details (apiKey etc.)
-  const selectedModel =
-    allModels?.find((m) => m.id === selectedModelId) ||
-    configuredModels?.find((m) => m.id === selectedModelId)
+  // The configured entry carries the saved details (wallet address, custom
+  // model name, has_api_key); the template from supportedModels only describes
+  // the provider. When editing, the configured entry must win — both can share
+  // the same id (e.g. "claw402").
+  const configuredModel = configuredModels?.find((m) => m.id === selectedModelId)
+  const templateModel = allModels?.find((m) => m.id === selectedModelId)
+  const selectedModel = editingModelId
+    ? configuredModel || templateModel
+    : templateModel || configuredModel
+  const hasExistingKey = Boolean(
+    configuredModel?.has_api_key || configuredModel?.apiKey
+  )
 
   useEffect(() => {
     if (editingModelId && selectedModel) {
@@ -80,7 +87,10 @@ export function ModelConfigModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedModelId || !apiKey.trim()) return
+    if (!selectedModelId) return
+    // Editing with a stored key: an empty key means "keep the existing one"
+    // (the backend preserves the stored key when api_key is empty).
+    if (!apiKey.trim() && !(editingModelId && hasExistingKey)) return
     onSave(
       selectedModelId,
       apiKey.trim(),
@@ -189,6 +199,7 @@ export function ModelConfigModal({
                 apiKey={apiKey}
                 modelName={modelName}
                 editingModelId={editingModelId}
+                hasExistingKey={hasExistingKey}
                 initialWalletAddress={selectedModel.walletAddress}
                 initialBalanceUsdc={selectedModel.balanceUsdc}
                 onApiKeyChange={setApiKey}
@@ -323,7 +334,7 @@ function ModelSelectionStep({
                 border: '1px solid rgba(46, 139, 87, 0.2)',
               }}
             >
-              GPT · Claude · DeepSeek · Gemini · Grok · Qwen · Kimi
+              GPT · Claude · DeepSeek · GLM
             </span>
           </div>
         </button>
@@ -345,39 +356,6 @@ function ModelSelectionStep({
             />
           ))}
       </div>
-      {availableModels.some((m) => m.provider?.startsWith('blockrun')) && (
-        <>
-          <div className="flex items-center gap-3 pt-2">
-            <div
-              className="flex-1 h-px"
-              style={{ background: 'rgba(26,24,19,0.14)' }}
-            />
-            <span
-              className="text-xs font-medium px-2"
-              style={{ color: '#8A8478' }}
-            >
-              {t('modelConfig.viaBlockrunWallet', language)}
-            </span>
-            <div
-              className="flex-1 h-px"
-              style={{ background: 'rgba(26,24,19,0.14)' }}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {availableModels
-              .filter((m) => m.provider?.startsWith('blockrun'))
-              .map((model) => (
-                <ModelCard
-                  key={model.id}
-                  model={model}
-                  selected={selectedModelId === model.id}
-                  onClick={() => onSelectModel(model.id)}
-                  configured={configuredIds.has(model.id)}
-                />
-              ))}
-          </div>
-        </>
-      )}
       <div className="text-xs text-center pt-2" style={{ color: '#8A8478' }}>
         {t('modelConfig.modelsConfigured', language)}
       </div>
@@ -389,6 +367,7 @@ function Claw402ConfigForm({
   apiKey,
   modelName,
   editingModelId,
+  hasExistingKey,
   initialWalletAddress,
   initialBalanceUsdc,
   onApiKeyChange,
@@ -400,6 +379,7 @@ function Claw402ConfigForm({
   apiKey: string
   modelName: string
   editingModelId: string | null
+  hasExistingKey?: boolean
   initialWalletAddress?: string
   initialBalanceUsdc?: string
   onApiKeyChange: (value: string) => void
@@ -441,6 +421,11 @@ function Claw402ConfigForm({
     apiKey.length === 66 &&
     apiKey.startsWith('0x') &&
     /^0x[0-9a-fA-F]{64}$/.test(apiKey)
+
+  // Editing with a stored key: allow saving (e.g. switching model) without
+  // re-entering the private key, as long as the field is left blank.
+  const canSubmit =
+    isKeyValid || (Boolean(editingModelId) && Boolean(hasExistingKey) && !apiKey)
 
   // Truncate address for display
 
@@ -561,7 +546,7 @@ function Claw402ConfigForm({
           {t('modelConfig.allModelsClaw', language)}
         </div>
         <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
-          {['GPT', 'Claude', 'DeepSeek', 'Gemini', 'Grok', 'Qwen', 'Kimi'].map(
+          {['GPT', 'Claude', 'DeepSeek', 'GLM'].map(
             (name) => (
               <span
                 key={name}
@@ -592,7 +577,7 @@ function Claw402ConfigForm({
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {CLAW402_MODELS.map((m) => {
-            const isSelected = (modelName || 'deepseek') === m.id
+            const isSelected = (modelName || DEFAULT_CLAW402_MODEL) === m.id
             return (
               <button
                 key={m.id}
@@ -608,7 +593,22 @@ function Claw402ConfigForm({
                     : '1px solid rgba(26,24,19,0.14)',
                 }}
               >
-                <span className="text-base mt-0.5">{m.icon}</span>
+                <div
+                  className="w-7 h-7 mt-0.5 rounded-lg flex items-center justify-center shrink-0"
+                  style={{
+                    background: '#fff',
+                    border: '1px solid rgba(26,24,19,0.10)',
+                  }}
+                >
+                  {getModelIcon(m.brand, { width: 18, height: 18 }) || (
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color: getModelColor(m.brand) }}
+                    >
+                      {m.provider[0]}
+                    </span>
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div
@@ -636,8 +636,11 @@ function Claw402ConfigForm({
                   >
                     {m.provider} · {m.desc}
                   </div>
-                  <div className="text-[10px]" style={{ color: '#2E8B57' }}>
-                    ~${m.price}/call
+                  <div
+                    className="text-[10px] font-medium"
+                    style={{ color: '#2E8B57' }}
+                  >
+                    ${m.priceIn} in · ${m.priceOut} out /1M tok
                   </div>
                 </div>
                 {isSelected && (
@@ -1134,11 +1137,11 @@ function Claw402ConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!isKeyValid}
+          disabled={!canSubmit}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
-            background: isKeyValid ? '#E0483B' : '#E8E2D5',
-            color: isKeyValid ? '#fff' : '#8A8478',
+            background: canSubmit ? '#E0483B' : '#E8E2D5',
+            color: canSubmit ? '#fff' : '#8A8478',
           }}
         >
           {'🚀 ' + t('modelConfig.startTrading', language)}
@@ -1216,9 +1219,7 @@ function StandardProviderConfigForm({
           >
             <ExternalLink className="w-4 h-4" style={{ color: '#E0483B' }} />
             <span className="text-sm font-medium" style={{ color: '#E0483B' }}>
-              {selectedModel.provider?.startsWith('blockrun')
-                ? t('modelConfig.getStarted', language)
-                : t('modelConfig.getApiKey', language)}
+              {t('modelConfig.getApiKey', language)}
             </span>
           </a>
         )}
@@ -1276,9 +1277,7 @@ function StandardProviderConfigForm({
               d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
             />
           </svg>
-          {selectedModel.provider?.startsWith('blockrun')
-            ? t('modelConfig.walletPrivateKeyLabel', language)
-            : 'API Key *'}
+          {'API Key *'}
         </label>
         <input
           type="password"
@@ -1287,11 +1286,7 @@ function StandardProviderConfigForm({
           placeholder={
             editingModelId && selectedModel.has_api_key
               ? 'Saved. Re-enter to replace.'
-              : selectedModel.provider === 'blockrun-base'
-                ? '0x... (EVM private key)'
-                : selectedModel.provider === 'blockrun-sol'
-                  ? 'bs58 encoded key (Solana)'
-                  : t('enterAPIKey', language)
+              : t('enterAPIKey', language)
           }
           className="w-full px-4 py-3 rounded-xl"
           style={{
@@ -1299,13 +1294,12 @@ function StandardProviderConfigForm({
             border: '1px solid rgba(26,24,19,0.14)',
             color: '#1A1813',
           }}
-          required
+          required={!(editingModelId && selectedModel.has_api_key)}
         />
       </div>
 
-      {/* Custom Base URL (hidden for BlockRun) */}
-      {!selectedModel.provider?.startsWith('blockrun') && (
-        <div className="space-y-2">
+      {/* Custom Base URL */}
+      <div className="space-y-2">
           <label
             className="flex items-center gap-2 text-sm font-semibold"
             style={{ color: '#1A1813' }}
@@ -1338,15 +1332,13 @@ function StandardProviderConfigForm({
               color: '#1A1813',
             }}
           />
-          <div className="text-xs" style={{ color: '#8A8478' }}>
-            {t('leaveBlankForDefault', language)}
-          </div>
+        <div className="text-xs" style={{ color: '#8A8478' }}>
+          {t('leaveBlankForDefault', language)}
         </div>
-      )}
+      </div>
 
-      {/* Custom Model Name (hidden for BlockRun) */}
-      {!selectedModel.provider?.startsWith('blockrun') && (
-        <div className="space-y-2">
+      {/* Custom Model Name */}
+      <div className="space-y-2">
           <label
             className="flex items-center gap-2 text-sm font-semibold"
             style={{ color: '#1A1813' }}
@@ -1379,68 +1371,10 @@ function StandardProviderConfigForm({
               color: '#1A1813',
             }}
           />
-          <div className="text-xs" style={{ color: '#8A8478' }}>
-            {t('leaveBlankForDefaultModel', language)}
-          </div>
+        <div className="text-xs" style={{ color: '#8A8478' }}>
+          {t('leaveBlankForDefaultModel', language)}
         </div>
-      )}
-
-      {/* BlockRun Model Selector */}
-      {selectedModel.provider?.startsWith('blockrun') && (
-        <div className="space-y-2">
-          <label
-            className="flex items-center gap-2 text-sm font-semibold"
-            style={{ color: '#1A1813' }}
-          >
-            <svg
-              className="w-4 h-4"
-              style={{ color: '#E0483B' }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-            {t('modelConfig.selectModelLabel', language)}
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {BLOCKRUN_MODELS.map((m) => {
-              const isSelected = (modelName || BLOCKRUN_MODELS[0].id) === m.id
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onModelNameChange(m.id)}
-                  className="flex flex-col items-start px-3 py-2 rounded-xl text-left transition-all"
-                  style={{
-                    background: isSelected
-                      ? 'rgba(224, 72, 59, 0.12)'
-                      : '#F1ECE2',
-                    border: isSelected
-                      ? '1px solid #E0483B'
-                      : '1px solid rgba(26,24,19,0.14)',
-                  }}
-                >
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: isSelected ? '#E0483B' : '#1A1813' }}
-                  >
-                    {m.name}
-                  </span>
-                  <span className="text-[10px]" style={{ color: '#8A8478' }}>
-                    {m.desc}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Info Box */}
       <div
@@ -1478,7 +1412,11 @@ function StandardProviderConfigForm({
         </button>
         <button
           type="submit"
-          disabled={!selectedModel || !apiKey.trim()}
+          disabled={
+            !selectedModel ||
+            (!apiKey.trim() &&
+              !(editingModelId && selectedModel.has_api_key))
+          }
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: '#E0483B', color: '#fff' }}
         >

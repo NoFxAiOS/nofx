@@ -17,6 +17,11 @@ on:
 env:
   REGISTRY_GHCR: ghcr.io
 
+# Least privilege by default; build/push jobs that publish images declare
+# their own job-level packages:write.
+permissions:
+  contents: read
+
 jobs:
   prepare:
     name: Prepare repository metadata

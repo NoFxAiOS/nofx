@@ -10,6 +10,22 @@ import (
 	"time"
 )
 
+const (
+	// The monitor arms only once the underlying PRICE has moved +5% in the
+	// position's favor (leverage-independent — at 10x the old margin-basis
+	// check armed at a +0.5% price wiggle and strangled every winner), then
+	// closes if the position gives back 40% of its peak profit.
+	drawdownClosePriceGainPct = 5.0
+	drawdownCloseGivebackPct  = 40.0
+)
+
+// shouldDrawdownClose reports whether the profit-protection close should fire.
+// pricePnLPct is the price-basis move in the position's favor; drawdownPct is
+// the relative giveback from the position's peak profit.
+func shouldDrawdownClose(pricePnLPct, drawdownPct float64) bool {
+	return pricePnLPct > drawdownClosePriceGainPct && drawdownPct >= drawdownCloseGivebackPct
+}
+
 // startDrawdownMonitor starts drawdown monitoring
 func (at *AutoTrader) startDrawdownMonitor() {
 	at.monitorWg.Add(1)
@@ -64,12 +80,17 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			leverage = int(lev)
 		}
 
-		var currentPnLPct float64
+		// Price-basis move drives the close decision so the trigger point does
+		// not tighten as leverage grows; the margin-basis (leveraged) value is
+		// only kept for the peak cache shown alongside margin-based PnL% in
+		// prompts.
+		var pricePnLPct float64
 		if side == "long" {
-			currentPnLPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
+			pricePnLPct = ((markPrice - entryPrice) / entryPrice) * 100
 		} else {
-			currentPnLPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
+			pricePnLPct = ((entryPrice - markPrice) / entryPrice) * 100
 		}
+		currentPnLPct := pricePnLPct * float64(leverage)
 
 		// Construct unique position identifier (distinguish long/short)
 		posKey := symbol + "_" + side
@@ -94,10 +115,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
-		// Check close position condition: profit > 5% and drawdown >= 40%
-		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
-			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+		// Check close position condition: price move > +5% and drawdown >= 40%
+		if shouldDrawdownClose(pricePnLPct, drawdownPct) {
+			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Price move: %.2f%% | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
+				symbol, side, pricePnLPct, currentPnLPct, peakPnLPct, drawdownPct)
 
 			// Execute close position
 			if err := at.emergencyClosePosition(symbol, side); err != nil {
@@ -107,10 +128,10 @@ func (at *AutoTrader) checkPositionDrawdown() {
 				// Clear cache for this position after closing
 				at.ClearPeakPnLCache(symbol, side)
 			}
-		} else if currentPnLPct > 5.0 {
+		} else if pricePnLPct > drawdownClosePriceGainPct {
 			// Record situations close to close position condition (for debugging)
-			logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+			logger.Infof("📊 Drawdown monitoring: %s %s | Price move: %.2f%% | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
+				symbol, side, pricePnLPct, currentPnLPct, peakPnLPct, drawdownPct)
 		}
 	}
 }

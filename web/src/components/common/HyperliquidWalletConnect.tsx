@@ -18,31 +18,14 @@ import type {
   HyperliquidAgentInfo,
 } from '../../lib/api/wallet'
 import type { Language } from '../../i18n/translations'
-
-declare global {
-  interface Window {
-    ethereum?: WalletProvider & { providers?: WalletProvider[] }
-  }
-}
-
-type WalletProvider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-  on?: (event: string, handler: (...args: unknown[]) => void) => void
-  removeListener?: (
-    event: string,
-    handler: (...args: unknown[]) => void
-  ) => void
-  isMetaMask?: boolean
-  isRabby?: boolean
-  isOkxWallet?: boolean
-  isCoinbaseWallet?: boolean
-  isTrust?: boolean
-  isPhantom?: boolean
-  isBackpack?: boolean
-  isBraveWallet?: boolean
-  isExodus?: boolean
-  isFrame?: boolean
-}
+import {
+  buildTypedData,
+  formatUSDC,
+  getPreferredWalletProvider,
+  normalizeAddress,
+  shortAddress,
+  splitSignature,
+} from '../../lib/hyperliquidWallet'
 
 type StepStatus = 'pending' | 'active' | 'done' | 'error'
 
@@ -81,51 +64,10 @@ const HYPERLIQUID_BUILDER_ADDRESS = '0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d'
 // this exact string when approving the builder during wallet connect.
 const HYPERLIQUID_BUILDER_MAX_FEE = '0.05%'
 
-function shortAddress(address?: string) {
-  if (!address) return ''
-  return `${address.slice(0, 6)}…${address.slice(-4)}`
-}
-
 function copy(text: string, label: string) {
   navigator.clipboard?.writeText(text).then(
     () => toast.success(`${label} copied`),
     () => toast.error('Copy failed')
-  )
-}
-
-function normalizeAddress(address: string) {
-  return address.trim().toLowerCase()
-}
-
-function getWalletProviders(): WalletProvider[] {
-  const injected = window.ethereum
-  if (!injected) return []
-  const providers =
-    Array.isArray(injected.providers) && injected.providers.length > 0
-      ? injected.providers
-      : [injected]
-  const seen = new Set<WalletProvider>()
-  return providers.filter((provider) => {
-    if (!provider || seen.has(provider)) return false
-    seen.add(provider)
-    return true
-  })
-}
-
-function getPreferredWalletProvider(): WalletProvider | undefined {
-  const providers = getWalletProviders()
-  return (
-    providers.find((provider) => provider.isRabby) ||
-    providers.find((provider) => provider.isMetaMask) ||
-    providers.find((provider) => provider.isCoinbaseWallet) ||
-    providers.find((provider) => provider.isPhantom) ||
-    providers.find((provider) => provider.isBraveWallet) ||
-    providers.find((provider) => provider.isBackpack) ||
-    providers.find((provider) => provider.isOkxWallet) ||
-    providers.find((provider) => provider.isTrust) ||
-    providers.find((provider) => provider.isExodus) ||
-    providers.find((provider) => provider.isFrame) ||
-    providers[0]
   )
 }
 
@@ -150,57 +92,10 @@ function formatAgentExpiry(validUntil: number, language: Language) {
   return { dateStr, daysLeft }
 }
 
-function formatUSDC(value?: number) {
-  if (typeof value !== 'number' || Number.isNaN(value)) return '--'
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
 function formatSignedUSDC(value?: number) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--'
   const sign = value > 0 ? '+' : ''
   return `${sign}${formatUSDC(value)}`
-}
-
-function splitSignature(signature: string) {
-  const hex = signature.startsWith('0x') ? signature.slice(2) : signature
-  if (hex.length !== 130) {
-    throw new Error('Invalid wallet signature length')
-  }
-  const v = parseInt(hex.slice(128, 130), 16)
-  return {
-    r: `0x${hex.slice(0, 64)}`,
-    s: `0x${hex.slice(64, 128)}`,
-    v: v < 27 ? v + 27 : v,
-  }
-}
-
-function buildTypedData(
-  primaryType: string,
-  fields: { name: string; type: string }[],
-  message: Record<string, unknown>
-) {
-  return {
-    domain: {
-      name: 'HyperliquidSignTransaction',
-      version: '1',
-      chainId: 421614,
-      verifyingContract: '0x0000000000000000000000000000000000000000',
-    },
-    types: {
-      EIP712Domain: [
-        { name: 'name', type: 'string' },
-        { name: 'version', type: 'string' },
-        { name: 'chainId', type: 'uint256' },
-        { name: 'verifyingContract', type: 'address' },
-      ],
-      [primaryType]: fields,
-    },
-    primaryType,
-    message,
-  }
 }
 
 function getSavedState(): FlowState {

@@ -108,9 +108,17 @@ jobs:
         id: pr-info
         if: steps.backend.outputs.pr_number != '0'
         uses: actions/github-script@v7
+        env:
+          # Artifact data comes from the untrusted PR workflow — always pass it
+          # via env (data), never template-interpolate into script source (code).
+          PR_NUMBER: ${{ steps.backend.outputs.pr_number }}
         with:
           script: |
-            const prNumber = ${{ steps.backend.outputs.pr_number }};
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+              core.setFailed(`Invalid PR number from artifact: ${process.env.PR_NUMBER}`);
+              return;
+            }
 
             // Get PR details
             const { data: pr } = await github.rest.pulls.get({
@@ -154,21 +162,44 @@ jobs:
       - name: Post advisory results comment
         if: steps.backend.outputs.pr_number != '0'
         uses: actions/github-script@v7
+        env:
+          # All of these originate from the untrusted PR workflow's artifacts
+          # (or derive from PR content) — env-only, never inline in the script.
+          PR_NUMBER: ${{ steps.backend.outputs.pr_number }}
+          PR_TITLE: ${{ steps.pr-info.outputs.pr_title }}
+          TITLE_VALID: ${{ steps.pr-info.outputs.title_valid }}
+          PR_SIZE: ${{ steps.pr-info.outputs.pr_size }}
+          SIZE_EMOJI: ${{ steps.pr-info.outputs.size_emoji }}
+          TOTAL_LINES: ${{ steps.pr-info.outputs.total_lines }}
+          ADDITIONS: ${{ steps.pr-info.outputs.additions }}
+          DELETIONS: ${{ steps.pr-info.outputs.deletions }}
+          FMT_STATUS: ${{ steps.backend.outputs.fmt_status }}
+          VET_STATUS: ${{ steps.backend.outputs.vet_status }}
+          TEST_STATUS: ${{ steps.backend.outputs.test_status }}
+          FMT_FILES: ${{ steps.backend.outputs.fmt_files }}
+          VET_OUTPUT: ${{ steps.backend.outputs.vet_output }}
+          TEST_OUTPUT: ${{ steps.backend.outputs.test_output }}
+          BUILD_STATUS: ${{ steps.frontend.outputs.build_status }}
+          BUILD_OUTPUT: ${{ steps.frontend.outputs.build_output }}
         with:
           script: |
-            const prNumber = ${{ steps.backend.outputs.pr_number }};
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+              core.setFailed(`Invalid PR number from artifact: ${process.env.PR_NUMBER}`);
+              return;
+            }
 
             let comment = '## 🤖 Advisory Check Results\n\n';
             comment += 'These are **advisory** checks to help improve code quality. They won\'t block your PR from being merged.\n\n';
 
             // PR Information section
-            const prTitle = '${{ steps.pr-info.outputs.pr_title }}';
-            const titleValid = '${{ steps.pr-info.outputs.title_valid }}' === 'true';
-            const prSize = '${{ steps.pr-info.outputs.pr_size }}';
-            const sizeEmoji = '${{ steps.pr-info.outputs.size_emoji }}';
-            const totalLines = '${{ steps.pr-info.outputs.total_lines }}';
-            const additions = '${{ steps.pr-info.outputs.additions }}';
-            const deletions = '${{ steps.pr-info.outputs.deletions }}';
+            const prTitle = process.env.PR_TITLE || '';
+            const titleValid = process.env.TITLE_VALID === 'true';
+            const prSize = process.env.PR_SIZE || '';
+            const sizeEmoji = process.env.SIZE_EMOJI || '';
+            const totalLines = process.env.TOTAL_LINES || '0';
+            const additions = process.env.ADDITIONS || '0';
+            const deletions = process.env.DELETIONS || '0';
 
             comment += '### 📋 PR Information\n\n';
 
@@ -196,16 +227,16 @@ jobs:
             comment += '\n';
 
             // Backend checks
-            const fmtStatus = '${{ steps.backend.outputs.fmt_status }}';
-            const vetStatus = '${{ steps.backend.outputs.vet_status }}';
-            const testStatus = '${{ steps.backend.outputs.test_status }}';
+            const fmtStatus = process.env.FMT_STATUS || '';
+            const vetStatus = process.env.VET_STATUS || '';
+            const testStatus = process.env.TEST_STATUS || '';
 
             if (fmtStatus || vetStatus || testStatus) {
               comment += '\n### 🔧 Backend Checks\n\n';
 
               if (fmtStatus) {
                 comment += '**Go Formatting:** ' + fmtStatus + '\n';
-                const fmtFiles = `${{ steps.backend.outputs.fmt_files }}`;
+                const fmtFiles = process.env.FMT_FILES || '';
                 if (fmtFiles && fmtFiles.trim()) {
                   comment += '<details><summary>Files needing formatting</summary>\n\n```\n' + fmtFiles + '\n```\n</details>\n\n';
                 }
@@ -213,7 +244,7 @@ jobs:
 
               if (vetStatus) {
                 comment += '**Go Vet:** ' + vetStatus + '\n';
-                const vetOutput = `${{ steps.backend.outputs.vet_output }}`;
+                const vetOutput = process.env.VET_OUTPUT || '';
                 if (vetOutput && vetOutput.trim()) {
                   comment += '<details><summary>Issues found</summary>\n\n```\n' + vetOutput.substring(0, 1000) + '\n```\n</details>\n\n';
                 }
@@ -221,7 +252,7 @@ jobs:
 
               if (testStatus) {
                 comment += '**Tests:** ' + testStatus + '\n';
-                const testOutput = `${{ steps.backend.outputs.test_output }}`;
+                const testOutput = process.env.TEST_OUTPUT || '';
                 if (testOutput && testOutput.trim()) {
                   comment += '<details><summary>Test output</summary>\n\n```\n' + testOutput.substring(0, 1000) + '\n```\n</details>\n\n';
                 }
@@ -236,13 +267,13 @@ jobs:
             }
 
             // Frontend checks
-            const buildStatus = '${{ steps.frontend.outputs.build_status }}';
+            const buildStatus = process.env.BUILD_STATUS || '';
 
             if (buildStatus) {
               comment += '\n### ⚛️ Frontend Checks\n\n';
 
               comment += '**Build & Type Check:** ' + buildStatus + '\n';
-              const buildOutput = `${{ steps.frontend.outputs.build_output }}`;
+              const buildOutput = process.env.BUILD_OUTPUT || '';
               if (buildOutput && buildOutput.trim()) {
                 comment += '<details><summary>Build output</summary>\n\n```\n' + buildOutput.substring(0, 1000) + '\n```\n</details>\n\n';
               }
@@ -273,6 +304,9 @@ jobs:
       - name: Post fallback comment if no results
         if: steps.backend.outputs.pr_number == '0'
         uses: actions/github-script@v7
+        env:
+          # Fork branch names are attacker-controlled — env, not inline.
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         with:
           script: |
             // Try to get PR number from the workflow_run event
@@ -280,7 +314,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              head: `${context.repo.owner}:${{ github.event.workflow_run.head_branch }}`
+              head: `${context.repo.owner}:${process.env.HEAD_BRANCH}`
             });
 
             if (pulls.data.length === 0) {

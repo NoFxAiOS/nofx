@@ -137,6 +137,7 @@ export function TraderDashboardPage({
     exchanges,
 }: TraderDashboardPageProps) {
     const [closingPosition, setClosingPosition] = useState<string | null>(null)
+    const [closingAll, setClosingAll] = useState(false)
     const [selectedChartSymbol, setSelectedChartSymbol] = useState<string | undefined>(undefined)
     const [chartUpdateKey, setChartUpdateKey] = useState<number>(0)
     const chartSectionRef = useRef<HTMLDivElement>(null)
@@ -229,6 +230,52 @@ export function TraderDashboardPage({
         } finally {
             setClosingPosition(null)
         }
+    }
+
+    const handleCloseAllPositions = async () => {
+        if (!selectedTraderId || !positions || positions.length === 0) return
+
+        const count = String(positions.length)
+        const confirmed = await confirmToast(
+            t('traderDashboard.confirmCloseAllPositions', language, { count }),
+            {
+                title: t('traderDashboard.confirmClose', language),
+                okText: t('traderDashboard.confirm', language),
+                cancelText: t('traderDashboard.cancel', language),
+            }
+        )
+        if (!confirmed) return
+
+        setClosingAll(true)
+        let failed = 0
+        // Sequential on purpose: parallel closes on the same account can race
+        // on exchange nonces (Hyperliquid) and rate limits.
+        for (const pos of positions) {
+            try {
+                await api.closePosition(
+                    selectedTraderId,
+                    pos.symbol,
+                    pos.side.toUpperCase()
+                )
+            } catch {
+                failed++
+            }
+        }
+        await Promise.all([
+            mutate(`positions-${selectedTraderId}`),
+            mutate(`account-${selectedTraderId}`),
+        ])
+        if (failed === 0) {
+            notify.success(t('traderDashboard.allPositionsClosed', language))
+        } else {
+            notify.error(
+                t('traderDashboard.closeAllPartial', language, {
+                    failed: String(failed),
+                    count,
+                })
+            )
+        }
+        setClosingAll(false)
     }
 
     // If API failed with error, show empty state (likely backend not running)
@@ -588,8 +635,24 @@ export function TraderDashboardPage({
                                     <span className="text-blue-500">◈</span> {t('currentPositions', language)}
                                 </h2>
                                 {positions && positions.length > 0 && (
-                                    <div className="text-xs px-2 py-1 rounded bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 font-mono">
-                                        {positions.length} {t('active', language)}
+                                    <div className="flex items-center gap-2">
+                                        <div className="text-xs px-2 py-1 rounded bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 font-mono">
+                                            {positions.length} {t('active', language)}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleCloseAllPositions()}
+                                            disabled={closingAll || closingPosition !== null}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-nofx-danger/10 text-nofx-danger border border-nofx-danger/30 hover:bg-nofx-danger/20"
+                                            title={t('traderDashboard.closeAll', language)}
+                                        >
+                                            {closingAll ? (
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                                <LogOut className="w-3 h-3" />
+                                            )}
+                                            {t('traderDashboard.closeAll', language)}
+                                        </button>
                                     </div>
                                 )}
                             </div>

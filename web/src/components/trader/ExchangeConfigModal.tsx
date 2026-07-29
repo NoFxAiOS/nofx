@@ -4,6 +4,7 @@ import { t, type Language } from '../../i18n/translations'
 import { api } from '../../lib/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { HyperliquidWalletConnect } from '../common/HyperliquidWalletConnect'
+import { HyperliquidFundsPanel } from '../common/HyperliquidFundsPanel'
 import { getExchangeIcon } from '../common/ExchangeIcons'
 import {
   TwoStageKeyModal,
@@ -708,6 +709,13 @@ export function ExchangeConfigModal({
                   <div className="flex justify-start">
                     <HyperliquidWalletConnect language={language} isLoggedIn={Boolean(user)} variant="inline" />
                   </div>
+                  {selectedExchange?.hyperliquidWalletAddr && (
+                    <HyperliquidFundsPanel
+                      language={language}
+                      walletAddress={selectedExchange.hyperliquidWalletAddr}
+                      unifiedAccount={selectedExchange.hyperliquidUnifiedAccount ?? true}
+                    />
+                  )}
                 </div>
               )}
 

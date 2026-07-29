@@ -131,9 +131,28 @@ func (at *AutoTrader) runCycle() error {
 		}
 	}
 
-	// Record AI charge (track cost regardless of decision outcome)
+	// Record AI charge (track cost regardless of decision outcome).
+	// Use the effective model name (custom model, e.g. "gpt-5.6") so the
+	// per-call price lookup matches what was actually invoked — at.aiModel is
+	// the provider id (e.g. "claw402") and would fall back to the default price.
+	// Prefer the gateway-reported settled amount (upto scheme) over the flat
+	// catalog estimate when the client exposes it.
 	if aiDecision != nil && at.store != nil {
-		if chargeErr := at.store.AICharge().Record(at.id, at.aiModel, at.config.AIModel); chargeErr != nil {
+		chargeModel := at.config.CustomModelName
+		if chargeModel == "" {
+			chargeModel = at.aiModel
+		}
+		var chargeErr error
+		if r, ok := at.mcpClient.(interface{ LastCallCostUSD() (float64, bool) }); ok {
+			if actual, has := r.LastCallCostUSD(); has {
+				chargeErr = at.store.AICharge().RecordWithCost(at.id, chargeModel, at.config.AIModel, actual)
+			} else {
+				chargeErr = at.store.AICharge().Record(at.id, chargeModel, at.config.AIModel)
+			}
+		} else {
+			chargeErr = at.store.AICharge().Record(at.id, chargeModel, at.config.AIModel)
+		}
+		if chargeErr != nil {
 			at.logWarnf("⚠️ Failed to record AI charge: %v", chargeErr)
 		}
 	}

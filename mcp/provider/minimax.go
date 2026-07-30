@@ -8,7 +8,7 @@ import (
 
 const (
 	DefaultMiniMaxBaseURL = "https://api.minimax.io/v1"
-	DefaultMiniMaxModel   = "MiniMax-M2.7"
+	DefaultMiniMaxModel   = "MiniMax-M3"
 )
 
 func init() {

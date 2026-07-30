@@ -29,7 +29,7 @@ var modelPrices = map[string]float64{
 	"gpt-5.6-luna":      0.012,
 	"claude-fable":      0.24,
 	"claude-opus":       0.12,
-	"glm-5":             0.003,
+"glm-5":             0.003,
 }
 
 // GetModelPrice returns the price per call for a given model

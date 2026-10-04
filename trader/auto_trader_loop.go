@@ -46,6 +46,17 @@ func (at *AutoTrader) runCycle() error {
 		ExecutionLog: []string{},
 		Success:      true,
 	}
+	// Check permission before paid data/model calls. Reading account balances
+	// does not prove that the configured signing agent can execute trades.
+	if err := at.checkTradingAuthorization(); err != nil {
+		record.Success = false
+		record.ErrorMessage = "Trading blocked: " + err.Error()
+		record.ExecutionLog = append(record.ExecutionLog, record.ErrorMessage)
+		if saveErr := at.saveDecision(record); saveErr != nil {
+			at.logWarnf("Failed to save blocked cycle: %v", saveErr)
+		}
+		return fmt.Errorf("trading authorization check failed: %w", err)
+	}
 
 	// 1. Check if trading needs to be stopped
 	if time.Now().Before(at.stopUntil) {

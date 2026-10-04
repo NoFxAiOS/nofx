@@ -178,7 +178,28 @@ export function AutopilotLaunchPanel({
     ? feeFundsCheck.status !== 'failed' && Boolean(feeWalletAddress)
     : Boolean(feeWalletAddress) && feeWalletBalance >= minAIFeeUSDC
 
-  const hyperliquidConnected = Boolean(hyperliquidExchange)
+  // A stored builder-approved flag is not proof that this saved signing agent
+  // is still approved. A different NOFX installation can replace the agent.
+  const [verifiedExchangeId, setVerifiedExchangeId] = useState<string | null>(null)
+  useEffect(() => {
+    setVerifiedExchangeId(null)
+    if (!hyperliquidExchange?.hyperliquidWalletAddr || !hyperliquidExchange.hyperliquidAgentAddress || hyperliquidExchange.testnet) return
+    let cancelled = false
+    const check = async () => {
+      try {
+        const proof = await api.getHyperliquidAgent(hyperliquidExchange.hyperliquidWalletAddr!)
+        const approved = proof.builderApproved && proof.agents?.some((agent) =>
+          agent.address.toLowerCase() === hyperliquidExchange.hyperliquidAgentAddress!.toLowerCase() && agent.validUntil > Date.now())
+        if (!cancelled) setVerifiedExchangeId(approved ? hyperliquidExchange.id : null)
+      } catch {
+        if (!cancelled) setVerifiedExchangeId(null)
+      }
+    }
+    void check()
+    const timer = setInterval(() => void check(), 30000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [hyperliquidExchange])
+  const hyperliquidConnected = !!hyperliquidExchange && verifiedExchangeId === hyperliquidExchange.id
   const exchangeState = hyperliquidExchange
     ? exchangeAccountStates[hyperliquidExchange.id]
     : undefined
@@ -321,7 +342,7 @@ export function AutopilotLaunchPanel({
         'Approve NOFX once with your crypto wallet (Rabby or MetaMask). This lets the AI place trades for you — it can never withdraw your money.',
       status: hyperliquidConnected ? 'ready' : 'action',
       meta: hyperliquidExchange?.hyperliquidWalletAddr
-        ? `${shortAddress(hyperliquidExchange.hyperliquidWalletAddr)} · authorized`
+        ? `${shortAddress(hyperliquidExchange.hyperliquidWalletAddr)} · ${hyperliquidConnected ? 'authorized' : 'authorization not verified — reconnect'} `
         : 'A few clicks + 3 wallet signatures',
       action: (
         <button

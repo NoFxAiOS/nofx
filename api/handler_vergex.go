@@ -78,7 +78,7 @@ func (s *Server) handleVergexCostLiquidationHeatmap(c *gin.Context) {
 	if !ok {
 		return
 	}
-	body, err := client.GetCostLiquidationHeatmap(context.Background(), vergex.Query{
+	body, err := client.GetCostLiquidationHeatmap(c.Request.Context(), vergex.Query{
 		MarketType: withDefault(strings.TrimSpace(c.Query("marketType")), vergex.DefaultMarketType),
 		Symbol:     strings.TrimSpace(c.Query("symbol")),
 		Chain:      strings.TrimSpace(c.Query("chain")),
@@ -86,6 +86,10 @@ func (s *Server) handleVergexCostLiquidationHeatmap(c *gin.Context) {
 	})
 	if err != nil {
 		logger.Warnf("Vergex cost-liquidation-heatmap failed: %v", err)
+		if isWinrateValidationError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}

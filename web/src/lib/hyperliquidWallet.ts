@@ -161,6 +161,25 @@ export async function getWalletProviderForAddress(
   return preferred
 }
 
+// Call only from an explicit user authorization action, never during polling.
+export async function ensureWalletSigningAccount(provider: WalletProvider, expectedAddress: string) {
+  let accounts: unknown
+  try { accounts = await provider.request({ method: 'eth_accounts' }) } catch { accounts = [] }
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    try {
+      accounts = await provider.request({ method: 'eth_requestAccounts' })
+    } catch (err) {
+      throw new Error(`Wallet connection unavailable. Unlock your wallet, select the main account and reconnect this site. ${getWalletErrorMessage(err, '')}`)
+    }
+  }
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    throw new Error('No signing account is connected. Unlock your wallet and connect the main account to this site before authorizing. 未连接可签名账户，请先解锁钱包并连接主账户。')
+  }
+  if (!accounts.some((a) => typeof a === 'string' && normalizeAddress(a) === normalizeAddress(expectedAddress))) {
+    throw new Error(`Wrong wallet account. Select the main account ${shortAddress(expectedAddress)} before authorizing. 请切换到正确的主钱包。`)
+  }
+}
+
 export function getWalletErrorMessage(error: unknown, fallback: string) {
   const queue: unknown[] = [error]
   const seen = new Set<unknown>()

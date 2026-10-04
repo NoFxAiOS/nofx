@@ -20,6 +20,7 @@ import type {
 import type { Language } from '../../i18n/translations'
 import {
   formatUSDC,
+  ensureWalletSigningAccount,
   getWalletErrorMessage,
   getWalletProviderName,
   getWalletProviderForAddress,
@@ -766,6 +767,8 @@ export function HyperliquidWalletConnect({
       (await getWalletProviderForAddress(expectedWallet))
     if (!provider || !expectedWallet) throw new Error('Wallet is not connected')
     walletProviderRef.current = provider
+    assertCurrentWallet(expectedWallet)
+    await ensureWalletSigningAccount(provider, expectedWallet)
     assertCurrentWallet(expectedWallet)
     const { action: signedAction, signature } = await signHyperliquidUserAction(
       provider,

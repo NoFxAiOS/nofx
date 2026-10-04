@@ -897,10 +897,8 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 				sb.WriteString(e.formatQuantData(quantData))
 			}
 		}
-		if ctx.VergexDataMap != nil {
-			if vergexData, hasVergex := ctx.VergexDataMap[coin.Symbol]; hasVergex {
-				sb.WriteString(e.formatVergexData(vergexData))
-			}
+		if data := vergexDataForSymbol(ctx, coin.Symbol); data != nil {
+			sb.WriteString(e.formatVergexData(data))
 		}
 		sb.WriteString("\n")
 	}
@@ -967,12 +965,12 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 				sb.WriteString(e.formatQuantData(quantData))
 			}
 		}
-		if ctx.VergexDataMap != nil {
-			if vergexData, hasVergex := ctx.VergexDataMap[pos.Symbol]; hasVergex {
-				sb.WriteString(e.formatVergexData(vergexData))
-			}
-		}
 		sb.WriteString("\n")
+	}
+	// Signals remain essential even when the candle request failed. Position
+	// symbols use SOLUSDT while Vergex keys use SOL; retain HIP-3 namespaces.
+	if data := vergexDataForSymbol(ctx, pos.Symbol); data != nil {
+		sb.WriteString(e.formatVergexData(data))
 	}
 
 	return sb.String()

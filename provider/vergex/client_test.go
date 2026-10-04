@@ -179,6 +179,29 @@ func testClient(t *testing.T, baseURL string) *Client {
 	return &Client{baseURL: baseURL, privateKey: (*ecdsa.PrivateKey)(key), httpClient: http.DefaultClient}
 }
 
+func TestHeatmapCanonicalMarketTypeAndLocalValidation(t *testing.T) {
+	calls := 0
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path != CostLiquidationHeatmapPath || r.URL.Query().Get("marketType") != "core_perp" {
+			t.Errorf("wrong request: %s", r.URL)
+		}
+		fmt.Fprint(w, `{"data":{"bins":[]}}`)
+	}))
+	defer s.Close()
+	c := testClient(t, s.URL)
+	if _, err := c.GetCostLiquidationHeatmap(context.Background(), Query{MarketType: "perp", Symbol: "SOL"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := c.GetCostLiquidationHeatmap(context.Background(), Query{MarketType: "bad", Symbol: "SOL"})
+	if _, ok := err.(*WinrateValidationError); !ok {
+		t.Fatalf("expected local validation: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("invalid request reached payment: %d calls", calls)
+	}
+}
+
 func TestHolderWinrateRequestsUseExactPathsAndParams(t *testing.T) {
 	type seenRequest struct {
 		path  string

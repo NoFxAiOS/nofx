@@ -20,6 +20,23 @@ const (
 // cannot reliably pay for the next AI/data calls.
 const aiWalletLowThresholdUSDC = 1.0
 
+func (at *AutoTrader) checkTradingAuthorization() error {
+	checker, ok := at.trader.(interface{ CheckTradingAuthorization() error })
+	if !ok {
+		return nil
+	}
+	err := checker.CheckTradingAuthorization()
+	at.runtimeHealthMu.Lock()
+	defer at.runtimeHealthMu.Unlock()
+	at.tradingBlocked = err != nil
+	at.tradingError = ""
+	if err != nil {
+		at.tradingError = err.Error()
+	}
+	at.tradingCheckedAt = time.Now().UTC()
+	return err
+}
+
 func (at *AutoTrader) setSafeMode(active bool, reason string) {
 	at.runtimeHealthMu.Lock()
 	at.safeMode = active

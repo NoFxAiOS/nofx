@@ -1248,6 +1248,13 @@ func (e *StrategyEngine) FetchVergexDataBatch(ctx context.Context, symbols []str
 	return result
 }
 
+func vergexDataForSymbol(ctx *Context, symbol string) *vergex.MarketAnalysis {
+	if data := ctx.VergexDataMap[symbol]; data != nil {
+		return data
+	}
+	return ctx.VergexDataMap[vergexDetailSymbolForLookup("all", symbol)]
+}
+
 func vergexDetailSymbolForLookup(marketType, symbol string) string {
 	return vergex.TradableSymbolForMarket(marketType, symbol)
 }

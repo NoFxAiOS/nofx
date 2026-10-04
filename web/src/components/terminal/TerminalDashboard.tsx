@@ -267,7 +267,14 @@ export function TerminalDashboard({
     const heldBases = [...(positions ?? []).map((p) => p.symbol), ...candidateCoins].map(baseLabel).filter(Boolean)
     return heldBases[0] || heatmapSymbol || 'SP500'
   }, [positions, candidateCoins, heatmapSymbol])
-  const activeSym = (selectedSym || defaultSym).toUpperCase()
+  const activeSym = baseLabel(selectedSym || defaultSym)
+  const activeSignal = signalRank?.items?.find((item) => baseLabel(item.symbol) === activeSym)
+  const sourceSymbol = activeSignal?.symbol || [...(positions ?? []).map((p) => p.symbol), ...candidateCoins].find((s) => baseLabel(s) === activeSym) || selectedSym || defaultSym
+  const activeMarketType = activeSignal?.market_type === 'core_perp' || activeSignal?.market_type === 'hip3_perp'
+    ? activeSignal.market_type
+    : /^xyz:/i.test(sourceSymbol) ? 'hip3_perp'
+      : /USDT$/i.test(sourceSymbol) || CRYPTO_MAJORS.has(activeSym) ? 'core_perp' : 'hip3_perp'
+  const activeRequestSymbol = activeMarketType === 'hip3_perp' ? `xyz:${activeSym}` : activeSym
 
   const pnl = account?.total_pnl ?? 0
   const pnlPct = account?.total_pnl_pct ?? 0
@@ -368,13 +375,20 @@ export function TerminalDashboard({
                 {traders.map((t) => (<option key={t.trader_id} value={t.trader_id} style={{ color: '#111' }}>{t.trader_name}</option>))}
               </select>
             )}
-            <span style={{ color: running ? 'var(--tm-up)' : 'var(--tm-muted)' }}>{running ? '● running' : '○ stopped'}</span>
+            <span style={{ color: status?.trading_blocked ? 'var(--tm-dn)' : running ? 'var(--tm-up)' : 'var(--tm-muted)' }}>{status?.trading_blocked ? '● trading blocked' : running ? '● running' : '○ stopped'}</span>
             <span className="tm-sc" style={{ color: 'var(--tm-muted)' }}>cycle</span><span className="tm-mono" style={{ color: 'var(--tm-ink)' }}>{status?.call_count ?? '—'}</span>
             <span className="tm-px" style={{ fontSize: 12, color: 'var(--tm-ink)' }}>{clock}</span>
           </span>,
           navSlot,
         )}
       <div className="tm-box" style={{ maxWidth: 1280, margin: '0 auto', border: 'none' }}>
+        {!on && status?.trading_blocked && (
+          <div role="alert" className="tm-mono" style={{ margin: '8px 14px 0', padding: '12px', fontSize: 12, border: '1px solid var(--tm-dn)', color: 'var(--tm-dn)', background: 'rgba(200,60,40,0.06)' }}>
+            <strong>Trading blocked / 交易已阻断</strong>
+            <div>{status.trading_error}</div>
+            <div>自动开仓、平仓不可用；请用主钱包重新签名授权。修复前不会为此决策轮次调用付费 AI 或数据。</div>
+          </div>
+        )}
         {/* runtime health banner — AI fee wallet dry / safe mode would otherwise
             only be visible in server logs while the bot silently idles */}
         {!on && status && (status.safe_mode || status.ai_wallet_status === 'empty' || status.ai_wallet_status === 'low') && (
@@ -395,7 +409,7 @@ export function TerminalDashboard({
         )}
         {/* first-run reassurance — a fresh autopilot looks idle for its first
             minute (the AI is reading the market); tell newcomers what to expect */}
-        {!on && status?.is_running && (status.call_count ?? 0) <= 1 && !status.safe_mode && (
+        {!on && status?.is_running && (status.call_count ?? 0) <= 1 && !status.safe_mode && !status.trading_blocked && status.trading_checked_at && (
           <div className="tm-mono" style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '8px 14px 0', padding: '8px 12px', fontSize: 11, border: '1px solid var(--tm-up)', color: 'var(--tm-ink)', background: 'rgba(40,140,80,0.06)', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, color: 'var(--tm-up)' }}>Your AI is live.</span>
             <span style={{ color: 'var(--tm-ink-2)' }}>
@@ -474,19 +488,19 @@ export function TerminalDashboard({
             <LiquidationMap
               symbol={activeSym}
               demo={on}
-              marketType={CRYPTO_MAJORS.has(activeSym) ? 'perp' : 'hip3_perp'}
+              marketType={activeMarketType}
               height={ROW1_H - 130}
             />
           </div>
           <div style={{ ...sc, borderRight: cellBorder, height: ROW1_H, overflow: 'hidden' }}>
-            <OrderBook symbol={activeSym} demo={on} markPrice={positions?.find((p) => baseLabel(p.symbol) === activeSym)?.entry_price} />
+            <OrderBook symbol={activeRequestSymbol} demo={on} markPrice={positions?.find((p) => baseLabel(p.symbol) === activeSym)?.entry_price} />
           </div>
           <div style={{ ...sc, height: ROW1_H, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <SignalMatrix items={signalRank?.items} max={18} active={activeSym} onSelect={setSelectedSym} />
             {/* the live K-line always sits under the selector and flexes to fill */}
             <div className="tm-rule" style={{ margin: '10px 0 8px' }} />
             <div style={{ flex: 1, minHeight: 0 }}>
-              <KlineChart symbol={activeSym} fill demo={on} />
+              <KlineChart symbol={activeRequestSymbol} fill demo={on} />
             </div>
           </div>
         </div>
@@ -499,7 +513,7 @@ export function TerminalDashboard({
           <WinrateMatrix
             symbol={activeSym}
             demo={on}
-            marketType={CRYPTO_MAJORS.has(activeSym) ? 'perp' : 'hip3_perp'}
+            marketType={activeMarketType}
           />
         </div>
         <div className="tm-rule" />

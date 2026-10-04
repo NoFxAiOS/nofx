@@ -195,7 +195,11 @@ func (c *Client) GetDirectionChangeHistory(ctx context.Context, symbol, eventTyp
 
 func (c *Client) GetCostLiquidationHeatmap(ctx context.Context, q Query) (json.RawMessage, error) {
 	if strings.TrimSpace(q.MarketType) == "" || strings.TrimSpace(q.Symbol) == "" {
-		return nil, fmt.Errorf("marketType and symbol are required")
+		return nil, winrateInvalid("marketType and symbol are required")
+	}
+	q.MarketType = canonicalMarketType(q.MarketType)
+	if q.MarketType == "" {
+		return nil, winrateInvalid("marketType must be core_perp or hip3_perp")
 	}
 	params := url.Values{}
 	addQueryDefaults(params, q, true)

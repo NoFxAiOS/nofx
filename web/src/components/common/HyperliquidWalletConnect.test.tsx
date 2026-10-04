@@ -24,7 +24,8 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
-vi.mock('../../lib/hyperliquidWallet', () => ({
+vi.mock('../../lib/hyperliquidWallet', async (importOriginal) => ({
+  ensureWalletSigningAccount: (await importOriginal<typeof import('../../lib/hyperliquidWallet')>()).ensureWalletSigningAccount,
   formatUSDC: (value?: number) =>
     typeof value === 'number' ? value.toFixed(2) : '--',
   getPreferredWalletProvider: () => mocks.getProvider(),

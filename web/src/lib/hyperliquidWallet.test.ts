@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   getWalletErrorMessage,
+  ensureWalletSigningAccount,
   getWalletProviderName,
   getWalletChainIdHex,
   signHyperliquidUserAction,
@@ -9,6 +10,22 @@ import {
 } from './hyperliquidWallet'
 
 const SIGNATURE = `0x${'11'.repeat(64)}01`
+
+it('reconnects an empty wallet session before allowing authorization', async () => {
+  const request = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(['0xabc'])
+  await ensureWalletSigningAccount({request}, '0xABC')
+  expect(request).toHaveBeenNthCalledWith(2, {method:'eth_requestAccounts'})
+})
+it('does not accept a saved address as a currently connected signing account', async () => {
+  const request = vi.fn().mockResolvedValue([])
+  await expect(ensureWalletSigningAccount({request},'0xabc')).rejects.toThrow('No signing account')
+  expect(request).not.toHaveBeenCalledWith(expect.objectContaining({method:'eth_signTypedData_v4'}))
+})
+it('rejects the wrong account without requesting a signature', async () => {
+  const request = vi.fn().mockResolvedValue(['0xdef'])
+  await expect(ensureWalletSigningAccount({request},'0xabc')).rejects.toThrow('Wrong wallet account')
+  expect(request).toHaveBeenCalledOnce()
+})
 
 describe('Hyperliquid wallet signing chain', () => {
   it('discovers wallets announced through EIP-6963', () => {

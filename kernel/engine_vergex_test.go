@@ -1,10 +1,25 @@
 package kernel
 
 import (
+	"strings"
 	"testing"
 
 	"nofx/provider/vergex"
 )
+
+func TestPositionPromptIncludesCanonicalVergexSignalWithoutCandles(t *testing.T) {
+	core := &vergex.MarketAnalysis{Symbol: "SOL", DirectionCurrent: []byte(`{"direction":"bullish"}`)}
+	hip3 := &vergex.MarketAnalysis{Symbol: "xyz:SOL", DirectionCurrent: []byte(`{"direction":"bearish"}`)}
+	ctx := &Context{VergexDataMap: map[string]*vergex.MarketAnalysis{"SOL": core, "xyz:SOL": hip3}}
+	if vergexDataForSymbol(ctx, "SOLUSDT") != core || vergexDataForSymbol(ctx, "xyz:SOL") != hip3 {
+		t.Fatal("canonical lookup crossed market namespaces")
+	}
+	e := &StrategyEngine{}
+	prompt := e.formatPositionInfo(1, PositionInfo{Symbol: "SOLUSDT", Side: "long"}, ctx)
+	if !strings.Contains(prompt, "Vergex Claw402 Signals") || !strings.Contains(prompt, "bullish") || strings.Contains(prompt, "bearish") {
+		t.Fatalf("wrong position signal: %s", prompt)
+	}
+}
 
 func TestVergexDetailQueryCandidatesUseHIP3MarketAndMainnetChain(t *testing.T) {
 	candidates := vergexDetailQueryCandidates(vergex.Query{

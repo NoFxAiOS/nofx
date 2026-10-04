@@ -157,7 +157,11 @@ func (t *HyperliquidTrader) SetLeverage(symbol string, leverage int) error {
 
 	// Call UpdateLeverage (leverage int, name string, isCross bool)
 	// Third parameter: true=cross margin mode, false=isolated margin mode
-	_, err := t.exchange.UpdateLeverage(t.ctx, leverage, coin, t.isCrossMargin)
+	exchange, err := t.leverageExchange(coin)
+	if err != nil {
+		return err
+	}
+	_, err = exchange.UpdateLeverage(t.ctx, leverage, coin, t.isCrossMargin)
 	if err != nil {
 		return fmt.Errorf("failed to set leverage: %w", err)
 	}

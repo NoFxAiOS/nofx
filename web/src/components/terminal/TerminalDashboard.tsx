@@ -14,6 +14,7 @@ import type {
 import { OrchestrationTopology } from './OrchestrationTopology'
 import { OrderBook } from './OrderBook'
 import { LiquidationMap } from './LiquidationMap'
+import { WinrateMatrix } from './WinrateMatrix'
 import { KlineChart } from './KlineChart'
 import { ExecutionLog } from './ExecutionLog'
 import { SignalMatrix } from './SignalMatrix'
@@ -488,6 +489,18 @@ export function TerminalDashboard({
               <KlineChart symbol={activeSym} fill demo={on} />
             </div>
           </div>
+        </div>
+        <div className="tm-rule" />
+
+        {/* ── win-rate matrix (holder cost × win-rate grid, claw402 paid data).
+              Full-width panel under row 1; long/short grids side by side with
+              click-to-drill address lists. ── */}
+        <div style={sc}>
+          <WinrateMatrix
+            symbol={activeSym}
+            demo={on}
+            marketType={CRYPTO_MAJORS.has(activeSym) ? 'perp' : 'hip3_perp'}
+          />
         </div>
         <div className="tm-rule" />
 

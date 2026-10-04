@@ -111,6 +111,117 @@ func (s *Server) handleVergexFlowMarkets(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }
 
+// handleVergexHolderWinrateMap proxies the Vergex holder win-rate matrix (paid
+// x402 endpoint) using the caller's claw402 wallet. The upstream JSON is
+// passed through verbatim: { data: { snapshotId, markPrice, viewport, winBins,
+// costBins, costRange, cells: [{ row, column, long, short }], water, included,
+// excluded, ... }, meta }. cells are winBins rows × (costBins+2) slots where
+// slot 0 = below the cost viewport and slot costBins+1 = above it.
+func (s *Server) handleVergexHolderWinrateMap(c *gin.Context) {
+	client, ok := s.newVergexClientForRequest(c)
+	if !ok {
+		return
+	}
+	body, err := client.GetHolderWinrateMap(context.Background(), parseWinrateQuery(c))
+	if err != nil {
+		if isWinrateValidationError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		logger.Warnf("Vergex holder-winrate-map failed: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+}
+
+// handleVergexHolderWinrateHolders paginates the addresses behind one cell
+// rectangle of the win-rate matrix (paid x402 endpoint). Requires snapshotId
+// (from the map response) plus the row/column range; side is long|short.
+func (s *Server) handleVergexHolderWinrateHolders(c *gin.Context) {
+	client, ok := s.newVergexClientForRequest(c)
+	if !ok {
+		return
+	}
+	body, err := client.GetHolderWinrateHolders(context.Background(), vergex.WinrateHoldersQuery{
+		WinrateQuery: parseWinrateQuery(c),
+		SnapshotID:   strings.TrimSpace(c.Query("snapshotId")),
+		Row:          parseNonNegativeInt(c.Query("row"), -1),
+		RowEnd:       parseNonNegativeInt(c.Query("rowEnd"), -1),
+		Column:       parseNonNegativeInt(c.Query("column"), -1),
+		ColumnEnd:    parseNonNegativeInt(c.Query("columnEnd"), -1),
+		Side:         strings.TrimSpace(c.Query("side")),
+		Offset:       parseNonNegativeInt(c.Query("offset"), 0),
+		Limit:        parsePositiveInt(c.Query("limit"), 50),
+	})
+	if err != nil {
+		if isWinrateValidationError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		logger.Warnf("Vergex holder-winrate-holders failed: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+}
+
+func parseWinrateQuery(c *gin.Context) vergex.WinrateQuery {
+	return vergex.WinrateQuery{
+		MarketType:    strings.TrimSpace(c.Query("marketType")),
+		Symbol:        strings.TrimSpace(c.Query("symbol")),
+		Chain:         strings.TrimSpace(c.Query("chain")),
+		WinMin:        parseNonNegativeInt(c.Query("winMin"), 0),
+		WinMax:        parseNonNegativeInt(c.Query("winMax"), 0),
+		CostMin:       parseOptionalFloat(c.Query("costMin")),
+		CostMax:       parseOptionalFloat(c.Query("costMax")),
+		MinRoundTrips: parsePositiveInt(c.Query("minRoundTrips"), 1),
+	}
+}
+
+func isWinrateValidationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, fragment := range []string{
+		"marketType and symbol are required",
+		"win-rate window must satisfy",
+		"cost window must satisfy",
+		"snapshotId must be",
+		"row/rowEnd/column/columnEnd must satisfy",
+		"side must be",
+	} {
+		if strings.Contains(msg, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseNonNegativeInt(raw string, fallback int) int {
+	if raw == "" {
+		return fallback
+	}
+	var n int
+	if _, err := fmt.Sscanf(raw, "%d", &n); err != nil || n < 0 {
+		return fallback
+	}
+	return n
+}
+
+func parseOptionalFloat(raw string) float64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	var f float64
+	if _, err := fmt.Sscanf(raw, "%f", &f); err != nil {
+		return 0
+	}
+	return f
+}
+
 func (s *Server) newVergexClientForRequest(c *gin.Context) (*vergex.Client, bool) {
 	userID := c.GetString("user_id")
 	if userID == "" {

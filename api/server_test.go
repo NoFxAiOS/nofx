@@ -330,3 +330,24 @@ func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
 		t.Errorf("Expected system_prompt_template='default', got %v", response["system_prompt_template"])
 	}
 }
+
+func TestVergexWinrateRoutesRegistered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	s := &Server{router: gin.New()}
+	s.setupRoutes()
+
+	found := map[string]bool{}
+	for _, r := range s.router.Routes() {
+		if r.Method == http.MethodGet {
+			found[r.Path] = true
+		}
+	}
+	for _, path := range []string{
+		"/api/vergex/holder-winrate-map",
+		"/api/vergex/holder-winrate-map/holders",
+	} {
+		if !found[path] {
+			t.Fatalf("GET %s is not registered", path)
+		}
+	}
+}

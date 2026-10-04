@@ -216,6 +216,8 @@ func (s *Server) setupRoutes() {
 			s.route(protected, "GET", "/vergex/direction-change/history", "Vergex bull/bear direction history via claw402 (?symbol=BTC&type=all&page=1&page_size=20)", s.handleVergexDirectionChangeHistory)
 			s.route(protected, "GET", "/vergex/cost-liquidation-heatmap", "Vergex cost/liquidation heatmap via claw402 (?marketType=hip3_perp&symbol=AAPL)", s.handleVergexCostLiquidationHeatmap)
 			s.route(protected, "GET", "/vergex/flow-markets", "Vergex net-flow market ranking via claw402 (?chain=mainnet&window=1h&limit=25)", s.handleVergexFlowMarkets)
+			s.route(protected, "GET", "/vergex/holder-winrate-map", "Vergex holder win-rate matrix via claw402 (?marketType=hip3_perp&symbol=NVDA&winMin=0&winMax=100&costMin=92&costMax=108)", s.handleVergexHolderWinrateMap)
+			s.route(protected, "GET", "/vergex/holder-winrate-map/holders", "Vergex win-rate matrix address drilldown via claw402 (?marketType=hip3_perp&symbol=NVDA&snapshotId=…&row=0&rowEnd=19&column=1&columnEnd=16&side=long&offset=0&limit=50)", s.handleVergexHolderWinrateHolders)
 
 			// AI trader management
 			s.routeWithSchema(protected, "GET", "/my-traders", "List user's traders with status",

@@ -207,6 +207,113 @@ export interface VergexHeatmapResponse {
   meta?: unknown
 }
 
+// ── Vergex holder win-rate matrix (GET /api/vergex/holder-winrate-map) ──
+// Numeric notional fields arrive as strings from the upstream API.
+export interface VergexWinrateSide {
+  count: number
+  notional: string
+}
+export interface VergexWinrateCell {
+  row: number
+  column: number
+  long: VergexWinrateSide
+  short: VergexWinrateSide
+}
+export interface VergexWinrateBucket {
+  count: number
+  notional: string
+}
+export interface VergexWinrateMapData {
+  snapshotId?: string
+  asOf?: string
+  coverage?: string
+  markPrice?: string
+  priceSource?: string
+  metricVersion?: string
+  minRoundTrips?: number
+  total?: VergexWinrateBucket
+  included?: VergexWinrateBucket
+  excluded?: Record<string, VergexWinrateBucket>
+  viewport?: { winMin: number; winMax: number; costMin: number; costMax: number }
+  winBins?: number
+  costBins?: number
+  costRange?: [string, string]
+  cells?: VergexWinrateCell[]
+  water?: {
+    long?: VergexWinrateWaterSide
+    short?: VergexWinrateWaterSide
+  }
+}
+export interface VergexWinrateWaterSide {
+  aboveWater?: VergexWinrateBucket & { largestNotional?: string }
+  belowWater?: VergexWinrateBucket
+  atCost?: VergexWinrateBucket
+}
+export interface VergexWinrateMapResponse {
+  data?: VergexWinrateMapData
+  meta?: unknown
+}
+
+// ── Address drilldown (GET /api/v1/vergex/holder-winrate-map/holders) ──
+export interface VergexWinrateHolder {
+  address: string
+  side: string
+  size: string
+  entryPrice: string
+  notional: string
+  costRatio: string
+  winRate: string
+  roundTrips: number
+  historyAsOf?: string
+  historyStale?: boolean
+}
+export interface VergexWinrateHoldersResponse {
+  data?: {
+    snapshotId?: string
+    minRoundTrips?: number
+    total?: number
+    nextOffset?: number | null
+    items?: VergexWinrateHolder[]
+  }
+  meta?: unknown
+}
+
+export interface VergexWinrateRequest {
+  marketType: string
+  symbol: string
+  chain?: string
+  winMin?: number
+  winMax?: number
+  costMin?: number
+  costMax?: number
+  minRoundTrips?: number
+}
+
+export interface VergexWinrateHoldersRequest extends VergexWinrateRequest {
+  snapshotId: string
+  row: number
+  rowEnd: number
+  column: number
+  columnEnd: number
+  side?: 'long' | 'short'
+  offset?: number
+  limit?: number
+}
+
+function vergexWinrateQuery(params: VergexWinrateRequest) {
+  const query = new URLSearchParams()
+  query.set('marketType', params.marketType)
+  query.set('symbol', params.symbol)
+  query.set('chain', params.chain || 'mainnet')
+  if (params.winMin != null) query.set('winMin', String(params.winMin))
+  if (params.winMax != null) query.set('winMax', String(params.winMax))
+  if (params.costMin != null) query.set('costMin', String(params.costMin))
+  if (params.costMax != null) query.set('costMax', String(params.costMax))
+  if (params.minRoundTrips && params.minRoundTrips > 1)
+    query.set('minRoundTrips', String(params.minRoundTrips))
+  return query
+}
+
 function vergexDetailQuery(params: VergexDetailRequest) {
   const query = new URLSearchParams()
   query.set('marketType', params.marketType)
@@ -289,6 +396,40 @@ export const dataApi = {
       throw new Error(
         result.message || 'Failed to fetch cost/liquidation heatmap'
       )
+    return result.data || {}
+  },
+
+  async getVergexHolderWinrateMap(
+    params: VergexWinrateRequest
+  ): Promise<VergexWinrateMapResponse> {
+    const result = await httpClient.request<VergexWinrateMapResponse>(
+      `${API_BASE}/vergex/holder-winrate-map?${vergexWinrateQuery(params)}`,
+      { timeout: 90000 }
+    )
+    if (!result.success)
+      throw new Error(result.message || 'Failed to fetch holder win-rate matrix')
+    return result.data || {}
+  },
+
+  async getVergexHolderWinrateHolders(
+    params: VergexWinrateHoldersRequest,
+    silent?: boolean
+  ): Promise<VergexWinrateHoldersResponse> {
+    const query = vergexWinrateQuery(params)
+    query.set('snapshotId', params.snapshotId)
+    query.set('row', String(params.row))
+    query.set('rowEnd', String(params.rowEnd))
+    query.set('column', String(params.column))
+    query.set('columnEnd', String(params.columnEnd))
+    query.set('side', params.side || 'long')
+    query.set('offset', String(params.offset ?? 0))
+    query.set('limit', String(params.limit ?? 50))
+    const result = await httpClient.request<VergexWinrateHoldersResponse>(
+      `${API_BASE}/vergex/holder-winrate-map/holders?${query}`,
+      { silent, timeout: 90000 }
+    )
+    if (!result.success)
+      throw new Error(result.message || 'Failed to fetch win-rate holders')
     return result.data || {}
   },
 

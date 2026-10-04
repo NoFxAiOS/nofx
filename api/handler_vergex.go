@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"nofx/logger"
 	"nofx/provider/vergex"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -118,11 +121,16 @@ func (s *Server) handleVergexFlowMarkets(c *gin.Context) {
 // excluded, ... }, meta }. cells are winBins rows × (costBins+2) slots where
 // slot 0 = below the cost viewport and slot costBins+1 = above it.
 func (s *Server) handleVergexHolderWinrateMap(c *gin.Context) {
+	q, err := parseWinrateQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	client, ok := s.newVergexClientForRequest(c)
 	if !ok {
 		return
 	}
-	body, err := client.GetHolderWinrateMap(context.Background(), parseWinrateQuery(c))
+	body, err := client.GetHolderWinrateMap(c.Request.Context(), q)
 	if err != nil {
 		if isWinrateValidationError(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -139,21 +147,16 @@ func (s *Server) handleVergexHolderWinrateMap(c *gin.Context) {
 // rectangle of the win-rate matrix (paid x402 endpoint). Requires snapshotId
 // (from the map response) plus the row/column range; side is long|short.
 func (s *Server) handleVergexHolderWinrateHolders(c *gin.Context) {
+	q, err := parseWinrateHoldersQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	client, ok := s.newVergexClientForRequest(c)
 	if !ok {
 		return
 	}
-	body, err := client.GetHolderWinrateHolders(context.Background(), vergex.WinrateHoldersQuery{
-		WinrateQuery: parseWinrateQuery(c),
-		SnapshotID:   strings.TrimSpace(c.Query("snapshotId")),
-		Row:          parseNonNegativeInt(c.Query("row"), -1),
-		RowEnd:       parseNonNegativeInt(c.Query("rowEnd"), -1),
-		Column:       parseNonNegativeInt(c.Query("column"), -1),
-		ColumnEnd:    parseNonNegativeInt(c.Query("columnEnd"), -1),
-		Side:         strings.TrimSpace(c.Query("side")),
-		Offset:       parseNonNegativeInt(c.Query("offset"), 0),
-		Limit:        parsePositiveInt(c.Query("limit"), 50),
-	})
+	body, err := client.GetHolderWinrateHolders(c.Request.Context(), q)
 	if err != nil {
 		if isWinrateValidationError(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -166,60 +169,88 @@ func (s *Server) handleVergexHolderWinrateHolders(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 }
 
-func parseWinrateQuery(c *gin.Context) vergex.WinrateQuery {
-	return vergex.WinrateQuery{
-		MarketType:    strings.TrimSpace(c.Query("marketType")),
-		Symbol:        strings.TrimSpace(c.Query("symbol")),
-		Chain:         strings.TrimSpace(c.Query("chain")),
-		WinMin:        parseNonNegativeInt(c.Query("winMin"), 0),
-		WinMax:        parseNonNegativeInt(c.Query("winMax"), 0),
-		CostMin:       parseOptionalFloat(c.Query("costMin")),
-		CostMax:       parseOptionalFloat(c.Query("costMax")),
-		MinRoundTrips: parsePositiveInt(c.Query("minRoundTrips"), 1),
+func parseWinrateQuery(c *gin.Context) (vergex.WinrateQuery, error) {
+	values, err := url.ParseQuery(c.Request.URL.RawQuery)
+	if err != nil {
+		return vergex.WinrateQuery{}, fmt.Errorf("invalid query encoding")
 	}
+	q := vergex.WinrateQuery{
+		MarketType: strings.TrimSpace(c.Query("marketType")),
+		Symbol:     strings.TrimSpace(c.Query("symbol")),
+		Chain:      strings.TrimSpace(c.Query("chain")),
+	}
+	// Reject duplicate values instead of validating one and forwarding another.
+	for key, entries := range values {
+		if len(entries) != 1 {
+			return q, fmt.Errorf("%s must be provided only once", key)
+		}
+	}
+	for _, pair := range [][2]string{{"winMin", "winMax"}, {"costMin", "costMax"}} {
+		if values.Has(pair[0]) != values.Has(pair[1]) {
+			return q, fmt.Errorf("%s and %s must be supplied together", pair[0], pair[1])
+		}
+	}
+	var costMin, costMax int
+	for _, field := range []struct {
+		key                string
+		target             *int
+		fallback, min, max int
+	}{
+		{"winMin", &q.WinMin, 0, 0, 99}, {"winMax", &q.WinMax, 0, 1, 100},
+		{"costMin", &costMin, 0, 1, 9999}, {"costMax", &costMax, 0, 2, 10000},
+		{"minRoundTrips", &q.MinRoundTrips, 1, 1, 10000},
+	} {
+		value, err := parseWinrateInt(c, field.key, field.fallback, field.min, field.max)
+		if err != nil {
+			return q, err
+		}
+		*field.target = value
+	}
+	q.CostMin, q.CostMax = float64(costMin), float64(costMax)
+	return q, q.Validate()
+}
+
+func parseWinrateHoldersQuery(c *gin.Context) (vergex.WinrateHoldersQuery, error) {
+	base, err := parseWinrateQuery(c)
+	q := vergex.WinrateHoldersQuery{WinrateQuery: base,
+		SnapshotID: strings.TrimSpace(c.Query("snapshotId")), Side: strings.TrimSpace(c.Query("side"))}
+	if err != nil {
+		return q, err
+	}
+	for _, field := range []struct {
+		key                string
+		target             *int
+		fallback, min, max int
+	}{
+		{"row", &q.Row, -1, 0, 19}, {"rowEnd", &q.RowEnd, -1, 0, 19},
+		{"column", &q.Column, -1, 0, 17}, {"columnEnd", &q.ColumnEnd, -1, 0, 17},
+		{"offset", &q.Offset, 0, 0, 1000000}, {"limit", &q.Limit, 50, 1, 100},
+	} {
+		value, err := parseWinrateInt(c, field.key, field.fallback, field.min, field.max)
+		if err != nil {
+			return q, err
+		}
+		*field.target = value
+	}
+	return q, q.Validate()
 }
 
 func isWinrateValidationError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	for _, fragment := range []string{
-		"marketType and symbol are required",
-		"win-rate window must satisfy",
-		"cost window must satisfy",
-		"snapshotId must be",
-		"row/rowEnd/column/columnEnd must satisfy",
-		"side must be",
-	} {
-		if strings.Contains(msg, fragment) {
-			return true
-		}
-	}
-	return false
+	var validation *vergex.WinrateValidationError
+	return errors.As(err, &validation)
 }
 
-func parseNonNegativeInt(raw string, fallback int) int {
-	if raw == "" {
-		return fallback
+func parseWinrateInt(c *gin.Context, key string, fallback, min, max int) (int, error) {
+	raw, present := c.GetQuery(key)
+	// GetQuery treats empty as absent; URL.Has distinguishes an invalid empty value.
+	if !present && !c.Request.URL.Query().Has(key) {
+		return fallback, nil
 	}
-	var n int
-	if _, err := fmt.Sscanf(raw, "%d", &n); err != nil || n < 0 {
-		return fallback
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < min || n > max {
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", key, min, max)
 	}
-	return n
-}
-
-func parseOptionalFloat(raw string) float64 {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0
-	}
-	var f float64
-	if _, err := fmt.Sscanf(raw, "%f", &f); err != nil {
-		return 0
-	}
-	return f
+	return n, nil
 }
 
 func (s *Server) newVergexClientForRequest(c *gin.Context) (*vergex.Client, bool) {

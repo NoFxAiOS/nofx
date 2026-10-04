@@ -236,29 +236,55 @@ func (c *Client) GetHolderWinrateMap(ctx context.Context, q WinrateQuery) (json.
 // win-rate matrix (paid claw402 x402 endpoint). SnapshotID must come from a
 // prior GetHolderWinrateMap response.
 func (c *Client) GetHolderWinrateHolders(ctx context.Context, q WinrateHoldersQuery) (json.RawMessage, error) {
+	params, err := winrateHoldersParams(q)
+	if err != nil {
+		return nil, err
+	}
+	return c.doGET(ctx, HolderWinrateHoldersPath, params)
+}
+
+// WinrateValidationError identifies local errors that must not reach payment.
+type WinrateValidationError struct{ Message string }
+
+func (e *WinrateValidationError) Error() string { return e.Message }
+
+func winrateInvalid(message string) error { return &WinrateValidationError{Message: message} }
+
+func (q WinrateQuery) Validate() error {
+	_, err := winrateMapParams(q)
+	return err
+}
+
+func (q WinrateHoldersQuery) Validate() error {
+	_, err := winrateHoldersParams(q)
+	return err
+}
+
+func winrateHoldersParams(q WinrateHoldersQuery) (url.Values, error) {
+	q.SnapshotID = strings.TrimSpace(q.SnapshotID)
 	if !validWinrateSnapshotID(q.SnapshotID) {
-		return nil, fmt.Errorf("snapshotId must be the snapshot id returned by holder-winrate-map")
+		return nil, winrateInvalid("snapshotId must be the snapshot id returned by holder-winrate-map")
 	}
 	if q.Row < 0 || q.RowEnd < q.Row || q.Column < 0 || q.ColumnEnd < q.Column ||
-		q.RowEnd > 128 || q.ColumnEnd > 128 {
-		return nil, fmt.Errorf("row/rowEnd/column/columnEnd must satisfy 0 <= start <= end <= 128")
+		q.RowEnd > 19 || q.ColumnEnd > 17 {
+		return nil, winrateInvalid("row range must satisfy 0 <= row <= rowEnd <= 19; column range must satisfy 0 <= column <= columnEnd <= 17")
 	}
 	side := strings.ToLower(strings.TrimSpace(q.Side))
 	if side == "" {
 		side = "long"
 	}
 	if side != "long" && side != "short" {
-		return nil, fmt.Errorf("side must be long or short")
+		return nil, winrateInvalid("side must be long or short")
 	}
-	if q.Offset < 0 {
-		q.Offset = 0
+	if q.Offset < 0 || q.Offset > 1000000 {
+		return nil, winrateInvalid("offset must be between 0 and 1000000")
 	}
 	limit := q.Limit
-	if limit <= 0 {
+	if limit == 0 {
 		limit = 50
 	}
-	if limit > 100 {
-		limit = 100
+	if limit < 1 || limit > 100 {
+		return nil, winrateInvalid("limit must be between 1 and 100")
 	}
 
 	params, err := winrateMapParams(q.WinrateQuery)
@@ -273,7 +299,7 @@ func (c *Client) GetHolderWinrateHolders(ctx context.Context, q WinrateHoldersQu
 	params.Set("side", side)
 	params.Set("offset", fmt.Sprintf("%d", q.Offset))
 	params.Set("limit", fmt.Sprintf("%d", limit))
-	return c.doGET(ctx, HolderWinrateHoldersPath, params)
+	return params, nil
 }
 
 // winrateMapParams validates the shared matrix viewport and builds the query
@@ -282,24 +308,31 @@ func (c *Client) GetHolderWinrateHolders(ctx context.Context, q WinrateHoldersQu
 func winrateMapParams(q WinrateQuery) (url.Values, error) {
 	params := url.Values{}
 	marketType := canonicalMarketType(q.MarketType)
+	if marketType == "" {
+		return nil, winrateInvalid("marketType must be hip3_perp or core_perp")
+	}
 	symbol := strings.TrimSpace(q.Symbol)
 	if symbol == "" {
-		return nil, fmt.Errorf("marketType and symbol are required")
+		return nil, winrateInvalid("marketType and symbol are required")
 	}
 	symbol = MarketSymbol(marketType, symbol)
 	if symbol == "" {
-		return nil, fmt.Errorf("marketType and symbol are required")
+		return nil, winrateInvalid("marketType and symbol are required")
 	}
 	params.Set("marketType", marketType)
 	params.Set("symbol", symbol)
 	if q.Chain != "" {
-		params.Set("chain", QueryChain(q.Chain))
+		chain := QueryChain(q.Chain)
+		if chain != "mainnet" {
+			return nil, winrateInvalid("chain must be mainnet")
+		}
+		params.Set("chain", chain)
 	}
 
 	winSet := q.WinMin != 0 || q.WinMax != 0
 	if winSet {
 		if q.WinMin < 0 || q.WinMax > 100 || q.WinMin >= q.WinMax {
-			return nil, fmt.Errorf("win-rate window must satisfy 0 <= winMin < winMax <= 100")
+			return nil, winrateInvalid("win-rate window must satisfy 0 <= winMin < winMax <= 100")
 		}
 		params.Set("winMin", fmt.Sprintf("%d", q.WinMin))
 		params.Set("winMax", fmt.Sprintf("%d", q.WinMax))
@@ -307,13 +340,16 @@ func winrateMapParams(q WinrateQuery) (url.Values, error) {
 	costSet := q.CostMin != 0 || q.CostMax != 0
 	if costSet {
 		if math.IsNaN(q.CostMin) || math.IsNaN(q.CostMax) || math.IsInf(q.CostMin, 0) || math.IsInf(q.CostMax, 0) {
-			return nil, fmt.Errorf("cost window must be finite numbers (percent of price)")
+			return nil, winrateInvalid("cost window must be finite numbers (percent of price)")
 		}
-		if q.CostMin < 1 || q.CostMax > 10000 || q.CostMin >= q.CostMax {
-			return nil, fmt.Errorf("cost window must satisfy 1 <= costMin < costMax <= 10000 (percent of price)")
+		if q.CostMin < 1 || q.CostMax > 10000 || q.CostMin >= q.CostMax || math.Trunc(q.CostMin) != q.CostMin || math.Trunc(q.CostMax) != q.CostMax {
+			return nil, winrateInvalid("cost window must satisfy integer 1 <= costMin < costMax <= 10000 (percent of price)")
 		}
 		params.Set("costMin", trimFloat(q.CostMin, 4))
 		params.Set("costMax", trimFloat(q.CostMax, 4))
+	}
+	if q.MinRoundTrips < 0 || q.MinRoundTrips > 10000 {
+		return nil, winrateInvalid("minRoundTrips must be between 1 and 10000")
 	}
 	if q.MinRoundTrips > 1 {
 		params.Set("minRoundTrips", fmt.Sprintf("%d", q.MinRoundTrips))
@@ -332,8 +368,10 @@ func canonicalMarketType(marketType string) string {
 	case "perp":
 		// the terminal calls crypto majors "perp"
 		return "core_perp"
-	default:
+	case "hip3perp", "hip3":
 		return DefaultMarketType
+	default:
+		return ""
 	}
 }
 
@@ -631,6 +669,7 @@ func FormatWinrateMarkdown(raw json.RawMessage) string {
 	cells := objectArray(data, "cells")
 	if len(cells) == 0 {
 		var sb strings.Builder
+		sb.WriteString(formatWinrateQuality(data, time.Now()))
 		writeScalarSummary(&sb, data, []string{"symbol", "marketType", "markPrice", "includedPositions"})
 		return withFallbackIfEmpty(sb.String(), raw)
 	}
@@ -707,6 +746,7 @@ func FormatWinrateMarkdown(raw json.RawMessage) string {
 	}
 
 	var sb strings.Builder
+	sb.WriteString(formatWinrateQuality(data, time.Now()))
 	writeScalarSummary(&sb, data, []string{"markPrice"})
 	if included := objectOf(data, "included"); included != nil {
 		sb.WriteString(fmt.Sprintf("- Included: %s addrs / %s\n",
@@ -822,6 +862,42 @@ func FormatWinrateMarkdown(raw json.RawMessage) string {
 		}
 	}
 	return withFallbackIfEmpty(sb.String(), raw)
+}
+
+// This is a conservative interpretation warning, not an upstream freshness SLA.
+// Keep the 15-minute threshold aligned with the terminal quality indicator.
+func formatWinrateQuality(data map[string]any, now time.Time) string {
+	var sb strings.Builder
+	writeScalarSummary(&sb, data, []string{"snapshotId", "coverage", "asOf", "positionsAsOf", "priceAsOf", "historyMode", "metricVersion", "minRoundTrips", "staleHistoryCount", "oldestHistory", "newestHistory"})
+	var warnings []string
+	coverage := firstString(data, "coverage")
+	if coverage != "complete" {
+		if coverage == "" {
+			coverage = "unknown"
+		}
+		warnings = append(warnings, "coverage="+coverage+"; aggregates may not represent all holders")
+	}
+	for _, key := range []string{"asOf", "positionsAsOf"} {
+		stamp, err := time.Parse(time.RFC3339Nano, firstString(data, key))
+		switch {
+		case err != nil:
+			warnings = append(warnings, key+" is unknown")
+		case now.Sub(stamp) > 15*time.Minute:
+			warnings = append(warnings, key+" is older than 15 minutes")
+		case stamp.Sub(now) > time.Minute:
+			warnings = append(warnings, key+" is in the future")
+		}
+	}
+	if value, ok := data["staleHistoryCount"]; !ok || value == nil {
+		warnings = append(warnings, "history freshness is unknown")
+	} else if n := firstInt(data, "staleHistoryCount"); n > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d stale holder histories", n))
+	}
+	if len(warnings) > 0 {
+		sb.WriteString("- DATA QUALITY WARNING: " + strings.Join(warnings, "; ") + ". Do not treat these aggregates as complete, current market evidence.\n")
+	}
+	sb.WriteString("- Historical holder win rate is not a forecast or an independent trading signal; position and history timestamps may differ.\n")
+	return sb.String()
 }
 
 // winrateDisplayGroup is one merged display row of the matrix grid.

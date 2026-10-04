@@ -226,6 +226,10 @@ export interface VergexWinrateBucket {
 export interface VergexWinrateMapData {
   snapshotId?: string
   asOf?: string
+  positionsAsOf?: string
+  priceAsOf?: string
+  historyMode?: string
+  staleHistoryCount?: number
   coverage?: string
   markPrice?: string
   priceSource?: string
@@ -234,7 +238,12 @@ export interface VergexWinrateMapData {
   total?: VergexWinrateBucket
   included?: VergexWinrateBucket
   excluded?: Record<string, VergexWinrateBucket>
-  viewport?: { winMin: number; winMax: number; costMin: number; costMax: number }
+  viewport?: {
+    winMin: number
+    winMax: number
+    costMin: number
+    costMax: number
+  }
   winBins?: number
   costBins?: number
   costRange?: [string, string]
@@ -407,7 +416,9 @@ export const dataApi = {
       { timeout: 90000 }
     )
     if (!result.success)
-      throw new Error(result.message || 'Failed to fetch holder win-rate matrix')
+      throw new Error(
+        result.message || 'Failed to fetch holder win-rate matrix'
+      )
     return result.data || {}
   },
 

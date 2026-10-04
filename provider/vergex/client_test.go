@@ -213,7 +213,7 @@ func TestHolderWinrateRequestsUseExactPathsAndParams(t *testing.T) {
 		WinrateQuery: WinrateQuery{MarketType: "core_perp", Symbol: "BTC"},
 		SnapshotID:   "XGSZMBVFLOZRFYMWGC44OBBQNX",
 		Row:          0, RowEnd: 19, Column: 1, ColumnEnd: 16,
-		Side: "short", Offset: 20, Limit: 500,
+		Side: "short", Offset: 20, Limit: 100,
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { VergexWinrateCell, VergexWinrateHolder, VergexWinrateMapResponse } from '../../lib/api/data'
+import type {
+  VergexWinrateCell,
+  VergexWinrateHolder,
+  VergexWinrateHoldersRequest,
+  VergexWinrateMapResponse,
+} from '../../lib/api/data'
+import { winrateQualityWarnings } from '../../lib/vergexWinrateQuality'
 import { demoSeedPrice } from '../../lib/demo/demoUniverse'
 
 /**
@@ -33,8 +39,16 @@ const COST_GROUPS: number[][] = [
   [0],
 ]
 const WIN_COLS: [number, number][] = [
-  [0, 1], [2, 3], [4, 5], [6, 7], [8, 9],
-  [10, 11], [12, 13], [14, 15], [16, 17], [18, 19],
+  [0, 1],
+  [2, 3],
+  [4, 5],
+  [6, 7],
+  [8, 9],
+  [10, 11],
+  [12, 13],
+  [14, 15],
+  [16, 17],
+  [18, 19],
 ]
 const DRILL_LIMIT = 20
 
@@ -59,7 +73,12 @@ interface MatrixCell {
 }
 
 interface SideView {
-  rows: { label: string; boundary: boolean; slots: number[]; cells: MatrixCell[] }[]
+  rows: {
+    label: string
+    boundary: boolean
+    slots: number[]
+    cells: MatrixCell[]
+  }[]
   totals: MatrixCell[]
   max: number
 }
@@ -69,6 +88,8 @@ interface DrillSel {
   winIdx: number
   slots: number[]
   label: string
+  request: VergexWinrateHoldersRequest
+  mark: number
 }
 
 // deterministic synthetic matrix for showcase mode (no paid calls)
@@ -108,15 +129,32 @@ function demoResponse(symbol: string): VergexWinrateMapResponse {
   }
 }
 
-export function WinrateMatrix({
-  symbol,
-  marketType = 'hip3_perp',
-  demo = false,
-}: {
+interface WinrateMatrixProps {
   symbol: string
   marketType?: string
   demo?: boolean
-}) {
+}
+
+// A market/mode change unmounts the old query session, including its selection,
+// pages and pending-response guards. Never carry paid drilldown state across it.
+export function WinrateMatrix(props: WinrateMatrixProps) {
+  return (
+    <WinrateMatrixSession
+      key={JSON.stringify([
+        props.marketType ?? 'hip3_perp',
+        props.symbol,
+        !!props.demo,
+      ])}
+      {...props}
+    />
+  )
+}
+
+function WinrateMatrixSession({
+  symbol,
+  marketType = 'hip3_perp',
+  demo = false,
+}: WinrateMatrixProps) {
   const fetcher = () =>
     api.getVergexHolderWinrateMap({
       marketType,
@@ -127,11 +165,17 @@ export function WinrateMatrix({
       costMin: 92,
       costMax: 108,
     })
-  const live = useSWR(symbol && !demo ? ['winrate-map', marketType, symbol] : null, fetcher, {
-    refreshInterval: 300000,
-    revalidateOnFocus: false,
-    keepPreviousData: true,
-  })
+  const live = useSWR(
+    symbol && !demo ? ['winrate-map', marketType, symbol] : null,
+    fetcher,
+    {
+      refreshInterval: 300000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+      keepPreviousData: false,
+    }
+  )
 
   const data = demo ? demoResponse(symbol) : live.data
   const isLoading = demo ? false : live.isLoading
@@ -146,6 +190,14 @@ export function WinrateMatrix({
     loading: boolean
     error?: string
   }>({ items: [], total: 0, nextOffset: null, loading: false })
+  const requestSerial = useRef(0)
+  const requestPending = useRef(false)
+  useEffect(
+    () => () => {
+      requestSerial.current++
+    },
+    []
+  )
 
   const d = data?.data
   const mark = d?.markPrice ? +d.markPrice : 0
@@ -164,17 +216,24 @@ export function WinrateMatrix({
     const buildSide = (side: 'long' | 'short'): SideView => {
       const rows: SideView['rows'] = []
       let max = 0
-      const totals: MatrixCell[] = WIN_COLS.map(() => ({ notional: 0, count: 0 }))
+      const totals: MatrixCell[] = WIN_COLS.map(() => ({
+        notional: 0,
+        count: 0,
+      }))
       for (const slots of COST_GROUPS) {
         const first = slots[0]
         const last = slots[slots.length - 1]
         const lower = slotLower(first)
-        const upper = first === 0 ? lo : last >= costBins ? hi : slotLower(last + 1)
+        const upper =
+          first === 0 ? lo : last >= costBins ? hi : slotLower(last + 1)
         let label: string
         if (first === 0) label = `< ${fmtPx((lo * mark) / 100)}`
-        else if (last === costBins + 1) label = `≥ ${fmtPx((lower * mark) / 100)}`
-        else label = `${fmtPx((lower * mark) / 100)} – ${fmtPx((upper * mark) / 100)}`
-        const boundary = Math.abs(lower - 100) < 1e-8
+        else if (last === costBins + 1)
+          label = `≥ ${fmtPx((lower * mark) / 100)}`
+        else
+          label = `${fmtPx((lower * mark) / 100)} – ${fmtPx((upper * mark) / 100)}`
+        // Rows run high-to-low: the TOP edge of 99–100 is the price boundary.
+        const boundary = Math.abs(upper - 100) < 1e-8
         const cells: MatrixCell[] = WIN_COLS.map(([r0, r1], i) => {
           let notional = 0
           let count = 0
@@ -202,79 +261,102 @@ export function WinrateMatrix({
     }
   }, [d, mark])
 
-  // drilldown fetch — strictly on demand (paid per call); showcase mode gets
-  // a deterministic synthetic page so the interaction is demonstrable.
-  useEffect(() => {
-    if (!sel || !view?.snapshotId) return
+  // Only event handlers call this function. In particular, polling, React
+  // effects and snapshot/mark changes cannot initiate a paid holders request.
+  async function loadPage(selection: DrillSel, offset: number) {
+    if (requestPending.current) return
+    requestPending.current = true
+    const serial = ++requestSerial.current
+    setSel(selection)
+    setDrillOffset(offset)
+    setDrill({ items: [], total: 0, nextOffset: null, loading: true })
     if (demo) {
-      const n = 14
-      const seedBase = Math.abs(Math.floor(demoSeedPrice(symbol) * 1e6)) || 12345
+      const total = 137
+      const n = Math.min(DRILL_LIMIT, Math.max(0, total - offset))
+      const seedBase =
+        Math.abs(Math.floor(demoSeedPrice(symbol) * 1e6)) || 12345
       setDrill({
         items: Array.from({ length: n }, (_, i) => ({
-          address: `0x${(seedBase + i * 7919).toString(16).padStart(8, '0')}${'a1b2c3d4e5f6789012345678abcdef01'.slice(0, 32)}`,
-          side: sel.side,
-          size: String(1200 / (i + 1)),
-          entryPrice: String(mark * (0.93 + 0.005 * i)),
-          notional: String(5.2e6 / (i + 1)),
+          address: `0x${(seedBase + (offset + i) * 7919).toString(16).padStart(8, '0')}${'a1b2c3d4e5f6789012345678abcdef01'.slice(0, 32)}`,
+          side: selection.side,
+          size: String(1200 / (offset + i + 1)),
+          entryPrice: String(selection.mark * (0.93 + 0.005 * i)),
+          notional: String(5.2e6 / (offset + i + 1)),
           costRatio: String(93 + i * 0.5),
-          winRate: String(10 * sel.winIdx + (i % 10)),
+          winRate: String(10 * selection.winIdx + (i % 10)),
           roundTrips: 1 + (i % 7),
         })),
-        total: 137,
-        nextOffset: DRILL_LIMIT,
+        total,
+        nextOffset: offset + n < total ? offset + n : null,
         loading: false,
       })
+      requestPending.current = false
       return
     }
-    let alive = true
-    setDrill((s) => ({ ...s, loading: true, error: undefined }))
-    api
-      .getVergexHolderWinrateHolders(
-        {
-          marketType,
-          symbol,
-          chain: 'mainnet',
-          winMin: 0,
-          winMax: 100,
-          costMin: 92,
-          costMax: 108,
-          snapshotId: view.snapshotId,
-          row: WIN_COLS[sel.winIdx][0],
-          rowEnd: WIN_COLS[sel.winIdx][1],
-          column: sel.slots[0],
-          columnEnd: sel.slots[sel.slots.length - 1],
-          side: sel.side,
-          offset: drillOffset,
-          limit: DRILL_LIMIT,
-        },
+    try {
+      const res = await api.getVergexHolderWinrateHolders(
+        { ...selection.request, offset },
         true
       )
-      .then((res) => {
-        if (!alive) return
-        setDrill({
-          items: res.data?.items ?? [],
-          total: res.data?.total ?? 0,
-          nextOffset: res.data?.nextOffset ?? null,
-          loading: false,
-        })
+      if (serial !== requestSerial.current) return
+      if (res.data?.snapshotId !== selection.request.snapshotId) {
+        throw new Error(
+          'Data version mismatch. Select a cell again to start a new query.'
+        )
+      }
+      const next = res.data.nextOffset ?? null
+      if (next !== null && (!Number.isInteger(next) || next <= offset)) {
+        throw new Error(
+          'Invalid pagination response. No automatic retry was made.'
+        )
+      }
+      setDrill({
+        items: res.data.items ?? [],
+        total: res.data.total ?? 0,
+        nextOffset: next,
+        loading: false,
       })
-      .catch((err) => {
-        if (!alive) return
-        setDrill((s) => ({ ...s, loading: false, error: String(err?.message || err) }))
+    } catch (err) {
+      if (serial !== requestSerial.current) return
+      setDrill({
+        items: [],
+        total: 0,
+        nextOffset: null,
+        loading: false,
+        error: String(err instanceof Error ? err.message : err),
       })
-    return () => {
-      alive = false
+    } finally {
+      if (serial === requestSerial.current) requestPending.current = false
     }
-  }, [sel, drillOffset, view?.snapshotId, marketType, symbol, demo, mark])
+  }
+
+  function closeDrilldown() {
+    requestSerial.current++
+    requestPending.current = false
+    setSel(null)
+    setDrillOffset(0)
+    setDrill({ items: [], total: 0, nextOffset: null, loading: false })
+  }
 
   const dispSymbol = (symbol || '').toUpperCase().replace(/^XYZ:/, '')
   const hasView = !!view
   const included = d?.included
+  const qualityWarnings = demo ? [] : winrateQualityWarnings(d)
+  const currentData = hasView && !error && qualityWarnings.length === 0
 
   return (
     <div style={{ fontFamily: 'var(--tm-mono)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-        <span className="tm-px" style={{ fontSize: 11 }}>Win-rate matrix</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 8,
+          marginBottom: 3,
+        }}
+      >
+        <span className="tm-px" style={{ fontSize: 11 }}>
+          Win-rate matrix
+        </span>
         <span className="tm-sc">{dispSymbol}</span>
         {mark > 0 && (
           <span className="tm-sc" style={{ color: 'var(--tm-red)' }}>
@@ -283,29 +365,84 @@ export function WinrateMatrix({
         )}
         {included && (
           <span className="tm-sc">
-            {included.count?.toLocaleString()} addrs / {fmtUsd(+included.notional)}
+            {included.count?.toLocaleString()} addrs /{' '}
+            {fmtUsd(+included.notional)}
           </span>
         )}
         <span
           className="tm-sc"
-          style={{ marginLeft: 'auto', color: hasView ? 'var(--tm-up)' : 'var(--tm-muted)' }}
+          style={{
+            marginLeft: 'auto',
+            color: currentData ? 'var(--tm-up)' : 'var(--tm-muted)',
+          }}
         >
-          {demo && hasView ? '● demo' : hasView ? '● live' : isLoading ? '○ sync' : '○ —'}
+          {demo && hasView
+            ? '● demo'
+            : currentData
+              ? '● current snapshot'
+              : hasView
+                ? '○ cached / unverified'
+                : isLoading
+                  ? '○ sync'
+                  : '○ —'}
         </span>
       </div>
       <div className="tm-sc" style={{ fontSize: 9, marginBottom: 4 }}>
-        Entry-cost rows × win-rate columns · dashed line = current price (cost 100%) ·
-        click a cell for the addresses behind it
+        Entry-cost rows × win-rate columns · dashed line = current price (cost
+        100%) ·
+        {demo
+          ? 'click a cell for demo addresses'
+          : 'matrix query $0.002 (auto-refresh every 5 min); each cell query / page $0.002; address pages never refresh automatically'}
       </div>
+
+      {!demo && d && (
+        <div className="tm-sc" style={{ fontSize: 9, marginBottom: 6 }}>
+          Coverage: {d.coverage ?? 'unknown'} · Snapshot: {d.asOf ?? 'unknown'}{' '}
+          · Positions: {d.positionsAsOf ?? 'unknown'} · Price:{' '}
+          {d.priceAsOf ?? 'unknown'}
+          <br />
+          History: {d.historyMode ?? 'unknown'} · stale histories:{' '}
+          {d.staleHistoryCount ?? 'unknown'} · minimum round trips:{' '}
+          {d.minRoundTrips ?? 'unknown'}
+          {qualityWarnings.length > 0 && (
+            <div role="status">
+              Data warning: {qualityWarnings.join('; ')}. Historical win rate is
+              not a forecast.
+            </div>
+          )}
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="tm-sc" style={{ padding: '6px 0' }}>
+          Matrix refresh failed: {String((error as Error)?.message || error)}.{' '}
+          {hasView ? 'Showing the previous snapshot, not live data. ' : ''}
+          <button
+            type="button"
+            disabled={live.isValidating}
+            onClick={() => void live.mutate().catch(() => {})}
+          >
+            Retry matrix query ($0.002)
+          </button>
+        </div>
+      )}
 
       {error && !hasView ? (
         <div className="tm-sc" style={{ padding: '14px 0' }}>
-          No win-rate matrix for {dispSymbol} ({String((error as Error)?.message || error)}).
+          No win-rate matrix for {dispSymbol} (
+          {String((error as Error)?.message || error)}).
         </div>
       ) : !hasView ? (
-        <div className="tm-sc" style={{ padding: '14px 0' }}>Loading win-rate matrix…</div>
+        <div className="tm-sc" style={{ padding: '14px 0' }}>
+          Loading win-rate matrix…
+        </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)',
+            gap: 18,
+          }}
+        >
           {(['long', 'short'] as const).map((side) => {
             const sv = view![side]
             return (
@@ -330,7 +467,11 @@ export function WinrateMatrix({
                 >
                   <div />
                   {WIN_COLS.map((_, i) => (
-                    <div key={i} className="tm-sc" style={{ textAlign: 'center', paddingBottom: 2 }}>
+                    <div
+                      key={i}
+                      className="tm-sc"
+                      style={{ textAlign: 'center', paddingBottom: 2 }}
+                    >
                       {i * 10}-{(i + 1) * 10}%
                     </div>
                   ))}
@@ -342,24 +483,59 @@ export function WinrateMatrix({
                       max={sv.max}
                       sel={sel}
                       onPick={(winIdx, cell) => {
-                        if (cell.notional <= 0) return
-                        setDrillOffset(0)
-                        setSel({
-                          side,
-                          winIdx,
-                          slots: row.slots,
-                          label: `${side === 'long' ? 'Long' : 'Short'} · win ${winIdx * 10}-${(winIdx + 1) * 10}% × cost ${row.label}`,
-                        })
+                        if (
+                          cell.notional <= 0 ||
+                          !view?.snapshotId ||
+                          !d?.viewport
+                        )
+                          return
+                        void loadPage(
+                          {
+                            side,
+                            winIdx,
+                            slots: row.slots,
+                            label: `${side === 'long' ? 'Long' : 'Short'} · win ${winIdx * 10}-${(winIdx + 1) * 10}% × cost ${row.label}`,
+                            mark,
+                            request: {
+                              marketType,
+                              symbol,
+                              chain: 'mainnet',
+                              ...d.viewport,
+                              minRoundTrips: d.minRoundTrips ?? 1,
+                              snapshotId: view.snapshotId,
+                              row: WIN_COLS[winIdx][0],
+                              rowEnd: WIN_COLS[winIdx][1],
+                              column: row.slots[0],
+                              columnEnd: row.slots[row.slots.length - 1],
+                              side,
+                              limit: DRILL_LIMIT,
+                            },
+                          },
+                          0
+                        )
                       }}
                     />
                   ))}
-                  <div className="tm-sc" style={{ textAlign: 'right', paddingRight: 6, alignSelf: 'center' }}>
+                  <div
+                    className="tm-sc"
+                    style={{
+                      textAlign: 'right',
+                      paddingRight: 6,
+                      alignSelf: 'center',
+                    }}
+                  >
                     Σ
                   </div>
                   {sv.totals.map((t, i) => (
-                    <div key={i} className="tm-sc" style={{ textAlign: 'center', lineHeight: 1.3 }}>
+                    <div
+                      key={i}
+                      className="tm-sc"
+                      style={{ textAlign: 'center', lineHeight: 1.3 }}
+                    >
                       <div>{fmtUsd(t.notional)}</div>
-                      <div style={{ fontSize: 8 }}>{t.count ? t.count.toLocaleString() : ''}</div>
+                      <div style={{ fontSize: 8 }}>
+                        {t.count ? t.count.toLocaleString() : ''}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -373,33 +549,78 @@ export function WinrateMatrix({
         <div style={{ marginTop: 12 }}>
           <div className="tm-rule" style={{ margin: '8px 0 6px' }} />
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="tm-px" style={{ fontSize: 10 }}>{sel.label}</span>
-            {!demo && <span className="tm-sc">snapshot {view?.snapshotId}</span>}
+            <span className="tm-px" style={{ fontSize: 10 }}>
+              {sel.label}
+            </span>
+            {!demo && (
+              <span className="tm-sc">
+                Pinned data version: {sel.request.snapshotId}
+              </span>
+            )}
             <span className="tm-sc" style={{ marginLeft: 'auto', fontSize: 9 }}>
-              {drill.loading ? 'loading…' : `${drill.total.toLocaleString()} addresses`}
+              {drill.loading
+                ? 'loading…'
+                : `${drill.total.toLocaleString()} addresses`}
             </span>
             <button
               className="tm-sc"
-              style={{ font: 'inherit', cursor: 'pointer', border: 'none', background: 'none', textDecoration: 'underline' }}
-              onClick={() => setSel(null)}
+              style={{
+                font: 'inherit',
+                cursor: 'pointer',
+                border: 'none',
+                background: 'none',
+                textDecoration: 'underline',
+              }}
+              onClick={closeDrilldown}
             >
               close
             </button>
           </div>
           {drill.error ? (
-            <div className="tm-sc" style={{ padding: '8px 0' }}>Drilldown failed: {drill.error}</div>
+            <div role="alert" className="tm-sc" style={{ padding: '8px 0' }}>
+              Drilldown failed: {drill.error} No automatic retry or snapshot
+              switch was made. If the snapshot has expired, select a cell in the
+              latest matrix to start over.
+              <button
+                type="button"
+                onClick={() => void loadPage(sel, drillOffset)}
+              >
+                Retry this page ($0.002)
+              </button>
+            </div>
           ) : drill.items.length === 0 && !drill.loading ? (
-            <div className="tm-sc" style={{ padding: '8px 0' }}>No addresses in this cell.</div>
+            <div className="tm-sc" style={{ padding: '8px 0' }}>
+              No addresses in this cell.
+            </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9.5 }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: 9.5,
+                }}
+              >
                 <thead>
                   <tr>
-                    {['address', 'side', 'size', 'entry', 'notional', 'cost/mark', 'win rate', 'rounds'].map((h) => (
+                    {[
+                      'address',
+                      'side',
+                      'size',
+                      'entry',
+                      'notional',
+                      'cost/mark',
+                      'win rate',
+                      'rounds',
+                    ].map((h) => (
                       <th
                         key={h}
                         className="tm-sc"
-                        style={{ textAlign: 'right', padding: '3px 6px', borderBottom: '1px solid var(--tm-rule)' }}
+                        style={{
+                          textAlign: 'right',
+                          padding: '3px 6px',
+                          borderBottom: '1px solid var(--tm-rule)',
+                        }}
                       >
                         {h}
                       </th>
@@ -409,35 +630,90 @@ export function WinrateMatrix({
                 <tbody>
                   {drill.items.map((it) => (
                     <tr key={it.address}>
-                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>{it.address}</td>
-                      <td style={{ textAlign: 'right', padding: '2px 6px', color: it.side === 'long' ? 'var(--tm-up)' : 'var(--tm-dn)' }}>
+                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>
+                        {it.address}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: 'right',
+                          padding: '2px 6px',
+                          color:
+                            it.side === 'long'
+                              ? 'var(--tm-up)'
+                              : 'var(--tm-dn)',
+                        }}
+                      >
                         {it.side === 'long' ? 'long' : 'short'}
                       </td>
-                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>{(+it.size).toLocaleString()}</td>
-                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>{fmtPx(+it.entryPrice)}</td>
-                      <td style={{ textAlign: 'right', padding: '2px 6px', fontWeight: 700 }}>{fmtUsd(+it.notional)}</td>
-                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>{(+it.costRatio).toFixed(1)}%</td>
-                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>{(+it.winRate).toFixed(1)}%</td>
-                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>{it.roundTrips}</td>
+                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>
+                        {(+it.size).toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>
+                        {fmtPx(+it.entryPrice)}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: 'right',
+                          padding: '2px 6px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {fmtUsd(+it.notional)}
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>
+                        {(+it.costRatio).toFixed(1)}%
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>
+                        {(+it.winRate).toFixed(1)}%
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '2px 6px' }}>
+                        {it.roundTrips}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }} className="tm-sc">
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center',
+                  marginTop: 4,
+                }}
+                className="tm-sc"
+              >
                 <button
-                  style={{ font: 'inherit', cursor: 'pointer', border: 'none', background: 'none', textDecoration: 'underline' }}
+                  style={{
+                    font: 'inherit',
+                    cursor: 'pointer',
+                    border: 'none',
+                    background: 'none',
+                    textDecoration: 'underline',
+                  }}
                   disabled={drillOffset === 0 || drill.loading}
-                  onClick={() => setDrillOffset(Math.max(0, drillOffset - DRILL_LIMIT))}
+                  onClick={() =>
+                    void loadPage(sel, Math.max(0, drillOffset - DRILL_LIMIT))
+                  }
                 >
                   ← prev
                 </button>
                 <span>
-                  {drillOffset + 1}–{drillOffset + drill.items.length} / {drill.total.toLocaleString()}
+                  {drillOffset + 1}–{drillOffset + drill.items.length} /{' '}
+                  {drill.total.toLocaleString()}
                 </span>
                 <button
-                  style={{ font: 'inherit', cursor: drill.nextOffset == null ? 'default' : 'pointer', border: 'none', background: 'none', textDecoration: 'underline' }}
+                  style={{
+                    font: 'inherit',
+                    cursor: drill.nextOffset == null ? 'default' : 'pointer',
+                    border: 'none',
+                    background: 'none',
+                    textDecoration: 'underline',
+                  }}
                   disabled={drill.nextOffset == null || drill.loading}
-                  onClick={() => drill.nextOffset != null && setDrillOffset(drill.nextOffset)}
+                  onClick={() => {
+                    if (drill.nextOffset != null)
+                      void loadPage(sel, drill.nextOffset)
+                  }}
                 >
                   next →
                 </button>
@@ -451,7 +727,11 @@ export function WinrateMatrix({
 }
 
 function MatrixRow({
-  row, side, max, sel, onPick,
+  row,
+  side,
+  max,
+  sel,
+  onPick,
 }: {
   row: SideView['rows'][number]
   side: 'long' | 'short'
@@ -485,7 +765,11 @@ function MatrixRow({
       {row.cells.map((cell, i) => {
         const alpha =
           cell.notional > 0 && max > 0
-            ? Math.min(0.92, 0.1 + (0.82 * Math.log10(1 + cell.notional)) / Math.log10(1 + max))
+            ? Math.min(
+                0.92,
+                0.1 +
+                  (0.82 * Math.log10(1 + cell.notional)) / Math.log10(1 + max)
+              )
             : 0
         return (
           <button
@@ -493,8 +777,12 @@ function MatrixRow({
             onClick={() => onPick(i, cell)}
             disabled={cell.notional <= 0}
             style={{
-              border: active(i) ? '1.5px solid var(--tm-ink)' : '1px solid rgba(26,24,19,0.08)',
-              borderTop: row.boundary ? '1.5px dashed var(--tm-red)' : '1px solid rgba(26,24,19,0.08)',
+              border: active(i)
+                ? '1.5px solid var(--tm-ink)'
+                : '1px solid rgba(26,24,19,0.08)',
+              borderTop: row.boundary
+                ? '1.5px dashed var(--tm-red)'
+                : '1px solid rgba(26,24,19,0.08)',
               background:
                 cell.notional > 0
                   ? side === 'long'
@@ -509,7 +797,9 @@ function MatrixRow({
               lineHeight: 1.25,
             }}
           >
-            <div style={{ fontWeight: 700 }}>{cell.notional > 0 ? fmtUsd(cell.notional) : '0'}</div>
+            <div style={{ fontWeight: 700 }}>
+              {cell.notional > 0 ? fmtUsd(cell.notional) : '0'}
+            </div>
             <div style={{ fontSize: 7.5, opacity: 0.85 }}>
               {cell.count > 0 ? `${cell.count.toLocaleString()}a` : ''}
             </div>

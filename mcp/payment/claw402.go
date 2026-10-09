@@ -50,37 +50,27 @@ func shortAddr(addr string) string {
 
 const (
 	DefaultClaw402URL   = "https://claw402.ai"
-	DefaultClaw402Model = "deepseek-v4-flash"
+	DefaultClaw402Model = "gpt-5.6"
 )
 
 // claw402ModelEndpoints maps user-friendly model names to claw402 API paths.
+// Must stay in sync with the claw402 catalog (GET /api/v1/catalog).
 var claw402ModelEndpoints = map[string]string{
 	// OpenAI
-	"gpt-5.4":     "/api/v1/ai/openai/chat/5.4",
-	"gpt-5.4-pro": "/api/v1/ai/openai/chat/5.4-pro",
-	"gpt-5.3":     "/api/v1/ai/openai/chat/5.3",
-	"gpt-5-mini":  "/api/v1/ai/openai/chat/5-mini",
+	"gpt-6":         "/api/v1/ai/openai/chat/6",
+	"gpt-5.6":       "/api/v1/ai/openai/chat/5.6",
+	"gpt-5.6-terra": "/api/v1/ai/openai/chat/5.6-terra",
+	"gpt-5.6-luna":  "/api/v1/ai/openai/chat/5.6-luna",
 	// Anthropic
-	"claude-opus": "/api/v1/ai/anthropic/messages/opus",
+	"claude-fable": "/api/v1/ai/anthropic/messages/fable",
+	"claude-opus":  "/api/v1/ai/anthropic/messages/opus",
 	// DeepSeek
 	"deepseek":          "/api/v1/ai/deepseek/chat",
 	"deepseek-reasoner": "/api/v1/ai/deepseek/chat/reasoner",
 	"deepseek-v4-flash": "/api/v1/ai/deepseek/v4-flash",
 	"deepseek-v4-pro":   "/api/v1/ai/deepseek/v4-pro",
-	// Qwen
-	"qwen-max":   "/api/v1/ai/qwen/chat/max",
-	"qwen-plus":  "/api/v1/ai/qwen/chat/plus",
-	"qwen-turbo": "/api/v1/ai/qwen/chat/turbo",
-	"qwen-flash": "/api/v1/ai/qwen/chat/flash",
-	// Grok
-	"grok-4.1": "/api/v1/ai/grok/chat/4.1",
-	// Gemini
-	"gemini-3.1-pro": "/api/v1/ai/gemini/chat/3.1-pro",
-	// Kimi
-	"kimi-k2.5": "/api/v1/ai/kimi/chat/k2.5",
 	// Z.AI (Zhipu)
-	"glm-5":       "/api/v1/ai/zhipu/chat",
-	"glm-5-turbo": "/api/v1/ai/zhipu/chat/turbo",
+	"glm-5": "/api/v1/ai/zhipu/chat",
 }
 
 func init() {
@@ -99,6 +89,24 @@ type Claw402Client struct {
 }
 
 func (c *Claw402Client) BaseClient() *mcp.Client { return c.Client }
+
+// LastCallCostUSD reports the actually-settled cost of the most recent call:
+// the gateway's X-Claw402-Settled-Usd header when available (non-streaming),
+// otherwise derived from streamed token usage via the gateway's own formula —
+// on SSE responses the header cannot be delivered because HTTP headers are
+// flushed before usage is known. ok is false when neither source is available;
+// callers should then fall back to the flat catalog price.
+func (c *Claw402Client) LastCallCostUSD() (float64, bool) {
+	if c.Client.LastCallSettledUSD > 0 {
+		return c.Client.LastCallSettledUSD, true
+	}
+	if u := c.Client.LastCallUsage; u != nil && u.PromptTokens+u.CompletionTokens > 0 {
+		if cost, ok := store.ComputeUsageCost(c.Model, u.PromptTokens, u.CompletionTokens); ok {
+			return cost, true
+		}
+	}
+	return 0, false
+}
 
 // NewClaw402Client creates a claw402 client (backward compatible).
 func NewClaw402Client() mcp.AIClient {
@@ -126,13 +134,20 @@ func NewClaw402ClientWithOptions(opts ...mcp.ClientOption) mcp.AIClient {
 
 // SetAPIKey stores the EVM private key and selects the model endpoint.
 func (c *Claw402Client) SetAPIKey(apiKey string, _ string, customModel string) {
-	hexKey := strings.TrimPrefix(apiKey, "0x")
+	// Clear first so a malformed rotation can never keep spending from the
+	// previously configured wallet.
+	c.privateKey = nil
+	c.APIKey = ""
+	hexKey := strings.TrimSpace(apiKey)
+	if len(hexKey) >= 2 && strings.EqualFold(hexKey[:2], "0x") {
+		hexKey = hexKey[2:]
+	}
 	privKey, err := crypto.HexToECDSA(hexKey)
 	if err != nil {
 		c.Log.Warnf("⚠️  [MCP] Claw402: invalid private key: %v", err)
 	} else {
 		c.privateKey = privKey
-		c.APIKey = apiKey
+		c.APIKey = hexKey
 		addr := crypto.PubkeyToAddress(privKey.PublicKey).Hex()
 		c.Log.Infof("🔧 [MCP] Claw402 wallet: %s", addr)
 	}
@@ -241,18 +256,34 @@ func stripMaxTokens(body map[string]any) map[string]any {
 	return body
 }
 
+// applyClawModelControls prevents DeepSeek V4 from spending the gateway's
+// entire output allowance on reasoning_content and returning no final answer.
+// The gateway accepts the standard thinking control on these V4 routes.
+func applyClawModelControls(body map[string]any, model string) map[string]any {
+	if body == nil {
+		return body
+	}
+	switch model {
+	case "deepseek-v4-flash", "deepseek-v4-pro":
+		body["thinking"] = map[string]any{"type": "disabled"}
+	}
+	return body
+}
+
 func (c *Claw402Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildMCPRequestBody(systemPrompt, userPrompt)
 	}
-	return stripMaxTokens(c.Client.BuildMCPRequestBody(systemPrompt, userPrompt))
+	body := stripMaxTokens(c.Client.BuildMCPRequestBody(systemPrompt, userPrompt))
+	return applyClawModelControls(body, c.Model)
 }
 
 func (c *Claw402Client) BuildRequestBodyFromRequest(req *mcp.Request) map[string]any {
 	if c.claudeProxy != nil {
 		return c.claudeProxy.BuildRequestBodyFromRequest(req)
 	}
-	return stripMaxTokens(c.Client.BuildRequestBodyFromRequest(req))
+	body := stripMaxTokens(c.Client.BuildRequestBodyFromRequest(req))
+	return applyClawModelControls(body, c.Model)
 }
 
 func (c *Claw402Client) ParseMCPResponse(body []byte) (string, error) {

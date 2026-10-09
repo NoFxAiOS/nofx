@@ -4,12 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, ChevronDown, Settings } from 'lucide-react'
 import { t, type Language } from '../../i18n/translations'
 import { OFFICIAL_LINKS } from '../../constants/branding'
-import {
-  getPostAuthPath,
-  getUserMode,
-  setUserMode,
-  type UserMode,
-} from '../../lib/onboarding'
 import { getCurrentPageForPath, ROUTES, type Page } from '../../router/paths'
 import { HyperliquidWalletConnect } from './HyperliquidWalletConnect'
 
@@ -40,9 +34,7 @@ export default function HeaderBar({
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
-  const [userMode, setUserModeState] = useState<UserMode>(
-    () => getUserMode() ?? 'advanced'
-  )
+
   const userDropdownRef = useRef<HTMLDivElement>(null)
   const resolvedCurrentPage =
     currentPage ?? getCurrentPageForPath(location.pathname)
@@ -51,12 +43,6 @@ export default function HeaderBar({
     navigate(path)
   }
 
-  const handleSwitchMode = (nextMode: UserMode) => {
-    setUserMode(nextMode)
-    setUserModeState(nextMode)
-    setUserDropdownOpen(false)
-    navigateInApp(getPostAuthPath(nextMode))
-  }
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -84,128 +70,143 @@ export default function HeaderBar({
           }}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
         >
-          <span className="flex items-center justify-center w-8 h-8 rounded-md overflow-hidden shrink-0" style={{ background: '#fff', border: '1px solid rgba(26,24,19,0.12)' }}>
+          <span
+            className="flex items-center justify-center w-8 h-8 rounded-md overflow-hidden shrink-0"
+            style={{
+              background: '#fff',
+              border: '1px solid rgba(26,24,19,0.12)',
+            }}
+          >
             <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
           </span>
-          <span className="text-lg font-bold text-nofx-gold tracking-wide">NOFX</span>
+          <span className="text-lg font-bold text-nofx-gold tracking-wide">
+            NOFX
+          </span>
         </div>
 
         {/* Desktop Menu */}
-        <div className="hidden md:flex items-center justify-between flex-1 ml-8">
+        <div className="hidden min-w-0 flex-1 items-center justify-between gap-3 ml-6 md:flex">
           {/* Left Side - Navigation Tabs - Always show all tabs */}
-          <div className="flex items-center gap-2">
-            {/* Navigation tabs configuration */}
-            {(() => {
-              // Define all navigation tabs
-              const navTabs: {
-                page: Page
-                path: string
-                label: string
-                requiresAuth: boolean
-                badge?: string
-                hidden?: boolean
-              }[] = [
-                {
-                  page: 'data',
-                  path: ROUTES.data,
-                  label:
-                    language === 'zh'
-                      ? 'Data'
-                      : language === 'id'
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="hidden shrink-0 items-center gap-0.5 lg:flex xl:gap-1 2xl:gap-2">
+              {/* Navigation tabs configuration */}
+              {(() => {
+                // Define all navigation tabs
+                const navTabs: {
+                  page: Page
+                  path: string
+                  label: string
+                  requiresAuth: boolean
+                  badge?: string
+                  hidden?: boolean
+                }[] = [
+                  {
+                    page: 'data',
+                    path: ROUTES.data,
+                    label:
+                      language === 'zh'
                         ? 'Data'
-                        : 'Data',
-                  requiresAuth: false,
-                },
-                {
-                  page: 'strategy-market',
-                  path: ROUTES.strategyMarket,
-                  label:
-                    language === 'zh'
-                      ? 'Market'
-                      : language === 'id'
-                        ? 'Pasar'
-                        : 'Market',
-                  requiresAuth: true,
-                  hidden: true,
-                },
-                {
-                  page: 'traders',
-                  path: ROUTES.traders,
-                  label: t('configNav', language),
-                  requiresAuth: true,
-                },
-                {
-                  page: 'trader',
-                  path: ROUTES.dashboard,
-                  label: t('dashboardNav', language),
-                  requiresAuth: true,
-                },
-                {
-                  page: 'strategy',
-                  path: ROUTES.strategy,
-                  label: t('strategyNav', language),
-                  requiresAuth: true,
-                },
-                {
-                  page: 'competition',
-                  path: ROUTES.competition,
-                  label: t('realtimeNav', language),
-                  requiresAuth: true,
-                },
-                {
-                  page: 'faq',
-                  path: ROUTES.faq,
-                  label: t('faqNav', language),
-                  requiresAuth: false,
-                },
-              ]
+                        : language === 'id'
+                          ? 'Data'
+                          : 'Data',
+                    requiresAuth: false,
+                  },
+                  {
+                    page: 'strategy-market',
+                    path: ROUTES.strategyMarket,
+                    label:
+                      language === 'zh'
+                        ? 'Market'
+                        : language === 'id'
+                          ? 'Pasar'
+                          : 'Market',
+                    requiresAuth: true,
+                    hidden: true,
+                  },
+                  {
+                    page: 'traders',
+                    path: ROUTES.traders,
+                    label: t('configNav', language),
+                    requiresAuth: true,
+                  },
+                  {
+                    page: 'trader',
+                    path: ROUTES.dashboard,
+                    label: t('dashboardNav', language),
+                    requiresAuth: true,
+                  },
+                  {
+                    page: 'strategy',
+                    path: ROUTES.strategy,
+                    label: t('strategyNav', language),
+                    requiresAuth: true,
+                  },
+                  {
+                    page: 'competition',
+                    path: ROUTES.competition,
+                    label: t('realtimeNav', language),
+                    requiresAuth: true,
+                  },
+                  {
+                    page: 'faq',
+                    path: ROUTES.faq,
+                    label: t('faqNav', language),
+                    requiresAuth: false,
+                  },
+                ]
 
-              const handleNavClick = (tab: (typeof navTabs)[0]) => {
-                // If requires auth and not logged in, show login prompt
-                if (tab.requiresAuth && !isLoggedIn) {
-                  onLoginRequired?.(tab.label)
-                  return
+                const handleNavClick = (tab: (typeof navTabs)[0]) => {
+                  // If requires auth and not logged in, show login prompt
+                  if (tab.requiresAuth && !isLoggedIn) {
+                    onLoginRequired?.(tab.label)
+                    return
+                  }
+                  // Navigate normally
+                  if (onPageChange) {
+                    onPageChange(tab.page)
+                  }
+                  navigateInApp(tab.path)
                 }
-                // Navigate normally
-                if (onPageChange) {
-                  onPageChange(tab.page)
-                }
-                navigateInApp(tab.path)
-              }
 
-              return navTabs
-                .filter((tab) => !tab.hidden)
-                .map((tab) => (
-                  <button
-                    key={tab.page}
-                    onClick={() => handleNavClick(tab)}
-                    className={`text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 px-3 py-2 rounded-lg
+                return navTabs
+                  .filter((tab) => !tab.hidden)
+                  .map((tab) => (
+                    <button
+                      key={tab.page}
+                      onClick={() => handleNavClick(tab)}
+                      className={`shrink-0 whitespace-nowrap text-xs 2xl:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 px-1.5 xl:px-2 2xl:px-3 py-2 rounded-lg
                     ${resolvedCurrentPage === tab.page ? 'text-nofx-gold' : 'text-nofx-text-muted hover:text-nofx-gold'}`}
-                  >
-                    {resolvedCurrentPage === tab.page && (
-                      <span className="absolute inset-0 rounded-lg bg-nofx-gold/15 -z-10" />
-                    )}
-                    {tab.label}
-                    {tab.badge && (
-                      <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-nofx-gold/20 text-nofx-gold font-semibold uppercase align-top relative -top-1">
-                        {tab.badge}
-                      </span>
-                    )}
-                  </button>
-                ))
-            })()}
+                    >
+                      {resolvedCurrentPage === tab.page && (
+                        <span className="absolute inset-0 rounded-lg bg-nofx-gold/15 -z-10" />
+                      )}
+                      {tab.label}
+                      {tab.badge && (
+                        <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-nofx-gold/20 text-nofx-gold font-semibold uppercase align-top relative -top-1">
+                          {tab.badge}
+                        </span>
+                      )}
+                    </button>
+                  ))
+              })()}
+            </div>
             {/* Dashboard context slot — terminal selector + status portals in here */}
-            <div id="dash-header-slot" className="hidden lg:flex items-center" />
+            <div
+              id="dash-header-slot"
+              className="hidden min-w-0 flex-1 items-center justify-center overflow-hidden lg:flex"
+            />
           </div>
 
           {/* Right Side - Social Links and User Actions */}
-          <div className="flex items-center gap-4">
-            <HyperliquidWalletConnect
-              language={language}
-              isLoggedIn={isLoggedIn}
-            />
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="hidden xl:block">
+              <HyperliquidWalletConnect
+                language={language}
+                isLoggedIn={isLoggedIn}
+              />
+            </div>
             {/* Social Links - Always visible */}
-            <div className="flex items-center gap-1">
+            <div className="hidden items-center gap-1 2xl:flex">
               {/* GitHub */}
               <a
                 href={OFFICIAL_LINKS.github}
@@ -260,7 +261,10 @@ export default function HeaderBar({
             </div>
 
             {/* Divider */}
-            <div className="h-5 w-px" style={{ background: 'rgba(26,24,19,0.15)' }} />
+            <div
+              className="hidden h-5 w-px 2xl:block"
+              style={{ background: 'rgba(26,24,19,0.15)' }}
+            />
 
             {/* User Info and Actions */}
             {isLoggedIn && user ? (
@@ -274,7 +278,7 @@ export default function HeaderBar({
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-nofx-gold text-white">
                       {user.email[0].toUpperCase()}
                     </div>
-                    <span className="text-sm text-nofx-text-muted">
+                    <span className="hidden text-sm text-nofx-text-muted 2xl:inline">
                       {user.email}
                     </span>
                     <ChevronDown className="w-4 h-4 text-nofx-text-muted" />
@@ -300,23 +304,7 @@ export default function HeaderBar({
                         <Settings className="w-3.5 h-3.5" />
                         Settings
                       </button>
-                      <button
-                        onClick={() =>
-                          handleSwitchMode(
-                            userMode === 'beginner' ? 'advanced' : 'beginner'
-                          )
-                        }
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-[rgba(26,24,19,0.06)] text-nofx-text-muted hover:text-nofx-text"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                        {userMode === 'beginner'
-                          ? language === 'zh'
-                            ? 'Switch to Advanced'
-                            : 'Switch to Advanced'
-                          : language === 'zh'
-                            ? 'Switch to Beginner'
-                            : 'Switch to Beginner'}
-                      </button>
+
                       {onLogout && (
                         <button
                           onClick={() => {
@@ -355,7 +343,8 @@ export default function HeaderBar({
         {/* Mobile Menu Button */}
         <motion.button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden text-nofx-text-muted hover:text-nofx-text"
+          className="shrink-0 text-nofx-text-muted hover:text-nofx-text lg:hidden"
+          aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
           whileTap={{ scale: 0.9 }}
         >
           {mobileMenuOpen ? (
@@ -374,7 +363,7 @@ export default function HeaderBar({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 md:hidden bg-black/90 backdrop-blur-xl"
+            className="fixed inset-0 z-40 bg-black/90 backdrop-blur-xl lg:hidden"
             style={{ top: '64px' }} // Below header
           >
             <motion.div

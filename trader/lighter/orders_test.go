@@ -150,10 +150,10 @@ func TestGetActiveOrders_ErrorResponse(t *testing.T) {
 // TestConvertOrderResponseToOpenOrder tests conversion logic
 func TestConvertOrderResponseToOpenOrder(t *testing.T) {
 	testCases := []struct {
-		name           string
-		order          OrderResponse
-		expectedSide   string
-		expectedType   string
+		name            string
+		order           OrderResponse
+		expectedSide    string
+		expectedType    string
 		expectedPosSide string
 	}{
 		{
@@ -166,8 +166,8 @@ func TestConvertOrderResponseToOpenOrder(t *testing.T) {
 				RemainingBaseAmount: "1.0",
 				ReduceOnly:          false,
 			},
-			expectedSide:   "SELL",
-			expectedType:   "LIMIT",
+			expectedSide:    "SELL",
+			expectedType:    "LIMIT",
 			expectedPosSide: "SHORT",
 		},
 		{
@@ -180,8 +180,8 @@ func TestConvertOrderResponseToOpenOrder(t *testing.T) {
 				RemainingBaseAmount: "1.0",
 				ReduceOnly:          false,
 			},
-			expectedSide:   "BUY",
-			expectedType:   "LIMIT",
+			expectedSide:    "BUY",
+			expectedType:    "LIMIT",
 			expectedPosSide: "LONG",
 		},
 		{
@@ -194,8 +194,8 @@ func TestConvertOrderResponseToOpenOrder(t *testing.T) {
 				RemainingBaseAmount: "1.0",
 				ReduceOnly:          true,
 			},
-			expectedSide:   "SELL",
-			expectedType:   "STOP_MARKET",
+			expectedSide:    "SELL",
+			expectedType:    "STOP_MARKET",
 			expectedPosSide: "LONG",
 		},
 		{
@@ -208,8 +208,8 @@ func TestConvertOrderResponseToOpenOrder(t *testing.T) {
 				RemainingBaseAmount: "1.0",
 				ReduceOnly:          true,
 			},
-			expectedSide:   "BUY",
-			expectedType:   "STOP_MARKET",
+			expectedSide:    "BUY",
+			expectedType:    "STOP_MARKET",
 			expectedPosSide: "SHORT",
 		},
 		{
@@ -222,8 +222,8 @@ func TestConvertOrderResponseToOpenOrder(t *testing.T) {
 				RemainingBaseAmount: "1.0",
 				ReduceOnly:          true,
 			},
-			expectedSide:   "SELL",
-			expectedType:   "TAKE_PROFIT_MARKET",
+			expectedSide:    "SELL",
+			expectedType:    "TAKE_PROFIT_MARKET",
 			expectedPosSide: "LONG",
 		},
 	}
@@ -395,6 +395,19 @@ func TestOrderResponseStruct(t *testing.T) {
 	assert.False(t, order.ReduceOnly)
 	assert.Equal(t, int64(1736745600000), order.Timestamp)
 	assert.Equal(t, int64(1736745600000), order.CreatedAt)
+}
+
+func TestIsLighterTakeProfitOrder(t *testing.T) {
+	for _, typ := range []string{"take_profit", "take-profit", "Take Profit", "takeprofit", "tp", "4"} {
+		if !isLighterTakeProfitOrder(OrderResponse{Type: typ}) {
+			t.Fatalf("type %q should be classified as take-profit", typ)
+		}
+	}
+	for _, typ := range []string{"stop_loss", "stop-loss", "limit", "market", "2", ""} {
+		if isLighterTakeProfitOrder(OrderResponse{Type: typ}) {
+			t.Fatalf("type %q must not be classified as take-profit", typ)
+		}
+	}
 }
 
 // BenchmarkParseOrderResponse benchmarks response parsing

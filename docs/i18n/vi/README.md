@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ## Mô hình đề xuất. Runtime định đoạt.
 
-Các quyết định đến từ một mô hình ngôn ngữ đọc bộ dữ liệu [Claw402.ai](https://claw402.ai) · Vergex: bảng tín hiệu trực tiếp xếp hạng mọi thị trường theo thiên hướng và độ mạnh tín hiệu, tín hiệu chuyên sâu Signal Lab cho từng mã, bản đồ nhiệt chi phí vốn và thanh lý cho thấy "nhiên liệu" và "bức tường" của đám đông nằm ở đâu, cùng dòng tiền ròng theo thời gian thực — tất cả được đối chiếu với nến thô và thành tích thực chiến của chính trader. Việc thực thi thì không.
+Các quyết định dựa trên bộ dữ liệu [Claw402.ai](https://claw402.ai) · Vergex: bảng hướng trực tiếp cho toàn thị trường, hướng hiện tại và lịch sử đổi hướng theo từng mã, bản đồ nhiệt chi phí và thanh lý, cùng dòng tiền ròng theo thời gian thực. NOFX tuân theo hướng của bảng; dữ liệu còn lại chỉ là bối cảnh thực thi.
 
 Mọi lệnh đều phải đi qua các giới hạn được thực thi bằng code, nằm ngoài tầm với của mô hình:
 
@@ -273,7 +273,7 @@ NOFX theo dõi các đóng góp có ý nghĩa và dự định thưởng cho ng�
 
 Nếu NOFX hữu ích với bạn, một ngôi sao sẽ giúp các trader khác tìm thấy nó.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.dera.page/#NoFxAiOS/nofx&Date)
 
 ## Giấy phép
 

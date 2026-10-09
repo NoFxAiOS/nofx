@@ -41,7 +41,7 @@ export interface FlowMarketsResponse {
   }
 }
 
-// Vergex signal ranking item (GET /api/vergex/signal-ranking).
+// Normalized Vergex direction-change leaderboard item.
 export interface SignalRankItem {
   rank: number
   symbol: string
@@ -86,7 +86,75 @@ export interface VergexSignalItem {
 
 export interface VergexSignalRankingResponse {
   items: VergexSignalItem[]
-  raw?: unknown
+}
+
+export interface VergexDirectionLeaderboardItem {
+  market?: { marketType?: string; marketId?: string; symbol?: string }
+  symbol: string
+  bias: string
+  directionScore: number
+  bullishCount: number
+  bearishCount: number
+  neutralCount: number
+  factorDirections?: Record<string, string>
+  markPrice: number
+  rank: number
+  oiRank: number
+  factorAsOf?: number
+}
+
+export interface VergexDirectionLeaderboardResponse {
+  band: number
+  universeSize: number
+  rankBy: string
+  asOf: number
+  items: VergexDirectionLeaderboardItem[]
+}
+
+export interface VergexDirectionCurrentResponse {
+  source?: string
+  symbol: string
+  direction: string
+  new_bias?: string
+  stable_since_at?: number
+  effective_at?: number
+  confirmed_at?: number
+  mark_price?: number
+  reason?: Record<string, string>
+  factor_as_of?: number
+  latest_reversal?: VergexDirectionHistoryItem | null
+  readiness?: {
+    generation?: number
+    cutoff_at?: number
+    watermark_at?: number
+    symbol_count?: number
+  }
+}
+
+export interface VergexDirectionHistoryItem {
+  symbol: string
+  prev_bias?: string
+  new_bias?: string
+  mark_price?: number
+  occurred_at?: number
+  effective_at?: number
+  is_reversal?: boolean
+  confirmed_at?: number
+  reason?: Record<string, string>
+  prev_reason?: Record<string, string> | null
+  next_mark_price?: number | null
+  next_occurred_at?: number | null
+  next_effective_at?: number | null
+}
+
+export interface VergexDirectionHistoryResponse {
+  items: VergexDirectionHistoryItem[]
+  pagination?: {
+    current_page: number
+    page_size: number
+    total_pages: number
+    total_items: number
+  }
 }
 
 export interface VergexDetailRequest {
@@ -94,72 +162,6 @@ export interface VergexDetailRequest {
   symbol: string
   chain?: string
   liqBand?: string
-}
-
-export interface VergexSignalDimension {
-  key?: string
-  family?: string
-  label?: string
-  what?: string
-  kind?: string
-  direction?: string
-  strength?: string
-  percentile?: number
-  detail?: string
-}
-
-export interface VergexSignalLevels {
-  markPrice?: number
-  poc?: number
-  pocDistPct?: number
-  magnet?: number
-  magnetDistPct?: number
-  resistance?: number
-  resistanceDistPct?: number
-  support?: number
-  supportDistPct?: number
-  valueAreaHigh?: number
-  valueAreaLow?: number
-}
-
-export interface VergexSignalMetrics {
-  shortLiqAbove?: number
-  longLiqBelow?: number
-  longOverhangPnl?: number
-  shortOverhangPnl?: number
-  gLong?: number
-  gShort?: number
-  cascadeVulnPct?: number
-  top10Pct?: number
-  convexity?: number
-  includedPositions?: number
-  state?: string
-}
-
-export interface VergexSignalLabData {
-  market?: {
-    chain?: string
-    marketType?: string
-    marketId?: string
-    symbol?: string
-    displayName?: string
-    isActive?: boolean
-  }
-  band?: string
-  bias?: string
-  structureRead?: string
-  confidence?: string
-  dimensions?: VergexSignalDimension[]
-  levels?: VergexSignalLevels
-  metrics?: VergexSignalMetrics
-  compositeZ?: number
-  rank?: number
-  universeSize?: number
-}
-
-export interface VergexSignalLabResponse {
-  data?: VergexSignalLabData
-  meta?: unknown
 }
 
 export interface VergexHeatmapBin {
@@ -205,6 +207,122 @@ export interface VergexHeatmapResponse {
   meta?: unknown
 }
 
+// ── Vergex holder win-rate matrix (GET /api/vergex/holder-winrate-map) ──
+// Numeric notional fields arrive as strings from the upstream API.
+export interface VergexWinrateSide {
+  count: number
+  notional: string
+}
+export interface VergexWinrateCell {
+  row: number
+  column: number
+  long: VergexWinrateSide
+  short: VergexWinrateSide
+}
+export interface VergexWinrateBucket {
+  count: number
+  notional: string
+}
+export interface VergexWinrateMapData {
+  snapshotId?: string
+  asOf?: string
+  positionsAsOf?: string
+  priceAsOf?: string
+  historyMode?: string
+  staleHistoryCount?: number
+  coverage?: string
+  markPrice?: string
+  priceSource?: string
+  metricVersion?: string
+  minRoundTrips?: number
+  total?: VergexWinrateBucket
+  included?: VergexWinrateBucket
+  excluded?: Record<string, VergexWinrateBucket>
+  viewport?: {
+    winMin: number
+    winMax: number
+    costMin: number
+    costMax: number
+  }
+  winBins?: number
+  costBins?: number
+  costRange?: [string, string]
+  cells?: VergexWinrateCell[]
+  water?: {
+    long?: VergexWinrateWaterSide
+    short?: VergexWinrateWaterSide
+  }
+}
+export interface VergexWinrateWaterSide {
+  aboveWater?: VergexWinrateBucket & { largestNotional?: string }
+  belowWater?: VergexWinrateBucket
+  atCost?: VergexWinrateBucket
+}
+export interface VergexWinrateMapResponse {
+  data?: VergexWinrateMapData
+  meta?: unknown
+}
+
+// ── Address drilldown (GET /api/v1/vergex/holder-winrate-map/holders) ──
+export interface VergexWinrateHolder {
+  address: string
+  side: string
+  size: string
+  entryPrice: string
+  notional: string
+  costRatio: string
+  winRate: string
+  roundTrips: number
+  historyAsOf?: string
+  historyStale?: boolean
+}
+export interface VergexWinrateHoldersResponse {
+  data?: {
+    snapshotId?: string
+    minRoundTrips?: number
+    total?: number
+    nextOffset?: number | null
+    items?: VergexWinrateHolder[]
+  }
+  meta?: unknown
+}
+
+export interface VergexWinrateRequest {
+  marketType: string
+  symbol: string
+  chain?: string
+  winMin?: number
+  winMax?: number
+  costMin?: number
+  costMax?: number
+  minRoundTrips?: number
+}
+
+export interface VergexWinrateHoldersRequest extends VergexWinrateRequest {
+  snapshotId: string
+  row: number
+  rowEnd: number
+  column: number
+  columnEnd: number
+  side?: 'long' | 'short'
+  offset?: number
+  limit?: number
+}
+
+function vergexWinrateQuery(params: VergexWinrateRequest) {
+  const query = new URLSearchParams()
+  query.set('marketType', params.marketType)
+  query.set('symbol', params.symbol)
+  query.set('chain', params.chain || 'mainnet')
+  if (params.winMin != null) query.set('winMin', String(params.winMin))
+  if (params.winMax != null) query.set('winMax', String(params.winMax))
+  if (params.costMin != null) query.set('costMin', String(params.costMin))
+  if (params.costMax != null) query.set('costMax', String(params.costMax))
+  if (params.minRoundTrips && params.minRoundTrips > 1)
+    query.set('minRoundTrips', String(params.minRoundTrips))
+  return query
+}
+
 function vergexDetailQuery(params: VergexDetailRequest) {
   const query = new URLSearchParams()
   query.set('marketType', params.marketType)
@@ -223,27 +341,57 @@ export const dataApi = {
     return result.data || { exchange, symbols: [], count: 0 }
   },
 
-  async getVergexSignalRanking(
+  async getVergexDirectionChangeLeaderboard(
     limit = 30
   ): Promise<VergexSignalRankingResponse> {
-    const result = await httpClient.get<VergexSignalRankingResponse>(
-      `${API_BASE}/vergex/signal-ranking?marketType=all&limit=${limit}`
+    const result = await httpClient.get<VergexDirectionLeaderboardResponse>(
+      `${API_BASE}/vergex/direction-change/leaderboard`
     )
     if (!result.success)
-      throw new Error('Failed to fetch Claw402/Vergex signal ranking')
-    return result.data || { items: [] }
+      throw new Error('Failed to fetch Claw402/Vergex direction leaderboard')
+    const items = (result.data?.items || []).slice(0, limit).map((item) => ({
+      rank: item.rank,
+      symbol: item.symbol,
+      market_type: item.market?.marketType,
+      bias: item.bias,
+      score: item.directionScore,
+      category: item.market?.marketType === 'core_perp' ? 'crypto' : undefined,
+    }))
+    return { items }
   },
 
-  async getVergexSignalLab(
-    params: VergexDetailRequest
-  ): Promise<VergexSignalLabResponse> {
-    const result = await httpClient.request<VergexSignalLabResponse>(
-      `${API_BASE}/vergex/signal-lab?${vergexDetailQuery(params)}`,
+  async getVergexDirectionChangeCurrent(
+    symbol: string
+  ): Promise<VergexDirectionCurrentResponse> {
+    const query = new URLSearchParams({ symbol })
+    const result = await httpClient.request<VergexDirectionCurrentResponse>(
+      `${API_BASE}/vergex/direction-change/current?${query}`,
       { timeout: 90000 }
     )
     if (!result.success)
-      throw new Error(result.message || 'Failed to fetch Signal Lab')
-    return result.data || {}
+      throw new Error(result.message || 'Failed to fetch current direction')
+    return result.data!
+  },
+
+  async getVergexDirectionChangeHistory(
+    symbol: string,
+    type: 'all' | 'reversal' | 'non_reversal' = 'all',
+    page = 1,
+    pageSize = 20
+  ): Promise<VergexDirectionHistoryResponse> {
+    const query = new URLSearchParams({
+      symbol,
+      type,
+      page: String(page),
+      page_size: String(pageSize),
+    })
+    const result = await httpClient.request<VergexDirectionHistoryResponse>(
+      `${API_BASE}/vergex/direction-change/history?${query}`,
+      { timeout: 90000 }
+    )
+    if (!result.success)
+      throw new Error(result.message || 'Failed to fetch direction history')
+    return result.data || { items: [] }
   },
 
   async getVergexCostLiquidationHeatmap(
@@ -257,6 +405,42 @@ export const dataApi = {
       throw new Error(
         result.message || 'Failed to fetch cost/liquidation heatmap'
       )
+    return result.data || {}
+  },
+
+  async getVergexHolderWinrateMap(
+    params: VergexWinrateRequest
+  ): Promise<VergexWinrateMapResponse> {
+    const result = await httpClient.request<VergexWinrateMapResponse>(
+      `${API_BASE}/vergex/holder-winrate-map?${vergexWinrateQuery(params)}`,
+      { timeout: 90000 }
+    )
+    if (!result.success)
+      throw new Error(
+        result.message || 'Failed to fetch holder win-rate matrix'
+      )
+    return result.data || {}
+  },
+
+  async getVergexHolderWinrateHolders(
+    params: VergexWinrateHoldersRequest,
+    silent?: boolean
+  ): Promise<VergexWinrateHoldersResponse> {
+    const query = vergexWinrateQuery(params)
+    query.set('snapshotId', params.snapshotId)
+    query.set('row', String(params.row))
+    query.set('rowEnd', String(params.rowEnd))
+    query.set('column', String(params.column))
+    query.set('columnEnd', String(params.columnEnd))
+    query.set('side', params.side || 'long')
+    query.set('offset', String(params.offset ?? 0))
+    query.set('limit', String(params.limit ?? 50))
+    const result = await httpClient.request<VergexWinrateHoldersResponse>(
+      `${API_BASE}/vergex/holder-winrate-map/holders?${query}`,
+      { silent, timeout: 90000 }
+    )
+    if (!result.success)
+      throw new Error(result.message || 'Failed to fetch win-rate holders')
     return result.data || {}
   },
 
@@ -377,21 +561,27 @@ export const dataApi = {
     return result.data!
   },
 
-  async getSignalRanking(
-    aiModelId?: string,
-    chain = 'mainnet',
-    marketType = 'all',
+  async getDirectionChangeLeaderboard(
     limit = 25,
     silent?: boolean
   ): Promise<SignalRankingResponse> {
-    const params = new URLSearchParams({ chain, marketType, limit: String(limit) })
-    if (aiModelId) params.set('ai_model_id', aiModelId)
-    const result = await httpClient.request<SignalRankingResponse>(
-      `${API_BASE}/vergex/signal-ranking?${params}`,
+    const result = await httpClient.request<VergexDirectionLeaderboardResponse>(
+      `${API_BASE}/vergex/direction-change/leaderboard`,
       { silent }
     )
-    if (!result.success) throw new Error('Failed to fetch signal ranking')
-    return result.data!
+    if (!result.success)
+      throw new Error('Failed to fetch direction leaderboard')
+    return {
+      items: (result.data?.items || []).slice(0, limit).map((item) => ({
+        rank: item.rank,
+        symbol: item.symbol,
+        market_type: item.market?.marketType || '',
+        bias: item.bias,
+        score: item.directionScore,
+        category:
+          item.market?.marketType === 'core_perp' ? 'crypto' : undefined,
+      })),
+    }
   },
 
   async getEquityHistory(traderId?: string, silent?: boolean): Promise<any[]> {

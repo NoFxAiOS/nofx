@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ## モデルは提案する。ランタイムが決める。
 
-判断は、[Claw402.ai](https://claw402.ai)・Vergex のデータスタックを読み取る言語モデルから生まれます。全市場を方向バイアスとシグナル強度でランク付けするライブシグナルボード、銘柄ごとの Signal Lab ディープシグナル、群衆の「燃料」と「壁」の位置を映すコストベース・清算ヒートマップ、リアルタイムのネットフロー — これらを生のローソク足とトレーダー自身のライブ実績と突き合わせます。ただし、執行はそうではありません。
+判断は [Claw402.ai](https://claw402.ai)・Vergex のデータスタックに基づきます。全市場のライブ方向ボード、銘柄ごとの現在方向と方向履歴、コストベース・清算ヒートマップ、リアルタイムのネットフローを利用します。NOFX はボード方向に従い、その他のデータは執行コンテキストとして扱います。
 
 すべての注文は、モデルの手が届かない、コードで強制されるリスク制限を通過します。
 
@@ -273,7 +273,7 @@ NOFX は有意義な貢献を記録しており、エコシステムの成長に
 
 NOFX が役に立ったら、スターを付けていただけると、他のトレーダーがこのプロジェクトを見つけやすくなります。
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.dera.page/#NoFxAiOS/nofx&Date)
 
 ## ライセンス
 

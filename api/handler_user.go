@@ -229,13 +229,13 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 	}
 	locales := map[string]strategyLocale{
 		"zh": {
-			defaultStrategy: strategyI18n{"NOFX Claw402 Auto Strategy", "The only built-in strategy: read the Claw402.ai board each cycle, fetch Signal Lab and cost/liquidation heatmap per candidate, then decide with raw candles."},
+			defaultStrategy: strategyI18n{"NOFX Claw402 Auto Strategy", "The only built-in strategy: read the Claw402.ai direction board each cycle, load direction history and cost/liquidation heatmaps, then manage positions by the live board."},
 		},
 		"en": {
-			defaultStrategy: strategyI18n{"NOFX Claw402 Auto Strategy", "The only built-in strategy: read the Claw402.ai board each cycle, fetch Signal Lab and cost/liquidation heatmap per candidate, then decide with raw candles."},
+			defaultStrategy: strategyI18n{"NOFX Claw402 Auto Strategy", "The only built-in strategy: read the Claw402.ai direction board each cycle, load direction history and cost/liquidation heatmaps, then manage positions by the live board."},
 		},
 		"id": {
-			defaultStrategy: strategyI18n{"Strategi Otomatis NOFX Claw402", "Satu strategi bawaan: membaca papan Claw402.ai, mengambil Signal Lab dan heatmap biaya/likuidasi per kandidat, lalu memutuskan dengan candle mentah."},
+			defaultStrategy: strategyI18n{"Strategi Otomatis NOFX Claw402", "Satu strategi bawaan: membaca papan arah Claw402.ai setiap siklus, memuat riwayat arah dan heatmap biaya/likuidasi, lalu mengelola posisi mengikuti papan langsung."},
 		},
 	}
 	locale, ok := locales[lang]
@@ -262,14 +262,13 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		c.CoinSource.VergexLimit = 10
 		c.CoinSource.VergexMarketType = "all"
 		c.CoinSource.VergexChain = "hyperliquid"
-		c.RiskControl.MaxPositions = 2
-		c.RiskControl.BTCETHMaxLeverage = 5
-		c.RiskControl.AltcoinMaxLeverage = 5
-		// Few, concentrated positions held for big moves. 5x leverage so a
-		// wide (-5%) stop is survivable rather than an instant liquidation;
-		// 2 positions × 2.5x = 5x total notional (full margin, ~20% cushion).
-		c.RiskControl.BTCETHMaxPositionValueRatio = 2.5
-		c.RiskControl.AltcoinMaxPositionValueRatio = 2.5
+		c.RiskControl.MaxPositions = store.AutopilotDefaultMaxPositions
+		c.RiskControl.BTCETHMaxLeverage = 10
+		c.RiskControl.AltcoinMaxLeverage = 10
+		// Position-value ratios are hard per-position caps. Actual Autopilot
+		// allocation is calculated separately from leverage and slot count.
+		c.RiskControl.BTCETHMaxPositionValueRatio = store.AutopilotMaxPositionValueRatio
+		c.RiskControl.AltcoinMaxPositionValueRatio = store.AutopilotMaxPositionValueRatio
 		c.RiskControl.MaxMarginUsage = 1.0
 		c.RiskControl.MinConfidence = 78
 		c.RiskControl.MinRiskRewardRatio = 3.0
@@ -347,12 +346,29 @@ func (s *Server) createDefaultStrategies(userID string, lang string) error {
 		}
 
 		for _, strategy := range strategies {
-			var existing int64
-			if err := tx.Model(&store.Strategy{}).Where("user_id = ? AND name = ?", userID, strategy.Name).Count(&existing).Error; err != nil {
-				return fmt.Errorf("failed to check strategy %q: %w", strategy.Name, err)
-			}
-			if existing > 0 {
+			var existing store.Strategy
+			query := tx.Where("user_id = ? AND name = ?", userID, strategy.Name).First(&existing)
+			if query.Error == nil {
+				config, err := existing.ParseConfig()
+				if err != nil {
+					return fmt.Errorf("failed to parse existing strategy %q: %w", strategy.Name, err)
+				}
+				if store.MigrateLegacyAutopilotRiskDefaults(config) {
+					config.ClampLimits()
+					if err := existing.SetConfig(config); err != nil {
+						return fmt.Errorf("failed to serialize migrated strategy %q: %w", strategy.Name, err)
+					}
+					if err := tx.Model(&store.Strategy{}).
+						Where("id = ? AND user_id = ?", existing.ID, userID).
+						Updates(map[string]interface{}{"config": existing.Config, "updated_at": time.Now().UTC()}).Error; err != nil {
+						return fmt.Errorf("failed to migrate strategy %q: %w", strategy.Name, err)
+					}
+					logger.Infof("  ✓ Migrated default strategy to eight-position Autopilot: %s", strategy.Name)
+				}
 				continue
+			}
+			if query.Error != gorm.ErrRecordNotFound {
+				return fmt.Errorf("failed to check strategy %q: %w", strategy.Name, query.Error)
 			}
 			if activeCount > 0 {
 				strategy.IsActive = false

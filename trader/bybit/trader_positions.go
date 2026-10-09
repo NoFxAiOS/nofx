@@ -9,6 +9,14 @@ import (
 	"time"
 )
 
+// InvalidatePositionCache forces the next position read to hit the exchange.
+func (t *BybitTrader) InvalidatePositionCache() {
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheTime = time.Time{}
+	t.positionsCacheMutex.Unlock()
+}
+
 // GetPositions retrieves all positions
 func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 	// Check cache

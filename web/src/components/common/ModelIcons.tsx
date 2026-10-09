@@ -15,6 +15,7 @@ const MODEL_COLORS: Record<string, string> = {
   openai: '#10A37F',
   minimax: '#E45735',
   claw402: '#7C3AED',
+  zhipu: '#3859F3',
 }
 
 // Returns the icon for an AI model

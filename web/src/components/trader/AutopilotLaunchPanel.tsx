@@ -4,11 +4,9 @@ import {
   AlertCircle,
   ArrowRight,
   CircleDollarSign,
-  Download,
   CheckCircle2,
   Copy,
   ExternalLink,
-  KeyRound,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -78,114 +76,6 @@ async function copyText(value: string, label: string) {
   }
 }
 
-function BeginnerHyperliquidGuide({
-  hasInjectedWallet,
-}: {
-  hasInjectedWallet: boolean
-}) {
-  const steps = [
-    {
-      title: 'Prepare an EVM wallet',
-      detail: hasInjectedWallet
-        ? 'Wallet extension detected. Unlock it, then connect below.'
-        : 'Install Rabby or MetaMask, create or import a wallet, then return here.',
-      icon: Wallet,
-    },
-    {
-      title: 'Open Hyperliquid',
-      detail:
-        'Use the same wallet on Hyperliquid. Deposit USDC there as trading collateral.',
-      icon: CircleDollarSign,
-    },
-    {
-      title: 'Authorize NOFX',
-      detail:
-        'Back in NOFX, approve the Agent and builder fee. NOFX stores the Agent key, not your main wallet key.',
-      icon: KeyRound,
-    },
-  ]
-
-  return (
-    <div className="rounded-xl border border-nofx-gold/20 bg-nofx-bg-lighter p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="text-sm font-semibold text-nofx-text">
-            New to Hyperliquid?
-          </div>
-          <p className="mt-1 text-xs leading-5 text-nofx-text-muted">
-            Start here if you do not have a trading wallet or have never used
-            Hyperliquid before.
-          </p>
-        </div>
-        <div
-          className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-            hasInjectedWallet
-              ? 'bg-nofx-success/10 text-nofx-success'
-              : 'bg-nofx-gold/10 text-nofx-gold'
-          }`}
-        >
-          {hasInjectedWallet ? 'Wallet detected' : 'Wallet needed'}
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        {steps.map((step, index) => {
-          const Icon = step.icon
-          return (
-            <div key={step.title} className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-nofx-gold/20 bg-nofx-bg-deeper text-nofx-gold">
-                <Icon className="h-3.5 w-3.5" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-nofx-text">
-                  {index + 1}. {step.title}
-                </div>
-                <p className="mt-0.5 text-xs leading-5 text-nofx-text-muted">
-                  {step.detail}
-                </p>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {!hasInjectedWallet ? (
-          <>
-            <a
-              href="https://rabby.io/"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-nofx-gold/20 bg-nofx-bg-deeper px-3 py-2 text-xs font-semibold text-nofx-text hover:border-nofx-gold/40 hover:bg-nofx-bg"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Install Rabby
-            </a>
-            <a
-              href="https://metamask.io/download/"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-nofx-gold/20 bg-nofx-bg-deeper px-3 py-2 text-xs font-semibold text-nofx-text hover:border-nofx-gold/40 hover:bg-nofx-bg"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              MetaMask
-            </a>
-          </>
-        ) : null}
-        <a
-          href="https://app.hyperliquid.xyz/"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-nofx-gold px-3 py-2 text-xs font-bold text-white hover:bg-nofx-accent"
-        >
-          Open Hyperliquid
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-      </div>
-    </div>
-  )
-}
-
 export function AutopilotLaunchPanel({
   models,
   exchanges,
@@ -204,15 +94,7 @@ export function AutopilotLaunchPanel({
   const [walletLoading, setWalletLoading] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [hasInjectedWallet, setHasInjectedWallet] = useState(false)
   const isZh = language === 'zh'
-
-  useEffect(() => {
-    setHasInjectedWallet(
-      typeof window !== 'undefined' &&
-        Boolean((window as Window & { ethereum?: unknown }).ethereum)
-    )
-  }, [])
 
   const claw402Model = useMemo(
     () =>
@@ -296,7 +178,28 @@ export function AutopilotLaunchPanel({
     ? feeFundsCheck.status !== 'failed' && Boolean(feeWalletAddress)
     : Boolean(feeWalletAddress) && feeWalletBalance >= minAIFeeUSDC
 
-  const hyperliquidConnected = Boolean(hyperliquidExchange)
+  // A stored builder-approved flag is not proof that this saved signing agent
+  // is still approved. A different NOFX installation can replace the agent.
+  const [verifiedExchangeId, setVerifiedExchangeId] = useState<string | null>(null)
+  useEffect(() => {
+    setVerifiedExchangeId(null)
+    if (!hyperliquidExchange?.hyperliquidWalletAddr || !hyperliquidExchange.hyperliquidAgentAddress || hyperliquidExchange.testnet) return
+    let cancelled = false
+    const check = async () => {
+      try {
+        const proof = await api.getHyperliquidAgent(hyperliquidExchange.hyperliquidWalletAddr!)
+        const approved = proof.builderApproved && proof.agents?.some((agent) =>
+          agent.address.toLowerCase() === hyperliquidExchange.hyperliquidAgentAddress!.toLowerCase() && agent.validUntil > Date.now())
+        if (!cancelled) setVerifiedExchangeId(approved ? hyperliquidExchange.id : null)
+      } catch {
+        if (!cancelled) setVerifiedExchangeId(null)
+      }
+    }
+    void check()
+    const timer = setInterval(() => void check(), 30000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [hyperliquidExchange])
+  const hyperliquidConnected = !!hyperliquidExchange && verifiedExchangeId === hyperliquidExchange.id
   const exchangeState = hyperliquidExchange
     ? exchangeAccountStates[hyperliquidExchange.id]
     : undefined
@@ -439,7 +342,7 @@ export function AutopilotLaunchPanel({
         'Approve NOFX once with your crypto wallet (Rabby or MetaMask). This lets the AI place trades for you — it can never withdraw your money.',
       status: hyperliquidConnected ? 'ready' : 'action',
       meta: hyperliquidExchange?.hyperliquidWalletAddr
-        ? `${shortAddress(hyperliquidExchange.hyperliquidWalletAddr)} · authorized`
+        ? `${shortAddress(hyperliquidExchange.hyperliquidWalletAddr)} · ${hyperliquidConnected ? 'authorized' : 'authorization not verified — reconnect'} `
         : 'A few clicks + 3 wallet signatures',
       action: (
         <button
@@ -580,8 +483,8 @@ export function AutopilotLaunchPanel({
                 Start NOFX Autopilot in minutes
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-nofx-text-muted">
-                Four small steps, about $13 total. No API keys, no config
-                files — the AI trades for you, and you can stop it anytime.
+                Four small steps, about $13 total. No API keys, no config files
+                — the AI trades for you, and you can stop it anytime.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -626,7 +529,9 @@ export function AutopilotLaunchPanel({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="font-semibold text-nofx-text">{step.title}</h3>
+                      <h3 className="font-semibold text-nofx-text">
+                        {step.title}
+                      </h3>
                       {step.action}
                     </div>
                     <p className="mt-1 text-xs leading-5 text-nofx-text-muted">
@@ -662,8 +567,7 @@ export function AutopilotLaunchPanel({
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              <BeginnerHyperliquidGuide hasInjectedWallet={hasInjectedWallet} />
+            <div>
               <div id="hyperliquid-quick-connect">
                 <HyperliquidWalletConnect
                   language={isZh ? 'zh' : 'en'}

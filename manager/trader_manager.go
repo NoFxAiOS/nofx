@@ -651,17 +651,26 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		if err != nil {
 			return fmt.Errorf("failed to load strategy %s for trader %s: %w", traderCfg.StrategyID, traderCfg.Name, err)
 		}
-		strategyConfigRaw = strategy.Config
 		// Parse JSON config
 		strategyConfig, err = strategy.ParseConfig()
 		if err != nil {
 			return fmt.Errorf("failed to parse strategy config for trader %s: %w", traderCfg.Name, err)
 		}
+		if store.MigrateLegacyAutopilotRiskDefaults(strategyConfig) {
+			if err := strategy.SetConfig(strategyConfig); err != nil {
+				return fmt.Errorf("failed to serialize migrated strategy config for trader %s: %w", traderCfg.Name, err)
+			}
+			if err := st.Strategy().Update(strategy); err != nil {
+				logger.Warnf("⚠️ Failed to persist eight-position Autopilot migration for trader %s: %v", traderCfg.Name, err)
+			} else {
+				logger.Infof("✓ Migrated trader %s to the eight-position Autopilot book", traderCfg.Name)
+			}
+		}
+		strategyConfigRaw = strategy.Config
 		strategyConfig.ClampLimits()
-		// Sizing comes from the strategy's own RiskControl (a hardcoded
-		// 6-position × equity×1.2 override used to live here, silently ignoring
-		// the user's configuration). ClampLimits bounds the values and the
-		// margin auto-reduce at order time keeps the book solvent.
+		// Sizing comes from the strategy's RiskControl. Autopilot separately
+		// distributes its margin budget across the configured slots while the
+		// per-position ratio remains a hard safety cap.
 		logger.Infof("✓ Trader %s loaded strategy config: %s (maxPos=%d, posRatio=%.1f)", traderCfg.Name, strategy.Name, strategyConfig.RiskControl.MaxPositions, strategyConfig.RiskControl.AltcoinMaxPositionValueRatio)
 		ensureHyperliquidNativeStrategy(traderCfg.Name, exchangeCfg.ExchangeType, strategyConfig)
 	} else {

@@ -10,26 +10,32 @@ import (
 )
 
 const (
-	// "Hold for big moves, don't churn" regime. Live history showed the
-	// account bleeding to death by fees: 0.3-0.5% in/out moves where a ~0.14%
-	// round-trip fee ate 30-50% of every small winner. These values force
-	// positions to be held for hours and to develop meaningful moves before
-	// closing, and cut the trade frequency hard.
-	autopilotMinHoldDuration        = 4 * time.Hour
-	autopilotNoiseCloseHoldDuration = 8 * time.Hour
-	autopilotReentryCooldown        = 3 * time.Hour
-	// Drastically cut churn: at most a couple of new positions per hour/cycle.
-	autopilotMaxOpensPerHour        = 3
-	autopilotMaxOpensPerCycle       = 2
-	// Wide, asymmetric exits. Cut a loser only at a real -5% (at 5x leverage
-	// that is -25% of margin — survivable), let a winner run to +12% before
-	// any early take-profit. The noise band (-4%..+6%) blocks closing on the
-	// small moves that were grinding the account to nothing.
-	earlyCloseStopLossBypassPct     = -5.0
-	earlyCloseTakeProfitBypassPct   = 12.0
-	noiseCloseLossFloorPct          = -4.0
-	noiseCloseProfitCeilingPct      = 6.0
+	// Exit gates, validated by decision replay (2026-07-26, 4154 cycles,
+	// 3-fold robustness): gates beat no-gates by 34 pts and the old rigid
+	// 4h/8h by 16 pts of worst-fold score; the searched optimum sits at these
+	// values. Thresholds are PRICE-move percentages (leverage-independent).
+	autopilotMinHoldDuration        = 90 * time.Minute
+	autopilotNoiseCloseHoldDuration = 3 * time.Hour
+	// Re-entering a just-closed symbol was a consistent loss source: the
+	// replay's top-20 configs cluster tightly at ~4h.
+	autopilotReentryCooldown      = 4 * time.Hour
+	earlyCloseStopLossBypassPct   = -3.0
+	earlyCloseTakeProfitBypassPct = 8.0
+	noiseCloseLossFloorPct        = -2.0
+	noiseCloseProfitCeilingPct    = 3.0
 )
+
+// positionPricePnLPct converts the margin-based UnrealizedPnLPct reported for
+// a position into the underlying price-move percentage.
+func positionPricePnLPct(pos *kernel.PositionInfo) float64 {
+	if pos == nil {
+		return 0
+	}
+	if pos.Leverage > 1 {
+		return pos.UnrealizedPnLPct / float64(pos.Leverage)
+	}
+	return pos.UnrealizedPnLPct
+}
 
 func isOpenAction(action string) bool {
 	switch strings.ToLower(strings.TrimSpace(action)) {
@@ -75,14 +81,14 @@ func normalizedDecisionSymbol(symbol string) string {
 	return market.Normalize(strings.TrimSpace(symbol))
 }
 
-func (at *AutoTrader) tradeThrottleReason(decision kernel.Decision, ctx *kernel.Context, opensQueuedThisCycle int) string {
+func (at *AutoTrader) tradeThrottleReason(decision kernel.Decision, ctx *kernel.Context) string {
 	if ctx == nil {
 		return ""
 	}
 
 	switch {
 	case isOpenAction(decision.Action):
-		return at.openThrottleReason(decision, ctx, opensQueuedThisCycle)
+		return at.openThrottleReason(decision, ctx)
 	case isCloseAction(decision.Action):
 		return at.closeThrottleReason(decision, ctx)
 	default:
@@ -90,40 +96,36 @@ func (at *AutoTrader) tradeThrottleReason(decision kernel.Decision, ctx *kernel.
 	}
 }
 
-func (at *AutoTrader) openThrottleReason(decision kernel.Decision, ctx *kernel.Context, opensQueuedThisCycle int) string {
+func (at *AutoTrader) openThrottleReason(decision kernel.Decision, ctx *kernel.Context) string {
 	symbol := normalizedDecisionSymbol(decision.Symbol)
 	if symbol == "" {
 		return ""
-	}
-
-	if opensQueuedThisCycle >= autopilotMaxOpensPerCycle {
-		return fmt.Sprintf("trade throttle: only %d new position may be opened per cycle", autopilotMaxOpensPerCycle)
 	}
 
 	if pos := findAnyContextPosition(ctx, symbol); pos != nil {
 		return fmt.Sprintf("trade throttle: %s already has an open %s position; manage or close it before opening another side", symbol, pos.Side)
 	}
 
-	openCount, err := at.countRecentOpenOrders(time.Now().Add(-1 * time.Hour))
-	if err != nil {
-		at.logWarnf("⚠️ Trade throttle could not read recent open orders: %v", err)
-	} else if openCount >= autopilotMaxOpensPerHour {
-		return fmt.Sprintf("trade throttle: %d open order already executed in the last hour; max is %d", openCount, autopilotMaxOpensPerHour)
-	}
-
-	if order := at.findRecentCloseOrder(symbol, time.Now().Add(-autopilotReentryCooldown)); order != nil {
-		age := time.Since(time.UnixMilli(order.CreatedAt))
-		remaining := autopilotReentryCooldown - age
-		if remaining < 0 {
-			remaining = 0
+	if !at.usesVergexSignalPolicy() {
+		if order := at.findRecentCloseOrder(symbol, time.Now().Add(-autopilotReentryCooldown)); order != nil {
+			age := time.Since(time.UnixMilli(order.CreatedAt))
+			remaining := autopilotReentryCooldown - age
+			if remaining < 0 {
+				remaining = 0
+			}
+			return fmt.Sprintf("trade throttle: %s was closed %s ago; wait %s before re-entry", symbol, roundDuration(age), roundDuration(remaining))
 		}
-		return fmt.Sprintf("trade throttle: %s was closed %s ago; wait %s before re-entry", symbol, roundDuration(age), roundDuration(remaining))
 	}
 
 	return ""
 }
 
 func (at *AutoTrader) closeThrottleReason(decision kernel.Decision, ctx *kernel.Context) string {
+	// Vergex positions are closed by the direction state machine. A changed or
+	// vanished board signal must exit immediately, independent of hold duration.
+	if at.usesVergexSignalPolicy() {
+		return ""
+	}
 	symbol := normalizedDecisionSymbol(decision.Symbol)
 	side := closeActionSide(decision.Action)
 	if symbol == "" || side == "" {
@@ -134,7 +136,7 @@ func (at *AutoTrader) closeThrottleReason(decision kernel.Decision, ctx *kernel.
 	pnlPct := 0.0
 	entryTime := int64(0)
 	if pos != nil {
-		pnlPct = pos.UnrealizedPnLPct
+		pnlPct = positionPricePnLPct(pos)
 		entryTime = pos.UpdateTime
 	}
 
@@ -158,7 +160,7 @@ func (at *AutoTrader) closeThrottleReason(decision kernel.Decision, ctx *kernel.
 
 		remaining := autopilotNoiseCloseHoldDuration - heldFor
 		return fmt.Sprintf(
-			"trade throttle: %s %s has been held for %s with PnL %.2f%%; it is still inside the noise band %.1f%% to %.1f%%, so wait about %s before a flat/small close",
+			"trade throttle: %s %s has been held for %s with price PnL %.2f%%; it is still inside the noise band %.1f%% to %.1f%%, so wait about %s before a flat/small close",
 			symbol,
 			side,
 			roundDuration(heldFor),
@@ -176,7 +178,7 @@ func (at *AutoTrader) closeThrottleReason(decision kernel.Decision, ctx *kernel.
 
 	remaining := autopilotMinHoldDuration - heldFor
 	return fmt.Sprintf(
-		"trade throttle: %s %s has only been held for %s with PnL %.2f%%; min AI-managed hold is %s unless loss <= %.1f%% or profit >= %.1f%%",
+		"trade throttle: %s %s has only been held for %s with price PnL %.2f%%; min AI-managed hold is %s unless price loss <= %.1f%% or price profit >= %.1f%%",
 		symbol,
 		side,
 		roundDuration(heldFor),
@@ -218,24 +220,6 @@ func (at *AutoTrader) recentOrders(limit int) ([]*store.TraderOrder, error) {
 		return nil, nil
 	}
 	return at.store.Order().GetTraderOrders(at.id, limit)
-}
-
-func (at *AutoTrader) countRecentOpenOrders(since time.Time) (int, error) {
-	orders, err := at.recentOrders(100)
-	if err != nil {
-		return 0, err
-	}
-	sinceMs := since.UTC().UnixMilli()
-	count := 0
-	for _, order := range orders {
-		if order == nil || order.CreatedAt < sinceMs || isCanceledOrder(order) {
-			continue
-		}
-		if isOpenAction(order.OrderAction) {
-			count++
-		}
-	}
-	return count, nil
 }
 
 func (at *AutoTrader) findRecentCloseOrder(symbol string, since time.Time) *store.TraderOrder {

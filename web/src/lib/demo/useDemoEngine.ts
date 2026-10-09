@@ -15,7 +15,11 @@ import type {
   SignalRankingResponse,
   SignalRankItem,
 } from '../api/data'
-import { DEMO_UNIVERSE, DEMO_ACTIVE_SYMBOL, demoSeedPrice } from './demoUniverse'
+import {
+  DEMO_UNIVERSE,
+  DEMO_ACTIVE_SYMBOL,
+  demoSeedPrice,
+} from './demoUniverse'
 
 /**
  * useDemoEngine — a client-side showcase data generator. When `active`, it
@@ -87,13 +91,24 @@ interface SimState {
 }
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a)
-const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
+const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
 // A fixed "short book" — these symbols are short EVERYWHERE (flow outflow,
 // bearish signal, short positions, decision candidates) so the topology's
 // short row carries connected flow lines through every layer. The rest are long.
 const SHORT_SET = new Set([
-  'INTC', 'SPCX', 'SKHX', 'SMCI', 'ARM', 'QCOM', 'COIN', 'ORCL', 'DRAM', 'CRM', 'HOOD', 'SNOW',
+  'INTC',
+  'SPCX',
+  'SKHX',
+  'SMCI',
+  'ARM',
+  'QCOM',
+  'COIN',
+  'ORCL',
+  'DRAM',
+  'CRM',
+  'HOOD',
+  'SNOW',
 ])
 const LONG_POOL = DEMO_UNIVERSE.filter((s) => !SHORT_SET.has(s))
 
@@ -112,7 +127,17 @@ function newPosition(symbol: string): PosState {
 function initState(): SimState {
   // index 0 = lead (drives the price panels). Then a deep US-equity book — a
   // long bias plus a sizable short book so the topology fills both rows densely.
-  const longs = [DEMO_ACTIVE_SYMBOL, 'NVDA', 'GOOGL', 'TSM', 'META', 'AMD', 'MSFT', 'AMZN', 'AVGO']
+  const longs = [
+    DEMO_ACTIVE_SYMBOL,
+    'NVDA',
+    'GOOGL',
+    'TSM',
+    'META',
+    'AMD',
+    'MSFT',
+    'AMZN',
+    'AVGO',
+  ]
   const shorts = ['INTC', 'SPCX', 'SKHX', 'SMCI', 'ARM', 'QCOM']
   const positions = [...longs, ...shorts].map((s) => {
     const p = newPosition(s)
@@ -181,7 +206,9 @@ function step(S: SimState) {
     const isWin = Math.random() < 0.7
     const closed = S.positions[bestIdx]
     const raw = upnl(closed)
-    const pnl = isWin ? Math.max(Math.abs(raw), rnd(600, 5200)) : -rnd(250, 2100)
+    const pnl = isWin
+      ? Math.max(Math.abs(raw), rnd(600, 5200))
+      : -rnd(250, 2100)
     const fee = rnd(12, 95)
     S.trades.unshift({
       id: S.nextId++,
@@ -207,7 +234,9 @@ function step(S: SimState) {
     // reopen a fresh LONG US-equity position (avoid duplicates of current book)
     const held = new Set(S.positions.map((p) => p.symbol))
     const candidates = LONG_POOL.filter((s) => !held.has(s))
-    S.positions[bestIdx] = newPosition(candidates.length ? pick(candidates) : closed.symbol)
+    S.positions[bestIdx] = newPosition(
+      candidates.length ? pick(candidates) : closed.symbol
+    )
   }
 
   // new orchestration cycle every ~24 frames
@@ -231,7 +260,10 @@ function build(S: SimState): DemoDataset {
   const liveUpnl = S.positions.reduce((s, p) => s + upnl(p), 0)
   const equity = INITIAL + S.realized + liveUpnl
   const pnl = equity - INITIAL
-  const marginUsed = S.positions.reduce((s, p) => s + (p.qty * p.entry) / p.lev, 0)
+  const marginUsed = S.positions.reduce(
+    (s, p) => s + (p.qty * p.entry) / p.lev,
+    0
+  )
   const total = S.wins + S.losses
 
   const account = {
@@ -253,7 +285,10 @@ function build(S: SimState): DemoDataset {
     const u = upnl(p)
     const notional = p.qty * p.entry
     const margin = notional / p.lev
-    const liq = p.side === 'long' ? p.entry * (1 - 0.9 / p.lev) : p.entry * (1 + 0.9 / p.lev)
+    const liq =
+      p.side === 'long'
+        ? p.entry * (1 - 0.9 / p.lev)
+        : p.entry * (1 + 0.9 / p.lev)
     return {
       symbol: p.symbol,
       side: p.side,
@@ -296,13 +331,15 @@ function build(S: SimState): DemoDataset {
         quantity: t.qty,
         entry_price: t.entry,
         exit_price: t.exit,
-        exit_time: new Date(S.decisionTs - (S.nextId - t.id) * 47_000).toISOString(),
+        exit_time: new Date(
+          S.decisionTs - (S.nextId - t.id) * 47_000
+        ).toISOString(),
         realized_pnl: t.pnl,
         fee: t.fee,
         leverage: t.lev,
         status: 'closed',
         close_reason: t.pnl >= 0 ? 'take_profit' : 'stop_loss',
-      }) as unknown as HistoricalPosition,
+      }) as unknown as HistoricalPosition
   )
 
   // per-symbol aggregates
@@ -352,11 +389,17 @@ function build(S: SimState): DemoDataset {
   const inflow: FlowMarketItem[] = LONG_POOL.slice()
     .sort((a, b) => S.flowNet[b] - S.flowNet[a])
     .map((s) => mkItem(s, S.flowNet[s]))
-  const outflow: FlowMarketItem[] = [...SHORT_SET].map((s) => mkItem(s, -Math.abs(S.flowNet[s]) * 0.6))
-  const flow: FlowMarketsResponse = { data: { by: 'netFlow', window: '1h', inflow, outflow } }
+  const outflow: FlowMarketItem[] = [...SHORT_SET].map((s) =>
+    mkItem(s, -Math.abs(S.flowNet[s]) * 0.6)
+  )
+  const flow: FlowMarketsResponse = {
+    data: { by: 'netFlow', window: '1h', inflow, outflow },
+  }
 
-  // signal ranking — mostly bullish US equities
-  const ranked = [...DEMO_UNIVERSE].sort((a, b) => S.signalScore[b] - S.signalScore[a])
+  // direction board — mostly bullish US equities
+  const ranked = [...DEMO_UNIVERSE].sort(
+    (a, b) => S.signalScore[b] - S.signalScore[a]
+  )
   const items: SignalRankItem[] = ranked.map((s, i) => {
     const score = S.signalScore[s]
     return {
@@ -382,7 +425,8 @@ function build(S: SimState): DemoDataset {
       leverage: p.lev,
       price: p.mark,
       confidence: Math.round(rnd(62, 88)),
-      reasoning: 'Signal Lab confirms trend; cost/liq structure supports the level.',
+      reasoning:
+        'The live direction board is unchanged; cost/liq structure supports the level.',
       timestamp: new Date(S.decisionTs - k * 300_000).toISOString(),
     }))
     return {
@@ -391,7 +435,7 @@ function build(S: SimState): DemoDataset {
       system_prompt: '',
       input_prompt: '',
       cot_trace:
-        'US-equity tape is broadly bid: SP500 and semis (NVDA, MU, TSM) lead net inflow with bullish Signal Lab bias. Holding winners ≥ entry, trimming only on structure breaks.',
+        'US-equity tape is broadly bid: SP500 and semis (NVDA, MU, TSM) remain bullish on the live direction board. Positions stay open until the board changes.',
       decision_json: '',
       account_state: {} as never,
       positions: [],

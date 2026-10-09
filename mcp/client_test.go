@@ -270,6 +270,28 @@ func TestClient_BuildMCPRequestBody(t *testing.T) {
 	}
 }
 
+func TestModelSupportsCustomTemperature(t *testing.T) {
+	tests := []struct {
+		model string
+		want  bool
+	}{
+		{model: "gpt-6", want: false},
+		{model: "gpt-6-astra", want: false},
+		{model: "gpt-5.6", want: false},
+		{model: "o4-mini", want: false},
+		{model: "gpt-4o", want: true},
+		{model: "deepseek-v4-pro", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			if got := modelSupportsCustomTemperature(tt.model); got != tt.want {
+				t.Fatalf("modelSupportsCustomTemperature(%q) = %v, want %v", tt.model, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestClient_BuildUrl(t *testing.T) {
 	tests := []struct {
 		name       string

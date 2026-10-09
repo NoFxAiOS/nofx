@@ -32,22 +32,16 @@ import type {
   MarketSymbol,
   VergexHeatmapBin,
   VergexHeatmapResponse,
-  VergexSignalDimension,
   VergexSignalItem,
-  VergexSignalLabResponse,
+  VergexDirectionCurrentResponse,
+  VergexDirectionHistoryResponse,
 } from '../lib/api/data'
 import { buildDashboardPath, ROUTES } from '../router/paths'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 type Scope =
-  | 'all'
-  | 'crypto'
-  | 'stock'
-  | 'commodity'
-  | 'index'
-  | 'forex'
-  | 'pre_ipo'
+  'all' | 'crypto' | 'stock' | 'commodity' | 'index' | 'forex' | 'pre_ipo'
 type ListMode = 'claw402' | 'pool'
 
 const scopeOptions: Array<{ value: Scope; zh: string; en: string }> = [
@@ -72,7 +66,6 @@ const categoryPriority: Record<string, number> = {
 const timeframeOptions = ['5m', '15m', '30m', '1h', '4h', '1d']
 const barCountOptions = [20, 30, 50]
 const topNOptions = [5, 6, 7, 8, 9, 10]
-const detailBandOptions = ['5', '10', '15', '20']
 const claw402BoardLimit = 30
 const confidenceOptions = [65, 75, 82]
 
@@ -111,9 +104,9 @@ const profileOptions: Array<{
     bars: 30,
     margin: 1.0,
     promptZh:
-      'Careful mode: open only when the Claw402 board direction, Signal Lab, cost/liquidation heatmap and raw candles agree; wait on conflicts.',
+      'Careful mode: follow the live Claw402 direction board; use direction history, the cost/liquidation heatmap, and raw candles as context only.',
     promptEn:
-      'Careful mode: open only when the Claw402 board direction, Signal Lab, cost/liquidation heatmap and raw candles agree; wait on conflicts.',
+      'Careful mode: follow the live Claw402 direction board; use direction history, the cost/liquidation heatmap, and raw candles as context only.',
   },
   {
     value: 'balanced',
@@ -129,9 +122,9 @@ const profileOptions: Array<{
     bars: 30,
     margin: 1.0,
     promptZh:
-      'Balanced mode: prioritize top Claw402-ranked symbols when Signal Lab agrees with raw candles; use the liquidation heatmap for stop and target zones.',
+      'Balanced mode: prioritize the top live direction-board symbols and hold while their direction remains unchanged.',
     promptEn:
-      'Balanced mode: prioritize top Claw402-ranked symbols when Signal Lab agrees with raw candles; use the liquidation heatmap for stop and target zones.',
+      'Balanced mode: prioritize the top live direction-board symbols and hold while their direction remains unchanged.',
   },
   {
     value: 'active',
@@ -147,9 +140,9 @@ const profileOptions: Array<{
     bars: 50,
     margin: 1.0,
     promptZh:
-      'Active mode: follow strong Claw402 signals faster, but require Signal Lab confirmation, avoid crowded liquidation zones, and always set explicit stops.',
+      'Active mode: follow strong Claw402 direction changes quickly and keep positions until the board turns, becomes neutral, or drops the symbol.',
     promptEn:
-      'Active mode: follow strong Claw402 signals faster, but require Signal Lab confirmation, avoid crowded liquidation zones, and always set explicit stops.',
+      'Active mode: follow strong Claw402 direction changes quickly and keep positions until the board turns, becomes neutral, or drops the symbol.',
   },
 ]
 
@@ -241,13 +234,13 @@ function defaultRisk(risk?: Partial<RiskControlConfig>): RiskControlConfig {
   const leverage =
     risk?.altcoin_max_leverage || risk?.btc_eth_max_leverage || 10
   return {
-    max_positions: risk?.max_positions || 2,
+    max_positions: risk?.max_positions || 8,
     btc_eth_max_leverage: leverage,
     altcoin_max_leverage: leverage,
     btc_eth_max_position_value_ratio:
-      risk?.btc_eth_max_position_value_ratio || 10,
+      risk?.btc_eth_max_position_value_ratio || 5,
     altcoin_max_position_value_ratio:
-      risk?.altcoin_max_position_value_ratio || 10,
+      risk?.altcoin_max_position_value_ratio || 5,
     max_margin_usage: risk?.max_margin_usage || 1.0,
     min_position_size: risk?.min_position_size || 12,
     min_risk_reward_ratio: risk?.min_risk_reward_ratio || 3,
@@ -379,11 +372,6 @@ function sameSignalItem(a: VergexSignalItem | null, b: VergexSignalItem) {
   )
 }
 
-function clampPct(value: number) {
-  if (!Number.isFinite(value)) return 0
-  return Math.min(100, Math.max(0, value))
-}
-
 function formatMoney(value: number | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
   const sign = value < 0 ? '-' : ''
@@ -403,18 +391,6 @@ function formatNumber(value: number | undefined, digits = 2) {
 function formatPrice(value: number | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
   return `$${value.toFixed(value >= 100 ? 2 : 4)}`
-}
-
-function formatSignedPct(value: number | undefined) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
-  const sign = value > 0 ? '+' : ''
-  return `${sign}${value.toFixed(1)}%`
-}
-
-function metricPct(value: number | undefined) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
-  const pct = Math.abs(value) <= 1 ? value * 100 : value
-  return `${pct.toFixed(1)}%`
 }
 
 function directionStyle(direction?: string) {
@@ -441,53 +417,6 @@ function directionStyle(direction?: string) {
     chip: 'border-[rgba(26,24,19,0.14)] bg-nofx-bg-deeper text-nofx-text-muted',
     bar: 'bg-slate-500/70',
   }
-}
-
-function SignalDimensionRow({ item }: { item: VergexSignalDimension }) {
-  const style = directionStyle(item.direction)
-  const percentile =
-    typeof item.percentile === 'number' && Number.isFinite(item.percentile)
-      ? clampPct(item.percentile)
-      : null
-  const chipLabel = [item.direction, item.strength].filter(Boolean).join(' · ')
-
-  return (
-    <div className="border-t border-[rgba(26,24,19,0.14)] px-3 py-3">
-      <div className="grid gap-3 md:grid-cols-[1fr_150px]">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${style.dot}`} />
-            <span className="text-sm font-semibold text-nofx-text">
-              {item.label || item.key || 'Signal factor'}
-            </span>
-            {chipLabel ? (
-              <span
-                className={`rounded-md border px-2 py-0.5 text-[11px] ${style.chip}`}
-              >
-                {chipLabel}
-              </span>
-            ) : null}
-          </div>
-          <div className="mt-1 text-xs leading-5 text-nofx-text-muted">
-            {item.detail || item.what || 'No detail returned.'}
-          </div>
-        </div>
-        {percentile !== null ? (
-          <div className="flex items-center gap-2">
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-nofx-bg-deeper">
-              <div
-                className={`h-full rounded-full ${style.bar}`}
-                style={{ width: `${percentile}%` }}
-              />
-            </div>
-            <span className="w-10 text-right font-mono text-xs text-nofx-text-muted">
-              {percentile.toFixed(0)}
-            </span>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  )
 }
 
 function DetailMetricCard({
@@ -525,212 +454,78 @@ function DetailMetricCard({
   )
 }
 
-function BandSelector({
-  activeBand,
-  loading,
-  onBandChange,
+function DirectionChangePanel({
+  current,
+  history,
 }: {
-  activeBand: string
-  loading?: boolean
-  onBandChange?: (band: string) => void
+  current: VergexDirectionCurrentResponse | null
+  history: VergexDirectionHistoryResponse | null
 }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {detailBandOptions.map((band) => (
-        <button
-          key={band}
-          type="button"
-          onClick={() => onBandChange?.(band)}
-          disabled={loading}
-          className={`rounded-lg border px-4 py-2 font-mono text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
-            activeBand === band
-              ? 'border-nofx-gold/60 bg-nofx-gold/12 text-nofx-gold'
-              : 'border-[rgba(26,24,19,0.14)] bg-nofx-bg-deeper text-nofx-text-muted hover:border-[rgba(26,24,19,0.24)] hover:text-nofx-text'
-          }`}
-        >
-          ±{band}%
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function SignalLabPanel({
-  lab,
-  activeBand,
-  loading,
-  onBandChange,
-}: {
-  lab: VergexSignalLabResponse | null
-  activeBand: string
-  loading?: boolean
-  onBandChange?: (band: string) => void
-}) {
-  const data = lab?.data
-  if (!data) {
+  if (!current && !history) {
     return (
       <div className="rounded-lg border border-[rgba(26,24,19,0.14)] bg-nofx-bg-deeper p-4 text-sm text-nofx-text-muted">
-        Signal Lab has not loaded yet.
+        Bull/Bear Radar has not loaded yet.
       </div>
     )
   }
-
-  const bias = signalBiasInfo(data.bias)
-  const BiasIcon = bias.icon
-  const levels = data.levels || {}
-  const metrics = data.metrics || {}
-  const dimensions = data.dimensions || []
-
+  const direction = current?.direction || current?.new_bias || 'neutral'
+  const factors = Object.entries(current?.reason || {})
   return (
     <section className="overflow-hidden rounded-lg border border-[rgba(26,24,19,0.14)] bg-nofx-bg-lighter shadow-lg">
-      <div className="border-b border-[rgba(26,24,19,0.14)] bg-nofx-bg-lighter px-5 py-4">
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
-          <div>
-            <div className="text-base font-semibold text-nofx-text">
-              Signal Lab
-              <span className="ml-3 text-sm font-normal text-nofx-text-muted">
-                full-book cost basis + node liquidation map · facts only
-              </span>
-            </div>
-            <div className="mt-4">
-              <BandSelector
-                activeBand={activeBand}
-                loading={loading}
-                onBandChange={onBandChange}
-              />
-            </div>
-          </div>
-          <div className="flex flex-col items-start gap-2 lg:items-end">
-            <div className="rounded-full bg-nofx-success/10 px-3 py-1 text-xs font-semibold text-nofx-success">
-              live
-            </div>
-            {data.confidence ? (
-              <div className="font-mono text-sm text-nofx-text-muted">
-                confidence {data.confidence}
-              </div>
-            ) : null}
-          </div>
+      <div className="border-b border-[rgba(26,24,19,0.14)] px-5 py-4">
+        <div className="text-base font-semibold text-nofx-text">
+          Bull/Bear Radar
+        </div>
+        <div
+          className={`mt-3 text-3xl font-bold ${directionStyle(direction).text}`}
+        >
+          {signalBiasInfo(direction).label}
+        </div>
+        <div className="mt-2 font-mono text-sm text-nofx-text-muted">
+          mark {formatPrice(current?.mark_price)} · stable since{' '}
+          {current?.stable_since_at
+            ? new Date(current.stable_since_at).toLocaleString()
+            : '—'}
         </div>
       </div>
-
-      <div className="px-5 py-5">
-        <div className="flex flex-wrap items-end gap-4">
-          <div
-            className={`text-4xl font-bold ${directionStyle(data.bias).text}`}
-          >
-            {bias.label}
-          </div>
-          {data.rank ? (
-            <div className="pb-1 font-mono text-base text-nofx-success">
-              market #{data.rank}/{data.universeSize || 30}
-            </div>
-          ) : null}
-          {typeof data.compositeZ === 'number' ? (
-            <div className="pb-1 font-mono text-base text-nofx-success">
-              z {data.compositeZ >= 0 ? '+' : ''}
-              {data.compositeZ.toFixed(2)}
-            </div>
-          ) : null}
-          <BiasIcon
-            className={`mb-1 h-6 w-6 ${directionStyle(data.bias).text}`}
-          />
-        </div>
-      </div>
-
-      {data.structureRead ? (
-        <div className="mx-5 rounded-md border-l-4 border-nofx-gold/35 bg-nofx-bg-deeper px-4 py-4 text-base leading-8 text-nofx-text">
-          {data.structureRead}
-        </div>
-      ) : null}
-
-      {dimensions.length > 0 ? (
-        <div className="pt-5">
-          <div className="px-5 pb-2 text-sm font-semibold text-nofx-text">
-            Factors
-            <span className="ml-2 text-sm font-normal text-nofx-text-muted">
-              bar = cross-market percentile
-            </span>
-          </div>
-          {dimensions.map((dimension, index) => (
-            <SignalDimensionRow
-              key={`${dimension.key || dimension.label || 'factor'}-${index}`}
-              item={dimension}
+      {factors.length > 0 ? (
+        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-5">
+          {factors.map(([name, value]) => (
+            <DetailMetricCard
+              key={name}
+              label={name.toUpperCase()}
+              value={value}
+              tone="neutral"
             />
           ))}
         </div>
       ) : null}
-
       <div className="border-t border-[rgba(26,24,19,0.14)] p-5">
-        <div className="text-base font-semibold text-nofx-text">
-          Key levels price {formatPrice(levels.markPrice)}
+        <div className="mb-3 text-sm font-semibold text-nofx-text">
+          Direction changes
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <DetailMetricCard
-            label="Fair-value magnet (POC)"
-            value={`${formatPrice(levels.poc)} (${formatSignedPct(levels.pocDistPct)})`}
-            note="Where the most cost is concentrated."
-            tone="neutral"
-          />
-          <DetailMetricCard
-            label="Strongest liq cluster"
-            value={`${formatPrice(levels.magnet)} (${formatSignedPct(levels.magnetDistPct)})`}
-            note="Largest forced-close cluster in the selected band."
-            tone="cyan"
-          />
-          <DetailMetricCard
-            label="Resistance above"
-            value={`${formatPrice(levels.resistance)} (${formatSignedPct(levels.resistanceDistPct)})`}
-            note="Trapped longs may sell to break even as price returns."
-            tone="red"
-          />
-          <DetailMetricCard
-            label="Support below"
-            value={`${formatPrice(levels.support)} (${formatSignedPct(levels.supportDistPct)})`}
-            note="Trapped shorts may cover as price falls back."
-            tone="green"
-          />
-        </div>
-
-        <div className="mt-6 text-base font-semibold text-nofx-text">
-          Structure metrics
-        </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <DetailMetricCard
-            label="Squeeze fuel above"
-            value={formatMoney(metrics.shortLiqAbove)}
-            note="Short liquidation fuel above current price."
-            tone="green"
-          />
-          <DetailMetricCard
-            label="Flush fuel below"
-            value={formatMoney(metrics.longLiqBelow)}
-            note="Long liquidation fuel below current price."
-            tone="red"
-          />
-          <DetailMetricCard
-            label="Cascade vulnerability"
-            value={metricPct(metrics.cascadeVulnPct)}
-            note="Share of OI close to force-close."
-            tone="neutral"
-          />
-          <DetailMetricCard
-            label="Long book PnL"
-            value={formatMoney(metrics.longOverhangPnl)}
-            note={`avg ${metricPct(metrics.gLong)}`}
-            tone="green"
-          />
-          <DetailMetricCard
-            label="Short book PnL"
-            value={formatMoney(metrics.shortOverhangPnl)}
-            note={`avg ${metricPct(metrics.gShort)}`}
-            tone="red"
-          />
-          <DetailMetricCard
-            label="Top-10 concentration"
-            value={metricPct(metrics.top10Pct)}
-            note="Share held by the top 10 addresses."
-            tone="neutral"
-          />
+        <div className="space-y-2">
+          {(history?.items || []).slice(0, 10).map((item, index) => (
+            <div
+              key={`${item.occurred_at || index}`}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-nofx-bg-deeper px-3 py-2 text-sm"
+            >
+              <span className="font-mono text-nofx-text">
+                {item.prev_bias || '—'} → {item.new_bias || '—'}
+              </span>
+              <span className="font-mono text-nofx-text-muted">
+                {formatPrice(item.mark_price)} ·{' '}
+                {item.occurred_at
+                  ? new Date(item.occurred_at).toLocaleString()
+                  : '—'}
+              </span>
+            </div>
+          ))}
+          {!history?.items?.length ? (
+            <div className="text-sm text-nofx-text-muted">
+              No direction-change history returned.
+            </div>
+          ) : null}
         </div>
       </div>
     </section>
@@ -1005,9 +800,10 @@ export function StrategyStudioPage() {
   const [detailSignal, setDetailSignal] = useState<VergexSignalItem | null>(
     null
   )
-  const [signalLab, setSignalLab] = useState<VergexSignalLabResponse | null>(
-    null
-  )
+  const [directionCurrent, setDirectionCurrent] =
+    useState<VergexDirectionCurrentResponse | null>(null)
+  const [directionHistory, setDirectionHistory] =
+    useState<VergexDirectionHistoryResponse | null>(null)
   const [heatmap, setHeatmap] = useState<VergexHeatmapResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -1114,7 +910,8 @@ export function StrategyStudioPage() {
     setSignalsLoading(true)
     setSignalsError('')
     try {
-      const result = await api.getVergexSignalRanking(claw402BoardLimit)
+      const result =
+        await api.getVergexDirectionChangeLeaderboard(claw402BoardLimit)
       setSignals(result.items || [])
       setListMode('claw402')
     } catch (err) {
@@ -1140,7 +937,8 @@ export function StrategyStudioPage() {
 
       setDetailLiqBand(nextBand)
       setDetailSignal(item)
-      setSignalLab(null)
+      setDirectionCurrent(null)
+      setDirectionHistory(null)
       setHeatmap(null)
       setDetailError('')
       setDetailLoading(true)
@@ -1151,21 +949,31 @@ export function StrategyStudioPage() {
           ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
 
-      const [labResult, heatmapResult] = await Promise.allSettled([
-        api.getVergexSignalLab(params),
-        api.getVergexCostLiquidationHeatmap(params),
-      ])
+      const [currentResult, historyResult, heatmapResult] =
+        await Promise.allSettled([
+          api.getVergexDirectionChangeCurrent(item.symbol),
+          api.getVergexDirectionChangeHistory(item.symbol, 'all', 1, 20),
+          api.getVergexCostLiquidationHeatmap(params),
+        ])
 
       const errors: string[] = []
-      if (labResult.status === 'fulfilled') {
-        setSignalLab(labResult.value)
+      if (currentResult.status === 'fulfilled') {
+        setDirectionCurrent(currentResult.value)
       } else {
         errors.push(
-          `Signal Lab: ${
-            labResult.reason instanceof Error
-              ? labResult.reason.message
+          `Current direction: ${
+            currentResult.reason instanceof Error
+              ? currentResult.reason.message
               : 'unavailable'
           }`
+        )
+      }
+
+      if (historyResult.status === 'fulfilled') {
+        setDirectionHistory(historyResult.value)
+      } else {
+        errors.push(
+          `Direction history: ${historyResult.reason instanceof Error ? historyResult.reason.message : 'unavailable'}`
         )
       }
 
@@ -1185,16 +993,6 @@ export function StrategyStudioPage() {
       setDetailLoading(false)
     },
     [coinSource?.vergex_liq_band, detailLiqBand, token]
-  )
-
-  const selectDetailBand = useCallback(
-    (band: string) => {
-      setDetailLiqBand(band)
-      if (detailSignal) {
-        void loadSignalDetail(detailSignal, band)
-      }
-    },
-    [detailSignal, loadSignalDetail]
   )
 
   useEffect(() => {
@@ -1276,17 +1074,17 @@ export function StrategyStudioPage() {
         }),
         risk_control: defaultRisk({
           ...defaultConfig.ai_config?.risk_control,
-          max_positions: 2,
+          max_positions: 8,
           btc_eth_max_leverage: 10,
           altcoin_max_leverage: 10,
-          btc_eth_max_position_value_ratio: 10,
-          altcoin_max_position_value_ratio: 10,
+          btc_eth_max_position_value_ratio: 5,
+          altcoin_max_position_value_ratio: 5,
           max_margin_usage: 1.0,
           min_confidence: 78,
           min_risk_reward_ratio: 3,
         }),
         custom_prompt:
-          'NOFX Autopilot reads the Claw402.ai board each cycle, fetches Signal Lab and cost/liquidation structure for every candidate, confirms with raw OHLCV candles, then trades only when the full-size setup is justified.',
+          'NOFX Autopilot reads the Claw402.ai direction board each cycle, loads direction history and cost/liquidation structure, and holds each position until its board direction changes.',
         prompt_sections: undefined,
       }
       const created = await api.createStrategy({
@@ -1388,19 +1186,18 @@ export function StrategyStudioPage() {
       }),
       risk_control: defaultRisk({
         ...base.ai_config?.risk_control,
-        max_positions: 2,
-        btc_eth_max_leverage: 5,
-        altcoin_max_leverage: 5,
-        // Few, concentrated positions held for big moves. 5x leverage so a
-        // wide (-5%) stop is survivable; 2 positions × 2.5x = 5x total.
-        btc_eth_max_position_value_ratio: 2.5,
-        altcoin_max_position_value_ratio: 2.5,
+        max_positions: 8,
+        btc_eth_max_leverage: 10,
+        altcoin_max_leverage: 10,
+        // Five times equity is the hard per-position cap; allocation is dynamic.
+        btc_eth_max_position_value_ratio: 5,
+        altcoin_max_position_value_ratio: 5,
         max_margin_usage: 1.0,
         min_confidence: 78,
         min_risk_reward_ratio: 3,
       }),
       custom_prompt:
-        'Run NOFX Autopilot: use the Claw402.ai ranking as the candidate universe, verify each candidate with Signal Lab and cost/liquidation structure, confirm timing with raw OHLCV candles, and only open full-size 10x positions when the setup is strong enough.',
+        'Run NOFX Autopilot: use the Claw402.ai direction board as the candidate universe, open in the board direction, and hold until that direction changes, becomes neutral, or disappears.',
       prompt_sections: undefined,
     }
     return base
@@ -1423,7 +1220,7 @@ export function StrategyStudioPage() {
             name: selectedStrategy.name,
             description:
               selectedStrategy.description ||
-              'Autonomous market selection powered by Claw402.ai Signal Lab, liquidation structure, and raw candles.',
+              'Autonomous market selection powered by the live Claw402.ai direction board.',
             config,
           })
           await api.activateStrategy(selectedStrategy.id)
@@ -1598,8 +1395,8 @@ export function StrategyStudioPage() {
             <p className="mt-1 text-sm text-nofx-text-muted">
               {text(
                 language,
-                'Autonomous market selection powered by Claw402.ai Signal Lab, liquidation structure, and raw candles.',
-                'Autonomous market selection powered by Claw402.ai Signal Lab, liquidation structure, and raw candles.'
+                'Autonomous market selection powered by the live Claw402.ai direction board.',
+                'Autonomous market selection powered by the live Claw402.ai direction board.'
               )}
             </p>
           </div>
@@ -1758,7 +1555,7 @@ export function StrategyStudioPage() {
                       Signal Board
                     </div>
                     <div className="mt-1 text-xs text-nofx-text-muted">
-                      Live Claw402.ai ranking · Signal Lab · liquidation map
+                      Live direction board · direction history · liquidation map
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -2126,7 +1923,7 @@ export function StrategyStudioPage() {
                           {detailLoading ? (
                             <div className="mt-3 inline-flex items-center gap-2 text-xs text-nofx-text-muted">
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              Loading Signal Lab and heatmap...
+                              Loading direction history and heatmap...
                             </div>
                           ) : null}
                           {detailError ? (
@@ -2137,17 +1934,15 @@ export function StrategyStudioPage() {
                         </section>
 
                         <CostLiquidationHeatmap heatmap={heatmap} />
-                        <SignalLabPanel
-                          lab={signalLab}
-                          activeBand={detailLiqBand}
-                          loading={detailLoading}
-                          onBandChange={selectDetailBand}
+                        <DirectionChangePanel
+                          current={directionCurrent}
+                          history={directionHistory}
                         />
                       </>
                     ) : (
                       <div className="rounded-lg border border-[rgba(26,24,19,0.14)] bg-nofx-bg-deeper px-4 py-4 text-sm text-nofx-text-muted">
-                        NOFX Autopilot reviews the Claw402 board, Signal Lab,
-                        liquidation structure, and raw candles automatically.
+                        NOFX Autopilot follows the Claw402 direction board and
+                        uses liquidation structure and raw candles as context.
                       </div>
                     )}
                   </div>
@@ -2271,7 +2066,7 @@ export function StrategyStudioPage() {
                           }
                           className="w-full rounded-lg border border-[rgba(26,24,19,0.14)] bg-nofx-bg px-3 py-2 text-sm text-nofx-text"
                         >
-                          {[1, 2, 3, 4, 5].map((value) => (
+                          {[1, 2, 3, 4, 5, 6, 7, 8].map((value) => (
                             <option key={value} value={value}>
                               {value}
                             </option>

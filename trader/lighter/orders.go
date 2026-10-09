@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"nofx/logger"
 	"strconv"
+	"strings"
 
 	"github.com/elliottech/lighter-go/types"
 )
@@ -164,9 +165,34 @@ func (t *LighterTraderV2) CancelStopLossOrders(symbol string) error {
 
 // CancelTakeProfitOrders Cancel only take-profit orders (implements Trader interface)
 func (t *LighterTraderV2) CancelTakeProfitOrders(symbol string) error {
-	// LIGHTER cannot distinguish between stop-loss and take-profit orders yet, will cancel all stop orders
-	logger.Infof("⚠️  LIGHTER cannot distinguish stop-loss/take-profit orders, will cancel all stop orders")
-	return t.CancelStopOrders(symbol)
+	orders, err := t.GetActiveOrders(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to get active orders: %w", err)
+	}
+	for _, order := range orders {
+		if !isLighterTakeProfitOrder(order) {
+			continue
+		}
+		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
+			return fmt.Errorf("failed to cancel take-profit order %s: %w", order.OrderID, err)
+		}
+	}
+	remaining, err := t.GetActiveOrders(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to verify take-profit cancellation: %w", err)
+	}
+	for _, order := range remaining {
+		if isLighterTakeProfitOrder(order) {
+			return fmt.Errorf("take-profit order %s remains active after cancellation", order.OrderID)
+		}
+	}
+	return nil
+}
+
+func isLighterTakeProfitOrder(order OrderResponse) bool {
+	typ := strings.ToLower(strings.TrimSpace(order.Type))
+	typ = strings.NewReplacer("-", "_", " ", "_").Replace(typ)
+	return typ == "take_profit" || typ == "takeprofit" || typ == "tp" || typ == "4"
 }
 
 // CancelStopOrders Cancel stop-loss/take-profit orders for this symbol (implements Trader interface)
@@ -245,9 +271,9 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 
 	// Parse response - Lighter API uses "orders" field, not "data"
 	var apiResp struct {
-		Code    int              `json:"code"`
-		Message string           `json:"message"`
-		Orders  []OrderResponse  `json:"orders"`
+		Code    int             `json:"code"`
+		Message string          `json:"message"`
+		Orders  []OrderResponse `json:"orders"`
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {

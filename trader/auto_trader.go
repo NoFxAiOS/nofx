@@ -44,6 +44,26 @@ func (at *AutoTrader) logWarnf(format string, args ...interface{}) {
 	logger.Warnf("%s "+format, values...)
 }
 
+// extractInitialBalance prefers an exchange's explicit mark-to-market equity.
+// Wallet-balance fields remain as compatibility fallbacks for integrations
+// that do not expose total equity separately.
+func extractInitialBalance(account map[string]interface{}) float64 {
+	balanceKeys := []string{
+		"totalEquity",
+		"total_equity",
+		"totalWalletBalance",
+		"wallet_balance",
+		"totalEq",
+		"balance",
+	}
+	for _, key := range balanceKeys {
+		if balance, ok := account[key].(float64); ok && balance > 0 {
+			return balance
+		}
+	}
+	return 0
+}
+
 func (at *AutoTrader) logErrorf(format string, args ...interface{}) {
 	values := append([]interface{}{at.logTag()}, args...)
 	logger.Errorf("%s "+format, values...)
@@ -178,11 +198,14 @@ type AutoTrader struct {
 	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
 	consecutiveAIFailures int                // Consecutive AI call failures
 	runtimeHealthMu       sync.RWMutex       // Guards safe mode + AI wallet health (loop writes, API reads)
-	safeMode              bool               // Safe mode: no new positions, protect existing ones
-	safeModeReason        string             // Why safe mode was activated
-	aiWalletStatus        string             // "ok"|"low"|"empty"|"unknown" — see runtime_health.go
-	aiWalletBalanceUSDC   float64            // Last observed Base USDC balance of the claw402 wallet
-	aiWalletCheckedAt     time.Time          // When the balance was last observed
+	tradingBlocked        bool
+	tradingError          string
+	tradingCheckedAt      time.Time
+	safeMode              bool      // Safe mode: no new positions, protect existing ones
+	safeModeReason        string    // Why safe mode was activated
+	aiWalletStatus        string    // "ok"|"low"|"empty"|"unknown" — see runtime_health.go
+	aiWalletBalanceUSDC   float64   // Last observed Base USDC balance of the claw402 wallet
+	aiWalletCheckedAt     time.Time // When the balance was last observed
 }
 
 // NewAutoTrader creates an automatic trader
@@ -329,15 +352,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		if err != nil {
 			return nil, fmt.Errorf("initial balance not set and unable to fetch balance from exchange: %w", err)
 		}
-		// Try multiple balance field names (different exchanges return different formats)
-		balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
-		var foundBalance float64
-		for _, key := range balanceKeys {
-			if balance, ok := account[key].(float64); ok && balance > 0 {
-				foundBalance = balance
-				break
-			}
-		}
+		// Try multiple balance field names (different exchanges return different formats).
+		foundBalance := extractInitialBalance(account)
 		if foundBalance > 0 {
 			config.InitialBalance = foundBalance
 			logger.Infof("✓ [%s] Auto-fetched initial balance: %.2f USDT", config.Name, foundBalance)

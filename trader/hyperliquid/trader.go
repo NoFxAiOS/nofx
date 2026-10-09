@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"nofx/logger"
 	hlprovider "nofx/provider/hyperliquid"
 	"strconv"
@@ -24,10 +25,13 @@ type HyperliquidTrader struct {
 	isCrossMargin    bool              // Whether to use cross margin mode
 	isUnifiedAccount bool              // Whether to use Unified Account mode (Spot as collateral for Perps)
 	// xyz dex support (stocks, forex, commodities)
-	xyzMeta      *xyzDexMeta
-	xyzMetaMutex sync.RWMutex
-	privateKey   *ecdsa.PrivateKey // For xyz dex signing
-	isTestnet    bool
+	xyzMeta       *xyzDexMeta
+	xyzMetaMutex  sync.RWMutex
+	privateKey    *ecdsa.PrivateKey // For xyz dex signing
+	isTestnet     bool
+	apiURL        string // Set by constructor; overridden by local HTTP tests only.
+	xyzExchange   *hyperliquid.Exchange
+	xyzExchangeMu sync.Mutex
 }
 
 // xyzDexMeta represents metadata for xyz dex assets
@@ -155,6 +159,7 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool,
 			walletAddr, // wallet address
 			nil,        // SpotMeta — fetched automatically
 			nil,        // perpDexs — fetched automatically
+			hyperliquid.ExchangeOptClientOptions(hyperliquid.ClientOptHTTPClient(checkedActionHTTPClient())),
 		)
 	})
 	if err != nil {
@@ -215,6 +220,7 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool,
 		isUnifiedAccount: unifiedAccount, // Unified Account: Spot as Perp collateral
 		privateKey:       privateKey,
 		isTestnet:        testnet,
+		apiURL:           apiURL,
 	}, nil
 }
 
@@ -262,6 +268,56 @@ func (t *HyperliquidTrader) roundToSzDecimals(coin string, quantity float64) flo
 
 	// Round
 	return float64(int(quantity*multiplier+0.5)) / multiplier
+}
+
+// roundOrderPrice applies both Hyperliquid perp constraints: up to five
+// significant digits AND at most 6-szDecimals fractional digits. Integers are
+// always permitted. Unknown metadata and prices that round to zero fail closed.
+func (t *HyperliquidTrader) roundOrderPrice(coin string, price float64) (float64, error) {
+	decimals := -1
+	if strings.HasPrefix(coin, "xyz:") {
+		if _, err := t.leverageExchange(coin); err != nil {
+			return 0, err
+		}
+		t.xyzMetaMutex.RLock()
+		if t.xyzMeta != nil {
+			for _, asset := range t.xyzMeta.Universe {
+				if asset.Name == coin {
+					decimals = asset.SzDecimals
+					break
+				}
+			}
+		}
+		t.xyzMetaMutex.RUnlock()
+	} else {
+		t.metaMutex.RLock()
+		if t.meta != nil {
+			for _, asset := range t.meta.Universe {
+				if asset.Name == coin {
+					decimals = asset.SzDecimals
+					break
+				}
+			}
+		}
+		t.metaMutex.RUnlock()
+	}
+	if decimals < 0 || decimals > 6 {
+		return 0, fmt.Errorf("price precision unavailable for %s", coin)
+	}
+	return roundPerpPrice(price, decimals)
+}
+
+func roundPerpPrice(price float64, szDecimals int) (float64, error) {
+	if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) || szDecimals < 0 || szDecimals > 6 {
+		return 0, fmt.Errorf("invalid perp price or precision")
+	}
+	decimals := min(6-szDecimals, max(0, 4-int(math.Floor(math.Log10(price)))))
+	factor := math.Pow10(decimals)
+	rounded := math.Round(price*factor) / factor
+	if rounded <= 0 {
+		return 0, fmt.Errorf("price is below the market tick size")
+	}
+	return rounded, nil
 }
 
 // roundPriceToSigfigs rounds price to 5 significant figures

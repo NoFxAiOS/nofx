@@ -11,6 +11,7 @@ import (
 	"nofx/logger"
 	"nofx/store"
 
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,6 +40,7 @@ type SafeExchangeConfig struct {
 	HyperliquidWalletAddr      string `json:"hyperliquidWalletAddr"` // Hyperliquid wallet address (not sensitive)
 	HyperliquidUnifiedAcct     bool   `json:"hyperliquidUnifiedAccount"`
 	HyperliquidBuilderApproved bool   `json:"hyperliquidBuilderApproved"`
+	HyperliquidAgentAddress    string `json:"hyperliquidAgentAddress,omitempty"`
 	HasAsterPrivateKey         bool   `json:"has_aster_private_key"`
 	AsterUser                  string `json:"asterUser"`         // Aster username (not sensitive)
 	AsterSigner                string `json:"asterSigner"`       // Aster signer (not sensitive)
@@ -62,6 +64,7 @@ func safeExchangeConfigFromStore(exchange *store.Exchange) SafeExchangeConfig {
 		HyperliquidWalletAddr:      exchange.HyperliquidWalletAddr,
 		HyperliquidUnifiedAcct:     exchange.HyperliquidUnifiedAcct,
 		HyperliquidBuilderApproved: exchange.HyperliquidBuilderApproved,
+		HyperliquidAgentAddress:    deriveHyperliquidAgentAddress(exchange),
 		HasAsterPrivateKey:         exchange.AsterPrivateKey != "",
 		AsterUser:                  exchange.AsterUser,
 		AsterSigner:                exchange.AsterSigner,
@@ -69,6 +72,19 @@ func safeExchangeConfigFromStore(exchange *store.Exchange) SafeExchangeConfig {
 		HasLighterPrivateKey:       exchange.LighterPrivateKey != "",
 		HasLighterAPIKey:           exchange.LighterAPIKeyPrivateKey != "",
 	}
+}
+
+func deriveHyperliquidAgentAddress(exchange *store.Exchange) string {
+	if exchange == nil || !strings.EqualFold(exchange.ExchangeType, "hyperliquid") {
+		return ""
+	}
+	privateKeyText := strings.TrimSpace(string(exchange.APIKey))
+	privateKeyText = strings.TrimPrefix(strings.TrimPrefix(privateKeyText, "0x"), "0X")
+	privateKey, err := ethcrypto.HexToECDSA(privateKeyText)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(ethcrypto.PubkeyToAddress(privateKey.PublicKey).Hex())
 }
 
 // ExchangeConfigUpdate is a single exchange account's update payload. It is a

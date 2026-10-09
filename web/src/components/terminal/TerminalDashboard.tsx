@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
-import useSWR from 'swr'
+import useSWR, { mutate } from 'swr'
 import { api } from '../../lib/api'
+import { confirmToast, notify } from '../../lib/notify'
 import type {
   SystemStatus,
   AccountInfo,
@@ -13,6 +14,7 @@ import type {
 import { OrchestrationTopology } from './OrchestrationTopology'
 import { OrderBook } from './OrderBook'
 import { LiquidationMap } from './LiquidationMap'
+import { WinrateMatrix } from './WinrateMatrix'
 import { KlineChart } from './KlineChart'
 import { ExecutionLog } from './ExecutionLog'
 import { SignalMatrix } from './SignalMatrix'
@@ -116,6 +118,57 @@ export function TerminalDashboard({
   const traderId = selectedTrader?.trader_id || selectedTraderId
   useTick(1000)
   const clock = new Date().toLocaleTimeString('en-GB', { hour12: false })
+  const [closing, setClosing] = useState<string | null>(null)
+
+  async function closePositionRow(symbol: string, side: 'LONG' | 'SHORT') {
+    if (!traderId || closing) return
+    const ok = await confirmToast(`Market-close ${symbol} ${side}?`, {
+      title: 'Close position',
+      okText: 'Close',
+      cancelText: 'Cancel',
+    })
+    if (!ok) return
+    setClosing(symbol)
+    try {
+      await api.closePosition(traderId, symbol, side)
+      notify.success(`${symbol} ${side} closed`)
+      await Promise.all([
+        mutate(`positions-${traderId}`),
+        mutate(`account-${traderId}`),
+      ])
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : 'Close failed')
+    } finally {
+      setClosing(null)
+    }
+  }
+
+  async function closeAllPositions(open: Position[]) {
+    if (!traderId || closing || open.length === 0) return
+    const ok = await confirmToast(
+      `Market-close ALL ${open.length} open positions?`,
+      { title: 'Flatten book', okText: 'Close all', cancelText: 'Cancel' }
+    )
+    if (!ok) return
+    setClosing('__all__')
+    let failed = 0
+    // Sequential: parallel closes race on exchange nonces / rate limits.
+    for (const p of open) {
+      const side = /long|buy/i.test(p.side) ? 'LONG' : 'SHORT'
+      try {
+        await api.closePosition(traderId, p.symbol, side)
+      } catch {
+        failed++
+      }
+    }
+    await Promise.all([
+      mutate(`positions-${traderId}`),
+      mutate(`account-${traderId}`),
+    ])
+    if (failed === 0) notify.success('All positions closed')
+    else notify.error(`${failed}/${open.length} closes failed`)
+    setClosing(null)
+  }
 
   const { data: realFullStats } = useSWR(
     traderId ? ['full-stats', traderId] : null,
@@ -141,7 +194,7 @@ export function TerminalDashboard({
   )
   const { data: realSignalRank } = useSWR(
     traderId ? ['signal-rank', traderId] : null,
-    () => api.getSignalRanking(selectedTrader?.ai_model, 'mainnet', 'all', 30, true),
+    () => api.getDirectionChangeLeaderboard(30, true),
     // paid x402 endpoint — poll slowly (5m) to conserve claw402 funds
     { refreshInterval: 300000, shouldRetryOnError: false }
   )
@@ -214,7 +267,14 @@ export function TerminalDashboard({
     const heldBases = [...(positions ?? []).map((p) => p.symbol), ...candidateCoins].map(baseLabel).filter(Boolean)
     return heldBases[0] || heatmapSymbol || 'SP500'
   }, [positions, candidateCoins, heatmapSymbol])
-  const activeSym = (selectedSym || defaultSym).toUpperCase()
+  const activeSym = baseLabel(selectedSym || defaultSym)
+  const activeSignal = signalRank?.items?.find((item) => baseLabel(item.symbol) === activeSym)
+  const sourceSymbol = activeSignal?.symbol || [...(positions ?? []).map((p) => p.symbol), ...candidateCoins].find((s) => baseLabel(s) === activeSym) || selectedSym || defaultSym
+  const activeMarketType = activeSignal?.market_type === 'core_perp' || activeSignal?.market_type === 'hip3_perp'
+    ? activeSignal.market_type
+    : /^xyz:/i.test(sourceSymbol) ? 'hip3_perp'
+      : /USDT$/i.test(sourceSymbol) || CRYPTO_MAJORS.has(activeSym) ? 'core_perp' : 'hip3_perp'
+  const activeRequestSymbol = activeMarketType === 'hip3_perp' ? `xyz:${activeSym}` : activeSym
 
   const pnl = account?.total_pnl ?? 0
   const pnlPct = account?.total_pnl_pct ?? 0
@@ -315,13 +375,20 @@ export function TerminalDashboard({
                 {traders.map((t) => (<option key={t.trader_id} value={t.trader_id} style={{ color: '#111' }}>{t.trader_name}</option>))}
               </select>
             )}
-            <span style={{ color: running ? 'var(--tm-up)' : 'var(--tm-muted)' }}>{running ? '● running' : '○ stopped'}</span>
+            <span style={{ color: status?.trading_blocked ? 'var(--tm-dn)' : running ? 'var(--tm-up)' : 'var(--tm-muted)' }}>{status?.trading_blocked ? '● trading blocked' : running ? '● running' : '○ stopped'}</span>
             <span className="tm-sc" style={{ color: 'var(--tm-muted)' }}>cycle</span><span className="tm-mono" style={{ color: 'var(--tm-ink)' }}>{status?.call_count ?? '—'}</span>
             <span className="tm-px" style={{ fontSize: 12, color: 'var(--tm-ink)' }}>{clock}</span>
           </span>,
           navSlot,
         )}
       <div className="tm-box" style={{ maxWidth: 1280, margin: '0 auto', border: 'none' }}>
+        {!on && status?.trading_blocked && (
+          <div role="alert" className="tm-mono" style={{ margin: '8px 14px 0', padding: '12px', fontSize: 12, border: '1px solid var(--tm-dn)', color: 'var(--tm-dn)', background: 'rgba(200,60,40,0.06)' }}>
+            <strong>Trading blocked / 交易已阻断</strong>
+            <div>{status.trading_error}</div>
+            <div>自动开仓、平仓不可用；请用主钱包重新签名授权。修复前不会为此决策轮次调用付费 AI 或数据。</div>
+          </div>
+        )}
         {/* runtime health banner — AI fee wallet dry / safe mode would otherwise
             only be visible in server logs while the bot silently idles */}
         {!on && status && (status.safe_mode || status.ai_wallet_status === 'empty' || status.ai_wallet_status === 'low') && (
@@ -342,7 +409,7 @@ export function TerminalDashboard({
         )}
         {/* first-run reassurance — a fresh autopilot looks idle for its first
             minute (the AI is reading the market); tell newcomers what to expect */}
-        {!on && status?.is_running && (status.call_count ?? 0) <= 1 && !status.safe_mode && (
+        {!on && status?.is_running && (status.call_count ?? 0) <= 1 && !status.safe_mode && !status.trading_blocked && status.trading_checked_at && (
           <div className="tm-mono" style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '8px 14px 0', padding: '8px 12px', fontSize: 11, border: '1px solid var(--tm-up)', color: 'var(--tm-ink)', background: 'rgba(40,140,80,0.06)', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, color: 'var(--tm-up)' }}>Your AI is live.</span>
             <span style={{ color: 'var(--tm-ink-2)' }}>
@@ -421,21 +488,33 @@ export function TerminalDashboard({
             <LiquidationMap
               symbol={activeSym}
               demo={on}
-              marketType={CRYPTO_MAJORS.has(activeSym) ? 'perp' : 'hip3_perp'}
+              marketType={activeMarketType}
               height={ROW1_H - 130}
             />
           </div>
           <div style={{ ...sc, borderRight: cellBorder, height: ROW1_H, overflow: 'hidden' }}>
-            <OrderBook symbol={activeSym} demo={on} markPrice={positions?.find((p) => baseLabel(p.symbol) === activeSym)?.entry_price} />
+            <OrderBook symbol={activeRequestSymbol} demo={on} markPrice={positions?.find((p) => baseLabel(p.symbol) === activeSym)?.entry_price} />
           </div>
           <div style={{ ...sc, height: ROW1_H, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <SignalMatrix items={signalRank?.items} max={18} active={activeSym} onSelect={setSelectedSym} />
             {/* the live K-line always sits under the selector and flexes to fill */}
             <div className="tm-rule" style={{ margin: '10px 0 8px' }} />
             <div style={{ flex: 1, minHeight: 0 }}>
-              <KlineChart symbol={activeSym} fill demo={on} />
+              <KlineChart symbol={activeRequestSymbol} fill demo={on} />
             </div>
           </div>
+        </div>
+        <div className="tm-rule" />
+
+        {/* ── win-rate matrix (holder cost × win-rate grid, claw402 paid data).
+              Full-width panel under row 1; long/short grids side by side with
+              click-to-drill address lists. ── */}
+        <div style={sc}>
+          <WinrateMatrix
+            symbol={activeSym}
+            demo={on}
+            marketType={activeMarketType}
+          />
         </div>
         <div className="tm-rule" />
 
@@ -512,6 +591,26 @@ export function TerminalDashboard({
               <span className="tm-px" style={{ fontSize: 11 }}>Positions</span>
               <span className="tm-sc">Current positions · live</span>
               <span className="tm-sc" style={{ marginLeft: 'auto' }}>{positions?.length ?? 0} open</span>
+              {traderId && !on && positions && positions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void closeAllPositions(positions)}
+                  disabled={closing !== null}
+                  className="tm-mono"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--tm-dn)',
+                    color: 'var(--tm-dn)',
+                    borderRadius: 3,
+                    fontSize: 9,
+                    padding: '1px 6px',
+                    cursor: closing ? 'not-allowed' : 'pointer',
+                    opacity: closing ? 0.5 : 1,
+                  }}
+                >
+                  {closing === '__all__' ? 'closing…' : 'close all'}
+                </button>
+              )}
             </div>
             {positions && positions.length > 0 ? (
               <table className="tm-mono" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -523,6 +622,7 @@ export function TerminalDashboard({
                     <td style={{ padding: '0 0 3px', textAlign: 'right' }}>size</td>
                     <td style={{ padding: '0 0 3px', textAlign: 'right' }}>PnL</td>
                     <td style={{ padding: '0 0 3px', textAlign: 'right' }}>return%</td>
+                    {traderId && !on && <td style={{ padding: '0 0 3px' }} />}
                   </tr>
                 </thead>
                 <tbody>
@@ -538,6 +638,29 @@ export function TerminalDashboard({
                         <td style={{ padding: '5px 0', textAlign: 'right', color: 'var(--tm-ink-2)' }}>{fmtUsd(notional)}</td>
                         <td style={{ padding: '5px 0', textAlign: 'right' }} className={win ? 'tm-up' : 'tm-dn'}>{fmtUsd(p.unrealized_pnl, true)}</td>
                         <td style={{ padding: '5px 0', textAlign: 'right' }} className={win ? 'tm-up' : 'tm-dn'}>{(p.unrealized_pnl_pct ?? 0).toFixed(2)}%</td>
+                        {traderId && !on && (
+                          <td style={{ padding: '5px 0 5px 8px', textAlign: 'right', width: 1 }}>
+                            <button
+                              type="button"
+                              onClick={() => void closePositionRow(p.symbol, long ? 'LONG' : 'SHORT')}
+                              disabled={closing !== null}
+                              title={`Close ${p.symbol}`}
+                              className="tm-mono"
+                              style={{
+                                background: 'transparent',
+                                border: '1px solid var(--tm-dn)',
+                                color: 'var(--tm-dn)',
+                                borderRadius: 3,
+                                fontSize: 9,
+                                padding: '1px 5px',
+                                cursor: closing ? 'not-allowed' : 'pointer',
+                                opacity: closing ? 0.5 : 1,
+                              }}
+                            >
+                              {closing === p.symbol ? '…' : 'close'}
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}

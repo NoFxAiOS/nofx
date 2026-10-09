@@ -48,6 +48,23 @@ func TestSafeExchangeConfigFromStoreIncludesCredentialPresenceFlags(t *testing.T
 	}
 }
 
+func TestSafeExchangeConfigFromStoreExposesDerivedHyperliquidAgentAddress(t *testing.T) {
+	const key = "0000000000000000000000000000000000000000000000000000000000000001"
+	const want = "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
+	for _, prefix := range []string{"", "0x", "0X"} {
+		t.Run("prefix_"+prefix, func(t *testing.T) {
+			cfg := &store.Exchange{
+				ExchangeType: "hyperliquid",
+				APIKey:       crypto.EncryptedString(prefix + key),
+			}
+			safe := safeExchangeConfigFromStore(cfg)
+			if safe.HyperliquidAgentAddress != want {
+				t.Fatalf("derived agent address = %q, want %q", safe.HyperliquidAgentAddress, want)
+			}
+		})
+	}
+}
+
 func TestEffectiveHyperliquidUnifiedAccountDefaultsAndPreserves(t *testing.T) {
 	if !effectiveHyperliquidUnifiedAccount("hyperliquid", nil) {
 		t.Fatalf("expected new hyperliquid accounts to default unified account on")

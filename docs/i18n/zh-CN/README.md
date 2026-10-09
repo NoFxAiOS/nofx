@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ## 模型提议，运行时裁决
 
-决策来自一个读取 [Claw402.ai](https://claw402.ai) · Vergex 数据栈的语言模型：实时信号看板为每个市场标注方向偏置与信号强度排名，Signal Lab 提供逐标的深度信号，成本与清算热力图揭示市场的"燃料"与"墙"在哪里，再叠加实时资金净流——并与原始 K 线和交易员自身的实盘战绩交叉验证。但执行不由它说了算。
+决策来自 [Claw402.ai](https://claw402.ai) · Vergex 数据栈：覆盖全市场的实时方向看板、逐标的当前方向与方向历史、成本与清算热力图，以及实时资金净流。NOFX 严格跟随看板方向，其余数据仅作为执行上下文。
 
 每一笔订单都要经过代码层面强制执行的限制，模型无从干预：
 
@@ -273,7 +273,7 @@ NOFX 会记录有价值的贡献，并计划随着生态发展回馈贡献者。
 
 如果 NOFX 对你有帮助，点个 Star 能让更多交易者发现它。
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.dera.page/#NoFxAiOS/nofx&Date)
 
 ## 许可证
 

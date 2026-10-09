@@ -55,6 +55,14 @@ func (t *GateTrader) GetBalance() (map[string]interface{}, error) {
 	return result, nil
 }
 
+// InvalidatePositionCache forces the next position read to hit the exchange.
+func (t *GateTrader) InvalidatePositionCache() {
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheTime = time.Time{}
+	t.positionsCacheMutex.Unlock()
+}
+
 // GetPositions retrieves all open positions
 func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 	// Check cache

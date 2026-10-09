@@ -23,11 +23,14 @@ const (
 	DefaultBaseURL             = "https://claw402.ai"
 	DefaultChain               = "mainnet"
 	DefaultMarketType          = "hip3_perp"
-	MaxSignalRankingItems      = 30
-	SignalRankingPath          = "/api/v1/vergex/signal-ranking"
-	SignalLabPath              = "/api/v1/vergex/signal-lab"
+	MaxDirectionChangeItems    = 30
+	DirectionLeaderboardPath   = "/api/v1/vergex/direction-change/leaderboard"
+	DirectionCurrentPath       = "/api/v1/vergex/direction-change/current"
+	DirectionHistoryPath       = "/api/v1/vergex/direction-change/history"
 	CostLiquidationHeatmapPath = "/api/v1/vergex/cost-liquidation-heatmap"
 	FlowMarketsPath            = "/api/v1/vergex/flow-markets"
+	HolderWinrateMapPath       = "/api/v1/vergex/holder-winrate-map"
+	HolderWinrateHoldersPath   = "/api/v1/vergex/holder-winrate-map/holders"
 )
 
 type Client struct {
@@ -45,31 +48,75 @@ type Query struct {
 	Category   string
 }
 
-type SignalRankingData struct {
-	Raw   json.RawMessage  `json:"raw"`
-	Items []SignalRankItem `json:"items"`
+// WinrateQuery selects the holder win-rate matrix viewport. WinMin/WinMax are
+// win-rate percents (0..100); CostMin/CostMax are percents of the current
+// price (upstream defaults 60..140). Each pair must be sent together.
+// MinRoundTrips filters addresses by verified closed round trips (default 1).
+type WinrateQuery struct {
+	MarketType    string
+	Symbol        string
+	Chain         string
+	WinMin        int
+	WinMax        int
+	CostMin       float64
+	CostMax       float64
+	MinRoundTrips int
 }
 
-type SignalRankItem struct {
-	Rank       int             `json:"rank,omitempty"`
-	Symbol     string          `json:"symbol"`
-	MarketType string          `json:"market_type,omitempty"`
-	Bias       string          `json:"bias,omitempty"`
-	Confidence float64         `json:"confidence,omitempty"`
-	Score      float64         `json:"score,omitempty"`
-	Category   string          `json:"category,omitempty"`
-	Raw        json.RawMessage `json:"raw,omitempty"`
+// WinrateHoldersQuery pins the drilldown to a matrix snapshot and a rectangle
+// of its grid. Row/RowEnd index win-rate bins (0..winBins-1) and
+// Column/ColumnEnd index cost slots (0 = below viewport, 1..costBins = inside,
+// costBins+1 = above); ends are inclusive.
+type WinrateHoldersQuery struct {
+	WinrateQuery
+	SnapshotID string
+	Row        int
+	RowEnd     int
+	Column     int
+	ColumnEnd  int
+	Side       string
+	Offset     int
+	Limit      int
+}
+
+type DirectionChangeLeaderboardData struct {
+	Band         int                   `json:"band"`
+	UniverseSize int                   `json:"universeSize"`
+	RankBy       string                `json:"rankBy"`
+	AsOf         int64                 `json:"asOf"`
+	Raw          json.RawMessage       `json:"raw,omitempty"`
+	Items        []DirectionChangeItem `json:"items"`
+}
+
+type DirectionChangeItem struct {
+	Rank         int             `json:"rank,omitempty"`
+	Symbol       string          `json:"symbol"`
+	APISymbol    string          `json:"api_symbol,omitempty"`
+	MarketType   string          `json:"market_type,omitempty"`
+	Bias         string          `json:"bias,omitempty"`
+	Score        float64         `json:"score,omitempty"`
+	BullishCount int             `json:"bullish_count,omitempty"`
+	BearishCount int             `json:"bearish_count,omitempty"`
+	NeutralCount int             `json:"neutral_count,omitempty"`
+	OIRank       int             `json:"oi_rank,omitempty"`
+	MarkPrice    float64         `json:"mark_price,omitempty"`
+	Category     string          `json:"category,omitempty"`
+	Raw          json.RawMessage `json:"raw,omitempty"`
 }
 
 type MarketAnalysis struct {
-	Symbol         string          `json:"symbol"`
-	QuerySymbol    string          `json:"query_symbol"`
-	MarketType     string          `json:"market_type"`
-	Ranking        *SignalRankItem `json:"ranking,omitempty"`
-	SignalLab      json.RawMessage `json:"signal_lab,omitempty"`
-	SignalLabError string          `json:"signal_lab_error,omitempty"`
-	Heatmap        json.RawMessage `json:"heatmap,omitempty"`
-	HeatmapError   string          `json:"heatmap_error,omitempty"`
+	Symbol                string               `json:"symbol"`
+	QuerySymbol           string               `json:"query_symbol"`
+	MarketType            string               `json:"market_type"`
+	Ranking               *DirectionChangeItem `json:"ranking,omitempty"`
+	DirectionCurrent      json.RawMessage      `json:"direction_current,omitempty"`
+	DirectionCurrentError string               `json:"direction_current_error,omitempty"`
+	DirectionHistory      json.RawMessage      `json:"direction_history,omitempty"`
+	DirectionHistoryError string               `json:"direction_history_error,omitempty"`
+	Heatmap               json.RawMessage      `json:"heatmap,omitempty"`
+	HeatmapError          string               `json:"heatmap_error,omitempty"`
+	Winrate               json.RawMessage      `json:"winrate,omitempty"`
+	WinrateError          string               `json:"winrate_error,omitempty"`
 }
 
 func NewClient(baseURL, privateKeyHex string, logger mcp.Logger) (*Client, error) {
@@ -101,28 +148,58 @@ func NewClient(baseURL, privateKeyHex string, logger mcp.Logger) (*Client, error
 	}, nil
 }
 
-func (c *Client) GetSignalRanking(ctx context.Context, q Query) (*SignalRankingData, error) {
-	params := url.Values{}
-	addQueryDefaults(params, q, false)
-	body, err := c.doGET(ctx, SignalRankingPath, params)
+func (c *Client) GetDirectionChangeLeaderboard(ctx context.Context) (*DirectionChangeLeaderboardData, error) {
+	body, err := c.doGET(ctx, DirectionLeaderboardPath, nil)
 	if err != nil {
 		return nil, err
 	}
-	return ParseSignalRanking(body)
+	return ParseDirectionChangeLeaderboard(body)
 }
 
-func (c *Client) GetSignalLab(ctx context.Context, q Query) (json.RawMessage, error) {
-	if strings.TrimSpace(q.MarketType) == "" || strings.TrimSpace(q.Symbol) == "" {
-		return nil, fmt.Errorf("marketType and symbol are required")
+func (c *Client) GetDirectionChangeCurrent(ctx context.Context, symbol string) (json.RawMessage, error) {
+	if strings.TrimSpace(symbol) == "" {
+		return nil, fmt.Errorf("symbol is required")
 	}
-	params := url.Values{}
-	addQueryDefaults(params, q, true)
-	return c.doGET(ctx, SignalLabPath, params)
+	params := url.Values{"symbol": {strings.TrimSpace(symbol)}}
+	return c.doGET(ctx, DirectionCurrentPath, params)
+}
+
+func (c *Client) GetDirectionChangeHistory(ctx context.Context, symbol, eventType string, page, pageSize int) (json.RawMessage, error) {
+	if strings.TrimSpace(symbol) == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+	eventType = strings.ToLower(strings.TrimSpace(eventType))
+	if eventType == "" {
+		eventType = "all"
+	}
+	if eventType != "all" && eventType != "reversal" && eventType != "non_reversal" {
+		return nil, fmt.Errorf("type must be all, reversal, or non_reversal")
+	}
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	params := url.Values{
+		"symbol":    {strings.TrimSpace(symbol)},
+		"type":      {eventType},
+		"page":      {fmt.Sprintf("%d", page)},
+		"page_size": {fmt.Sprintf("%d", pageSize)},
+	}
+	return c.doGET(ctx, DirectionHistoryPath, params)
 }
 
 func (c *Client) GetCostLiquidationHeatmap(ctx context.Context, q Query) (json.RawMessage, error) {
 	if strings.TrimSpace(q.MarketType) == "" || strings.TrimSpace(q.Symbol) == "" {
-		return nil, fmt.Errorf("marketType and symbol are required")
+		return nil, winrateInvalid("marketType and symbol are required")
+	}
+	q.MarketType = canonicalMarketType(q.MarketType)
+	if q.MarketType == "" {
+		return nil, winrateInvalid("marketType must be core_perp or hip3_perp")
 	}
 	params := url.Values{}
 	addQueryDefaults(params, q, true)
@@ -145,6 +222,177 @@ func (c *Client) GetFlowMarkets(ctx context.Context, chain, window string, limit
 		params.Set("limit", fmt.Sprintf("%d", limit))
 	}
 	return c.doGET(ctx, FlowMarketsPath, params)
+}
+
+// GetHolderWinrateMap fetches the holder win-rate matrix via the paid claw402
+// x402 endpoint: live positions bucketed by entry-cost slot × historical
+// win-rate bin (20 win rows × 18 cost slots, slots 0 and costBins+1 being
+// below/above-viewport catch-alls). The raw JSON is returned verbatim.
+func (c *Client) GetHolderWinrateMap(ctx context.Context, q WinrateQuery) (json.RawMessage, error) {
+	params, err := winrateMapParams(q)
+	if err != nil {
+		return nil, err
+	}
+	return c.doGET(ctx, HolderWinrateMapPath, params)
+}
+
+// GetHolderWinrateHolders paginates the addresses behind one rectangle of the
+// win-rate matrix (paid claw402 x402 endpoint). SnapshotID must come from a
+// prior GetHolderWinrateMap response.
+func (c *Client) GetHolderWinrateHolders(ctx context.Context, q WinrateHoldersQuery) (json.RawMessage, error) {
+	params, err := winrateHoldersParams(q)
+	if err != nil {
+		return nil, err
+	}
+	return c.doGET(ctx, HolderWinrateHoldersPath, params)
+}
+
+// WinrateValidationError identifies local errors that must not reach payment.
+type WinrateValidationError struct{ Message string }
+
+func (e *WinrateValidationError) Error() string { return e.Message }
+
+func winrateInvalid(message string) error { return &WinrateValidationError{Message: message} }
+
+func (q WinrateQuery) Validate() error {
+	_, err := winrateMapParams(q)
+	return err
+}
+
+func (q WinrateHoldersQuery) Validate() error {
+	_, err := winrateHoldersParams(q)
+	return err
+}
+
+func winrateHoldersParams(q WinrateHoldersQuery) (url.Values, error) {
+	q.SnapshotID = strings.TrimSpace(q.SnapshotID)
+	if !validWinrateSnapshotID(q.SnapshotID) {
+		return nil, winrateInvalid("snapshotId must be the snapshot id returned by holder-winrate-map")
+	}
+	if q.Row < 0 || q.RowEnd < q.Row || q.Column < 0 || q.ColumnEnd < q.Column ||
+		q.RowEnd > 19 || q.ColumnEnd > 17 {
+		return nil, winrateInvalid("row range must satisfy 0 <= row <= rowEnd <= 19; column range must satisfy 0 <= column <= columnEnd <= 17")
+	}
+	side := strings.ToLower(strings.TrimSpace(q.Side))
+	if side == "" {
+		side = "long"
+	}
+	if side != "long" && side != "short" {
+		return nil, winrateInvalid("side must be long or short")
+	}
+	if q.Offset < 0 || q.Offset > 1000000 {
+		return nil, winrateInvalid("offset must be between 0 and 1000000")
+	}
+	limit := q.Limit
+	if limit == 0 {
+		limit = 50
+	}
+	if limit < 1 || limit > 100 {
+		return nil, winrateInvalid("limit must be between 1 and 100")
+	}
+
+	params, err := winrateMapParams(q.WinrateQuery)
+	if err != nil {
+		return nil, err
+	}
+	params.Set("snapshotId", q.SnapshotID)
+	params.Set("row", fmt.Sprintf("%d", q.Row))
+	params.Set("rowEnd", fmt.Sprintf("%d", q.RowEnd))
+	params.Set("column", fmt.Sprintf("%d", q.Column))
+	params.Set("columnEnd", fmt.Sprintf("%d", q.ColumnEnd))
+	params.Set("side", side)
+	params.Set("offset", fmt.Sprintf("%d", q.Offset))
+	params.Set("limit", fmt.Sprintf("%d", limit))
+	return params, nil
+}
+
+// winrateMapParams validates the shared matrix viewport and builds the query
+// string. Every rule mirrors the claw402 gateway's pre-payment validation so
+// a typo fails locally instead of as a paid 400.
+func winrateMapParams(q WinrateQuery) (url.Values, error) {
+	params := url.Values{}
+	marketType := canonicalMarketType(q.MarketType)
+	if marketType == "" {
+		return nil, winrateInvalid("marketType must be hip3_perp or core_perp")
+	}
+	symbol := strings.TrimSpace(q.Symbol)
+	if symbol == "" {
+		return nil, winrateInvalid("marketType and symbol are required")
+	}
+	symbol = MarketSymbol(marketType, symbol)
+	if symbol == "" {
+		return nil, winrateInvalid("marketType and symbol are required")
+	}
+	params.Set("marketType", marketType)
+	params.Set("symbol", symbol)
+	if q.Chain != "" {
+		chain := QueryChain(q.Chain)
+		if chain != "mainnet" {
+			return nil, winrateInvalid("chain must be mainnet")
+		}
+		params.Set("chain", chain)
+	}
+
+	winSet := q.WinMin != 0 || q.WinMax != 0
+	if winSet {
+		if q.WinMin < 0 || q.WinMax > 100 || q.WinMin >= q.WinMax {
+			return nil, winrateInvalid("win-rate window must satisfy 0 <= winMin < winMax <= 100")
+		}
+		params.Set("winMin", fmt.Sprintf("%d", q.WinMin))
+		params.Set("winMax", fmt.Sprintf("%d", q.WinMax))
+	}
+	costSet := q.CostMin != 0 || q.CostMax != 0
+	if costSet {
+		if math.IsNaN(q.CostMin) || math.IsNaN(q.CostMax) || math.IsInf(q.CostMin, 0) || math.IsInf(q.CostMax, 0) {
+			return nil, winrateInvalid("cost window must be finite numbers (percent of price)")
+		}
+		if q.CostMin < 1 || q.CostMax > 10000 || q.CostMin >= q.CostMax || math.Trunc(q.CostMin) != q.CostMin || math.Trunc(q.CostMax) != q.CostMax {
+			return nil, winrateInvalid("cost window must satisfy integer 1 <= costMin < costMax <= 10000 (percent of price)")
+		}
+		params.Set("costMin", trimFloat(q.CostMin, 4))
+		params.Set("costMax", trimFloat(q.CostMax, 4))
+	}
+	if q.MinRoundTrips < 0 || q.MinRoundTrips > 10000 {
+		return nil, winrateInvalid("minRoundTrips must be between 1 and 10000")
+	}
+	if q.MinRoundTrips > 1 {
+		params.Set("minRoundTrips", fmt.Sprintf("%d", q.MinRoundTrips))
+	}
+	return params, nil
+}
+
+// canonicalMarketType maps user-friendly spellings onto the two claw402
+// market types, defaulting like the rest of the client (hip3_perp).
+func canonicalMarketType(marketType string) string {
+	switch normalizeMarketType(marketType) {
+	case "":
+		return DefaultMarketType
+	case "coreperp", "core", "crypto", "cryptoperp":
+		return "core_perp"
+	case "perp":
+		// the terminal calls crypto majors "perp"
+		return "core_perp"
+	case "hip3perp", "hip3":
+		return DefaultMarketType
+	default:
+		return ""
+	}
+}
+
+// validWinrateSnapshotID checks the base32 snapshot id format issued by the
+// winrate-map response (observed as 32 chars from [A-Z2-7]).
+func validWinrateSnapshotID(snapshot string) bool {
+	snapshot = strings.TrimSpace(snapshot)
+	if len(snapshot) < 16 || len(snapshot) > 64 {
+		return false
+	}
+	for _, r := range snapshot {
+		if (r >= 'A' && r <= 'Z') || (r >= '2' && r <= '7') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func addQueryDefaults(params url.Values, q Query, includeMarket bool) {
@@ -199,15 +447,22 @@ func (c *Client) doGET(ctx context.Context, path string, params url.Values) ([]b
 	return body, nil
 }
 
-func ParseSignalRanking(body []byte) (*SignalRankingData, error) {
+func ParseDirectionChangeLeaderboard(body []byte) (*DirectionChangeLeaderboardData, error) {
 	raw := json.RawMessage(append([]byte(nil), body...))
+	var meta struct {
+		Band         int    `json:"band"`
+		UniverseSize int    `json:"universeSize"`
+		RankBy       string `json:"rankBy"`
+		AsOf         int64  `json:"asOf"`
+	}
+	_ = json.Unmarshal(body, &meta)
 	var decoded any
 	if err := json.Unmarshal(body, &decoded); err != nil {
-		return nil, fmt.Errorf("failed to parse vergex signal-ranking response: %w", err)
+		return nil, fmt.Errorf("failed to parse vergex direction-change leaderboard response: %w", err)
 	}
 
 	rows := findObjectArray(decoded)
-	items := make([]SignalRankItem, 0, len(rows))
+	items := make([]DirectionChangeItem, 0, len(rows))
 	for idx, row := range rows {
 		obj, ok := row.(map[string]any)
 		if !ok {
@@ -219,32 +474,32 @@ func ParseSignalRanking(body []byte) (*SignalRankingData, error) {
 		}
 	}
 
-	return &SignalRankingData{Raw: raw, Items: items}, nil
+	return &DirectionChangeLeaderboardData{Band: meta.Band, UniverseSize: meta.UniverseSize, RankBy: meta.RankBy, AsOf: meta.AsOf, Raw: raw, Items: items}, nil
 }
 
-func FilterTradFiItems(items []SignalRankItem, marketType string, limit int) []SignalRankItem {
+func FilterTradFiItems(items []DirectionChangeItem, marketType string, limit int) []DirectionChangeItem {
 	if marketType == "" {
 		marketType = DefaultMarketType
 	}
 	return filterSignalRankingItems(items, marketType, limit, false)
 }
 
-func FilterSignalRankingItems(items []SignalRankItem, marketType string, limit int) []SignalRankItem {
+func FilterDirectionChangeItems(items []DirectionChangeItem, marketType string, limit int) []DirectionChangeItem {
 	return filterSignalRankingItems(items, marketType, limit, true)
 }
 
-func filterSignalRankingItems(items []SignalRankItem, marketType string, limit int, allowAll bool) []SignalRankItem {
+func filterSignalRankingItems(items []DirectionChangeItem, marketType string, limit int, allowAll bool) []DirectionChangeItem {
 	requestedMarketType := marketType
 	normalizedMarketType := normalizeMarketType(marketType)
 	includeAll := allowAll && isAllMarketType(marketType)
 	if limit <= 0 {
 		limit = 5
 	}
-	if limit > MaxSignalRankingItems {
-		limit = MaxSignalRankingItems
+	if limit > MaxDirectionChangeItems {
+		limit = MaxDirectionChangeItems
 	}
 
-	out := make([]SignalRankItem, 0, limit)
+	out := make([]DirectionChangeItem, 0, limit)
 	seen := make(map[string]bool)
 	for _, item := range items {
 		base := QuerySymbol(item.Symbol)
@@ -348,20 +603,33 @@ func FormatAnalysisForAI(analysis *MarketAnalysis) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("### %s (Vergex %s/%s)\n", analysis.Symbol, analysis.MarketType, analysis.QuerySymbol))
 	if analysis.Ranking != nil {
-		sb.WriteString(fmt.Sprintf("Ranking: rank=%d bias=%s confidence=%.2f score=%.4f category=%s\n",
+		sb.WriteString(fmt.Sprintf("Direction leaderboard: rank=%d bias=%s direction_score=%.0f bulls=%d bears=%d neutral=%d oi_rank=%d mark_price=%s category=%s\n",
 			analysis.Ranking.Rank,
 			emptyDash(analysis.Ranking.Bias),
-			analysis.Ranking.Confidence,
 			analysis.Ranking.Score,
+			analysis.Ranking.BullishCount,
+			analysis.Ranking.BearishCount,
+			analysis.Ranking.NeutralCount,
+			analysis.Ranking.OIRank,
+			trimFloat(analysis.Ranking.MarkPrice, 6),
 			emptyDash(analysis.Ranking.Category)))
 	}
-	if len(analysis.SignalLab) > 0 {
-		sb.WriteString("#### Signal Lab\n")
-		sb.WriteString(FormatSignalLabMarkdown(analysis.SignalLab))
+	if len(analysis.DirectionCurrent) > 0 {
+		sb.WriteString("#### Current Bull/Bear Direction\n")
+		sb.WriteString(fallbackJSONBlock(analysis.DirectionCurrent, 2200))
 		sb.WriteString("\n")
-	} else if analysis.SignalLabError != "" {
-		sb.WriteString("Signal Lab: unavailable (")
-		sb.WriteString(truncateText(analysis.SignalLabError, 360))
+	} else if analysis.DirectionCurrentError != "" {
+		sb.WriteString("Current direction: unavailable (")
+		sb.WriteString(truncateText(analysis.DirectionCurrentError, 360))
+		sb.WriteString(")\n")
+	}
+	if len(analysis.DirectionHistory) > 0 {
+		sb.WriteString("#### Bull/Bear Direction History\n")
+		sb.WriteString(fallbackJSONBlock(analysis.DirectionHistory, 2600))
+		sb.WriteString("\n")
+	} else if analysis.DirectionHistoryError != "" {
+		sb.WriteString("Direction history: unavailable (")
+		sb.WriteString(truncateText(analysis.DirectionHistoryError, 360))
 		sb.WriteString(")\n")
 	}
 	if len(analysis.Heatmap) > 0 {
@@ -373,45 +641,339 @@ func FormatAnalysisForAI(analysis *MarketAnalysis) string {
 		sb.WriteString(truncateText(analysis.HeatmapError, 360))
 		sb.WriteString(")\n")
 	}
+	if len(analysis.Winrate) > 0 {
+		sb.WriteString("#### Holder Win-Rate Matrix\n")
+		sb.WriteString(FormatWinrateMarkdown(analysis.Winrate))
+		sb.WriteString("\n")
+	} else if analysis.WinrateError != "" {
+		sb.WriteString("Holder Win-Rate Matrix: unavailable (")
+		sb.WriteString(truncateText(analysis.WinrateError, 360))
+		sb.WriteString(")\n")
+	}
 	return sb.String()
 }
 
-func FormatSignalLabMarkdown(raw json.RawMessage) string {
+// FormatWinrateMarkdown compresses a holder win-rate matrix response into a few
+// decision-oriented lines: per-side notional quality (share held by top win-rate
+// decile vs bottom, entered above vs below current price) plus the water
+// (unrealized PnL) split and the single largest cell. Percentages are of side
+// notional; cost bands are expressed as a percent of the current price.
+func FormatWinrateMarkdown(raw json.RawMessage) string {
 	data, ok := decodeVergexDataObject(raw)
 	if !ok {
-		return fallbackJSONBlock(raw, 2200)
+		return fallbackJSONBlock(raw, 1600)
 	}
-
-	var sb strings.Builder
-	writeScalarSummary(&sb, data, []string{"symbol", "marketType", "band", "bias", "confidence", "compositeZ", "score"})
-
-	dimensions := objectArray(data, "dimensions")
-	if len(dimensions) == 0 {
+	// Upstream regenerates snapshots in the background; a "map_building" style
+	// error payload should degrade to one short line, not a JSON dump.
+	if errObj := objectOf(data, "error"); errObj != nil {
+		if msg := firstString(errObj, "message", "code", "reason"); msg != "" {
+			return "matrix temporarily unavailable: " + msg
+		}
+	}
+	cells := objectArray(data, "cells")
+	if len(cells) == 0 {
+		var sb strings.Builder
+		sb.WriteString(formatWinrateQuality(data, time.Now()))
+		writeScalarSummary(&sb, data, []string{"symbol", "marketType", "markPrice", "includedPositions"})
 		return withFallbackIfEmpty(sb.String(), raw)
 	}
 
-	sb.WriteString("| Family | Signal | Direction | Strength | Percentile | Detail |\n")
-	sb.WriteString("| --- | --- | --- | --- | ---: | --- |\n")
-	limit := minInt(len(dimensions), 8)
-	for _, row := range dimensions[:limit] {
-		sb.WriteString("| ")
-		sb.WriteString(markdownCell(firstString(row, "family")))
-		sb.WriteString(" | ")
-		sb.WriteString(markdownCell(firstString(row, "label", "key")))
-		sb.WriteString(" | ")
-		sb.WriteString(markdownCell(firstString(row, "direction")))
-		sb.WriteString(" | ")
-		sb.WriteString(markdownCell(firstString(row, "strength")))
-		sb.WriteString(" | ")
-		sb.WriteString(markdownCell(formatOptionalFloat(row, "percentile")))
-		sb.WriteString(" | ")
-		sb.WriteString(markdownCell(truncateText(firstString(row, "detail", "what"), 220)))
-		sb.WriteString(" |\n")
+	winBins := firstInt(data, "winBins")
+	costBins := firstInt(data, "costBins")
+	viewport := objectOf(data, "viewport")
+	lo := firstFloat(viewport, "costMin")
+	hi := firstFloat(viewport, "costMax")
+	if winBins <= 0 {
+		winBins = 20
 	}
-	if len(dimensions) > limit {
-		sb.WriteString(fmt.Sprintf("- Additional dimensions omitted: %d\n", len(dimensions)-limit))
+	if costBins <= 0 {
+		costBins = 16
+	}
+	if hi <= lo {
+		lo, hi = 60, 140
+	}
+	slotWidth := (hi - lo) / float64(costBins)
+	// slot t (1..costBins) covers [lo+(t-1)w, lo+t·w) as % of price; slots 0 and
+	// costBins+1 are the below/above-viewport catch-alls. The price boundary is
+	// slot 9's lower edge (lo+8w == 100 by construction of the near-price band).
+	priceSlot := 1
+	for t := 1; t <= costBins; t++ {
+		if lo+float64(t-1)*slotWidth >= 100-1e-9 {
+			priceSlot = t
+			break
+		}
+	}
+	topWinFrom := winBins - 2    // top win decile rows (e.g. 90-100%)
+	bottomWinTo := winBins/3 - 1 // bottom third (e.g. 0-30%)
+
+	type sideStats struct {
+		total     float64
+		topWin    float64
+		bottomWin float64
+		abovePx   float64
+		count     int
+	}
+	sides := map[string]*sideStats{"long": {}, "short": {}}
+	type cellRef struct {
+		side     string
+		row      int
+		column   int
+		notional float64
+		count    int
+	}
+	var best cellRef
+	for _, cell := range cells {
+		row := firstInt(cell, "row")
+		column := firstInt(cell, "column")
+		for _, sideName := range []string{"long", "short"} {
+			sideCell := objectOf(cell, sideName)
+			n := firstFloat(sideCell, "notional")
+			if n <= 0 {
+				continue
+			}
+			st := sides[sideName]
+			st.total += n
+			st.count += firstInt(sideCell, "count")
+			if row >= topWinFrom {
+				st.topWin += n
+			}
+			if row <= bottomWinTo {
+				st.bottomWin += n
+			}
+			if column >= priceSlot {
+				st.abovePx += n
+			}
+			if n > best.notional {
+				best = cellRef{side: sideName, row: row, column: column, notional: n, count: firstInt(sideCell, "count")}
+			}
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(formatWinrateQuality(data, time.Now()))
+	writeScalarSummary(&sb, data, []string{"markPrice"})
+	if included := objectOf(data, "included"); included != nil {
+		sb.WriteString(fmt.Sprintf("- Included: %s addrs / %s\n",
+			intComma(firstInt(included, "count")), formatUSDAmount(firstFloat(included, "notional"))))
+	}
+	if excluded := objectOf(data, "excluded"); excluded != nil {
+		if noSamples := objectOf(excluded, "no_samples"); noSamples != nil {
+			sb.WriteString(fmt.Sprintf("- Excluded (no verified round trip): %s addrs / %s\n",
+				intComma(firstInt(noSamples, "count")), formatUSDAmount(firstFloat(noSamples, "notional"))))
+		}
+	}
+	winBand := func(row int) string {
+		return fmt.Sprintf("%d-%d%%", row*100/winBins, (row+1)*100/winBins)
+	}
+	for _, sideName := range []string{"long", "short"} {
+		st := sides[sideName]
+		if st.total <= 0 {
+			sb.WriteString(fmt.Sprintf("- %s: no positions in window\n", sideName))
+			continue
+		}
+		line := fmt.Sprintf("- %s %s / %s addrs: %s held by %d-100%% win-rate holders, %s by 0-%d%%; %s entered above current price",
+			sideName, formatUSDAmount(st.total), intComma(st.count),
+			sharePct(st.topWin, st.total), topWinFrom*100/winBins,
+			sharePct(st.bottomWin, st.total), (bottomWinTo+1)*100/winBins,
+			sharePct(st.abovePx, st.total))
+		if water := objectOf(objectOf(data, "water"), sideName); water != nil {
+			line += fmt.Sprintf("; unrealized: in profit %s vs underwater %s",
+				formatUSDAmount(firstFloat(objectOf(water, "aboveWater"), "notional")),
+				formatUSDAmount(firstFloat(objectOf(water, "belowWater"), "notional")))
+		}
+		sb.WriteString(line + "\n")
+	}
+	if best.notional > 0 {
+		costBand := "above window"
+		lowerPct := lo + float64(best.column-1)*slotWidth
+		upperPct := lo + float64(best.column)*slotWidth
+		switch {
+		case best.column == 0:
+			costBand = fmt.Sprintf("<%.0f%% of price", lo)
+		case best.column >= costBins+1:
+			costBand = fmt.Sprintf("≥%.0f%% of price", hi)
+		default:
+			costBand = fmt.Sprintf("%.0f-%.0f%% of price", lowerPct, upperPct)
+		}
+		sb.WriteString(fmt.Sprintf("- Largest cell: %s %s win-rate × entry %s (%s / %s addrs)\n",
+			best.side, winBand(best.row), costBand, formatUSDAmount(best.notional), intComma(best.count)))
+	}
+
+	// The full-resolution joint view: rows = entry cost as % of current price
+	// (1% steps near price, wider bands further out — the raw near-price banding,
+	// ** ** marks the at-price row), columns = holder win-rate in 5% bins (the
+	// raw 20 bins, NOT the human panel's 10% merge). Cells carry notional and
+	// address count ("62.5M/922") so whale clusters read differently from
+	// crowds. LLMs parse this joint structure directly; the aggregates above
+	// cannot express where quality sits.
+	if winBins == 20 && costBins == 16 {
+		type cellAgg struct {
+			notional float64
+			count    int
+		}
+		agg := map[string]map[int]cellAgg{"long": {}, "short": {}}
+		for _, cell := range cells {
+			row := firstInt(cell, "row")
+			column := firstInt(cell, "column")
+			key := row*100 + column
+			for _, sideName := range []string{"long", "short"} {
+				side := objectOf(cell, sideName)
+				n := firstFloat(side, "notional")
+				if n > 0 {
+					a := agg[sideName][key]
+					a.notional += n
+					a.count += firstInt(side, "count")
+					agg[sideName][key] = a
+				}
+			}
+		}
+		groups := winrateDisplayCostGroups(lo, slotWidth)
+		var header strings.Builder
+		header.WriteString("| cost |")
+		for w := 0; w < winBins; w++ {
+			header.WriteString(fmt.Sprintf(" %d-%d |", w*100/winBins, (w+1)*100/winBins))
+		}
+		divider := "|---|" + strings.Repeat("---|", winBins)
+		for _, sideName := range []string{"long", "short"} {
+			sb.WriteString(fmt.Sprintf("\n%s grid (cells = notional/addrs, rows = entry %% of price ↓ / holder win-rate %% →):\n\n", sideName))
+			sb.WriteString(header.String() + "\n" + divider + "\n")
+			for _, g := range groups {
+				label := g.label
+				if g.atPrice {
+					label = "**" + label + "**"
+				}
+				row := strings.Builder{}
+				row.WriteString("| " + label + " |")
+				for w := 0; w < winBins; w++ {
+					var a cellAgg
+					ok := false
+					for _, s := range g.slots {
+						if v, has := agg[sideName][w*100+s]; has {
+							a.notional += v.notional
+							a.count += v.count
+							ok = true
+						}
+					}
+					if ok {
+						row.WriteString(" " + compactGridAmount(a.notional) + "/" + intComma(a.count) + " |")
+					} else {
+						row.WriteString(" 0 |")
+					}
+				}
+				row.WriteString("\n")
+				sb.WriteString(row.String())
+			}
+		}
 	}
 	return withFallbackIfEmpty(sb.String(), raw)
+}
+
+// This is a conservative interpretation warning, not an upstream freshness SLA.
+// Keep the 15-minute threshold aligned with the terminal quality indicator.
+func formatWinrateQuality(data map[string]any, now time.Time) string {
+	var sb strings.Builder
+	writeScalarSummary(&sb, data, []string{"snapshotId", "coverage", "asOf", "positionsAsOf", "priceAsOf", "historyMode", "metricVersion", "minRoundTrips", "staleHistoryCount", "oldestHistory", "newestHistory"})
+	var warnings []string
+	coverage := firstString(data, "coverage")
+	if coverage != "complete" {
+		if coverage == "" {
+			coverage = "unknown"
+		}
+		warnings = append(warnings, "coverage="+coverage+"; aggregates may not represent all holders")
+	}
+	for _, key := range []string{"asOf", "positionsAsOf"} {
+		stamp, err := time.Parse(time.RFC3339Nano, firstString(data, key))
+		switch {
+		case err != nil:
+			warnings = append(warnings, key+" is unknown")
+		case now.Sub(stamp) > 15*time.Minute:
+			warnings = append(warnings, key+" is older than 15 minutes")
+		case stamp.Sub(now) > time.Minute:
+			warnings = append(warnings, key+" is in the future")
+		}
+	}
+	if value, ok := data["staleHistoryCount"]; !ok || value == nil {
+		warnings = append(warnings, "history freshness is unknown")
+	} else if n := firstInt(data, "staleHistoryCount"); n > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d stale holder histories", n))
+	}
+	if len(warnings) > 0 {
+		sb.WriteString("- DATA QUALITY WARNING: " + strings.Join(warnings, "; ") + ". Do not treat these aggregates as complete, current market evidence.\n")
+	}
+	sb.WriteString("- Historical holder win rate is not a forecast or an independent trading signal; position and history timestamps may differ.\n")
+	return sb.String()
+}
+
+// winrateDisplayGroup is one merged display row of the matrix grid.
+type winrateDisplayGroup struct {
+	label   string
+	slots   []int
+	atPrice bool
+}
+
+// winrateDisplayCostGroups mirrors the upstream panel's near-price banding:
+// 1,1,2,4 doubling away from the at-price slot (bin 9), with the two
+// below/above-viewport catch-all rows.
+func winrateDisplayCostGroups(lo, slotWidth float64) []winrateDisplayGroup {
+	pct := func(t int) float64 { return lo + float64(t-1)*slotWidth }
+	label := func(a, b float64) string {
+		return fmt.Sprintf("%.0f-%.0f", a, b)
+	}
+	return []winrateDisplayGroup{
+		{label: fmt.Sprintf("≥%.0f", pct(17)), slots: []int{17}},
+		{label: label(pct(13), pct(17)), slots: []int{13, 14, 15, 16}},
+		{label: label(pct(11), pct(13)), slots: []int{11, 12}},
+		{label: label(pct(10), pct(11)), slots: []int{10}},
+		{label: label(pct(9), pct(10)), slots: []int{9}, atPrice: true},
+		{label: label(pct(8), pct(9)), slots: []int{8}},
+		{label: label(pct(7), pct(8)), slots: []int{7}},
+		{label: label(pct(5), pct(7)), slots: []int{5, 6}},
+		{label: label(pct(1), pct(5)), slots: []int{1, 2, 3, 4}},
+		{label: fmt.Sprintf("<%.0f", pct(1)), slots: []int{0}},
+	}
+}
+
+// compactGridAmount renders a cell notional for the AI grid: "1.2M", "345K",
+// "0" — no currency symbol, minimal tokens.
+func compactGridAmount(n float64) string {
+	switch {
+	case n >= 1e9:
+		return trimFloat(n/1e9, 1) + "B"
+	case n >= 1e6:
+		return trimFloat(n/1e6, 1) + "M"
+	case n >= 1e3:
+		return trimFloat(n/1e3, 0) + "K"
+	case n > 0:
+		return trimFloat(n, 0)
+	default:
+		return "0"
+	}
+}
+
+func objectOf(obj map[string]any, key string) map[string]any {
+	if obj == nil {
+		return nil
+	}
+	val, ok := lookupNormalized(obj, key)
+	if !ok {
+		return nil
+	}
+	nested, ok := val.(map[string]any)
+	if !ok {
+		return nil
+	}
+	return nested
+}
+
+func sharePct(part, total float64) string {
+	if total <= 0 {
+		return "0%"
+	}
+	return fmt.Sprintf("%.0f%%", part/total*100)
+}
+
+func intComma(v int) string {
+	return fmt.Sprintf("%d", v)
 }
 
 func FormatHeatmapMarkdown(raw json.RawMessage) string {
@@ -676,6 +1238,8 @@ func titleKey(key string) string {
 		return "Liquidation band"
 	case "currentPrice":
 		return "Current price"
+	case "markPrice":
+		return "Mark price"
 	case "binStep":
 		return "Bin step"
 	case "compositeZ":
@@ -741,33 +1305,37 @@ func truncateText(text string, maxBytes int) string {
 	return text[:maxBytes] + "...<truncated>"
 }
 
-func parseRankItem(obj map[string]any, fallbackRank int) (SignalRankItem, bool) {
+func parseRankItem(obj map[string]any, fallbackRank int) (DirectionChangeItem, bool) {
 	symbol := firstString(obj, "symbol", "ticker", "base", "coin", "asset", "market", "name")
 	if symbol == "" {
 		symbol = nestedMarketString(obj, "symbol", "ticker", "base", "coin", "asset", "name")
 	}
 	if symbol == "" {
-		return SignalRankItem{}, false
+		return DirectionChangeItem{}, false
 	}
 	raw, _ := json.Marshal(obj)
 	rank := firstInt(obj, "rank", "ranking", "position")
 	if rank <= 0 {
 		rank = fallbackRank
 	}
-	score := firstFloat(obj, "compositeZ", "composite_z", "score", "rank_score", "z", "value")
-	confidence := firstFloat(obj, "confidence", "conf", "signalConfidence", "signal_confidence")
+	score := firstFloat(obj, "directionScore", "direction_score", "score")
 	marketType := firstString(obj, "marketType", "market_type", "venue")
 	if marketType == "" {
 		marketType = nestedMarketString(obj, "marketType", "market_type", "venue", "type")
 	}
-	item := SignalRankItem{
-		Rank:       rank,
-		Symbol:     QuerySymbol(symbol),
-		MarketType: marketType,
-		Bias:       firstString(obj, "bias", "direction", "side", "signal"),
-		Confidence: confidence,
-		Score:      score,
-		Raw:        raw,
+	item := DirectionChangeItem{
+		Rank:         rank,
+		Symbol:       QuerySymbol(symbol),
+		APISymbol:    symbol,
+		MarketType:   marketType,
+		Bias:         firstString(obj, "bias", "direction", "side", "signal"),
+		Score:        score,
+		BullishCount: firstInt(obj, "bullishCount"),
+		BearishCount: firstInt(obj, "bearishCount"),
+		NeutralCount: firstInt(obj, "neutralCount"),
+		OIRank:       firstInt(obj, "oiRank"),
+		MarkPrice:    firstFloat(obj, "markPrice"),
+		Raw:          raw,
 	}
 	if item.Symbol != "" {
 		item.Category = hyperliquid.XYZCategory(item.Symbol)

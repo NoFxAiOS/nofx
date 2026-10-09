@@ -51,7 +51,18 @@ type hyperliquidAccountSummary struct {
 	TotalMarginUsed float64 `json:"totalMarginUsed"`
 	UnrealizedPnl   float64 `json:"unrealizedPnl"`
 	OpenPositions   int     `json:"openPositions"`
-	UpdatedAt       int64   `json:"updatedAt"`
+	// Spot USDC ("main wallet") balance, so the UI can offer spot->perp funding.
+	SpotUSDC          float64 `json:"spotUsdc"`
+	SpotUSDCAvailable float64 `json:"spotUsdcAvailable"`
+	UpdatedAt         int64   `json:"updatedAt"`
+}
+
+type hyperliquidSpotState struct {
+	Balances []struct {
+		Coin  string `json:"coin"`
+		Total string `json:"total"`
+		Hold  string `json:"hold"`
+	} `json:"balances"`
 }
 
 type hyperliquidAgentInfo struct {
@@ -65,6 +76,8 @@ type hyperliquidAgentResponse struct {
 	Agent *hyperliquidAgentInfo `json:"agent"`
 	// Agents lists every approved agent for the wallet (for visibility/cleanup).
 	Agents []hyperliquidAgentInfo `json:"agents"`
+	// BuilderApproved is live on-chain state for the configured NOFX builder.
+	BuilderApproved bool `json:"builderApproved"`
 }
 
 type hyperliquidClearinghouseState struct {
@@ -89,6 +102,9 @@ type hyperliquidClearinghouseState struct {
 // to encode an agent's expiry inside the agent name. Hyperliquid normally strips
 // it from the stored name, but we strip defensively before matching the slot.
 var agentValidUntilSuffix = regexp.MustCompile(` valid_until \d+$`)
+
+// hexChainIDPattern matches an EVM chain id in hex form (e.g. "0xa4b1").
+var hexChainIDPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{1,16}$`)
 
 func baseAgentName(name string) string {
 	return strings.TrimSpace(agentValidUntilSuffix.ReplaceAllString(name, ""))
@@ -118,41 +134,26 @@ func (s *Server) handleHyperliquidAccount(c *gin.Context) {
 		return
 	}
 
-	requestBody := map[string]any{
-		"type": "clearinghouseState",
-		"user": address,
-	}
-	body, err := json.Marshal(requestBody)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode Hyperliquid balance request"})
-		return
-	}
-
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, hyperliquidInfoURL, bytes.NewReader(body))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create Hyperliquid balance request"})
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to reach Hyperliquid", "detail": err.Error()})
-		return
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "Hyperliquid rejected the balance request", "status": resp.StatusCode})
-		return
-	}
-
 	var state hyperliquidClearinghouseState
-	if err := json.Unmarshal(respBody, &state); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to parse Hyperliquid balance response"})
+	if err := postHyperliquidInfo(c, map[string]any{"type": "clearinghouseState", "user": address}, &state); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to query Hyperliquid balance", "detail": err.Error()})
 		return
+	}
+
+	// Spot ("main wallet") balance is best-effort: a wallet with no spot assets
+	// must not break the perp summary.
+	var spotUSDC, spotAvailable float64
+	var spotState hyperliquidSpotState
+	if err := postHyperliquidInfo(c, map[string]any{"type": "spotClearinghouseState", "user": address}, &spotState); err == nil {
+		for _, balance := range spotState.Balances {
+			if strings.EqualFold(balance.Coin, "USDC") {
+				spotUSDC = parseFloatOrZero(balance.Total)
+				spotAvailable = spotUSDC - parseFloatOrZero(balance.Hold)
+				if spotAvailable < 0 {
+					spotAvailable = 0
+				}
+			}
+		}
 	}
 
 	accountValue := parseFloatOrZero(state.MarginSummary.AccountValue)
@@ -175,14 +176,46 @@ func (s *Server) handleHyperliquidAccount(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, hyperliquidAccountSummary{
-		Address:         address,
-		AccountValue:    accountValue,
-		Withdrawable:    parseFloatOrZero(state.Withdrawable),
-		TotalMarginUsed: marginUsed,
-		UnrealizedPnl:   unrealizedPnl,
-		OpenPositions:   openPositions,
-		UpdatedAt:       time.Now().UnixMilli(),
+		Address:           address,
+		AccountValue:      accountValue,
+		Withdrawable:      parseFloatOrZero(state.Withdrawable),
+		TotalMarginUsed:   marginUsed,
+		UnrealizedPnl:     unrealizedPnl,
+		OpenPositions:     openPositions,
+		SpotUSDC:          spotUSDC,
+		SpotUSDCAvailable: spotAvailable,
+		UpdatedAt:         time.Now().UnixMilli(),
 	})
+}
+
+// postHyperliquidInfo posts a query to the Hyperliquid info endpoint and
+// decodes the JSON response into out.
+func postHyperliquidInfo(c *gin.Context, requestBody map[string]any, out any) error {
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("encode request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, hyperliquidInfoURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 20 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("reach Hyperliquid: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("Hyperliquid returned status %d", resp.StatusCode)
+	}
+	if err := json.Unmarshal(respBody, out); err != nil {
+		return fmt.Errorf("parse response: %w", err)
+	}
+	return nil
 }
 
 // handleHyperliquidAgent reports the on-chain approved agents for a wallet,
@@ -232,6 +265,13 @@ func (s *Server) handleHyperliquidAgent(c *gin.Context) {
 	}
 
 	out := hyperliquidAgentResponse{Agents: agents}
+	var maxBuilderFee json.RawMessage
+	if err := postHyperliquidInfo(c, map[string]any{
+		"type": "maxBuilderFee", "user": address, "builder": hyperliquidBuilderAddress(),
+	}, &maxBuilderFee); err == nil {
+		fee, parseErr := strconv.ParseFloat(strings.Trim(string(maxBuilderFee), "\""), 64)
+		out.BuilderApproved = parseErr == nil && fee >= 50
+	}
 	for i := range agents {
 		if strings.EqualFold(baseAgentName(agents[i].Name), nofxHyperliquidAgentName) {
 			agent := agents[i]
@@ -264,6 +304,11 @@ func (s *Server) handleHyperliquidSubmitExchange(c *gin.Context) {
 		}
 	case "approveBuilderFee":
 		if err := validateApproveBuilderFeeAction(req.Action); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	case "usdClassTransfer":
+		if err := validateUsdClassTransferAction(req.Action); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -349,8 +394,37 @@ func validateApproveBuilderFeeAction(action map[string]any) error {
 	return validateCommonHyperliquidSignedAction(action)
 }
 
+// validateUsdClassTransferAction guards the spot<->perp transfer relay. The
+// signature is produced by the user's own wallet, so the account moved is
+// always the signer's; validation only keeps malformed or SDK-style
+// subaccount-suffixed amounts from reaching Hyperliquid through NOFX.
+func validateUsdClassTransferAction(action map[string]any) error {
+	rawAmount, ok := action["amount"].(string)
+	if !ok {
+		return fmt.Errorf("missing amount")
+	}
+	amount := strings.TrimSpace(rawAmount)
+	if strings.Contains(amount, " ") {
+		return fmt.Errorf("invalid amount")
+	}
+	parsed, err := strconv.ParseFloat(amount, 64)
+	if err != nil || parsed <= 0 {
+		return fmt.Errorf("amount must be a positive number")
+	}
+	if _, ok := action["toPerp"].(bool); !ok {
+		return fmt.Errorf("missing or invalid toPerp")
+	}
+	return validateCommonHyperliquidSignedAction(action)
+}
+
 func validateCommonHyperliquidSignedAction(action map[string]any) error {
-	if strings.TrimSpace(fmt.Sprint(action["signatureChainId"])) != "0x66eee" {
+	// signatureChainId is the chain the user's wallet was on when signing —
+	// Hyperliquid accepts any value as long as it matches the EIP-712 domain
+	// of the signature (docs example: "0xa4b1"); the network is selected by
+	// hyperliquidChain, not by this field. Strict EIP-712 wallets (Rabby)
+	// require the signing domain to equal the wallet's active chain, so this
+	// value cannot be pinned server-side — validate the format only.
+	if !hexChainIDPattern.MatchString(strings.TrimSpace(fmt.Sprint(action["signatureChainId"]))) {
 		return fmt.Errorf("invalid signatureChainId")
 	}
 	if strings.TrimSpace(fmt.Sprint(action["hyperliquidChain"])) != "Mainnet" {

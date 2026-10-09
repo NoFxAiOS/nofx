@@ -115,6 +115,51 @@ func TestClaw402XyzAllowsFullTenXNotional(t *testing.T) {
 	}
 }
 
+func TestSignalManagedDecisionAllowsZeroTakeProfitWithProtectiveStop(t *testing.T) {
+	decision := Decision{
+		Symbol:          "BTC",
+		Action:          "open_long",
+		Leverage:        10,
+		PositionSizeUSD: 300,
+		StopLoss:        95000,
+		TakeProfit:      0,
+	}
+
+	if err := validateDecisionForMode(&decision, 30, 10, 10, 10.0, 10.0, true); err != nil {
+		t.Fatalf("signal-managed open with a protective stop should pass validation: %v", err)
+	}
+}
+
+func TestSignalManagedDecisionStillRequiresProtectiveStop(t *testing.T) {
+	decision := Decision{
+		Symbol:          "BTC",
+		Action:          "open_long",
+		Leverage:        10,
+		PositionSizeUSD: 300,
+		StopLoss:        0,
+		TakeProfit:      0,
+	}
+
+	if err := validateDecisionForMode(&decision, 30, 10, 10, 10.0, 10.0, true); err == nil {
+		t.Fatal("signal-managed open without a protective stop should fail validation")
+	}
+}
+
+func TestFixedExitDecisionStillRequiresTakeProfit(t *testing.T) {
+	decision := Decision{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        10,
+		PositionSizeUSD: 300,
+		StopLoss:        95000,
+		TakeProfit:      0,
+	}
+
+	if err := validateDecision(&decision, 30, 10, 10, 10.0, 10.0); err == nil {
+		t.Fatal("ordinary fixed-exit strategy should still reject zero take profit")
+	}
+}
+
 // contains checks if string contains substring (helper function)
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||

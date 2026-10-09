@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { SignalRankItem } from '../../lib/api/data'
 
 /**
- * SignalMatrix renders the vergex (claw402) signal ranking as a high-density
+ * SignalMatrix renders the Vergex (Claw402) direction board as a high-density
  * heatmap grid — one cell per symbol, colored by directional bias (green =
  * bullish, red = bearish, muted = neutral) with intensity scaled by the signal
  * score. Rank 1 is the strongest signal. Cream-themed Bloomberg/terminal feel.
@@ -58,11 +58,17 @@ interface SignalMatrixProps {
   onSelect?: (symbol: string) => void
 }
 
-export function SignalMatrix({ items, max = 36, active, onSelect }: SignalMatrixProps) {
+export function SignalMatrix({
+  items,
+  max = 36,
+  active,
+  onSelect,
+}: SignalMatrixProps) {
   const view = useMemo(() => {
     const raw = items ?? []
     const sorted = [...raw].sort((a, b) => a.rank - b.rank).slice(0, max)
-    if (!sorted.length) return { cells: [] as Cell[], bull: 0, bear: 0, neut: 0 }
+    if (!sorted.length)
+      return { cells: [] as Cell[], bull: 0, bear: 0, neut: 0 }
 
     const scores = sorted.map((s) => s.score)
     const min = Math.min(...scores)
@@ -79,7 +85,8 @@ export function SignalMatrix({ items, max = 36, active, onSelect }: SignalMatrix
       else neut += 1
       // intensity by normalized score; if scores are uniform, fall back to rank
       // (top ranks brighter, descending across the slice).
-      const intensity = span > 0 ? (s.score - min) / span : n > 1 ? 1 - i / (n - 1) : 1
+      const intensity =
+        span > 0 ? (s.score - min) / span : n > 1 ? 1 - i / (n - 1) : 1
       return { rank: s.rank, symbol: s.symbol, bias, score: s.score, intensity }
     })
     return { cells, bull, bear, neut }
@@ -101,12 +108,20 @@ export function SignalMatrix({ items, max = 36, active, onSelect }: SignalMatrix
       {/* legend */}
       <div
         className="tm-sc"
-        style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 6, fontSize: 9 }}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          marginBottom: 6,
+          fontSize: 9,
+        }}
       >
         <Swatch c="var(--tm-up)" label="Bullish" />
         <Swatch c="var(--tm-dn)" label="Bearish" />
         <Swatch c="var(--tm-muted)" label="Neutral" />
-        {onSelect && <span style={{ color: 'var(--tm-red)' }}>click to switch ▸</span>}
+        {onSelect && (
+          <span style={{ color: 'var(--tm-red)' }}>click to switch ▸</span>
+        )}
         <span style={{ marginLeft: 'auto' }}>{view.cells.length} signals</span>
       </div>
 
@@ -121,42 +136,44 @@ export function SignalMatrix({ items, max = 36, active, onSelect }: SignalMatrix
           const base = baseSymbol(c.symbol)
           const isActive = !!active && base === active.toUpperCase()
           return (
-          <div
-            key={`${c.rank}-${c.symbol}`}
-            title={`${base} · #${c.rank} · ${c.bias} · ${c.score} — click to switch`}
-            onClick={onSelect ? () => onSelect(base) : undefined}
-            style={{
-              padding: '4px 5px',
-              background: washFor(c.bias, c.intensity),
-              border: isActive ? '1px solid var(--tm-red)' : '1px solid var(--tm-hair)',
-              borderLeft: `2px solid ${ACCENT[c.bias]}`,
-              outline: isActive ? '1px solid var(--tm-red)' : 'none',
-              boxShadow: isActive ? 'inset 0 0 0 1px var(--tm-red)' : 'none',
-              lineHeight: 1.15,
-              overflow: 'hidden',
-              cursor: onSelect ? 'pointer' : 'default',
-            }}
-          >
             <div
-              className="tm-mono"
+              key={`${c.rank}-${c.symbol}`}
+              title={`${base} · #${c.rank} · ${c.bias} · ${c.score} — click to switch`}
+              onClick={onSelect ? () => onSelect(base) : undefined}
               style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: 'var(--tm-ink)',
-                whiteSpace: 'nowrap',
+                padding: '4px 5px',
+                background: washFor(c.bias, c.intensity),
+                border: isActive
+                  ? '1px solid var(--tm-red)'
+                  : '1px solid var(--tm-hair)',
+                borderLeft: `2px solid ${ACCENT[c.bias]}`,
+                outline: isActive ? '1px solid var(--tm-red)' : 'none',
+                boxShadow: isActive ? 'inset 0 0 0 1px var(--tm-red)' : 'none',
+                lineHeight: 1.15,
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                cursor: onSelect ? 'pointer' : 'default',
               }}
             >
-              {baseSymbol(c.symbol)}
+              <div
+                className="tm-mono"
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: 'var(--tm-ink)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {baseSymbol(c.symbol)}
+              </div>
+              <div
+                className="tm-sc"
+                style={{ fontSize: 8, letterSpacing: '0.08em', marginTop: 1 }}
+              >
+                #{c.rank} · {fmtScore(c.score)}
+              </div>
             </div>
-            <div
-              className="tm-sc"
-              style={{ fontSize: 8, letterSpacing: '0.08em', marginTop: 1 }}
-            >
-              #{c.rank} · {fmtScore(c.score)}
-            </div>
-          </div>
           )
         })}
       </div>
@@ -173,8 +190,17 @@ function fmtScore(n: number): string {
 
 function Head() {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-      <span className="tm-px" style={{ fontSize: 11 }}>Signal matrix</span>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: 8,
+        marginBottom: 6,
+      }}
+    >
+      <span className="tm-px" style={{ fontSize: 11 }}>
+        Signal matrix
+      </span>
       <span className="tm-sc">Signal matrix · vergex</span>
     </div>
   )
@@ -183,7 +209,9 @@ function Head() {
 function Swatch({ c, label }: { c: string; label: string }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      <span style={{ width: 8, height: 8, background: c, display: 'inline-block' }} />
+      <span
+        style={{ width: 8, height: 8, background: c, display: 'inline-block' }}
+      />
       {label}
     </span>
   )

@@ -21,14 +21,30 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 
 	// Step 1: Query Spot account balance
 	spotState, err := t.exchange.Info().SpotUserState(t.ctx, t.walletAddr)
-	var spotUSDCBalance float64 = 0.0
+	var spotUSDCBalance, spotUSDCHold float64
+	spotUSDCFound := false
 	if err != nil {
+		if t.isUnifiedAccount {
+			return nil, fmt.Errorf("failed to get authoritative unified Spot balance: %w", err)
+		}
 		logger.Infof("⚠️ Failed to query Spot balance (may have no spot assets): %v", err)
-	} else if spotState != nil && len(spotState.Balances) > 0 {
+	} else if spotState == nil {
+		if t.isUnifiedAccount {
+			return nil, fmt.Errorf("authoritative unified Spot balance response is empty")
+		}
+	} else if len(spotState.Balances) > 0 {
 		for _, balance := range spotState.Balances {
 			if balance.Coin == "USDC" {
-				spotUSDCBalance, _ = strconv.ParseFloat(balance.Total, 64)
-				logger.Infof("✓ Found Spot balance: %.2f USDC", spotUSDCBalance)
+				spotUSDCFound = true
+				spotUSDCBalance, err = types.ParseFloatField("spot USDC total", balance.Total)
+				if err != nil {
+					return nil, err
+				}
+				spotUSDCHold, err = types.ParseFloatField("spot USDC hold", balance.Hold)
+				if err != nil {
+					return nil, err
+				}
+				logger.Infof("✓ Found Spot balance: %.2f USDC (hold %.2f)", spotUSDCBalance, spotUSDCHold)
 				break
 			}
 		}
@@ -132,9 +148,17 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 			pos.Position.Coin, pos.Position.Szi, entryPx, pos.Position.PositionValue, pos.Position.UnrealizedPnl)
 	}
 	xyzMarginUsed := calculateXYZMarginUsed(xyzPositions)
+	calculatedMarginUsed := totalMarginUsed + xyzMarginUsed
+	if t.isUnifiedAccount && !spotUSDCFound && calculatedMarginUsed > 0 {
+		return nil, fmt.Errorf("unified Spot USDC state is missing while %.4f USDC margin is in use", calculatedMarginUsed)
+	}
+	if t.isUnifiedAccount && spotUSDCHold <= 0 && calculatedMarginUsed > 0 {
+		return nil, fmt.Errorf("unified Spot hold is unavailable while %.4f USDC margin is in use", calculatedMarginUsed)
+	}
 	balanceBreakdown := calculateHyperliquidBalanceBreakdown(
 		t.isUnifiedAccount,
 		spotUSDCBalance,
+		spotUSDCHold,
 		accountValue,
 		totalUnrealizedPnl,
 		totalMarginUsed,
@@ -161,8 +185,9 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	_ = totalUnrealizedPnlAll
 
 	result["totalWalletBalance"] = totalWalletBalance       // Total assets (Perp + Spot + xyz) - unrealized
-	result["totalEquity"] = totalEquityCalculated           // Total equity = Perp AV + Spot + xyz AV
+	result["totalEquity"] = totalEquityCalculated           // Mark-to-market total equity
 	result["availableBalance"] = availableBalance           // Available balance (Perp + Spot if unified)
+	result["heldBalance"] = spotUSDCHold                    // Unified Spot funds held/reserved by Hyperliquid
 	result["totalUnrealizedProfit"] = totalUnrealizedPnlAll // Unrealized PnL (Perpetuals + xyz)
 	result["spotBalance"] = spotUSDCBalance                 // Spot balance
 	result["xyzDexBalance"] = xyzAccountValue               // xyz dex equity (stock perps, forex, commodities)
@@ -177,7 +202,8 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 		walletBalanceWithoutUnrealized,
 		totalUnrealizedPnl)
 	logger.Infof("  • Perpetuals available balance: %.2f USDC", availableBalance)
-	logger.Infof("  • Margin used: %.2f USDC", totalMarginUsed)
+	logger.Infof("  • Margin used (position estimate): %.2f USDC", balanceBreakdown.TotalMarginUsed)
+	logger.Infof("  • Held/reserved balance: %.2f USDC", spotUSDCHold)
 	logger.Infof("  • xyz dex equity: %.2f USDC (wallet %.2f + unrealized %.2f)",
 		xyzAccountValue,
 		balanceBreakdown.XYZWalletBalance,
@@ -202,6 +228,7 @@ type hyperliquidBalanceBreakdown struct {
 func calculateHyperliquidBalanceBreakdown(
 	isUnifiedAccount bool,
 	spotUSDCBalance float64,
+	spotUSDCHold float64,
 	perpAccountValue float64,
 	perpUnrealizedPnl float64,
 	perpMarginUsed float64,
@@ -215,14 +242,23 @@ func calculateHyperliquidBalanceBreakdown(
 	totalUnrealizedPnl := perpUnrealizedPnl + xyzUnrealizedPnl
 	totalMarginUsed := perpMarginUsed + xyzMarginUsed
 
-	if isUnifiedAccount && spotUSDCBalance > 0 {
-		totalEquity := spotUSDCBalance + totalUnrealizedPnl
-		availableBalance := totalEquity - totalMarginUsed
+	if isUnifiedAccount {
+		// In Hyperliquid unified accounts, Spot USDC total is already the
+		// mark-to-market account equity: the exchange updates it as unrealized PnL
+		// changes. Adding perp/xyz unrealized PnL again would double-count gains
+		// and losses. Derive the pre-PnL wallet balance only for fields that need
+		// that legacy distinction.
+		totalEquity := spotUSDCBalance
+		totalWalletBalance := totalEquity - totalUnrealizedPnl
+		// Spot hold is the authoritative account-level reservation. It can include
+		// more than position margin, so use it for availability without relabeling
+		// it as TotalMarginUsed.
+		availableBalance := totalEquity - spotUSDCHold
 		if availableBalance < 0 {
 			availableBalance = 0
 		}
 		return hyperliquidBalanceBreakdown{
-			TotalWalletBalance:    spotUSDCBalance,
+			TotalWalletBalance:    totalWalletBalance,
 			TotalEquity:           totalEquity,
 			AvailableBalance:      availableBalance,
 			TotalUnrealizedProfit: totalUnrealizedPnl,

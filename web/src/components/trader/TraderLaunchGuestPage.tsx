@@ -51,7 +51,7 @@ const setupSteps = [
 
 const pipeline = [
   'Read the live Claw402.ai board, with US stocks prioritized before crypto.',
-  'Fetch Signal Lab and cost/liquidation heatmap details for each candidate.',
+  'Load current direction, direction history, and cost/liquidation structure for each candidate.',
   'Confirm with raw OHLCV candles, then trade full-size 10x only when the setup is strong enough.',
 ]
 
@@ -204,7 +204,9 @@ export function TraderLaunchGuestPage() {
               className="group rounded-xl border border-nofx-gold/20 bg-nofx-gold/10 p-4 transition hover:bg-nofx-gold/15"
             >
               <ExternalLink className="mb-3 h-4 w-4 text-nofx-gold" />
-              <div className="font-semibold text-nofx-text">Open Hyperliquid</div>
+              <div className="font-semibold text-nofx-text">
+                Open Hyperliquid
+              </div>
               <p className="mt-2 text-sm leading-6 text-nofx-text-muted">
                 Deposit USDC there. Trading funds stay in your Hyperliquid
                 account.

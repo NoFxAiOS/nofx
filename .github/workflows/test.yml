@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, dev]
 
+# Least privilege: these jobs only read the repo.
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend Tests

@@ -24,18 +24,13 @@ var modelPrices = map[string]float64{
 	"deepseek-reasoner": 0.005,
 	"deepseek-v4-flash": 0.003,
 	"deepseek-v4-pro":   0.01,
-	"gpt-5.4":           0.05,
-	"gpt-5.4-pro":       0.50,
-	"gpt-5.3":           0.01,
-	"gpt-5-mini":        0.005,
+	"gpt-6":             0.24,
+	"gpt-5.6":           0.06,
+	"gpt-5.6-terra":     0.03,
+	"gpt-5.6-luna":      0.012,
+	"claude-fable":      0.24,
 	"claude-opus":       0.12,
-	"qwen-max":          0.01,
-	"qwen-plus":         0.005,
-	"qwen-turbo":        0.002,
-	"qwen-flash":        0.002,
-	"grok-4.1":          0.06,
-	"gemini-3.1-pro":    0.03,
-	"kimi-k2.5":         0.008,
+	"glm-5":             0.003,
 }
 
 // GetModelPrice returns the price per call for a given model
@@ -44,6 +39,57 @@ func GetModelPrice(model string) float64 {
 		return price
 	}
 	return 0.01 // default fallback
+}
+
+// modelTokenPrices maps model → USD per 1M input/output tokens, mirroring the
+// claw402 gateway pricing config (providers/*.yaml). Used to derive the actual
+// upto-settled cost from streamed token usage, where the gateway cannot
+// deliver the settlement header (SSE headers are flushed before usage is known).
+type modelTokenPrice struct {
+	In, Out        float64
+	LongContextAt  int
+	LongContextIn  float64
+	LongContextOut float64
+}
+
+var modelTokenPrices = map[string]modelTokenPrice{
+	"gpt-6":             {In: 12.5, Out: 50, LongContextAt: 272000, LongContextIn: 25, LongContextOut: 75},
+	"gpt-5.6":           {In: 5, Out: 30},
+	"gpt-5.6-terra":     {In: 2.5, Out: 15},
+	"gpt-5.6-luna":      {In: 1, Out: 6},
+	"claude-fable":      {In: 10, Out: 50},
+	"claude-opus":       {In: 5, Out: 25},
+	"deepseek-v4-flash": {In: 0.14, Out: 0.28},
+	"deepseek-v4-pro":   {In: 1.74, Out: 3.48},
+	"deepseek":          {In: 0.27, Out: 1.1},
+	"deepseek-reasoner": {In: 0.55, Out: 2.19},
+	"glm-5":             {In: 0.6, Out: 2},
+}
+
+// Gateway upto settlement formula constants (see claw402 token_estimate
+// pricing: token_safety_margin 0.15, token_min_price 0.0001).
+const (
+	uptoSafetyMargin = 1.15
+	uptoMinPriceUSD  = 0.0001
+)
+
+// ComputeUsageCost derives the upto-settled cost of a call from token usage,
+// using the same formula as the claw402 gateway. ok is false for models
+// without a token price entry.
+func ComputeUsageCost(model string, promptTokens, completionTokens int) (float64, bool) {
+	p, ok := modelTokenPrices[model]
+	if !ok {
+		return 0, false
+	}
+	inputPrice, outputPrice := p.In, p.Out
+	if p.LongContextAt > 0 && promptTokens > p.LongContextAt {
+		inputPrice, outputPrice = p.LongContextIn, p.LongContextOut
+	}
+	cost := (float64(promptTokens)*inputPrice + float64(completionTokens)*outputPrice) / 1e6 * uptoSafetyMargin
+	if cost < uptoMinPriceUSD {
+		cost = uptoMinPriceUSD
+	}
+	return cost, true
 }
 
 // AIChargeStore handles AI charge records
@@ -62,12 +108,18 @@ func (s *AIChargeStore) initTables() error {
 
 // Record records a new AI charge
 func (s *AIChargeStore) Record(traderID, model, provider string) error {
-	cost := GetModelPrice(model)
+	return s.RecordWithCost(traderID, model, provider, GetModelPrice(model))
+}
+
+// RecordWithCost records a charge with an explicit cost — e.g. the actual
+// settled amount reported by the payment gateway (upto scheme) — instead of
+// the flat per-call estimate from modelPrices.
+func (s *AIChargeStore) RecordWithCost(traderID, model, provider string, costUSD float64) error {
 	charge := &AICharge{
 		TraderID: traderID,
 		Model:    model,
 		Provider: provider,
-		CostUSD:  cost,
+		CostUSD:  costUSD,
 	}
 	return s.db.Create(charge).Error
 }

@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ## The model proposes. The runtime disposes.
 
-Decisions come from a language model reading the [Claw402.ai](https://claw402.ai) · Vergex data stack: a live signal board that ranks every market with directional bias and signal strength, per-symbol Signal Lab deep signals, cost-basis and liquidation heatmaps that show where the crowd's fuel and walls sit, and real-time market net flow — cross-checked against raw candles and the trader's own live track record. Execution does not.
+Decisions come from the [Claw402.ai](https://claw402.ai) · Vergex data stack: a live direction board for the market universe, per-symbol current direction and direction history, cost-basis and liquidation heatmaps, and real-time market net flow. NOFX follows the board direction and uses the remaining data as execution context.
 
 Every order passes through limits enforced in code, outside the model's reach:
 
@@ -273,7 +273,7 @@ NOFX tracks meaningful contributions and intends to reward contributors as the e
 
 If NOFX is useful to you, a star helps other traders find it.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.dera.page/#NoFxAiOS/nofx&Date)
 
 ## License
 

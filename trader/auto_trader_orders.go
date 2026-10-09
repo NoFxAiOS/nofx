@@ -34,8 +34,14 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 		return at.executeCloseLongWithRecord(decision, actionRecord)
 	case "close_short":
 		return at.executeCloseShortWithRecord(decision, actionRecord)
-	case "hold", "wait":
-		// No execution needed, just record
+	case "hold":
+		if at.usesSignalManagedExit() {
+			if err := at.trader.CancelTakeProfitOrders(decision.Symbol); err != nil {
+				logger.Infof("  ⚠ Failed to remove fixed take profit for signal-managed hold: %v", err)
+			}
+		}
+		return nil
+	case "wait":
 		return nil
 	default:
 		return fmt.Errorf("unknown action: %s", decision.Action)
@@ -64,10 +70,13 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		}
 	}
 
-	// Get current price
+	// Get current price and reject invalid protection before opening exposure.
 	marketData, err := market.GetWithExchange(decision.Symbol, at.exchange)
 	if err != nil {
 		return fmt.Errorf("failed to get market data for %s: %w", decision.Symbol, err)
+	}
+	if err := validateProtectionPrices(decision.Action, marketData.CurrentPrice, decision.StopLoss, decision.TakeProfit, at.usesSignalManagedExit()); err != nil {
+		return err
 	}
 
 	// Get balance (needed for multiple checks)
@@ -147,12 +156,17 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
+	// Keep a protective stop on the exchange. Vergex positions use the current
+	// direction board for ordinary exits, so a fixed take-profit must not close
+	// an otherwise unchanged signal.
 	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
+		return at.closeUnprotectedPosition(decision.Symbol, "long", quantity, fmt.Errorf("failed to set mandatory stop loss: %w", err))
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+	if at.usesSignalManagedExit() {
+		actionRecord.TakeProfit = 0
+		logger.Infof("  ✓ Fixed take profit skipped: Claw402 direction signal manages ordinary exits")
+	} else if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
+		return at.closeUnprotectedPosition(decision.Symbol, "long", quantity, fmt.Errorf("failed to set mandatory take profit: %w", err))
 	}
 
 	return nil
@@ -180,10 +194,13 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 		}
 	}
 
-	// Get current price
+	// Get current price and reject invalid protection before opening exposure.
 	marketData, err := market.GetWithExchange(decision.Symbol, at.exchange)
 	if err != nil {
 		return fmt.Errorf("failed to get market data for %s: %w", decision.Symbol, err)
+	}
+	if err := validateProtectionPrices(decision.Action, marketData.CurrentPrice, decision.StopLoss, decision.TakeProfit, at.usesSignalManagedExit()); err != nil {
+		return err
 	}
 
 	// Get balance (needed for multiple checks)
@@ -263,12 +280,17 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
+	// Keep a protective stop on the exchange. Vergex positions use the current
+	// direction board for ordinary exits, so a fixed take-profit must not close
+	// an otherwise unchanged signal.
 	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
+		return at.closeUnprotectedPosition(decision.Symbol, "short", quantity, fmt.Errorf("failed to set mandatory stop loss: %w", err))
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+	if at.usesSignalManagedExit() {
+		actionRecord.TakeProfit = 0
+		logger.Infof("  ✓ Fixed take profit skipped: Claw402 direction signal manages ordinary exits")
+	} else if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
+		return at.closeUnprotectedPosition(decision.Symbol, "short", quantity, fmt.Errorf("failed to set mandatory take profit: %w", err))
 	}
 
 	return nil

@@ -52,18 +52,13 @@ interface LiquidationMapProps {
 }
 
 export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460, demo = false }: LiquidationMapProps) {
-  // Synthetic markets live under marketType "hip3_perp"; crypto majors under
-  // "perp". We try the caller's guess first and fall back to the other so the
-  // heatmap resolves for ANY symbol that has one.
+  // Use the selected market's metadata. Speculative alternate-market requests
+  // can spend the wallet twice and return an unrelated instrument.
   const fetcher = (mt: string) =>
     api.getVergexCostLiquidationHeatmap({ marketType: mt, symbol, chain: 'mainnet', liqBand: '15' })
-  const opts = { refreshInterval: 300000, revalidateOnFocus: false, keepPreviousData: true }
+  const opts = { refreshInterval: 300000, revalidateOnFocus: false, revalidateOnReconnect: false, shouldRetryOnError: false, keepPreviousData: false }
 
   const primary = useSWR(symbol && !demo ? ['heatmap', marketType, symbol] : null, () => fetcher(marketType), opts)
-  const primaryHasBins = !!primary.data?.data?.bins?.length
-  const altMt = marketType === 'perp' ? 'hip3_perp' : 'perp'
-  const needAlt = !demo && !primaryHasBins && !primary.isLoading && primary.data !== undefined
-  const alt = useSWR(needAlt && symbol ? ['heatmap', altMt, symbol] : null, () => fetcher(altMt), opts)
 
   // showcase mode: drive a slow ticker so the synthetic ladder gently breathes
   const [demoFrame, setDemoFrame] = useState(0)
@@ -118,9 +113,9 @@ export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460,
     }
   }, [demoBase, demoFrame])
 
-  const data = demo ? demoData : primaryHasBins ? primary.data : alt.data
-  const isLoading = demo ? false : primary.isLoading || (needAlt && alt.isLoading)
-  const error = demo ? undefined : primaryHasBins ? undefined : alt.error || primary.error
+  const data = demo ? demoData : primary.data
+  const isLoading = !demo && primary.isLoading
+  const error = demo ? undefined : primary.error
 
   const [hover, setHover] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -201,7 +196,7 @@ export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460,
         <span className="tm-px" style={{ fontSize: 11 }}>Cost / Liq map</span>
         <span className="tm-sc">{view.dispSymbol}</span>
         <span className="tm-sc" style={{ marginLeft: 'auto', color: view.rows.length ? 'var(--tm-up)' : 'var(--tm-muted)' }}>
-          {view.rows.length ? '● live' : isLoading ? '○ sync' : '○ —'}
+          {error ? '○ unavailable' : view.rows.length ? '● live' : isLoading ? '○ sync' : '○ —'}
         </span>
       </div>
 
@@ -225,10 +220,10 @@ export function LiquidationMap({ symbol, marketType = 'hip3_perp', height = 460,
         )}
       </div>
 
-      {error && !view.rows.length ? (
-        <div className="tm-sc" style={{ padding: '16px 0' }}>No cost/liq heatmap for {view.dispSymbol} (crypto / main-dex markets have none).</div>
+      {error ? (
+        <div className="tm-sc" style={{ padding: '16px 0' }}>Heatmap unavailable for {view.dispSymbol}. {error instanceof Error ? error.message : 'Request failed.'} No automatic paid retry.</div>
       ) : !view.rows.length ? (
-        <div className="tm-sc" style={{ padding: '16px 0' }}>Loading cost/liquidation map…</div>
+        <div className="tm-sc" style={{ padding: '16px 0' }}>{isLoading ? 'Loading cost/liquidation map…' : 'No heatmap data in the selected range.'}</div>
       ) : (
         <div>
           <div ref={scrollRef} style={{ maxHeight: height, overflowY: 'auto' }}>

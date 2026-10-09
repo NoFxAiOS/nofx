@@ -52,18 +52,64 @@ func TestCreateDefaultStrategiesUsesOneReadyToRunClaw402Preset(t *testing.T) {
 		t.Fatalf("default ParseConfig failed: %v", err)
 	}
 	if trendCfg.CoinSource.SourceType != "vergex_signal" || trendCfg.CoinSource.VergexLimit != 10 || trendCfg.CoinSource.VergexMarketType != "all" {
-		t.Fatalf("default strategy should use the Claw402/Vergex all-market signal ranking, got %+v", trendCfg.CoinSource)
+		t.Fatalf("default strategy should use the Claw402/Vergex all-market direction board, got %+v", trendCfg.CoinSource)
 	}
-	if trendCfg.CoinSource.UseAI500 || trendCfg.RiskControl.MaxPositions != 2 {
-		t.Fatalf("default strategy should be Claw402/Vergex native with a 2-position concentrated book, got coin=%+v risk=%+v", trendCfg.CoinSource, trendCfg.RiskControl)
+	if trendCfg.CoinSource.UseAI500 || trendCfg.RiskControl.MaxPositions != store.AutopilotDefaultMaxPositions {
+		t.Fatalf("default strategy should be Claw402/Vergex native with an 8-position book, got coin=%+v risk=%+v", trendCfg.CoinSource, trendCfg.RiskControl)
 	}
-	if trendCfg.RiskControl.BTCETHMaxLeverage != 5 || trendCfg.RiskControl.AltcoinMaxLeverage != 5 {
-		t.Fatalf("default strategy should use 5x leverage for all Claw402 opens, got risk=%+v", trendCfg.RiskControl)
+	if trendCfg.RiskControl.BTCETHMaxLeverage != 10 || trendCfg.RiskControl.AltcoinMaxLeverage != 10 {
+		t.Fatalf("default strategy should use 10x leverage for all Claw402 opens, got risk=%+v", trendCfg.RiskControl)
 	}
-	if trendCfg.RiskControl.BTCETHMaxPositionValueRatio != 2.5 ||
-		trendCfg.RiskControl.AltcoinMaxPositionValueRatio != 2.5 ||
+	if trendCfg.RiskControl.BTCETHMaxPositionValueRatio != store.AutopilotMaxPositionValueRatio ||
+		trendCfg.RiskControl.AltcoinMaxPositionValueRatio != store.AutopilotMaxPositionValueRatio ||
 		trendCfg.RiskControl.MaxMarginUsage != 1.0 {
-		t.Fatalf("default strategy should size Claw402 opens at 2.5x equity notional (2 positions = 5x total at 5x), got risk=%+v", trendCfg.RiskControl)
+		t.Fatalf("default strategy should enforce a 5x-equity hard cap per position, got risk=%+v", trendCfg.RiskControl)
+	}
+}
+
+func TestCreateDefaultStrategiesMigratesExistingTwoPositionAutopilot(t *testing.T) {
+	st, err := store.New(t.TempDir() + "/nofx.db")
+	if err != nil {
+		t.Fatalf("store.New failed: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	userID := "user-legacy-autopilot"
+	legacyConfig := store.GetDefaultStrategyConfig("en")
+	legacyConfig.RiskControl.MaxPositions = 2
+	legacyConfig.RiskControl.BTCETHMaxPositionValueRatio = 5
+	legacyConfig.RiskControl.AltcoinMaxPositionValueRatio = 5
+	legacy := &store.Strategy{
+		ID:          uuid.New().String(),
+		UserID:      userID,
+		Name:        "NOFX Claw402 Auto Strategy",
+		Description: "legacy two-position config",
+		IsActive:    true,
+	}
+	if err := legacy.SetConfig(&legacyConfig); err != nil {
+		t.Fatalf("legacy SetConfig failed: %v", err)
+	}
+	if err := st.Strategy().Create(legacy); err != nil {
+		t.Fatalf("create legacy strategy failed: %v", err)
+	}
+
+	s := &Server{store: st}
+	if err := s.createDefaultStrategies(userID, "en"); err != nil {
+		t.Fatalf("createDefaultStrategies failed: %v", err)
+	}
+
+	migrated, err := st.Strategy().Get(userID, legacy.ID)
+	if err != nil {
+		t.Fatalf("get migrated strategy failed: %v", err)
+	}
+	migratedConfig, err := migrated.ParseConfig()
+	if err != nil {
+		t.Fatalf("parse migrated strategy failed: %v", err)
+	}
+	if migratedConfig.RiskControl.MaxPositions != store.AutopilotDefaultMaxPositions ||
+		migratedConfig.RiskControl.BTCETHMaxPositionValueRatio != store.AutopilotMaxPositionValueRatio ||
+		migratedConfig.RiskControl.AltcoinMaxPositionValueRatio != store.AutopilotMaxPositionValueRatio {
+		t.Fatalf("legacy strategy was not migrated: %+v", migratedConfig.RiskControl)
 	}
 }
 

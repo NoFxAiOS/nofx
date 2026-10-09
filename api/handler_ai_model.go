@@ -68,14 +68,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	if len(models) == 0 {
 		logger.Infof("⚠️ No AI models in database, returning defaults")
 		defaultModels := []SafeModelConfig{
-			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false},
-			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false},
-			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false},
-			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false},
-			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false},
-			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false},
-			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false},
-			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false},
+			{ID: "claw402", Name: "Claw402 (Base USDC)", Provider: "claw402", Enabled: false, HasAPIKey: false},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -116,14 +109,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	if len(safeModels) == 0 {
 		logger.Infof("⚠️ No visible AI models in database, returning defaults")
 		defaultModels := []SafeModelConfig{
-			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false, HasAPIKey: false},
-			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false, HasAPIKey: false},
-			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false, HasAPIKey: false},
-			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false, HasAPIKey: false},
-			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false, HasAPIKey: false},
-			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false, HasAPIKey: false},
-			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false, HasAPIKey: false},
-			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false, HasAPIKey: false},
+			{ID: "claw402", Name: "Claw402 (Base USDC)", Provider: "claw402", Enabled: false, HasAPIKey: false},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -192,7 +178,24 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		logger.Infof("🔓 Decrypted model config data (UserID: %s)", userID)
 	}
 
-	// Update each model's configuration and track traders that need reload
+	// Update each model's configuration and track traders that need reload.
+	// The request key may be either the model row id or the provider name
+	// (legacy clients send the provider, e.g. "claw402", while trader rows
+	// reference the full model id) — resolve both, mirroring the matching in
+	// AIModelStore.Update, otherwise running traders keep the old model.
+	modelIDCandidates := func(modelID string) map[string]bool {
+		candidates := map[string]bool{modelID: true}
+		if models, listErr := s.store.AIModel().List(userID); listErr == nil {
+			for _, m := range models {
+				if m.ID == modelID || m.Provider == modelID {
+					candidates[m.ID] = true
+					candidates[m.Provider] = true
+				}
+			}
+		}
+		return candidates
+	}
+
 	tradersToReload := make(map[string]bool)
 	for modelID, modelData := range req.Models {
 		// SSRF protection: validate custom_api_url before storing
@@ -206,9 +209,11 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		}
 
 		// Find traders using this AI model BEFORE updating
-		traders, _ := s.store.Trader().ListByAIModelID(userID, modelID)
-		for _, t := range traders {
-			tradersToReload[t.ID] = true
+		for candidateID := range modelIDCandidates(modelID) {
+			traders, _ := s.store.Trader().ListByAIModelID(userID, candidateID)
+			for _, t := range traders {
+				tradersToReload[t.ID] = true
+			}
 		}
 
 		err := s.store.AIModel().Update(userID, modelID, modelData.Enabled, modelData.APIKey, modelData.CustomAPIURL, modelData.CustomModelName)
@@ -239,17 +244,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 func (s *Server) handleGetSupportedModels(c *gin.Context) {
 	// Return static list of supported AI models with default versions
 	supportedModels := []map[string]interface{}{
-		{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "defaultModel": "deepseek-chat"},
-		{"id": "qwen", "name": "Qwen", "provider": "qwen", "defaultModel": "qwen3-max"},
-		{"id": "openai", "name": "OpenAI", "provider": "openai", "defaultModel": "gpt-5.1"},
-		{"id": "claude", "name": "Claude", "provider": "claude", "defaultModel": "claude-opus-4-6"},
-		{"id": "gemini", "name": "Google Gemini", "provider": "gemini", "defaultModel": "gemini-3-pro-preview"},
-		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
-		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
-		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.7"},
-		{"id": "blockrun-base", "name": "BlockRun (Base Wallet)", "provider": "blockrun-base", "defaultModel": "auto"},
-		{"id": "blockrun-sol", "name": "BlockRun (Solana Wallet)", "provider": "blockrun-sol", "defaultModel": "auto"},
-		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "deepseek-v4-flash"},
+		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "gpt-5.6"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)

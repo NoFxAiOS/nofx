@@ -32,6 +32,47 @@ const (
 	MaxConfidence     = 100
 )
 
+const (
+	AutopilotDefaultMaxPositions          = 8
+	AutopilotMaxPositionValueRatio        = 5.0
+	legacyAutopilotAllocatedPositionRatio = 2.4
+)
+
+// MigrateLegacyAutopilotRiskDefaults upgrades NOFX Autopilot books saved by
+// older releases. Trader deletion intentionally keeps strategies, so without
+// this migration a newly created trader would bind to the same stale strategy
+// and continue using the old limit.
+func MigrateLegacyAutopilotRiskDefaults(config *StrategyConfig) bool {
+	if config == nil {
+		return false
+	}
+
+	config.NormalizeProductSchema()
+	if config.CoinSource.SourceType != "vergex_signal" {
+		return false
+	}
+
+	risk := &config.RiskControl
+	legacyTwoPositionBook := risk.MaxPositions == 2 &&
+		isLegacyAutopilotPositionRatio(risk.BTCETHMaxPositionValueRatio) &&
+		isLegacyAutopilotPositionRatio(risk.AltcoinMaxPositionValueRatio)
+	legacyFourPositionBook := risk.MaxPositions == 4 &&
+		risk.BTCETHMaxPositionValueRatio == legacyAutopilotAllocatedPositionRatio &&
+		risk.AltcoinMaxPositionValueRatio == legacyAutopilotAllocatedPositionRatio
+	if !legacyTwoPositionBook && !legacyFourPositionBook {
+		return false
+	}
+
+	risk.MaxPositions = AutopilotDefaultMaxPositions
+	risk.BTCETHMaxPositionValueRatio = AutopilotMaxPositionValueRatio
+	risk.AltcoinMaxPositionValueRatio = AutopilotMaxPositionValueRatio
+	return true
+}
+
+func isLegacyAutopilotPositionRatio(value float64) bool {
+	return value == 5.0 || value == 10.0
+}
+
 // ClampLimits enforces product-level limits on strategy config to prevent token overflow.
 func (c *StrategyConfig) ClampLimits() {
 	c.NormalizeProductSchema()
@@ -105,6 +146,14 @@ func (c *StrategyConfig) ClampLimits() {
 	}
 	if c.RiskControl.AltcoinMaxPositionValueRatio > MaxPositionRatio {
 		c.RiskControl.AltcoinMaxPositionValueRatio = MaxPositionRatio
+	}
+	if c.CoinSource.SourceType == "vergex_signal" {
+		if c.RiskControl.BTCETHMaxPositionValueRatio > AutopilotMaxPositionValueRatio {
+			c.RiskControl.BTCETHMaxPositionValueRatio = AutopilotMaxPositionValueRatio
+		}
+		if c.RiskControl.AltcoinMaxPositionValueRatio > AutopilotMaxPositionValueRatio {
+			c.RiskControl.AltcoinMaxPositionValueRatio = AutopilotMaxPositionValueRatio
+		}
 	}
 
 	// Clamp risk parameters and entry requirements.
@@ -819,7 +868,7 @@ type CoinSourceConfig struct {
 	HyperRankDirection string `json:"hyper_rank_direction,omitempty"`
 	// Hyperliquid dynamic ranking maximum count. Defaults to 5 and is hard capped at 10 for AI context safety.
 	HyperRankLimit int `json:"hyper_rank_limit,omitempty"`
-	// Vergex signal-ranking maximum count. Defaults to 5 and is hard capped at 10.
+	// Vergex direction-board maximum count. Defaults to 5 and is hard capped at 10.
 	VergexLimit int `json:"vergex_limit,omitempty"`
 	// Vergex market type for detail endpoints, e.g. hip3_perp for Hyperliquid TradeFi perps.
 	VergexMarketType string `json:"vergex_market_type,omitempty"`
@@ -1014,15 +1063,15 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			PriceRankingLimit:      10,
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:                 2,   // Few, concentrated positions held for big moves (CODE ENFORCED)
-			BTCETHMaxLeverage:            5,   // Low leverage so a big (-5%) stop is survivable, not an instant liquidation
-			AltcoinMaxLeverage:           5,   // Low leverage so a big (-5%) stop is survivable, not an instant liquidation
-			BTCETHMaxPositionValueRatio:  2.5, // Per-position notional = equity × 2.5; 2 positions = 5x total (full margin at 5x, ~20% liquidation cushion)
-			AltcoinMaxPositionValueRatio: 2.5, // Per-position notional = equity × 2.5; 2 positions = 5x total (full margin at 5x, ~20% liquidation cushion)
-			MaxMarginUsage:               1.0, // Claw402 Autopilot intentionally uses full margin when opening
-			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
-			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                78,  // Min 78% confidence (AI guided)
+			MaxPositions:                 AutopilotDefaultMaxPositions,   // Eight-position default book (CODE ENFORCED)
+			BTCETHMaxLeverage:            10,                             // Moderate leverage: a wide (-5%) stop is ~-50% margin, survivable, not an instant liquidation
+			AltcoinMaxLeverage:           10,                             // Moderate leverage: a wide (-5%) stop is ~-50% margin, survivable, not an instant liquidation
+			BTCETHMaxPositionValueRatio:  AutopilotMaxPositionValueRatio, // Per-position hard cap = equity × 5
+			AltcoinMaxPositionValueRatio: AutopilotMaxPositionValueRatio, // Per-position hard cap = equity × 5
+			MaxMarginUsage:               1.0,                            // Claw402 Autopilot intentionally uses full margin when opening
+			MinPositionSize:              12,                             // Min 12 USDT per position (CODE ENFORCED)
+			MinRiskRewardRatio:           3.0,                            // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                78,                             // Min 78% confidence (AI guided)
 		},
 	}
 
@@ -1030,41 +1079,41 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 		config.PromptSections = PromptSectionsConfig{
 			RoleDefinition: `# You are the NOFX Claw402 auto-trader
 
-Trade only the Hyperliquid tradable instruments returned by this cycle's Claw402.ai/Vergex board. The candidate pool comes from Claw402.ai/Vergex; before opening a position, you must combine Signal Lab, cost/liquidation heatmap and raw candles.`,
+	Trade only the Hyperliquid instruments returned by the current Claw402.ai direction board. The board direction is authoritative; direction history, cost/liquidation heatmap and raw candles are supporting context only.`,
 			TradingFrequency: `# Trading Frequency
 
-- Prioritize waiting for high-quality opportunities; you do not need to trade every cycle.
-- Manage existing positions first, then consider opening new ones.
-- Do not churn in and out of the same symbol in one cycle.`,
+	- A bullish symbol may open long; a bearish symbol may open short.
+	- Hold while the signal direction remains unchanged.
+	- Close only after the direction changes, becomes neutral, or leaves the valid board.`,
 			EntryStandards: `# Entry Standards
 
-Open a position only when Claw402 Signal Lab, cost/liquidation heatmap and raw candles broadly agree. The Claw402 ranking is only the candidate pool, not a standalone buy reason. Wait by default when any key data is missing or contradictory.`,
+	Follow the Claw402 direction exactly. Supporting detail and candles may explain a signal but cannot veto, reverse, or prematurely exit it.`,
 			DecisionProcess: `# Decision Process
 
-1. Check existing positions first: decide take profit, stop loss or hold.
-2. Pull this cycle's candidates from the Claw402 board, and for each candidate read Claw402 Ranking, Signal Lab and Cost/Liquidation Heatmap.
-3. Use raw candles to confirm entry, stop loss and take profit.
-4. Output concise reasoning and strict JSON.`,
+	1. Read the current Claw402 direction board.
+	2. Hold positions whose direction is unchanged; close changed, neutral or absent signals.
+	3. For flat symbols, map bullish to long and bearish to short.
+	4. Use detail data and candles as context, then output strict JSON.`,
 		}
 	} else {
 		config.PromptSections = PromptSectionsConfig{
 			RoleDefinition: `# You are the NOFX Claw402 auto-trader
 
-Trade Hyperliquid Claw402-ranked instruments only. The candidate pool comes from Claw402.ai/Vergex; before opening a position, combine Signal Lab, cost/liquidation heatmap and raw candles.`,
+	Trade Hyperliquid instruments from the current Claw402.ai direction board only. The board direction is authoritative; direction history, cost/liquidation heatmap and raw candles are supporting context only.`,
 			TradingFrequency: `# Trading Frequency
 
-- Wait for quality; you do not need to trade every cycle.
-- Manage existing positions before opening new ones.
-- Do not churn in and out of the same symbol in one cycle.`,
+	- A bullish symbol may open long; a bearish symbol may open short.
+	- Hold while the signal direction remains unchanged.
+	- Close only after the direction changes, becomes neutral, or leaves the valid board.`,
 			EntryStandards: `# Entry Standards
 
-Open only when Claw402 Signal Lab, cost/liquidation heatmap and raw candles broadly agree. Ranking defines the candidate pool, not a standalone entry reason. Wait when key data is missing or contradictory.`,
+	Follow the Claw402 direction exactly. Supporting detail and candles may explain a signal but cannot veto, reverse, or prematurely exit it.`,
 			DecisionProcess: `# Decision Process
 
-1. Check current positions first: take profit, stop loss or hold.
-2. Pull this cycle's Claw402 board and read Claw402 Ranking, Signal Lab and Cost/Liquidation Heatmap for each candidate.
-3. Use raw candles to confirm entry, stop and target.
-4. Output concise reasoning and strict JSON.`,
+	1. Read the current Claw402 direction board.
+	2. Hold positions whose direction is unchanged; close changed, neutral or absent signals.
+	3. For flat symbols, map bullish to long and bearish to short.
+	4. Use detail data and candles as context, then output strict JSON.`,
 		}
 	}
 

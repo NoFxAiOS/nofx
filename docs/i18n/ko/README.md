@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 
 ## 모델은 제안하고, 런타임이 결정합니다
 
-의사결정은 [Claw402.ai](https://claw402.ai) · Vergex 데이터 스택을 읽는 언어 모델에서 나옵니다. 모든 시장을 방향 편향과 시그널 강도로 순위 매기는 실시간 시그널 보드, 종목별 Signal Lab 딥 시그널, 시장의 '연료'와 '벽'이 어디에 있는지 보여주는 코스트·청산 히트맵, 실시간 순유입 — 이를 원시 캔들과 트레이더 자신의 실시간 트랙 레코드로 교차 검증합니다. 그러나 실행은 그렇지 않습니다.
+의사결정은 [Claw402.ai](https://claw402.ai) · Vergex 데이터 스택을 기반으로 합니다. 전체 시장의 실시간 방향 보드, 종목별 현재 방향과 방향 이력, 코스트·청산 히트맵, 실시간 순유입을 사용합니다. NOFX는 보드 방향을 따르며 나머지 데이터는 실행 맥락으로만 사용합니다.
 
 모든 주문은 모델의 손이 닿지 않는 곳에서 코드로 강제되는 한도를 통과해야 합니다.
 
@@ -273,7 +273,7 @@ NOFX는 의미 있는 기여를 기록하며, 생태계가 성장함에 따라 �
 
 NOFX가 도움이 되었다면, 스타 하나가 다른 트레이더들이 이 프로젝트를 발견하는 데 큰 힘이 됩니다.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.dera.page/#NoFxAiOS/nofx&Date)
 
 ## 라이선스
 

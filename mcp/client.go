@@ -78,6 +78,17 @@ type Client struct {
 	Log        Logger       // Exported for sub-packages
 	Cfg        *Config      // Exported for sub-packages
 
+	// LastCallSettledUSD is the actually-settled cost (USD) of the most
+	// recent call, reported by x402 upto gateways via response header.
+	// Zero when the last call carried no settlement information.
+	LastCallSettledUSD float64
+
+	// LastCallUsage is the token usage of the most recent streamed call.
+	// On SSE responses the gateway cannot deliver the settlement header
+	// (headers are flushed before usage is known), so callers derive the
+	// actual cost from this instead. Nil when the stream carried no usage.
+	LastCallUsage *TokenUsage
+
 	// Hooks are used to implement dynamic dispatch (polymorphism)
 	// When provider.DeepSeekClient embeds Client, Hooks point to DeepSeekClient
 	// This way methods called in Call() are automatically dispatched to the overridden version
@@ -213,6 +224,19 @@ func (client *Client) SetAuthHeader(reqHeader http.Header) {
 	reqHeader.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
 }
 
+// modelSupportsCustomTemperature reports whether the target model accepts a
+// non-default temperature. OpenAI reasoning models (gpt-5/6 families, o-series)
+// reject any value other than the default and fail the whole request with
+// "unsupported_value", so temperature must be omitted for them.
+func modelSupportsCustomTemperature(model string) bool {
+	m := strings.ToLower(model)
+	return !strings.HasPrefix(m, "gpt-5") &&
+		!strings.HasPrefix(m, "gpt-6") &&
+		!strings.HasPrefix(m, "o1") &&
+		!strings.HasPrefix(m, "o3") &&
+		!strings.HasPrefix(m, "o4")
+}
+
 func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	// Build messages array
 	messages := []map[string]string{}
@@ -242,9 +266,11 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 
 	// Build request body
 	requestBody := map[string]interface{}{
-		"model":       client.Model,
-		"messages":    messages,
-		"temperature": client.Cfg.Temperature, // Use configured temperature
+		"model":    client.Model,
+		"messages": messages,
+	}
+	if modelSupportsCustomTemperature(client.Model) {
+		requestBody["temperature"] = client.Cfg.Temperature
 	}
 	// OpenAI newer models use max_completion_tokens instead of max_tokens
 	if client.Provider == ProviderOpenAI {
@@ -655,11 +681,13 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 	}
 
 	// Add optional parameters (only add non-nil parameters)
-	if req.Temperature != nil {
-		requestBody["temperature"] = *req.Temperature
-	} else {
-		// If not set in Request, use Client's configuration
-		requestBody["temperature"] = client.Cfg.Temperature
+	if modelSupportsCustomTemperature(req.Model) {
+		if req.Temperature != nil {
+			requestBody["temperature"] = *req.Temperature
+		} else {
+			// If not set in Request, use Client's configuration
+			requestBody["temperature"] = client.Cfg.Temperature
+		}
 	}
 
 	// OpenAI newer models use max_completion_tokens instead of max_tokens
@@ -783,8 +811,36 @@ func (client *Client) CallWithRequestStream(req *Request, onChunk func(string)) 
 	return text, err
 }
 
+type sseStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
+		} `json:"delta"`
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+		Text         string  `json:"text"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage,omitempty"`
+}
+
+func sseData(line string) (string, bool) {
+	if !strings.HasPrefix(line, "data:") {
+		return "", false
+	}
+	// The optional space after ':' is not required by the SSE specification.
+	return strings.TrimSpace(strings.TrimPrefix(line, "data:")), true
+}
+
 // ParseSSEStream reads an SSE response body, accumulates text deltas,
 // and calls onChunk with the full accumulated text after each chunk.
+// It accepts OpenAI delta chunks, final message chunks, and legacy text chunks.
 // If onLine is non-nil, it is called after each raw SSE line is scanned
 // (useful for resetting idle-timeout watchdogs).
 // Returns the complete accumulated text and any parsed token usage (nil if absent).
@@ -792,38 +848,29 @@ func ParseSSEStream(body io.Reader, onChunk func(string), onLine func()) (string
 	var accumulated strings.Builder
 	var usage *TokenUsage
 	scanner := bufio.NewScanner(body)
+	// Scanner defaults to 64 KiB. Some gateways put a complete final response
+	// on one SSE line, so allow a bounded large event instead of dropping it.
+	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 
-	for scanner.Scan() {
-		if onLine != nil {
-			onLine()
+	var eventData []string
+	completed := false
+	finishSeen := false
+	var parseErr error
+	processEvent := func() {
+		if len(eventData) == 0 || completed || parseErr != nil {
+			return
 		}
-
-		line := scanner.Text()
-		if !strings.HasPrefix(line, "data: ") {
-			continue
+		data := strings.Join(eventData, "\n")
+		eventData = eventData[:0]
+		if strings.TrimSpace(data) == "[DONE]" {
+			completed = true
+			return
 		}
-		data := strings.TrimPrefix(line, "data: ")
-		if data == "[DONE]" {
-			break
-		}
-
-		var chunk struct {
-			Choices []struct {
-				Delta struct {
-					Content string `json:"content"`
-				} `json:"delta"`
-				FinishReason *string `json:"finish_reason"`
-			} `json:"choices"`
-			Usage *struct {
-				PromptTokens     int `json:"prompt_tokens"`
-				CompletionTokens int `json:"completion_tokens"`
-				TotalTokens      int `json:"total_tokens"`
-			} `json:"usage,omitempty"`
-		}
+		var chunk sseStreamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue // skip malformed chunks
+			parseErr = fmt.Errorf("malformed SSE data event: %w", err)
+			return
 		}
-
 		if chunk.Usage != nil && chunk.Usage.TotalTokens > 0 {
 			usage = &TokenUsage{
 				PromptTokens:     chunk.Usage.PromptTokens,
@@ -831,27 +878,109 @@ func ParseSSEStream(body io.Reader, onChunk func(string), onLine func()) (string
 				TotalTokens:      chunk.Usage.TotalTokens,
 			}
 		}
-
 		if len(chunk.Choices) == 0 {
-			continue
+			return
 		}
-
-		delta := chunk.Choices[0].Delta.Content
-		if delta == "" {
-			continue
+		choice := chunk.Choices[0]
+		if choice.FinishReason != nil {
+			// Usage-only events commonly follow the finish chunk. Keep parsing
+			// until [DONE]/EOF so settled token usage is not discarded.
+			finishSeen = true
 		}
-
-		accumulated.WriteString(delta)
+		switch {
+		case choice.Delta.Content != "":
+			accumulated.WriteString(choice.Delta.Content)
+		case choice.Message.Content != "":
+			accumulated.Reset()
+			accumulated.WriteString(choice.Message.Content)
+		case choice.Text != "":
+			accumulated.WriteString(choice.Text)
+		default:
+			return
+		}
 		if onChunk != nil {
 			onChunk(accumulated.String())
 		}
 	}
 
+	for scanner.Scan() {
+		if onLine != nil {
+			onLine()
+		}
+		line := scanner.Text()
+		if line == "" {
+			processEvent()
+			if completed || parseErr != nil {
+				break
+			}
+			continue
+		}
+		if data, ok := sseData(line); ok {
+			eventData = append(eventData, data)
+		}
+	}
+	processEvent()
+
 	if err := scanner.Err(); err != nil {
 		return accumulated.String(), usage, fmt.Errorf("stream interrupted: %w", err)
 	}
+	if parseErr != nil {
+		return accumulated.String(), usage, parseErr
+	}
+	if !completed && !finishSeen {
+		return accumulated.String(), usage, fmt.Errorf("stream ended without a completion marker")
+	}
 
 	return accumulated.String(), usage, nil
+}
+
+// DescribeSSEBody returns bounded, content-free diagnostics for an SSE body.
+// It intentionally reports only shape counters so prompts and model output are
+// never copied into logs or errors.
+func DescribeSSEBody(body []byte) string {
+	var lines, dataLines, jsonLines, malformed, choices int
+	var contentChunks, reasoningChunks, messageChunks, textChunks int
+	var done bool
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
+	for scanner.Scan() {
+		lines++
+		data, ok := sseData(scanner.Text())
+		if !ok {
+			continue
+		}
+		dataLines++
+		if data == "[DONE]" {
+			done = true
+			continue
+		}
+		var chunk sseStreamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			malformed++
+			continue
+		}
+		jsonLines++
+		choices += len(chunk.Choices)
+		for _, choice := range chunk.Choices {
+			if choice.Delta.Content != "" {
+				contentChunks++
+			}
+			if choice.Delta.ReasoningContent != "" {
+				reasoningChunks++
+			}
+			if choice.Message.Content != "" {
+				messageChunks++
+			}
+			if choice.Text != "" {
+				textChunks++
+			}
+		}
+	}
+	if scanner.Err() != nil {
+		malformed++
+	}
+	return fmt.Sprintf("lines=%d, data_lines=%d, json_lines=%d, malformed=%d, choices=%d, content_chunks=%d, reasoning_chunks=%d, message_chunks=%d, text_chunks=%d, done=%t",
+		lines, dataLines, jsonLines, malformed, choices, contentChunks, reasoningChunks, messageChunks, textChunks, done)
 }
 
 // ReportStreamUsage fires TokenUsageCallback with the given usage, provider, and model.

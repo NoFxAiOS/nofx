@@ -10,6 +10,14 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 )
 
+// InvalidatePositionCache forces the next position read to hit the exchange.
+func (t *FuturesTrader) InvalidatePositionCache() {
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheTime = time.Time{}
+	t.positionsCacheMutex.Unlock()
+}
+
 // GetPositions gets all positions (with cache)
 func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 	// First check if cache is valid
@@ -287,4 +295,3 @@ func (t *FuturesTrader) FormatPrice(symbol string, price float64) (string, error
 	format := fmt.Sprintf("%%.%df", precision)
 	return fmt.Sprintf(format, price), nil
 }
-

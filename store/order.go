@@ -281,6 +281,20 @@ func (s *OrderStore) GetFillByExchangeTradeID(exchangeID, exchangeTradeID string
 	return &fill, nil
 }
 
+// SumCloseCommission totals the commission of one position's close fills: the
+// trader's fills on symbol that realized PnL on closeSide (SELL closes a LONG,
+// BUY closes a SHORT) at or after the position's entry. Opening fills realize
+// nothing and stay out; the side keeps an opposite-side hedge leg out as well.
+func (s *OrderStore) SumCloseCommission(traderID, symbol, closeSide string, entryTimeMs int64) (float64, error) {
+	var total float64
+	err := s.db.Model(&TraderFill{}).
+		Select("COALESCE(SUM(commission), 0)").
+		Where("trader_id = ? AND symbol = ? AND side = ? AND realized_pnl <> 0 AND created_at >= ?",
+			traderID, symbol, closeSide, entryTimeMs).
+		Scan(&total).Error
+	return total, err
+}
+
 // GetOrderByExchangeID gets order by exchange order ID
 func (s *OrderStore) GetOrderByExchangeID(exchangeID, exchangeOrderID string) (*TraderOrder, error) {
 	var order TraderOrder

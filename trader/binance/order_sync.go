@@ -2,6 +2,7 @@ package binance
 
 import (
 	"fmt"
+	"math"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
@@ -472,7 +473,7 @@ func (t *FuturesTrader) syncOrders(traderID string, exchangeID string, exchangeT
 
 		// Notify on every executed fill (covers AI orders, risk closes,
 		// exchange-side stop triggers and manual closes alike).
-		notifyFill(t.notifyLabel(), symbol, orderAction, trade)
+		notifyFill(t.notifyLabel(), traderID, st, symbol, orderAction, trade)
 	}
 
 	// Update lastSyncTime to the LATEST trade time (not current time!)
@@ -688,8 +689,9 @@ func commaFormat(v float64) string {
 // notifyFill pushes a trade fill (open/close) to Telegram. It fires once per
 // new synced trade — the sync dedup skips already-known trades, so repeats
 // only happen on genuine new fills. Body is HTML (the notify layer renders it
-// with parse_mode=HTML).
-func notifyFill(traderID, symbol, orderAction string, trade types.TradeRecord) {
+// with parse_mode=HTML). label is the display name the message goes out under;
+// traderID and st locate the position a close fill belongs to.
+func notifyFill(label, traderID string, st *store.Store, symbol, orderAction string, trade types.TradeRecord) {
 	switch orderAction {
 	case "open_long", "open_short":
 		if trade.RealizedPnL != 0 {
@@ -723,15 +725,103 @@ func notifyFill(traderID, symbol, orderAction string, trade types.TradeRecord) {
 	body.WriteString(fmt.Sprintf("价值  <code>%s USDT</code>\n", commaFormat(trade.Price*trade.Quantity)))
 	body.WriteString(fmt.Sprintf("手续费  <code>%s USDT</code>", commaFormat(trade.Fee)))
 	if orderAction == "close_long" || orderAction == "close_short" {
-		pnl := fmt.Sprintf("%+.2f USDT", trade.RealizedPnL)
-		if trade.RealizedPnL >= 0 {
-			pnl = "✅ 盈利 <b>+" + pnl + "</b>"
-		} else {
-			pnl = "❌ 亏损 <b>" + pnl + "</b>"
-		}
 		body.WriteString("\n\n━━━━━━━━━━\n\n")
-		body.WriteString(fmt.Sprintf("已实现盈亏\n%s", pnl))
+		body.WriteString(closeResultBlock(st, traderID, symbol, orderAction, trade))
 		body.WriteString(fmt.Sprintf("\n\n<i>成交 %s (UTC)</i>", trade.Time.UTC().Format("01-02 15:04:05")))
 	}
-	notify.Notify("ORDER", traderID, "<b>"+title+"</b>\n\n"+body.String())
+	notify.Notify("ORDER", label, "<b>"+title+"</b>\n\n"+body.String())
+}
+
+// closeFillResult is the after-commission result a close notice reports.
+type closeFillResult struct {
+	Net           float64 // realized PnL after commissions
+	Gross         float64 // realized PnL as the exchange reports it (commissions excluded)
+	Fee           float64 // commissions netted out of Gross, positive = cost
+	Partial       bool    // the position is still open after this fill
+	EntryFeeKnown bool    // false: the entry commission could not be attributed
+}
+
+// netCloseFill nets a close fill's commissions out of its realized PnL.
+//   - Closed position (this fill closed it): the row holds the whole position —
+//     every leg's PnL and every commission, entry included — so net is
+//     RealizedPnL − Fee, the figure Binance's position history shows.
+//   - Open position (partial close): the row's Fee less closeFeesSoFar (the
+//     commissions of its close legs, this fill included) is the entry
+//     commission; this fill carries its pro-rata share of it.
+//   - No position: the fill's own commission only, entry commission not counted.
+func netCloseFill(trade types.TradeRecord, pos *store.TraderPosition, closeFeesSoFar float64) closeFillResult {
+	fillOnly := closeFillResult{Net: trade.RealizedPnL - trade.Fee, Gross: trade.RealizedPnL, Fee: trade.Fee}
+	switch {
+	case pos == nil:
+		return fillOnly
+	case pos.Status == "CLOSED":
+		return closeFillResult{Net: pos.RealizedPnL - pos.Fee, Gross: pos.RealizedPnL, Fee: pos.Fee, EntryFeeKnown: true}
+	case pos.Status != "OPEN":
+		return fillOnly
+	}
+	entryFee := pos.Fee - closeFeesSoFar
+	if pos.EntryQuantity <= 0 || entryFee < -1e-9 {
+		return fillOnly
+	}
+	entryFee = math.Max(entryFee, 0)
+	fee := trade.Fee + entryFee*trade.Quantity/pos.EntryQuantity
+	return closeFillResult{Net: trade.RealizedPnL - fee, Gross: trade.RealizedPnL, Fee: fee, Partial: true, EntryFeeKnown: true}
+}
+
+// closeResultBlock renders the net-result block of a close notice. It looks up
+// the position the fill belongs to in st; when that fails it falls back to the
+// fill's own commission and the notice says the entry commission is missing.
+func closeResultBlock(st *store.Store, traderID, symbol, orderAction string, trade types.TradeRecord) string {
+	side, closeSide := "LONG", "SELL"
+	if orderAction == "close_short" {
+		side, closeSide = "SHORT", "BUY"
+	}
+	pos, err := st.Position().GetPositionForFill(traderID, symbol, side, trade.Time.UTC().UnixMilli())
+	if err != nil {
+		logger.Warnf("  ⚠️ Net PnL: position lookup failed for %s %s, showing fill-only result: %v", symbol, side, err)
+		return formatCloseResult(netCloseFill(trade, nil, 0))
+	}
+	var closeFees float64
+	if pos != nil && pos.Status == "OPEN" {
+		if closeFees, err = st.Order().SumCloseCommission(traderID, symbol, closeSide, pos.EntryTime); err != nil {
+			logger.Warnf("  ⚠️ Net PnL: close commission sum failed for %s %s, showing fill-only result: %v", symbol, side, err)
+			return formatCloseResult(netCloseFill(trade, nil, 0))
+		}
+	}
+	return formatCloseResult(netCloseFill(trade, pos, closeFees))
+}
+
+// formatCloseResult renders the result block of a close notice: the headline is
+// the net figure, the italic line the gross, the commissions netted out, and
+// what the figure does not cover.
+func formatCloseResult(r closeFillResult) string {
+	pnl := signedAmount(r.Net) + " USDT"
+	if r.Net >= 0 {
+		pnl = "✅ 盈利 <b>" + pnl + "</b>"
+	} else {
+		pnl = "❌ 亏损 <b>" + pnl + "</b>"
+	}
+	var notes []string
+	if r.Partial {
+		notes = append(notes, "部分平仓")
+	}
+	notes = append(notes, "毛利 "+signedAmount(r.Gross), "手续费 "+signedAmount(-r.Fee))
+	if !r.EntryFeeKnown {
+		notes = append(notes, "开仓手续费未计入")
+	}
+	notes = append(notes, "未含资金费")
+	return "已实现盈亏（扣手续费）\n" + pnl + "\n<i>" + strings.Join(notes, " · ") + "</i>"
+}
+
+// signedAmount formats a USDT figure with its sign: 4 decimals below 0.1 in
+// magnitude so a small result never prints as +0.00, 2 decimals otherwise.
+// The sign comes from the number alone, so callers must not add one.
+func signedAmount(v float64) string {
+	if v == 0 {
+		v = 0 // drop the sign of -0, which %+f would print as -0.0000
+	}
+	if math.Abs(v) < 0.1 {
+		return fmt.Sprintf("%+.4f", v)
+	}
+	return fmt.Sprintf("%+.2f", v)
 }

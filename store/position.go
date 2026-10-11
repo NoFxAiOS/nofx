@@ -534,6 +534,36 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 	return nil, err
 }
 
+// GetPositionForFill returns the trader's row on (symbol, side) that a fill at
+// fillTimeMs belongs to: the most recently opened row that existed at the fill,
+// i.e. opened at or before it and still OPEN or closed at or after it (a closing
+// fill stamps exit_time with its own time). nil when there is none. Like
+// GetOpenPositionBySymbol it falls back to the base symbol for legacy rows.
+func (s *PositionStore) GetPositionForFill(traderID, symbol, side string, fillTimeMs int64) (*TraderPosition, error) {
+	symbols := []string{symbol}
+	if base := strings.TrimSuffix(symbol, "USDT"); base != symbol {
+		symbols = append(symbols, base)
+	}
+	for _, sym := range symbols {
+		var pos TraderPosition
+		err := s.db.Where("trader_id = ? AND symbol = ? AND side = ? AND entry_time <= ? AND (status = ? OR exit_time >= ?)",
+			traderID, sym, side, fillTimeMs, "OPEN", fillTimeMs).
+			Order("entry_time DESC").
+			First(&pos).Error
+		if err == gorm.ErrRecordNotFound {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if pos.EntryQuantity == 0 {
+			pos.EntryQuantity = pos.Quantity
+		}
+		return &pos, nil
+	}
+	return nil, nil
+}
+
 // GetClosedPositions gets closed positions
 func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*TraderPosition, error) {
 	var positions []*TraderPosition

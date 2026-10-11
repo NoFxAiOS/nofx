@@ -32,12 +32,12 @@ func TestNotifyFillLayoutStructure(t *testing.T) {
 		"价格  <code>" + commaFormat(0.003289) + "</code>\n" +
 		"价值  <code>" + commaFormat(1425*0.003289) + " USDT</code>\n" +
 		"手续费  <code>" + commaFormat(0.0023) + " USDT</code>" +
-		"\n\n━━━━━━━━━━\n\n已实现盈亏\n❌ 亏损 <b>-0.10 USDT</b>\n\n<i>成交 09-05 03:21:48 (UTC)</i>"
+		"\n\n━━━━━━━━━━\n\n已实现盈亏（扣手续费）\n❌ 亏损 <b>-0.10 USDT</b>\n<i>毛利 -0.08 · 手续费 -0.02 · 未含资金费</i>\n\n<i>成交 09-05 03:21:48 (UTC)</i>"
 
 	for _, want := range []string{
 		"<b>🔴 平多 1000BONKUSDT</b>\n\n数量",
 		"1,425",
-		"\n\n━━━━━━━━━━\n\n已实现盈亏\n❌ 亏损 <b>-0.10 USDT</b>",
+		"\n\n━━━━━━━━━━\n\n已实现盈亏（扣手续费）\n❌ 亏损 <b>-0.10 USDT</b>",
 		"\n\n<i>成交",
 	} {
 		if !strings.Contains(msg, want) {

@@ -583,6 +583,19 @@ type RiskControlConfig struct {
 	// Simulated on the 09-17→09-24 cohort: arming at 0.5R ≈ +6.4R vs
 	// actual with zero winners scratched. (CODE ENFORCED when >0)
 	BreakevenArmR float64 `json:"breakeven_arm_r"`
+	// TPMaxR: take-profit cap in R (initial risk = |entry − stop_loss| of the
+	// open decision). The planned TP is clamped to the CLOSER of itself and
+	// entry ± TPMaxR × R before the order is routed (market or limit), so the
+	// exchange TP leg and the recorded TP both carry the capped price. Backtest
+	// 2026-10-11 (242 live trades replayed with the live exit rules): a 2R cap
+	// lifts expectancy by +0.024R/trade (paired 95% CI [+0.001, +0.049]),
+	// positive in both halves of every subset — the median planned TP is 2.6R
+	// and 79% of plans exceed 2R, but price rarely gets there. 0 = no cap
+	// (default); negative = no cap; values in (0, 1) are invalid (a cap below
+	// 1R would contradict min_risk_reward_ratio) and are treated as no cap.
+	// The capped plan must still satisfy min_risk_reward_ratio, else the open
+	// is rejected. Crypto USDT-M futures opens only. (CODE ENFORCED when ≥1)
+	TPMaxR float64 `json:"tp_max_r"`
 
 	// TpTrimAtR / TPFullAtR: R-based TP-ladder tiers — 2026-09-29 unit
 	// unification. The legacy tp_trim_profit_pct / tp_full_profit_pct price
@@ -1690,6 +1703,15 @@ func (r RiskControlConfig) EffectiveEntryRoundTripCostBps() float64 {
 		return r.EntryRoundTripCostBps
 	}
 	return 20
+}
+
+// EffectiveTPMaxR returns the take-profit cap in R, or 0 for "no cap"
+// (unset, negative, or the invalid (0, 1) range).
+func (r RiskControlConfig) EffectiveTPMaxR() float64 {
+	if r.TPMaxR < 1 {
+		return 0
+	}
+	return r.TPMaxR
 }
 
 func (r RiskControlConfig) EffectiveRiskPerTradePct() float64 {

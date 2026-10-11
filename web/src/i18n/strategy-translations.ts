@@ -679,6 +679,16 @@ export const riskControl = {
     en: 'The TP algo closes only this fraction; the remainder rides as a trend-runner under the 2×ATR trailing stop (captures continuation past the TP level); 0 = default 0.5, negative = full close (legacy); collapses to full close when trailing is off',
     es: 'El TP cierra solo esta fracción; el resto corre con el trailing 2×ATR; 0 = 0.5, negativo = cierre total',
   },
+  tpMaxR: {
+    zh: '止盈上限（R）',
+    en: 'Take-profit cap (R)',
+    es: 'Límite de toma de ganancias (R)',
+  },
+  tpMaxRDesc: {
+    zh: '计划止盈超过「入场价 ± N × 初始风险」时按此截断。回测：2R 上限每笔 +0.024R，前后两段均为正。0 = 不设上限',
+    en: 'A planned take-profit beyond "entry ± N × initial risk" is capped there. Backtest: a 2R cap adds +0.024R per trade, positive in both halves. 0 = no cap',
+    es: 'Una toma de ganancias planificada más allá de "entrada ± N × riesgo inicial" se limita ahí. Backtest: un límite de 2R suma +0.024R por operación, positivo en ambas mitades. 0 = sin límite',
+  },
   minRRZeroHint: {
     zh: '0 = 禁用 RR 门(rr_scan 与执行端 checkRR 同步跳过)',
     en: '0 = disable the RR gate (rr_scan and the executor checkRR both skip)',

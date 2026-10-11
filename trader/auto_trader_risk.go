@@ -690,6 +690,19 @@ func (at *AutoTrader) validateOpenRisk(decision *kernel.Decision, entryPrice, fl
 		}
 	}
 
+	// 2c. Take-profit cap (risk_control.tp_max_r): clamp the planned TP to
+	// entry ± N×R BEFORE the RR gates below, so min-RR judges the plan that is
+	// actually routed (market recordOpenTakeProfit / limit pendingEntry both
+	// read decision.TakeProfit after this returns). A cap that drops the plan
+	// under min RR is rejected by the gates below with the cap named.
+	tpCapped := at.capOpenTakeProfit(decision, entryPrice)
+	capNote := func(err error) error {
+		if tpCapped && err != nil {
+			return fmt.Errorf("%w (take_profit was capped to %.6g by risk_control.tp_max_r=%.2f)", err, decision.TakeProfit, at.effectiveTPMaxR())
+		}
+		return err
+	}
+
 	// 3. Minimum risk-reward ratio, anchored at BOTH the AI's decision price
 	// and the live execution price. Validating only the live ticker let a
 	// market-order fill away from the checked price smuggle in a below-floor
@@ -697,11 +710,11 @@ func (at *AutoTrader) validateOpenRisk(decision *kernel.Decision, entryPrice, fl
 	if minRR > 0 && decision.TakeProfit > 0 {
 		if decision.Price > 0 {
 			if err := checkNetRR(decision, decision.Price, minRR, at.config.StrategyConfig.RiskControl.EffectiveEntryRoundTripCostBps()); err != nil {
-				return err
+				return capNote(err)
 			}
 		}
 		if err := checkNetRR(decision, entryPrice, minRR, at.config.StrategyConfig.RiskControl.EffectiveEntryRoundTripCostBps()); err != nil {
-			return err
+			return capNote(err)
 		}
 	}
 

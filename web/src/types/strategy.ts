@@ -336,6 +336,9 @@ export interface RiskControlConfig {
   // as a trend-runner under the trailing stop (0 = default 0.5, negative =
   // full close; collapses to full close when trailing_stop_enabled is off).
   tp_close_fraction?: number
+  // 止盈上限(R):计划止盈超过「入场价 ± N × 初始风险」时按此截断
+  // (0 / 负数 = 不设上限;(0,1) 无效,按不设上限处理) (CODE ENFORCED)
+  tp_max_r?: number
   // Hard-block opens when the vendor-vs-live price diverges beyond this %
   // (0 = default 1, negative = disabled) (CODE ENFORCED)
   max_vendor_divergence_pct?: number

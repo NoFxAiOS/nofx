@@ -97,6 +97,9 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	// 09-19 audit: min RR is double-enforced (rr_scan gate + executor
 	// checkRR) — it was mis-filed under AI GUIDED and read as relaxable.
 	sb.WriteString(fmt.Sprintf("- Min Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss — 程序双重校验,不可放宽)\n", riskControl.MinRiskRewardRatio))
+	if capR := riskControl.EffectiveTPMaxR(); capR > 0 {
+		sb.WriteString(fmt.Sprintf("- Take-Profit Cap: ≤%.2g×初始风险 (程序强制:take_profit 超过入场价±%.2g×|入场−止损| 时被截断到该价位)\n", capR, capR))
+	}
 	sb.WriteString(fmt.Sprintf("- Max Leverage: Altcoins %dx | BTC/ETH %dx (超限值由后端强制下调)\n",
 		riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
 	if riskControl.MinConfidence > 0 {

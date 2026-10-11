@@ -429,6 +429,34 @@ export function RiskControlEditor({
               })()}
             </p>
           </div>
+
+          <div className="p-3 rounded-lg bg-surface-2 border border-line">
+            <label className="block text-[13px] mb-1 text-fg-2">
+              {ts(riskControl.tpMaxR, language)}
+            </label>
+            <p className="text-xs mb-2 text-fg-3">
+              {ts(riskControl.tpMaxRDesc, language)}
+            </p>
+            <Input
+              type="number"
+              step={0.25}
+              min={0}
+              value={config.tp_max_r ?? 0}
+              onChange={(e) =>
+                updateField(
+                  'tp_max_r',
+                  e.target.value === '' ? 0 : parseFloat(e.target.value)
+                )
+              }
+              disabled={disabled}
+              className="w-32 px-3 bg-surface-2 border border-line text-fg num text-right"
+            />
+            <p className="num text-xs mt-2 font-medium text-up">
+              {(config.tp_max_r ?? 0) < 1
+                ? '当前生效: 不设上限'
+                : `当前生效: 止盈最远 入场价 ± ${config.tp_max_r}R`}
+            </p>
+          </div>
         </div>
 
         {/* Trading Leverage (Exchange) */}

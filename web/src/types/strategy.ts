@@ -153,6 +153,8 @@ export interface CoinSourceConfig {
   use_piggy_dash: boolean
   piggy_dash_limit?: number
   piggy_dash_direction?: string // '', 'breakout', 'breakdown'
+  // 猪猪冲刺最低信号等级：'weak' | 'medium' | 'strong'；缺省 = medium（低于此等级的信号不进候选池）
+  piggy_dash_min_grade?: string
   // 做空扫描: top 24h gainers ranked by short-suitability score (Binance-derived)
   use_short_scan: boolean
   short_scan_limit?: number

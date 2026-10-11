@@ -141,6 +141,19 @@ export const coinSource = {
     en: 'Breakdown only',
     es: 'Solo caída',
   },
+  piggyDashMinGrade: {
+    zh: '最低信号等级',
+    en: 'Minimum signal grade',
+    es: 'Grado mínimo de señal',
+  },
+  piggyDashMinGradeDesc: {
+    zh: '低于此等级的突破信号不进入候选池。回测：weak 胜率 31.9%、24h 均值 −0.73%；medium 48.2%、+1.30%；strong 88.9%、+2.22%。默认 medium',
+    en: 'Breakout signals below this grade stay out of the candidate pool. Backtest: weak 31.9% win, 24h mean −0.73%; medium 48.2%, +1.30%; strong 88.9%, +2.22%. Default medium',
+    es: 'Las señales de ruptura por debajo de este grado no entran en el pool de candidatas. Backtest: weak 31.9% aciertos, media 24h −0.73%; medium 48.2%, +1.30%; strong 88.9%, +2.22%. Por defecto medium',
+  },
+  gradeWeak: { zh: '弱', en: 'weak', es: 'débil' },
+  gradeMedium: { zh: '中', en: 'medium', es: 'medio' },
+  gradeStrong: { zh: '强', en: 'strong', es: 'fuerte' },
   piggyDashNote: {
     zh: '取突破/跌破监测引擎（每5分钟刷新）打分最高的币种',
     en: 'Takes the top-scored coins from the breakout engine (refreshed every 5 min)',

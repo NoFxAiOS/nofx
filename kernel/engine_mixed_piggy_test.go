@@ -40,8 +40,8 @@ func TestMixedPiggyDirectionSurvivesCollapse(t *testing.T) {
 		{Symbol: "BBBUSDT", Direction: breakout.DirDown, Score: 70, Grade: "strong", Pattern: breakout.PatternRetestHold},
 	})
 	cfg := &store.StrategyConfig{CoinSource: store.CoinSourceConfig{
-		SourceType:   "mixed",
-		UsePiggyDash: true,
+		SourceType:     "mixed",
+		UsePiggyDash:   true,
 		PiggyDashLimit: 5,
 	}}
 	e := NewStrategyEngine(cfg)
@@ -81,8 +81,8 @@ func TestMixedPiggyQualityFloor(t *testing.T) {
 		{Symbol: "EMPTYPAT", Direction: breakout.DirUp, Score: 65, Grade: "medium", Pattern: ""},
 	})
 	cfg := &store.StrategyConfig{CoinSource: store.CoinSourceConfig{
-		SourceType:   "mixed",
-		UsePiggyDash: true,
+		SourceType:     "mixed",
+		UsePiggyDash:   true,
 		PiggyDashLimit: 5,
 	}}
 	e := NewStrategyEngine(cfg)
@@ -100,7 +100,7 @@ func TestMixedPiggyQualityFloor(t *testing.T) {
 	breakout.DefaultScheduler().SetSnapshotForTest([]breakout.ScanResult{
 		{Symbol: "WEAKUSDT", Direction: breakout.DirUp, Score: 35, Grade: "weak", Pattern: breakout.PatternApproach},
 	})
-	if _, err := e.getPiggyDashCoins(5, ""); err == nil {
+	if _, err := e.getPiggyDashCoins(5, "", store.DefaultPiggyDashMinGrade); err == nil {
 		t.Fatal("an all-below-floor board must error at the source, not return an empty pool")
 	}
 }

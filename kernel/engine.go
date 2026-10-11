@@ -764,7 +764,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		// 猪猪冲刺: strongest breakout/breakdown signals from the 5-min engine.
 		// Note: unlike ai500/oi_*, there is no separate enable gate — selecting
 		// this source type IS the switch.
-		coins, err := e.getPiggyDashCoins(coinSource.PiggyDashLimit, coinSource.PiggyDashDirection)
+		coins, err := e.getPiggyDashCoins(coinSource.PiggyDashLimit, coinSource.PiggyDashDirection, coinSource.EffectivePiggyDashMinGrade())
 		if err != nil {
 			return nil, err
 		}
@@ -895,7 +895,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 			// ScannerDirection/SCANNER_VS_SCANNER never fired in mixed (the
 			// production主力 source). Declare the error outside, assign with =.
 			var piggyErr error
-			piggyCoins, piggyErr = e.getPiggyDashCoins(coinSource.PiggyDashLimit, coinSource.PiggyDashDirection)
+			piggyCoins, piggyErr = e.getPiggyDashCoins(coinSource.PiggyDashLimit, coinSource.PiggyDashDirection, coinSource.EffectivePiggyDashMinGrade())
 			if piggyErr != nil {
 				logger.Infof("⚠️  Failed to get Piggy Dash coins: %v", piggyErr)
 			} else {
@@ -1065,7 +1065,10 @@ const piggyDashMaxAge = 12 * time.Minute
 // snapshot (background scan failing > piggyDashMaxAge) one synchronous
 // refresh is attempted, and its failure HALTS this source for the cycle —
 // an old board must not keep minting entries.
-func (e *StrategyEngine) getPiggyDashCoins(limit int, direction string) ([]CandidateCoin, error) {
+//
+// minGrade is the quality floor (pass CoinSourceConfig.EffectivePiggyDashMinGrade);
+// see piggyGradeRank for the ordering.
+func (e *StrategyEngine) getPiggyDashCoins(limit int, direction, minGrade string) ([]CandidateCoin, error) {
 	if limit <= 0 {
 		limit = 5
 	}
@@ -1105,13 +1108,18 @@ func (e *StrategyEngine) getPiggyDashCoins(limit int, direction string) ([]Candi
 	}
 	// Quality floor (review 2026-10-04 #4): the snapshot is a RANKING, not a
 	// filter — in a dead market noise-graded rows and not-yet-crossed
-	// approach patterns filled every slot. weak+ grade on a real cross
-	// pattern only; an empty result is an ERROR (the source halts for the
-	// cycle and the kernel's regime-skip synthesizes the wait) — never a
-	// quiet backfill of weak rows.
+	// approach patterns filled every slot. Grade at or above minGrade
+	// (piggy_dash_min_grade, default medium) on a real cross pattern only;
+	// an empty result is an ERROR (the source halts for the cycle and the
+	// kernel's regime-skip synthesizes the wait) — never a quiet backfill
+	// of weaker rows.
+	minRank := piggyGradeRank(minGrade)
 	picked := make([]breakout.SymbolDirection, 0, limit)
 	for _, row := range symbols {
 		if row.Grade == "noise" || row.Pattern == "" || row.Pattern == breakout.PatternApproach {
+			continue
+		}
+		if piggyGradeRank(row.Grade) < minRank {
 			continue
 		}
 		picked = append(picked, row)
@@ -1120,9 +1128,9 @@ func (e *StrategyEngine) getPiggyDashCoins(limit int, direction string) ([]Candi
 		}
 	}
 	if len(picked) == 0 {
-		return nil, fmt.Errorf("piggy-dash: %d rows on the board, none above the weak+cross floor — pool empty this cycle", len(symbols))
+		return nil, fmt.Errorf("piggy-dash: %d rows on the board, none at %s+ grade on a cross pattern — pool empty this cycle", len(symbols), minGrade)
 	}
-	logger.Infof("🐷 Piggy-dash source: %d symbols (direction=%q, floor %d/%d rows)", len(picked), direction, len(picked), len(symbols))
+	logger.Infof("🐷 Piggy-dash source: %d symbols (direction=%q, min grade=%s, floor %d/%d rows)", len(picked), direction, minGrade, len(picked), len(symbols))
 	var candidates []CandidateCoin
 	for _, row := range picked {
 		candidates = append(candidates, CandidateCoin{
@@ -1132,6 +1140,22 @@ func (e *StrategyEngine) getPiggyDashCoins(limit int, direction string) ([]Candi
 		})
 	}
 	return candidates, nil
+}
+
+// piggyGradeRank orders breakout grades for the piggy_dash quality floor:
+// noise 0 < weak 1 < medium 2 < strong 3. Anything unrecognised ranks 0, so
+// it never clears a floor set above noise.
+func piggyGradeRank(grade string) int {
+	switch grade {
+	case "strong":
+		return 3
+	case "medium":
+		return 2
+	case "weak":
+		return 1
+	default:
+		return 0
+	}
 }
 
 // dedupeShortCandidates keeps one entry per symbol (the higher ShortScore;

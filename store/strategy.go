@@ -273,6 +273,13 @@ type CoinSourceConfig struct {
 	UsePiggyDash       bool   `json:"use_piggy_dash"`
 	PiggyDashLimit     int    `json:"piggy_dash_limit,omitempty"`
 	PiggyDashDirection string `json:"piggy_dash_direction,omitempty"` // "", "breakout", "breakdown"
+	// Minimum breakout-engine grade a signal needs to enter the piggy_dash
+	// pool: "weak" | "medium" | "strong"; empty = default "medium" (see
+	// EffectivePiggyDashMinGrade). Backtest (data/breakout_backtest.json, 1104
+	// signals, 24h net mean): weak 897 signals, 31.9% win, -0.73%; medium 189,
+	// 48.2%, +1.30%; strong 18, 88.9%, +2.22%. Default raised from weak at
+	// review 2026-10-11.
+	PiggyDashMinGrade string `json:"piggy_dash_min_grade,omitempty"`
 	// whether to use the "short scan" source (做空扫描: top 24h gainers ranked
 	// by short-suitability score computed from Binance indicators)
 	UseShortScan bool `json:"use_short_scan"`
@@ -336,6 +343,22 @@ func (c *CoinSourceConfig) EffectiveMinOIMillions() float64 {
 		return DefaultMinOIValueMillions
 	}
 	return c.MinOIValueMillions
+}
+
+// DefaultPiggyDashMinGrade is the built-in piggy_dash grade floor applied when
+// the per-strategy piggy_dash_min_grade is unset or unrecognised.
+const DefaultPiggyDashMinGrade = "medium"
+
+// EffectivePiggyDashMinGrade returns the configured piggy_dash grade floor
+// (lower-cased), falling back to DefaultPiggyDashMinGrade when unset or when
+// the value is not one of weak / medium / strong.
+func (c *CoinSourceConfig) EffectivePiggyDashMinGrade() string {
+	switch g := strings.ToLower(c.PiggyDashMinGrade); g {
+	case "weak", "medium", "strong":
+		return g
+	default:
+		return DefaultPiggyDashMinGrade
+	}
 }
 
 // IndicatorConfig indicator configuration

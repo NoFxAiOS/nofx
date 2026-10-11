@@ -597,6 +597,41 @@ export function CoinSourceEditor({
             </div>
           </div>
 
+          <div>
+            <label className="block text-[13px] mb-2 text-fg-2">
+              {ts(coinSource.piggyDashMinGrade, language)}
+            </label>
+            <div className="flex gap-2">
+              {[
+                { value: 'weak', label: coinSource.gradeWeak },
+                { value: 'medium', label: coinSource.gradeMedium },
+                { value: 'strong', label: coinSource.gradeStrong },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() =>
+                    !disabled &&
+                    onChange({ ...config, piggy_dash_min_grade: value })
+                  }
+                  disabled={disabled}
+                  className={cn(
+                    `px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                      (config.piggy_dash_min_grade || 'medium') === value
+                        ? 'bg-brand/15 text-brand border border-brand/40'
+                        : 'bg-bg text-fg-3 border border-brand/10 hover:bg-surface-2'
+                    }`,
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50'
+                  )}
+                >
+                  {ts(label, language)}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs pl-2 mt-1 text-fg-3">
+              {ts(coinSource.piggyDashMinGradeDesc, language)}
+            </p>
+          </div>
+
           <div className="text-xs text-fg-3 flex items-start gap-1.5">
             <span>🐷</span>
             <span>{ts(coinSource.piggyDashNote, language)}</span>

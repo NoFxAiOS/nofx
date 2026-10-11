@@ -219,7 +219,7 @@ func allPerpTickers() ([]perpTicker, error) {
 		PriceChangePercent string `json:"priceChangePercent"`
 		QuoteVolume        string `json:"quoteVolume"`
 	}
-	if err := fetchJSON(u, &raw); err != nil {
+	if err := fetchJSONCached(u, tickerCacheTTL, &raw); err != nil {
 		return nil, err
 	}
 	out := make([]perpTicker, 0, len(raw))

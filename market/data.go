@@ -599,8 +599,49 @@ func fetchOIDataOrZero(symbol string) (*OIData, bool) {
 	return oiData, true
 }
 
-// getOpenInterestData retrieves OI data
+// oiDataTTL: the same symbol is read once per trader per decision cycle (and
+// again by the candidate pool); the hourly OI history only gains a bucket per
+// hour, so a short cache removes the duplicate /futures/data requests
+// (separate 1000 req / 5 min / IP limit) without serving a stale cycle.
+const oiDataTTL = 3 * time.Minute
+
+type oiDataEntry struct {
+	data *OIData
+	at   time.Time
+}
+
+var (
+	oiDataMu    sync.Mutex
+	oiDataCache = map[string]oiDataEntry{}
+	// oiNow / oiFetch are test seams.
+	oiNow   = time.Now
+	oiFetch = fetchOIData
+)
+
+// getOpenInterestData retrieves OI data (cached oiDataTTL; failures are never cached).
 func getOpenInterestData(symbol string) (*OIData, error) {
+	oiDataMu.Lock()
+	if e, ok := oiDataCache[symbol]; ok && oiNow().Sub(e.at) < oiDataTTL {
+		cp := *e.data
+		oiDataMu.Unlock()
+		return &cp, nil
+	}
+	oiDataMu.Unlock()
+	d, err := oiFetch(symbol)
+	if err != nil {
+		return nil, err
+	}
+	oiDataMu.Lock()
+	if len(oiDataCache) > 2000 {
+		oiDataCache = map[string]oiDataEntry{}
+	}
+	cp := *d
+	oiDataCache[symbol] = oiDataEntry{data: &cp, at: oiNow()}
+	oiDataMu.Unlock()
+	return d, nil
+}
+
+func fetchOIData(symbol string) (*OIData, error) {
 	// Real average from 30 hourly history points — the previous placeholder
 	// (Average = Latest × 0.999) made oi_vs_avg_pct a constant ~0.1001% for
 	// every symbol, which the model could read as genuine crowding data.

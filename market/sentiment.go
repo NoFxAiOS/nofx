@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"nofx/logger"
+	"nofx/market/bnweight"
 	"nofx/security"
 )
 
@@ -132,6 +133,8 @@ var (
 
 func sentimentHTTPGet(url string, out interface{}) error {
 	client := security.SafeHTTPClient(15 * time.Second)
+	// Non-Binance vendors pass through untouched; the two fapi reads are metered.
+	client.Transport = bnweight.Wrap(client.Transport, bnweight.Normal)
 	resp, err := client.Get(url)
 	if err != nil {
 		return err

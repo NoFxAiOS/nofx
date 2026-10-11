@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"nofx/market/bnweight"
 )
 
 // Binance-derivatives fallback for the net-flow card.
@@ -55,7 +57,7 @@ func binanceGetCached(ctx context.Context, pathWithQuery string, ttl time.Durati
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 10 * time.Second, Transport: bnweight.Wrap(nil, bnweight.Normal)}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("binance request failed: %w", err)

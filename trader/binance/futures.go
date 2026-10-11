@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"nofx/hook"
 	"nofx/logger"
+	"nofx/market/bnweight"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -123,6 +124,15 @@ func NewFuturesTrader(apiKey, secretKey string, userId string) *FuturesTrader {
 		hc.Timeout = binanceHTTPTimeout
 		client.HTTPClient = &hc
 	}
+	// Meter every call through the shared Binance weight guard. This client
+	// carries order placement/cancel/algo orders and the position/account
+	// reads protection depends on, so it is Critical: never delayed, and still
+	// sent during a 429/418 cooldown. The existing transport (default / proxy /
+	// hook-supplied) is wrapped, not replaced; the client is copied so a
+	// hook-supplied shared *http.Client is never mutated.
+	metered := *client.HTTPClient
+	metered.Transport = bnweight.Wrap(metered.Transport, bnweight.Critical)
+	client.HTTPClient = &metered
 
 	// Sync time to avoid "Timestamp ahead" error
 	syncBinanceServerTime(client)

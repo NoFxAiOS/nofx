@@ -8,8 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"nofx/logger"
 	"nofx/market"
+	"nofx/market/bnweight"
 	"nofx/provider/nofxos"
 	"nofx/provider/openbb"
 	"nofx/security"
@@ -59,7 +61,20 @@ func (t *binance24hrTicker) UnmarshalJSON(b []byte) error {
 var binanceGetFn = binanceGet
 
 func binanceGet(ctx context.Context, path string, out interface{}) error {
-	resp, err := security.SafeGet(binanceFAPIBase+path, 15*time.Second)
+	// Same SSRF-validated, proxy-aware client as security.SafeGet, with the
+	// shared Binance weight meter (Normal: strategy-engine market data) so the
+	// guard can hold it under load and honour a 429/418 cooldown.
+	rawURL := binanceFAPIBase + path
+	if err := security.ValidateURL(rawURL); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return err
+	}
+	client := security.SafeHTTPClient(15 * time.Second)
+	client.Transport = bnweight.Wrap(client.Transport, bnweight.Normal)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

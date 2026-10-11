@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"nofx/market/bnweight"
 	"nofx/security"
 )
 
@@ -19,7 +20,17 @@ const (
 	defaultSPOTBase = "https://api.binance.com"
 )
 
-var binanceHTTP = security.SafeHTTPClient(15 * time.Second)
+// binanceHTTP is the scanner client. Every scanner request is Low priority in
+// the shared Binance weight meter: it is the first traffic held back when the
+// IP's per-minute weight runs high, and it fails fast during a 429/418
+// cooldown, so scans never starve order placement or live price reads.
+var binanceHTTP = newScannerHTTP()
+
+func newScannerHTTP() *http.Client {
+	c := security.SafeHTTPClient(15 * time.Second)
+	c.Transport = bnweight.Wrap(c.Transport, bnweight.Low)
+	return c
+}
 
 func fapiBase() string {
 	if v := os.Getenv("BINANCE_FAPI_BASE"); v != "" {
@@ -62,7 +73,7 @@ func (b *binanceDS) LongShortRatio(period string, limit int) ([]LongShortPoint, 
 		ShortAccount   string `json:"shortAccount"`
 		Timestamp      int64  `json:"timestamp"`
 	}
-	if err := fetchJSON(u, &raw); err != nil {
+	if err := fetchJSONCached(u, ratioCacheTTL, &raw); err != nil {
 		return nil, err
 	}
 	out := make([]LongShortPoint, 0, len(raw))
@@ -194,7 +205,7 @@ func (b *binanceDS) OIHistory(period string, limit int) ([]OIPoint, error) {
 		SumOpenInterestVal string `json:"sumOpenInterestValue"`
 		Timestamp          int64  `json:"timestamp"`
 	}
-	if err := fetchJSON(u, &raw); err != nil {
+	if err := fetchJSONCached(u, oiHistCacheTTL, &raw); err != nil {
 		return nil, err
 	}
 	out := make([]OIPoint, 0, len(raw))
@@ -213,7 +224,7 @@ func (b *binanceDS) FundingInfo() (*FundingInfo, error) {
 	var px struct {
 		LastFundingRate string `json:"lastFundingRate"`
 	}
-	if err := fetchJSON(fapiBase()+"/fapi/v1/premiumIndex?symbol="+b.symbol, &px); err != nil {
+	if err := fetchJSONCached(fapiBase()+"/fapi/v1/premiumIndex?symbol="+b.symbol, premiumCacheTTL, &px); err != nil {
 		return nil, err
 	}
 	rate, _ := strconv.ParseFloat(px.LastFundingRate, 64)
@@ -225,7 +236,7 @@ func (b *binanceDS) FundingInfo() (*FundingInfo, error) {
 	var raw []struct {
 		FundingTime int64 `json:"fundingTime"`
 	}
-	if err := fetchJSON(fapiBase()+"/fapi/v1/fundingRate?symbol="+b.symbol+"&limit=4", &raw); err == nil && len(raw) >= 2 {
+	if err := fetchJSONCached(fapiBase()+"/fapi/v1/fundingRate?symbol="+b.symbol+"&limit=4", fundingCacheTTL, &raw); err == nil && len(raw) >= 2 {
 		gaps := []float64{}
 		for i := 1; i < len(raw); i++ {
 			h := float64(raw[i].FundingTime-raw[i-1].FundingTime) / 3.6e6
@@ -250,7 +261,7 @@ func (b *binanceDS) FundingHistory(limit int) ([]FundingPoint, error) {
 		Rate      string `json:"fundingRate"`
 		FundingTS int64  `json:"fundingTime"`
 	}
-	if err := fetchJSON(u, &raw); err != nil {
+	if err := fetchJSONCached(u, fundingCacheTTL, &raw); err != nil {
 		return nil, err
 	}
 	out := make([]FundingPoint, 0, len(raw))
@@ -264,11 +275,18 @@ func (b *binanceDS) FundingHistory(limit int) ([]FundingPoint, error) {
 // fetchKlines downloads and parses a Binance kline payload (futures or spot share the format).
 func fetchKlines(baseURL, symbol, interval string, limit int) ([]Kline, error) {
 	u := fmt.Sprintf("%s?symbol=%s&interval=%s&limit=%d", baseURL, symbol, interval, limit)
+	// Closed-bar series only change when the next bar closes: serve repeat
+	// requests (other scanners, the next 5-minute pass) from the cache until
+	// then — see cache.go.
+	if bars, ok := klineCacheGet(u); ok {
+		return bars, nil
+	}
 	var raw [][]interface{}
 	if err := fetchJSON(u, &raw); err != nil {
 		return nil, err
 	}
 	out := make([]Kline, 0, len(raw))
+	var formingClose int64 // close time of the forming candle = when this result goes stale
 	for _, r := range raw {
 		if len(r) < 11 {
 			continue
@@ -276,6 +294,9 @@ func fetchKlines(baseURL, symbol, interval string, limit int) ([]Kline, error) {
 		// Binance includes the forming candle. Confirmation and replay both
 		// consume only candles whose exchange close time has passed.
 		if closeTime := int64(toF(r[6])); closeTime >= time.Now().UnixMilli() {
+			if formingClose == 0 || closeTime < formingClose {
+				formingClose = closeTime
+			}
 			continue
 		}
 		out = append(out, Kline{
@@ -294,21 +315,33 @@ func fetchKlines(baseURL, symbol, interval string, limit int) ([]Kline, error) {
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no klines returned for %s %s", symbol, interval)
 	}
+	if formingClose > 0 {
+		klineCachePut(u, out, time.UnixMilli(formingClose).Add(klineCacheSlack))
+	}
 	return out, nil
 }
 
-func fetchJSON(rawURL string, out interface{}) error {
+// fetchBody GETs rawURL and returns the body of a 200 response.
+func fetchBody(rawURL string) ([]byte, error) {
 	resp, err := binanceHTTP.Get(rawURL)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
-		return fmt.Errorf("read body failed: %w", err)
+		return nil, fmt.Errorf("read body failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("status %d: %s", resp.StatusCode, truncate(string(body), 200))
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, truncate(string(body), 200))
+	}
+	return body, nil
+}
+
+func fetchJSON(rawURL string, out interface{}) error {
+	body, err := fetchBody(rawURL)
+	if err != nil {
+		return err
 	}
 	if err := json.Unmarshal(body, out); err != nil {
 		return fmt.Errorf("decode failed: %w", err)
@@ -374,7 +407,7 @@ type boardTicker struct {
 
 func fetchBoardTickers() ([]boardTicker, error) {
 	var raw []boardTicker
-	if err := fetchJSON(fapiBase()+"/fapi/v1/ticker/24hr", &raw); err != nil {
+	if err := fetchJSONCached(fapiBase()+"/fapi/v1/ticker/24hr", tickerCacheTTL, &raw); err != nil {
 		return nil, err
 	}
 	var out []boardTicker

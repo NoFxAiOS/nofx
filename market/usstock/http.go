@@ -9,11 +9,13 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"nofx/market/bnweight"
 )
 
 // Tests replace these variables before starting requests.
 var (
-	httpClient           = &http.Client{Timeout: 20 * time.Second}
+	httpClient           = &http.Client{Timeout: 20 * time.Second, Transport: bnweight.Wrap(nil, bnweight.Normal)}
 	spotBaseURL          = "https://api.binance.com"
 	futuresBaseURL       = "https://fapi.binance.com"
 	yahooBaseURL         = "https://query1.finance.yahoo.com"

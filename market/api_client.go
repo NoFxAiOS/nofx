@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"nofx/hook"
+	"nofx/market/bnweight"
 	"nofx/security"
 	"strconv"
 	"time"
@@ -30,8 +31,14 @@ func NewAPIClient() *APIClient {
 		client = hookRes.GetResult()
 	}
 
+	// Meter every Binance futures request through the shared weight guard
+	// (Normal priority: trader market data). Copy so a hook-supplied shared
+	// client is never mutated; its transport (proxy etc.) is preserved.
+	metered := *client
+	metered.Transport = bnweight.Wrap(client.Transport, bnweight.Normal)
+
 	return &APIClient{
-		client: client,
+		client: &metered,
 	}
 }
 

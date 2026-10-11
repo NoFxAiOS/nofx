@@ -23,10 +23,85 @@ var (
 	binanceSyncAccounts sync.Map // exchangeID -> *sync.Mutex
 )
 
+// Request-weight budget (Binance: 2400/min per IP, shared by every client):
+// each sync used to spend ~100 weight (two income probes at 30 each + one
+// 5-weight userTrades per candidate symbol) every 30 s per trader, even when
+// the account was idle. The mechanisms below cut that without losing trade
+// attribution. All bookkeeping is PER TRADER (traderID+exchangeID): traders
+// sharing one exchange account each keep syncing on their own schedule, so
+// one trader's probe or fingerprint state never suppresses another's queries.
+//   - probe throttle: the symbol-DISCOVERY income probes (COMMISSION and
+//     REALIZED_PNL, 60 weight) run every orderSyncProbeEvery, over a window
+//     that starts at the previous probe (with overlap) instead of at the last
+//     fill time — which on an idle account reached back hours or days and made
+//     every probe return, and every sync re-query, every symbol of that span.
+//   - fingerprint skip: a symbol known only because it is held / locally OPEN
+//     is not re-queried while its exchange position is unchanged since its
+//     last query (a fill always changes the position; net-zero round trips are
+//     caught by the next probe run).
+//   - carry-over: symbols whose query failed or filled its page are retried
+//     next run, so the throttled probe window cannot lose them.
+const (
+	orderSyncProbeEvery   = 2 * time.Minute
+	orderSyncProbeOverlap = 10 * time.Minute // income rows can lag the fill
+	orderSyncTradesLimit  = 500
+)
+
+// orderSyncAcct is the per-trader sync bookkeeping.
+type orderSyncAcct struct {
+	lastProbe time.Time         // start time of the last fully successful probe pair
+	pending   map[string]bool   // symbols to re-query next run (failed / truncated at the page limit)
+	queriedFP map[string]string // symbol -> exchange position fingerprint at its last query
+}
+
+var orderSyncAccts = map[string]*orderSyncAcct{} // guarded by binanceSyncStateMutex
+
+func orderSyncAcctLocked(traderID, exchangeID string) *orderSyncAcct {
+	key := traderID + "|" + exchangeID
+	a := orderSyncAccts[key]
+	if a == nil {
+		a = &orderSyncAcct{pending: map[string]bool{}, queriedFP: map[string]string{}}
+		orderSyncAccts[key] = a
+	}
+	return a
+}
+
+// positionFingerprints returns symbol -> a stable description of the open
+// exchange position(s) on that symbol.
+func (t *FuturesTrader) positionFingerprints() (map[string]string, error) {
+	positions, err := t.GetPositions()
+	if err != nil {
+		return nil, err
+	}
+	parts := map[string][]string{}
+	for _, pos := range positions {
+		sym, _ := pos["symbol"].(string)
+		if sym == "" {
+			continue
+		}
+		side, _ := pos["side"].(string)
+		amt, _ := pos["positionAmt"].(float64)
+		parts[sym] = append(parts[sym], fmt.Sprintf("%s:%g", side, amt))
+	}
+	out := make(map[string]string, len(parts))
+	for sym, ps := range parts {
+		sort.Strings(ps)
+		out[sym] = strings.Join(ps, "|")
+	}
+	return out, nil
+}
+
 // SyncOrdersFromBinance syncs Binance Futures trade history to local database
 // Uses COMMISSION detection + fromId for efficient incremental sync
 // Also creates/updates position records to ensure orders/fills/positions data consistency
+//
+// Direct callers (orphan reconciliation, tests) always run the full discovery
+// probes; only the periodic loop (StartOrderSync) throttles them.
 func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string, exchangeType string, st *store.Store) error {
+	return t.syncOrders(traderID, exchangeID, exchangeType, st, true)
+}
+
+func (t *FuturesTrader) syncOrders(traderID string, exchangeID string, exchangeType string, st *store.Store, forceProbe bool) error {
 	if st == nil {
 		return fmt.Errorf("store is nil")
 	}
@@ -78,35 +153,72 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 
 	// Step 2: Detect symbols to sync using multiple methods
 	// COMMISSION detection may miss trades (VIP users, BNB discount, 0-fee trades)
-	symbolMap := make(map[string]bool)
+	symbolMap := make(map[string]bool)             // every symbol to query this run
 	lastSyncTime := time.UnixMilli(lastSyncTimeMs) // Convert to time.Time for API calls
 
-	// Method 1: COMMISSION income detection
-	commissionSymbols, err := t.GetCommissionSymbols(lastSyncTime)
-	if err != nil {
-		if IsAuthOrIPError(err) {
-			return WrapAuthError(fmt.Sprintf("OrderSync commission probe (exchange %s)", exchangeID), err)
+	runStart := time.Now()
+	binanceSyncStateMutex.Lock()
+	acct := orderSyncAcctLocked(traderID, exchangeID)
+	lastProbe := acct.lastProbe
+	pendingNow := make([]string, 0, len(acct.pending))
+	for s := range acct.pending {
+		pendingNow = append(pendingNow, s)
+	}
+	prevFP := make(map[string]string, len(acct.queriedFP))
+	for s, fp := range acct.queriedFP {
+		prevFP[s] = fp
+	}
+	binanceSyncStateMutex.Unlock()
+
+	probeDue := forceProbe || lastProbe.IsZero() || runStart.Sub(lastProbe) >= orderSyncProbeEvery
+	// Probe window: from the last fill (as before) but no earlier than the
+	// previous successful probe minus an overlap — see the file-level note.
+	probeSince := lastSyncTime
+	if !lastProbe.IsZero() {
+		if ps := lastProbe.Add(-orderSyncProbeOverlap); ps.After(probeSince) {
+			probeSince = ps
 		}
-		logger.Warnf("  ⚠️ [%s] Failed to get commission symbols: %v", exchangeID, err)
-	} else {
-		logger.Infof("  📋 COMMISSION symbols found: %d - %v", len(commissionSymbols), commissionSymbols)
-		for _, s := range commissionSymbols {
-			symbolMap[s] = true
+	}
+
+	for _, s := range pendingNow {
+		symbolMap[s] = true
+	}
+	if len(pendingNow) > 0 {
+		logger.Infof("  📋 Pending (retry/continuation) symbols: %d - %v", len(pendingNow), pendingNow)
+	}
+
+	probesOK := probeDue
+	if probeDue {
+		// Method 1: COMMISSION income detection
+		commissionSymbols, err := t.GetCommissionSymbols(probeSince)
+		if err != nil {
+			probesOK = false
+			if IsAuthOrIPError(err) {
+				return WrapAuthError(fmt.Sprintf("OrderSync commission probe (exchange %s)", exchangeID), err)
+			}
+			logger.Warnf("  ⚠️ [%s] Failed to get commission symbols: %v", exchangeID, err)
+		} else {
+			logger.Infof("  📋 COMMISSION symbols found: %d - %v", len(commissionSymbols), commissionSymbols)
+			for _, s := range commissionSymbols {
+				symbolMap[s] = true
+			}
 		}
 	}
 
 	// Method 2: Always include active positions (catches trades that COMMISSION missed)
-	positionSymbols, err := t.getPositionSymbols()
+	fps, err := t.positionFingerprints()
 	if err != nil {
 		if IsAuthOrIPError(err) {
 			return WrapAuthError(fmt.Sprintf("OrderSync position probe (exchange %s)", exchangeID), err)
 		}
 		logger.Warnf("  ⚠️ [%s] Failed to get position symbols: %v", exchangeID, err)
+		fps = nil
 	} else {
-		logger.Infof("  📋 Position symbols found: %d - %v", len(positionSymbols), positionSymbols)
+		logger.Infof("  📋 Position symbols found: %d", len(fps))
 	}
-	for _, s := range positionSymbols {
-		symbolMap[s] = true
+	held := make(map[string]bool, len(fps))
+	for s := range fps {
+		held[s] = true
 	}
 
 	// Method 3: Include symbols from recent fills in DB (in case some were partially synced)
@@ -122,30 +234,65 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 		return fmt.Errorf("failed to discover DB open position symbols: %w", err)
 	}
 	for _, s := range openSymbols {
-		symbolMap[s] = true
+		held[s] = true
+	}
+
+	// Held / locally-open symbols have no activity evidence of their own: on a
+	// probe run they are all queried (full coverage every orderSyncProbeEvery);
+	// between probes only when their exchange position changed since the last
+	// query (a fill always changes it).
+	skippedHeld := 0
+	for s := range held {
+		if symbolMap[s] {
+			continue
+		}
+		cur, open := fps[s]
+		if !open {
+			cur = "flat"
+		}
+		if probeDue || fps == nil {
+			symbolMap[s] = true
+		} else if prev, seen := prevFP[s]; !seen || prev != cur {
+			symbolMap[s] = true
+		} else {
+			skippedHeld++
+		}
+	}
+	if skippedHeld > 0 {
+		logger.Infof("  ⏭️ %d held symbols unchanged since last query, skipped", skippedHeld)
 	}
 
 	// Method 4: ALWAYS query REALIZED_PNL income to find symbols with closed trades
 	// This catches trades that COMMISSION missed (VIP users, BNB fee discount)
 	// IMPORTANT: Must run always, not just when symbolMap is empty,
 	// because a position might be fully closed (no active position) but have PnL
-	pnlSymbols, err := t.GetPnLSymbols(lastSyncTime)
-	if err != nil {
-		if IsAuthOrIPError(err) {
-			return WrapAuthError(fmt.Sprintf("OrderSync PnL probe (exchange %s)", exchangeID), err)
+	// (always = on every probe run; probes are throttled, see orderSyncProbeEvery).
+	if probeDue {
+		pnlSymbols, err := t.GetPnLSymbols(probeSince)
+		if err != nil {
+			probesOK = false
+			if IsAuthOrIPError(err) {
+				return WrapAuthError(fmt.Sprintf("OrderSync PnL probe (exchange %s)", exchangeID), err)
+			}
+			logger.Warnf("  ⚠️ [%s] Failed to get PnL symbols: %v", exchangeID, err)
+		} else {
+			logger.Infof("  📋 REALIZED_PNL symbols found: %d - %v", len(pnlSymbols), pnlSymbols)
+			for _, s := range pnlSymbols {
+				symbolMap[s] = true
+			}
 		}
-		logger.Warnf("  ⚠️ [%s] Failed to get PnL symbols: %v", exchangeID, err)
-	} else {
-		logger.Infof("  📋 REALIZED_PNL symbols found: %d - %v", len(pnlSymbols), pnlSymbols)
-		for _, s := range pnlSymbols {
-			symbolMap[s] = true
-		}
+	}
+	if probeDue && probesOK {
+		binanceSyncStateMutex.Lock()
+		orderSyncAcctLocked(traderID, exchangeID).lastProbe = runStart
+		binanceSyncStateMutex.Unlock()
 	}
 
 	var changedSymbols []string
 	for s := range symbolMap {
 		changedSymbols = append(changedSymbols, s)
 	}
+	sort.Strings(changedSymbols)
 
 	if len(changedSymbols) == 0 {
 		logger.Infof("📭 No symbols with new trades to sync")
@@ -160,26 +307,51 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 	var allTrades []types.TradeRecord
 	var failedSymbols []string
 	apiCalls := 0
+	newPending := map[string]bool{}
+	queriedOK := map[string]string{} // symbol -> position fingerprint at query time
 	for _, symbol := range changedSymbols {
 		var trades []types.TradeRecord
 		var queryErr error
 
 		if lastID, ok := maxTradeIDs[symbol]; ok && lastID > 0 {
 			// Incremental sync: query from last known trade ID
-			trades, queryErr = t.GetTradesForSymbolFromID(symbol, lastID+1, 500)
+			trades, queryErr = t.GetTradesForSymbolFromID(symbol, lastID+1, orderSyncTradesLimit)
 		} else {
 			// New symbol or first sync: query by time
-			trades, queryErr = t.GetTradesForSymbol(symbol, lastSyncTime, 500)
+			trades, queryErr = t.GetTradesForSymbol(symbol, lastSyncTime, orderSyncTradesLimit)
 		}
 		apiCalls++
 
 		if queryErr != nil {
 			logger.Infof("  ⚠️ Failed to get trades for %s: %v", symbol, queryErr)
 			failedSymbols = append(failedSymbols, symbol)
+			newPending[symbol] = true // the throttled probe window may no longer reach back to it
 			continue
 		}
+		if len(trades) >= orderSyncTradesLimit {
+			newPending[symbol] = true // page full: more fills may follow
+		}
+		fp, open := fps[symbol]
+		if !open {
+			fp = "flat"
+		}
+		queriedOK[symbol] = fp
 		allTrades = append(allTrades, trades...)
 	}
+	binanceSyncStateMutex.Lock()
+	acct = orderSyncAcctLocked(traderID, exchangeID)
+	acct.pending = newPending
+	for s := range newPending {
+		delete(acct.queriedFP, s)
+	}
+	if fps != nil {
+		for s, fp := range queriedOK {
+			if !newPending[s] {
+				acct.queriedFP[s] = fp
+			}
+		}
+	}
+	binanceSyncStateMutex.Unlock()
 
 	logger.Infof("📥 Received %d trades from Binance (%d API calls)", len(allTrades), apiCalls)
 
@@ -306,6 +478,15 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 	// Update lastSyncTime to the LATEST trade time (not current time!)
 	// This ensures next sync starts from where we left off, not from "now"
 	// allTrades is already sorted by time ASC, so last element is the latest
+	if len(accountingFailed) > 0 {
+		binanceSyncStateMutex.Lock()
+		acct = orderSyncAcctLocked(traderID, exchangeID)
+		for s := range accountingFailed {
+			acct.pending[s] = true
+			delete(acct.queriedFP, s)
+		}
+		binanceSyncStateMutex.Unlock()
+	}
 	if len(allTrades) > 0 && len(failedSymbols) == 0 {
 		latestTradeTimeMs := allTrades[len(allTrades)-1].Time.UTC().UnixMilli()
 		binanceSyncStateMutex.Lock()
@@ -407,7 +588,7 @@ func (t *FuturesTrader) StartOrderSync(traderID string, exchangeID string, excha
 			logger.Infof("🔄 [%s] Running initial Binance order sync (exchange %s)...", traderID, exchangeID)
 			first = false
 		}
-		if err := t.SyncOrdersFromBinance(traderID, exchangeID, exchangeType, st); err != nil {
+		if err := t.syncOrders(traderID, exchangeID, exchangeType, st, false); err != nil {
 			logger.Infof("⚠️  [%s] Binance order sync failed (exchange %s): %v", traderID, exchangeID, err)
 			if IsAuthOrIPError(err) && !t.syncAuthAlerted.Swap(true) {
 				notify.Notify("ALERT", t.notifyLabel(), fmt.Sprintf("<b>🚨 Binance 认证/IP 校验失败（exchange %s），订单同步不可用</b>\n请检查该 API Key 的 IP 白名单与合约权限（当前出口 IP 见日志）；订单同步保留恢复探测，配置更新会重建客户端。", exchangeID))

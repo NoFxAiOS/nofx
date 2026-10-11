@@ -112,7 +112,7 @@ func gainerTickerSnapshot(limit int) ([]GainerQuote, []GainerQuote, map[string]G
 		PriceChangePercent string `json:"priceChangePercent"`
 		QuoteVolume        string `json:"quoteVolume"`
 	}
-	if err := fetchJSON(u, &raw); err != nil {
+	if err := fetchJSONCached(u, tickerCacheTTL, &raw); err != nil {
 		return nil, nil, nil, err
 	}
 	board := make([]GainerQuote, 0, limit)

@@ -4,10 +4,19 @@ import (
 	"context"
 	"fmt"
 	"nofx/logger"
+	"nofx/market/bnweight"
 	"nofx/trader/types"
 	"strconv"
 	"time"
 )
+
+// historyCtx marks trade/income history reads (order sync, closed-PnL lookups)
+// Normal in the shared Binance weight meter. The trader's client is Critical so
+// order placement and protection reads are never delayed; history is not
+// urgent and may wait out a busy minute or a 429/418 cooldown.
+func historyCtx() context.Context {
+	return bnweight.WithPriority(context.Background(), bnweight.Normal)
+}
 
 // GetBalance gets account balance (with cache)
 func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
@@ -139,7 +148,7 @@ func (t *FuturesTrader) GetTrades(startTime time.Time, limit int) ([]types.Trade
 		IncomeType("REALIZED_PNL").
 		StartTime(startTime.UnixMilli()).
 		Limit(int64(limit)).
-		Do(context.Background())
+		Do(historyCtx())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get income history: %w", err)
 	}
@@ -181,7 +190,7 @@ func (t *FuturesTrader) GetTradesForSymbol(symbol string, startTime time.Time, l
 		Symbol(symbol).
 		StartTime(startTime.UnixMilli()).
 		Limit(limit).
-		Do(context.Background())
+		Do(historyCtx())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get trade history for %s: %w", symbol, err)
 	}
@@ -226,7 +235,7 @@ func (t *FuturesTrader) GetTradesForSymbolFromID(symbol string, fromID int64, li
 		Symbol(symbol).
 		FromID(fromID).
 		Limit(limit).
-		Do(context.Background())
+		Do(historyCtx())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get trade history for %s from ID %d: %w", symbol, fromID, err)
 	}
@@ -264,7 +273,7 @@ func (t *FuturesTrader) GetCommissionSymbols(lastSyncTime time.Time) ([]string, 
 		IncomeType("COMMISSION").
 		StartTime(lastSyncTime.UnixMilli()).
 		Limit(1000).
-		Do(context.Background())
+		Do(historyCtx())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get commission history: %w", err)
 	}
@@ -291,7 +300,7 @@ func (t *FuturesTrader) GetPnLSymbols(lastSyncTime time.Time) ([]string, error) 
 		IncomeType("REALIZED_PNL").
 		StartTime(lastSyncTime.UnixMilli()).
 		Limit(1000).
-		Do(context.Background())
+		Do(historyCtx())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PnL history: %w", err)
 	}

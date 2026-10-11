@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"nofx/market/bnweight"
 	"nofx/security"
 	"time"
 )
@@ -30,7 +31,8 @@ func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kl
 	var all []Kline
 	cursor := startMs
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	// History paging (limit=1500 = weight 10 per page) is Low priority.
+	client := &http.Client{Timeout: 15 * time.Second, Transport: bnweight.Wrap(nil, bnweight.Low)}
 
 	for cursor < endMs {
 		req, err := http.NewRequest("GET", binanceFuturesKlinesURL, nil)

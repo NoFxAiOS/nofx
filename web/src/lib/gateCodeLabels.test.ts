@@ -19,6 +19,26 @@ describe('gateCodeLabel', () => {
       'micro-trend not short'
     )
   })
+  it('labels the 2026-10 anti-chase entry gates', () => {
+    expect(gateCodeLabel('CHASE_EMA20_1H_7.4_GT_6', 'zh').label).toBe(
+      '追高(1h EMA20 偏离 7.4% > 6%)'
+    )
+    expect(gateCodeLabel('COUNTER_EMA20_1H_3.8_GT_3', 'en').label).toBe(
+      'counter-trend vs 1h EMA20 3.8% > 3%'
+    )
+    expect(gateCodeLabel('RSI1H_EXHAUSTED_81', 'zh').label).toBe(
+      '1h RSI 极端 81'
+    )
+    expect(gateCodeLabel('CHASE_MOVE4H_9.2_GT_6', 'zh').label).toBe(
+      '4h 已涨跌过大 9.2% > 6%'
+    )
+    expect(gateCodeLabel('CHASE_MOVE4H_9.2_GT_6', 'id').label).toBe(
+      'pergerakan 4h terlalu besar 9.2% > 6%'
+    )
+    expect(gateCodeLabel('CHASE_EMA20_1H_7.4_GT_6', 'zh').raw).toBe(
+      'CHASE_EMA20_1H_7.4_GT_6'
+    )
+  })
   it('renders unknown codes raw', () => {
     expect(gateCodeLabel('SOMETHING_NEW_3', 'zh').label).toBe('SOMETHING_NEW_3')
   })

@@ -566,6 +566,51 @@ export const riskControl = {
     en: 'Coins with 4h trend-window return ≥ N% need a CONFIRMED pullback for longs (15m back above EMA20 + higher swing low), else longs are blocked (EXTENDED_PUMP_UNCONFIRMED); 0 = default 20, negative = disabled',
     es: 'Monedas con retorno 4h ≥ N% requieren retroceso confirmado para largos; 0 = 20 por defecto, negativo = desactivado',
   },
+  antiChaseTitle: {
+    zh: '防追高 / 逆势入场门',
+    en: 'Anti-chase entry gates',
+    es: 'Filtros anti-persecución',
+  },
+  chaseMaxEma20Pct: {
+    zh: '防追高:1h EMA20 顺向偏离上限(%)',
+    en: 'Anti-Chase: Max 1h EMA20 Distance in Trade Direction (%)',
+    es: 'Antipersecución: Distancia Máx. EMA20 1h (%)',
+  },
+  chaseMaxEma20PctDesc: {
+    zh: '入场价顺交易方向偏离 1h EMA20 超过 N% 时拒绝开仓(追高,做多和做空都生效);0 = 默认 6,负数 = 禁用。不适用于美股代币',
+    en: 'Blocks entries more than N% beyond the 1h EMA20 in the trade direction (chasing; applies to both long and short); 0 = default 6, negative = disabled. Not applied to US-equity tokens',
+    es: 'Bloquea entradas a más de N% del EMA20 1h en la dirección de la operación (perseguir; aplica a largos y cortos); 0 = 6 por defecto, negativo = desactivado. No aplica a tokens de acciones de EE. UU.',
+  },
+  counterMaxEma20Pct: {
+    zh: '逆势入场门:1h EMA20 反向偏离上限(%)',
+    en: 'Counter-Trend Gate: Max Wrong-Side 1h EMA20 Distance (%)',
+    es: 'Filtro Contratendencia: Distancia Máx. EMA20 1h (%)',
+  },
+  counterMaxEma20PctDesc: {
+    zh: '入场价在 1h EMA20 错误一侧超过 N% 时拒绝开仓(防接飞刀 / 防逆势做空暴涨币,做多和做空都生效);0 = 默认 3,负数 = 禁用。不适用于美股代币',
+    en: 'Blocks entries more than N% on the wrong side of the 1h EMA20 (catching a knife / fading a pump; applies to both long and short); 0 = default 3, negative = disabled. Not applied to US-equity tokens',
+    es: 'Bloquea entradas a más de N% en el lado incorrecto del EMA20 1h (atrapar un cuchillo; aplica a largos y cortos); 0 = 3 por defecto, negativo = desactivado. No aplica a tokens de acciones de EE. UU.',
+  },
+  entryRsi1hMax: {
+    zh: 'RSI 极端门:1h RSI 上限',
+    en: 'RSI Exhaustion Gate: Max 1h RSI',
+    es: 'Filtro RSI Extremo: RSI 1h Máximo',
+  },
+  entryRsi1hMaxDesc: {
+    zh: '1h RSI ≥ N 拒绝做多,1h RSI ≤ 100−N 拒绝做空(防极端超买/超卖入场,做多和做空都生效);0 = 默认 78,负数 = 禁用。不适用于美股代币',
+    en: 'Longs blocked when 1h RSI ≥ N, shorts blocked when 1h RSI ≤ 100−N (overheated momentum; applies to both long and short); 0 = default 78, negative = disabled. Not applied to US-equity tokens',
+    es: 'Largos bloqueados con RSI 1h ≥ N, cortos con RSI 1h ≤ 100−N (momento sobrecalentado; aplica a largos y cortos); 0 = 78 por defecto, negativo = desactivado. No aplica a tokens de acciones de EE. UU.',
+  },
+  chaseMaxMove4hPct: {
+    zh: '防追高:4h 顺方向涨跌上限(%)',
+    en: 'Anti-Chase: Max 4h Directional Move (%)',
+    es: 'Antipersecución: Movimiento Máx. 4h (%)',
+  },
+  chaseMaxMove4hPctDesc: {
+    zh: '最近 4h 顺交易方向涨跌超过 N% 时拒绝开仓(防追大阳线/大阴线,做多和做空都生效);0 = 默认 6,负数 = 禁用。不适用于美股代币',
+    en: 'Blocks entries after a move of more than N% over the last 4h in the trade direction (applies to both long and short); 0 = default 6, negative = disabled. Not applied to US-equity tokens',
+    es: 'Bloquea entradas tras un movimiento de más de N% en 4h en la dirección de la operación (aplica a largos y cortos); 0 = 6 por defecto, negativo = desactivado. No aplica a tokens de acciones de EE. UU.',
+  },
   tpTrimProfitPct: {
     zh: '止盈阶梯:减仓 1/3 触发浮盈(%)',
     en: 'TP Ladder: Trim-1/3 PnL (%)',

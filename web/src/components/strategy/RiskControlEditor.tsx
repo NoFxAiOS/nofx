@@ -109,6 +109,120 @@ export function RiskControlEditor({
             </p>
           </div>
 
+          {/* Anti-chase entry gates */}
+          <div className="mb-2 mt-4">
+            <p className="text-xs font-medium mb-2 text-brand">
+              {ts(riskControl.antiChaseTitle, language)}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-lg bg-surface-2 border border-line">
+            <label className="block text-[13px] mb-1 text-fg-2">
+              {ts(riskControl.chaseMaxEma20Pct, language)}
+            </label>
+            <p className="text-xs mb-2 text-fg-3">
+              {ts(riskControl.chaseMaxEma20PctDesc, language)}
+            </p>
+            <Input
+              type="number"
+              value={config.chase_max_ema20_1h_pct ?? 0}
+              onChange={(e) =>
+                updateField(
+                  'chase_max_ema20_1h_pct',
+                  e.target.value === '' ? 0 : parseFloat(e.target.value)
+                )
+              }
+              disabled={disabled}
+              min={-1}
+              max={50}
+              step={0.5}
+              className="w-32 px-3 bg-surface-2 border border-line text-fg num text-right"
+            />
+            <p className="text-xs mt-2 font-medium text-up">
+              {`当前生效: ${(config.chase_max_ema20_1h_pct ?? 0) === 0 ? 6 : (config.chase_max_ema20_1h_pct ?? 0) < 0 ? '禁用' : config.chase_max_ema20_1h_pct}%`}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-lg bg-surface-2 border border-line">
+            <label className="block text-[13px] mb-1 text-fg-2">
+              {ts(riskControl.counterMaxEma20Pct, language)}
+            </label>
+            <p className="text-xs mb-2 text-fg-3">
+              {ts(riskControl.counterMaxEma20PctDesc, language)}
+            </p>
+            <Input
+              type="number"
+              value={config.counter_max_ema20_1h_pct ?? 0}
+              onChange={(e) =>
+                updateField(
+                  'counter_max_ema20_1h_pct',
+                  e.target.value === '' ? 0 : parseFloat(e.target.value)
+                )
+              }
+              disabled={disabled}
+              min={-1}
+              max={50}
+              step={0.5}
+              className="w-32 px-3 bg-surface-2 border border-line text-fg num text-right"
+            />
+            <p className="text-xs mt-2 font-medium text-up">
+              {`当前生效: ${(config.counter_max_ema20_1h_pct ?? 0) === 0 ? 3 : (config.counter_max_ema20_1h_pct ?? 0) < 0 ? '禁用' : config.counter_max_ema20_1h_pct}%`}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-lg bg-surface-2 border border-line">
+            <label className="block text-[13px] mb-1 text-fg-2">
+              {ts(riskControl.entryRsi1hMax, language)}
+            </label>
+            <p className="text-xs mb-2 text-fg-3">
+              {ts(riskControl.entryRsi1hMaxDesc, language)}
+            </p>
+            <Input
+              type="number"
+              value={config.entry_rsi1h_max ?? 0}
+              onChange={(e) =>
+                updateField(
+                  'entry_rsi1h_max',
+                  e.target.value === '' ? 0 : parseFloat(e.target.value)
+                )
+              }
+              disabled={disabled}
+              min={-1}
+              max={100}
+              className="w-32 px-3 bg-surface-2 border border-line text-fg num text-right"
+            />
+            <p className="text-xs mt-2 font-medium text-up">
+              {`当前生效: ${(config.entry_rsi1h_max ?? 0) === 0 ? 78 : (config.entry_rsi1h_max ?? 0) < 0 ? '禁用' : config.entry_rsi1h_max}`}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-lg bg-surface-2 border border-line">
+            <label className="block text-[13px] mb-1 text-fg-2">
+              {ts(riskControl.chaseMaxMove4hPct, language)}
+            </label>
+            <p className="text-xs mb-2 text-fg-3">
+              {ts(riskControl.chaseMaxMove4hPctDesc, language)}
+            </p>
+            <Input
+              type="number"
+              value={config.chase_max_move4h_pct ?? 0}
+              onChange={(e) =>
+                updateField(
+                  'chase_max_move4h_pct',
+                  e.target.value === '' ? 0 : parseFloat(e.target.value)
+                )
+              }
+              disabled={disabled}
+              min={-1}
+              max={50}
+              step={0.5}
+              className="w-32 px-3 bg-surface-2 border border-line text-fg num text-right"
+            />
+            <p className="text-xs mt-2 font-medium text-up">
+              {`当前生效: ${(config.chase_max_move4h_pct ?? 0) === 0 ? 6 : (config.chase_max_move4h_pct ?? 0) < 0 ? '禁用' : config.chase_max_move4h_pct}%`}
+            </p>
+          </div>
+
           <div className="p-3 rounded-lg bg-surface-2 border border-line">
             <label className="block text-[13px] mb-1 text-fg-2">
               {ts(riskControl.tpTrimProfitPct, language)}

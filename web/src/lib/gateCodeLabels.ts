@@ -37,6 +37,26 @@ const RULES: Rule[] = [
     key: 'gateCode.ema20Stretch',
     v: (m) => `${m[1]}%`,
   },
+  {
+    re: /^CHASE_EMA20_1H_(-?[\d.]+)_GT_(-?[\d.]+)$/,
+    key: 'gateCode.chaseEma20_1h',
+    v: (m) => `${m[1]}% > ${m[2]}%`,
+  },
+  {
+    re: /^COUNTER_EMA20_1H_(-?[\d.]+)_GT_(-?[\d.]+)$/,
+    key: 'gateCode.counterEma20_1h',
+    v: (m) => `${m[1]}% > ${m[2]}%`,
+  },
+  {
+    re: /^RSI1H_EXHAUSTED_(-?[\d.]+)$/,
+    key: 'gateCode.rsi1hExhausted',
+    v: (m) => m[1],
+  },
+  {
+    re: /^CHASE_MOVE4H_(-?[\d.]+)_GT_(-?[\d.]+)$/,
+    key: 'gateCode.chaseMove4h',
+    v: (m) => `${m[1]}% > ${m[2]}%`,
+  },
   { re: /^EXTENDED_PUMP_UNCONFIRMED$/, key: 'gateCode.extendedPump' },
   {
     re: /^CONSENSUS_OPPOSED_(\d+)$/,

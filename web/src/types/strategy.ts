@@ -267,6 +267,14 @@ export interface RiskControlConfig {
   time_stop_hours?: number
   // 暴涨延伸做多确认门：4h 趋势窗口涨幅 ≥ N% 时做多需回踩确认；0 = 默认 20，负数 = 禁用
   pump_guard_4h_pct?: number
+  // 防追高门：入场价顺交易方向偏离 1h EMA20 超过 N% 拒绝开仓；0 = 默认 6，负数 = 禁用
+  chase_max_ema20_1h_pct?: number
+  // 逆势入场门：入场价在 1h EMA20 错误一侧超过 N% 拒绝开仓；0 = 默认 3，负数 = 禁用
+  counter_max_ema20_1h_pct?: number
+  // RSI 极端门：1h RSI ≥ N 拒绝做多、≤ 100−N 拒绝做空；0 = 默认 78，负数 = 禁用
+  entry_rsi1h_max?: number
+  // 防追高门：最近 4h 顺交易方向涨跌超过 N% 拒绝开仓；0 = 默认 6，负数 = 禁用
+  chase_max_move4h_pct?: number
   // TP ladder on leveraged PnL%: at ≥ this the program trims 1/3 (0 = default 10, negative = off) (CODE ENFORCED)
   tp_trim_profit_pct?: number
   // At ≥ this PnL% the program closes the rest (0 = default 25, negative = off) (CODE ENFORCED)

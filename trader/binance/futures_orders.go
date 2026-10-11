@@ -1014,28 +1014,18 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 	// -4130 on a TP: an open TAKE_PROFIT* leg exists in this direction. For
 	// TPs the -4130 block is unconditional (any GTE+closePosition TP), so
 	// retrying without cancelling can never succeed — mirror the SL leg's
-	// cancel-and-replace. The volume/quantity distinction is lost on the
-	// replacement (Binance's -4130 doesn't discriminate), so the new leg is
-	// the SAME shape the caller asked for; only a full-close-mode retry is
-	// attempted, which matches both callers' intent (full TP or split-TP
-	// refresh after a partial).
+	// cancel-and-replace. review 2026-10-11: reuse the first request's shape
+	// so a quantity-limited TP cannot silently become a full-position close.
+	// Only the client ID changes; quantity/closePosition and side stay intact.
 	if err != nil && isStaleProtectiveOrder(err) {
 		if cerr := t.CancelTakeProfitOrdersForSide(symbol, string(posSide)); cerr != nil {
 			return fmt.Errorf("failed to set take-profit: stale algo leg replacement failed at cancel: %w", cerr)
 		}
-		retry := t.client.NewCreateAlgoOrderService().
-			Symbol(symbol).
-			Side(side).
-			PositionSide(posSide).
-			Type(futures.AlgoOrderTypeTakeProfitMarket).
-			TriggerPrice(priceStr).
-			WorkingType(futures.WorkingTypeContractPrice).
-			ClosePosition(true)
-		if _, err2 := retry.ClientAlgoId(getBrOrderID()).
+		if _, err2 := algo.ClientAlgoId(getBrOrderID()).
 			Do(context.Background()); err2 != nil {
 			return fmt.Errorf("failed to set take-profit: stale algo leg cancelled but re-place failed: %w", err2)
 		}
-		logger.Infof("  ♻️ Take-profit replaced: stale -4130 leg cancelled, new trigger %.4f (Algo Order, full-close mode)", takeProfitPrice)
+		logger.Infof("  ♻️ Take-profit replaced: stale -4130 leg cancelled, new trigger %.4f (Algo Order, original close shape)", takeProfitPrice)
 		return nil
 	}
 

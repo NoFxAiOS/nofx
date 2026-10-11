@@ -367,12 +367,17 @@ func (at *AutoTrader) processVolTargetAndTrailing() {
 			// Trim idempotency is r1TrimDone.
 			beOffset := kernel.ProfitLockBreakevenOffsetR(&at.config.StrategyConfig.RiskControl)
 			bePrice, trim := kernel.ProfitLockTargets(side, entry, initialSL, currentSL, markPrice, lockR, beOffset)
+			// review 2026-10-11: a partial trim is safe only with its runner
+			// protected at breakeven. Zero means the recorded stop is already
+			// at/through the target (including an earlier breakeven arm).
+			breakevenConfirmed := bePrice == 0 || (side == "long" && currentSL >= bePrice) || (side == "short" && currentSL <= bePrice)
 			if bePrice > 0 {
 				if err := at.moveStopExchange(symbol, side, bePrice); err != nil {
 					logger.Infof("⚠️ [%s] Breakeven SL place failed for %s: %v", at.name, symbol, err)
 				} else {
 					at.SetRecordedStopLoss(symbol, side, bePrice)
 					currentSL = bePrice // review 2026-10-07 B1-2: trailing must retain breakeven.
+					breakevenConfirmed = true
 					if beOffset > 0 {
 						logger.Infof("🔒 [%s] Breakeven+%.1fR armed: %s %dR reached — SL moved to %.6g (entry %.6g + %.1fR, locks a sliver past flat)", at.name, beOffset, symbol, int(lockR), bePrice, entry, beOffset)
 						notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 保本+%.1fR 止损 %s</b>\n浮盈达 %.0fR,止损已移至开仓价+%.1fR <code>%.6g</code>——锁住一档微利,防噪声扫回平手", beOffset, notify.Escape(symbol), lockR, beOffset, bePrice))
@@ -419,17 +424,21 @@ func (at *AutoTrader) processVolTargetAndTrailing() {
 						}
 						continue
 					}
-					at.markCloseIntent(symbol, side, "profit_lock_trim")
-					if _, err := at.reducePosition(symbol, side, qty*0.5); err == nil {
-						at.tpTrimMutex.Lock()
-						at.r1TrimDone[posKey] = true
-						at.tpTrimDone[posKey] = true // the ROE trim tier is consumed by the 1R lock
-						at.tpTrimMutex.Unlock()
-						at.persistTrimFlags(symbol, side)
-						logger.Infof("🎯 [%s] 1R trim: %s 50%% trimmed @ %.6g (breakeven SL, rest rides to structural TP)", at.name, symbol, markPrice)
-						notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🎯 1R 止盈减仓 %s</b>\n浮盈达 %.0fR,市价减仓 50%% 锁定利润,剩余仓位止损已保本、继续持有", notify.Escape(symbol), lockR))
+					if !breakevenConfirmed {
+						logger.Infof("⚠️ [%s] 1R trim skipped for %s: breakeven SL not confirmed — retries next cycle", at.name, symbol)
 					} else {
-						logger.Infof("❌ [%s] 1R trim failed (%s) — retries next cycle", at.name, symbol)
+						at.markCloseIntent(symbol, side, "profit_lock_trim")
+						if _, err := at.reducePosition(symbol, side, qty*0.5); err == nil {
+							at.tpTrimMutex.Lock()
+							at.r1TrimDone[posKey] = true
+							at.tpTrimDone[posKey] = true // the ROE trim tier is consumed by the 1R lock
+							at.tpTrimMutex.Unlock()
+							at.persistTrimFlags(symbol, side)
+							logger.Infof("🎯 [%s] 1R trim: %s 50%% trimmed @ %.6g (breakeven SL, rest rides to structural TP)", at.name, symbol, markPrice)
+							notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🎯 1R 止盈减仓 %s</b>\n浮盈达 %.0fR,市价减仓 50%% 锁定利润,剩余仓位止损已保本、继续持有", notify.Escape(symbol), lockR))
+						} else {
+							logger.Infof("❌ [%s] 1R trim failed (%s) — retries next cycle", at.name, symbol)
+						}
 					}
 				}
 			}

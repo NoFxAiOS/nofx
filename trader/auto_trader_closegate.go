@@ -15,12 +15,13 @@ type closeGateView struct {
 	// For a long: nearest overhead resistance above the mark (15m/1h arrays +
 	// structure highs). For a short: nearest support below the mark.
 	NearestOppositeLevel float64
-	// True when the 15m near-TF structure already reversed: long — price at/
-	// below the nearest 15m support; short — price at/above the nearest 15m
-	// resistance. The gate only blocks while this is FALSE.
+	// True when the closed 15m candle broke an entry-relative swing level.
+	// Live snapshots are evaluated in closeRejectBreakoutBlocks, where the
+	// caller already supplies the position's entry price.
 	StructureBroken bool
 	PrimaryTFTrend  string
 	MarkPrice       float64
+	structure15m    *kernel.TFSignal
 }
 
 // nearestOppositeLevel scans the 15m/1h structure arrays for the level that
@@ -81,19 +82,33 @@ func buildCloseGateView(data *market.Data, side string, markPrice float64) *clos
 		PrimaryTFTrend:       tf15.Trend,
 		MarkPrice:            markPrice,
 		NearestOppositeLevel: nearestOppositeLevel(sig, side, markPrice),
-	}
-	if side == "long" {
-		// 15m structure broken: price at/below the nearest support.
-		if len(tf15.Support) > 0 && tf15.Support[0] > 0 {
-			v.StructureBroken = markPrice <= tf15.Support[0]
-		}
-	} else {
-		// 15m structure broken: price at/above the nearest resistance.
-		if len(tf15.Resistance) > 0 && tf15.Resistance[0] > 0 {
-			v.StructureBroken = markPrice >= tf15.Resistance[0]
-		}
+		structure15m:         tf15,
 	}
 	return v
+}
+
+// review 2026-10-11: live-price S/R arrays reclassify a broken pivot away.
+// Use uncapped swings anchored at entry and the last CLOSED candle instead.
+// Entry is already available at the gate, avoiding changes to its caller.
+func closeGateStructureBroken(tf15 *kernel.TFSignal, side string, entryPrice float64) bool {
+	if tf15 == nil || tf15.LastClose <= 0 || entryPrice <= 0 {
+		return false
+	}
+	level := 0.0
+	if side == "long" {
+		for _, support := range tf15.StructuralSupport {
+			if support > 0 && support <= entryPrice && support > level {
+				level = support
+			}
+		}
+		return level > 0 && tf15.LastClose < level
+	}
+	for _, resistance := range tf15.StructuralResistance {
+		if resistance >= entryPrice && (level == 0 || resistance < level) {
+			level = resistance
+		}
+	}
+	return level > 0 && tf15.LastClose > level
 }
 
 // closeRejectBreakoutBlocks decides whether an AI-initiated close of a LOSING
@@ -130,7 +145,7 @@ func closeRejectBreakoutBlocks(side string, entryPrice float64, v *closeGateView
 	if distPct <= 0 || distPct >= thresholdPct {
 		return false, "" // level absent, or too far to matter
 	}
-	if v.StructureBroken {
+	if v.StructureBroken || closeGateStructureBroken(v.structure15m, side, entryPrice) {
 		return false, "" // 15m structure already reversed — let the AI exit
 	}
 	kind := "resistance"

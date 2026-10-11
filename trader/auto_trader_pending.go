@@ -272,7 +272,7 @@ func (at *AutoTrader) executeOpenLimit(decision *kernel.Decision, actionRecord *
 				// resting order here — otherwise it would survive next to
 				// the fresh market position.
 				if old := at.getPendingEntry(decision.Symbol, side); old != nil {
-					if err := at.cancelPending(old); err != nil {
+					if err := at.cancelPendingForReplacement(old); err != nil {
 						return fmt.Errorf("cannot cancel replaced limit entry for %s %s: %w", old.Symbol, old.Side, err)
 					}
 					logger.Infof("  🔄 Cancelled replaced pending limit entry for %s (@ %.6g)", old.Symbol, old.Price)
@@ -368,7 +368,7 @@ func (at *AutoTrader) executeOpenLimit(decision *kernel.Decision, actionRecord *
 
 	// Replace only this side; an opposite-side limit entry remains owned.
 	if old := at.getPendingEntry(decision.Symbol, side); old != nil {
-		if err := at.cancelPending(old); err != nil {
+		if err := at.cancelPendingForReplacement(old); err != nil {
 			return fmt.Errorf("cannot cancel replaced limit entry for %s %s: %w", old.Symbol, old.Side, err)
 		}
 		logger.Infof("  🔄 Replaced pending limit entry for %s (@ %.6g)", old.Symbol, old.Price)
@@ -626,11 +626,32 @@ func (at *AutoTrader) reportFilledRR(pe *pendingEntry, fillPrice float64) {
 
 // cancelPending cancels the exchange order and drops the pending state.
 func (at *AutoTrader) cancelPending(pe *pendingEntry) error {
+	_, err := at.cancelPendingWithExecuted(pe)
+	return err
+}
+
+// review 2026-10-11: a cancel can race a fill after the position check;
+// that slice now owns the position, so neither limit nor market replacement
+// may add another entry. Other cancellation callers keep their prior behavior.
+func (at *AutoTrader) cancelPendingForReplacement(pe *pendingEntry) error {
+	executed, err := at.cancelPendingWithExecuted(pe)
+	if err != nil {
+		return err
+	}
+	if executed > 0 {
+		err := fmt.Errorf("old limit entry filled during replacement — new entry aborted; position now owned by the filled slice (%s %s, executed %.6g)", pe.Symbol, pe.Side, executed)
+		logger.Warnf("%v", err)
+		return err
+	}
+	return nil
+}
+
+func (at *AutoTrader) cancelPendingWithExecuted(pe *pendingEntry) (float64, error) {
 	grid, ok := at.trader.(interface {
 		CancelOrder(symbol, orderID string) error
 	})
 	if !ok {
-		return fmt.Errorf("exchange does not support order cancellation")
+		return pe.ExecutedQty, fmt.Errorf("exchange does not support order cancellation")
 	}
 	cancelErr := grid.CancelOrder(pe.Symbol, pe.OrderID)
 	if cancelErr != nil {
@@ -640,24 +661,26 @@ func (at *AutoTrader) cancelPending(pe *pendingEntry) error {
 	// status poll and this cancel succeeding. Re-query once and protect any
 	// executed slice BEFORE dropping the plan (protectExecutedSlice is
 	// idempotent on the watermark). On Binance a cancel of a fully-filled
-	// order errors → early return above → the FILLED branch handles it.
+	// order can error; the terminal receipt and verified coverage still
+	// determine the final cancellation result.
 	status, err := at.trader.GetOrderStatus(pe.Symbol, pe.OrderID)
 	if err != nil {
-		return fmt.Errorf("cancel accepted, final fill unknown: %w", err)
+		return pe.ExecutedQty, fmt.Errorf("cancel accepted, final fill unknown: %w", err)
 	}
+	executed := math.Max(pe.ExecutedQty, statusFloat(status, "executedQty"))
 	at.protectExecutedSlice(pe, status)
 	st, _ := status["status"].(string)
 	switch strings.ToUpper(st) {
 	case "CANCELED", "EXPIRED", "REJECTED", "FILLED":
 	default:
-		return fmt.Errorf("cancel not terminal: %s", st)
+		return executed, fmt.Errorf("cancel not terminal: %s", st)
 	}
 	if !pendingProtectionComplete(pe, status) {
-		return fmt.Errorf("cancel accepted, residual protection incomplete")
+		return executed, fmt.Errorf("cancel accepted, residual protection incomplete")
 	}
 	at.dropPendingEntry(pe.Symbol, pe.Side)
 	notify.Notify("ORDER", at.name, fmt.Sprintf("<b>限价单终态已确认 %s</b>\n已成交 %.6g，残量保护已核验", notify.Escape(pe.Symbol), statusFloat(status, "executedQty")))
-	return nil
+	return executed, nil
 }
 
 // review 2026-10-08 D: live and shadow entries share the configured cycle limit.
@@ -734,16 +757,23 @@ func (at *AutoTrader) protectExecutedSlice(pe *pendingEntry, status map[string]i
 		return 0
 	}
 	newSL, newTP := pe.StopLoss, pe.TakeProfit
+	recordedSL := at.GetRecordedStopLoss(pe.Symbol, pe.Side)
+	// review 2026-10-11: later fills must extend coverage without undoing
+	// breakeven/trailing/AI tightening; the opening-risk anchor stays the plan.
+	if recordedSL > 0 && !math.IsNaN(recordedSL) && !math.IsInf(recordedSL, 0) &&
+		(newSL <= 0 || (pe.Side == "long" && recordedSL > newSL) || (pe.Side == "short" && recordedSL < newSL)) {
+		newSL = recordedSL
+	}
 	if newSL <= 0 || newTP <= 0 {
 		return 0
 	}
 	at.markAIManaged(pe.Symbol, pe.Side, pe.OrderID)
 	posKey := pe.Symbol + "_" + pe.Side
-	if at.GetRecordedStopLoss(pe.Symbol, pe.Side) <= 0 {
+	if recordedSL <= 0 {
 		// First slice of this entry: the 1R anchor and the recorded stop are
 		// the REAL opening risk (actual fill), not the plan's limit price.
 		at.SetRecordedStopLoss(pe.Symbol, pe.Side, newSL)
-		at.SetInitialStopLoss(pe.Symbol, pe.Side, newSL)
+		at.SetInitialStopLoss(pe.Symbol, pe.Side, pe.StopLoss)
 		at.SetExitMode(pe.Symbol, pe.Side, pe.ExitMode)
 		at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 		at.ClearPeakPnLCache(pe.Symbol, pe.Side)

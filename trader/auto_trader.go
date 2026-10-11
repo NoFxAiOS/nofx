@@ -148,10 +148,10 @@ type AutoTrader struct {
 	recheckDataFn func(symbol string) (*market.Data, error)
 	// btcTrendClosesFn, when set (tests), replaces the BTC 4h closes fetch;
 	// nil = live kernel.BTC4hTrendCloses.
-	btcTrendClosesFn           func(limit int) []float64
+	btcTrendClosesFn func(limit int) []float64
 	// marketDataFn, when set (tests), replaces the generic execution-quote
 	// fetch (getMarketData); nil = live GetMarketPrice + GetWithExchange.
-	marketDataFn func(symbol string) (*market.Data, error)
+	marketDataFn               func(symbol string) (*market.Data, error)
 	mcpClient                  mcp.AIClient
 	store                      *store.Store           // Data storage (decision records, etc.)
 	strategyEngine             *kernel.StrategyEngine // Strategy engine (uses strategy configuration)
@@ -174,6 +174,8 @@ type AutoTrader struct {
 	isRunning                  bool
 	lifecycleMu                sync.Mutex
 	executionStateMu           sync.Mutex
+	realtimeMu                 sync.RWMutex
+	realtime                   *realtimeProtection // review 2026-10-11: Binance-only stream lifecycle
 	runVersion                 uint64
 	aiCancel                   context.CancelFunc
 	runDone                    chan struct{}
@@ -579,6 +581,7 @@ func (at *AutoTrader) run() (err error) {
 			close(at.stopMonitorCh)
 		}
 		at.isRunningMutex.Unlock()
+		at.stopRealtimeProtection()
 		if syncer, ok := at.trader.(interface{ StopOrderSync() }); ok {
 			syncer.StopOrderSync()
 		}
@@ -631,6 +634,7 @@ func (at *AutoTrader) run() (err error) {
 	// orders, offline fills get their protective orders placed, unowned
 	// tagged orders get cancelled (see auto_trader_reconcile.go).
 	withExecutionLock(at.executionMutex(), func() (bool, error) { at.ReconcilePendingEntries(); return true, nil })
+	at.startRealtimeProtection()
 
 	// All adapters, including wrappers such as Binance Stocks, share one
 	// lifecycle contract instead of a per-exchange start/stop matrix.
@@ -741,6 +745,7 @@ func (at *AutoTrader) Stop() {
 	}
 	at.isRunningMutex.Unlock()
 
+	at.stopRealtimeProtection()
 	at.executionMutex().Lock()
 	if at.trader != nil && at.gridState != nil && at.config.StrategyConfig != nil && at.config.StrategyConfig.GridConfig != nil {
 		if err := at.pauseGrid("trader stopped"); err != nil {

@@ -60,7 +60,7 @@ func resizeAction(actual, target float64) string {
 }
 
 // Replace only the pre-existing order IDs, after confirming the new stop.
-func (at *AutoTrader) moveStopExchange(symbol, side string, newSL float64) error {
+func (at *AutoTrader) moveStopExchange(symbol, side string, newSL float64, snapshotQty ...float64) error {
 	// review 2026-10-07 B1-2: all stop-move paths must preserve the
 	// latest recorded protection, including moves within the same cycle.
 	if newSL <= 0 || math.IsNaN(newSL) || math.IsInf(newSL, 0) {
@@ -71,9 +71,18 @@ func (at *AutoTrader) moveStopExchange(symbol, side string, newSL float64) error
 	if currentSL > 0 && ((side == "long" && newSL < currentSL-eps) || (side == "short" && newSL > currentSL+eps)) {
 		return fmt.Errorf("stop move would loosen %s %s protection: %.6g -> %.6g", symbol, side, currentSL, newSL)
 	}
-	qty, ok := at.positionQty(symbol, side)
-	if !ok {
-		return fmt.Errorf("live quantity unreadable")
+	var qty float64
+	if len(snapshotQty) > 0 {
+		qty = math.Abs(snapshotQty[0]) // review 2026-10-11: no REST polling from fast loop.
+	} else {
+		var ok bool
+		qty, ok = at.positionQty(symbol, side)
+		if !ok {
+			return fmt.Errorf("live quantity unreadable")
+		}
+	}
+	if qty <= 0 || math.IsNaN(qty) || math.IsInf(qty, 0) {
+		return fmt.Errorf("invalid snapshot quantity")
 	}
 	old, err := at.trader.GetOpenOrders(symbol)
 	if err != nil {
@@ -145,7 +154,7 @@ func (at *AutoTrader) moveStopExchange(symbol, side string, newSL float64) error
 // when it TIGHTENS the stop by ≥ trailMinImprove% of price. Never widens.
 func trailingDecision(side string, entry, initialSL, markPrice, atrPct, currentSL float64) (float64, bool, bool) {
 	initialDist := math.Abs(entry - initialSL)
-	if initialDist <= 0 || markPrice <= 0 || atrPct <= 0 {
+	if entry <= 0 || initialDist <= 0 || markPrice <= 0 || atrPct <= 0 {
 		return currentSL, false, false
 	}
 	mark := markPrice
@@ -206,13 +215,22 @@ func timeStopDue(held time.Duration, pricePnLPct, stopHours float64) bool {
 // processVolTargetAndTrailing runs once per decision cycle over all open
 // positions: volatility rescale (reduce-only) and trailing stop management.
 func (at *AutoTrader) processVolTargetAndTrailing() {
-	if at.config.StrategyConfig == nil ||
-		(!at.config.StrategyConfig.RiskControl.VolTargetEnabled && !at.config.StrategyConfig.RiskControl.TrailingStopEnabled && kernel.ProfitLockRMult(&at.config.StrategyConfig.RiskControl) <= 0 && kernel.TimeStopHours(&at.config.StrategyConfig.RiskControl) <= 0) {
+	if at.config.StrategyConfig == nil {
+		return
+	}
+	rc := &at.config.StrategyConfig.RiskControl
+	// review 2026-10-11: new cycle fallback/peak checks belong to Binance;
+	// other exchanges retain their existing monitor and cycle cadence.
+	binanceRules := at.binanceRealtimeCapable() && (kernel.BreakevenArmR(rc) > 0 || kernel.PeakDrawdownArmR(rc) > 0)
+	if !rc.VolTargetEnabled && !rc.TrailingStopEnabled && kernel.ProfitLockRMult(rc) <= 0 && kernel.TimeStopHours(rc) <= 0 && !binanceRules {
 		return
 	}
 	positions, err := at.trader.GetPositions()
 	if err != nil {
 		return
+	}
+	if r := at.realtimeState(); r != nil {
+		at.cacheRealtimePositions(r, positions, time.Now())
 	}
 	equity := 0.0
 	if balance, err := at.trader.GetBalance(); err == nil {
@@ -227,7 +245,6 @@ func (at *AutoTrader) processVolTargetAndTrailing() {
 		riskPct = 1.5
 	}
 	volEnabled := at.config.StrategyConfig.RiskControl.VolTargetEnabled
-	trailEnabled := at.config.StrategyConfig.RiskControl.TrailingStopEnabled
 
 	for _, pos := range positions {
 		symbol, _ := pos["symbol"].(string)
@@ -281,11 +298,12 @@ func (at *AutoTrader) processVolTargetAndTrailing() {
 		}
 		data, err := at.getMarketData(symbol)
 		if err != nil {
+			// review 2026-10-11: ATR-free locks survive a failed market fetch.
+			if at.binanceRealtimeCapable() {
+				at.processRProfitRules(pos, markPrice)
+			}
 			continue
 		}
-		// review 2026-10-07 B1-2: freeze opening risk separately from the
-		// live stop so breakeven cannot lower the trailing arm threshold.
-		initialSL := at.initialStopAnchor(symbol, side, currentSL)
 		// Yardstick: equity tokens ride the DAILY scale (session gaps make
 		// 1h ATR too tight for their trailing band too — same rationale as
 		// the stop band, user directive 2026-09-25); crypto keeps 1h.
@@ -294,6 +312,10 @@ func (at *AutoTrader) processVolTargetAndTrailing() {
 			atrPct = dailyATRPct(data)
 		} else {
 			atrPct = oneHourATRPct(data)
+		}
+
+		if r := at.realtimeState(); r != nil && atrPct > 0 {
+			r.atr[symbol] = atrPct // review 2026-10-11: last-cycle ATR is sufficient for fast trailing.
 		}
 
 		// ── 规则1/2: volatility-targeted rescale (reduce-only) ──
@@ -325,155 +347,260 @@ func (at *AutoTrader) processVolTargetAndTrailing() {
 			}
 		}
 
-		// ── intermediate breakeven arm (breakeven_arm_r, user 2026-09-24) ──
-		// At armR × initial risk the stop moves to entry(+beOffset) EARLY —
-		// no trim, the reduction ladder stays with TpTierAction/1R lock.
-		// One-shot by the same currentSL gating as the 1R lock: once armed
-		// the recorded stop sits at bePrice and the arm condition goes false.
-		// Arm-only-when-tightening is built into ProfitLockTargets' final
-		// gate (an AI tighten past BE simply never arms this).
-		if armR := kernel.BreakevenArmR(&at.config.StrategyConfig.RiskControl); armR > 0 {
-			entry := posEntryPrice(pos)
-			beOffset := kernel.ProfitLockBreakevenOffsetR(&at.config.StrategyConfig.RiskControl)
-			bePrice, _ := kernel.ProfitLockTargets(side, entry, initialSL, currentSL, markPrice, armR, beOffset)
-			if bePrice > 0 {
-				if err := at.moveStopExchange(symbol, side, bePrice); err != nil {
-					logger.Infof("⚠️ [%s] early-breakeven SL place failed for %s: %v", at.name, symbol, err)
+		if at.processRProfitRules(pos, markPrice) {
+			continue
+		}
+		at.processTrailingForPosition(pos, markPrice, atrPct)
+	}
+}
+
+// review 2026-10-11: Binance uses the cached quantity; other adapters keep
+// their existing live-quantity lookup and execution behavior.
+func (at *AutoTrader) moveProfitStop(symbol, side string, price, qty float64) error {
+	if at.binanceRealtimeCapable() {
+		return at.moveStopExchange(symbol, side, price, qty)
+	}
+	return at.moveStopExchange(symbol, side, price)
+}
+
+// processRProfitRules is shared by the cycle and the 5s stream loop. The caller
+// owns executionMutex: stop verification precedes trims, and the same persisted
+// r1TrimDone/tpTrimDone markers serialize both paths (review 2026-10-11).
+// Returns true after a full-close attempt so this snapshot is not acted on again.
+func (at *AutoTrader) processRProfitRules(pos map[string]interface{}, markPrice float64) bool {
+	if at.config.StrategyConfig == nil {
+		return false
+	}
+	symbol, _ := pos["symbol"].(string)
+	side, _ := pos["side"].(string)
+	qty, _ := pos["positionAmt"].(float64)
+	qty = math.Abs(qty)
+	entry := posEntryPrice(pos)
+	// review 2026-10-11: malformed stream/cache snapshots cannot place stops.
+	if entry <= 0 || math.IsNaN(entry) || math.IsInf(entry, 0) || symbol == "" || (side != "long" && side != "short") || qty <= 0 || markPrice <= 0 || math.IsNaN(qty) || math.IsInf(qty, 0) || math.IsNaN(markPrice) || math.IsInf(markPrice, 0) || !at.isAIManaged(symbol, side) {
+		return false
+	}
+	currentSL := at.GetRecordedStopLoss(symbol, side)
+	if currentSL <= 0 {
+		return false
+	}
+	initialSL := at.initialStopAnchor(symbol, side, currentSL)
+	posKey := symbol + "_" + side
+	// ── intermediate breakeven arm (breakeven_arm_r, user 2026-09-24) ──
+	// At armR × initial risk the stop moves to entry(+beOffset) EARLY —
+	// no trim, the reduction ladder stays with TpTierAction/1R lock.
+	// One-shot by the same currentSL gating as the 1R lock: once armed
+	// the recorded stop sits at bePrice and the arm condition goes false.
+	// Arm-only-when-tightening is built into ProfitLockTargets' final
+	// gate (an AI tighten past BE simply never arms this).
+	if armR := kernel.BreakevenArmR(&at.config.StrategyConfig.RiskControl); armR > 0 {
+		entry := posEntryPrice(pos)
+		beOffset := kernel.ProfitLockBreakevenOffsetR(&at.config.StrategyConfig.RiskControl)
+		bePrice, _ := kernel.ProfitLockTargets(side, entry, initialSL, currentSL, markPrice, armR, beOffset)
+		if bePrice > 0 {
+			if err := at.moveProfitStop(symbol, side, bePrice, qty); err != nil {
+				logger.Infof("⚠️ [%s] early-breakeven SL place failed for %s: %v", at.name, symbol, err)
+			} else {
+				at.SetRecordedStopLoss(symbol, side, bePrice)
+				currentSL = bePrice // review 2026-10-07 B1-2: later moves use the new floor.
+				logger.Infof("🔒 [%s] Early breakeven armed: %s %.2fR reached — SL moved to %.6g (entry %.6g, +%.2fR floor; give-back zone closed)", at.name, symbol, armR, bePrice, entry, beOffset)
+				notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 提前保本 %s</b>\n浮盈达 %.1fR,止损已先期移至开仓价+%.1fR <code>%.6g</code>——最差结果保本+微利出局", notify.Escape(symbol), armR, beOffset, bePrice))
+			}
+		}
+	}
+
+	// ── 1R profit lock (user 2026-09-12): breakeven stop + 50% trim ──
+	if lockR := kernel.ProfitLockRMult(&at.config.StrategyConfig.RiskControl); lockR > 0 {
+		entry := posEntryPrice(pos)
+		// The R anchor is the OPENING stop — the plan the position was
+		// sized against — deliberately NOT the live recorded stop. Every
+		// tighten above entry would otherwise compress the R distance and
+		// fire the trim on pocket change (ONDOUSDT 2026-09-17: live SL
+		// tightened 0.3428 → 0.3512 made +0.49% read as 1.89R → 50%
+		// trimmed at 0.352 instead of true 1R at 0.3578). initialSL is
+		// resolved before any stop moves, including the legacy fallback
+		// for positions with no persisted anchor.
+		//
+		// The live stop (passed as currentSL) still gates breakeven: once
+		// armed, SetRecordedStopLoss overwrites it to bePrice (entry plus
+		// the configured R-offset), so the breakeven condition goes false
+		// and arms exactly once — no extra "already armed" bookkeeping.
+		// Trim idempotency is r1TrimDone.
+		beOffset := kernel.ProfitLockBreakevenOffsetR(&at.config.StrategyConfig.RiskControl)
+		bePrice, trim := kernel.ProfitLockTargets(side, entry, initialSL, currentSL, markPrice, lockR, beOffset)
+		// review 2026-10-11: a partial trim is safe only with its runner
+		// protected at breakeven. Zero means the recorded stop is already
+		// at/through the target (including an earlier breakeven arm).
+		breakevenConfirmed := bePrice == 0 || (side == "long" && currentSL >= bePrice) || (side == "short" && currentSL <= bePrice)
+		if bePrice > 0 {
+			if err := at.moveProfitStop(symbol, side, bePrice, qty); err != nil {
+				logger.Infof("⚠️ [%s] Breakeven SL place failed for %s: %v", at.name, symbol, err)
+			} else {
+				at.SetRecordedStopLoss(symbol, side, bePrice)
+				currentSL = bePrice // review 2026-10-07 B1-2: trailing must retain breakeven.
+				breakevenConfirmed = true
+				if beOffset > 0 {
+					logger.Infof("🔒 [%s] Breakeven+%.1fR armed: %s %dR reached — SL moved to %.6g (entry %.6g + %.1fR, locks a sliver past flat)", at.name, beOffset, symbol, int(lockR), bePrice, entry, beOffset)
+					notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 保本+%.1fR 止损 %s</b>\n浮盈达 %.0fR,止损已移至开仓价+%.1fR <code>%.6g</code>——锁住一档微利,防噪声扫回平手", beOffset, notify.Escape(symbol), lockR, beOffset, bePrice))
 				} else {
-					at.SetRecordedStopLoss(symbol, side, bePrice)
-					currentSL = bePrice // review 2026-10-07 B1-2: later moves use the new floor.
-					logger.Infof("🔒 [%s] Early breakeven armed: %s %.2fR reached — SL moved to %.6g (entry %.6g, +%.2fR floor; give-back zone closed)", at.name, symbol, armR, bePrice, entry, beOffset)
-					notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 提前保本 %s</b>\n浮盈达 %.1fR,止损已先期移至开仓价+%.1fR <code>%.6g</code>——最差结果保本+微利出局", notify.Escape(symbol), armR, beOffset, bePrice))
+					logger.Infof("🔒 [%s] Breakeven armed: %s %dR reached — SL moved to entry %.6g", at.name, symbol, int(lockR), entry)
+					notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 保本止损 %s</b>\n浮盈达 %.0fR,止损已移至开仓价 <code>%.6g</code>——最差结果保本出局", notify.Escape(symbol), lockR, entry))
 				}
 			}
 		}
-
-		// ── 1R profit lock (user 2026-09-12): breakeven stop + 50% trim ──
-		if lockR := kernel.ProfitLockRMult(&at.config.StrategyConfig.RiskControl); lockR > 0 {
-			entry := posEntryPrice(pos)
-			// The R anchor is the OPENING stop — the plan the position was
-			// sized against — deliberately NOT the live recorded stop. Every
-			// tighten above entry would otherwise compress the R distance and
-			// fire the trim on pocket change (ONDOUSDT 2026-09-17: live SL
-			// tightened 0.3428 → 0.3512 made +0.49% read as 1.89R → 50%
-			// trimmed at 0.352 instead of true 1R at 0.3578). initialSL is
-			// resolved before any stop moves, including the legacy fallback
-			// for positions with no persisted anchor.
-			//
-			// The live stop (passed as currentSL) still gates breakeven: once
-			// armed, SetRecordedStopLoss overwrites it to bePrice (entry plus
-			// the configured R-offset), so the breakeven condition goes false
-			// and arms exactly once — no extra "already armed" bookkeeping.
-			// Trim idempotency is r1TrimDone.
-			beOffset := kernel.ProfitLockBreakevenOffsetR(&at.config.StrategyConfig.RiskControl)
-			bePrice, trim := kernel.ProfitLockTargets(side, entry, initialSL, currentSL, markPrice, lockR, beOffset)
-			// review 2026-10-11: a partial trim is safe only with its runner
-			// protected at breakeven. Zero means the recorded stop is already
-			// at/through the target (including an earlier breakeven arm).
-			breakevenConfirmed := bePrice == 0 || (side == "long" && currentSL >= bePrice) || (side == "short" && currentSL <= bePrice)
-			if bePrice > 0 {
-				if err := at.moveStopExchange(symbol, side, bePrice); err != nil {
-					logger.Infof("⚠️ [%s] Breakeven SL place failed for %s: %v", at.name, symbol, err)
-				} else {
-					at.SetRecordedStopLoss(symbol, side, bePrice)
-					currentSL = bePrice // review 2026-10-07 B1-2: trailing must retain breakeven.
-					breakevenConfirmed = true
-					if beOffset > 0 {
-						logger.Infof("🔒 [%s] Breakeven+%.1fR armed: %s %dR reached — SL moved to %.6g (entry %.6g + %.1fR, locks a sliver past flat)", at.name, beOffset, symbol, int(lockR), bePrice, entry, beOffset)
-						notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 保本+%.1fR 止损 %s</b>\n浮盈达 %.0fR,止损已移至开仓价+%.1fR <code>%.6g</code>——锁住一档微利,防噪声扫回平手", beOffset, notify.Escape(symbol), lockR, beOffset, bePrice))
-					} else {
-						logger.Infof("🔒 [%s] Breakeven armed: %s %dR reached — SL moved to entry %.6g", at.name, symbol, int(lockR), entry)
-						notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 保本止损 %s</b>\n浮盈达 %.0fR,止损已移至开仓价 <code>%.6g</code>——最差结果保本出局", notify.Escape(symbol), lockR, entry))
-					}
-				}
+		// tp_trim_yields_to_lock=false (division of labor): the ROE trim
+		// tier owns reductions (tp_trim_profit_pct, once) and the lock
+		// contributes ONLY the breakeven stop above — no 50% reduce, no
+		// consuming the trim marker. Default (true) keeps the 09-21
+		// lock-supersedes-trim behavior below.
+		if trim && at.config.StrategyConfig.RiskControl.TrimYieldsToLock() {
+			at.tpTrimMutex.Lock()
+			done := at.r1TrimDone[posKey]
+			at.tpTrimMutex.Unlock()
+			// 09-28 review P1: r1TrimDone is memory-only — after a restart
+			// it is empty while the position can still sit ≥1R (the
+			// breakeven stop is re-seeded from the exchange, the R anchor
+			// is restored from the DB row), and ProfitLockTargets would
+			// return trim=true again: a SECOND unrequested 50% reduction.
+			// The persisted flag on the OPEN row is the
+			// restart-persistent idempotency marker.
+			if !done {
+				done = at.storeR1TrimDone(symbol, side)
 			}
-			// tp_trim_yields_to_lock=false (division of labor): the ROE trim
-			// tier owns reductions (tp_trim_profit_pct, once) and the lock
-			// contributes ONLY the breakeven stop above — no 50% reduce, no
-			// consuming the trim marker. Default (true) keeps the 09-21
-			// lock-supersedes-trim behavior below.
-			if trim && at.config.StrategyConfig.RiskControl.TrimYieldsToLock() {
-				at.tpTrimMutex.Lock()
-				done := at.r1TrimDone[posKey]
-				at.tpTrimMutex.Unlock()
-				// 09-28 review P1: r1TrimDone is memory-only — after a restart
-				// it is empty while the position can still sit ≥1R (the
-				// breakeven stop is re-seeded from the exchange, the R anchor
-				// is restored from the DB row), and ProfitLockTargets would
-				// return trim=true again: a SECOND unrequested 50% reduction.
-				// The persisted flag on the OPEN row is the
-				// restart-persistent idempotency marker.
-				if !done {
-					done = at.storeR1TrimDone(symbol, side)
-				}
-				if !done {
-					minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
-					remainder := qty * 0.5 * markPrice
-					if minSize > 0 && remainder < minSize {
-						// remainder would be dust — lock the whole thing instead
-						if err := at.closePositionReasoned(symbol, side, "profit_lock_trim"); err == nil {
-							at.tpTrimMutex.Lock()
-							at.r1TrimDone[posKey] = true
-							at.tpTrimDone[posKey] = true
-							at.tpTrimMutex.Unlock()
-							at.persistTrimFlags(symbol, side)
-							logger.Infof("🎯 [%s] 1R lock: %s remainder below min size — closed fully instead of trimming", at.name, symbol)
-							notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🎯 1R 止盈 %s</b>\n浮盈达 %.0fR,剩余仓位低于最小单位,已全部平仓锁定利润", notify.Escape(symbol), lockR))
-						} else {
-							logger.Infof("❌ [%s] 1R full close failed (%s): %v", at.name, symbol, err)
-						}
-						continue
-					}
-					if !breakevenConfirmed {
-						logger.Infof("⚠️ [%s] 1R trim skipped for %s: breakeven SL not confirmed — retries next cycle", at.name, symbol)
+			if !done {
+				minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
+				remainder := qty * 0.5 * markPrice
+				if minSize > 0 && remainder < minSize {
+					// remainder would be dust — lock the whole thing instead
+					if err := at.closeProfitSnapshot(symbol, side, "profit_lock_trim", qty); err == nil {
+						at.tpTrimMutex.Lock()
+						at.r1TrimDone[posKey] = true
+						at.tpTrimDone[posKey] = true
+						at.tpTrimMutex.Unlock()
+						at.persistTrimFlags(symbol, side)
+						logger.Infof("🎯 [%s] 1R lock: %s remainder below min size — closed fully instead of trimming", at.name, symbol)
+						notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🎯 1R 止盈 %s</b>\n浮盈达 %.0fR,剩余仓位低于最小单位,已全部平仓锁定利润", notify.Escape(symbol), lockR))
 					} else {
-						at.markCloseIntent(symbol, side, "profit_lock_trim")
-						if _, err := at.reducePosition(symbol, side, qty*0.5); err == nil {
-							at.tpTrimMutex.Lock()
-							at.r1TrimDone[posKey] = true
-							at.tpTrimDone[posKey] = true // the ROE trim tier is consumed by the 1R lock
-							at.tpTrimMutex.Unlock()
-							at.persistTrimFlags(symbol, side)
-							logger.Infof("🎯 [%s] 1R trim: %s 50%% trimmed @ %.6g (breakeven SL, rest rides to structural TP)", at.name, symbol, markPrice)
-							notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🎯 1R 止盈减仓 %s</b>\n浮盈达 %.0fR,市价减仓 50%% 锁定利润,剩余仓位止损已保本、继续持有", notify.Escape(symbol), lockR))
-						} else {
-							logger.Infof("❌ [%s] 1R trim failed (%s) — retries next cycle", at.name, symbol)
-						}
+						logger.Infof("❌ [%s] 1R full close failed (%s): %v", at.name, symbol, err)
+					}
+					return true
+				}
+				if !breakevenConfirmed {
+					logger.Infof("⚠️ [%s] 1R trim skipped for %s: breakeven SL not confirmed — retries next cycle", at.name, symbol)
+				} else {
+					at.markCloseIntent(symbol, side, "profit_lock_trim")
+					if _, err := at.reducePosition(symbol, side, qty*0.5); err == nil {
+						at.tpTrimMutex.Lock()
+						at.r1TrimDone[posKey] = true
+						at.tpTrimDone[posKey] = true // the ROE trim tier is consumed by the 1R lock
+						at.tpTrimMutex.Unlock()
+						at.persistTrimFlags(symbol, side)
+						logger.Infof("🎯 [%s] 1R trim: %s 50%% trimmed @ %.6g (breakeven SL, rest rides to structural TP)", at.name, symbol, markPrice)
+						notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🎯 1R 止盈减仓 %s</b>\n浮盈达 %.0fR,市价减仓 50%% 锁定利润,剩余仓位止损已保本、继续持有", notify.Escape(symbol), lockR))
+					} else {
+						logger.Infof("❌ [%s] 1R trim failed (%s) — retries next cycle", at.name, symbol)
 					}
 				}
 			}
 		}
+	}
 
-		// ── 规则3/4: rule-based trailing stop + TP runner ──
-		// Trend-template only (user menu directive 09-29): range/quick chose
-		// "the target IS the exit" — their full-size TP algo owns the exit
-		// and no runner conversion ever fires (the watchdog's TP repair uses
-		// the same recorded level for them).
-		if trailEnabled && mode == kernel.ExitModeTrend {
-			newSL, move, armed := trailingDecision(side, posEntryPrice(pos), initialSL, markPrice, atrPct, currentSL)
-			if armed {
-				if move {
-					if err := at.moveStopExchange(symbol, side, newSL); err != nil {
-						logger.Infof("⚠️ [%s] Trailing SL place failed for %s: %v", at.name, symbol, err)
-					} else {
-						at.SetRecordedStopLoss(symbol, side, newSL)
-						currentSL = newSL // review 2026-10-07 B1-2: retain every successful move.
-						logger.Infof("🔒 [%s] Trailing stop moved: %s SL → %.6g (armed %.1f%%, trail 2×ATR)", at.name, symbol, newSL, trailArmMult)
-						notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 移动止损 %s</b>\\nSL 推进至 <code>%.6g</code>(2×ATR 跟踪,只紧不松)", notify.Escape(symbol), newSL))
-					}
+	if at.binanceRealtimeCapable() {
+		return at.processRDrawdown(pos, markPrice)
+	}
+	return false
+}
+
+// The peak cache is also used by checkPositionDrawdown; all callers track R
+// whenever peak_drawdown_arm_r is set, so fast ticks retain inter-cycle peaks.
+func (at *AutoTrader) processRDrawdown(pos map[string]interface{}, mark float64) bool {
+	rc := &at.config.StrategyConfig.RiskControl
+	arm := kernel.PeakDrawdownArmR(rc)
+	if arm <= 0 {
+		return false
+	}
+	symbol, _ := pos["symbol"].(string)
+	side, _ := pos["side"].(string)
+	entry := posEntryPrice(pos)
+	anchor := at.initialStopAnchor(symbol, side, at.GetRecordedStopLoss(symbol, side))
+	risk := math.Abs(entry - anchor)
+	if entry <= 0 || anchor <= 0 || risk <= 0 {
+		return false
+	}
+	pnlR := (mark - entry) / risk
+	if side == "short" {
+		pnlR = -pnlR
+	}
+	at.UpdatePeakPnL(symbol, side, pnlR)
+	peak := at.GetPeakPnLCache()[symbol+"_"+side]
+	giveback := kernel.PeakDrawdownGivebackR(rc)
+	if peak < arm || peak <= 0 || (peak-pnlR)/peak < giveback {
+		return false
+	}
+	qty, _ := pos["positionAmt"].(float64)
+	logger.Infof("🚨 [%s] R drawdown: %s %s peak %.2fR -> %.2fR", at.name, symbol, side, peak, pnlR)
+	if err := at.closeProfitSnapshot(symbol, side, "drawdown_protect", math.Abs(qty)); err != nil {
+		logger.Warnf("R drawdown close failed %s %s: %v", symbol, side, err)
+		notify.Notify("ALERT", at.name, fmt.Sprintf("<b>❌ 回撤保护平仓失败 %s</b>\n%s", notify.Escape(symbol), notify.Escape(err.Error())))
+		return true
+	}
+	notify.Notify("ORDER", at.name, fmt.Sprintf("<b>✅ 回撤保护平仓 %s</b>\n峰值 %.2fR → 当前 %.2fR", notify.Escape(symbol), peak, pnlR))
+	at.ClearPeakPnLCache(symbol, side)
+	return true
+}
+
+// Trailing shares the last recorded stop with the R rules; the stream caller
+// supplies ATR cached by the decision cycle and never calls getMarketData.
+func (at *AutoTrader) processTrailingForPosition(pos map[string]interface{}, markPrice, atrPct float64) {
+	if at.config.StrategyConfig == nil || atrPct <= 0 || math.IsNaN(atrPct) || math.IsInf(atrPct, 0) {
+		return
+	}
+	symbol, _ := pos["symbol"].(string)
+	side, _ := pos["side"].(string)
+	qty, _ := pos["positionAmt"].(float64)
+	qty = math.Abs(qty)
+	entry := posEntryPrice(pos)
+	// review 2026-10-11: malformed stream/cache snapshots cannot place stops.
+	if entry <= 0 || math.IsNaN(entry) || math.IsInf(entry, 0) || symbol == "" || (side != "long" && side != "short") || qty <= 0 || markPrice <= 0 || math.IsNaN(qty) || math.IsInf(qty, 0) || math.IsNaN(markPrice) || math.IsInf(markPrice, 0) || !at.isAIManaged(symbol, side) {
+		return
+	}
+	currentSL := at.GetRecordedStopLoss(symbol, side)
+	if currentSL <= 0 {
+		return
+	}
+	initialSL := at.initialStopAnchor(symbol, side, currentSL)
+	posKey := symbol + "_" + side
+	mode := at.ExitModeFor(symbol, side)
+	trailEnabled := at.config.StrategyConfig.RiskControl.TrailingStopEnabled
+	// ── 规则3/4: rule-based trailing stop + TP runner ──
+	// Trend-template only (user menu directive 09-29): range/quick chose
+	// "the target IS the exit" — their full-size TP algo owns the exit
+	// and no runner conversion ever fires (the watchdog's TP repair uses
+	// the same recorded level for them).
+	if trailEnabled && mode == kernel.ExitModeTrend {
+		newSL, move, armed := trailingDecision(side, posEntryPrice(pos), initialSL, markPrice, atrPct, currentSL)
+		if armed {
+			if move {
+				if err := at.moveProfitStop(symbol, side, newSL, qty); err != nil {
+					logger.Infof("⚠️ [%s] Trailing SL place failed for %s: %v", at.name, symbol, err)
+				} else {
+					at.SetRecordedStopLoss(symbol, side, newSL)
+					currentSL = newSL // review 2026-10-07 B1-2: retain every successful move.
+					logger.Infof("🔒 [%s] Trailing stop moved: %s SL → %.6g (armed %.1f%%, trail 2×ATR)", at.name, symbol, newSL, trailArmMult)
+					notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🔒 移动止损 %s</b>\\nSL 推进至 <code>%.6g</code>(2×ATR 跟踪,只紧不松)", notify.Escape(symbol), newSL))
 				}
-				// 规则5: once price travels the full TP distance, convert the
-				// fixed TP into the trend-run (trailing stop takes over).
-				var tp float64
-				if at.config.StrategyConfig != nil {
-					tp = at.getOpenTakeProfit(symbol, side)
-				}
-				if tp > 0 && tpRunnerDue(side, posEntryPrice(pos), tp, markPrice) && !at.tpRunnerDone(posKey) {
-					_ = at.trader.CancelTakeProfitOrders(symbol)
-					at.markTPRunner(posKey)
-					logger.Infof("🏃 [%s] TP runner: %s reached its TP distance — fixed TP cancelled, 2×ATR trail takes over", at.name, symbol)
-					notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🏃 止盈转趋势跟踪 %s</b>\\n到达计划止盈距离,固定止盈单撤除,剩余仓位由移动止损接管", notify.Escape(symbol)))
-				}
+			}
+			// 规则5: once price travels the full TP distance, convert the
+			// fixed TP into the trend-run (trailing stop takes over).
+			var tp float64
+			if at.config.StrategyConfig != nil {
+				tp = at.getOpenTakeProfit(symbol, side)
+			}
+			if tp > 0 && tpRunnerDue(side, posEntryPrice(pos), tp, markPrice) && !at.tpRunnerDone(posKey) {
+				_ = at.trader.CancelTakeProfitOrders(symbol)
+				at.markTPRunner(posKey)
+				logger.Infof("🏃 [%s] TP runner: %s reached its TP distance — fixed TP cancelled, 2×ATR trail takes over", at.name, symbol)
+				notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🏃 止盈转趋势跟踪 %s</b>\\n到达计划止盈距离,固定止盈单撤除,剩余仓位由移动止损接管", notify.Escape(symbol)))
 			}
 		}
 	}

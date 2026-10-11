@@ -330,12 +330,12 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	at.reportFillSlippage(decision, marketData.CurrentPrice, fillPrice)
 	// F01 (2026-10-01 review): a missing protective leg must never be
 	// reported as a successful entry — surface it as an execution failure
-	// naming the exact leg. The position itself stays open and managed (the
-	// recorded stop/1R anchor are already written); the protection watchdog
-	// re-places from them next cycle.
+	// naming the exact leg. review 2026-10-11: Binance initial SL failures
+	// have already exhausted quick retries and submitted a slice exit here;
+	// recovery stays visible until a fresh snapshot confirms coverage/exit.
 	if slErr != nil {
 		at.setProtectionFault(decision.Symbol+"_long", "entry SL coverage unverified")
-		return fmt.Errorf("❌ [PROTECTION] %s %s opened @ %.6g but SL placement FAILED: %w — position currently unprotected, watchdog will retry", decision.Action, decision.Symbol, fillPrice, slErr)
+		return fmt.Errorf("❌ [PROTECTION] %s %s opened @ %.6g but SL placement FAILED: %w — initial protection failed; recovery state retained", decision.Action, decision.Symbol, fillPrice, slErr)
 	}
 	if tpErr != nil {
 		return fmt.Errorf("❌ [PROTECTION] %s %s opened @ %.6g, SL verified, TP placement FAILED: %w — watchdog will retry", decision.Action, decision.Symbol, fillPrice, tpErr)
@@ -600,7 +600,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	// F01: same no-false-success contract as the long side above.
 	if slErr != nil {
 		at.setProtectionFault(decision.Symbol+"_"+strings.TrimPrefix(decision.Action, "open_"), "entry SL coverage unverified")
-		return fmt.Errorf("❌ [PROTECTION] %s %s opened @ %.6g but SL placement FAILED: %w — position currently unprotected, watchdog will retry", decision.Action, decision.Symbol, fillPrice, slErr)
+		return fmt.Errorf("❌ [PROTECTION] %s %s opened @ %.6g but SL placement FAILED: %w — initial protection failed; recovery state retained", decision.Action, decision.Symbol, fillPrice, slErr)
 	}
 	if tpErr != nil {
 		return fmt.Errorf("❌ [PROTECTION] %s %s opened @ %.6g, SL verified, TP placement FAILED: %w — watchdog will retry", decision.Action, decision.Symbol, fillPrice, tpErr)
@@ -696,6 +696,18 @@ func (at *AutoTrader) placeProtectiveOrders(decision *kernel.Decision, positionS
 	if decision.StopLoss > 0 {
 		slErr = ensureProtectiveCoverage(at.trader, decision.Symbol, positionSide, "SL", decision.StopLoss, quantity)
 	}
+	// review 2026-10-11: initial Binance SL failure cannot wait for three
+	// 30s repairs. Verify now, retry 1/2/4s, then exit the unprotected slice.
+	if at.binanceRealtimeCapable() && decision.StopLoss > 0 && at.isAIManaged(decision.Symbol, strings.ToLower(positionSide)) {
+		verified := at.verifyInitialStopCoverage(decision.Symbol, positionSide, decision.StopLoss, quantity)
+		slErr = verified
+		if slErr != nil {
+			slErr = at.initialStopFastFailure(decision.Symbol, strings.ToLower(positionSide), decision.StopLoss, quantity, slErr)
+			if slErr != nil {
+				return slErr, fmt.Errorf("TP deferred after initial SL failure")
+			}
+		}
+	}
 	if decision.TakeProfit > 0 {
 		tpErr = ensureProtectiveCoverage(at.trader, decision.Symbol, positionSide, "TP", decision.TakeProfit, tpQty)
 	}
@@ -705,6 +717,11 @@ func (at *AutoTrader) placeProtectiveOrders(decision *kernel.Decision, positionS
 	}
 	if tpErr == nil {
 		tpErr = verifiedTP
+	}
+	if slErr != nil && decision.StopLoss > 0 && at.binanceRealtimeCapable() {
+		// review 2026-10-11: coverage can also disappear during final TP
+		// verification. That failure gets the same within-pass exit budget.
+		slErr = at.initialStopFastFailure(decision.Symbol, strings.ToLower(positionSide), decision.StopLoss, quantity, slErr)
 	}
 	if tpErr == nil && decision.TakeProfit > 0 {
 		if tpQty < quantity {

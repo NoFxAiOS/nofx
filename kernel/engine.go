@@ -1262,11 +1262,14 @@ func (e *StrategyEngine) getShortScanCoins(limit int, minOIMillions, minScore fl
 	// Audit 2026-09-12 #6: near_high symbols are OI-exempt (structurally
 	// lower liquidity, squeeze fuel) — the reserved slot requires at least a
 	// MEDIUM grade (score ≥ 55) so a marginal grinding top can't occupy a
-	// slot under the same bar as liquid gainers.
+	// slot under the same bar as liquid gainers. The reserved slot also
+	// honours the strategy's short_scan_min_score (review 2026-10-11): the
+	// bar is the higher of that floor and 55.
 	const nearHighReservedMinScore = 55
-	if bestNearHigh != nil && bestNearHigh.ShortScore < nearHighReservedMinScore {
-		logger.Infof("🩸 Grinding-top reserved slot skipped: %s score %.0f < %d (low-OI squeeze risk bar)",
-			bestNearHigh.Symbol, bestNearHigh.ShortScore, nearHighReservedMinScore)
+	reservedMin := math.Max(minScore, nearHighReservedMinScore)
+	if bestNearHigh != nil && bestNearHigh.ShortScore < reservedMin {
+		logger.Infof("🩸 Grinding-top reserved slot skipped: %s score %.0f < %.0f (low-OI squeeze risk bar)",
+			bestNearHigh.Symbol, bestNearHigh.ShortScore, reservedMin)
 		bestNearHigh = nil
 	}
 	if bestNearHigh != nil {

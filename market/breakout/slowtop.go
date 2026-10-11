@@ -25,9 +25,15 @@ import (
 // weight budget.
 
 const (
-	slowTopCacheTTL     = 30 * time.Minute
+	slowTopCacheTTL = 30 * time.Minute
+	// slowTopRefreshTTL gates refreshSlowTops and must stay BELOW the 30-minute
+	// scheduler tick: slowTopAt is stamped when a run finishes, so at the next
+	// tick only (30m minus runtime) has elapsed and a 30m guard skipped every
+	// other tick (review 2026-10-11). slowTopCacheTTL keeps sizing the snapshot
+	// max-age (2×TTL) and is deliberately unchanged.
+	slowTopRefreshTTL   = 25 * time.Minute
 	slowTopMinQuoteVol  = 30_000_000 // $30M/day liquidity floor for the prefilter
-	slowTopNearHighPct  = 5.0        // close within 5% of the 90-day high
+	slowTopNearHighPct  = 5.0        // live price within 5% of the 90-day high
 	slowTopConcurrent   = 6
 	slowTopMaxKeep      = 15 // cap merged-list growth
 	slowTopPrefilterCap = 60 // analyze at most this many near-high survivors per run
@@ -63,7 +69,7 @@ func slowTopSnapshot() []ShortSignal {
 // take down trading.
 func refreshSlowTops() {
 	slowTopMu.Lock()
-	if time.Now().Before(slowTopAt.Add(slowTopCacheTTL)) || slowTopInflight {
+	if time.Now().Before(slowTopAt.Add(slowTopRefreshTTL)) || slowTopInflight {
 		slowTopMu.Unlock()
 		return
 	}
@@ -139,10 +145,11 @@ func refreshSlowTops() {
 type slowTopCandidate struct {
 	Symbol      string
 	ChgPct      string
+	LastPrice   float64 // live 24h-ticker price the 90d-high prefilter measures from
 	QuoteVolume float64
 }
 
-// slowTopUniverse lists liquid perps whose last close sits within
+// slowTopUniverse lists liquid perps whose live price sits within
 // slowTopNearHighPct% of their 90-day high. Two data touches per symbol
 // (shared ticker batch + one 1d-klines fetch each), concurrency-capped.
 func slowTopUniverse() ([]slowTopCandidate, error) {
@@ -153,7 +160,13 @@ func slowTopUniverse() ([]slowTopCandidate, error) {
 	var uni []slowTopCandidate
 	for _, t := range tickers {
 		if t.QuoteVolume >= slowTopMinQuoteVol {
-			uni = append(uni, slowTopCandidate{Symbol: t.Symbol, ChgPct: t.ChgPct, QuoteVolume: t.QuoteVolume})
+			// The live ticker price, not yesterday's close, feeds the prefilter.
+			// An unusable price falls back to the closed bar (see near90dHigh).
+			last, err := strconv.ParseFloat(t.LastPrice, 64)
+			if err != nil || math.IsNaN(last) || math.IsInf(last, 0) {
+				last = 0
+			}
+			uni = append(uni, slowTopCandidate{Symbol: t.Symbol, ChgPct: t.ChgPct, LastPrice: last, QuoteVolume: t.QuoteVolume})
 		}
 	}
 	var (
@@ -172,7 +185,7 @@ func slowTopUniverse() ([]slowTopCandidate, error) {
 			if err != nil {
 				return
 			}
-			if near90dHigh(k, slowTopNearHighPct) {
+			if near90dHigh(k, c.LastPrice, slowTopNearHighPct) {
 				mu.Lock()
 				out = append(out, c)
 				mu.Unlock()
@@ -241,10 +254,15 @@ func stringsContainsUnderscore(s string) bool {
 
 var _ = fmt.Sprintf // keep fmt if unused after refactors
 
-// near90dHigh reports whether the last close sits within maxDistPct% of the
-// series' 90-bar high. Guarded: short/dirty series return false (fail-open —
-// the symbol just doesn't qualify).
-func near90dHigh(k []Kline, maxDistPct float64) bool {
+// near90dHigh reports whether the live price sits within maxDistPct% of the
+// series' 90-bar high. The series holds CLOSED daily bars (fetchKlines drops
+// the forming candle), so its last close is yesterday's: a coin already down
+// 15% today would still look near the high. livePrice (the 24h-ticker last
+// price) is therefore used whenever it is positive, else the last closed
+// close. A live price above the high sits at the high and qualifies.
+// Guarded: short/dirty series return false (fail-open — the symbol just
+// doesn't qualify).
+func near90dHigh(k []Kline, livePrice, maxDistPct float64) bool {
 	if len(k) < 20 {
 		return false
 	}
@@ -255,8 +273,15 @@ func near90dHigh(k []Kline, maxDistPct float64) bool {
 		}
 	}
 	last := k[len(k)-1].Close
+	if livePrice > 0 {
+		last = livePrice
+	}
 	if high <= 0 || last <= 0 {
 		return false
 	}
-	return (high-last)/high*100 <= maxDistPct
+	dist := (high - last) / high * 100
+	if dist < 0 {
+		dist = 0 // above the closed-bar high: at the high
+	}
+	return dist <= maxDistPct
 }

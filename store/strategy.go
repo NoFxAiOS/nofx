@@ -622,6 +622,37 @@ type RiskControlConfig struct {
 	// EMA20 are blocked (EMA20_STRETCH); the retest-anchor path is exempt.
 	// 0 = default 12; negative = off.
 	LongMaxEMA20DistPct float64 `json:"long_max_ema20_dist_pct"`
+	// ---- Anti-chase symmetric entry gates (Opus analysis of 273 live trades,
+	// 2026-10-11): entries far extended from the 1h EMA20, entries into an
+	// exhausted directional 1h RSI, entries after a big 4h move in the trade
+	// direction, and counter-trend entries far on the wrong side of the 1h
+	// EMA20 all lost heavily. Filtered set (all four gates) actual +0.003R vs
+	// rejected set -0.241R over the 273 trades. All four are symmetric
+	// (long/short mirror), measured from the gate's entry price, exempt for
+	// US-equity (bstock) symbols, and fail OPEN on missing data. ----
+	// ChaseMaxEMA20_1hPct: block an entry whose price is more than this many
+	// percent beyond the 1h EMA20 IN the trade direction (long: entry above
+	// the EMA20 by > X%; short: entry below it by > X%) -> CHASE_EMA20_1H_x_GT_y.
+	// Evidence: >8% in the trade direction -> next-4h -4.8%, win rate 32%.
+	// Unit: percent. 0 = default 6; negative = off. (CODE ENFORCED)
+	ChaseMaxEMA20_1hPct float64 `json:"chase_max_ema20_1h_pct"`
+	// CounterMaxEMA20_1hPct: block an entry whose price is more than this many
+	// percent on the WRONG side of the 1h EMA20 (long: entry below the EMA20 by
+	// > X% = knife-catching; short: entry above it by > X% = fading a pump)
+	// -> COUNTER_EMA20_1H_x_GT_y. Evidence: wrong side by > 2% -> next-4h -5.3%.
+	// Unit: percent. 0 = default 3; negative = off. (CODE ENFORCED)
+	CounterMaxEMA20_1hPct float64 `json:"counter_max_ema20_1h_pct"`
+	// EntryRSI1hMax: directional 1h RSI14 exhaustion cap. Long: block when the
+	// 1h RSI14 >= X; short: block when it <= 100-X -> RSI1H_EXHAUSTED_x.
+	// Evidence: directional RSI1h > 80 -> next-4h -2.25%.
+	// Unit: RSI points (0-100). 0 = default 78; negative = off. (CODE ENFORCED)
+	EntryRSI1hMax float64 `json:"entry_rsi1h_max"`
+	// ChaseMaxMove4hPct: block an entry after the price already moved more than
+	// this many percent over the last 4h IN the trade direction (long: +X% up;
+	// short: X% down) -> CHASE_MOVE4H_x_GT_y. Evidence: 4h move > 8% in the
+	// trade direction -> next-4h -3.1%.
+	// Unit: percent. 0 = default 6; negative = off. (CODE ENFORCED)
+	ChaseMaxMove4hPct float64 `json:"chase_max_move4h_pct"`
 	// BTCFilterLong: nil/true = altcoin longs need coin 24h return ≥ BTC's
 	// and BTC 4h closes not declining (BTC_WEAK_LONG).
 	BTCFilterLong *bool `json:"btc_filter_long,omitempty"`
@@ -834,6 +865,46 @@ func (r RiskControlConfig) EffectiveLongMaxEMA20DistPct() float64 {
 		return DefaultLongMaxEMA20DistPct
 	}
 	return r.LongMaxEMA20DistPct
+}
+
+// Anti-chase gate defaults (Opus analysis 2026-10-11, 273 live trades; see the
+// field docs on RiskControlConfig for the evidence numbers).
+const (
+	DefaultChaseMaxEMA20_1hPct   = 6.0
+	DefaultCounterMaxEMA20_1hPct = 3.0
+	DefaultEntryRSI1hMax         = 78.0
+	DefaultChaseMaxMove4hPct     = 6.0
+)
+
+// antiChaseKnob resolves a 0=default / negative=off(0) / positive=value knob.
+func antiChaseKnob(v, def float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v == 0 {
+		return def
+	}
+	return v
+}
+
+// EffectiveChaseMaxEMA20_1hPct: 0/unset -> default 6 (%), negative -> 0 (off).
+func (r RiskControlConfig) EffectiveChaseMaxEMA20_1hPct() float64 {
+	return antiChaseKnob(r.ChaseMaxEMA20_1hPct, DefaultChaseMaxEMA20_1hPct)
+}
+
+// EffectiveCounterMaxEMA20_1hPct: 0/unset -> default 3 (%), negative -> 0 (off).
+func (r RiskControlConfig) EffectiveCounterMaxEMA20_1hPct() float64 {
+	return antiChaseKnob(r.CounterMaxEMA20_1hPct, DefaultCounterMaxEMA20_1hPct)
+}
+
+// EffectiveEntryRSI1hMax: 0/unset -> default 78, negative -> 0 (off).
+func (r RiskControlConfig) EffectiveEntryRSI1hMax() float64 {
+	return antiChaseKnob(r.EntryRSI1hMax, DefaultEntryRSI1hMax)
+}
+
+// EffectiveChaseMaxMove4hPct: 0/unset -> default 6 (%), negative -> 0 (off).
+func (r RiskControlConfig) EffectiveChaseMaxMove4hPct() float64 {
+	return antiChaseKnob(r.ChaseMaxMove4hPct, DefaultChaseMaxMove4hPct)
 }
 
 // EffectiveBTCFilterLong: nil/true = altcoin LONGs require the coin's 24h

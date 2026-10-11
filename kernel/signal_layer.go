@@ -147,12 +147,16 @@ type LiquiditySignal struct {
 
 // SymbolSignal is the complete per-symbol block injected into the prompt.
 type SymbolSignal struct {
-	rrCostBps      float64
-	Symbol         string  `json:"symbol"`
-	TimestampUTC   string  `json:"timestamp_utc"`
-	Price          float64 `json:"price"`
-	LimitBuyPrice  float64 `json:"limit_buy_price"`  // live price ×(1-offset) — 预计算的做多限价挂单价
-	LimitSellPrice float64 `json:"limit_sell_price"` // live price ×(1+offset) — 预计算的做空限价挂单价
+	rrCostBps    float64
+	Symbol       string  `json:"symbol"`
+	TimestampUTC string  `json:"timestamp_utc"`
+	Price        float64 `json:"price"`
+	// PriceChange4hPct: market.Data.PriceChange4h (live price vs the previous
+	// 4h bar close, PERCENT), carried for the CHASE_MOVE4H hard gate only —
+	// not serialized into the model-facing JSON. 0 = unavailable (fail-open).
+	PriceChange4hPct float64 `json:"-"`
+	LimitBuyPrice    float64 `json:"limit_buy_price"`  // live price ×(1-offset) — 预计算的做多限价挂单价
+	LimitSellPrice   float64 `json:"limit_sell_price"` // live price ×(1+offset) — 预计算的做空限价挂单价
 	// LimitEntryOffsetPct is the offset actually applied to the anchors above
 	// (ATR-scaled per AnchorOffsetConfig; the model copies the prices, this
 	// field documents the distance it is being asked to wait for).
@@ -477,7 +481,7 @@ type DirectionGate struct {
 	// buffer (step-out, 09-19). A plan is never clamped into no-man's-land.
 	StopPlanSource string   `json:"stop_plan_source,omitempty"`
 	RR             *RRScan  `json:"rr_scan,omitempty"` // nil when no noise floor is configured (best-case RR undefined)
-	Failed         []string `json:"failed"`            // machine codes, ALWAYS present ([] when clean): MICRO_TREND_NOT_LONG/SHORT, EXTENDED_PUMP_UNCONFIRMED, REGIME_LINE_BROKEN, LIMIT_ANCHOR_SUPPRESSED, RR_MAX_x.xx, STOP_PLAN_NO_STRUCTURE, STOP_PLAN_OUT_OF_BAND, BSTOCK_DAILY_DATA_UNAVAILABLE, DATA_INSUFFICIENT, MIN_SIZE_DEAD_ZONE, LOSS_STREAK_BANNED, STOCK_WEEKEND, VENDOR_DIVERGENCE_x.xx/UNKNOWN, POOR_HISTORY, CONSENSUS_OPPOSED_±score, NEG_EDGE_SCORE_±s_LT_t / NEG_EDGE_TREND_MISALIGNED / NEG_EDGE_RR_x.xx_LT_t / NEG_EDGE_LOSING_SYMBOL_x.xxU, WIDE_STOP_x_GT_y, BTC_4H_DOWNTREND, BTC_WEAK_LONG_x_VS_y, EMA20_STRETCH_x_GT_y, BTC_4H_STRONGBULL, SHORT_TOP_CONFIRM_MISSING
+	Failed         []string `json:"failed"`            // machine codes, ALWAYS present ([] when clean): MICRO_TREND_NOT_LONG/SHORT, EXTENDED_PUMP_UNCONFIRMED, REGIME_LINE_BROKEN, LIMIT_ANCHOR_SUPPRESSED, RR_MAX_x.xx, STOP_PLAN_NO_STRUCTURE, STOP_PLAN_OUT_OF_BAND, BSTOCK_DAILY_DATA_UNAVAILABLE, DATA_INSUFFICIENT, MIN_SIZE_DEAD_ZONE, LOSS_STREAK_BANNED, STOCK_WEEKEND, VENDOR_DIVERGENCE_x.xx/UNKNOWN, POOR_HISTORY, CONSENSUS_OPPOSED_±score, NEG_EDGE_SCORE_±s_LT_t / NEG_EDGE_TREND_MISALIGNED / NEG_EDGE_RR_x.xx_LT_t / NEG_EDGE_LOSING_SYMBOL_x.xxU, WIDE_STOP_x_GT_y, BTC_4H_DOWNTREND, BTC_WEAK_LONG_x_VS_y, EMA20_STRETCH_x_GT_y, CHASE_EMA20_1H_x_GT_y, COUNTER_EMA20_1H_x_GT_y, RSI1H_EXHAUSTED_x, CHASE_MOVE4H_x_GT_y, BTC_4H_STRONGBULL, SHORT_TOP_CONFIRM_MISSING
 }
 
 // HardEntryGate holds both direction verdicts.
@@ -664,6 +668,15 @@ type SignalOptions struct {
 	// EMA20 fail with EMA20_STRETCH; the retest anchor path is exempt.
 	// <=0 = check disabled.
 	LongMaxEMA20DistPct float64
+	// Anti-chase symmetric entry gates (Opus analysis 2026-10-11, 273 live
+	// trades; risk_control.chase_max_ema20_1h_pct / counter_max_ema20_1h_pct /
+	// entry_rsi1h_max / chase_max_move4h_pct, resolved by the Effective*
+	// accessors). All <=0 = that check disabled. Measured from the gate's
+	// entry price; bstock symbols exempt; missing data fails open.
+	ChaseMaxEMA20_1hPct   float64 // CHASE_EMA20_1H: entry > X% beyond 1h EMA20 in trade direction
+	CounterMaxEMA20_1hPct float64 // COUNTER_EMA20_1H: entry > X% on the wrong side of 1h EMA20
+	EntryRSI1hMax         float64 // RSI1H_EXHAUSTED: long RSI1h >= X / short RSI1h <= 100-X
+	ChaseMaxMove4hPct     float64 // CHASE_MOVE4H: 4h move > X% in trade direction
 	// BTCFilterLong: altcoin longs need coin 24h return ≥ BTC's and BTC 4h
 	// closes not declining; failure emits BTC_WEAK_LONG.
 	BTCFilterLong bool
@@ -745,12 +758,13 @@ func ComputeSymbolSignals(symbol string, data *market.Data, opt SignalOptions) (
 	}
 
 	sig := &SymbolSignal{
-		rrCostBps:    opt.EntryRoundTripCostBps,
-		Symbol:       strings.ToUpper(symbol),
-		TimestampUTC: now.UTC().Format(time.RFC3339),
-		Price:        data.CurrentPrice,
-		PrimaryTF:    opt.PrimaryTF,
-		Timeframes:   map[string]*TFSignal{},
+		rrCostBps:        opt.EntryRoundTripCostBps,
+		Symbol:           strings.ToUpper(symbol),
+		TimestampUTC:     now.UTC().Format(time.RFC3339),
+		Price:            data.CurrentPrice,
+		PriceChange4hPct: data.PriceChange4h,
+		PrimaryTF:        opt.PrimaryTF,
+		Timeframes:       map[string]*TFSignal{},
 	}
 
 	// Deterministic timeframe ordering. Sub-15m blocks are DROPPED (09-19
@@ -1648,6 +1662,77 @@ func ema20Stretch4hPct(sig *SymbolSignal) float64 {
 	return 0
 }
 
+// antiChaseCodes evaluates the four symmetric anti-chase hard gates (Opus
+// analysis of 273 live trades, 2026-10-11): entries far extended from the 1h
+// EMA20 in the trade direction (CHASE_EMA20_1H), far on the wrong side of it
+// (COUNTER_EMA20_1H, knife-catching / fading a pump), into an exhausted
+// directional 1h RSI (RSI1H_EXHAUSTED) or after a big 4h move in the trade
+// direction (CHASE_MOVE4H). Distances are measured from entry (the limit
+// anchor or live price), so a genuine retest anchor near the EMA passes
+// naturally — no pullback exemption. Equity tokens (bstock) are exempt (a
+// different volatility scale); missing evidence fails OPEN.
+func antiChaseCodes(sig *SymbolSignal, entry float64, isLong bool, opt SignalOptions) []string {
+	if market.IsBStockSymbol(sig.Symbol) {
+		return nil
+	}
+	var codes []string
+	t1h := sig.Timeframes["1h"]
+	if t1h != nil && t1h.EMAFast != nil && *t1h.EMAFast > 0 && entry > 0 {
+		ema := *t1h.EMAFast
+		// Signed distance of entry from the 1h EMA20, positive = in the trade direction.
+		d := (entry - ema) / ema * 100
+		if !isLong {
+			d = -d
+		}
+		// Retest-anchor basis (review 2026-10-11): with market-default entry
+		// g.EntryPrice is the LIVE price, but while the long pullback plan is
+		// active the long's real entry is the retest anchor — measure the
+		// chase distance from min(entry, anchor) so a designed "wait for the
+		// retest" order is not blocked for an extension it will not buy.
+		// LONG chase only; COUNTER keeps the plain entry, shorts unchanged.
+		chaseD := d
+		if isLong && sig.LongPullback != nil && sig.LongPullback.Active &&
+			sig.LongPullback.Entry > 0 && sig.LongPullback.Entry < entry {
+			chaseD = (sig.LongPullback.Entry - ema) / ema * 100
+		}
+		if opt.ChaseMaxEMA20_1hPct > 0 && chaseD > opt.ChaseMaxEMA20_1hPct {
+			codes = append(codes, fmt.Sprintf("CHASE_EMA20_1H_%.1f_GT_%.0f", chaseD, opt.ChaseMaxEMA20_1hPct))
+		}
+		if opt.CounterMaxEMA20_1hPct > 0 && -d > opt.CounterMaxEMA20_1hPct {
+			codes = append(codes, fmt.Sprintf("COUNTER_EMA20_1H_%.1f_GT_%.0f", -d, opt.CounterMaxEMA20_1hPct))
+		}
+	}
+	if opt.EntryRSI1hMax > 0 && t1h != nil && t1h.RSI14 != nil {
+		rsi := *t1h.RSI14
+		if (isLong && rsi >= opt.EntryRSI1hMax) || (!isLong && rsi <= 100-opt.EntryRSI1hMax) {
+			codes = append(codes, fmt.Sprintf("RSI1H_EXHAUSTED_%.0f", rsi))
+		}
+	}
+	if opt.ChaseMaxMove4hPct > 0 && sig.PriceChange4hPct != 0 {
+		m := sig.PriceChange4hPct
+		if !isLong {
+			m = -m
+		}
+		if m > opt.ChaseMaxMove4hPct {
+			codes = append(codes, fmt.Sprintf("CHASE_MOVE4H_%.1f_GT_%.0f", m, opt.ChaseMaxMove4hPct))
+		}
+	}
+	return codes
+}
+
+// IsAntiChaseCode reports whether a hard-gate code is one of the four
+// anti-chase codes. The trader's market-open branch refuses these (a market
+// order buys at the live price the gate evaluated); they are deliberately NOT
+// absolute bans for resting limits, which buy at their anchor.
+func IsAntiChaseCode(code string) bool {
+	for _, p := range []string{"CHASE_EMA20_1H_", "COUNTER_EMA20_1H_", "RSI1H_EXHAUSTED_", "CHASE_MOVE4H_"} {
+		if strings.HasPrefix(code, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // btc4hShape reads the TRUE 4h BTC closes through the SHARED classifier
 // (breakout.BTC4hRegime — same EMA20/50+RSI definition the short-scan
 // haircut and the scheduler regime label use, review 2026-10-04 #3: the
@@ -1873,6 +1958,9 @@ func computeHardEntryGate(sig *SymbolSignal, opt SignalOptions) *HardEntryGate {
 			if d := ema20Stretch4hPct(sig); d > opt.LongMaxEMA20DistPct {
 				add(fmt.Sprintf("EMA20_STRETCH_%.1f_GT_%.0f", d, opt.LongMaxEMA20DistPct))
 			}
+		}
+		for _, code := range antiChaseCodes(sig, g.EntryPrice, isLong, opt) {
+			add(code)
 		}
 		// BTC relative strength (market-level filter): BTC 4h must not be in
 		// a downtrend and the coin must be at least as strong as BTC over

@@ -2325,8 +2325,13 @@ func (at *AutoTrader) applyHardRiskGates(decisions []kernel.Decision, ctx *kerne
 			case isLimitOpen && !allowed:
 				blockCode = "DIRECTION_DISALLOWED"
 			case !isLimitOpen && gs != nil && !allowed:
+				// Anti-chase codes (CHASE_EMA20_1H_/COUNTER_EMA20_1H_/
+				// RSI1H_EXHAUSTED_/CHASE_MOVE4H_) block a MARKET open — it
+				// buys at the live price the gate evaluated. They are not
+				// absoluteBanCode: the pending recheck would cancel resting
+				// pullback limits that buy at their anchor (review 2026-10-11).
 				for _, code := range failed {
-					if absoluteBanCode(code) {
+					if absoluteBanCode(code) || kernel.IsAntiChaseCode(code) {
 						blockCode = code
 						break
 					}

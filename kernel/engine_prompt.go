@@ -1633,7 +1633,12 @@ func (e *StrategyEngine) computeCoinSignal(data *market.Data, quantData *QuantDa
 		// greed deweight — all config-switchable via risk_control.
 		LongPullbackEntry:   e.config.RiskControl.EffectiveLongPullbackEntry(),
 		LongMaxEMA20DistPct: e.config.RiskControl.EffectiveLongMaxEMA20DistPct(),
-		BTCFilterLong:       e.config.RiskControl.EffectiveBTCFilterLong(),
+		// Anti-chase symmetric gates (Opus analysis 2026-10-11, 273 live trades).
+		ChaseMaxEMA20_1hPct:   e.config.RiskControl.EffectiveChaseMaxEMA20_1hPct(),
+		CounterMaxEMA20_1hPct: e.config.RiskControl.EffectiveCounterMaxEMA20_1hPct(),
+		EntryRSI1hMax:         e.config.RiskControl.EffectiveEntryRSI1hMax(),
+		ChaseMaxMove4hPct:     e.config.RiskControl.EffectiveChaseMaxMove4hPct(),
+		BTCFilterLong:         e.config.RiskControl.EffectiveBTCFilterLong(),
 		// Short-side mirrors (2026-10-04 batch-2): the BTC strong-bull hard
 		// pause is OPT-IN (the scan-side ×0.85 haircut off the same shared
 		// classifier stays the default treatment); the top-confirmation gate

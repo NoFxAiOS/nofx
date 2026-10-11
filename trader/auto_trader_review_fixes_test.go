@@ -97,6 +97,27 @@ func TestVendorDivergenceBlocksAllOpenPaths(t *testing.T) {
 	}
 }
 
+// Anti-chase codes block a MARKET open at the executor (it buys at the live
+// price the gate evaluated) but are not absolute bans for resting limits.
+func TestAntiChaseCodesBlockMarketOpen(t *testing.T) {
+	at := vendorGateTrader()
+	at.cycleGateStates["CHASEUSDT"] = &kernel.GateState{
+		LongFailed:  []string{"CHASE_EMA20_1H_7.0_GT_6"},
+		ShortFailed: []string{"RSI1H_EXHAUSTED_15"},
+	}
+	ctx := &kernel.Context{Account: kernel.AccountInfo{TotalEquity: 1000}}
+	out := at.applyHardRiskGates([]kernel.Decision{
+		{Symbol: "CHASEUSDT", Action: "open_long", Confidence: 95, Reasoning: "x"},
+		{Symbol: "CHASEUSDT", Action: "open_short", Confidence: 95, Reasoning: "x"},
+	}, ctx)
+	if len(out) != 0 {
+		t.Fatalf("market chase opens must be refused, got %d through: %+v", len(out), out)
+	}
+	if absoluteBanCode("CHASE_EMA20_1H_7.0_GT_6") {
+		t.Fatal("anti-chase codes must stay out of absoluteBanCode (pending recheck would cancel resting pullback limits)")
+	}
+}
+
 // Daily-loss-halt baseline: losses between midnight and the day's first
 // open DECISION used to escape the baseline (lazy anchor inside the open
 // branch), letting the account lose ~1.6× the configured cap. The baseline

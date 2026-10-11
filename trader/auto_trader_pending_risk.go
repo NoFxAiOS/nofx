@@ -180,6 +180,8 @@ func (at *AutoTrader) pendingDirectionBlocked(pe *pendingEntry) string {
 			EntryTimingGate: rc.EntryTimingGate, PumpGuard4hPct: kernel.PumpGuard4h(&rc),
 			BTCFilterLong: rc.EffectiveBTCFilterLong(), BTCFilterShort: rc.EffectiveBTCFilterShort(), BtcTrendCloses: btc,
 			LongMaxEMA20DistPct: rc.EffectiveLongMaxEMA20DistPct(), LongPullbackEntry: rc.EffectiveLongPullbackEntry(),
+			ChaseMaxEMA20_1hPct: rc.EffectiveChaseMaxEMA20_1hPct(), CounterMaxEMA20_1hPct: rc.EffectiveCounterMaxEMA20_1hPct(),
+			EntryRSI1hMax: rc.EffectiveEntryRSI1hMax(), ChaseMaxMove4hPct: rc.EffectiveChaseMaxMove4hPct(),
 			ConfiguredTimeframes: at.recheckConfiguredTimeframes(pe.Symbol),
 		})
 		if err != nil || sig == nil || sig.HardGate == nil {
@@ -192,6 +194,9 @@ func (at *AutoTrader) pendingDirectionBlocked(pe *pendingEntry) string {
 		if gate == nil {
 			return "pending fresh direction gate unavailable"
 		}
+		// Anti-chase codes are deliberately not re-checked here: they are
+		// evaluated at the LIVE price, while a resting order buys at its
+		// anchor (review 2026-10-11).
 		for _, code := range gate.Failed {
 			if absoluteBanCode(code) || strings.HasPrefix(code, "MICRO_TREND_") || code == "EXTENDED_PUMP_UNCONFIRMED" {
 				return "pending fresh gate: " + code

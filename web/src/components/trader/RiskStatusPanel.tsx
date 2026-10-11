@@ -217,7 +217,9 @@ export function RiskStatusPanel({
                 title={
                   p.has_initial_stop
                     ? `SL0 ${p.initial_stop} · SL ${p.current_stop} · ${p.exit_mode}`
-                    : t('riskStatus.noInitialStop', language)
+                    : p.ai_managed
+                      ? t('riskStatus.noInitialStop', language)
+                      : t('riskStatus.manualPositionHint', language)
                 }
               >
                 {p.symbol}{' '}
@@ -240,9 +242,15 @@ export function RiskStatusPanel({
                       </span>
                     )}
                   </>
+                ) : p.ai_managed ? (
+                  // An AI-opened position without an opening-stop anchor is a
+                  // real protection gap — flag it, unlike hands-off manual ones.
+                  <span className="text-warn">
+                    {t('riskStatus.noInitialStop', language)}
+                  </span>
                 ) : (
                   <span className="text-fg-3">
-                    {t('riskStatus.noInitialStop', language)}
+                    {t('riskStatus.manualPosition', language)}
                   </span>
                 )}
               </div>

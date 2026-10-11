@@ -935,7 +935,11 @@ func (at *AutoTrader) unmarkAIManaged(symbol, side string) {
 	if at.store == nil {
 		return
 	}
-	if err := at.store.AIManaged().Unmark(at.id, symbol, strings.ToLower(side)); err == nil {
+	// review 2026-10-11: Unmark is a DELETE that succeeds even when no mark
+	// existed, so manual positions closing logged a false "AI-managed mark
+	// removed" (STRKUSDT 10-11). Only report a mark that was really there.
+	wasMarked := at.store.AIManaged().IsMarked(at.id, symbol, strings.ToLower(side))
+	if err := at.store.AIManaged().Unmark(at.id, symbol, strings.ToLower(side)); err == nil && wasMarked {
 		// Warn-level: an unexpected unmark = automation silently stops
 		// managing a live position (the BEATUSDT 09-27 vanish was invisible
 		// because this had no log).

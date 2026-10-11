@@ -966,6 +966,9 @@ export const translations = {
       currentR: 'Now',
       lockedR: 'Stop locks',
       noInitialStop: 'no opening stop',
+      manualPosition: 'manual · not managed',
+      manualPositionHint:
+        'Opened manually — the bot does not manage stops or R for this position',
       unavailable: 'Risk status unavailable',
     },
     positionHistory: {
@@ -2650,6 +2653,8 @@ export const translations = {
       currentR: '当前',
       lockedR: '止损锁定',
       noInitialStop: '无开仓止损',
+      manualPosition: '手动仓位 · 不托管',
+      manualPositionHint: '手动开的仓位，机器人不管理它的止损，也不计算 R',
       unavailable: '风控状态暂不可用',
     },
     positionHistory: {
@@ -4268,6 +4273,9 @@ export const translations = {
       currentR: 'Kini',
       lockedR: 'Stop mengunci',
       noInitialStop: 'tanpa stop awal',
+      manualPosition: 'manual · tidak dikelola',
+      manualPositionHint:
+        'Dibuka manual — bot tidak mengelola stop atau R posisi ini',
       unavailable: 'Status risiko tidak tersedia',
     },
     positionHistory: {

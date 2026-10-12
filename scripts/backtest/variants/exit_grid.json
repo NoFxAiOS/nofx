@@ -1,0 +1,373 @@
+[
+[
+"00 plain: no BE, no lock, no trim, no trail, no peakDD, no cap",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": false,
+"pd_arm": 0,
+"tp_cap": 0
+}
+],
+[
+"01 plain + cap 2R",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": false,
+"pd_arm": 0,
+"tp_cap": 2
+}
+],
+[
+"02 plain + cap 3R",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": false,
+"pd_arm": 0,
+"tp_cap": 3
+}
+],
+[
+"03 baseline minus cap (uncapped TP)",
+{
+"tp_cap": 0
+}
+],
+[
+"10 no BE tier (lock still on)",
+{
+"be_arm": 0
+}
+],
+[
+"11 no BE tier, no lock",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false
+}
+],
+[
+"12 BE arm 0.5R",
+{
+"be_arm": 0.5
+}
+],
+[
+"13 BE arm 1.0R",
+{
+"be_arm": 1.0
+}
+],
+[
+"14 BE arm 1.25R",
+{
+"be_arm": 1.25
+}
+],
+[
+"15 BE arm 1.5R",
+{
+"be_arm": 1.5
+}
+],
+[
+"16 BE arm 1.0R off 0.0",
+{
+"be_arm": 1.0,
+"be_off": 0.0
+}
+],
+[
+"17 BE arm 1.0R off 0.3",
+{
+"be_arm": 1.0,
+"be_off": 0.3
+}
+],
+[
+"18 BE arm 1.5R off 0.5",
+{
+"be_arm": 1.5,
+"be_off": 0.5
+}
+],
+[
+"20 lock off (BE tier only)",
+{
+"lock_r": 0,
+"lock_trim": false
+}
+],
+[
+"21 lock 1.0R",
+{
+"lock_r": 1.0
+}
+],
+[
+"22 lock 1.5R + trim 50%",
+{
+"lock_trim": true
+}
+],
+[
+"23 lock 1.0R + trim 50%",
+{
+"lock_r": 1.0,
+"lock_trim": true
+}
+],
+[
+"30 trim off",
+{
+"trim_r": 0
+}
+],
+[
+"31 trim 1/3 @1.0R",
+{
+"trim_r": 1.0
+}
+],
+[
+"32 trim 1/3 @1.5R",
+{
+"trim_r": 1.5
+}
+],
+[
+"33 trim 1/2 @1.2R",
+{
+"trim_frac": 0.5
+}
+],
+[
+"40 TP uncapped",
+{
+"tp_cap": 0
+}
+],
+[
+"41 TP cap 3R",
+{
+"tp_cap": 3.0
+}
+],
+[
+"42 TP cap 1.5R",
+{
+"tp_cap": 1.5
+}
+],
+[
+"43 trend TP closes 100%",
+{
+"tp_frac_trend": 1.0
+}
+],
+[
+"44 no TP order (trail/BE only)",
+{
+"use_tp": false
+}
+],
+[
+"50 trail off",
+{
+"trail": false
+}
+],
+[
+"51 trail arm 1.0R",
+{
+"trail_arm": 1.0
+}
+],
+[
+"52 trail arm 2.0R",
+{
+"trail_arm": 2.0
+}
+],
+[
+"53 trail 1.5xATR",
+{
+"trail_atr": 1.5
+}
+],
+[
+"54 trail 3xATR",
+{
+"trail_atr": 3.0
+}
+],
+[
+"60 peak-DD off",
+{
+"pd_arm": 0
+}
+],
+[
+"61 peak-DD giveback 0.3",
+{
+"pd_give": 0.3
+}
+],
+[
+"62 peak-DD arm 1.5R",
+{
+"pd_arm": 1.5
+}
+],
+[
+"70 all trend mode",
+{
+"force_mode": "trend"
+}
+],
+[
+"71 all range mode",
+{
+"force_mode": "range"
+}
+],
+[
+"72 quick time-stop off",
+{
+"quick_stop_h": 0
+}
+],
+[
+"80 horizon 24h baseline",
+{
+"horizon_h": 24
+}
+],
+[
+"81 horizon 24h plain",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": false,
+"pd_arm": 0,
+"tp_cap": 0,
+"horizon_h": 24
+}
+],
+[
+"90 plain + trim 1/3@1.2R",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 1.2,
+"trail": false,
+"pd_arm": 0,
+"tp_cap": 0
+}
+],
+[
+"91 plain + peakDD(2R,50%)",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": false,
+"pd_arm": 2.0,
+"tp_cap": 0
+}
+],
+[
+"92 plain + trail (trend: 50%@TP, 1.5R arm, 2xATR)",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": true,
+"pd_arm": 0,
+"tp_cap": 0
+}
+],
+[
+"93 plain + trail 3xATR",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": true,
+"pd_arm": 0,
+"tp_cap": 0,
+"trail_atr": 3
+}
+],
+[
+"94 plain + BE@1.5R(+0.1R)",
+{
+"be_arm": 1.5,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": false,
+"pd_arm": 0,
+"tp_cap": 0
+}
+],
+[
+"95 plain + BE@2.0R(+0.5R)",
+{
+"be_arm": 2.0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"trail": false,
+"pd_arm": 0,
+"tp_cap": 0,
+"be_off": 0.5
+}
+],
+[
+"96 plain + lock@1.5R + trail",
+{
+"be_arm": 0,
+"lock_r": 1.5,
+"lock_trim": false,
+"trim_r": 0,
+"trail": true,
+"pd_arm": 0,
+"tp_cap": 0
+}
+],
+[
+"97 baseline minus BE & trim & lock",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0
+}
+],
+[
+"98 baseline minus BE & trim & lock & cap",
+{
+"be_arm": 0,
+"lock_r": 0,
+"lock_trim": false,
+"trim_r": 0,
+"tp_cap": 0
+}
+]
+]

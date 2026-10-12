@@ -10,6 +10,7 @@ import (
 
 	"nofx/logger"
 	"nofx/market"
+	"nofx/market/usstock"
 	"nofx/provider/alpaca"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
@@ -17,6 +18,12 @@ import (
 	"nofx/provider/twelvedata"
 
 	"github.com/gin-gonic/gin"
+)
+
+// Test seams for the Binance spot bStock chart path.
+var (
+	usstockLookupSymbol = usstock.LookupSymbol
+	usstockChartKlines  = usstock.ChartKlines
 )
 
 // handleKlines K-line data (supports multiple exchanges via coinank)
@@ -68,6 +75,33 @@ func (s *Server) handleKlines(c *gin.Context) {
 			return
 		}
 	default:
+		// Binance spot bStocks (e.g. AAPLBUSDT) have no CoinAnk futures data.
+		// The BUSDT pre-check keeps ordinary crypto off the bStock registry.
+		if exchangeLower == "binance" && strings.HasSuffix(strings.ToUpper(symbol), "BUSDT") {
+			upper := strings.ToUpper(symbol)
+			if _, ok := usstockLookupSymbol(c.Request.Context(), upper); ok {
+				bars, err := usstockChartKlines(c.Request.Context(), upper, interval, limit)
+				if err != nil {
+					SafeInternalError(c, "Get klines from Binance spot", err)
+					return
+				}
+				klines = make([]market.Kline, len(bars))
+				for i, b := range bars {
+					klines[i] = market.Kline{
+						OpenTime:    b.OpenTime,
+						Open:        b.Open,
+						High:        b.High,
+						Low:         b.Low,
+						Close:       b.Close,
+						Volume:      b.Volume,
+						QuoteVolume: b.QuoteVolume,
+						CloseTime:   b.CloseTime,
+					}
+				}
+				c.JSON(http.StatusOK, klines)
+				return
+			}
+		}
 		// Crypto exchanges via CoinAnk
 		symbol = market.Normalize(symbol)
 		klines, err = s.getKlinesFromCoinank(c.Request.Context(), symbol, interval, exchange, limit)

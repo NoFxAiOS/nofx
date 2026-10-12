@@ -412,7 +412,7 @@ func TestPromptProgramTruthGateWording(t *testing.T) {
 		"禁止从 scanner patterns",
 		"RECHECK_ALL_HARD_GATES",
 		"数据新鲜度优先级",
-		"不要用 limit_entry_offset_pct 自行重算",
+		"锚点呼吸空间已并入 hard_entry_gate;直接采用其结论与 entry_price,不要自行重算", // market-entry default config
 	} {
 		if !strings.Contains(sys1, want) {
 			t.Errorf("system prompt missing %q", want)

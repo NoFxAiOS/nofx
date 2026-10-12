@@ -277,6 +277,9 @@ func (at *AutoTrader) runCycle() error {
 
 	// 8. Sort decisions: ensure close positions first, then open positions (prevent position stacking overflow)
 	sortedDecisions := sortDecisionsByPriority(aiDecision.Decisions)
+	// Market-entry strategies (limit_entry_enabled=false): belt and braces on top
+	// of the prompt — any open_*_limit the model still emits becomes a market open.
+	sortedDecisions = at.forceMarketEntries(sortedDecisions)
 
 	logger.Info("🔄 Execution order (optimized): Close positions first → Open positions later")
 	for i, d := range sortedDecisions {

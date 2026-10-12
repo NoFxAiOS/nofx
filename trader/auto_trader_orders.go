@@ -14,6 +14,36 @@ import (
 	"time"
 )
 
+// forceMarketEntries rewrites open_long_limit/open_short_limit into market
+// opens (Price cleared) when the strategy is market-entry
+// (risk_control.limit_entry_enabled=false). The prompt already teaches the
+// market path; this keeps a stray limit decision from creating a pending order
+// on a strategy that never opted into limit entries. It runs before any
+// risk/safe-mode filtering so every later stage sees the final action. The
+// input slice is not mutated.
+func (at *AutoTrader) forceMarketEntries(ds []kernel.Decision) []kernel.Decision {
+	if at.config.StrategyConfig == nil || at.config.StrategyConfig.RiskControl.LimitEntryEnabled {
+		return ds
+	}
+	out := make([]kernel.Decision, len(ds))
+	copy(out, ds)
+	for i := range out {
+		var to string
+		switch out[i].Action {
+		case "open_long_limit":
+			to = "open_long"
+		case "open_short_limit":
+			to = "open_short"
+		default:
+			continue
+		}
+		logger.Infof("🔁 [%s] %s %s → %s: strategy is market-entry (limit_entry_enabled=false)", at.name, out[i].Symbol, out[i].Action, to)
+		out[i].Action = to
+		out[i].Price = 0
+	}
+	return out
+}
+
 // executeDecisionWithRecord executes AI decision and records detailed information
 func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	switch decision.Action {

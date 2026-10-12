@@ -198,12 +198,19 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	exEntry := 150.0
 	exSL := exEntry * 1.03  // 154.50 — above entry for a short
 	exTP := exEntry * 0.952 // 142.80 — below entry for a short
+	// Market-entry strategies (limit_entry_enabled=false) get a market example
+	// without "price": the model copies the example's action, so a limit example
+	// would push it to open_*_limit even though the strategy default is market.
+	exAction, exPriceField := "open_short_limit", fmt.Sprintf("\"price\": %.2f, ", exEntry)
+	if !riskControl.LimitEntryEnabled {
+		exAction, exPriceField = "open_short", ""
+	}
 	if TPMenuEnabled(&riskControl) {
-		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"SOLUSDT\", \"action\": \"open_short_limit\", \"price\": %.2f, \"leverage\": %d, \"position_size_usd\": %.1f, \"stop_loss\": %.2f, \"take_profit\": %.2f, \"tp_option\": 2, \"exit_mode\": \"range\", \"confidence\": 85},\n",
-			exEntry, riskControl.BTCETHMaxLeverage, exNotional, exSL, exTP))
+		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"SOLUSDT\", \"action\": \"%s\", %s\"leverage\": %d, \"position_size_usd\": %.1f, \"stop_loss\": %.2f, \"take_profit\": %.2f, \"tp_option\": 2, \"exit_mode\": \"range\", \"confidence\": 85},\n",
+			exAction, exPriceField, riskControl.BTCETHMaxLeverage, exNotional, exSL, exTP))
 	} else {
-		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"SOLUSDT\", \"action\": \"open_short_limit\", \"price\": %.2f, \"leverage\": %d, \"position_size_usd\": %.1f, \"stop_loss\": %.2f, \"take_profit\": %.2f, \"confidence\": 85},\n",
-			exEntry, riskControl.BTCETHMaxLeverage, exNotional, exSL, exTP))
+		sb.WriteString(fmt.Sprintf("  {\"symbol\": \"SOLUSDT\", \"action\": \"%s\", %s\"leverage\": %d, \"position_size_usd\": %.1f, \"stop_loss\": %.2f, \"take_profit\": %.2f, \"confidence\": 85},\n",
+			exAction, exPriceField, riskControl.BTCETHMaxLeverage, exNotional, exSL, exTP))
 	}
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"wait\", \"wait_bias\": \"short\", \"entry_quality\": 55, \"no_trade_reason\": [\"LIMIT_ANCHOR_SUPPRESSED\", \"MICRO_TREND_NOT_SHORT\"], \"next_trigger\": \"15m 转 down + RECHECK_ALL_HARD_GATES\"},\n")
 	sb.WriteString("  {\"symbol\": \"ARUSDT\", \"action\": \"hold\", \"no_trade_reason\": [\"浮亏未达提前平仓条件\", \"15m 结构未破\"], \"management_quality\": 62, \"management_flags\": [\"STRUCTURE_WEAKENING\"]}\n")
@@ -213,6 +220,8 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	actions := "open_long_limit | open_short_limit | open_long | open_short | close_long | close_short | adjust_stop_loss | partial_close_long | partial_close_short | hold | wait"
 	if riskControl.LimitEntryEnabled {
 		actions += "(本策略默认限价入场: open_long/open_short 仅三类例外成立时可用)"
+	} else {
+		actions += "(本策略默认市价入场: 开仓只用 open_long/open_short,不要输出 open_*_limit)"
 	}
 	sb.WriteString("- `action`: " + actions + "\n")
 	sb.WriteString(fmt.Sprintf("- 开仓必填: leverage, position_size_usd, stop_loss, take_profit, confidence(0-100且≥%d);限价开仓另需 price。后端会拒绝低 confidence、下调超限 leverage;`risk_usd`、开仓的 `entry_quality` 和硬门 `blocking_factors` 由后端计算/回填,不要输出。\n", riskControl.MinConfidence))
@@ -222,6 +231,8 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("- 所有数值必须是数字,禁止公式、占位符或单位字符串。\n")
 	if riskControl.LimitEntryEnabled {
 		sb.WriteString("- 开仓路径只看 hard_entry_gate: `allowed=false` 必须 wait;`allowed=true && limit_allowed=true` 默认输出对应 open_*_limit 并逐字复制 entry_price;`allowed=true && limit_allowed=false && market_exception=true` 才可输出市价 open_*,且 confidence≥80。不存在其他例外。\n")
+	} else {
+		sb.WriteString("- 开仓路径只看 hard_entry_gate: `allowed=false` 必须 wait;`allowed=true` 直接输出市价 open_long/open_short(不填 price),止损/止盈/仓位按 entry_price(=实时价)计算的计划复制。limit_allowed/limit_buy_price/limit_sell_price 在本策略不使用。\n")
 	}
 	sb.WriteString("- wait: 无方向优势时 wait_bias 省略;方向明确但暂不可执行时填 long/short。hard_entry_gate.failed 存在时 no_trade_reason 逐项复制阻断码(去重后最多 4 项,按风险优先级取最重者),不要改写成反向观点;程序会映射 blocking_factors。方向性 wait 的 next_trigger 必须是`触发事件 + RECHECK_ALL_HARD_GATES`;每周期自动重评,禁止按天/周搁置。\n")
 	sb.WriteString("- **持仓管理动作(浮盈/结构变化时用,优先于全平)**:\n")
@@ -237,7 +248,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	// (head of the cached prefix) instead of being re-sent inside the user
 	// prompt every cycle. The user prompt then carries per-cycle data only.
 	sb.WriteString("# Structured Signal 字段说明（适用于每个 Structured Signal 块）\n")
-	sb.WriteString(signalBlockLegend)
+	sb.WriteString(signalBlockLegendFor(riskControl.LimitEntryEnabled))
 	if TPMenuEnabled(&e.config.RiskControl) {
 		sb.WriteString("- stop_loss 复制 stop_plan_price;take_profit 从 rr_scan.tp_options 菜单选编号填 tp_option(并把所选 level 复制为 take_profit):level 全部是程序按 stop_plan 同口径算出的结构位,touch_count 只是近30日触及该价位的次数(中性证据,非概率承诺),beyond_structure=超出全部周期结构极值(历史无参考)。usable=false 或菜单为空→引用 MAX_STRUCTURAL_RR=best_rr 并 wait。\n")
 	} else {
@@ -314,7 +325,11 @@ func (e *StrategyEngine) strategyParamsText() string {
 			params.WriteString(fmt.Sprintf("- 暴涨延伸做多确认门:4h 周期的趋势窗口(最近 5 根已闭合 4h K 线,约 20 小时)累计涨幅 ≥%.0f%% 且回踩未确认时,hard_entry_gate.failed 给出 EXTENDED_PUMP_UNCONFIRMED;这是 4h 周期指标,不是最近 4 小时的涨幅,直接采用程序结论\n", pg))
 		}
 		params.WriteString("- 做多独立确认(可选证据,非必要;轧空条件,程序预计算): 快照 derivatives.long_squeeze.detected=true = 资金费率年化 ≤ −5%(空头付费)+ long_short_account_ratio < 1(散户净空)+ 机构期货净流入 > 0 三者同时成立——作为做多方向的一条独立确认证据,reasoning 可直接引用;detected=false 或字段缺失 = 条件不成立,勿自行换算 FundingRate/比率\n")
-		params.WriteString("- 开仓硬门(唯一权威,禁止重算): hard_entry_gate.allowed 是该方向最终可执行权限;false 时只能 wait 并逐项引用 failed。true 时按 limit_allowed/market_exception 选择限价或市价路径;不得从原始指标推翻程序结论\n")
+		if e.config.RiskControl.LimitEntryEnabled {
+			params.WriteString("- 开仓硬门(唯一权威,禁止重算): hard_entry_gate.allowed 是该方向最终可执行权限;false 时只能 wait 并逐项引用 failed。true 时按 limit_allowed/market_exception 选择限价或市价路径;不得从原始指标推翻程序结论\n")
+		} else {
+			params.WriteString("- 开仓硬门(唯一权威,禁止重算): hard_entry_gate.allowed 是该方向最终可执行权限;false 时只能 wait 并逐项引用 failed。true 时直接市价开仓(open_long/open_short);不得从原始指标推翻程序结论\n")
+		}
 		if v := EffectiveMaxVendorDivergencePct(&e.config.RiskControl); v > 0 {
 			params.WriteString(fmt.Sprintf("- 数据源偏差门:偏差超过%.1f%%时程序输出 VENDOR_DIVERGENCE 并阻断开仓\n", v))
 		}
@@ -413,7 +428,11 @@ func (e *StrategyEngine) strategyParamsText() string {
 			params.WriteString(fmt.Sprintf("- 最短持仓限制(程序强制): 持仓不足 %d 分钟时,close/partial_close 会被程序拦截(现价已触及记录止损的硬退出除外)——不要在时间未到且无 1h 逆势证据时输出平仓动作\n", e.config.RiskControl.MinHoldMinutes))
 		}
 		if e.config.RiskControl.OpenRejectSupplyPct > 0 {
-			params.WriteString("- 锚点呼吸空间已并入 hard_entry_gate;直接采用 entry_price/limit_allowed,不要用 limit_entry_offset_pct 自行重算\n")
+			if e.config.RiskControl.LimitEntryEnabled {
+				params.WriteString("- 锚点呼吸空间已并入 hard_entry_gate;直接采用 entry_price/limit_allowed,不要用 limit_entry_offset_pct 自行重算\n")
+			} else {
+				params.WriteString("- 锚点呼吸空间已并入 hard_entry_gate;直接采用其结论与 entry_price,不要自行重算\n")
+			}
 		}
 		if e.config.RiskControl.AccountMaxDrawdownPct > 0 {
 			params.WriteString(fmt.Sprintf("- 账户级熔断(程序强制): 账户净值自初始值回撤 ≥ %.1f%% 时进入只减仓模式,一切新开仓被程序拦截;此时优先保护本金,减少交易频率\n", e.config.RiskControl.AccountMaxDrawdownPct))
@@ -2051,6 +2070,22 @@ const signalBlockLegend = `时间口径: timeframe 名称是K线粒度;trend_win
 - regime_line 是 trend_tf(默认1h)EMA50 收敛线;last_close_above(最近已收盘K线收盘 vs 线)与 live_price_above(实时价 vs 线)已由程序预计算。判断「升破/跌破」直接引用这两个布尔值,禁止自己比较小数——0.1107 与 0.110776 曾被读成「升破」。
 数据新鲜度优先级: Structured Signal timestamp > derivatives/liquidity > scanner/rankings。hint/榜单旧价格禁止参与 entry/SL/TP/RR 精确计算。ohlcv 只用于软证据,不得覆盖上述程序结论。
 `
+
+// signalGateLineLimit / signalGateLineMarket are the hard_entry_gate rule line
+// inside signalBlockLegend for limit-entry and market-entry strategies.
+const (
+	signalGateLineLimit  = "- hard_entry_gate.long/short.allowed 是最终方向权限。false→wait并逐项引用 failed;true 且 limit_allowed→限价复制 entry_price;true 且 !limit_allowed 且 market_exception→可走市价例外。不存在其他路径。\n"
+	signalGateLineMarket = "- hard_entry_gate.long/short.allowed 是最终方向权限。false→wait并逐项引用 failed;true→市价 open_long/open_short,按 entry_price(实时价)计划复制止损止盈。不存在其他路径。\n"
+)
+
+// signalBlockLegendFor returns the legend for the strategy's entry mode.
+// Limit mode is byte-identical to signalBlockLegend.
+func signalBlockLegendFor(limitEntryEnabled bool) string {
+	if limitEntryEnabled {
+		return signalBlockLegend
+	}
+	return strings.Replace(signalBlockLegend, signalGateLineLimit, signalGateLineMarket, 1)
+}
 
 // renderSignalBlock renders the structured signal block: a plain-language
 // summary header (structure state, key levels, derivatives, rules) followed by

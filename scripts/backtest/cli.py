@@ -6,7 +6,7 @@ import sys
 from collections import Counter
 from datetime import datetime, timezone
 
-from . import entry, exitsim, fetch, params, signals
+from . import entry, exitsim, fetch, mldataset, params, signals
 from .klines import default_cache_dir
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -102,6 +102,50 @@ def cmd_exit(a):
     return 0
 
 
+def cmd_ml_dataset(a):
+    meta, sigs = signals.load_signals_file(_sig_path(a))
+    base = _baseline(a, meta)
+    base["horizon_h"] = a.horizon
+    db = a.db or meta.get("db") or os.path.join(REPO_ROOT, "data", "data.db")
+    conn = signals.connect_ro(db)
+    if a.trader or a.trader_id:
+        tid = signals.resolve_trader(conn, a.trader, a.trader_id)["id"]
+    else:
+        tid = meta["trader_id"]
+    rows, missing = mldataset.build_rows(conn, tid, sigs, a.cache, base, a.horizon)
+    out = a.out or os.path.join(a.cache, "ml_rows.json")
+    with open(out, "w") as f:
+        json.dump(rows, f)
+    if a.csv:
+        mldataset.write_csv(rows, a.csv)
+    print(f"rows {len(rows)}  missing {missing}  written {out}")
+    cov = mldataset.coverage(rows)
+    low = {k: round(v, 2) for k, v in cov.items() if v < a.min_coverage}
+    print(f"features {len(cov)}  (coverage >= {a.min_coverage:.0%}: {len(cov) - len(low)})")
+    print(f"coverage below {a.min_coverage:.0%}: {low}")
+    return 0
+
+
+ML_EVAL_HINT = ("ml-eval 需要 numpy 和 scikit-learn,当前环境缺少。可以这样运行:\n"
+                "  uv run --no-project --with numpy --with scikit-learn python -m scripts.backtest ml-eval ...")
+
+
+def cmd_ml_eval(a):
+    try:
+        from . import mleval
+    except ImportError:
+        print(ML_EVAL_HINT, file=sys.stderr)
+        return 2
+    path = a.rows or os.path.join(a.cache, "ml_rows.json")
+    with open(path) as f:
+        rows = json.load(f)
+    labels = mleval.LABELS if a.label == "both" else (a.label,)
+    names = a.models.split(",") if a.models else None
+    results, line = mleval.run(rows, labels, min_coverage=a.min_coverage, folds=a.folds, min_train=a.min_train,
+                               perms=a.perms, seed=a.seed, models=names, alpha=a.alpha)
+    return 0
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="python3 -m scripts.backtest", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -140,6 +184,28 @@ def build_parser():
                    help="关闭「同币同向一次只持一仓」约束(默认开:持仓期间的同币同向新信号被跳过)")
     p.add_argument("--csv", help="汇总结果写 CSV")
     p.set_defaults(fn=cmd_exit)
+
+    p = sub.add_parser("ml-dataset", help="信号 → 特征 + 标签(r_base / r_plain / mfe)")
+    _add_common(p, with_db=True)
+    p.add_argument("--horizon", type=float, default=72)
+    p.add_argument("--from-strategy", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--out", help="输出 JSON(默认 <cache>/ml_rows.json)")
+    p.add_argument("--csv", help="同时写 CSV")
+    p.add_argument("--min-coverage", type=float, default=0.8, help="低于该覆盖率的特征会被列出")
+    p.set_defaults(fn=cmd_ml_dataset)
+
+    p = sub.add_parser("ml-eval", help="信号过滤器可行性检验(需要 numpy + scikit-learn)")
+    p.add_argument("--cache", default=default_cache_dir(REPO_ROOT))
+    p.add_argument("--rows", help="ml-dataset 的输出(默认 <cache>/ml_rows.json)")
+    p.add_argument("--label", choices=["r_base", "r_plain", "both"], default="both")
+    p.add_argument("--min-coverage", type=float, default=0.8)
+    p.add_argument("--folds", type=int, default=5)
+    p.add_argument("--min-train", type=float, default=0.4)
+    p.add_argument("--perms", type=int, default=400, help="置换次数;Bonferroni 后要能通过需 >= 1/阈值")
+    p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--alpha", type=float, default=0.05)
+    p.add_argument("--models", help="逗号分隔,默认 logit_L2,logit_L1,ridge,hgb_depth2")
+    p.set_defaults(fn=cmd_ml_eval)
     return ap
 
 

@@ -41,6 +41,21 @@ python3 -m unittest discover -s scripts/backtest/tests -v   # 离线单测
 
 变体可覆盖的键见 `params.py`:`be_arm be_off lock_r lock_trim trim_r trim_frac tp_cap tp_frac_trend trail trail_arm trail_atr pd_arm pd_give quick_stop_h force_mode use_tp horizon_h`。`variants/exit_grid.json` 是单因素扫描 + 在 plain 上逐项加回的组合;「关闭 X」类变体显式写出各项(如 `no BE tier (lock still on)` 只关保本档,盈利锁仍开)。
 
+## 信号过滤器检验(ml-dataset / ml-eval)
+
+问题:能否用开仓时刻的 Structured Signal 特征,统计地筛掉一部分信号来提高期望?此检验要在信号累积到 1000+ 后重跑。
+
+```bash
+python3 -m scripts.backtest ml-dataset [--csv rows.csv]     # 纯 stdlib;输出 <cache>/ml_rows.json
+uv run --no-project --with numpy --with scikit-learn python -m scripts.backtest ml-eval \
+    [--label both|r_base|r_plain] [--perms 400] [--folds 5] [--min-train 0.4] [--min-coverage 0.8] [--seed 7]
+```
+
+- **ml-dataset**:对每个信号在 ±10 分钟内找同 action+币的决策记录,解析 Structured Signal 与 AI 决策,算特征(`mlfeatures.py`,凡「方向」特征都以「与交易方向一致」为正,做空取反;缺失为 None),标签为 t0 市价入场、72h、不做单仓过滤:`r_base`(线上基线出场参数)、`r_plain`(无保本/锁盈/减仓/追踪/峰值回撤/止盈上限)、`mfe`。打印行数、缺失数和覆盖率低于 80% 的特征。
+- **ml-eval**(`mleval.py`,需 numpy+scikit-learn,缺失时会提示 uv 命令):只用覆盖率 ≥ `--min-coverage` 的特征。(a) 单变量 Spearman 在前后半段的稳定性(描述性,附纯噪声期望命中数,不计入检验数);(b) 走步(expanding train、`--folds` 折、起始训练占比 `--min-train`)的 logit-L2、logit-L1、ridge、HGB(depth2),报告 OOS AUC/rho、保留 top70% 与 top50% 的 R 相对「随机保留同比例」的提升及置换检验 p 值(训练标签打乱、对真实结果评估);(c) 嵌套流程——每折只用过去数据按半段稳定性挑一个特征、以训练集中位数为阈值,与随机保留同样数量的子集比较(5000 次抽样)。
+- **裁决规则**:检验总数 = 所有 label 上 模型数×2 个阈值 + 1 个嵌套;Bonferroni 阈值 = 0.05 / 检验数。只有「嵌套检验」和「同一个模型」在 **r_base 和 r_plain 两个 label 上都** ≤ 阈值才输出 `PASS: candidate filter X`,否则输出 `NO DEPLOYABLE FILTER`。默认 `--label both`;只跑单个 label 时永远不会 PASS。置换 p 值下限为 1/(perms+1),所以 4 模型×2 label 共 18 个检验时 `--perms` 至少要 360(默认 400;程序会在不足时提示)。
+- **2026-10-13 结果(n=420,67 个特征覆盖率 ≥80%)**:无可部署过滤器。r_base 走步 logit-L2 的 AUC≈0.53,保留 top50% 比随机多 +23.4R(单模型 p≈0.01),看上去不错,但嵌套检验 p≈0.5(r_plain 同样 ≈0.6);事后看 `btc_beta`(越低越好)两个半段都稳定,但按「每折只用过去数据选特征」的嵌套流程选不出它、也过不了检验——事后挑出来的特征不算数。下次重跑的门槛就是上面的 Bonferroni 裁决。
+
 ## 假设与局限
 
 - 同币同向单仓约束下,出场时间取触发出场的 K 线开盘时间(1m/5m),下一笔入场不早于它即放行。

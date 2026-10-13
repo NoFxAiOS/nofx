@@ -34,8 +34,8 @@ func TestRelayFeedsAI500(t *testing.T) {
 	}
 }
 
-// Stale relay entries must be ignored so callers fall back instead of
-// silently trading on outdated candidate lists.
+// Entries past relayTTL must be dropped so strategies don't silently trade on
+// outdated candidate lists.
 func TestRelayExpiry(t *testing.T) {
 	const p = "/trending-crypto?tab=oi&duration=1h&limit=100"
 	FeedRelay(p, []byte(`{"top":[]}`))

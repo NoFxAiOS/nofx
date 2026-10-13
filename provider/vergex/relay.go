@@ -10,12 +10,16 @@ import (
 
 // vergex.trade sits behind a Cloudflare managed challenge that only real
 // browsers pass — the backend's direct requests get 403 ("Just a moment...").
-// The web UI fetches these endpoints from the browser (CORS is open) and
-// relays the payloads here, letting strategy coin sources reuse browser-fresh
-// data. Entries older than relayTTL are ignored: candidate lists should not
-// silently go stale, so the client falls back to a direct fetch (and the
-// kernel falls back to NofxOS) instead.
-const relayTTL = 10 * time.Minute
+// A headless Chromium (headless.go) fetches these endpoints in-page and relays
+// the payloads here, letting strategy coin sources reuse browser-fresh data.
+//
+// The relay refreshes every minute, so an entry older than a couple of minutes
+// means fetches are failing. Within relayTTL callers keep serving the last
+// successful payload instead of erroring (vergex is the only source for AI500 /
+// OI / NetFlow — there is no fallback). Past relayTTL the entry is dropped so
+// strategies don't trade on an outdated candidate list, and the relay sends a
+// Telegram alert at the same threshold (relayHealth in headless.go).
+const relayTTL = 30 * time.Minute
 
 var (
 	relayMu    sync.Mutex

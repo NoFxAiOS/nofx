@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"nofx/logger"
+	"nofx/telegram/notify"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -45,11 +46,22 @@ func headlessEndpoints() []string {
 	}
 }
 
+const (
+	openTimeout  = 60 * time.Second // browser launch-to-page and Cloudflare settle
+	fetchTimeout = 30 * time.Second // one in-page fetch
+	// relayMaxBackoff caps the retry delay while vergex stays unreachable.
+	relayMaxBackoff = 5 * time.Minute
+)
+
 type relaySession struct {
-	browser *rod.Browser
-	page    *rod.Page
+	launcher *launcher.Launcher
+	browser  *rod.Browser
+	page     *rod.Page
 }
 
+// close tears down whatever partial state exists. The launcher is killed even
+// when the browser never connected — otherwise a failed open() leaks the whole
+// Chromium process tree.
 func (s *relaySession) close() {
 	if s.page != nil {
 		_ = s.page.Close()
@@ -58,6 +70,14 @@ func (s *relaySession) close() {
 	if s.browser != nil {
 		_ = s.browser.Close()
 		s.browser = nil
+	}
+	if s.launcher != nil {
+		l := s.launcher
+		s.launcher = nil
+		l.Kill()
+		// Cleanup removes the temp user-data-dir but blocks on the process-exit
+		// channel, which may never close on a rare rod error path: never inline.
+		go l.Cleanup()
 	}
 }
 
@@ -70,6 +90,7 @@ func (s *relaySession) open() error {
 	l := launcher.New().
 		Headless(headless).
 		Set("disable-blink-features", "AutomationControlled")
+	s.launcher = l
 	controlURL, err := l.Launch()
 	if err != nil {
 		s.close()
@@ -77,22 +98,26 @@ func (s *relaySession) open() error {
 	}
 
 	browser := rod.New().ControlURL(controlURL)
+	s.browser = browser
 	if err := browser.Connect(); err != nil {
 		s.close()
 		return fmt.Errorf("connect browser: %w", err)
 	}
 
-	page, err := browser.Page(proto.TargetCreateTarget{URL: "https://vergex.trade/trending"})
+	page, err := browser.Timeout(openTimeout).Page(proto.TargetCreateTarget{URL: "https://vergex.trade/trending"})
 	if err != nil {
 		s.close()
 		return fmt.Errorf("open vergex page: %w", err)
 	}
+	page = page.CancelTimeout()
+	s.page = page
+
 	// Give the Cloudflare challenge time to resolve before the first fetches.
-	if err := page.WaitStable(8 * time.Second); err != nil {
+	waitPage := page.Timeout(openTimeout)
+	if err := waitPage.WaitStable(8 * time.Second); err != nil {
 		logger.Infof("🧭 Vergex headless: page wait interrupted: %v", err)
 	}
-
-	s.browser, s.page = browser, page
+	waitPage.CancelTimeout()
 	return nil
 }
 
@@ -105,10 +130,12 @@ func (s *relaySession) fetchAll() error {
 		}
 	}
 	for _, endpoint := range headlessEndpoints() {
-		res, err := s.page.Eval(
+		p := s.page.Timeout(fetchTimeout)
+		res, err := p.Eval(
 			`(u) => fetch(u, {headers: {accept: 'application/json'}}).then(r => r.text())`,
 			"https://vergex.trade"+endpoint,
 		)
+		p.CancelTimeout()
 		if err != nil {
 			return fmt.Errorf("eval %s: %w", endpoint, err)
 		}
@@ -121,17 +148,111 @@ func (s *relaySession) fetchAll() error {
 	return nil
 }
 
+// relayRetryDelay is the wait before the next attempt: the normal interval
+// while healthy, then interval * 2^(n-1) after n consecutive failures, capped
+// at relayMaxBackoff (interval=1m: 1,2,4,5,5...).
+func relayRetryDelay(failures int, interval time.Duration) time.Duration {
+	if failures <= 0 {
+		return interval
+	}
+	d := interval
+	for i := 1; i < failures; i++ {
+		d *= 2
+		if d >= relayMaxBackoff {
+			return relayMaxBackoff
+		}
+	}
+	if d > relayMaxBackoff {
+		return relayMaxBackoff
+	}
+	return d
+}
+
+// relayHealth tracks consecutive failures (for backoff) and decides when an
+// outage is long enough to alert: exactly when cached data stops being served
+// (relayTTL without a success). One alert per outage.
+type relayHealth struct {
+	lastSuccess time.Time // initialised to relay start time
+	everOK      bool
+	failures    int
+	alerted     bool
+	lastErr     error
+	lastOutage  time.Duration // length of the outage just recovered from
+}
+
+func newRelayHealth(start time.Time) *relayHealth {
+	return &relayHealth{lastSuccess: start}
+}
+
+// record registers one attempt result and reports whether to send an outage
+// alert or a recovery notice.
+func (h *relayHealth) record(ok bool, err error, now time.Time) (alert, recovered bool) {
+	if ok {
+		recovered = h.alerted
+		h.lastOutage = now.Sub(h.lastSuccess)
+		h.alerted = false
+		h.failures = 0
+		h.lastErr = nil
+		h.lastSuccess = now
+		h.everOK = true
+		return false, recovered
+	}
+	h.failures++
+	h.lastErr = err
+	if !h.alerted && now.Sub(h.lastSuccess) >= relayTTL {
+		h.alerted = true
+		return true, false
+	}
+	return false, false
+}
+
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}
+
+func (h *relayHealth) alertMessage() string {
+	last := "启动后从未成功"
+	if h.everOK {
+		last = h.lastSuccess.Format("01-02 15:04:05")
+	}
+	errText := "-"
+	if h.lastErr != nil {
+		errText = truncateRunes(h.lastErr.Error(), 200)
+	}
+	return fmt.Sprintf("<b>⚠️ Vergex 数据超过 %d 分钟未拉取成功</b>\n最近成功: %s\n连续失败: %d 次\n最近错误: %s\n缓存数据已过期，AI500 / OI 排行 / 资金流选币源暂不可用",
+		int(relayTTL/time.Minute), last, h.failures, notify.Escape(errText))
+}
+
 func runRelay(ctx context.Context, interval time.Duration) {
 	session := &relaySession{}
 	defer session.close()
 
+	health := newRelayHealth(time.Now())
 	attempt := func() bool {
-		if err := session.fetchAll(); err != nil {
-			logger.Infof("🧭 Vergex headless relay failed: %v — restarting browser session", err)
+		err := session.fetchAll()
+		now := time.Now()
+		if err != nil {
 			session.close()
-			return false
 		}
-		return true
+		alert, recovered := health.record(err == nil, err, now)
+		if err != nil {
+			logger.Infof("🧭 Vergex headless relay failed: %v — restarting browser session, retry in %s",
+				err, relayRetryDelay(health.failures, interval))
+		}
+		if alert {
+			logger.Warnf("🧭 Vergex headless relay: no success for %s, cached data expired", relayTTL)
+			notify.Notify("ALERT", "Vergex 数据源", health.alertMessage())
+		}
+		if recovered {
+			down := health.lastOutage.Round(time.Minute)
+			logger.Infof("🧭 Vergex headless relay recovered after %s", down)
+			notify.Notify("INFO", "Vergex 数据源", fmt.Sprintf("<b>✅ Vergex 数据已恢复</b>\n中断时长: %s", down))
+		}
+		return err == nil
 	}
 
 	// First round with a few spaced retries (browser cold start can be slow).
@@ -148,14 +269,15 @@ func runRelay(ctx context.Context, interval time.Duration) {
 		}
 	}
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(relayRetryDelay(health.failures, interval))
+	defer timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			attempt()
+			timer.Reset(relayRetryDelay(health.failures, interval))
 		}
 	}
 }

@@ -79,9 +79,10 @@ func (at *AutoTrader) stockPreflightSymbol(ctx context.Context, pins []string) s
 
 // stockCycleSymbols builds the symbol list of one decision cycle and the scan
 // report that chose it (nil when none is available). Manual mode trades the
-// configured symbols. Scan mode uses held program-owned symbols first (the
-// validator must know them to accept close/adjust), then the pins, then the
-// scanner's top long setups minus the exclude list.
+// configured symbols. Scan mode trades the held program-owned symbols (the
+// validator must know them to accept close/adjust) plus the scanner's top long
+// setups minus the exclude list. Hybrid mode also always includes the configured
+// symbols, after the held ones and before the scanner's picks.
 func (at *AutoTrader) stockCycleSymbols(ctx context.Context, sc *store.StockConfig, state *stockState,
 	logf func(string, ...interface{})) ([]string, *stockengine.ScanReport) {
 	if !sc.IsScanMode() {
@@ -111,9 +112,11 @@ func (at *AutoTrader) stockCycleSymbols(ctx context.Context, sc *store.StockConf
 	for _, sym := range held {
 		add(sym)
 	}
-	for _, sym := range sc.Symbols {
-		if _, ok := stockLookupSymbol(ctx, sym); ok {
-			add(sym)
+	if sc.UsesManualSymbols() {
+		for _, sym := range sc.Symbols {
+			if _, ok := stockLookupSymbol(ctx, sym); ok {
+				add(sym)
+			}
 		}
 	}
 	nBase := len(list)
@@ -139,7 +142,7 @@ func (at *AutoTrader) stockCycleSymbols(ctx context.Context, sc *store.StockConf
 		}
 	}
 	if report == nil {
-		logf("scan unavailable: %d held/pinned symbols this cycle", nBase)
+		logf("scan unavailable: %d held/manual symbols this cycle", nBase)
 	} else {
 		logf("scan top %d: %s (report age %s)", sc.EffectiveScanTopN(), strings.Join(picks, " "),
 			at.stockClock().Sub(report.GeneratedAt).Round(time.Second))

@@ -70,16 +70,19 @@ export interface StockSessions {
 }
 
 export interface StockConfig {
-  // Binance spot bStock pairs, e.g. "AAPLBUSDT" (no cap; in scan mode these
-  // are optional "always include" pins on top of the scan picks)
+  // Binance spot bStock pairs, e.g. "AAPLBUSDT" (no cap). Required (>=1) for
+  // symbol_source "manual"/"hybrid"; ignored when "scan".
   symbols: string[]
-  // Candidate selection: "manual" (default) = only the symbols above;
+  // Candidate selection: "manual" (default) = trade only the symbols above;
   // "scan" = every ~30 min rank all listed bStock pairs by daily
-  // price-cycle score and feed the top N long setups to the AI
-  symbol_source?: 'manual' | 'scan'
-  // scan mode: how many long setups the AI sees (1-50; 0/omitted = 10)
+  // price-cycle score and feed the top N long setups to the AI (the symbols
+  // above are ignored); "hybrid" = the manual symbols above are always fed
+  // on top of the top N long setups (manual names don't consume Top-N
+  // slots). Held positions are included in every mode.
+  symbol_source?: 'manual' | 'scan' | 'hybrid'
+  // scan/hybrid: how many long setups the AI sees (1-50; 0/omitted = 10)
   scan_top_n?: number
-  // scan mode: pairs the scanner must never pick
+  // scan/hybrid: pairs the scanner must never pick
   scan_exclude?: string[]
   // "swing" (default) | "position"
   preset?: 'swing' | 'position'

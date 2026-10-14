@@ -189,10 +189,10 @@ P1、P2、P3 可并行；P4 依赖 P1–P3；P5 依赖 P3。每期带单元测�
 
 在手动选标的之外，新增按 Oliver Kell 价格周期自动选标的的模式。
 
-- **配置**（`StockConfig`）：`symbol_source` = `manual`（默认，交易 `symbols`）或 `scan`；`scan_top_n`（0 = 默认 10，最大 50）；`scan_exclude`（扫描器不会选中的交易对）。`symbols` 不再有 20 只上限（格式与重复校验保留）；手动模式仍至少 1 只，扫描模式下 `symbols` 变为可选的"固定纳入"标的，可以为空。
+- **配置**（`StockConfig`）：`symbol_source` 三种模式——`manual`（默认）只交易 `symbols`，至少 1 只；`scan` 只交易扫描器选出的 `scan_top_n` 名加持仓，`symbols` 被忽略、可以为空；`hybrid`（混合）每周期必含 `symbols`，再加扫描器选出的 `scan_top_n` 名与持仓，`symbols` 至少 1 只。`scan_top_n`（0 = 默认 10，最大 50）；`scan_exclude`（扫描器不会选中的交易对）。`symbols` 不再有 20 只上限（格式与重复校验保留）。
 - **扫描**（`kernel/stockengine/cycle.go`、`scan.go`）：用日线（260 根）对所有已上市 bStock 交易对做 `ClassifyCycle`（阶段、`LongSetup`、0–100 分、距 EMA10/20 的 ATR 倍数、相对 SPY 63 日强弱、量比），结果进程内缓存、单飞刷新。
-- **刷新节奏**：启动时（扫描模式）与每 60 秒保护 tick 都调用 `WarmScanReport(20min)`——报告超过 20 分钟才在后台重扫，不阻塞；决策周期调用 `GetScanReport(ctx, 45min)`，报告不超过 45 分钟直接用，否则等一次实时扫描。扫描失败时沿用上一份报告；完全没有报告则只用持仓 + 固定标的。
-- **每周期标的列表**（扫描模式）：程序持有的标的（排序）→ `symbols` 固定标的 → 扫描器 `TopLong(scan_top_n)`（排除 `scan_exclude` 与已纳入者），去重，仅保留 `LookupSymbol` 能找到的。持仓必须始终在列表里，否则校验器会把对它的平仓/调整拒为 `UNKNOWN_SYMBOL`。列表为空（扫描不可用或没有做多形态，且无持仓、无固定标的）时本周期记为成功的空操作，不调用 AI。每周期使用配置副本（`Symbols` = 本周期列表）生成快照、提示词和校验上下文，不改动运行时配置。
+- **刷新节奏**：启动时（扫描模式）与每 60 秒保护 tick 都调用 `WarmScanReport(20min)`——报告超过 20 分钟才在后台重扫，不阻塞；决策周期调用 `GetScanReport(ctx, 45min)`，报告不超过 45 分钟直接用，否则等一次实时扫描。扫描失败时沿用上一份报告；完全没有报告则只用持仓（混合模式另加固定标的）。
+- **每周期标的列表**（扫描模式）：程序持有的标的（排序）→ 混合模式下的 `symbols` 固定标的 → 扫描器 `TopLong(scan_top_n)`（排除 `scan_exclude` 与已纳入者），去重，仅保留 `LookupSymbol` 能找到的。持仓必须始终在列表里，否则校验器会把对它的平仓/调整拒为 `UNKNOWN_SYMBOL`。列表为空（扫描不可用或没有做多形态，且无持仓、无固定标的）时本周期记为成功的空操作，不调用 AI。每周期使用配置副本（`Symbols` = 本周期列表）生成快照、提示词和校验上下文，不改动运行时配置。
 - **快照**（两种模式）：`SymbolSnapshot.Cycle`——扫描报告里有该标的则用其结果，否则用本周期日线与 SPY 日线现场计算。
-- **提示词**：用户提示在每个标的快照后多一行 `cycle(Kell, daily): phase=… long_setup=… score=… ext10=…ATR dist20=…ATR rs63_vs_SPY=…% vol=…x <notes>`（中文为"价格周期"）；系统提示（中英、两种模式）加入"价格周期法"一段：优先 wedge_pop / ema_crossback / base_n_break，reversal_extension 仅为早期信号，base_forming 观察，exhaustion_extension / wedge_drop / downtrend 不开仓，持仓遇 exhaustion_extension 减仓或收紧、遇 wedge_drop/downtrend 平仓或收紧；扫描分数只是候选过滤，所有程序规则不变，`wait` 随时可选。扫描模式再加一句说明候选由扫描器选出且逐周期变化。输出契约不变。
+- **提示词**：用户提示在每个标的快照后多一行 `cycle(Kell, daily): phase=… long_setup=… score=… ext10=…ATR dist20=…ATR rs63_vs_SPY=…% vol=…x <notes>`（中文为"价格周期"）；系统提示（中英、两种模式）加入"价格周期法"一段：优先 wedge_pop / ema_crossback / base_n_break，reversal_extension 仅为早期信号，base_forming 观察，exhaustion_extension / wedge_drop / downtrend 不开仓，持仓遇 exhaustion_extension 减仓或收紧、遇 wedge_drop/downtrend 平仓或收紧；扫描分数只是候选过滤，所有程序规则不变，`wait` 随时可选。扫描模式再加一句说明候选由扫描器选出（混合模式另含手动指定的标的）且逐周期变化。输出契约不变。
 - **接口**：`GET /api/usstock/scan` 返回 `{"scanning":bool,"generated_at":RFC3339|null,"results":[…],"skipped":{…}}`；无缓存报告时后台启动扫描并返回 `scanning:true`。

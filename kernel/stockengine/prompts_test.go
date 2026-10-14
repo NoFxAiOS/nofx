@@ -90,16 +90,25 @@ func TestSystemPromptCycleMethodAndScanNote(t *testing.T) {
 				t.Fatalf("%s manual prompt missing %s", lang, token)
 			}
 		}
-		scanNote := "cycle scanner"
+		scanNote, manualPicks := "cycle scanner", "manual picks"
 		if lang == "zh" {
-			scanNote = "周期扫描器"
+			scanNote, manualPicks = "周期扫描器", "用户手动指定"
 		}
 		if strings.Contains(manual, scanNote) {
 			t.Fatalf("%s manual prompt must not carry the scan note", lang)
 		}
 		cfg = &store.StockConfig{SymbolSource: store.StockSymbolSourceScan}
-		if scan := BuildSystemPrompt(cfg, ResolvePreset(cfg), lang); !strings.Contains(scan, scanNote) || !strings.Contains(scan, "Kell") {
+		scan := BuildSystemPrompt(cfg, ResolvePreset(cfg), lang)
+		if !strings.Contains(scan, scanNote) || !strings.Contains(scan, "Kell") {
 			t.Fatalf("%s scan prompt missing scan note:\n%s", lang, scan)
+		}
+		if strings.Contains(scan, manualPicks) {
+			t.Fatalf("%s scan-only prompt must not mention the manual picks:\n%s", lang, scan)
+		}
+		cfg = &store.StockConfig{SymbolSource: store.StockSymbolSourceHybrid}
+		hybrid := BuildSystemPrompt(cfg, ResolvePreset(cfg), lang)
+		if !strings.Contains(hybrid, scanNote) || !strings.Contains(hybrid, manualPicks) {
+			t.Fatalf("%s hybrid prompt missing scan note or manual picks:\n%s", lang, hybrid)
 		}
 	}
 }

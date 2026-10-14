@@ -1178,18 +1178,38 @@ export const stockConfig = {
   symbolSource: { zh: '选股方式', en: 'Symbol source', id: 'Sumber simbol' },
   sourceManual: {
     zh: '手动选择',
-    en: 'Manual selection',
+    en: 'Manual',
     id: 'Pilih manual',
   },
   sourceScan: {
-    zh: '价格周期自动扫描',
-    en: 'Price-cycle auto scan',
-    id: 'Pindai otomatis siklus harga',
+    zh: '自动扫描',
+    en: 'Auto scan',
+    id: 'Pindai otomatis',
+  },
+  sourceHybrid: {
+    zh: '自动 + 手动',
+    en: 'Auto + manual',
+    id: 'Otomatis + manual',
+  },
+  sourceManualDesc: {
+    zh: '只交易下面手动选择的股票。',
+    en: 'Trade only the stocks selected below.',
+    id: 'Hanya perdagangkan saham yang dipilih di bawah.',
   },
   sourceScanDesc: {
-    zh: '每 30 分钟扫描币安 bStock 上全部美股，按 Oliver Kell 价格行为周期识别阶段并打分，把得分最高的 N 只多头机会交给大模型判断；已持仓的股票始终保留在决策列表中。',
-    en: "Every 30 minutes all US-stock bStock pairs are scanned, classified by Oliver Kell's cycle of price action and scored; the top N long setups are handed to the AI. Stocks you already hold always stay in the decision list.",
-    id: 'Setiap 30 menit semua saham AS di bStock Binance dipindai, diklasifikasikan menurut siklus aksi harga Oliver Kell, lalu diberi skor; N setup long teratas diberikan ke AI. Saham yang sudah dipegang selalu tetap di daftar keputusan.',
+    zh: '每 30 分钟扫描币安 bStock 上全部美股，按 Oliver Kell 价格行为周期识别阶段并打分，把得分最高的 N 只多头机会交给大模型判断。',
+    en: "Every 30 minutes all US-stock bStock pairs are scanned, classified by Oliver Kell's cycle of price action and scored; the top N long setups are handed to the AI.",
+    id: 'Setiap 30 menit semua saham AS di bStock Binance dipindai, diklasifikasikan menurut siklus aksi harga Oliver Kell, lalu diberi skor; N setup long teratas diberikan ke AI.',
+  },
+  sourceHybridDesc: {
+    zh: '手动选择的股票每轮都交给大模型，另外再加上扫描得分最高的 N 只多头机会（不占用手动股票的名额）。',
+    en: "Manually selected stocks are handed to the AI every round, plus the top N long setups from the scan (manual names don't consume Top-N slots).",
+    id: 'Saham pilihan manual diberikan ke AI setiap putaran, ditambah N setup long teratas dari pemindaian (tidak memakan jatah Top N).',
+  },
+  sourceHeldNote: {
+    zh: '已持仓的股票始终保留在决策列表中。',
+    en: 'Stocks you already hold always stay in the decision list.',
+    id: 'Saham yang sudah dipegang selalu tetap di daftar keputusan.',
   },
   scanTopN: {
     zh: 'Top N（交给大模型）',
@@ -1201,15 +1221,20 @@ export const stockConfig = {
     en: 'Feed the highest-scoring N long setups per decision (1–50, default 10)',
     id: 'Berikan N setup long dengan skor tertinggi per keputusan (1–50, default 10)',
   },
-  symbolsPinned: {
-    zh: '固定包含（可选）',
-    en: 'Always include (optional)',
-    id: 'Selalu sertakan (opsional)',
+  symbolsHybridDesc: {
+    zh: '每轮都会交给大模型；扫描 Top N 在此之外另取。',
+    en: 'Fed to the AI every round; the scan Top N is picked in addition.',
+    id: 'Diberikan ke AI setiap putaran; Top N pemindaian diambil di luar daftar ini.',
   },
-  symbolsPinnedDesc: {
-    zh: '这些标的始终进入决策列表，并叠加在 Top N 之上',
-    en: 'These symbols always join the decision list, on top of the Top N',
-    id: 'Simbol ini selalu masuk daftar keputusan, di atas Top N',
+  symbolsIgnoredNote: {
+    zh: '自动扫描模式不使用手动列表（已保存的 {n} 只不会交给大模型）；需要同时使用请切换到「自动 + 手动」。',
+    en: 'Auto scan ignores the manual list (the {n} saved symbols are not fed to the AI); switch to Auto + manual to use both.',
+    id: 'Mode pindai otomatis tidak memakai daftar manual ({n} simbol tersimpan tidak diberikan ke AI); pilih Otomatis + manual untuk memakai keduanya.',
+  },
+  symbolsHybridEmptyWarn: {
+    zh: '自动 + 手动模式至少选择 1 只手动股票',
+    en: 'Auto + manual mode needs at least one manual symbol',
+    id: 'Mode otomatis + manual butuh minimal satu simbol manual',
   },
   scanExclude: { zh: '排除', en: 'Exclude', id: 'Kecualikan' },
   scanExcludeDesc: {
@@ -1252,6 +1277,7 @@ export const stockConfig = {
   scanColVol: { zh: '量比', en: 'Vol', id: 'Vol' },
   scanColFeed: { zh: '入选', en: 'Fed', id: 'Masuk' },
   scanExcludedTag: { zh: '已排除', en: 'Excluded', id: 'Dikecualikan' },
+  scanManualTag: { zh: '手动', en: 'Manual', id: 'Manual' },
   scanFeedTip: {
     zh: '将交给大模型判断',
     en: 'Fed to the AI',

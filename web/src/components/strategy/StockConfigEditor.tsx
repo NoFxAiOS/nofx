@@ -167,8 +167,12 @@ export function StockConfigEditor({
   const symbols = config.symbols || []
   const selected = useMemo(() => new Set(symbols), [symbols])
 
-  const symbolSource = config.symbol_source === 'scan' ? 'scan' : 'manual'
-  const scanMode = symbolSource === 'scan'
+  const symbolSource =
+    config.symbol_source === 'scan' || config.symbol_source === 'hybrid'
+      ? config.symbol_source
+      : 'manual'
+  const usesScan = symbolSource === 'scan' || symbolSource === 'hybrid'
+  const usesManual = symbolSource === 'manual' || symbolSource === 'hybrid'
   const scanExclude = config.scan_exclude || []
   const excludeSet = useMemo(
     () => new Set(config.scan_exclude || []),
@@ -180,7 +184,7 @@ export function StockConfigEditor({
       : DEFAULT_SCAN_TOP_N
 
   useEffect(() => {
-    if (!scanMode) return
+    if (!usesScan) return
     let cancelled = false
     setScanState('loading')
     api
@@ -196,38 +200,41 @@ export function StockConfigEditor({
     return () => {
       cancelled = true
     }
-  }, [scanMode, scanTick])
+  }, [usesScan, scanTick])
 
   // The first scan after a backend restart takes a minute or two: re-poll
   // while the backend reports it is still scanning.
   useEffect(() => {
-    if (!scanMode || !scanReport?.scanning) return
+    if (!usesScan || !scanReport?.scanning) return
     const id = setTimeout(() => setScanTick((t) => t + 1), 15000)
     return () => clearTimeout(id)
-  }, [scanMode, scanReport])
+  }, [usesScan, scanReport])
 
   // Preview rows: first max(topN, 20) of the (already sorted) ranking, each
-  // annotated with the feed marker — non-excluded long setups only, within
-  // the top N of them (excluded pairs never consume a slot).
+  // annotated with the feed marker. Scan feeds the top N long setups that are
+  // neither excluded nor manual (excluded/manual pairs never consume a slot).
+  // Hybrid always feeds the manual symbols on top of those N.
   const scanRows = useMemo(() => {
-    const results = scanMode && scanReport ? scanReport.results || [] : []
+    const results = usesScan && scanReport ? scanReport.results || [] : []
+    const manualSet = symbolSource === 'hybrid' ? selected : null
     let longCount = 0
     const fed = new Set<string>()
     for (const r of results) {
-      if (r.cycle.long_setup && !excludeSet.has(r.symbol)) {
-        longCount += 1
-        if (longCount <= scanTopN) fed.add(r.symbol)
-      }
+      if (!r.cycle.long_setup || excludeSet.has(r.symbol)) continue
+      if (manualSet?.has(r.symbol)) continue
+      longCount += 1
+      if (longCount <= scanTopN) fed.add(r.symbol)
     }
     return results.slice(0, Math.max(scanTopN, 20)).map((r, i) => ({
       ...r,
       rank: i + 1,
-      fed: fed.has(r.symbol),
+      fed: fed.has(r.symbol) || !!manualSet?.has(r.symbol),
+      manual: !!manualSet?.has(r.symbol),
       excluded: excludeSet.has(r.symbol),
       phaseKey: PHASE_LABEL[r.cycle.phase],
       phaseCls: PHASE_TEXT[r.cycle.phase] ?? 'text-fg-3',
     }))
-  }, [scanMode, scanReport, scanTopN, excludeSet])
+  }, [usesScan, symbolSource, selected, scanReport, scanTopN, excludeSet])
 
   const filtered = useMemo(() => {
     if (!universe) return []
@@ -336,15 +343,16 @@ export function StockConfigEditor({
           </h3>
         </div>
 
-        {/* Symbol source: hand-picked list vs automatic price-cycle scan */}
+        {/* Symbol source: manual list / auto scan / both */}
         <p className="text-[13px] mb-2 text-fg-2">
           {ts(tx.symbolSource, language)}
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           {(
             [
               ['manual', tx.sourceManual],
               ['scan', tx.sourceScan],
+              ['hybrid', tx.sourceHybrid],
             ] as const
           ).map(([value, label]) => (
             <label
@@ -375,13 +383,28 @@ export function StockConfigEditor({
             </label>
           ))}
         </div>
-        {scanMode && (
+        <p className="text-xs mb-4 text-fg-3">
+          {ts(
+            symbolSource === 'manual'
+              ? tx.sourceManualDesc
+              : symbolSource === 'scan'
+                ? tx.sourceScanDesc
+                : tx.sourceHybridDesc,
+            language
+          )}
+          {usesScan && ` ${ts(tx.sourceHeldNote, language)}`}
+        </p>
+
+        {symbolSource === 'scan' && symbols.length > 0 && (
           <p className="text-xs mb-4 text-fg-3">
-            {ts(tx.sourceScanDesc, language)}
+            {ts(tx.symbolsIgnoredNote, language).replace(
+              '{n}',
+              String(symbols.length)
+            )}
           </p>
         )}
 
-        {scanMode && (
+        {usesScan && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div className="p-3 rounded-lg bg-surface-2 border border-line">
               <label className="block text-[13px] mb-1 text-fg-2">
@@ -459,121 +482,133 @@ export function StockConfigEditor({
           </div>
         )}
 
-        <div className="p-3 rounded-lg bg-surface-2 border border-line">
-          <label className="block text-[13px] mb-1 text-fg-2">
-            {ts(scanMode ? tx.symbolsPinned : tx.symbols, language)}
-          </label>
-          <p className="text-xs mb-3 text-fg-3">
-            {ts(scanMode ? tx.symbolsPinnedDesc : tx.symbolsDesc, language)}
-          </p>
-
-          {/* Selected chips */}
-          {symbols.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {symbols.map((sym) => (
-                <span
-                  key={sym}
-                  data-testid="stock-selected-symbol"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-surface-2 border border-brand"
-                >
-                  {underlyingOf(sym)} · {sym}
-                  {!disabled && (
-                    <button
-                      type="button"
-                      onClick={() => toggleSymbol(sym)}
-                      aria-label={`remove ${sym}`}
-                      className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {universeState === 'loading' && (
-            <p className="text-xs text-fg-3">
-              {ts(tx.symbolsLoading, language)}
+        {usesManual && (
+          <div className="p-3 rounded-lg bg-surface-2 border border-line">
+            <label className="block text-[13px] mb-1 text-fg-2">
+              {ts(tx.symbols, language)}
+            </label>
+            <p className="text-xs mb-3 text-fg-3">
+              {ts(
+                symbolSource === 'hybrid'
+                  ? tx.symbolsHybridDesc
+                  : tx.symbolsDesc,
+                language
+              )}
             </p>
-          )}
 
-          {universeState === 'ready' && (
-            <div>
-              <div className="relative mb-2">
-                <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-fg-3" />
+            {/* Selected chips */}
+            {symbols.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {symbols.map((sym) => (
+                  <span
+                    key={sym}
+                    data-testid="stock-selected-symbol"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-surface-2 border border-brand"
+                  >
+                    {underlyingOf(sym)} · {sym}
+                    {!disabled && (
+                      <button
+                        type="button"
+                        onClick={() => toggleSymbol(sym)}
+                        aria-label={`remove ${sym}`}
+                        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {universeState === 'loading' && (
+              <p className="text-xs text-fg-3">
+                {ts(tx.symbolsLoading, language)}
+              </p>
+            )}
+
+            {universeState === 'ready' && (
+              <div>
+                <div className="relative mb-2">
+                  <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-fg-3" />
+                  <Input
+                    type="text"
+                    data-testid="stock-symbol-search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={ts(tx.symbolSearch, language)}
+                    disabled={disabled}
+                    className="w-full pl-8 pr-3 bg-surface-2 border border-line text-fg"
+                  />
+                </div>
+                <div className="max-h-56 overflow-y-auto rounded border border-line">
+                  {filtered.length === 0 && (
+                    <p className="p-3 text-xs text-fg-3">
+                      {ts(tx.symbolsNoMatch, language)}
+                    </p>
+                  )}
+                  {filtered.map((s) => {
+                    const checked = selected.has(s.symbol)
+                    return (
+                      <label
+                        key={s.symbol}
+                        className="flex items-center gap-2 min-h-[34px] px-3 py-1.5 text-[13px] cursor-pointer hover:bg-surface-hover text-fg-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={disabled}
+                          onChange={() => toggleSymbol(s.symbol)}
+                          className="accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
+                        />
+                        <span>
+                          {s.underlying} · {s.symbol}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <p className="text-xs mt-2 text-fg-3">
+                  {ts(tx.symbolsSelected, language)} {symbols.length}
+                </p>
+              </div>
+            )}
+
+            {universeState === 'failed' && (
+              <div>
+                <p className="text-xs mb-2 text-fg-3">
+                  {ts(tx.symbolsFallback, language)}
+                </p>
                 <Input
                   type="text"
-                  data-testid="stock-symbol-search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={ts(tx.symbolSearch, language)}
+                  data-testid="stock-symbol-manual"
+                  value={manualText}
+                  onChange={(e) => {
+                    setManualText(e.target.value)
+                    updateField('symbols', parseSymbolText(e.target.value))
+                  }}
+                  placeholder={ts(tx.symbolsFallbackPlaceholder, language)}
                   disabled={disabled}
-                  className="w-full pl-8 pr-3 bg-surface-2 border border-line text-fg"
+                  className="w-full px-3 num bg-surface-2 border border-line text-fg"
                 />
               </div>
-              <div className="max-h-56 overflow-y-auto rounded border border-line">
-                {filtered.length === 0 && (
-                  <p className="p-3 text-xs text-fg-3">
-                    {ts(tx.symbolsNoMatch, language)}
-                  </p>
+            )}
+
+            {symbols.length === 0 && (
+              <p className="text-xs mt-2 flex items-center gap-1 text-down">
+                <AlertTriangle className="w-3 h-3" />
+                {ts(
+                  symbolSource === 'hybrid'
+                    ? tx.symbolsHybridEmptyWarn
+                    : tx.symbolsEmptyWarn,
+                  language
                 )}
-                {filtered.map((s) => {
-                  const checked = selected.has(s.symbol)
-                  return (
-                    <label
-                      key={s.symbol}
-                      className="flex items-center gap-2 min-h-[34px] px-3 py-1.5 text-[13px] cursor-pointer hover:bg-surface-hover text-fg-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={() => toggleSymbol(s.symbol)}
-                        className="accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
-                      />
-                      <span>
-                        {s.underlying} · {s.symbol}
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-              <p className="text-xs mt-2 text-fg-3">
-                {ts(tx.symbolsSelected, language)} {symbols.length}
               </p>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {universeState === 'failed' && (
-            <div>
-              <p className="text-xs mb-2 text-fg-3">
-                {ts(tx.symbolsFallback, language)}
-              </p>
-              <Input
-                type="text"
-                data-testid="stock-symbol-manual"
-                value={manualText}
-                onChange={(e) => {
-                  setManualText(e.target.value)
-                  updateField('symbols', parseSymbolText(e.target.value))
-                }}
-                placeholder={ts(tx.symbolsFallbackPlaceholder, language)}
-                disabled={disabled}
-                className="w-full px-3 num bg-surface-2 border border-line text-fg"
-              />
-            </div>
-          )}
-
-          {!scanMode && symbols.length === 0 && (
-            <p className="text-xs mt-2 flex items-center gap-1 text-down">
-              <AlertTriangle className="w-3 h-3" />
-              {ts(tx.symbolsEmptyWarn, language)}
-            </p>
-          )}
-        </div>
-
-        {scanMode && (
+        {usesScan && (
           <div
             className="p-3 rounded-lg bg-surface-2 border border-line mt-4"
             data-testid="stock-scan-preview"
@@ -664,6 +699,11 @@ export function StockConfigEditor({
                               {row.excluded && (
                                 <span className="ml-1.5 px-1 py-0.5 rounded text-[10px] bg-down-soft text-down">
                                   {ts(tx.scanExcludedTag, language)}
+                                </span>
+                              )}
+                              {row.manual && (
+                                <span className="ml-1.5 px-1 py-0.5 rounded text-[10px] bg-brand-soft text-brand">
+                                  {ts(tx.scanManualTag, language)}
                                 </span>
                               )}
                             </td>

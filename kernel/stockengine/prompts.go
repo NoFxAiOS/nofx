@@ -33,8 +33,13 @@ func BuildSystemPrompt(cfg *store.StockConfig, preset Preset, lang string) strin
 	sessions, zhSessions := sessionsText(cfg)
 	var enScan, zhScan string
 	if cfg.IsScanMode() {
-		enScan = "Scan mode: the candidate list was chosen by the cycle scanner (plus held names and pins) and changes between cycles; a name leaving the list is not a bearish signal by itself.\n"
-		zhScan = "扫描模式：候选标的由周期扫描器挑选（另含持仓与固定标的），每个周期都会变化；标的不再出现在列表中本身不是看空信号。\n"
+		if cfg.EffectiveSymbolSource() == store.StockSymbolSourceHybrid {
+			enScan = "Scan mode: the candidate list is the user's manual picks plus the cycle scanner's picks and held names, and changes between cycles; a name leaving the list is not a bearish signal by itself.\n"
+			zhScan = "扫描模式：候选标的由用户手动指定的标的、周期扫描器挑选的标的和持仓标的组成，每个周期都会变化；标的不再出现在列表中本身不是看空信号。\n"
+		} else {
+			enScan = "Scan mode: the candidate list is the cycle scanner's picks plus held names, and changes between cycles; a name leaving the list is not a bearish signal by itself.\n"
+			zhScan = "扫描模式：候选标的由周期扫描器挑选的标的和持仓标的组成，每个周期都会变化；标的不再出现在列表中本身不是看空信号。\n"
+		}
 	}
 	if strings.EqualFold(lang, "zh") || strings.HasPrefix(strings.ToLower(lang), "zh-") {
 		return fmt.Sprintf(`你是美股中长线交易员，在 Binance bStock 现货交易，只做多、无杠杆。预设 %s，持仓周期：%s。趋势周期 %s，入场周期 %s；每个交易日美东时间 %s 决策，避免追逐日内噪声。

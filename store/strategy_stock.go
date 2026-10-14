@@ -22,6 +22,7 @@ const (
 	// Symbol sources of a us_stock strategy (StockConfig.SymbolSource).
 	StockSymbolSourceManual = "manual"
 	StockSymbolSourceScan   = "scan"
+	StockSymbolSourceHybrid = "hybrid"
 	DefaultStockScanTopN    = 10
 
 	maxStockScanTopN = 50
@@ -43,9 +44,23 @@ func (s *StockConfig) EffectivePreset() string {
 	return StockPresetSwing
 }
 
-// IsScanMode reports whether the symbol list comes from the price-cycle scan.
+// IsScanMode reports whether the price-cycle scanner feeds candidates (scan or hybrid).
 func (s *StockConfig) IsScanMode() bool {
-	return s != nil && s.SymbolSource == StockSymbolSourceScan
+	return s != nil && (s.SymbolSource == StockSymbolSourceScan || s.SymbolSource == StockSymbolSourceHybrid)
+}
+
+// UsesManualSymbols reports whether the configured Symbols are traded (manual
+// and hybrid); scan mode ignores them.
+func (s *StockConfig) UsesManualSymbols() bool {
+	return s.EffectiveSymbolSource() != StockSymbolSourceScan
+}
+
+// EffectiveSymbolSource resolves the symbol source: nil and "" mean manual.
+func (s *StockConfig) EffectiveSymbolSource() string {
+	if s == nil || s.SymbolSource == "" {
+		return StockSymbolSourceManual
+	}
+	return s.SymbolSource
 }
 
 // EffectiveScanTopN is the number of scanner picks fed to the model per cycle
@@ -172,8 +187,12 @@ func (s *StockConfig) Validate() error {
 			return fmt.Errorf("stock_config.symbols must contain at least one symbol")
 		}
 	case StockSymbolSourceScan:
+	case StockSymbolSourceHybrid:
+		if len(s.Symbols) == 0 {
+			return fmt.Errorf("stock_config.symbols must contain at least one symbol in hybrid mode")
+		}
 	default:
-		return fmt.Errorf("invalid symbol_source %q: must be %q or %q", s.SymbolSource, StockSymbolSourceManual, StockSymbolSourceScan)
+		return fmt.Errorf("invalid symbol_source %q: must be %q, %q or %q", s.SymbolSource, StockSymbolSourceManual, StockSymbolSourceScan, StockSymbolSourceHybrid)
 	}
 	if s.ScanTopN < 0 || s.ScanTopN > maxStockScanTopN {
 		return fmt.Errorf("scan_top_n must be between 0 and %d", maxStockScanTopN)

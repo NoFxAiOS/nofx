@@ -726,15 +726,23 @@ func useScanReport(report *stockengine.ScanReport, err error) {
 }
 
 func scanMode(topN int, pins, exclude []string) func(*store.StockConfig) {
+	return symbolSourceMode(store.StockSymbolSourceScan, topN, pins, exclude)
+}
+
+func hybridMode(topN int, pins, exclude []string) func(*store.StockConfig) {
+	return symbolSourceMode(store.StockSymbolSourceHybrid, topN, pins, exclude)
+}
+
+func symbolSourceMode(source string, topN int, pins, exclude []string) func(*store.StockConfig) {
 	return func(sc *store.StockConfig) {
-		sc.SymbolSource, sc.ScanTopN, sc.Symbols, sc.ScanExclude = store.StockSymbolSourceScan, topN, pins, exclude
+		sc.SymbolSource, sc.ScanTopN, sc.Symbols, sc.ScanExclude = source, topN, pins, exclude
 	}
 }
 
 const waitAll = `[{"symbol":"AAPLBUSDT","action":"wait"},{"symbol":"NVDABUSDT","action":"wait"},{"symbol":"MSFTBUSDT","action":"wait"}]`
 
 func TestStockScanCycleComposesCandidates(t *testing.T) {
-	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll }, scanMode(2, []string{"AAPLBUSDT"}, []string{"TSLABUSDT"}))
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll }, hybridMode(2, []string{"AAPLBUSDT"}, []string{"TSLABUSDT"}))
 	useScanReport(scanReportOf(
 		scanRes("NVDABUSDT", "wedge_pop", true, 90),
 		scanRes("TSLABUSDT", "ema_crossback", true, 85), // excluded
@@ -783,6 +791,35 @@ func TestStockScanCycleComposesCandidates(t *testing.T) {
 	logged := strings.Join(rec.ExecutionLog, "\n")
 	if !strings.Contains(logged, "scan top 2: NVDABUSDT(wedge_pop 90.0) MSFTBUSDT(base_n_break 70.0)") || !strings.Contains(logged, "report age 10m0s") {
 		t.Fatalf("scan log line missing:\n%s", logged)
+	}
+}
+
+func TestStockScanModeIgnoresConfiguredSymbols(t *testing.T) {
+	// AAPL is configured but the scanner never picks it: scan mode must not trade it.
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string {
+		return `[{"symbol":"NVDABUSDT","action":"wait"},{"symbol":"MSFTBUSDT","action":"wait"}]`
+	}, scanMode(2, []string{"AAPLBUSDT"}, nil))
+	if got := fx.at.stock.cfg.Symbols; len(got) != 0 {
+		t.Fatalf("scan mode must not resolve the configured symbols: %v", got)
+	}
+	useScanReport(scanReportOf(
+		scanRes("NVDABUSDT", "wedge_pop", true, 90),
+		scanRes("MSFTBUSDT", "base_n_break", true, 70),
+		scanRes("AMDBUSDT", "ema_crossback", true, 60), // beyond top N
+	), nil)
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if !rec.Success || strings.Join(rec.CandidateCoins, ",") != "NVDABUSDT,MSFTBUSDT" {
+		t.Fatalf("record %+v", rec)
+	}
+	if strings.Contains(fx.ai.user, "AAPLBUSDT") {
+		t.Fatalf("scan mode must not trade configured symbols:\n%s", fx.ai.user)
+	}
+	// The cycle selector must ignore the configured list on its own too.
+	list, _ := fx.at.stockCycleSymbols(context.Background(), &store.StockConfig{SymbolSource: store.StockSymbolSourceScan, ScanTopN: 2, Symbols: []string{"AAPLBUSDT"}},
+		&stockState{}, func(string, ...interface{}) {})
+	if got := strings.Join(list, ","); got != "NVDABUSDT,MSFTBUSDT" {
+		t.Fatalf("scan selector with configured symbols handed in: %s", got)
 	}
 }
 
@@ -844,7 +881,7 @@ func TestStockScanNoCandidatesSkipsAI(t *testing.T) {
 }
 
 func TestStockScanFailureFallsBackToPins(t *testing.T) {
-	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return holdAAPL }, scanMode(5, []string{"AAPLBUSDT"}, nil))
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return holdAAPL }, hybridMode(5, []string{"AAPLBUSDT"}, nil))
 	useScanReport(nil, fmt.Errorf("binance down"))
 	fx.cycle(t)
 	rec := fx.lastRecord(t)
@@ -854,6 +891,19 @@ func TestStockScanFailureFallsBackToPins(t *testing.T) {
 	// No report: the AAPL cycle line is classified from the cycle's own daily series.
 	if !strings.Contains(fx.ai.user, "phase=") {
 		t.Fatalf("locally classified cycle line missing:\n%s", fx.ai.user)
+	}
+}
+
+func TestStockHybridNoSetupsStillTradesPins(t *testing.T) {
+	// Hybrid keeps its configured symbols even when the scanner finds no setups.
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string {
+		return `[{"symbol":"AAPLBUSDT","action":"wait"}]`
+	}, hybridMode(5, []string{"AAPLBUSDT"}, nil))
+	useScanReport(scanReportOf(scanRes("METABUSDT", "uptrend", false, 50)), nil)
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if fx.ai.calls != 1 || !rec.Success || strings.Join(rec.CandidateCoins, ",") != "AAPLBUSDT" {
+		t.Fatalf("calls %d record %+v", fx.ai.calls, rec)
 	}
 }
 
@@ -910,5 +960,31 @@ func TestStockScanPreflightSymbolAndWarm(t *testing.T) {
 	manual.at.runStockTickSafe(ctx)
 	if len(warmAges) != 0 {
 		t.Fatalf("manual mode must not warm the scan: %v", warmAges)
+	}
+}
+
+func TestStockResolveSymbolsBySource(t *testing.T) {
+	fx := newStockFixture(t, true, stockTestNow, func(int) string { return holdAAPL })
+	ctx := context.Background()
+	for name, tc := range map[string]struct {
+		sc      store.StockConfig
+		want    []string
+		wantErr bool
+	}{
+		"manual keeps listed pairs":    {store.StockConfig{Symbols: []string{"AAPLBUSDT", "NOPEBUSDT"}}, []string{"AAPLBUSDT"}, false},
+		"manual needs a listed pair":   {store.StockConfig{Symbols: []string{"NOPEBUSDT"}}, nil, true},
+		"hybrid keeps listed pairs":    {store.StockConfig{SymbolSource: store.StockSymbolSourceHybrid, Symbols: []string{"AAPLBUSDT", "NOPEBUSDT"}}, []string{"AAPLBUSDT"}, false},
+		"hybrid may resolve to none":   {store.StockConfig{SymbolSource: store.StockSymbolSourceHybrid, Symbols: []string{"NOPEBUSDT"}}, nil, false},
+		"scan ignores configured list": {store.StockConfig{SymbolSource: store.StockSymbolSourceScan, Symbols: []string{"AAPLBUSDT"}}, nil, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := fx.at.resolveStockSymbols(ctx, &tc.sc)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
+			}
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("symbols = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

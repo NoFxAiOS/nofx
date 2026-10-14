@@ -38,6 +38,33 @@ func TestStockConfigResolvers_Defaults(t *testing.T) {
 	}
 }
 
+func TestStockConfigSymbolSourceHelpers(t *testing.T) {
+	var nilCfg *StockConfig
+	for name, tc := range map[string]struct {
+		cfg                *StockConfig
+		source             string
+		scanMode, manualOK bool
+	}{
+		"nil":    {nilCfg, StockSymbolSourceManual, false, true},
+		"empty":  {&StockConfig{}, StockSymbolSourceManual, false, true},
+		"manual": {&StockConfig{SymbolSource: StockSymbolSourceManual}, StockSymbolSourceManual, false, true},
+		"scan":   {&StockConfig{SymbolSource: StockSymbolSourceScan}, StockSymbolSourceScan, true, false},
+		"hybrid": {&StockConfig{SymbolSource: StockSymbolSourceHybrid}, StockSymbolSourceHybrid, true, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := tc.cfg.EffectiveSymbolSource(); got != tc.source {
+				t.Errorf("EffectiveSymbolSource() = %q, want %q", got, tc.source)
+			}
+			if got := tc.cfg.IsScanMode(); got != tc.scanMode {
+				t.Errorf("IsScanMode() = %v, want %v", got, tc.scanMode)
+			}
+			if got := tc.cfg.UsesManualSymbols(); got != tc.manualOK {
+				t.Errorf("UsesManualSymbols() = %v, want %v", got, tc.manualOK)
+			}
+		})
+	}
+}
+
 func TestStockConfigScanHelpers(t *testing.T) {
 	var nilCfg *StockConfig
 	if nilCfg.IsScanMode() || nilCfg.EffectiveScanTopN() != DefaultStockScanTopN {
@@ -123,12 +150,22 @@ func TestStockConfigValidate(t *testing.T) {
 		{"manual source explicit", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceManual }, ""},
 		{"manual source empty symbols", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceManual; s.Symbols = nil }, "at least one symbol"},
 		{"unknown source", func(s *StockConfig) { s.SymbolSource = "auto" }, "symbol_source"},
+		{"unknown source names every mode", func(s *StockConfig) { s.SymbolSource = "auto" }, `must be "manual", "scan" or "hybrid"`},
 		{"scan with no symbols ok", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.Symbols = nil }, ""},
 		{"scan with pins and exclude ok", func(s *StockConfig) {
 			s.SymbolSource = StockSymbolSourceScan
 			s.ScanTopN = 50
 			s.ScanExclude = []string{"TSLABUSDT", "NVDABUSDT"}
 		}, ""},
+		{"scan with symbols ok", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan }, ""},
+		{"scan lowercase symbol still checked", func(s *StockConfig) {
+			s.SymbolSource = StockSymbolSourceScan
+			s.Symbols = []string{"aaplbusdt"}
+		}, "invalid stock symbol"},
+		{"hybrid with symbols ok", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid }, ""},
+		{"hybrid with no symbols", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid; s.Symbols = nil }, "at least one symbol in hybrid mode"},
+		{"hybrid bad pin", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid; s.Symbols = []string{"AAPL"} }, "invalid stock symbol"},
+		{"hybrid top n 51", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid; s.ScanTopN = 51 }, "scan_top_n"},
 		{"scan top n 51", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.ScanTopN = 51 }, "scan_top_n"},
 		{"scan top n negative", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.ScanTopN = -1 }, "scan_top_n"},
 		{"scan bad pin", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.Symbols = []string{"AAPL"} }, "invalid stock symbol"},

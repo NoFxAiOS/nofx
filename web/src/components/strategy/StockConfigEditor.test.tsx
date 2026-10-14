@@ -172,7 +172,7 @@ test('scan mode: top N, exclude, preview marks fed rows', async () => {
   const onChange = vi.fn()
   render(<Harness onChange={onChange} />)
 
-  fireEvent.click(screen.getByText('价格周期自动扫描'))
+  fireEvent.click(screen.getByTestId('stock-source-scan'))
   expect(onChange).toHaveBeenLastCalledWith(
     expect.objectContaining({ symbol_source: 'scan' })
   )
@@ -196,4 +196,82 @@ test('scan mode: top N, exclude, preview marks fed rows', async () => {
   // NVDA excluded → AAPL and TSLA fill the top 2; INTC is not a long setup
   expect(fed).toEqual([false, true, true, false])
   expect(preview).toHaveTextContent('已排除')
+})
+
+test('hybrid mode: manual symbols always fed and do not consume top-N slots', async () => {
+  apiMock.getUSStockSymbols.mockResolvedValue([
+    { symbol: 'AAPLBUSDT', underlying: 'AAPL', base_asset: 'AAPLB' },
+  ])
+  const cycle = (phase: string, long: boolean, score: number) => ({
+    phase,
+    long_setup: long,
+    score,
+  })
+  apiMock.getUSStockScan.mockResolvedValue({
+    scanning: false,
+    generated_at: '2026-10-14T13:30:00Z',
+    results: [
+      {
+        symbol: 'AAPLBUSDT',
+        underlying: 'AAPL',
+        source: 'yahoo',
+        cycle: cycle('wedge_pop', true, 90),
+      },
+      {
+        symbol: 'NVDABUSDT',
+        underlying: 'NVDA',
+        source: 'yahoo',
+        cycle: cycle('ema_crossback', true, 80),
+      },
+      {
+        symbol: 'TSLABUSDT',
+        underlying: 'TSLA',
+        source: 'yahoo',
+        cycle: cycle('base_n_break', true, 70),
+      },
+    ],
+    skipped: {},
+  })
+  const onChange = vi.fn()
+  render(<Harness onChange={onChange} />)
+  await screen.findByText('AAPL · AAPLBUSDT')
+  fireEvent.click(screen.getByText('AAPL · AAPLBUSDT'))
+  fireEvent.click(screen.getByTestId('stock-source-hybrid'))
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ symbol_source: 'hybrid', symbols: ['AAPLBUSDT'] })
+  )
+  fireEvent.change(screen.getByTestId('stock-scan-top-n'), {
+    target: { value: '1' },
+  })
+  // manual picker stays visible in hybrid
+  expect(screen.getByTestId('stock-symbol-search')).toBeInTheDocument()
+  const preview = await screen.findByTestId('stock-scan-preview')
+  await screen.findByText('楔形突破')
+  const fed = Array.from(preview.querySelectorAll('tbody tr')).map((r) =>
+    r.textContent?.includes('★')
+  )
+  // AAPL is manual (fed, no slot); top 1 slot goes to NVDA; TSLA not fed
+  expect(fed).toEqual([true, true, false])
+  expect(preview.querySelector('tbody tr')?.textContent).toContain('手动')
+})
+
+test('scan mode hides the manual picker and notes an ignored saved list', async () => {
+  apiMock.getUSStockSymbols.mockResolvedValue([
+    { symbol: 'AAPLBUSDT', underlying: 'AAPL', base_asset: 'AAPLB' },
+  ])
+  apiMock.getUSStockScan.mockResolvedValue({
+    scanning: true,
+    generated_at: null,
+    results: [],
+    skipped: {},
+  })
+  const onChange = vi.fn()
+  render(<Harness onChange={onChange} />)
+  await screen.findByText('AAPL · AAPLBUSDT')
+  fireEvent.click(screen.getByText('AAPL · AAPLBUSDT'))
+  fireEvent.click(screen.getByTestId('stock-source-scan'))
+  expect(screen.queryByTestId('stock-symbol-search')).not.toBeInTheDocument()
+  expect(screen.getByText(/自动扫描模式不使用手动列表/)).toBeInTheDocument()
+  // the saved list is not cleared
+  expect(onChange.mock.lastCall?.[0].symbols).toEqual(['AAPLBUSDT'])
 })

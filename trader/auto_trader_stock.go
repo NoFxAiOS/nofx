@@ -295,9 +295,13 @@ func stockWeekStart(t time.Time) time.Time {
 // ------------------------------------------------------------------- loop
 
 // resolveStockSymbols keeps the configured pairs that are currently listed
-// bStock pairs; unknown ones are dropped with a warning. In scan mode the
-// configured pairs are optional pins, so an empty result is fine.
+// bStock pairs; unknown ones are dropped with a warning. Scan mode ignores the
+// configured list entirely. In hybrid mode an empty result is fine: the scanner
+// still supplies candidates.
 func (at *AutoTrader) resolveStockSymbols(ctx context.Context, sc *store.StockConfig) ([]string, error) {
+	if sc.EffectiveSymbolSource() == store.StockSymbolSourceScan {
+		return nil, nil
+	}
 	var ok []string
 	for _, sym := range sc.Symbols {
 		if _, found := stockLookupSymbol(ctx, sym); found {
@@ -340,7 +344,7 @@ func (at *AutoTrader) runStockLoop() error {
 	symbols := cfg.Symbols
 	preset := stockengine.ResolvePreset(cfg)
 	logger.Infof("🇺🇸 [%s] us_stock started: %d symbols (source=%s), preset %s, decision times %v ET, paper=%v",
-		at.name, len(symbols), map[bool]string{true: store.StockSymbolSourceScan, false: store.StockSymbolSourceManual}[cfg.IsScanMode()], preset.Name, preset.DecisionTimes, paper)
+		at.name, len(symbols), cfg.EffectiveSymbolSource(), preset.Name, preset.DecisionTimes, paper)
 
 	// First cycle immediately only when a session is open (pre/regular/after).
 	now := at.stockClock()

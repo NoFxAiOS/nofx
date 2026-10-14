@@ -78,6 +78,10 @@ type SymbolSnapshot struct {
 	TrendEntry string `json:"trend_entry"` // up | down | range
 
 	Quote *usstock.Quote `json:"quote,omitempty"`
+
+	// Cycle is the Kell price-cycle assessment on daily bars (nil when no
+	// daily series was available).
+	Cycle *CycleAssessment `json:"cycle,omitempty"`
 }
 
 // Position is a held bStock position as the engine sees it.

@@ -70,8 +70,17 @@ export interface StockSessions {
 }
 
 export interface StockConfig {
-  // Binance spot bStock pairs, e.g. "AAPLBUSDT" (max 20)
+  // Binance spot bStock pairs, e.g. "AAPLBUSDT" (no cap; in scan mode these
+  // are optional "always include" pins on top of the scan picks)
   symbols: string[]
+  // Candidate selection: "manual" (default) = only the symbols above;
+  // "scan" = every ~30 min rank all listed bStock pairs by daily
+  // price-cycle score and feed the top N long setups to the AI
+  symbol_source?: 'manual' | 'scan'
+  // scan mode: how many long setups the AI sees (1-50; 0/omitted = 10)
+  scan_top_n?: number
+  // scan mode: pairs the scanner must never pick
+  scan_exclude?: string[]
   // "swing" (default) | "position"
   preset?: 'swing' | 'position'
   sessions: StockSessions
@@ -94,6 +103,52 @@ export interface USStockSymbol {
   symbol: string // "AAPLBUSDT"
   underlying: string // "AAPL"
   base_asset: string // "AAPLB"
+}
+
+// Oliver Kell cycle-of-price-action phases on daily bars (scan classification)
+export type USStockCyclePhase =
+  | 'reversal_extension'
+  | 'wedge_pop'
+  | 'ema_crossback'
+  | 'base_n_break'
+  | 'base_forming'
+  | 'uptrend'
+  | 'exhaustion_extension'
+  | 'wedge_drop'
+  | 'downtrend'
+  | 'neutral'
+  | 'insufficient_data'
+
+// One ranked row of GET /api/usstock/scan (long setups first, score desc)
+export interface USStockScanResult {
+  symbol: string // "NVDABUSDT"
+  underlying: string // "NVDA"
+  source: string // data provider for the bars, e.g. "yahoo"
+  cycle: {
+    phase: USStockCyclePhase
+    // true = long setup; score is only meaningful then
+    long_setup: boolean
+    score: number // 0-100 long-setup score
+    ext10_atr?: number // (close − EMA10) / ATR14
+    dist20_atr?: number // (close − EMA20) / ATR14
+    rs63_pct?: number // 63-bar return minus SPY's, %
+    vol_ratio?: number // signal-bar volume vs average
+    above_sma50?: boolean
+    sma50_above_200?: boolean
+    bars?: number // daily bars available
+    notes?: string[]
+  }
+}
+
+// Response of GET /api/usstock/scan — the latest scanner ranking
+export interface USStockScanReport {
+  // true when no report exists yet and a scan was just started
+  scanning: boolean
+  // ISO timestamp of the last finished scan; null when no report yet
+  generated_at: string | null
+  results: USStockScanResult[]
+  // pairs not scanned, keyed by symbol with the reason
+  skipped: Record<string, string>
 }
 
 // Grid trading specific configuration

@@ -40,6 +40,14 @@ var (
 	stockLookupSymbol = usstock.LookupSymbol
 	stockGetSeries    = usstock.GetSeries
 	stockGetQuote     = usstock.GetQuote
+	stockListUniverse = usstock.ListSymbols
+)
+
+// Price-cycle scan seams (scan mode; tests inject canned reports).
+var (
+	stockGetScanReport = stockengine.GetScanReport
+	stockWarmScan      = stockengine.WarmScanReport
+	stockCachedScan    = stockengine.CachedScanReport
 )
 
 // stockNotify sends Telegram messages (test seam).
@@ -64,6 +72,12 @@ const (
 	// the stop and the stop order still open before the program sells.
 	stockStopFallbackTicks = 2
 	stockSnapshotEvery     = 5 // equity snapshot every N protection ticks
+
+	// Scan mode: the 60s tick refreshes the cached scan once it is older than
+	// stockScanWarmAge (in the background); a decision cycle accepts a report up
+	// to stockScanMaxAge old before it waits for a live rescan.
+	stockScanWarmAge = 20 * time.Minute
+	stockScanMaxAge  = 45 * time.Minute
 )
 
 // stockSeriesNeeds: bars requested per timeframe (design §3.2).
@@ -73,6 +87,9 @@ var stockSeriesNeeds = map[string]int{
 
 // stockContextSymbols: market-background pairs (SPY / QQQ) when listed.
 var stockContextSymbols = []string{"SPYBUSDT", "QQQBUSDT"}
+
+// stockBenchmarkSymbol is the relative-strength benchmark of the cycle scan.
+const stockBenchmarkSymbol = "SPYBUSDT"
 
 type stockProtect struct {
 	Stop, TakeProfit, Qty float64
@@ -278,7 +295,8 @@ func stockWeekStart(t time.Time) time.Time {
 // ------------------------------------------------------------------- loop
 
 // resolveStockSymbols keeps the configured pairs that are currently listed
-// bStock pairs; unknown ones are dropped with a warning.
+// bStock pairs; unknown ones are dropped with a warning. In scan mode the
+// configured pairs are optional pins, so an empty result is fine.
 func (at *AutoTrader) resolveStockSymbols(ctx context.Context, sc *store.StockConfig) ([]string, error) {
 	var ok []string
 	for _, sym := range sc.Symbols {
@@ -288,7 +306,7 @@ func (at *AutoTrader) resolveStockSymbols(ctx context.Context, sc *store.StockCo
 			logger.Warnf("⚠️ [%s] us_stock symbol %s is not a listed bStock pair — dropped", at.name, sym)
 		}
 	}
-	if len(ok) == 0 {
+	if len(ok) == 0 && !sc.IsScanMode() {
 		return nil, fmt.Errorf("none of the configured us_stock symbols is a listed bStock pair")
 	}
 	return ok, nil
@@ -321,8 +339,8 @@ func (at *AutoTrader) runStockLoop() error {
 	}
 	symbols := cfg.Symbols
 	preset := stockengine.ResolvePreset(cfg)
-	logger.Infof("🇺🇸 [%s] us_stock started: %d symbols, preset %s, decision times %v ET, paper=%v",
-		at.name, len(symbols), preset.Name, preset.DecisionTimes, paper)
+	logger.Infof("🇺🇸 [%s] us_stock started: %d symbols (source=%s), preset %s, decision times %v ET, paper=%v",
+		at.name, len(symbols), map[bool]string{true: store.StockSymbolSourceScan, false: store.StockSymbolSourceManual}[cfg.IsScanMode()], preset.Name, preset.DecisionTimes, paper)
 
 	// First cycle immediately only when a session is open (pre/regular/after).
 	now := at.stockClock()
@@ -402,6 +420,9 @@ func (at *AutoTrader) runStockTickSafe(ctx context.Context) {
 			logger.Errorf("🚨 [%s] us_stock protection tick panic: %v", at.name, p)
 		}
 	}()
+	if at.stock.cfg.IsScanMode() {
+		stockWarmScan(stockScanWarmAge) // non-blocking: keeps the ranking fresh ahead of decision times
+	}
 	at.stockProtectionTick(ctx)
 }
 

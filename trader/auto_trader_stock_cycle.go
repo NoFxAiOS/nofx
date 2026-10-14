@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -35,13 +36,20 @@ func (at *AutoTrader) prepareStockRuntime(ctx context.Context) (*store.StockConf
 	at.stock.stopTicks = map[string]int{}
 	at.stock.lastProtect = map[string]stockProtect{}
 	at.stock.pendings = map[string]*stockPending{}
+	if sc.IsScanMode() {
+		stockWarmScan(stockScanWarmAge)
+	}
 	if !sc.IsPaper() {
 		if at.stockTrader == nil {
 			return nil, fmt.Errorf("us_stock executor not linked")
 		}
-		if err := at.stockTrader.Preflight(symbols[0]); err != nil {
-			logger.Errorf("❌ [%s] us_stock preflight failed on %s: %v", at.name, symbols[0], err)
-			stockNotify("ALERT", at.name, fmt.Sprintf("<b>🚫 美股策略未启动 (预检失败)</b>\n<i>%s: %s</i>", notify.Escape(symbols[0]), notify.Escape(err.Error())))
+		probe := at.stockPreflightSymbol(ctx, symbols)
+		if probe == "" {
+			return nil, fmt.Errorf("us_stock preflight: no listed bStock pair available")
+		}
+		if err := at.stockTrader.Preflight(probe); err != nil {
+			logger.Errorf("❌ [%s] us_stock preflight failed on %s: %v", at.name, probe, err)
+			stockNotify("ALERT", at.name, fmt.Sprintf("<b>🚫 美股策略未启动 (预检失败)</b>\n<i>%s: %s</i>", notify.Escape(probe), notify.Escape(err.Error())))
 			return nil, fmt.Errorf("us_stock preflight failed: %w", err)
 		}
 		at.restoreStockPendings()
@@ -49,10 +57,100 @@ func (at *AutoTrader) prepareStockRuntime(ctx context.Context) (*store.StockConf
 	return &cfg, nil
 }
 
+// stockPreflightSymbol picks the pair the live preflight probes: the first
+// resolved pin, else (scan mode without pins) the first listed market-context
+// pair, else the first listed bStock pair. "" when nothing is listed.
+func (at *AutoTrader) stockPreflightSymbol(ctx context.Context, pins []string) string {
+	if len(pins) > 0 {
+		return pins[0]
+	}
+	for _, s := range stockContextSymbols {
+		if _, ok := stockLookupSymbol(ctx, s); ok {
+			return s
+		}
+	}
+	if infos, err := stockListUniverse(ctx); err == nil && len(infos) > 0 {
+		return infos[0].Symbol
+	} else if err != nil {
+		logger.Warnf("⚠️ [%s] us_stock preflight: cannot list bStock pairs: %v", at.name, err)
+	}
+	return ""
+}
+
+// stockCycleSymbols builds the symbol list of one decision cycle and the scan
+// report that chose it (nil when none is available). Manual mode trades the
+// configured symbols. Scan mode uses held program-owned symbols first (the
+// validator must know them to accept close/adjust), then the pins, then the
+// scanner's top long setups minus the exclude list.
+func (at *AutoTrader) stockCycleSymbols(ctx context.Context, sc *store.StockConfig, state *stockState,
+	logf func(string, ...interface{})) ([]string, *stockengine.ScanReport) {
+	if !sc.IsScanMode() {
+		return sc.Symbols, stockCachedScan()
+	}
+	report, err := stockGetScanReport(ctx, stockScanMaxAge)
+	if err != nil {
+		if report == nil {
+			logf("scan failed, no report: %v", err)
+		} else {
+			logf("scan refresh failed (%v) — using the previous report from %s", err, report.GeneratedAt.In(stockET).Format("01-02 15:04 MST"))
+		}
+	}
+	var list []string
+	seen := map[string]bool{}
+	add := func(sym string) {
+		if !seen[sym] {
+			seen[sym] = true
+			list = append(list, sym)
+		}
+	}
+	held := make([]string, 0, len(state.Holdings))
+	for sym := range state.Holdings {
+		held = append(held, sym)
+	}
+	sort.Strings(held)
+	for _, sym := range held {
+		add(sym)
+	}
+	for _, sym := range sc.Symbols {
+		if _, ok := stockLookupSymbol(ctx, sym); ok {
+			add(sym)
+		}
+	}
+	nBase := len(list)
+	exclude := map[string]bool{}
+	for _, sym := range sc.ScanExclude {
+		exclude[sym] = true
+	}
+	for sym := range seen {
+		exclude[sym] = true
+	}
+	var picks []string
+	if report != nil {
+		want := sc.EffectiveScanTopN()
+		for _, r := range report.TopLong(len(report.Results), exclude) {
+			if len(picks) == want {
+				break
+			}
+			if _, ok := stockLookupSymbol(ctx, r.Symbol); !ok {
+				continue
+			}
+			add(r.Symbol)
+			picks = append(picks, fmt.Sprintf("%s(%s %.1f)", r.Symbol, r.Cycle.Phase, r.Cycle.Score))
+		}
+	}
+	if report == nil {
+		logf("scan unavailable: %d held/pinned symbols this cycle", nBase)
+	} else {
+		logf("scan top %d: %s (report age %s)", sc.EffectiveScanTopN(), strings.Join(picks, " "),
+			at.stockClock().Sub(report.GeneratedAt).Round(time.Second))
+	}
+	return list, report
+}
+
 // buildStockSnapshots fetches series (sequentially: Yahoo throttles) and the
 // quote of every configured pair plus the SPY/QQQ market context.
 func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockConfig, preset stockengine.Preset, now time.Time,
-	logf func(string, ...interface{})) (all, market []*stockengine.SymbolSnapshot, prices map[string]float64) {
+	report *stockengine.ScanReport, logf func(string, ...interface{})) (all, market []*stockengine.SymbolSnapshot, prices map[string]float64) {
 	prices = map[string]float64{}
 	tfs := []string{usstock.TF1d}
 	for _, tf := range []string{preset.TrendTF, preset.EntryTF} {
@@ -82,6 +180,7 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 		}
 	}
 	byName := map[string]*stockengine.SymbolSnapshot{}
+	daily := map[string]*usstock.Series{}
 	for _, sym := range order {
 		if ctx.Err() != nil {
 			break
@@ -108,6 +207,7 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 		}
 		snap := stockengine.BuildSnapshot(sym, info.Underlying, series, quote, now)
 		byName[sym] = snap
+		daily[sym] = series[usstock.TF1d]
 		if snap.Price > 0 {
 			prices[sym] = snap.Price
 		}
@@ -116,6 +216,27 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 	for _, s := range ctxSyms {
 		if snap := byName[s]; snap != nil {
 			market = append(market, snap)
+		}
+	}
+	// Kell price-cycle assessment: the scan report's entry when it has the
+	// symbol and is fresh, otherwise classified from this cycle's daily series
+	// (second pass so the SPY series is available as the relative-strength
+	// benchmark). A stale report (manual mode reads whatever is cached; a failed
+	// refresh keeps the previous one) must not feed hours-old phases.
+	if report != nil && now.Sub(report.GeneratedAt) > stockScanMaxAge {
+		report = nil
+	}
+	var spyBars []usstock.Bar
+	if s := daily[stockBenchmarkSymbol]; s != nil {
+		spyBars = s.Bars
+	}
+	for sym, snap := range byName {
+		if r, ok := report.Lookup(sym); ok {
+			c := r.Cycle
+			snap.Cycle = &c
+		} else if s := daily[sym]; s != nil && len(s.Bars) > 0 {
+			c := stockengine.ClassifyCycle(s.Bars, spyBars)
+			snap.Cycle = &c
 		}
 	}
 	return all, market, prices
@@ -229,7 +350,27 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		logf("%s", n)
 	}
 
-	snaps, market, prices := at.buildStockSnapshots(ctx, sc, preset, now, logf)
+	// Per-cycle config copy: scan mode swaps in this cycle's symbol list so the
+	// snapshots, the prompt and the validator agree; at.stock.cfg is not touched.
+	cc := sc
+	cycleSyms, report := at.stockCycleSymbols(ctx, sc, state, logf)
+	if sc.IsScanMode() {
+		cp := *sc
+		cp.Symbols = cycleSyms
+		cc = &cp
+		rec.CandidateCoins = append([]string(nil), cycleSyms...)
+		if len(cycleSyms) == 0 {
+			msg := "scan unavailable, no candidates"
+			if report != nil {
+				msg = "scan found no long setups, no candidates"
+			}
+			logf("%s — no AI call this cycle", msg)
+			rec.Success = true
+			at.saveStockRecord(rec)
+			return nil
+		}
+	}
+	snaps, market, prices := at.buildStockSnapshots(ctx, cc, preset, now, report, logf)
 	if ctx.Err() != nil {
 		return nil
 	}
@@ -245,7 +386,7 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		logf("weekly drawdown circuit active (%.2f%%): new exposure blocked this ET week", dd)
 	}
 
-	ectx := &stockengine.Context{Now: now, Session: session, Config: sc, Preset: preset,
+	ectx := &stockengine.Context{Now: now, Session: session, Config: cc, Preset: preset,
 		Account:   stockengine.Account{Equity: state.Equity, Available: state.Available, Exposure: state.Exposure},
 		Positions: state.enginePositions(prices), Snapshots: snaps, Market: market, Paper: paper}
 	result, derr := stockengine.Decide(ectx, at.mcpClient, at.stockLang())

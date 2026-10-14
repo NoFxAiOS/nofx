@@ -4,12 +4,16 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { StockConfig } from '../../types'
 import { StockConfigEditor, defaultStockConfig } from './StockConfigEditor'
 
-const apiMock = vi.hoisted(() => ({ getUSStockSymbols: vi.fn() }))
+const apiMock = vi.hoisted(() => ({
+  getUSStockSymbols: vi.fn(),
+  getUSStockScan: vi.fn(),
+}))
 vi.mock('../../lib/api', () => ({ api: apiMock }))
 
 afterEach(() => {
   cleanup()
   apiMock.getUSStockSymbols.mockReset()
+  apiMock.getUSStockScan.mockReset()
 })
 
 function Harness({ onChange }: { onChange: (c: StockConfig) => void }) {
@@ -108,4 +112,88 @@ test('numeric field: empty means 0 (default), value is stored', async () => {
   expect(onChange).toHaveBeenLastCalledWith(
     expect.objectContaining({ max_positions: 0 })
   )
+})
+
+test('no 20-symbol cap: a 25th symbol can still be selected', async () => {
+  const list = Array.from({ length: 25 }, (_, i) => ({
+    symbol: `S${i}BUSDT`,
+    underlying: `S${i}`,
+    base_asset: `S${i}B`,
+  }))
+  apiMock.getUSStockSymbols.mockResolvedValue(list)
+  const onChange = vi.fn()
+  render(<Harness onChange={onChange} />)
+  await screen.findByText('S0 · S0BUSDT')
+  for (const s of list)
+    fireEvent.click(screen.getByText(`${s.underlying} · ${s.symbol}`))
+  expect(onChange.mock.lastCall?.[0].symbols).toHaveLength(25)
+})
+
+test('scan mode: top N, exclude, preview marks fed rows', async () => {
+  apiMock.getUSStockSymbols.mockResolvedValue([])
+  const cycle = (phase: string, long: boolean, score: number) => ({
+    phase,
+    long_setup: long,
+    score,
+    rs63_pct: 5,
+    vol_ratio: 1.5,
+  })
+  apiMock.getUSStockScan.mockResolvedValue({
+    scanning: false,
+    generated_at: '2026-10-14T13:30:00Z',
+    results: [
+      {
+        symbol: 'NVDABUSDT',
+        underlying: 'NVDA',
+        source: 'yahoo',
+        cycle: cycle('wedge_pop', true, 80),
+      },
+      {
+        symbol: 'AAPLBUSDT',
+        underlying: 'AAPL',
+        source: 'yahoo',
+        cycle: cycle('ema_crossback', true, 70),
+      },
+      {
+        symbol: 'TSLABUSDT',
+        underlying: 'TSLA',
+        source: 'yahoo',
+        cycle: cycle('base_n_break', true, 60),
+      },
+      {
+        symbol: 'INTCBUSDT',
+        underlying: 'INTC',
+        source: 'yahoo',
+        cycle: cycle('wedge_drop', false, 0),
+      },
+    ],
+    skipped: {},
+  })
+  const onChange = vi.fn()
+  render(<Harness onChange={onChange} />)
+
+  fireEvent.click(screen.getByText('价格周期自动扫描'))
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ symbol_source: 'scan' })
+  )
+  // empty pin list is fine in scan mode
+  expect(screen.queryByText(/至少/)).not.toBeInTheDocument()
+
+  fireEvent.change(screen.getByTestId('stock-scan-top-n'), {
+    target: { value: '2' },
+  })
+  fireEvent.change(screen.getByTestId('stock-scan-exclude-input'), {
+    target: { value: 'nvdabusdt' },
+  })
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ scan_top_n: 2, scan_exclude: ['NVDABUSDT'] })
+  )
+
+  const preview = await screen.findByTestId('stock-scan-preview')
+  await screen.findByText('楔形突破')
+  const rows = preview.querySelectorAll('tbody tr')
+  const fed = Array.from(rows).map((r) => r.textContent?.includes('★'))
+  // NVDA excluded → AAPL and TSLA fill the top 2; INTC is not a long setup
+  expect(fed).toEqual([false, true, true, false])
+  expect(preview).toHaveTextContent('已排除')
 })

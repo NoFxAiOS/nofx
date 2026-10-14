@@ -2,7 +2,9 @@ package api
 
 import (
 	"net/http"
+	"time"
 
+	"nofx/kernel/stockengine"
 	"nofx/market/usstock"
 	"nofx/store"
 
@@ -14,6 +16,32 @@ import (
 
 // usstockListSymbols is the symbol source (test seam).
 var usstockListSymbols = usstock.ListSymbols
+
+// Price-cycle scan seams (test).
+var (
+	usstockCachedScan = stockengine.CachedScanReport
+	usstockWarmScan   = stockengine.WarmScanReport
+)
+
+// handleUSStockScan returns the cached Kell price-cycle scan of all listed
+// bStock pairs. Without a cached report it starts a background scan and
+// answers {"scanning":true,...}; the page polls until a report exists.
+func (s *Server) handleUSStockScan(c *gin.Context) {
+	report := usstockCachedScan()
+	if report == nil {
+		usstockWarmScan(0)
+		c.JSON(http.StatusOK, gin.H{"scanning": true, "generated_at": nil, "results": []stockengine.ScanResult{}, "skipped": map[string]string{}})
+		return
+	}
+	results, skipped := report.Results, report.Skipped
+	if results == nil {
+		results = []stockengine.ScanResult{}
+	}
+	if skipped == nil {
+		skipped = map[string]string{}
+	}
+	c.JSON(http.StatusOK, gin.H{"scanning": false, "generated_at": report.GeneratedAt.Format(time.RFC3339), "results": results, "skipped": skipped})
+}
 
 // handleUSStockSymbols returns the tradable bStock pairs.
 func (s *Server) handleUSStockSymbols(c *gin.Context) {

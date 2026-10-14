@@ -8,6 +8,7 @@ import type {
   PositionHistoryResponse,
   RiskStatus,
   USStockSymbol,
+  USStockScanReport,
 } from '../../types'
 import { API_BASE, httpClient } from './helpers'
 
@@ -22,6 +23,17 @@ export const dataApi = {
     if (!result.success) throw new Error('Failed to fetch US stock symbols')
     const symbols = result.data?.symbols
     return Array.isArray(symbols) ? symbols : []
+  },
+
+  // Latest price-cycle ranking of all listed bStock pairs (read-only; the
+  // backend rescans every ~30 min). Silent: the editor renders its own error.
+  async getUSStockScan(): Promise<USStockScanReport> {
+    const result = await httpClient.request<USStockScanReport>(
+      `${API_BASE}/usstock/scan`,
+      { silent: true }
+    )
+    if (!result.success) throw new Error('Failed to fetch US stock scan')
+    return result.data!
   },
 
   async getStatus(traderId?: string, silent?: boolean): Promise<SystemStatus> {

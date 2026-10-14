@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"nofx/kernel/stockengine"
 	"nofx/market/usstock"
 )
 
@@ -56,5 +58,56 @@ func TestUSStockPaperEndpointIsOwnerScoped(t *testing.T) {
 	}
 	if rec := get("trader-B"); rec.Code == http.StatusOK {
 		t.Fatal("another user's paper ledger must not be readable")
+	}
+}
+
+func TestUSStockScanEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldCached, oldWarm := usstockCachedScan, usstockWarmScan
+	t.Cleanup(func() { usstockCachedScan, usstockWarmScan = oldCached, oldWarm })
+	r := gin.New()
+	r.GET("/api/usstock/scan", (&Server{}).handleUSStockScan)
+	get := func() map[string]any {
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/usstock/scan", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d", rec.Code)
+		}
+		var body map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+
+	// No cached report: a background scan is started and the page is told to poll.
+	var report *stockengine.ScanReport
+	warmed := []time.Duration{}
+	usstockCachedScan = func() *stockengine.ScanReport { return report }
+	usstockWarmScan = func(age time.Duration) { warmed = append(warmed, age) }
+	body := get()
+	if body["scanning"] != true || body["generated_at"] != nil || len(body["results"].([]any)) != 0 || len(body["skipped"].(map[string]any)) != 0 {
+		t.Fatalf("scanning payload %v", body)
+	}
+	if len(warmed) != 1 || warmed[0] != 0 {
+		t.Fatalf("warm calls %v", warmed)
+	}
+
+	// Cached report: results and skipped are returned verbatim.
+	at := time.Date(2026, 10, 14, 14, 0, 0, 0, time.UTC)
+	report = &stockengine.ScanReport{GeneratedAt: at, Results: []stockengine.ScanResult{{Symbol: "AAPLBUSDT", Underlying: "AAPL", Source: "bstock",
+		Cycle: stockengine.CycleAssessment{Phase: stockengine.PhaseWedgePop, LongSetup: true, Score: 71.5}}}}
+	body = get()
+	if body["scanning"] != false || body["generated_at"] != "2026-10-14T14:00:00Z" || len(warmed) != 1 {
+		t.Fatalf("report payload %v (warm calls %v)", body, warmed)
+	}
+	results := body["results"].([]any)
+	first := results[0].(map[string]any)
+	cycle := first["cycle"].(map[string]any)
+	if len(results) != 1 || first["symbol"] != "AAPLBUSDT" || cycle["phase"] != "wedge_pop" || cycle["long_setup"] != true || cycle["score"] != 71.5 {
+		t.Fatalf("results %v", results)
+	}
+	if skipped, ok := body["skipped"].(map[string]any); !ok || len(skipped) != 0 {
+		t.Fatalf("skipped must be an object: %v", body["skipped"])
 	}
 }

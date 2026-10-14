@@ -154,8 +154,15 @@ const StrategyTypeUSStock = "us_stock"
 // the preset default" (see StockPresetSwing / StockPresetPosition); the
 // resolvers live next to Validate.
 type StockConfig struct {
-	// Symbols: Binance spot bStock pairs to trade, e.g. "AAPLBUSDT".
+	// Symbols: Binance spot bStock pairs to trade, e.g. "AAPLBUSDT". In scan
+	// mode they are optional always-include pins.
 	Symbols []string `json:"symbols"`
+	// SymbolSource: "manual" (default; trade Symbols) or "scan" (scan every
+	// listed bStock pair by Kell's price cycle and feed the top ScanTopN long
+	// setups; Symbols then become optional always-include pins).
+	SymbolSource string   `json:"symbol_source,omitempty"`
+	ScanTopN     int      `json:"scan_top_n,omitempty"`   // scan mode; 0 = default 10, max 50
+	ScanExclude  []string `json:"scan_exclude,omitempty"` // pairs the scanner never picks
 	// Preset: "swing" (default; days–weeks, 1d trend / 1h entry, decisions at
 	// 09:45, 12:30, 15:30 ET) or "position" (weeks–months, 1w trend / 1d
 	// entry, one decision at 15:30 ET).

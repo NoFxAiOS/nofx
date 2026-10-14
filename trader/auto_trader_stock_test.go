@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"nofx/kernel/stockengine"
 	"nofx/market/usstock"
 	"nofx/mcp"
 	"nofx/store"
@@ -21,12 +22,15 @@ import (
 type stockFakeAI struct {
 	respond func(call int) string
 	calls   int
+	system  string // prompts of the latest call
+	user    string
 }
 
 func (f *stockFakeAI) SetAPIKey(string, string, string) {}
 func (f *stockFakeAI) SetTimeout(time.Duration)         {}
-func (f *stockFakeAI) CallWithMessages(string, string) (string, error) {
+func (f *stockFakeAI) CallWithMessages(system, user string) (string, error) {
 	f.calls++
+	f.system, f.user = system, user
 	return f.respond(f.calls), nil
 }
 func (f *stockFakeAI) CallWithRequest(*mcp.Request) (string, error) { return "", nil }
@@ -205,14 +209,30 @@ func stockTestBars(n int, step time.Duration, last float64, drift float64) []uss
 
 func newStockFixture(t *testing.T, paper bool, now time.Time, respond func(call int) string) *stockFixture {
 	t.Helper()
+	return newStockFixtureCfg(t, paper, now, respond, nil)
+}
+
+// newStockFixtureCfg is newStockFixture with a hook to adjust the strategy's
+// StockConfig before the runtime is prepared. The scan seams default to "no
+// report, no network"; scan tests override them after the fixture is built.
+func newStockFixtureCfg(t *testing.T, paper bool, now time.Time, respond func(call int) string, mutate func(*store.StockConfig)) *stockFixture {
+	t.Helper()
 	fx := &stockFixture{price: 120}
 	oldLookup, oldSeries, oldQuote, oldNotify := stockLookupSymbol, stockGetSeries, stockGetQuote, stockNotify
+	oldGet, oldWarm, oldCached, oldList := stockGetScanReport, stockWarmScan, stockCachedScan, stockListUniverse
 	t.Cleanup(func() {
 		stockLookupSymbol, stockGetSeries, stockGetQuote, stockNotify = oldLookup, oldSeries, oldQuote, oldNotify
+		stockGetScanReport, stockWarmScan, stockCachedScan, stockListUniverse = oldGet, oldWarm, oldCached, oldList
 	})
+	stockGetScanReport = func(context.Context, time.Duration) (*stockengine.ScanReport, error) {
+		return nil, fmt.Errorf("scan not stubbed")
+	}
+	stockWarmScan = func(time.Duration) {}
+	stockCachedScan = func() *stockengine.ScanReport { return nil }
+	stockListUniverse = func(context.Context) ([]usstock.SymbolInfo, error) { return nil, fmt.Errorf("universe not stubbed") }
 	stockLookupSymbol = func(_ context.Context, sym string) (usstock.SymbolInfo, bool) {
 		switch sym {
-		case "AAPLBUSDT", "SPYBUSDT":
+		case "AAPLBUSDT", "SPYBUSDT", "MSFTBUSDT", "NVDABUSDT", "TSLABUSDT", "AMDBUSDT", "METABUSDT":
 			u := strings.TrimSuffix(sym, "BUSDT")
 			return usstock.SymbolInfo{Symbol: sym, BaseAsset: u + "B", Underlying: u, Status: "TRADING", TickSize: 0.01, StepSize: 0.001, MinQty: 0.001, MinNotional: 5}, true
 		}
@@ -243,6 +263,9 @@ func newStockFixture(t *testing.T, paper bool, now time.Time, respond func(call 
 	fx.ai = &stockFakeAI{respond: respond}
 	fx.spot = newFakeSpot(120)
 	sc := &store.StockConfig{Symbols: []string{"AAPLBUSDT"}, PaperTrading: &paper}
+	if mutate != nil {
+		mutate(sc)
+	}
 	at := &AutoTrader{id: "t1", userID: "u", name: "stock-test", store: st, mcpClient: fx.ai, initialBalance: 10000, isRunning: true,
 		stopMonitorCh: make(chan struct{}), stockNow: func() time.Time { return now },
 		config: AutoTraderConfig{ID: "t1", ScanInterval: time.Minute, StrategyConfig: &store.StrategyConfig{StrategyType: store.StrategyTypeUSStock, StockConfig: sc}}}
@@ -684,5 +707,208 @@ func TestStockExchangeSideStopFillIsBookedAtStop(t *testing.T) {
 	closed, _ := fx.at.store.Position().GetClosedPositions("t1", 5)
 	if len(closed) != 1 || closed[0].CloseReason != "stop_loss" || !near(closed[0].ExitPrice, 115) || closed[0].RealizedPnL >= 0 {
 		t.Fatalf("exchange stop fill not booked: %+v", closed)
+	}
+}
+
+// ---------------------------------------------------------------- scan mode
+
+func scanRes(sym, phase string, long bool, score float64) stockengine.ScanResult {
+	return stockengine.ScanResult{Symbol: sym, Underlying: strings.TrimSuffix(sym, "BUSDT"), Source: usstock.SourceBStock,
+		Cycle: stockengine.CycleAssessment{Phase: stockengine.CyclePhase(phase), LongSetup: long, Score: score, RS63Pct: 5, VolRatio: 1.1}}
+}
+
+func scanReportOf(results ...stockengine.ScanResult) *stockengine.ScanReport {
+	return &stockengine.ScanReport{GeneratedAt: stockTestNow.Add(-10 * time.Minute), Results: results}
+}
+
+func useScanReport(report *stockengine.ScanReport, err error) {
+	stockGetScanReport = func(context.Context, time.Duration) (*stockengine.ScanReport, error) { return report, err }
+}
+
+func scanMode(topN int, pins, exclude []string) func(*store.StockConfig) {
+	return func(sc *store.StockConfig) {
+		sc.SymbolSource, sc.ScanTopN, sc.Symbols, sc.ScanExclude = store.StockSymbolSourceScan, topN, pins, exclude
+	}
+}
+
+const waitAll = `[{"symbol":"AAPLBUSDT","action":"wait"},{"symbol":"NVDABUSDT","action":"wait"},{"symbol":"MSFTBUSDT","action":"wait"}]`
+
+func TestStockScanCycleComposesCandidates(t *testing.T) {
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll }, scanMode(2, []string{"AAPLBUSDT"}, []string{"TSLABUSDT"}))
+	useScanReport(scanReportOf(
+		scanRes("NVDABUSDT", "wedge_pop", true, 90),
+		scanRes("TSLABUSDT", "ema_crossback", true, 85), // excluded
+		scanRes("AAPLBUSDT", "ema_crossback", true, 80), // already pinned
+		scanRes("MSFTBUSDT", "base_n_break", true, 70),
+		scanRes("AMDBUSDT", "ema_crossback", true, 60), // beyond top N
+		scanRes("METABUSDT", "uptrend", false, 50),     // not a long setup
+	), nil)
+	fx.cycle(t)
+
+	rec := fx.lastRecord(t)
+	if !rec.Success {
+		t.Fatalf("cycle failed: %s", rec.ErrorMessage)
+	}
+	if got := strings.Join(rec.CandidateCoins, ","); got != "AAPLBUSDT,NVDABUSDT,MSFTBUSDT" {
+		t.Fatalf("candidates %s", got)
+	}
+	if fx.ai.calls != 1 {
+		t.Fatalf("ai calls %d", fx.ai.calls)
+	}
+	for _, sym := range []string{"AAPLBUSDT (AAPL)", "NVDABUSDT (NVDA)", "MSFTBUSDT (MSFT)"} {
+		if !strings.Contains(fx.ai.user, sym) {
+			t.Fatalf("user prompt missing %s:\n%s", sym, fx.ai.user)
+		}
+	}
+	for _, sym := range []string{"TSLABUSDT", "AMDBUSDT", "METABUSDT"} {
+		if strings.Contains(fx.ai.user, sym) {
+			t.Fatalf("user prompt must not carry %s:\n%s", sym, fx.ai.user)
+		}
+	}
+	// Cycle lines: NVDA / MSFT / AAPL come from the report, SPY is classified locally.
+	for _, want := range []string{"价格周期(Kell, 日线): phase=wedge_pop", "phase=base_n_break", "phase=ema_crossback"} {
+		if !strings.Contains(fx.ai.user, want) {
+			t.Fatalf("user prompt missing %q:\n%s", want, fx.ai.user)
+		}
+	}
+	if n := strings.Count(fx.ai.user, "phase="); n != 4 {
+		t.Fatalf("want a cycle line for SPY + 3 candidates, got %d:\n%s", n, fx.ai.user)
+	}
+	if !strings.Contains(fx.ai.system, "周期扫描器") {
+		t.Fatal("scan mode system prompt lacks the scanner note")
+	}
+	if got := fx.at.stock.cfg.Symbols; len(got) != 1 || got[0] != "AAPLBUSDT" {
+		t.Fatalf("runtime config must not be mutated: %v", got)
+	}
+	logged := strings.Join(rec.ExecutionLog, "\n")
+	if !strings.Contains(logged, "scan top 2: NVDABUSDT(wedge_pop 90.0) MSFTBUSDT(base_n_break 70.0)") || !strings.Contains(logged, "report age 10m0s") {
+		t.Fatalf("scan log line missing:\n%s", logged)
+	}
+}
+
+func TestStockScanHeldSymbolAlwaysIncluded(t *testing.T) {
+	openNVDA := `[{"symbol":"NVDABUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"reasoning":"x"}]`
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(call int) string {
+		if call == 1 {
+			return openNVDA
+		}
+		return `[{"symbol":"NVDABUSDT","action":"hold"},{"symbol":"MSFTBUSDT","action":"wait"}]`
+	}, scanMode(1, nil, nil))
+	useScanReport(scanReportOf(scanRes("NVDABUSDT", "wedge_pop", true, 90)), nil)
+	fx.cycle(t)
+	if open, _ := fx.at.store.StockPaper().ListOpen("t1"); len(open) != 1 || open[0].Symbol != "NVDABUSDT" {
+		t.Fatalf("NVDA not opened: %+v", open)
+	}
+
+	// Cycle 2: NVDA fell out of the ranking and is now excluded; it is held,
+	// so it must still be in the list (otherwise hold/close is UNKNOWN_SYMBOL).
+	fx.at.stock.cfg.ScanExclude = []string{"NVDABUSDT"}
+	useScanReport(scanReportOf(scanRes("MSFTBUSDT", "ema_crossback", true, 70)), nil)
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if !rec.Success || strings.Join(rec.CandidateCoins, ",") != "NVDABUSDT,MSFTBUSDT" {
+		t.Fatalf("record %v candidates %v err %q", rec.Success, rec.CandidateCoins, rec.ErrorMessage)
+	}
+	for _, d := range rec.Decisions {
+		if d.Error != "" {
+			t.Fatalf("decision rejected: %+v", d)
+		}
+	}
+	if !strings.Contains(fx.ai.user, "NVDABUSDT qty=") {
+		t.Fatalf("held position missing from the prompt:\n%s", fx.ai.user)
+	}
+}
+
+func TestStockScanNoCandidatesSkipsAI(t *testing.T) {
+	for name, tc := range map[string]struct {
+		report *stockengine.ScanReport
+		err    error
+		want   string
+	}{
+		"scan failed": {nil, fmt.Errorf("binance down"), "scan unavailable, no candidates"},
+		"no setups":   {scanReportOf(scanRes("METABUSDT", "uptrend", false, 50)), nil, "scan found no long setups, no candidates"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll }, scanMode(5, nil, nil))
+			useScanReport(tc.report, tc.err)
+			fx.cycle(t)
+			if fx.ai.calls != 0 {
+				t.Fatalf("AI called %d times without candidates", fx.ai.calls)
+			}
+			rec := fx.lastRecord(t)
+			if !rec.Success || len(rec.Decisions) != 0 || !strings.Contains(strings.Join(rec.ExecutionLog, "\n"), tc.want) {
+				t.Fatalf("record %+v", rec)
+			}
+		})
+	}
+}
+
+func TestStockScanFailureFallsBackToPins(t *testing.T) {
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return holdAAPL }, scanMode(5, []string{"AAPLBUSDT"}, nil))
+	useScanReport(nil, fmt.Errorf("binance down"))
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if fx.ai.calls != 1 || !rec.Success || strings.Join(rec.CandidateCoins, ",") != "AAPLBUSDT" {
+		t.Fatalf("calls %d record %+v", fx.ai.calls, rec)
+	}
+	// No report: the AAPL cycle line is classified from the cycle's own daily series.
+	if !strings.Contains(fx.ai.user, "phase=") {
+		t.Fatalf("locally classified cycle line missing:\n%s", fx.ai.user)
+	}
+}
+
+func TestStockManualModeUnchangedByScan(t *testing.T) {
+	fx := newStockFixture(t, true, stockTestNow, func(int) string { return holdAAPL })
+	stockGetScanReport = func(context.Context, time.Duration) (*stockengine.ScanReport, error) {
+		t.Fatal("manual mode must not request a scan")
+		return nil, nil
+	}
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if !rec.Success || strings.Join(rec.CandidateCoins, ",") != "AAPLBUSDT" {
+		t.Fatalf("record %+v", rec)
+	}
+	if !strings.Contains(fx.ai.user, "价格周期(Kell, 日线): phase=") || strings.Contains(fx.ai.system, "周期扫描器") {
+		t.Fatalf("manual prompt: cycle line expected, scanner note not:\n%s", fx.ai.user)
+	}
+}
+
+func TestStockScanPreflightSymbolAndWarm(t *testing.T) {
+	fx := newStockFixtureCfg(t, false, stockTestNow, func(int) string { return waitAll }, scanMode(5, nil, nil))
+	if fx.spot.preflights != 1 {
+		t.Fatalf("scan mode without pins must still preflight once: %d", fx.spot.preflights)
+	}
+	ctx := context.Background()
+	if got := fx.at.stockPreflightSymbol(ctx, []string{"MSFTBUSDT"}); got != "MSFTBUSDT" {
+		t.Fatalf("pin first: %q", got)
+	}
+	if got := fx.at.stockPreflightSymbol(ctx, nil); got != "SPYBUSDT" {
+		t.Fatalf("context symbol next: %q", got)
+	}
+	stockLookupSymbol = func(context.Context, string) (usstock.SymbolInfo, bool) { return usstock.SymbolInfo{}, false }
+	stockListUniverse = func(context.Context) ([]usstock.SymbolInfo, error) {
+		return []usstock.SymbolInfo{{Symbol: "AMDBUSDT"}, {Symbol: "METABUSDT"}}, nil
+	}
+	if got := fx.at.stockPreflightSymbol(ctx, nil); got != "AMDBUSDT" {
+		t.Fatalf("universe fallback: %q", got)
+	}
+	stockListUniverse = func(context.Context) ([]usstock.SymbolInfo, error) { return nil, fmt.Errorf("down") }
+	if got := fx.at.stockPreflightSymbol(ctx, nil); got != "" {
+		t.Fatalf("nothing listed: %q", got)
+	}
+
+	// The 60s tick warms the scan in scan mode only.
+	var warmAges []time.Duration
+	stockWarmScan = func(age time.Duration) { warmAges = append(warmAges, age) }
+	fx.at.runStockTickSafe(ctx)
+	if len(warmAges) != 1 || warmAges[0] != stockScanWarmAge {
+		t.Fatalf("tick warm calls %v", warmAges)
+	}
+	manual := newStockFixture(t, true, stockTestNow, func(int) string { return holdAAPL })
+	warmAges = nil
+	stockWarmScan = func(age time.Duration) { warmAges = append(warmAges, age) }
+	manual.at.runStockTickSafe(ctx)
+	if len(warmAges) != 0 {
+		t.Fatalf("manual mode must not warm the scan: %v", warmAges)
 	}
 }

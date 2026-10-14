@@ -80,3 +80,42 @@ func TestUserPromptMissingData(t *testing.T) {
 		t.Fatal(p)
 	}
 }
+
+func TestSystemPromptCycleMethodAndScanNote(t *testing.T) {
+	for _, lang := range []string{"zh", "en"} {
+		cfg := &store.StockConfig{}
+		manual := BuildSystemPrompt(cfg, ResolvePreset(cfg), lang)
+		for _, token := range []string{"Kell", "wedge_pop", "ema_crossback", "base_n_break", "reversal_extension", "base_forming", "exhaustion_extension", "wedge_drop", "downtrend", "EMA10/20", "OUTPUT CONTRACT"} {
+			if !strings.Contains(manual, token) {
+				t.Fatalf("%s manual prompt missing %s", lang, token)
+			}
+		}
+		scanNote := "cycle scanner"
+		if lang == "zh" {
+			scanNote = "周期扫描器"
+		}
+		if strings.Contains(manual, scanNote) {
+			t.Fatalf("%s manual prompt must not carry the scan note", lang)
+		}
+		cfg = &store.StockConfig{SymbolSource: store.StockSymbolSourceScan}
+		if scan := BuildSystemPrompt(cfg, ResolvePreset(cfg), lang); !strings.Contains(scan, scanNote) || !strings.Contains(scan, "Kell") {
+			t.Fatalf("%s scan prompt missing scan note:\n%s", lang, scan)
+		}
+	}
+}
+
+func TestUserPromptCycleLine(t *testing.T) {
+	c := testContext()
+	c.Snapshots[0].Cycle = &CycleAssessment{Phase: PhaseWedgePop, LongSetup: true, Score: 72.46, Ext10ATR: 0.84, Dist20ATR: -0.3,
+		RS63Pct: 12.5, VolRatio: 1.678, Notes: []string{"first reclaim", "tight range"}}
+	for lang, label := range map[string]string{"en": "cycle(Kell, daily):", "zh": "价格周期(Kell, 日线):"} {
+		prompt := BuildUserPrompt(c, lang)
+		want := label + " phase=wedge_pop long_setup=true score=72.5 ext10=+0.8ATR dist20=-0.3ATR rs63_vs_SPY=+12.5% vol=1.68x first reclaim; tight range"
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("%s user prompt missing cycle line %q:\n%s", lang, want, prompt)
+		}
+		if strings.Count(prompt, "phase=") != 1 {
+			t.Fatalf("%s: snapshots without a cycle must not print a cycle line:\n%s", lang, prompt)
+		}
+	}
+}

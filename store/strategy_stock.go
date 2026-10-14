@@ -19,8 +19,12 @@ const (
 	DefaultStockPositionStopATRMin  = 2.0
 	DefaultStockPositionStopATRMax  = 4.0
 
-	// MaxStockSymbols caps the watchlist of one us_stock strategy.
-	MaxStockSymbols = 20
+	// Symbol sources of a us_stock strategy (StockConfig.SymbolSource).
+	StockSymbolSourceManual = "manual"
+	StockSymbolSourceScan   = "scan"
+	DefaultStockScanTopN    = 10
+
+	maxStockScanTopN = 50
 
 	stockSymbolSuffix       = "BUSDT"
 	maxStockDivergencePct   = 10.0
@@ -37,6 +41,23 @@ func (s *StockConfig) EffectivePreset() string {
 		return StockPresetPosition
 	}
 	return StockPresetSwing
+}
+
+// IsScanMode reports whether the symbol list comes from the price-cycle scan.
+func (s *StockConfig) IsScanMode() bool {
+	return s != nil && s.SymbolSource == StockSymbolSourceScan
+}
+
+// EffectiveScanTopN is the number of scanner picks fed to the model per cycle
+// (default 10, max 50).
+func (s *StockConfig) EffectiveScanTopN() int {
+	if s == nil || s.ScanTopN <= 0 {
+		return DefaultStockScanTopN
+	}
+	if s.ScanTopN > maxStockScanTopN {
+		return maxStockScanTopN
+	}
+	return s.ScanTopN
 }
 
 // AllowRegular reports whether opens/adds are allowed in the regular session
@@ -145,21 +166,23 @@ func (s *StockConfig) Validate() error {
 	if _, err := json.Marshal(s); err != nil {
 		return fmt.Errorf("stock_config contains non-finite values: %w", err)
 	}
-	if len(s.Symbols) == 0 {
-		return fmt.Errorf("stock_config.symbols must contain at least one symbol")
-	}
-	if len(s.Symbols) > MaxStockSymbols {
-		return fmt.Errorf("stock_config.symbols exceeds the limit of %d", MaxStockSymbols)
-	}
-	seen := make(map[string]bool, len(s.Symbols))
-	for _, sym := range s.Symbols {
-		if sym != strings.ToUpper(strings.TrimSpace(sym)) || !strings.HasSuffix(sym, stockSymbolSuffix) || len(sym) <= len(stockSymbolSuffix) {
-			return fmt.Errorf("invalid stock symbol %q: must be uppercase and end with %s", sym, stockSymbolSuffix)
+	switch s.SymbolSource {
+	case "", StockSymbolSourceManual:
+		if len(s.Symbols) == 0 {
+			return fmt.Errorf("stock_config.symbols must contain at least one symbol")
 		}
-		if seen[sym] {
-			return fmt.Errorf("duplicate stock symbol %q", sym)
-		}
-		seen[sym] = true
+	case StockSymbolSourceScan:
+	default:
+		return fmt.Errorf("invalid symbol_source %q: must be %q or %q", s.SymbolSource, StockSymbolSourceManual, StockSymbolSourceScan)
+	}
+	if s.ScanTopN < 0 || s.ScanTopN > maxStockScanTopN {
+		return fmt.Errorf("scan_top_n must be between 0 and %d", maxStockScanTopN)
+	}
+	if err := validateStockSymbolList("symbols", s.Symbols); err != nil {
+		return err
+	}
+	if err := validateStockSymbolList("scan_exclude", s.ScanExclude); err != nil {
+		return err
 	}
 	if s.Preset != "" && s.Preset != StockPresetSwing && s.Preset != StockPresetPosition {
 		return fmt.Errorf("invalid stock preset %q: must be %q or %q", s.Preset, StockPresetSwing, StockPresetPosition)
@@ -198,6 +221,21 @@ func (s *StockConfig) Validate() error {
 		if lo >= hi {
 			return fmt.Errorf("stop_atr_min must be less than stop_atr_max (effective band %v-%v)", lo, hi)
 		}
+	}
+	return nil
+}
+
+// validateStockSymbolList checks pair format and duplicates of one list.
+func validateStockSymbolList(field string, list []string) error {
+	seen := make(map[string]bool, len(list))
+	for _, sym := range list {
+		if sym != strings.ToUpper(strings.TrimSpace(sym)) || !strings.HasSuffix(sym, stockSymbolSuffix) || len(sym) <= len(stockSymbolSuffix) {
+			return fmt.Errorf("invalid stock symbol %q in %s: must be uppercase and end with %s", sym, field, stockSymbolSuffix)
+		}
+		if seen[sym] {
+			return fmt.Errorf("duplicate stock symbol %q in %s", sym, field)
+		}
+		seen[sym] = true
 	}
 	return nil
 }

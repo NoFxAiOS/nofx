@@ -346,6 +346,10 @@ After activating, create or update a trader with this strategy_id to apply it.`,
 			s.routeWithSchema(protected, "GET", "/usstock/symbols", "Tradable Binance bStock pairs for the us_stock strategy",
 				`Returns: {"symbols":[{"symbol":"AAPLBUSDT","underlying":"AAPL","base_asset":"AAPLB"}]}`,
 				s.handleUSStockSymbols)
+			s.routeWithSchema(protected, "GET", "/usstock/scan", "Kell price-cycle scan of all listed bStock pairs (cached; refreshed in the background)",
+				`Returns: {"scanning":<bool>,"generated_at":"<RFC3339>"|null,"results":[{"symbol":"AAPLBUSDT","underlying":"AAPL","source":"bstock|yahoo","cycle":{"phase":"wedge_pop","long_setup":true,"score":<0-100>,"ext10_atr":<float>,"dist20_atr":<float>,"rs63_pct":<float>,"vol_ratio":<float>,"above_sma50":<bool>,"sma50_above_200":<bool>,"bars":<int>,"notes":["..."]}}],"skipped":{"<SYMBOL>":"<reason>"}}
+scanning=true with empty results means the first scan has just been started; call again in a few seconds. Results are sorted: long setups first, then by score.`,
+				s.handleUSStockScan)
 			s.routeWithSchema(protected, "GET", "/usstock/paper/:trader_id", "Paper-trading ledger of a us_stock trader",
 				`:trader_id = EXACT trader_id from GET /api/my-traders.
 Returns: {"account":{"cash":<float>,"initial_cash":<float>},"equity":<float>,"open_positions":[...],"closed_positions":[...]}`,

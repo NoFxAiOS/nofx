@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -34,6 +35,26 @@ func TestStockConfigResolvers_Defaults(t *testing.T) {
 				t.Errorf("swing band = %v-%v", lo, hi)
 			}
 		})
+	}
+}
+
+func TestStockConfigScanHelpers(t *testing.T) {
+	var nilCfg *StockConfig
+	if nilCfg.IsScanMode() || nilCfg.EffectiveScanTopN() != DefaultStockScanTopN {
+		t.Fatal("nil config: manual mode, default top N")
+	}
+	for _, c := range []struct {
+		n, want int
+	}{{0, 10}, {-3, 10}, {7, 7}, {50, 50}, {80, 50}} {
+		if got := (&StockConfig{ScanTopN: c.n}).EffectiveScanTopN(); got != c.want {
+			t.Errorf("EffectiveScanTopN(%d) = %d, want %d", c.n, got, c.want)
+		}
+	}
+	if (&StockConfig{}).IsScanMode() || (&StockConfig{SymbolSource: StockSymbolSourceManual}).IsScanMode() {
+		t.Fatal("manual must not be scan mode")
+	}
+	if !(&StockConfig{SymbolSource: StockSymbolSourceScan}).IsScanMode() {
+		t.Fatal("scan mode not detected")
 	}
 }
 
@@ -88,19 +109,31 @@ func TestStockConfigValidate(t *testing.T) {
 	if err := validStock().Validate(); err != nil {
 		t.Fatalf("valid config rejected: %v", err)
 	}
-	many := make([]string, 0, 21)
-	for i := 0; i < 21; i++ {
-		many = append(many, string(rune('A'+i))+"BUSDT")
+	many := make([]string, 0, 60)
+	for i := 0; i < 60; i++ {
+		many = append(many, fmt.Sprintf("S%dBUSDT", i))
 	}
-	twenty := many[:20]
 
 	cases := []struct {
 		name    string
 		mutate  func(*StockConfig)
 		wantErr string // empty = must pass
 	}{
-		{"20 symbols ok", func(s *StockConfig) { s.Symbols = twenty }, ""},
-		{"21 symbols", func(s *StockConfig) { s.Symbols = many }, "exceeds"},
+		{"60 symbols ok", func(s *StockConfig) { s.Symbols = many }, ""},
+		{"manual source explicit", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceManual }, ""},
+		{"manual source empty symbols", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceManual; s.Symbols = nil }, "at least one symbol"},
+		{"unknown source", func(s *StockConfig) { s.SymbolSource = "auto" }, "symbol_source"},
+		{"scan with no symbols ok", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.Symbols = nil }, ""},
+		{"scan with pins and exclude ok", func(s *StockConfig) {
+			s.SymbolSource = StockSymbolSourceScan
+			s.ScanTopN = 50
+			s.ScanExclude = []string{"TSLABUSDT", "NVDABUSDT"}
+		}, ""},
+		{"scan top n 51", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.ScanTopN = 51 }, "scan_top_n"},
+		{"scan top n negative", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.ScanTopN = -1 }, "scan_top_n"},
+		{"scan bad pin", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.Symbols = []string{"AAPL"} }, "invalid stock symbol"},
+		{"scan exclude bad format", func(s *StockConfig) { s.ScanExclude = []string{"tslabusdt"} }, "scan_exclude"},
+		{"scan exclude duplicate", func(s *StockConfig) { s.ScanExclude = []string{"TSLABUSDT", "TSLABUSDT"} }, "duplicate"},
 		{"empty symbols", func(s *StockConfig) { s.Symbols = nil }, "at least one symbol"},
 		{"lowercase symbol", func(s *StockConfig) { s.Symbols = []string{"aaplbusdt"} }, "invalid stock symbol"},
 		{"wrong suffix", func(s *StockConfig) { s.Symbols = []string{"AAPLUSDT"} }, "invalid stock symbol"},

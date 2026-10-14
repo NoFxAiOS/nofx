@@ -156,6 +156,21 @@ func TestFix05ActualFillMustNotMoveStructureOrHideRisk(t *testing.T) {
 	}
 }
 
+// Small drift past the budget (sizing spends 100% of it before the fill) is
+// tolerated; anything beyond fillRiskBudgetTolerance is still rejected.
+func TestActualFillRiskBudgetTolerance(t *testing.T) {
+	at := riskTestTrader(store.RiskControlConfig{MinRiskRewardRatio: 1.5, RiskPerTradePct: 1.5})
+	d := &kernel.Decision{Symbol: "XUSDT", Action: "open_long", StopLoss: 95, TakeProfit: 110}
+	perUnit := 5 + 100*at.config.StrategyConfig.RiskControl.EffectiveEntryRoundTripCostBps()/10000
+	full := 15 / perUnit // equity 1000 × 1.5%
+	if err := at.actualFillRisk(d, 100, full*1.03, 1000); err != nil {
+		t.Fatalf("3%% over budget rejected: %v", err)
+	}
+	if err := at.actualFillRisk(d, 100, full*1.07, 1000); err == nil {
+		t.Fatal("7% over budget accepted")
+	}
+}
+
 func TestFix05ActualFillDefaultsAndUnknownData(t *testing.T) {
 	m := &review03Mock{}
 	at := review03Trader(m)

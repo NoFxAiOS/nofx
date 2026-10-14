@@ -9,6 +9,12 @@ import (
 	"nofx/logger"
 )
 
+// fillRiskBudgetTolerance lets the actual fill exceed the per-trade risk budget
+// by this fraction. Sizing spends the full budget at the pre-order price, so
+// the few seconds of drift before a market fill (leverage cooldown etc.)
+// otherwise reject fills that are 0.1–1.5% over; real slippage still trips it.
+const fillRiskBudgetTolerance = 0.05
+
 // A structural invalidation level cannot move merely because execution slipped.
 func (at *AutoTrader) actualFillRisk(d *kernel.Decision, fill, quantity, equity float64) error {
 	if fill <= 0 || quantity <= 0 || math.IsNaN(fill) || math.IsInf(fill, 0) || math.IsNaN(quantity) || math.IsInf(quantity, 0) {
@@ -44,8 +50,8 @@ func (at *AutoTrader) actualFillRisk(d *kernel.Decision, fill, quantity, equity 
 		return fmt.Errorf("actual fill equity unavailable")
 	}
 	budget := equity * rc.EffectiveRiskPerTradePct() / 100
-	if quantity*(risk+cost) > budget+math.Max(1e-8, budget*1e-6) {
-		return fmt.Errorf("actual fill risk %.6g exceeds budget %.6g", quantity*(risk+cost), budget)
+	if quantity*(risk+cost) > budget*(1+fillRiskBudgetTolerance)+1e-8 {
+		return fmt.Errorf("actual fill risk %.6g exceeds budget %.6g (+%.0f%% tolerance)", quantity*(risk+cost), budget, fillRiskBudgetTolerance*100)
 	}
 	return nil
 }

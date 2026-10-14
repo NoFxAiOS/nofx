@@ -245,7 +245,10 @@ function CandidateWatchlist({
   const filteredCount = rows.filter(
     (s) => verdicts.get(s.toUpperCase())?.status === 'filtered'
   ).length
-  const evaluatedCount = rows.length - filteredCount
+  const heldCount = rows.filter(
+    (s) => verdicts.get(s.toUpperCase())?.status === 'held'
+  ).length
+  const evaluatedCount = rows.length - filteredCount - heldCount
 
   const codes = (list: string[] | undefined) =>
     !list || list.length === 0
@@ -278,6 +281,7 @@ function CandidateWatchlist({
         {rows.map((symbol) => {
           const v = verdicts.get(symbol.toUpperCase())
           const isFiltered = v?.status === 'filtered'
+          const isHeld = v?.status === 'held'
           return (
             <div key={symbol} className="flex items-start gap-2">
               <span
@@ -291,16 +295,20 @@ function CandidateWatchlist({
                 variant="neutral"
                 className={cn(
                   'shrink-0 bg-surface-hover',
-                  isFiltered && 'opacity-70'
+                  (isFiltered || isHeld) && 'opacity-70'
                 )}
               >
-                {isFiltered
-                  ? t('candidateFilteredBadge', language)
-                  : t('standingBy', language)}
+                {isHeld
+                  ? t('candidateHeldBadge', language)
+                  : isFiltered
+                    ? t('candidateFilteredBadge', language)
+                    : t('standingBy', language)}
               </Badge>
               {v && (
                 <span className="min-w-0 break-words text-[11px] leading-[18px] text-fg-3">
-                  {isFiltered ? (
+                  {isHeld ? (
+                    t('candidateHeldReason', language)
+                  ) : isFiltered ? (
                     v.reason
                   ) : (
                     <>

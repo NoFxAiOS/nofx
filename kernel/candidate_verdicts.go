@@ -40,6 +40,13 @@ func BuildCandidateVerdicts(ctx *Context) []CandidateVerdict {
 	for _, c := range ctx.CandidateCoins {
 		add(c.Symbol)
 	}
+	// Held symbols are rendered in the positions section, never as candidate
+	// blocks, so they carry no gate state — report them as held instead of
+	// falling through to "no market data" (2026-10-14 BTWUSDT).
+	held := map[string]bool{}
+	for _, p := range ctx.Positions {
+		held[market.Normalize(p.Symbol)] = true
+	}
 	out := make([]CandidateVerdict, 0, len(order))
 	for _, sym := range order {
 		k := market.Normalize(sym)
@@ -52,6 +59,9 @@ func BuildCandidateVerdicts(ctx *Context) []CandidateVerdict {
 			} else {
 				v.Status = "evaluated"
 			}
+		} else if held[k] && ctx.FilteredCandidates[k] == "" {
+			v.Status = "held"
+			v.Reason = "held position — evaluated in the positions section"
 		} else {
 			v.Status = "filtered"
 			if r := ctx.FilteredCandidates[k]; r != "" {

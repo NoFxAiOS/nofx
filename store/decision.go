@@ -40,7 +40,8 @@ func (DecisionRecordDB) TableName() string { return "decision_records" }
 
 // DecisionRecord decision record (external API struct)
 // CandidateVerdict is one candidate's outcome for a cycle (2026-10-10
-// per-candidate block reasons). Status: "evaluated" | "blocked" | "filtered".
+// per-candidate block reasons). Status: "evaluated" | "blocked" | "filtered" |
+// "held" (an open position, evaluated in the positions section).
 type CandidateVerdict struct {
 	Symbol      string   `json:"symbol"`
 	Status      string   `json:"status"`

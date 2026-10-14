@@ -36,6 +36,27 @@ func TestBuildCandidateVerdicts(t *testing.T) {
 	}
 }
 
+// A held symbol is rendered in the positions section, not as a candidate
+// block: it must not read as "no market data" (2026-10-14 BTWUSDT).
+func TestBuildCandidateVerdictsHeldPosition(t *testing.T) {
+	ctx := &Context{
+		CandidateCoins: []CandidateCoin{{Symbol: "BTWUSDT"}, {Symbol: "NODATAUSDT"}, {Symbol: "OIUSDT"}},
+		Positions:      []PositionInfo{{Symbol: "BTWUSDT", Side: "short"}, {Symbol: "OIUSDT", Side: "long"}},
+	}
+	markFiltered(ctx, "OIUSDT", "OI 3.60M < 5.0M")
+	got := BuildCandidateVerdicts(ctx)
+	if got[0].Status != "held" || got[0].Reason == "" {
+		t.Errorf("held verdict wrong: %+v", got[0])
+	}
+	if got[1].Status != "filtered" || got[1].Reason != "not rendered (no market data)" {
+		t.Errorf("no-data verdict wrong: %+v", got[1])
+	}
+	// an explicit filter reason still wins over the held fallback
+	if got[2].Status != "filtered" || got[2].Reason != "OI 3.60M < 5.0M" {
+		t.Errorf("filtered held verdict wrong: %+v", got[2])
+	}
+}
+
 func TestRegimeSkipProducesVerdictsForAllCandidates(t *testing.T) {
 	engine := NewStrategyEngine(&store.StrategyConfig{})
 	mock := &recordingAIClient{}

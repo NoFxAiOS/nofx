@@ -88,7 +88,7 @@ export interface DecisionRecord {
   // 2026-10-10 per-candidate block reasons (absent on old records)
   candidate_verdicts?: Array<{
     symbol: string
-    status: 'evaluated' | 'blocked' | 'filtered' | string
+    status: 'evaluated' | 'blocked' | 'filtered' | 'held' | string
     long_failed?: string[]
     short_failed?: string[]
     reason?: string

@@ -483,3 +483,30 @@ func TestTopMomentum(t *testing.T) {
 		t.Fatal("n<=0 and nil report must return nil")
 	}
 }
+
+// The scan prefers the underlying's Yahoo daily bars and falls back to bStock.
+func TestFetchScanBarsPrefersUnderlying(t *testing.T) {
+	oldU, oldS := scanGetUnderlying, scanGetSeries
+	defer func() { scanGetUnderlying, scanGetSeries = oldU, oldS }()
+	bars := make([]usstock.Bar, 100)
+	for i := range bars {
+		bars[i] = usstock.Bar{Close: 10, High: 11, Low: 9, Volume: 1}
+	}
+	bstockCalls := 0
+	scanGetSeries = func(context.Context, string, string, int, bool) (*usstock.Series, error) {
+		bstockCalls++
+		return &usstock.Series{Bars: bars, Source: usstock.SourceBStock}, nil
+	}
+	scanGetUnderlying = func(context.Context, string, string, int) (*usstock.Series, error) {
+		return &usstock.Series{Bars: bars, Source: usstock.SourceYahoo}, nil
+	}
+	if _, src, err := fetchScanBars(context.Background(), "AAPLBUSDT"); err != nil || src != usstock.SourceYahoo || bstockCalls != 0 {
+		t.Fatalf("want yahoo without bStock call: src=%s err=%v calls=%d", src, err, bstockCalls)
+	}
+	scanGetUnderlying = func(context.Context, string, string, int) (*usstock.Series, error) {
+		return nil, errors.New("yahoo down")
+	}
+	if _, src, err := fetchScanBars(context.Background(), "AAPLBUSDT"); err != nil || src != usstock.SourceBStock || bstockCalls != 1 {
+		t.Fatalf("want bStock fallback: src=%s err=%v calls=%d", src, err, bstockCalls)
+	}
+}

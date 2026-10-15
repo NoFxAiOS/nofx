@@ -217,14 +217,15 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 		for _, tf := range tfs {
 			var s *usstock.Series
 			var err error
-			if tf == usstock.TF4h && sc.YahooFallback() {
-				// 4h is prompt context only: prefer the underlying's regular-session
-				// bars — bStock trades 24/7 and its off-hours 4h bars are near-empty.
+			if sc.YahooFallback() {
+				// Prefer the underlying's regular-session bars for every timeframe:
+				// bStock trades 24/7 and its night/weekend bars are near-empty, which
+				// distorts candles, RSI and trends. bStock is the fallback.
 				if s, err = stockGetUnderlyingSeries(ctx, sym, tf, stockSeriesNeeds[tf]); s == nil || len(s.Bars) == 0 {
 					s, err = stockGetSeries(ctx, sym, tf, stockSeriesNeeds[tf], true)
 				}
 			} else {
-				s, err = stockGetSeries(ctx, sym, tf, stockSeriesNeeds[tf], sc.YahooFallback())
+				s, err = stockGetSeries(ctx, sym, tf, stockSeriesNeeds[tf], false)
 			}
 			if err != nil && !errors.Is(err, usstock.ErrInsufficientBars) {
 				logf("series %s %s: %v", sym, tf, err)

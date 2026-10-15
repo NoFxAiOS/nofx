@@ -20,6 +20,10 @@ func init() {
 	scanGetFundamentals = func(context.Context, string) (usstock.Fundamentals, error) {
 		return usstock.Fundamentals{}, errors.New("fundamentals not stubbed")
 	}
+	// Offline: the Yahoo-first path fails so scans fall back to the scanGetSeries stubs.
+	scanGetUnderlying = func(context.Context, string, string, int) (*usstock.Series, error) {
+		return nil, errors.New("underlying not stubbed")
+	}
 }
 
 func universeTestBars(n int, f func(i int) float64) []usstock.Bar {

@@ -26,7 +26,10 @@ var scanFundamentalsBudget = 90 * time.Second
 var (
 	scanListSymbols = usstock.ListSymbols
 	scanGetSeries   = usstock.GetSeries
-	scanNow         = time.Now
+	// scanGetUnderlying: Yahoo regular-session series, preferred over bStock's
+	// 24/7 bars so off-hours trading can't distort the daily read.
+	scanGetUnderlying = usstock.GetUnderlyingSeries
+	scanNow           = time.Now
 
 	scanGetFundamentals = usstock.GetFundamentals
 )
@@ -320,8 +323,13 @@ func enrichFundamentals(ctx context.Context, report *ScanReport) {
 	logger.Infof("🔭 bStock scan fundamentals: %d enriched, %d unavailable of %d", enriched, failed, len(report.Results))
 }
 
+// fetchScanBars prefers the underlying's Yahoo daily bars (regular session, the
+// data the IC study validated on) and falls back to the bStock series.
 func fetchScanBars(ctx context.Context, symbol string) ([]usstock.Bar, string, error) {
-	series, err := scanGetSeries(ctx, symbol, usstock.TF1d, scanDailyBars, true)
+	series, err := scanGetUnderlying(ctx, symbol, usstock.TF1d, scanDailyBars)
+	if series == nil || len(series.Bars) < cycleMinBars {
+		series, err = scanGetSeries(ctx, symbol, usstock.TF1d, scanDailyBars, true)
+	}
 	if series == nil {
 		if err == nil {
 			err = errors.New("daily series is unavailable")

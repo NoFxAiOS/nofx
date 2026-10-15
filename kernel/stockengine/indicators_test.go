@@ -158,3 +158,25 @@ func TestSnapshotDownAndRange(t *testing.T) {
 		t.Fatal(s.TrendDaily)
 	}
 }
+
+func TestRSIWilder(t *testing.T) {
+	// StockCharts RSI worked example: the first RSI(14) is 70.53, the next 66.32.
+	closes := []float64{44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84, 46.08, 45.89, 46.03, 45.61, 46.28, 46.28}
+	if got := rsi(closes, 14); math.Abs(got-70.53) > 0.1 {
+		t.Fatalf("rsi first = %.2f want 70.53", got)
+	}
+	closes = append(closes, 46.00)
+	if got := rsi(closes, 14); math.Abs(got-66.32) > 0.1 {
+		t.Fatalf("rsi second = %.2f want 66.32", got)
+	}
+	// Undefined below period+1 values; all gains → 100; all losses → 0.
+	near(t, rsi(closes[:14], 14), 50)
+	near(t, rsi(nil, 14), 50)
+	up, down := make([]float64, 20), make([]float64, 20)
+	for i := range up {
+		up[i], down[i] = float64(10+i), float64(50-i)
+	}
+	near(t, rsi(up, 14), 100)
+	near(t, rsi(down, 14), 0)
+	near(t, rsi(up, 0), 50)
+}

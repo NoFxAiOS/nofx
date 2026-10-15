@@ -174,6 +174,17 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 			tfs = append(tfs, tf)
 		}
 	}
+	// Raw candles and RSI in the prompt cover the weekly and 4h timeframes for
+	// every symbol; they are optional (only preset-required timeframes warn).
+	for _, tf := range []string{usstock.TF1w, usstock.TF4h} {
+		dup := false
+		for _, e := range tfs {
+			dup = dup || e == tf
+		}
+		if !dup {
+			tfs = append(tfs, tf)
+		}
+	}
 	configured := map[string]bool{}
 	var order []string
 	for _, s := range sc.Symbols {
@@ -252,6 +263,16 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 		}
 	}
 	return all, market, prices
+}
+
+// freshScanResults returns the report's results for the prompt's universe
+// table, or nil when there is no report or it is older than stockScanMaxAge
+// (the same freshness rule the Kell/momentum lines apply).
+func freshScanResults(report *stockengine.ScanReport, now time.Time) []stockengine.ScanResult {
+	if report == nil || now.Sub(report.GeneratedAt) > stockScanMaxAge {
+		return nil
+	}
+	return report.Results
 }
 
 // stockWeekRisk tracks the ET week's starting equity and latches the weekly
@@ -400,7 +421,8 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 
 	ectx := &stockengine.Context{Now: now, Session: session, Config: cc, Preset: preset,
 		Account:   stockengine.Account{Equity: state.Equity, Available: state.Available, Exposure: state.Exposure},
-		Positions: state.enginePositions(prices), Snapshots: snaps, Market: market, Paper: paper}
+		Positions: state.enginePositions(prices), Snapshots: snaps, Market: market, Paper: paper,
+		Universe: freshScanResults(report, now)}
 	result, derr := stockengine.Decide(ectx, at.mcpClient, at.stockLang())
 	if result != nil {
 		rec.SystemPrompt, rec.InputPrompt, rec.RawResponse, rec.AIRequestDurationMs = result.SystemPrompt, result.UserPrompt, result.RawResponse, result.DurationMs

@@ -18,11 +18,17 @@ const (
 	scanBenchmarkSymbol = "SPYBUSDT"
 )
 
+// scanFundamentalsBudget caps the best-effort earnings/sector enrichment that
+// follows the daily-bar classification (a variable so tests can shrink it).
+var scanFundamentalsBudget = 90 * time.Second
+
 // Network and clock seams for offline tests.
 var (
 	scanListSymbols = usstock.ListSymbols
 	scanGetSeries   = usstock.GetSeries
 	scanNow         = time.Now
+
+	scanGetFundamentals = usstock.GetFundamentals
 )
 
 type ScanResult struct {
@@ -31,6 +37,9 @@ type ScanResult struct {
 	Source     string             `json:"source"`
 	Cycle      CycleAssessment    `json:"cycle"`
 	Momentum   MomentumAssessment `json:"momentum"`
+	// Universe is the row of the prompt's universe table (zero Price when the
+	// symbol had too few bars for one).
+	Universe UniverseRow `json:"universe"`
 }
 
 type ScanReport struct {
@@ -122,9 +131,14 @@ func Scan(ctx context.Context, universe []usstock.SymbolInfo, spyBars []usstock.
 			report.Skipped[info.Symbol] = fmt.Sprintf("insufficient daily bars: have %d, need at least %d", len(bars), cycleMinBars)
 			continue
 		}
+		row, ok := BuildUniverseRow(info.Symbol, info.Underlying, bars)
+		if !ok {
+			row = UniverseRow{Symbol: info.Symbol, Underlying: info.Underlying, DaysToEarnings: -1}
+		}
 		report.Results = append(report.Results, ScanResult{
 			Symbol: info.Symbol, Underlying: info.Underlying, Source: source,
 			Cycle: ClassifyCycle(bars, spyBars), Momentum: ClassifyMomentum(bars),
+			Universe: row,
 		})
 	}
 	return report, ctx.Err()
@@ -271,7 +285,39 @@ func liveScan(ctx context.Context) (report *ScanReport, err error) {
 		// with an empty one. Partial scans with usable symbols still succeed.
 		err = errors.New("bStock cycle scan: no symbols had usable daily bars")
 	}
+	if err == nil {
+		enrichFundamentals(ctx, report)
+	}
 	return report, err
+}
+
+// enrichFundamentals fills Class / Sector / DaysToEarnings of every result's
+// universe row from Yahoo, sequentially (Yahoo is serialized anyway), within
+// scanFundamentalsBudget. It is best effort: failures, the budget running out
+// or ctx being canceled just leave the remaining rows unknown, never failing
+// the scan. Results arrive in report order, so the best-ranked names are
+// enriched first.
+func enrichFundamentals(ctx context.Context, report *ScanReport) {
+	if report == nil {
+		return
+	}
+	fctx, cancel := context.WithTimeout(ctx, scanFundamentalsBudget)
+	defer cancel()
+	enriched, failed := 0, 0
+	for i := range report.Results {
+		if fctx.Err() != nil {
+			break
+		}
+		r := &report.Results[i]
+		f, err := scanGetFundamentals(fctx, r.Underlying)
+		if err != nil {
+			failed++
+			continue
+		}
+		ApplyFundamentals(&r.Universe, f, report.GeneratedAt)
+		enriched++
+	}
+	logger.Infof("🔭 bStock scan fundamentals: %d enriched, %d unavailable of %d", enriched, failed, len(report.Results))
 }
 
 func fetchScanBars(ctx context.Context, symbol string) ([]usstock.Bar, string, error) {

@@ -103,3 +103,37 @@ func alignedTrend(values []float64, fast, slow, slope int) string {
 	}
 	return "range"
 }
+
+// rsi is Wilder's RSI on values, last value. It returns 50 when undefined
+// (fewer than period+1 values) and 100 when there were no losses.
+func rsi(values []float64, period int) float64 {
+	if period <= 0 || len(values) < period+1 {
+		return 50
+	}
+	var gain, loss float64
+	for i := 1; i <= period; i++ {
+		d := values[i] - values[i-1]
+		if d > 0 {
+			gain += d
+		} else {
+			loss -= d
+		}
+	}
+	gain /= float64(period)
+	loss /= float64(period)
+	for i := period + 1; i < len(values); i++ {
+		d := values[i] - values[i-1]
+		g, l := 0.0, 0.0
+		if d > 0 {
+			g = d
+		} else {
+			l = -d
+		}
+		gain = (gain*float64(period-1) + g) / float64(period)
+		loss = (loss*float64(period-1) + l) / float64(period)
+	}
+	if loss == 0 {
+		return 100
+	}
+	return 100 - 100/(1+gain/loss)
+}

@@ -2,6 +2,7 @@ package stockengine
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	_ "time/tzdata"
@@ -149,6 +150,7 @@ func BuildUserPrompt(ctx *Context, lang string) string {
 			writeSnapshot(&b, s, zh, required)
 		}
 	}
+	writeUniverse(&b, ctx, zh)
 	return b.String()
 }
 
@@ -204,6 +206,111 @@ func writeSnapshot(b *strings.Builder, s *SymbolSnapshot, zh bool, required map[
 		fmt.Fprintf(b, "quote: bStock=%.2f ref=%.2f divergence=%.2f%% fresh=%t ref_time=%s session=%s\n", q.BStockPrice, q.RefPrice, q.DivergencePct, q.RefFresh, q.RefTime.Format(time.RFC3339), q.Session)
 	} else {
 		fmt.Fprintln(b, "quote: missing / BSTOCK_REF_STALE")
+	}
+	writeCandles(b, s, zh)
+}
+
+// candleOrder is the print order of the raw-candle blocks.
+var candleOrder = []string{usstock.TF1w, usstock.TF1d, usstock.TF4h}
+
+// writeCandles prints RSI-14 per timeframe and the raw OHLCV candles the
+// snapshot carries, oldest first. 1w/1d bars are dated by their UTC open date,
+// 4h bars by their ET open time. Timeframes without data are skipped.
+func writeCandles(b *strings.Builder, s *SymbolSnapshot, zh bool) {
+	var rsis []string
+	for _, tf := range []string{usstock.TF4h, usstock.TF1d, usstock.TF1w} {
+		if v, ok := s.RSI[tf]; ok {
+			rsis = append(rsis, fmt.Sprintf("%s=%.1f", tf, v))
+		}
+	}
+	if len(rsis) > 0 {
+		fmt.Fprintf(b, "rsi14: %s\n", strings.Join(rsis, " "))
+	}
+	et, _ := time.LoadLocation("America/New_York")
+	for _, tf := range candleOrder {
+		bars := s.Candles[tf]
+		if len(bars) == 0 {
+			continue
+		}
+		layout, extra := "2006-01-02", ""
+		if tf == usstock.TF4h {
+			layout = "2006-01-02 15:04"
+			if zh {
+				extra = "；美东开盘时间"
+			} else {
+				extra = "; ET bar start"
+			}
+		}
+		if zh {
+			fmt.Fprintf(b, "K线 %s (%d%s；旧→新；date,o,h,l,c,v):\n", tf, len(bars), extra)
+		} else {
+			fmt.Fprintf(b, "candles %s (%d%s, oldest→newest; date,o,h,l,c,v):\n", tf, len(bars), extra)
+		}
+		for _, bar := range bars {
+			t := bar.OpenTime.UTC()
+			if tf == usstock.TF4h {
+				t = bar.OpenTime.In(et)
+			}
+			fmt.Fprintf(b, "%s,%s,%s,%s,%s,%s\n", t.Format(layout), fmtPx(bar.Open), fmtPx(bar.High), fmtPx(bar.Low), fmtPx(bar.Close), fmtVol(bar.Volume))
+		}
+	}
+}
+
+// writeUniverse prints the one-row-per-pair universe table of the fresh scan
+// report (ctx.Universe), sorted by symbol. Candidates (this cycle's list) are
+// marked Y and scan-excluded pairs x. Omitted when there are no rows.
+func writeUniverse(b *strings.Builder, ctx *Context, zh bool) {
+	if ctx == nil || len(ctx.Universe) == 0 {
+		return
+	}
+	candidates, excluded := map[string]bool{}, map[string]bool{}
+	if ctx.Config != nil {
+		for _, sym := range ctx.Config.Symbols {
+			candidates[sym] = true
+		}
+		for _, sym := range ctx.Config.ScanExclude {
+			excluded[sym] = true
+		}
+	}
+	rows := make([]ScanResult, 0, len(ctx.Universe))
+	for _, r := range ctx.Universe {
+		if r.Universe.Price > 0 {
+			rows = append(rows, r)
+		}
+	}
+	if len(rows) == 0 {
+		return
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Symbol < rows[j].Symbol })
+	if zh {
+		fmt.Fprintf(b, "全市场概览（所有 bStock；仅供参考——只能对上面的候选标的开仓/加仓）:\n")
+		fmt.Fprintln(b, "列：symbol|class|sector|candidate(Y=本周期候选, x=已排除)|price|r1d%|r10d%|r30d%|vol30%(年化)|rsi14(日线)|from30dHigh%|adv20$(20日均成交额)|earn_days(距财报天数,空=未知)|mom12_1%|>sma200(Y/N)|phase(Kell)")
+	} else {
+		fmt.Fprintf(b, "Universe (all listed bStock pairs; reference only — open/add only symbols in the candidate list above):\n")
+		fmt.Fprintln(b, "columns: symbol|class|sector|candidate(Y=in this cycle's list, x=scan-excluded)|price|r1d%|r10d%|r30d%|vol30%(annualized)|rsi14(daily)|from30dHigh%|adv20$(20d avg dollar volume)|earn_days(to next earnings, blank=unknown)|mom12_1%|>sma200(Y/N)|phase(Kell)")
+	}
+	for _, r := range rows {
+		u := r.Universe
+		mark := ""
+		if candidates[r.Symbol] {
+			mark = "Y"
+		} else if excluded[r.Symbol] {
+			mark = "x"
+		}
+		earn := ""
+		if u.DaysToEarnings >= 0 {
+			earn = fmt.Sprint(u.DaysToEarnings)
+		}
+		mom, above := "", ""
+		if r.Momentum.Valid {
+			mom = fmt.Sprintf("%.1f", r.Momentum.Mom12_1Pct)
+			above = "N"
+			if r.Momentum.AboveSMA200 {
+				above = "Y"
+			}
+		}
+		fmt.Fprintf(b, "%s|%s|%s|%s|%s|%.1f|%.1f|%.1f|%.1f|%.1f|%.1f|$%s|%s|%s|%s|%s\n", r.Symbol, u.Class, strings.ReplaceAll(u.Sector, "|", "/"), mark,
+			fmtPx(u.Price), u.Ret1dPct, u.Ret10dPct, u.Ret30dPct, u.Vol30Pct, u.RSI14, u.DistFrom30dHighPct, fmtVol(u.AvgDollarVol20), earn, mom, above, r.Cycle.Phase)
 	}
 }
 

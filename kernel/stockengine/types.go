@@ -84,6 +84,31 @@ type SymbolSnapshot struct {
 	Cycle *CycleAssessment `json:"cycle,omitempty"`
 	// Momentum is the trend-filtered 12-1 momentum read (nil when unknown).
 	Momentum *MomentumAssessment `json:"momentum,omitempty"`
+
+	// RSI is Wilder RSI(14) on closes per timeframe ("4h", "1d", "1w"); a
+	// timeframe is present only when its series had ≥ 15 closed bars.
+	RSI map[string]float64 `json:"rsi,omitempty"`
+	// Candles holds the last closed bars per timeframe for the prompt (1w 26,
+	// 1d 30, 4h 24), oldest first. Copies, never aliases of the series.
+	Candles map[string][]usstock.Bar `json:"-"`
+}
+
+// UniverseRow is one compact row of the universe table in the user prompt:
+// the cross-sectional view of one listed bStock pair, computed from its daily
+// bars (BuildUniverseRow) and enriched with best-effort fundamentals.
+type UniverseRow struct {
+	Symbol, Underlying string
+	Class              string // "ETF" | "stock" | "" unknown
+	Sector             string // "" unknown
+	Price              float64
+	Ret1dPct           float64
+	Ret10dPct          float64
+	Ret30dPct          float64
+	Vol30Pct           float64 // annualized stdev of the last 30 daily log returns, ×sqrt(252)×100
+	RSI14              float64 // daily
+	DistFrom30dHighPct float64 // close / max(high of last 30 bars) − 1, ×100 (≤ 0)
+	AvgDollarVol20     float64 // mean(close×volume) over the last 20 bars
+	DaysToEarnings     int     // −1 unknown
 }
 
 // Position is a held bStock position as the engine sees it.
@@ -116,6 +141,11 @@ type Context struct {
 	Snapshots []*SymbolSnapshot // configured symbols, plus market context symbols
 	Market    []*SymbolSnapshot // SPYBUSDT / QQQBUSDT context (may overlap Snapshots)
 	Paper     bool
+	// Universe is the FRESH scan report's results (one per listed bStock pair)
+	// rendered as the prompt's universe table; empty = no table. It carries
+	// ScanResult rather than UniverseRow because the table also shows each
+	// pair's momentum and Kell phase.
+	Universe []ScanResult `json:"-"`
 }
 
 // Decision is one model decision (prices in USDT, bStock pair units).

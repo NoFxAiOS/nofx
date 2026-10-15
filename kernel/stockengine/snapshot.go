@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+// Raw candles shown to the model per timeframe, and the RSI period.
+const (
+	promptCandles1w = 26
+	promptCandles1d = 30
+	promptCandles4h = 24
+	rsiPeriod       = 14
+)
+
+var promptCandleCounts = map[string]int{usstock.TF1w: promptCandles1w, usstock.TF1d: promptCandles1d, usstock.TF4h: promptCandles4h}
+
 // BuildSnapshot computes indicators from closed bars only. The contract has no
 // preset parameter: TrendEntry uses supplied 1h bars, or daily bars when 1h is
 // absent (position callers should supply daily/weekly series). MissingTF remains
@@ -88,6 +98,26 @@ func BuildSnapshot(symbol, underlying string, series map[string]*usstock.Series,
 	}
 	if entry != nil {
 		s.TrendEntry = alignedTrend(closes(entry.Bars), 20, 50, 10)
+	}
+	for tf, n := range promptCandleCounts {
+		data := series[tf]
+		if data == nil || len(data.Bars) == 0 {
+			continue
+		}
+		if len(data.Bars) >= rsiPeriod+1 {
+			if s.RSI == nil {
+				s.RSI = make(map[string]float64)
+			}
+			s.RSI[tf] = rsi(closes(data.Bars), rsiPeriod)
+		}
+		tail := data.Bars
+		if len(tail) > n {
+			tail = tail[len(tail)-n:]
+		}
+		if s.Candles == nil {
+			s.Candles = make(map[string][]usstock.Bar)
+		}
+		s.Candles[tf] = append([]usstock.Bar(nil), tail...)
 	}
 	return s
 }

@@ -239,7 +239,7 @@ func newStockFixtureCfg(t *testing.T, paper bool, now time.Time, respond func(ca
 		return usstock.SymbolInfo{}, false
 	}
 	stockGetSeries = func(_ context.Context, sym, tf string, need int, _ bool) (*usstock.Series, error) {
-		step := map[string]time.Duration{usstock.TF1d: 24 * time.Hour, usstock.TF1w: 7 * 24 * time.Hour, usstock.TF1h: time.Hour}[tf]
+		step := map[string]time.Duration{usstock.TF1d: 24 * time.Hour, usstock.TF1w: 7 * 24 * time.Hour, usstock.TF1h: time.Hour, usstock.TF4h: 4 * time.Hour}[tf]
 		drift := 0.1
 		if tf == usstock.TF1h {
 			drift = 0.01
@@ -1159,5 +1159,61 @@ func TestStockContextWaitIsDroppedNotRejected(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("open_long on a context pair must stay a rejection: %+v", rec.Decisions)
+	}
+}
+
+// uniRes is a scan result carrying a universe-table row.
+func uniRes(sym string, price float64) stockengine.ScanResult {
+	r := momRes(sym, "uptrend", false, 10, 25, true)
+	r.Universe = stockengine.UniverseRow{Symbol: sym, Underlying: r.Underlying, Class: "stock", Sector: "Technology", Price: price,
+		Ret1dPct: 1.2, Ret10dPct: 3.4, Ret30dPct: 5.6, Vol30Pct: 30, RSI14: 55, DistFrom30dHighPct: -2, AvgDollarVol20: 12.3e6, DaysToEarnings: 9}
+	return r
+}
+
+func TestStockPromptCarriesCandlesRSIAndUniverse(t *testing.T) {
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return `[{"symbol":"AAPLBUSDT","action":"wait"}]` }, scanMode(1, nil, []string{"TSLABUSDT"}))
+	var fetched = map[string]int{}
+	base := stockGetSeries
+	stockGetSeries = func(ctx context.Context, sym, tf string, need int, yahoo bool) (*usstock.Series, error) {
+		if sym == "AAPLBUSDT" {
+			fetched[tf]++
+		}
+		return base(ctx, sym, tf, need, yahoo)
+	}
+	aapl := uniRes("AAPLBUSDT", 120)
+	aapl.Cycle.LongSetup, aapl.Cycle.Score = true, 90
+	useScanReport(scanReportOf(aapl, uniRes("TSLABUSDT", 250), uniRes("MSFTBUSDT", 410)), nil)
+	fx.cycle(t)
+
+	if !fx.lastRecord(t).Success {
+		t.Fatalf("cycle failed: %s", fx.lastRecord(t).ErrorMessage)
+	}
+	for _, tf := range []string{usstock.TF1d, usstock.TF1w, usstock.TF4h} {
+		if fetched[tf] == 0 {
+			t.Fatalf("timeframe %s was not fetched: %v", tf, fetched)
+		}
+	}
+	user := fx.ai.user
+	for _, want := range []string{"rsi14: 4h=", "K线 1w", "K线 1d", "K线 4h", "全市场概览",
+		"AAPLBUSDT|stock|Technology|Y|120|1.2|3.4|5.6|30.0|55.0|-2.0|$12.3M|9|25.0|Y|uptrend",
+		"MSFTBUSDT|stock|Technology||410|", "TSLABUSDT|stock|Technology|x|250|"} {
+		if !strings.Contains(user, want) {
+			t.Fatalf("user prompt missing %q:\n%s", want, user)
+		}
+	}
+	// SPY / QQQ market context carry candles too.
+	if n := strings.Count(user, "K线 1d"); n < 2 {
+		t.Fatalf("want candles for the candidate and SPY, got %d", n)
+	}
+}
+
+func TestStockStaleScanReportHasNoUniverseTable(t *testing.T) {
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return `[{"symbol":"AAPLBUSDT","action":"wait"}]` }, hybridMode(1, []string{"AAPLBUSDT"}, nil))
+	report := scanReportOf(uniRes("AAPLBUSDT", 120), uniRes("MSFTBUSDT", 410))
+	report.GeneratedAt = stockTestNow.Add(-stockScanMaxAge - time.Minute)
+	useScanReport(report, nil)
+	fx.cycle(t)
+	if strings.Contains(fx.ai.user, "全市场概览") || strings.Contains(fx.ai.user, "MSFTBUSDT|") {
+		t.Fatalf("stale report must not produce a universe table:\n%s", fx.ai.user)
 	}
 }

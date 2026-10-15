@@ -3,7 +3,9 @@ package stockengine
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"nofx/mcp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -228,4 +230,40 @@ func Decide(ctx *Context, client mcp.AIClient, lang string) (*Result, error) {
 	r.Verdicts = Validate(ctx, r.Decisions)
 	repairEntries(ctx, client, lang, r)
 	return r, nil
+}
+
+// UnmarshalJSON accepts confidence as an integer, a float (85.5) or a numeric
+// string, and a 0–1 fraction (0.85) as a percentage — a model answering in the
+// reference-design style must not fail the whole response parse. Out-of-range
+// or unparsable values become 0 (and then fail the entry confidence gate).
+func (d *Decision) UnmarshalJSON(b []byte) error {
+	type plain Decision
+	aux := struct {
+		*plain
+		Confidence json.RawMessage `json:"confidence"`
+	}{plain: (*plain)(d)}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	d.Confidence = parseConfidence(aux.Confidence)
+	return nil
+}
+
+func parseConfidence(raw json.RawMessage) int {
+	s := strings.Trim(strings.TrimSpace(string(raw)), `"`)
+	s = strings.TrimSuffix(strings.TrimSpace(s), "%")
+	if s == "" || s == "null" {
+		return 0
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil || math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
+		return 0
+	}
+	if v > 0 && v <= 1 {
+		v *= 100
+	}
+	if v > 100 {
+		return 0
+	}
+	return int(math.Round(v))
 }

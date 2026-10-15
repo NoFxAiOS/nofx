@@ -323,3 +323,13 @@ func TestDecideRepairFailureKeepsFirstVerdicts(t *testing.T) {
 		})
 	}
 }
+
+func TestConfidenceParsingTolerant(t *testing.T) {
+	cases := map[string]int{`85`: 85, `85.5`: 86, `0.85`: 85, `"90"`: 90, `"80%"`: 80, `1`: 100, `0`: 0, `150`: 0, `-3`: 0, `"high"`: 0, `null`: 0}
+	for raw, want := range cases {
+		_, _, ds, err := ParseResponse(`{"decisions":[{"symbol":"AAPLBUSDT","action":"wait","confidence":` + raw + `}]}`)
+		if err != nil || len(ds) != 1 || ds[0].Confidence != want {
+			t.Errorf("confidence %s → %+v err=%v, want %d", raw, ds, err, want)
+		}
+	}
+}

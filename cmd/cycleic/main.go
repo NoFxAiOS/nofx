@@ -40,7 +40,8 @@ func cli() error {
 	exclude := flag.String("exclude", defaultExclude, "comma-separated symbols excluded from the cross-section; SPY is always excluded")
 	cache := flag.String("cache", filepath.Join(os.TempDir(), "cycleic-cache"), "JSON bar cache directory; fresh for 24 hours")
 	out := flag.String("out", "", "markdown report path (default stdout)")
-	jsonOut := flag.String("json", "", "optional JSON path for statistics and daily/period series")
+	jsonOut := flag.String("json", "", "optional JSON path for statistics and daily/period series, keyed by signal")
+	signals := flag.String("signal", "kell", "ranking signal(s), comma-separated: "+strings.Join(signalNames, ", ")+"; one study and report section per signal")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %v", flag.Args())
@@ -68,9 +69,17 @@ func cli() error {
 	if err != nil {
 		return err
 	}
-	c, err := (StudyConfig{hs, *mainH, *topN, *rebalance, *cost}).normalized()
+	names, err := parseSignals(*signals)
 	if err != nil {
 		return err
+	}
+	configs := make([]StudyConfig, 0, len(names))
+	for _, name := range names {
+		c, err := (StudyConfig{hs, *mainH, *topN, *rebalance, *cost, name}).normalized()
+		if err != nil {
+			return err
+		}
+		configs = append(configs, c)
 	}
 	if err := os.MkdirAll(*cache, 0755); err != nil {
 		return fmt.Errorf("create cache: %w", err)
@@ -113,20 +122,28 @@ func cli() error {
 			progress.Printf("loaded %d/%d symbols (%d accepted, %d skipped)", i+1, len(symbols), len(input), len(skipped))
 		}
 	}
-	progress.Printf("computing point-in-time signals and statistics")
-	started := time.Now()
-	r, err := runStudy(input, spy.Bars, c)
-	if err != nil {
-		return err
+	results := make([]*StudyResult, 0, len(configs))
+	for _, c := range configs {
+		progress.Printf("computing point-in-time signals and statistics for signal %s", c.Signal)
+		started := time.Now()
+		r, err := runStudy(input, spy.Bars, c)
+		if err != nil {
+			return err
+		}
+		r.Coverage.UniverseSize = len(symbols)
+		for symbol, reason := range skipped {
+			r.Coverage.Skipped[symbol] = reason
+		}
+		r.Coverage.Sources, r.Coverage.Warnings, r.Coverage.Excluded = sources, warnings, excluded
+		progress.Printf("study %s complete in %s: %d evaluation dates, %d portfolio periods", c.Signal, time.Since(started).Round(time.Millisecond), r.Coverage.EvaluationDates, len(r.Portfolio.Periods))
+		results = append(results, r)
 	}
-	r.Coverage.UniverseSize = len(symbols)
-	for symbol, reason := range skipped {
-		r.Coverage.Skipped[symbol] = reason
-	}
-	r.Coverage.Sources, r.Coverage.Warnings, r.Coverage.Excluded = sources, warnings, excluded
-	progress.Printf("study complete in %s: %d evaluation dates, %d portfolio periods", time.Since(started).Round(time.Millisecond), r.Coverage.EvaluationDates, len(r.Portfolio.Periods))
 	if *jsonOut != "" {
-		data, err := json.MarshalIndent(r, "", "  ")
+		keyed := make(map[string]*StudyResult, len(results))
+		for _, r := range results {
+			keyed[r.Config.Signal] = r
+		}
+		data, err := json.MarshalIndent(keyed, "", "  ")
 		if err != nil {
 			return fmt.Errorf("encode JSON: %w", err)
 		}
@@ -134,13 +151,32 @@ func cli() error {
 			return fmt.Errorf("write JSON: %w", err)
 		}
 	}
-	markdown := renderReport(r)
+	markdown := renderAll(results)
 	if *out == "" {
 		_, err = io.WriteString(os.Stdout, markdown)
 	} else {
 		err = atomicWrite(*out, []byte(markdown))
 	}
 	return err
+}
+
+// parseSignals splits a comma-separated signal list, rejecting unknown names
+// and duplicates before any data is loaded.
+func parseSignals(value string) ([]string, error) {
+	var names []string
+	seen := make(map[string]bool)
+	for _, part := range strings.Split(value, ",") {
+		name := strings.ToLower(strings.TrimSpace(part))
+		if !validSignal(name) {
+			return nil, fmt.Errorf("unknown signal %q; use one of %s", part, strings.Join(signalNames, ", "))
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("duplicate signal %q", name)
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	return names, nil
 }
 
 func parseHorizons(value string) ([]int, error) {
@@ -310,8 +346,12 @@ func renderReport(r *StudyResult) string {
 	write("Long-setup-only IC: **%s**; NW t **%s** (%d dates).  \n", available(r.LongOnly.Spearman.N, r.LongOnly.Spearman.Mean, 4), decimal(r.LongOnly.Spearman.NWT, 2), r.LongOnly.Spearman.N)
 	write("Top-%d annualized residual: **%s**; Sharpe-like **%s**.  \n", r.Config.TopN, availablePct(r.Portfolio.Residual.N, r.Portfolio.Residual.AnnualMean), decimal(r.Portfolio.Residual.Sharpe, 2))
 	write("LongSetup vs rest residual spread: **%s** per %dd; NW t **%s**.\n\n", availablePct(r.Spread.N, r.Spread.Mean), r.Config.MainHorizon, decimal(r.Spread.NWT, 2))
-	write("# Kell price-cycle IC study\n\n")
-	write("Signal: production `ClassifyCycle` score for LongSetup, otherwise zero. History: last 300 bars, at least 260. Entry: signal date + 1 close; exit: entry + horizon close. Beta: OLS on 126 daily SPY dates ending at signal, at least 60 matched return pairs. Cross-sections need 20 names. Main horizon: %d; rebalance/hold: %d; top N: %d; one-way cost: %.2f bps.\n\n", r.Config.MainHorizon, r.Config.Rebalance, r.Config.TopN, r.Config.CostBPS)
+	signal := r.Config.Signal
+	if signal == "" {
+		signal = "kell"
+	}
+	write("# Cycle IC study: signal `%s`\n\n", signal)
+	write("Signal `%s`: %s History: last 300 bars, at least 260. Entry: signal date + 1 close; exit: entry + horizon close. Beta: OLS on 126 daily SPY dates ending at signal, at least 60 matched return pairs. Cross-sections need 20 names. Main horizon: %d; rebalance/hold: %d; top N: %d; one-way cost: %.2f bps.\n\n", signal, signalDescription(signal), r.Config.MainHorizon, r.Config.Rebalance, r.Config.TopN, r.Config.CostBPS)
 	write("## 1–2. IC series and summaries\n\n")
 	write("| Horizon | Target | Method | Dates | Mean IC | Std | ICIR | NW t | 95%% CI | Hit rate | Non-overlap n | Non-overlap mean | Plain t |\n")
 	write("|---:|---|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|\n")
@@ -352,7 +392,12 @@ func renderReport(r *StudyResult) string {
 		write("| %s | %d | %s | %s | %s | %s |\n", m.name, s.N, availablePct(s.N, s.AnnualMean), availablePct(s.N, s.AnnualVol), decimal(s.Sharpe, 2), availablePct(s.N, s.HitRate))
 	}
 	write("\nAverage names held: %.2f; average one-way turnover: %s; skipped periods: %d.\n\n", r.Portfolio.AvgNames, percent(r.Portfolio.AvgTurnover), len(r.Portfolio.Skipped))
-	write("Rank: LongSetup first, Score descending, RS63Pct descending, Symbol ascending; buy only LongSetup names, equal-weight fewer than N if necessary, cash if none. Rank before checking future prices; a missing selected entry/exit skips the period without substituting another stock. EW universe uses stocks with valid signal, beta and holding-period returns. One-way turnover is half the absolute change in equal weights including cash (fraction replaced for fixed-size baskets); it compares consecutive scheduled baskets, including skipped periods, and charges the initial purchase from cash. Net excess subtracts turnover × 2 × cost-bps / 10000. Annualization is arithmetic mean × 252/rebalance and sample std × sqrt(252/rebalance).\n\n")
+	if isKell(signal) {
+		write("Rank: LongSetup first, Score descending, RS63Pct descending, Symbol ascending; buy only LongSetup names, equal-weight fewer than N if necessary, cash if none. ")
+	} else {
+		write("Rank: signal value descending, RS63Pct descending, Symbol ascending, among all stocks with a valid signal (no LongSetup filter); equal-weight the top N. ")
+	}
+	write("Rank before checking future prices; a missing selected entry/exit skips the period without substituting another stock. EW universe uses stocks with valid signal, beta and holding-period returns. One-way turnover is half the absolute change in equal weights including cash (fraction replaced for fixed-size baskets); it compares consecutive scheduled baskets, including skipped periods, and charges the initial purchase from cash. Net excess subtracts turnover × 2 × cost-bps / 10000. Annualization is arithmetic mean × 252/rebalance and sample std × sqrt(252/rebalance).\n\n")
 	write("| Signal date | Entry | Exit | Names | Portfolio raw | Residual | EW universe raw | Excess | Turnover | Net excess |\n|---|---|---|---:|---:|---:|---:|---:|---:|---:|\n")
 	for _, p := range r.Portfolio.Periods {
 		write("| %s | %s | %s | %d | %s | %s | %s | %s | %s | %s |\n", p.Date, p.EntryDate, p.ExitDate, len(p.Symbols), percent(p.Raw), percent(p.Residual), percent(p.UniverseRaw), percent(p.Excess), percent(p.Turnover), percent(p.NetExcess))
@@ -387,5 +432,65 @@ func renderReport(r *StudyResult) string {
 	}
 	write("\n## Caveats\n\n")
 	write("- Survivorship/selection bias: the universe is currently listed bStock names.\n- Yahoo adjusted data can differ from bStock prices.\n- ETFs remain in the universe after the explicit exclusions.\n- Overlapping forward returns are handled by Newey–West HAC; the non-overlapping check is also shown.\n- Single-period beta is estimated at the signal date and held fixed for the forward horizon; residuals are not regression alpha.\n- Missing future prices can select the evaluable sample; unpriced selected portfolios are reported as skipped periods.\n")
+	return b.String()
+}
+
+func signalDescription(name string) string {
+	switch name {
+	case "rs63":
+		return "63-day relative strength versus SPY in percentage points (`RS63Pct` from `ClassifyCycle`)."
+	case "ret63":
+		return "63-day own return, close[t] / close[t−63] − 1."
+	case "mom12_1":
+		return "12-1 momentum, close[t−21] / close[t−252] − 1 (skips the latest month); needs 253 bars."
+	case "trend_rs":
+		return "tiered trend rank: close > EMA20 > SMA50 gets `RS63Pct` + 1000, otherwise `RS63Pct` − 1000, so all trend names outrank all non-trend names."
+	case "ext10":
+		return "10-day extension in ATR units (`Ext10ATR` from `ClassifyCycle`: close minus the fast EMA, divided by ATR)."
+	}
+	return "production `ClassifyCycle` score for LongSetup, otherwise zero."
+}
+
+// renderAll renders one report per signal. With several signals a comparison
+// table comes first, then one full section per signal.
+func renderAll(results []*StudyResult) string {
+	if len(results) == 1 {
+		return renderReport(results[0])
+	}
+	var b strings.Builder
+	b.WriteString(renderComparison(results))
+	for _, r := range results {
+		b.WriteString("\n---\n\n")
+		b.WriteString(renderReport(r))
+	}
+	return b.String()
+}
+
+func icSummary(r *StudyResult, horizon int) Summary {
+	for _, ic := range r.IC {
+		if ic.Horizon == horizon && ic.Target == "residual" {
+			return ic.Spearman
+		}
+	}
+	return Summary{}
+}
+
+func renderComparison(results []*StudyResult) string {
+	var b strings.Builder
+	write := func(format string, args ...any) { fmt.Fprintf(&b, format, args...) }
+	first := results[0].Config
+	write("# Signal comparison\n\n")
+	write("One row per ranking signal; main horizon %dd, Top-%d rebalanced every %dd, one-way cost %.2f bps. IC columns are residual Spearman. The phase event study and the LongSetup spread are Kell-specific and identical across signals; only the IC and Top-N portfolio results depend on the signal. Top-N for `kell` takes LongSetup names only (production order); for every other signal it takes the N highest values among all stocks with a valid signal.\n\n", first.MainHorizon, first.TopN, first.Rebalance, first.CostBPS)
+	write("| Signal | Main IC | ICIR | NW t | Hit rate | Non-overlap t | 5d IC | 5d NW t | 20d IC | 20d NW t | Top-N resid. ann. | Sharpe-like | Excess ann. (gross) | Excess ann. (net) | Avg turnover |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
+	for _, r := range results {
+		m, h5, h20 := icSummary(r, r.Config.MainHorizon), icSummary(r, 5), icSummary(r, 20)
+		p := r.Portfolio
+		write("| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", r.Config.Signal,
+			available(m.N, m.Mean, 4), decimal(m.ICIR, 2), decimal(m.NWT, 2), availablePct(m.N, m.HitRate), decimal(m.NonOverlapT, 2),
+			available(h5.N, h5.Mean, 4), decimal(h5.NWT, 2), available(h20.N, h20.Mean, 4), decimal(h20.NWT, 2),
+			availablePct(p.Residual.N, p.Residual.AnnualMean), decimal(p.Residual.Sharpe, 2),
+			availablePct(p.Excess.N, p.Excess.AnnualMean), availablePct(p.NetExcess.N, p.NetExcess.AnnualMean), availablePct(len(p.Periods), p.AvgTurnover))
+	}
+	b.WriteString("\n")
 	return b.String()
 }

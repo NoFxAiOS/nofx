@@ -125,7 +125,7 @@ func TestSignalNoLookahead(t *testing.T) {
 	bars := stocks["S00BUSDT"]
 	spy := makeHistory(spyBars)
 	const at = 420
-	before, ok := signalAt("S00BUSDT", makeHistory(bars), spy, at)
+	before, ok := signalAt("S00BUSDT", makeHistory(bars), spy, at, "kell")
 	if !ok {
 		t.Fatal("signal unavailable")
 	}
@@ -142,7 +142,7 @@ func TestSignalNoLookahead(t *testing.T) {
 		changedSPY[j].Low *= 4
 		changedSPY[j].Close *= 4
 	}
-	after, ok := signalAt("S00BUSDT", makeHistory(mutated), makeHistory(changedSPY), at)
+	after, ok := signalAt("S00BUSDT", makeHistory(mutated), makeHistory(changedSPY), at, "kell")
 	if !ok || !reflect.DeepEqual(before, after) {
 		t.Fatalf("future prices changed signal: before=%+v after=%+v", before, after)
 	}
@@ -154,7 +154,7 @@ func TestSignalNoLookahead(t *testing.T) {
 		t.Fatal("non-long signal must be zero")
 	}
 	missing := append(append([]usstock.Bar(nil), bars[:at]...), bars[at+1:]...)
-	if _, ok := signalAt("S00BUSDT", makeHistory(missing), spy, at); ok {
+	if _, ok := signalAt("S00BUSDT", makeHistory(missing), spy, at, "kell"); ok {
 		t.Fatal("no participation without a bar on signal date")
 	}
 }
@@ -282,7 +282,7 @@ func TestTopLongProductionOrderAndTurnover(t *testing.T) {
 
 func TestStudyEndToEndDeterministic(t *testing.T) {
 	stocks, spyBars := syntheticData(30, 700)
-	c := StudyConfig{[]int{1, 5, 10, 20}, 10, 7, 10, 10}
+	c := StudyConfig{[]int{1, 5, 10, 20}, 10, 7, 10, 10, ""}
 	originalWorkers := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(originalWorkers)
 	one, err := runStudy(stocks, spyBars, c)
@@ -309,7 +309,7 @@ func TestStudyEndToEndDeterministic(t *testing.T) {
 		at := spy.byDate[mustDate(t, period.Date)]
 		var signals []Signal
 		for _, symbol := range sortedKeys(stocks) {
-			if s, ok := signalAt(symbol, makeHistory(stocks[symbol]), spy, at); ok {
+			if s, ok := signalAt(symbol, makeHistory(stocks[symbol]), spy, at, "kell"); ok {
 				signals = append(signals, s)
 			}
 		}
@@ -366,7 +366,7 @@ func checkReport(t *testing.T, r *StudyResult) {
 
 func TestSmallCrossSectionsAndCash(t *testing.T) {
 	stocks, spyBars := syntheticData(19, 350)
-	r, err := runStudy(stocks, spyBars, StudyConfig{[]int{5}, 5, 10, 5, 10})
+	r, err := runStudy(stocks, spyBars, StudyConfig{[]int{5}, 5, 10, 5, 10, ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +451,7 @@ func TestUniverseAndConfig(t *testing.T) {
 	if len(symbols) != 3 {
 		t.Fatal("custom exclusions should still remove SPY")
 	}
-	c, err := (StudyConfig{[]int{5, 1, 5}, 10, 3, 5, 0}).normalized()
+	c, err := (StudyConfig{[]int{5, 1, 5}, 10, 3, 5, 0, ""}).normalized()
 	if err != nil || !reflect.DeepEqual(c.Horizons, []int{1, 5, 10}) {
 		t.Fatalf("invalid horizon normalization: %+v, %v", c, err)
 	}
@@ -460,7 +460,7 @@ func TestUniverseAndConfig(t *testing.T) {
 			t.Fatalf("invalid horizons %q accepted", value)
 		}
 	}
-	if _, err := (StudyConfig{[]int{1}, 1, 3, 5, math.NaN()}).normalized(); err == nil {
+	if _, err := (StudyConfig{[]int{1}, 1, 3, 5, math.NaN(), ""}).normalized(); err == nil {
 		t.Fatal("nonfinite cost accepted")
 	}
 }
@@ -526,5 +526,199 @@ func TestOfflineCacheAndShortSeries(t *testing.T) {
 	cancel()
 	if _, _, _, err := loadSeries(canceled, "S00BUSDT", 1300, dir, time.Now(), fetch); !errors.Is(err, context.Canceled) || calls != 4 {
 		t.Fatal("cancellation must take precedence over a fresh cache")
+	}
+}
+
+func closeBars(closes []float64) []usstock.Bar {
+	bars := make([]usstock.Bar, len(closes))
+	for i, c := range closes {
+		bars[i] = testBar(i, c, 100)
+	}
+	return bars
+}
+
+func TestAlternativeSignalsPointInTimeAndDeterministic(t *testing.T) {
+	stocks, spyBars := syntheticData(1, 700)
+	bars := stocks["S00BUSDT"]
+	spy := makeHistory(spyBars)
+	const at = 420
+	mutated := append([]usstock.Bar(nil), bars...)
+	changedSPY := append([]usstock.Bar(nil), spyBars...)
+	for j := at + 1; j < len(mutated); j++ {
+		for _, b := range []*usstock.Bar{&mutated[j], &changedSPY[j]} {
+			b.Open *= 5
+			b.High *= 5
+			b.Low *= 5
+			b.Close *= 5
+		}
+	}
+	kell, _ := signalAt("S00BUSDT", makeHistory(bars), spy, at, "kell")
+	for _, name := range signalNames {
+		before, ok := signalAt("S00BUSDT", makeHistory(bars), spy, at, name)
+		if !ok || !finite(before.S) {
+			t.Fatalf("%s: signal unavailable or nonfinite: %+v", name, before)
+		}
+		again, _ := signalAt("S00BUSDT", makeHistory(bars), spy, at, name)
+		after, ok := signalAt("S00BUSDT", makeHistory(mutated), makeHistory(changedSPY), at, name)
+		if !ok || !reflect.DeepEqual(before, again) || !reflect.DeepEqual(before, after) {
+			t.Fatalf("%s: not deterministic or uses future bars: before=%+v again=%+v after=%+v", name, before, again, after)
+		}
+		if before.Phase != kell.Phase || before.LongSetup != kell.LongSetup || before.Score != kell.Score || before.RS63Pct != kell.RS63Pct {
+			t.Fatalf("%s: phase/long/score/RS must be recorded from the classifier: %+v vs %+v", name, before, kell)
+		}
+	}
+}
+
+func TestSignalDefinitions(t *testing.T) {
+	line := func(n int, f func(i int) float64) []usstock.Bar {
+		closes := make([]float64, n)
+		for i := range closes {
+			closes[i] = f(i)
+		}
+		return closeBars(closes)
+	}
+	// ret63 on a path with close[i] = i+1: close[99]/close[36] − 1.
+	win := line(100, func(i int) float64 { return float64(i + 1) })
+	v, ok := signalValue("ret63", win, win, stockengine.CycleAssessment{})
+	if !ok {
+		t.Fatal("ret63 unavailable")
+	}
+	closeTo(t, v, 100.0/37-1, 1e-12)
+	if _, ok := signalValue("ret63", win[:63], win, stockengine.CycleAssessment{}); ok {
+		t.Fatal("ret63 must skip with fewer than 64 bars")
+	}
+	// mom12_1: close[n-22]/close[n-253] − 1 with close[i] = i+1 and n=253 → 232/1 − 1.
+	win = line(253, func(i int) float64 { return float64(i + 1) })
+	v, ok = signalValue("mom12_1", win, win, stockengine.CycleAssessment{})
+	if !ok {
+		t.Fatal("mom12_1 unavailable at 253 bars")
+	}
+	closeTo(t, v, 231, 1e-12)
+	if _, ok := signalValue("mom12_1", win[1:], win, stockengine.CycleAssessment{}); ok {
+		t.Fatal("mom12_1 must skip with fewer than 253 bars")
+	}
+	// rs63 and ext10 pass the assessment through; rs63 needs > 64 bars on both sides.
+	a := stockengine.CycleAssessment{RS63Pct: 7.5, Ext10ATR: -1.25}
+	if v, ok := signalValue("rs63", win, win, a); !ok || v != 7.5 {
+		t.Fatalf("rs63 = %g, %t", v, ok)
+	}
+	if _, ok := signalValue("rs63", win[:64], win, a); ok {
+		t.Fatal("rs63 must skip with a 64-bar stock window")
+	}
+	if _, ok := signalValue("rs63", win, win[:64], a); ok {
+		t.Fatal("rs63 must skip with a 64-bar SPY window")
+	}
+	if v, ok := signalValue("ext10", win, win, a); !ok || v != -1.25 {
+		t.Fatalf("ext10 = %g, %t", v, ok)
+	}
+	// Local EMA matches stockengine's definition: SMA seed, alpha 2/(p+1).
+	e := localEMA([]float64{1, 2, 3, 4}, 3)
+	if e[0] != 0 || e[1] != 0 || e[2] != 2 || e[3] != 3 {
+		t.Fatalf("unexpected EMA %v", e)
+	}
+	// trend_rs tiering: any trend name outranks any non-trend name.
+	up := line(120, func(i int) float64 { return 100 + float64(i) })
+	down := line(120, func(i int) float64 { return 300 - float64(i) })
+	weakUp, _ := signalValue("trend_rs", up, up, stockengine.CycleAssessment{RS63Pct: -80})
+	strongDown, _ := signalValue("trend_rs", down, down, stockengine.CycleAssessment{RS63Pct: 90})
+	closeTo(t, weakUp, 920, 1e-12)
+	closeTo(t, strongDown, -910, 1e-12)
+	if weakUp <= strongDown {
+		t.Fatal("trend names must rank above non-trend names regardless of RS")
+	}
+}
+
+func TestTopBySignalIgnoresLongSetup(t *testing.T) {
+	signals := []Signal{
+		{Symbol: "LONG", LongSetup: true, Score: 90, S: 1, RS63Pct: 0},
+		{Symbol: "B", S: 5, RS63Pct: 2},
+		{Symbol: "A", S: 5, RS63Pct: 2},
+		{Symbol: "C", S: 5, RS63Pct: 3},
+		{Symbol: "LOW", S: -4, RS63Pct: 50},
+	}
+	before := append([]Signal(nil), signals...)
+	var got []string
+	for _, s := range topBySignal(signals, 4) {
+		got = append(got, s.Symbol)
+	}
+	if !reflect.DeepEqual(got, []string{"C", "A", "B", "LONG"}) || !reflect.DeepEqual(signals, before) {
+		t.Fatalf("unexpected order %v", got)
+	}
+	if len(topBySignal(signals, 99)) != 5 || len(topBySignal(signals, 0)) != 0 {
+		t.Fatal("selection must respect N")
+	}
+	// Kell keeps its production behavior: only LongSetup names, S is ignored.
+	if k := topLong(signals, 5); len(k) != 1 || k[0].Symbol != "LONG" {
+		t.Fatalf("kell Top-N changed: %+v", k)
+	}
+}
+
+func TestSignalConfigAndStudyPerSignal(t *testing.T) {
+	c, err := (StudyConfig{[]int{5}, 5, 3, 5, 0, ""}).normalized()
+	if err != nil || c.Signal != "kell" {
+		t.Fatalf("empty signal must default to kell: %+v %v", c, err)
+	}
+	if _, err := (StudyConfig{[]int{5}, 5, 3, 5, 0, "bogus"}).normalized(); err == nil {
+		t.Fatal("unknown signal accepted")
+	}
+	if _, err := runStudy(map[string][]usstock.Bar{}, nil, StudyConfig{[]int{5}, 5, 3, 5, 0, "bogus"}); err == nil {
+		t.Fatal("runStudy accepted unknown signal")
+	}
+	if names, err := parseSignals("kell, rs63,ext10"); err != nil || !reflect.DeepEqual(names, []string{"kell", "rs63", "ext10"}) {
+		t.Fatalf("parseSignals: %v %v", names, err)
+	}
+	for _, bad := range []string{"", "kell,kell", "kell,nope"} {
+		if _, err := parseSignals(bad); err == nil {
+			t.Fatalf("parseSignals accepted %q", bad)
+		}
+	}
+
+	stocks, spyBars := syntheticData(30, 700)
+	spy := makeHistory(spyBars)
+	var results []*StudyResult
+	for _, name := range signalNames {
+		r, err := runStudy(stocks, spyBars, StudyConfig{[]int{5, 20}, 10, 7, 10, 10, name})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if _, err := json.Marshal(r); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if r.Config.Signal != name || r.Coverage.EvaluationDates == 0 || len(r.Portfolio.Periods) == 0 {
+			t.Fatalf("%s: incomplete study: %+v", name, r.Coverage)
+		}
+		checkReport(t, r)
+		if name != "kell" {
+			// Every non-Kell basket is full: it ignores LongSetup and picks top-N by S.
+			for _, period := range r.Portfolio.Periods {
+				at := spy.byDate[mustDate(t, period.Date)]
+				var signals []Signal
+				for _, symbol := range sortedKeys(stocks) {
+					if s, ok := signalAt(symbol, makeHistory(stocks[symbol]), spy, at, name); ok {
+						signals = append(signals, s)
+					}
+				}
+				var expected []string
+				for _, s := range topBySignal(signals, 7) {
+					expected = append(expected, s.Symbol)
+				}
+				if !reflect.DeepEqual(period.Symbols, expected) || len(period.Symbols) != 7 {
+					t.Fatalf("%s %s: got %v want %v", name, period.Date, period.Symbols, expected)
+				}
+			}
+		}
+		results = append(results, r)
+	}
+	report := renderAll(results)
+	if !strings.HasPrefix(report, "# Signal comparison") || strings.Contains(report, "NaN") || strings.Contains(report, "+Inf") {
+		t.Fatalf("bad comparison report: %.200s", report)
+	}
+	for _, name := range signalNames {
+		if !strings.Contains(report, "| "+name+" |") || !strings.Contains(report, "# Cycle IC study: signal `"+name+"`") {
+			t.Fatalf("report missing signal %s", name)
+		}
+	}
+	if renderAll(results[:1]) != renderReport(results[0]) {
+		t.Fatal("single-signal output must be the plain report")
 	}
 }

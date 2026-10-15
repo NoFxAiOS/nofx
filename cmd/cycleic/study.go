@@ -5,6 +5,7 @@ import (
 	"math"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,11 +27,32 @@ type StudyConfig struct {
 	TopN        int     `json:"top_n"`
 	Rebalance   int     `json:"rebalance"`
 	CostBPS     float64 `json:"cost_bps"`
+	Signal      string  `json:"signal"`
 }
+
+// signalNames lists the supported ranking signals; kell is the production one.
+var signalNames = []string{"kell", "rs63", "ret63", "mom12_1", "trend_rs", "ext10"}
+
+func validSignal(name string) bool {
+	for _, n := range signalNames {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+func isKell(name string) bool { return name == "" || name == "kell" }
 
 func (c StudyConfig) normalized() (StudyConfig, error) {
 	if c.MainHorizon <= 0 || c.TopN <= 0 || c.Rebalance <= 0 || !finite(c.CostBPS) || c.CostBPS < 0 {
 		return c, fmt.Errorf("main-horizon, topn and rebalance must be positive; cost-bps must be finite and nonnegative")
+	}
+	if c.Signal == "" {
+		c.Signal = "kell"
+	}
+	if !validSignal(c.Signal) {
+		return c, fmt.Errorf("unknown signal %q; use one of %s", c.Signal, strings.Join(signalNames, ", "))
 	}
 	horizons := map[int]bool{c.MainHorizon: true}
 	for _, h := range c.Horizons {
@@ -246,7 +268,70 @@ func betaAt(stock, spy history, t int) (float64, bool) {
 	return beta, finite(beta)
 }
 
-func signalAt(symbol string, stock, spy history, t int) (Signal, bool) {
+// localEMA replicates kernel/stockengine's unexported ema: zeros before the
+// period-th value, an SMA seed there, then standard exponential smoothing.
+func localEMA(values []float64, period int) []float64 {
+	out := make([]float64, len(values))
+	if period <= 0 || len(values) < period {
+		return out
+	}
+	for _, v := range values[:period] {
+		out[period-1] += v / float64(period)
+	}
+	alpha := 2 / float64(period+1)
+	for i := period; i < len(values); i++ {
+		out[i] = alpha*values[i] + (1-alpha)*out[i-1]
+	}
+	return out
+}
+
+// signalValue maps the already computed window and ClassifyCycle assessment to
+// the ranking value of the named signal. It only looks at the window (bars with
+// date <= t), so it is point-in-time by construction. ok=false skips the
+// stock-date.
+func signalValue(kind string, stockWin, spyWin []usstock.Bar, a stockengine.CycleAssessment) (float64, bool) {
+	n := len(stockWin)
+	switch kind {
+	case "", "kell":
+		if a.LongSetup {
+			return a.Score, true
+		}
+		return 0, true
+	case "rs63":
+		// ClassifyCycle reports 0 when relative strength is unavailable; that
+		// is a valid zero only when both windows are long enough to compute it.
+		return a.RS63Pct, n > 64 && len(spyWin) > 64
+	case "ret63":
+		if n < 64 {
+			return 0, false
+		}
+		return stockWin[n-1].Close/stockWin[n-64].Close - 1, true
+	case "mom12_1":
+		if n < 253 {
+			return 0, false
+		}
+		return stockWin[n-22].Close/stockWin[n-253].Close - 1, true
+	case "trend_rs":
+		if n < 50 {
+			return 0, false
+		}
+		closes := make([]float64, n)
+		for i, b := range stockWin {
+			closes[i] = b.Close
+		}
+		ema20 := localEMA(closes, 20)[n-1]
+		sma50 := mean(closes[n-50:])
+		if closes[n-1] > ema20 && ema20 > sma50 {
+			return a.RS63Pct + 1000, true
+		}
+		return a.RS63Pct - 1000, true
+	case "ext10":
+		return a.Ext10ATR, true
+	}
+	return 0, false
+}
+
+func signalAt(symbol string, stock, spy history, t int, kind string) (Signal, bool) {
 	if _, ok := stock.byDate[spy.dates[t]]; !ok {
 		return Signal{}, false
 	}
@@ -258,15 +343,16 @@ func signalAt(symbol string, stock, spy history, t int) (Signal, bool) {
 	if !ok {
 		return Signal{}, false
 	}
-	a := stockengine.ClassifyCycle(stockWin, spy.window(spy.dates[t]))
+	spyWin := spy.window(spy.dates[t])
+	a := stockengine.ClassifyCycle(stockWin, spyWin)
 	if !finite(a.Score) || !finite(a.RS63Pct) {
 		return Signal{}, false
 	}
-	s := Signal{Symbol: symbol, Phase: a.Phase, LongSetup: a.LongSetup, Score: a.Score, RS63Pct: a.RS63Pct, Beta: beta}
-	if a.LongSetup {
-		s.S = a.Score
+	value, ok := signalValue(kind, stockWin, spyWin, a)
+	if !ok || !finite(value) {
+		return Signal{}, false
 	}
-	return s, true
+	return Signal{Symbol: symbol, Phase: a.Phase, LongSetup: a.LongSetup, Score: a.Score, S: value, RS63Pct: a.RS63Pct, Beta: beta}, true
 }
 
 func forwardReturn(stock, spy history, t, horizon int, beta float64) (raw, residual float64, ok bool) {
@@ -349,7 +435,7 @@ func runStudy(input map[string][]usstock.Bar, spyBars []usstock.Bar, config Stud
 			defer wg.Done()
 			for offset := range jobs {
 				for _, symbol := range r.Coverage.Loaded {
-					if s, ok := signalAt(symbol, stocks[symbol], spy, offset+warmupIndex); ok {
+					if s, ok := signalAt(symbol, stocks[symbol], spy, offset+warmupIndex, c.Signal); ok {
 						signals[offset] = append(signals[offset], s)
 					}
 				}
@@ -484,6 +570,26 @@ func topLong(signals []Signal, n int) []Signal {
 	return selected
 }
 
+// topBySignal ranks every stock with a valid signal (no LongSetup filter) by S
+// descending, then RS63Pct descending, then Symbol ascending.
+func topBySignal(signals []Signal, n int) []Signal {
+	ordered := append([]Signal(nil), signals...)
+	sort.Slice(ordered, func(i, j int) bool {
+		a, b := ordered[i], ordered[j]
+		if a.S != b.S {
+			return a.S > b.S
+		}
+		if a.RS63Pct != b.RS63Pct {
+			return a.RS63Pct > b.RS63Pct
+		}
+		return a.Symbol < b.Symbol
+	})
+	if n < 0 {
+		n = 0
+	}
+	return ordered[:min(n, len(ordered))]
+}
+
 // Equal-weight turnover = 1/2 sum(abs(new weight - old weight)), including
 // cash. With unchanged basket size it is exactly the fraction replaced. The
 // first trade starts from cash (turnover=1 when invested).
@@ -518,7 +624,12 @@ func buildPortfolio(signals [][]Signal, stocks map[string]history, spy history, 
 		date := spy.dates[t].Format(time.DateOnly)
 		// Turnover compares consecutive scheduled baskets, even if an
 		// intervening period's return is unobservable and excluded below.
-		selected := topLong(signals[t-warmupIndex], c.TopN)
+		var selected []Signal
+		if isKell(c.Signal) {
+			selected = topLong(signals[t-warmupIndex], c.TopN)
+		} else {
+			selected = topBySignal(signals[t-warmupIndex], c.TopN)
+		}
 		period := PortfolioPeriod{Date: date, EntryDate: spy.dates[t+1].Format(time.DateOnly), ExitDate: spy.dates[t+1+c.Rebalance].Format(time.DateOnly)}
 		for _, s := range selected {
 			period.Symbols = append(period.Symbols, s.Symbol)

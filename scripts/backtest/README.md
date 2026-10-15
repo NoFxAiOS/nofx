@@ -1,68 +1,112 @@
-# scripts/backtest — 规则回测工具
+# scripts/backtest — Backtrader 回测适配
 
-用线上 bot 的真实 AI 开仓信号,回放币安 U 本位合约 1m/5m K 线,比较「入场方式」和「出场规则」改动的效果。纯 stdlib,Python 3.9+(用到 `BooleanOptionalAction`)。
+当前系统有回测/研究能力，但此前没有引入第三方回测平台：
+
+| 入口 | 能力与定位 |
+|---|---|
+| `scripts/backtest entry / exit` | 现已使用 **Backtrader 1.9.78.123**；原生 `Cerebro`、`BackBroker`、Market/Limit/Stop、OCO、手续费、滑点和账户盈亏 |
+| `scripts/backtest ml-dataset` | 两套出场策略的收益标签均通过同一个 Backtrader 适配器生成 |
+| `scripts/backtest ml-eval` | 信号特征的统计检验，不执行订单；拒绝未标记为 Backtrader 的旧标签 |
+| `market/breakout/backtest.go`，`GET /api/breakout/params` | 突破信号的 1h/4h/24h 前瞻收益研究，`evaluation_scope=signal_forward_returns_research_only`；没有订单、账户或 SL/TP 模拟，不属于交易执行回测 |
+| `GET /api/entry-quality-stats` | 实盘决策质量与已发生交易结果的聚合，不是历史回测执行入口 |
+
+选择 [Backtrader](https://github.com/mementum/backtrader) 是因为现有信号提取、缓存和 ML 工具都是 Python，能直接复用数据。Backtrader 免费开源，采用 GPL-3.0 许可证；不需要平台注册或付费服务。项目只实现数据和策略适配，**不再维护自写撮合、仓位账务或盈亏模拟器**，缺少依赖时明确退出，不回退到旧逻辑。
+
+本工具用于独立信号的出场/入场规则研究，每笔等权归一到初始风险 R；不是一个多资产、共享资金、合约保证金的组合回测。没有新增 Web 回测页面。
+
+## 安装与执行
+
+在仓库根目录执行。本次验证环境为 Python 3.12。
+
+```bash
+uv venv .venv
+uv pip install --python .venv/bin/python -r scripts/backtest/requirements.txt
+
+# 只读提取已有 AI 决策；日期参数为 UTC
+.venv/bin/python -m scripts.backtest signals \
+  --trader mac-nofx --since 2026-09-12 --until 2026-10-12T16:00
+
+# 查看缺失的历史 K 线；去掉 --dry-run 才下载
+.venv/bin/python -m scripts.backtest fetch --dry-run
+
+# 两种入场方式均使用 Backtrader 撮合
+.venv/bin/python -m scripts.backtest entry --horizons 8,24
+
+# 基线为数据库里当前策略的 risk_control，不是历史配置快照
+.venv/bin/python -m scripts.backtest exit --set mkt --horizon 72 \
+  --csv data/backtest_cache/backtrader_mkt_72h.csv
+.venv/bin/python -m scripts.backtest exit --set lim --horizon 72 \
+  --csv data/backtest_cache/backtrader_lim_72h.csv
+
+# 扫描现有出场规则变体
+.venv/bin/python -m scripts.backtest exit --set mkt --horizon 72 \
+  --variants scripts/backtest/variants/exit_grid.json --csv data/backtest_cache/variants.csv
+
+.venv/bin/python -m unittest discover -s scripts/backtest/tests -v
+```
+
+`signals` / `fetch` 的数据工具和命令帮助仍可用不含 Backtrader 的 Python 环境执行。`entry` / `exit` / `ml-dataset` 必须使用安装了依赖的环境。
+
+通用参数：`--db` 默认 `<repo>/data/data.db`，`--cache` 默认 `data/backtest_cache`，`--signals` 默认 `<cache>/signals.json`，`--trader` / `--trader-id` 可选择策略。回测命令的 `--engine` 只接受 `backtrader`。
+
+成交参数：`--commission 0.0005` 表示每次成交收取 0.05%；默认对所有订单使用同一费率，包括限价单，不区分 maker/taker。`--slippage 0.0003` 表示市价/止损默认滑点 0.03%；限价单不额外滑点。`--limit-valid-min 45` 为从原始信号时间起算的限价有效期。这些都使用原生 broker 配置；费用根据实际成交价格和实际数量收取。
 
 ## 数据来源
 
-| 数据 | 来源 | 说明 |
-|---|---|---|
-| 入场信号 | `data/data.db` 的 `decision_records.decisions`(只读打开) | `open_long/short(_limit)` 且 `success=true` 的决策;`exit_mode` 取自同记录 `decision_json`(缺省 trend),1h ATR% 取自 `input_prompt` 里的 `=== SYM Structured Signal` JSON |
-| 限价是否成交 | `trader_positions` | 同 trader/币/方向,`entry_time` 在 [t0, 最后一次决策+45min],`ai_managed=1` 优先,取最近;并要求成交价在该信号任一挂单价的 0.5% 内(`--max-fill-dev-pct`),用来排除手动单 |
-| 基线出场参数 | `traders.strategy_id → strategies.config.risk_control` | `exit` 默认由此推导,见下 |
-| K 线 | 币安 `fapi/v1/klines` → `data/backtest_cache/{kl1m,kl5m}/{SYMBOL}_{t0ms}.json` | 1m 从信号分钟起 1500 根(约 25h),其后接 5m 1000 根(约 83h);行 `[openMs,o,h,l,c]` |
+| 数据 | 来源与用途 |
+|---|---|
+| 入场信号 | `data/data.db` 的 `decision_records.decisions`，只读打开；成功的 `open_long/short(_limit)` 决策 |
+| 初始 SL/TP/限价 | `sl0` / `tp0` / `px0`，只使用该信号首次决策当时的参数 |
+| 出场模式与 ATR | 首次记录的 `decision_json.exit_mode` 和 Structured Signal 的 1h ATR% |
+| 历史成交标签 | `trader_positions` 的匹配结果，仅作实盘标签分组；不决定模拟限价单是否成交或成交价格 |
+| 基线出场参数 | `traders.strategy_id → strategies.config.risk_control`，每次运行读取当前配置；CSV 保存实际参数 |
+| K 线 | 币安 `fapi/v1/klines` → `<cache>/{kl1m,kl5m}/{SYMBOL}_{t0ms}.json`；每行 `[openMs,o,h,l,c]` |
 
-**信号去重**:同币同向的连续限价决策,相邻间隔 < `--dedupe-min`(默认 60)分钟且期间无成交 → 合并为一个信号(t0/sl0/tp0/exit_mode/ATR 取第一条,最后一条的 sl/tp 记为 `sl_last/tp_last`)。市价开仓各自独立(outcome=`market`)。
+信号去重沿用原来的方法：同币同向连续限价决策间隔小于 `--dedupe-min`（默认 60 分钟），且期间无实盘成交，合并为一个信号。模拟只提交首次决策的订单，不使用 `sl_last` / `tp_last` / 实际 `fill_px` 来重建未来状态。合并后的撤单/改价过程没有重放。
 
-## 命令(仓库根目录执行)
+缓存先用 1m，再接不重叠的 5m 数据。适配器把时间戳转换为 **K 线收盘时间**（分别加 1/5 分钟），所有时间为 UTC；找不到信号分钟、OHLC 不合法或数据重叠会跳过。`fetch` 复用 `HTTPS_PROXY`，请求间隔至少 1 秒，权重高时退避。
 
-```bash
-python3 -m scripts.backtest signals --trader mac-nofx --since 2026-09-12 --until 2026-10-12T16:00
-python3 -m scripts.backtest fetch                      # 只补抓缺失/不完整的缓存;--dry-run 只统计
-python3 -m scripts.backtest entry --horizons 8,24
-python3 -m scripts.backtest exit --set mkt --horizon 72 --variants scripts/backtest/variants/exit_grid.json [--csv out.csv]
-python3 -m unittest discover -s scripts/backtest/tests -v   # 离线单测
-```
+## Backtrader 执行口径
 
-通用参数:`--db`(默认 `<repo>/data/data.db`)、`--cache`(默认 `data/backtest_cache`)、`--signals`(默认 `<cache>/signals.json`)、`--trader` / `--trader-id`。`fetch` 走环境变量 `HTTPS_PROXY`,请求间隔 ≥1s,权重头 `X-MBX-USED-WEIGHT-1M`>1000 时退避 30s。
+- 不启用 cheat-on-close/open。信号分钟收盘后提交开仓订单，市价单最早在下一根开盘成交；限价单由 broker 按 OHLC 和有效期撮合，实盘未成交的信号也可能在模拟中成交。
+- 开仓成交的通知到达后，策略根据实际成交价和原始止损计算初始风险，创建保护订单。保护订单从后续 K 线开始执行；开仓成交所在 K 线内的 SL/TP 触发无法回溯执行。
+- 原始止损使用原生 Stop，止盈/减仓使用原生 Limit，关联为 OCO。减仓成交后，用剩余数量重建保护订单，防止旧订单超额平仓形成反向仓位。同根触及多档时先撮合近档，其余档最早在后续 K 线上重挂。
+- 保本、盈利锁、ATR 追踪和峰值回撤根据已经收盘的 K 线更新 Stop 价格；新价从下一根生效。不会在同一根先观察最高价，再假定已在该根低价路径上成交。跳空成交、同根已有订单的处理顺序均由 Backtrader 决定。
+- quick 时间止损和 horizon 到点后提交原生 Market 平仓，最早在下一根可用 K 线开盘成交。数据结束仍有持仓则标记 `open`，用 broker 账户价值盯市，只收取已发生成交的费用，不伪造最后一笔平仓。
+- 每笔研究账户使用足够的虚拟现金和 1 单位资产，不引入实际资金约束。收益 `R = broker 净盈亏 / 实际初始止损风险`，包括真实发生的部分减仓费用。原生 TradeAnalyzer/DrawDown 可在 `backtrader_adapter.run_trade` 的结果中查看。
 
-- **signals**:输出 `{meta, signals}` JSON,打印信号数与 outcome 分布(filled/unfilled/market)。
-- **entry**:限价实际成交 vs 信号分钟收盘市价入场(+0.03% 滑点,taker 0.05% 进出,限价 maker 0.02% 进),固定 SL/TP 括号,同一根 K 线 SL+TP 都触及算 SL。行:限价实际成交、市价(全部限价信号)、市价(限价成交的)、市价(限价没成交的)、AI 原生市价单、多空拆分。
-- **exit**:出场规则模拟。`--set mkt` 每个信号在 t0 市价入场;`--set lim` 只用成交了的限价信号按成交价入场。`--variants` 为 `[[名称, {覆盖参数}], ...]`,第一行恒为 `baseline`。每个变体输出 n、sumR、avgR、胜率、maxDD(按 t0 排序的累计 R)、前后半段 sumR、去掉最大 5 笔后的均值、horizon 末仍持仓数、出场类型计数(sl/be/trail/tp/pd/time/open)。
+默认按 (币, 方向) 过滤持仓重叠，`--allow-overlap` 可关闭，`entry` 的市价和限价两组分别过滤。持仓时间取框架执行结果；数据不足而持仓未结束时，保守占用到覆盖末尾或预定 horizon 中较晚的时间。该过滤只是独立信号研究的样本筛选，不是一个共享账户的并发撮合模型。
 
-### 同币同向单仓约束(默认开,`--allow-overlap` 关闭)
+### 报告
 
-线上对已有同币同向仓位的币会拒绝新开仓,所以模拟也不允许重叠:按入场时间顺序遍历信号,为每个 (币, 方向) 记录 busy-until = 已接受交易的出场时间(horizon 到点仍持仓则取 horizon 末);入场时间早于 busy-until 的信号被跳过并计入 `blocked`。该约束**与变体相关**——持仓越久挡掉的后续信号越多,所以不同规则的 n 不同,比较时要同时看 `blocked`。作用范围:`exit`(`mkt`/`lim` 两个集合,输出行与 CSV 都有 `blocked` 列)和 `entry` 的市价行(按固定 SL/TP 括号的出场时间挡,每个 horizon 单独计);`entry` 的「限价实际成交」行是真实成交,不过滤。被挡掉的信号不参与统计,所以带约束的 sumR 与 `--allow-overlap` 不可直接相比。
+`exit` 输出 n、sumR、avgR、胜率、`maxDD_R`、前后半段 sumR、去掉最大 5 笔后的均值、blocked、unfilled、open 和出场类型。`maxDD_R` 为按信号时间排序的等权累计 R 回撤，**不是组合权益回撤百分比**。CSV 同时保存 engine、engine_version、手续费、滑点和每个变体的完整出场参数。
 
-### 出场模型(R 空间,多空镜像,每根 K 线按此顺序)
+`entry` 的 A 行为框架模拟限价入场，B 行为下一根开盘市价入场；B1/B2 仍按实盘 filled/unfilled 标签做描述性分组。改变回测规则后，各组实际接纳交易的数量可能不同。
 
-1. low ≤ SL → 剩余仓位按 SL 出;2. 触及 TP → 平 `tp_frac_trend`(趋势模式且追踪止损开)或 100%;3. 更新 peak;4. 保本档 `peak ≥ be_arm` → SL=max(SL, be_off);5. 盈利锁 `peak ≥ lock_r` → SL=max(SL, be_off),`lock_trim` 时一次性减 50%;6. R 减仓档 `peak ≥ trim_r` 一次性减 `trim_frac`;7. 追踪止损(仅趋势模式)`peak ≥ 1.5R` → SL=max(SL, high−2×ATR_R);8. 峰值回撤 `peak ≥ pd_arm` 且 low ≤ peak×(1−pd_give) → 按该价出;9. quick 模式持仓 ≥ `quick_stop_h` 且收盘 ≤ 0 → 收盘价出。手续费按整仓折成 R 一次性扣除。
+### 策略参数
 
-基线参数(`--from-strategy`,默认开;`--no-from-strategy` 用内置兜底)的推导规则:`breakeven_arm_r≤0` 关;`profit_lock_at_r` <0 关/0→1.0;`profit_lock_be_offset_r` 0→0.2、<0→0(保本档与盈利锁共用);`tp_trim_at_r>0` → 1/3 仓位减在该 R,否则关(ROE 旧档未建模,会告警);锁减仓 50% 仅当 `tp_trim_yields_to_lock` 为 null/true;`tp_max_r<1` 不截断;`tp_close_fraction` 0→0.5、<0→1.0、追踪关时恒 1.0;`peak_drawdown_arm_r>0` 为 R 模式(giveback 0→0.5),否则按关闭并告警;`time_stop_hours` 0→4、<0 关。追踪起点 1.5R、2×ATR(1h) 是代码常量。运行时会打印推导出的参数。
+`params.py` 从线上配置推导基线：保本 `breakeven_arm_r`，锁盈 `profit_lock_at_r` / `profit_lock_be_offset_r` / `tp_trim_yields_to_lock`，减仓 `tp_trim_at_r`，止盈上限 `tp_max_r`，趋势止盈比例 `tp_close_fraction`，ATR 追踪 `trailing_stop_enabled`，峰值回撤 `peak_drawdown_arm_r` / `peak_drawdown_giveback_r`，quick 时间止损 `time_stop_hours`。旧 ROE 减仓/回撤档未建模时会提示。追踪默认 1.5R 启动、2×开仓时 1h ATR。
 
-变体可覆盖的键见 `params.py`:`be_arm be_off lock_r lock_trim trim_r trim_frac tp_cap tp_frac_trend trail trail_arm trail_atr pd_arm pd_give quick_stop_h force_mode use_tp horizon_h`。`variants/exit_grid.json` 是单因素扫描 + 在 plain 上逐项加回的组合;「关闭 X」类变体显式写出各项(如 `no BE tier (lock still on)` 只关保本档,盈利锁仍开)。
+变体 JSON 为 `[[名称, {覆盖参数}], ...]`，第一行始终是 baseline。支持键：`be_arm be_off lock_r lock_trim trim_r trim_frac tp_cap tp_frac_trend trail trail_arm trail_atr pd_arm pd_give quick_stop_h force_mode use_tp horizon_h`。未知键和不合法减仓比例会报错。
 
-## 信号过滤器检验(ml-dataset / ml-eval)
-
-问题:能否用开仓时刻的 Structured Signal 特征,统计地筛掉一部分信号来提高期望?此检验要在信号累积到 1000+ 后重跑。
+## 信号过滤器检验
 
 ```bash
-python3 -m scripts.backtest ml-dataset [--csv rows.csv]     # 纯 stdlib;输出 <cache>/ml_rows.json
+.venv/bin/python -m scripts.backtest ml-dataset --csv data/backtest_cache/ml_rows.csv
 uv run --no-project --with numpy --with scikit-learn python -m scripts.backtest ml-eval \
-    [--label both|r_base|r_plain] [--perms 400] [--folds 5] [--min-train 0.4] [--min-coverage 0.8] [--seed 7]
+  --label both --perms 400 --folds 5 --min-train 0.4 --min-coverage 0.8 --seed 7
 ```
 
-- **ml-dataset**:对每个信号在 ±10 分钟内找同 action+币的决策记录,解析 Structured Signal 与 AI 决策,算特征(`mlfeatures.py`,凡「方向」特征都以「与交易方向一致」为正,做空取反;缺失为 None),标签为 t0 市价入场、72h、不做单仓过滤:`r_base`(线上基线出场参数)、`r_plain`(无保本/锁盈/减仓/追踪/峰值回撤/止盈上限)、`mfe`。打印行数、缺失数和覆盖率低于 80% 的特征。
-- **ml-eval**(`mleval.py`,需 numpy+scikit-learn,缺失时会提示 uv 命令):只用覆盖率 ≥ `--min-coverage` 的特征。(a) 单变量 Spearman 在前后半段的稳定性(描述性,附纯噪声期望命中数,不计入检验数);(b) 走步(expanding train、`--folds` 折、起始训练占比 `--min-train`)的 logit-L2、logit-L1、ridge、HGB(depth2),报告 OOS AUC/rho、保留 top70% 与 top50% 的 R 相对「随机保留同比例」的提升及置换检验 p 值(训练标签打乱、对真实结果评估);(c) 嵌套流程——每折只用过去数据按半段稳定性挑一个特征、以训练集中位数为阈值,与随机保留同样数量的子集比较(5000 次抽样)。
-- **裁决规则**:检验总数 = 所有 label 上 模型数×2 个阈值 + 1 个嵌套;Bonferroni 阈值 = 0.05 / 检验数。只有「嵌套检验」和「同一个模型」在 **r_base 和 r_plain 两个 label 上都** ≤ 阈值才输出 `PASS: candidate filter X`,否则输出 `NO DEPLOYABLE FILTER`。默认 `--label both`;只跑单个 label 时永远不会 PASS。置换 p 值下限为 1/(perms+1),所以 4 模型×2 label 共 18 个检验时 `--perms` 至少要 360(默认 400;程序会在不足时提示)。
-- **2026-10-13 结果(n=420,67 个特征覆盖率 ≥80%)**:无可部署过滤器。r_base 走步 logit-L2 的 AUC≈0.53,保留 top50% 比随机多 +23.4R(单模型 p≈0.01),看上去不错,但嵌套检验 p≈0.5(r_plain 同样 ≈0.6);事后看 `btc_beta`(越低越好)两个半段都稳定,但按「每折只用过去数据选特征」的嵌套流程选不出它、也过不了检验——事后挑出来的特征不算数。下次重跑的门槛就是上面的 Bonferroni 裁决。
+`ml-dataset` 用同一个 Backtrader 适配器生成 `r_base` / `r_plain`，不做单仓样本过滤，保存 engine 和费率。`mfe` 是框架持仓期间已收盘 K 线的最大有利 R。特征提取和信号与决策记录的 ±10 分钟匹配沿用原工具；匹配是研究近似，不能保证所有特征严格来自开仓前。plain 关闭保本/盈利锁/减仓/追踪/峰值回撤/止盈上限。
 
-## 假设与局限
+`ml-eval` 的 expanding train、模型、置换检验和嵌套筛选保持原来的统计流程：只有嵌套检验与同一个模型在 `r_base` 和 `r_plain` 两个标签上都通过 Bonferroni 阈值，才输出 `PASS`。仅跑单标签不能通过。4 个模型、2 个标签共 18 项检验，400 次置换满足 p 值精度要求。
 
-- 同币同向单仓约束下,出场时间取触发出场的 K 线开盘时间(1m/5m),下一笔入场不早于它即放行。
-- 同一根 K 线内 SL 与 TP/其他触发同时出现,按 SL 优先(悲观);K 线内部顺序未知。
-- AI 主动平仓、最大持仓数(槽位)限制、资金/仓位大小、加减仓后的手续费差异均未建模;每个信号独立、等权 1R。
-- horizon 到点仍持仓的,按 horizon **内最后一根** K 线收盘盯市(`open` 计数);数据不足 horizon 时同样按最后一根盯市。
-- 1m 数据只覆盖约 25h,之后换成 5m(精度下降,同一根 5m 内触发顺序更不确定)。
-- 信号全部来自 `decision_records`,手动下单(用户在 bot 账户上手工交易)不在其中;限价成交匹配可能把手动单误判(已用价格偏离过滤,不保证完全准确)。
-- 与按日志重建的限价链相比,按时间间隔合并(默认 60 分钟)会把「挂单过期/撤单后重新挂」的相邻信号合并成一个,信号数与成交数会有出入;结果对信号集合很敏感(单笔 σ≈1R,几百笔的 sumR 标准误约 20R),比较不同规则时请固定同一份 signals.json。
-- 最近的信号 K 线不足 1500/1000 根时,`fetch` 会在下次运行时重抓补全。
+**旧模拟器的收益标签、CSV 和 2026-10-13 的检验结果不适用于新执行口径。** 使用新的 `ml-dataset` 重建标签后再评估，不能将旧数值与 Backtrader 数值直接混用。
+
+## 数据与模型边界
+
+历史 AI 决策是已记录的信号，回测不会重新调用 AI 生成历史决策。当前策略配置的基线只是对历史信号重放当前规则，不代表当时实际采用的配置。
+
+OHLC 无法确定 K 线内部事件顺序，混合 1m/5m 精度也不同。缓存不含成交量，因此未启用成交量约束或部分成交模型；这里只模拟订单规则中的主动部分减仓。未建模资金费率、合约保证金/清算、交易所最小数量和精度、AI 主动平仓、组合最大仓位数、共享资金或历史改价链。结果应作为规则研究，不能当作实盘账户收益。
+
+Backtrader 参考：[订单执行](https://www.backtrader.com/docu/order-creation-execution/order-creation-execution/)、[OCO](https://www.backtrader.com/docu/order-creation-execution/oco/oco/)、[手续费](https://www.backtrader.com/docu/commission-schemes/commission-schemes/)、[滑点](https://www.backtrader.com/docu/slippage/slippage/)。

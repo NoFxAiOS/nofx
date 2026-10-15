@@ -1,1 +1,1 @@
-"""可复用的规则回测工具包。用法见 README.md:python3 -m scripts.backtest <signals|fetch|entry|exit>。"""
+"""基于 Backtrader 的信号回测适配工具。数据提取/下载无需安装回测依赖。"""

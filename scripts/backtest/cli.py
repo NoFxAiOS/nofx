@@ -1,12 +1,14 @@
 """命令行入口: python3 -m scripts.backtest <signals|fetch|entry|exit> ..."""
 import argparse
 import json
+import math
 import os
 import sys
 from collections import Counter
 from datetime import datetime, timezone
 
 from . import entry, exitsim, fetch, mldataset, params, signals
+from .backtrader_adapter import BacktraderUnavailable, _backtrader
 from .klines import default_cache_dir
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -23,6 +25,24 @@ def _add_common(p, with_db=False):
 
 def _sig_path(a):
     return a.signals_file or os.path.join(a.cache, "signals.json")
+
+
+def _add_execution(p, with_limit=False):
+    p.add_argument("--engine", choices=["backtrader"], default="backtrader", help="使用 Backtrader 原生 broker")
+    p.add_argument("--commission", type=float, default=exitsim.TAKER, help="每次成交手续费率，0.0005=0.05%%")
+    p.add_argument("--slippage", type=float, default=exitsim.SLIP, help="市价/止损滑点率，0.0003=0.03%%")
+    if with_limit:
+        p.add_argument("--limit-valid-min", type=float, default=45, help="从信号时间起算的限价有效期(分钟)")
+
+
+def _execution(a):
+    bt = _backtrader()
+    if not all(math.isfinite(v) and v >= 0 for v in (a.commission, a.slippage)):
+        raise ValueError("手续费和滑点必须是非负有限数")
+    if hasattr(a, "limit_valid_min") and (not math.isfinite(a.limit_valid_min) or a.limit_valid_min <= 0):
+        raise ValueError("限价有效期必须大于 0")
+    print(f"engine=backtrader version={bt.__version__} commission={a.commission} slippage={a.slippage}")
+    print("收盘提交订单，下一根起撮合；独立信号 R 研究，非组合资金回测；open 仅盯市、不收未成交的平仓费。")
 
 
 def cmd_signals(a):
@@ -58,9 +78,13 @@ def cmd_fetch(a):
 
 
 def cmd_entry(a):
+    _execution(a)
     _, sigs = signals.load_signals_file(_sig_path(a))
     horizons = [int(h) for h in a.horizons.split(",")]
-    res, skipped = entry.build_rows(sigs, a.cache, horizons, allow_overlap=a.allow_overlap)
+    if not horizons or any(h <= 0 for h in horizons):
+        raise ValueError("horizons 必须是正整数小时列表")
+    res, skipped = entry.build_rows(sigs, a.cache, horizons, allow_overlap=a.allow_overlap,
+                                    commission=a.commission, slippage=a.slippage, limit_valid_min=a.limit_valid_min)
     entry.report(res, skipped)
 
 
@@ -84,11 +108,13 @@ def _baseline(a, meta):
 
 
 def cmd_exit(a):
+    _execution(a)
     meta, sigs = signals.load_signals_file(_sig_path(a))
     base = _baseline(a, meta)
     base["horizon_h"] = a.horizon
     print("baseline params:", params.describe(base))
-    trades, skipped = exitsim.load_trades(sigs, a.cache, a.set, include_market=not a.exclude_market)
+    trades, skipped = exitsim.load_trades(sigs, a.cache, a.set, include_market=not a.exclude_market,
+                                         limit_valid_min=a.limit_valid_min)
     if not trades:
         print("no tradable signals", skipped)
         return 1
@@ -98,11 +124,13 @@ def cmd_exit(a):
     if a.variants:
         with open(a.variants) as f:
             variants += json.load(f)
-    exitsim.run_variants(trades, base, variants, csv_path=a.csv, allow_overlap=a.allow_overlap)
+    exitsim.run_variants(trades, base, variants, csv_path=a.csv, allow_overlap=a.allow_overlap,
+                         commission=a.commission, slippage=a.slippage)
     return 0
 
 
 def cmd_ml_dataset(a):
+    _execution(a)
     meta, sigs = signals.load_signals_file(_sig_path(a))
     base = _baseline(a, meta)
     base["horizon_h"] = a.horizon
@@ -112,7 +140,7 @@ def cmd_ml_dataset(a):
         tid = signals.resolve_trader(conn, a.trader, a.trader_id)["id"]
     else:
         tid = meta["trader_id"]
-    rows, missing = mldataset.build_rows(conn, tid, sigs, a.cache, base, a.horizon)
+    rows, missing = mldataset.build_rows(conn, tid, sigs, a.cache, base, a.horizon, a.commission, a.slippage)
     out = a.out or os.path.join(a.cache, "ml_rows.json")
     with open(out, "w") as f:
         json.dump(rows, f)
@@ -139,6 +167,8 @@ def cmd_ml_eval(a):
     path = a.rows or os.path.join(a.cache, "ml_rows.json")
     with open(path) as f:
         rows = json.load(f)
+    if any(row.get("engine") != "backtrader" for row in rows):
+        raise ValueError("ml_rows 含旧模拟器或未知来源的标签，请先用 Backtrader 重新运行 ml-dataset")
     labels = mleval.LABELS if a.label == "both" else (a.label,)
     names = a.models.split(",") if a.models else None
     results, line = mleval.run(rows, labels, min_coverage=a.min_coverage, folds=a.folds, min_train=a.min_train,
@@ -168,12 +198,14 @@ def build_parser():
 
     p = sub.add_parser("entry", help="限价 vs 市价入场对比")
     _add_common(p)
+    _add_execution(p, with_limit=True)
     p.add_argument("--horizons", default="8,24", help="小时,逗号分隔")
-    p.add_argument("--allow-overlap", action="store_true", help="市价行不做「同币同向一次只持一仓」过滤")
+    p.add_argument("--allow-overlap", action="store_true", help="市价/限价行不做「同币同向一次只持一仓」过滤")
     p.set_defaults(fn=cmd_entry)
 
-    p = sub.add_parser("exit", help="出场规则模拟")
+    p = sub.add_parser("exit", help="Backtrader 出场策略回测")
     _add_common(p, with_db=True)
+    _add_execution(p, with_limit=True)
     p.add_argument("--set", choices=["mkt", "lim"], default="mkt")
     p.add_argument("--horizon", type=float, default=72, help="持仓上限(小时)")
     p.add_argument("--variants", help="变体 JSON: [[name, {overrides}], ...]")
@@ -187,6 +219,7 @@ def build_parser():
 
     p = sub.add_parser("ml-dataset", help="信号 → 特征 + 标签(r_base / r_plain / mfe)")
     _add_common(p, with_db=True)
+    _add_execution(p)
     p.add_argument("--horizon", type=float, default=72)
     p.add_argument("--from-strategy", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--out", help="输出 JSON(默认 <cache>/ml_rows.json)")
@@ -211,7 +244,11 @@ def build_parser():
 
 def main(argv=None):
     a = build_parser().parse_args(argv)
-    return a.fn(a) or 0
+    try:
+        return a.fn(a) or 0
+    except (BacktraderUnavailable, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

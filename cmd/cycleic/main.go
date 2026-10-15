@@ -445,6 +445,10 @@ func signalDescription(name string) string {
 		return "12-1 momentum, close[t−21] / close[t−252] − 1 (skips the latest month); needs 253 bars."
 	case "trend_rs":
 		return "tiered trend rank: close > EMA20 > SMA50 gets `RS63Pct` + 1000, otherwise `RS63Pct` − 1000, so all trend names outrank all non-trend names."
+	case "trend_mom":
+		return "tiered: close > EMA20 > SMA50 gets 12-1 momentum + 1000, otherwise 12-1 momentum − 1000 (trend names first, momentum within each tier)."
+	case "sma200_mom":
+		return "tiered: close > SMA200 gets 12-1 momentum + 1000, otherwise 12-1 momentum − 1000."
 	case "ext10":
 		return "10-day extension in ATR units (`Ext10ATR` from `ClassifyCycle`: close minus the fast EMA, divided by ATR)."
 	}

@@ -722,3 +722,28 @@ func TestSignalConfigAndStudyPerSignal(t *testing.T) {
 		t.Fatal("single-signal output must be the plain report")
 	}
 }
+
+// Tiered momentum: a trend name always outranks a non-trend name, and
+// momentum orders names within a tier.
+func TestTrendMomTiering(t *testing.T) {
+	mk := func(start, slope float64) []usstock.Bar {
+		bars := make([]usstock.Bar, 300)
+		for i := range bars {
+			c := start + slope*float64(i)
+			bars[i] = usstock.Bar{OpenTime: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, i), Open: c, High: c * 1.01, Low: c * 0.99, Close: c, Volume: 1000}
+		}
+		return bars
+	}
+	up := mk(100, 0.1)    // steady uptrend, modest momentum
+	down := mk(300, -0.5) // downtrend
+	for _, kind := range []string{"trend_mom", "sma200_mom"} {
+		su, ok1 := signalValue(kind, up, nil, stockengine.CycleAssessment{})
+		sd, ok2 := signalValue(kind, down, nil, stockengine.CycleAssessment{})
+		if !ok1 || !ok2 || su <= 900 || sd >= -900 || su <= sd {
+			t.Fatalf("%s tiering wrong: up=%v down=%v", kind, su, sd)
+		}
+		if _, ok := signalValue(kind, up[:252], nil, stockengine.CycleAssessment{}); ok {
+			t.Fatalf("%s must skip with < 253 bars", kind)
+		}
+	}
+}

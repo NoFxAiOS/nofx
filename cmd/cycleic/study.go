@@ -31,7 +31,7 @@ type StudyConfig struct {
 }
 
 // signalNames lists the supported ranking signals; kell is the production one.
-var signalNames = []string{"kell", "rs63", "ret63", "mom12_1", "trend_rs", "ext10"}
+var signalNames = []string{"kell", "rs63", "ret63", "mom12_1", "trend_rs", "trend_mom", "sma200_mom", "ext10"}
 
 func validSignal(name string) bool {
 	for _, n := range signalNames {
@@ -325,6 +325,26 @@ func signalValue(kind string, stockWin, spyWin []usstock.Bar, a stockengine.Cycl
 			return a.RS63Pct + 1000, true
 		}
 		return a.RS63Pct - 1000, true
+	case "trend_mom", "sma200_mom":
+		// Tiered: trend names outrank every non-trend name, 12-1 momentum
+		// ranks within each tier (momentum is a return, |x| << 1000).
+		if n < 253 {
+			return 0, false
+		}
+		closes := make([]float64, n)
+		for i, b := range stockWin {
+			closes[i] = b.Close
+		}
+		mom := closes[n-22]/closes[n-253] - 1
+		inTrend := closes[n-1] > mean(closes[n-200:])
+		if kind == "trend_mom" {
+			ema20 := localEMA(closes, 20)[n-1]
+			inTrend = closes[n-1] > ema20 && ema20 > mean(closes[n-50:])
+		}
+		if inTrend {
+			return mom + 1000, true
+		}
+		return mom - 1000, true
 	case "ext10":
 		return a.Ext10ATR, true
 	}

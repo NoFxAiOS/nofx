@@ -229,16 +229,25 @@ func universeTestContext(zh bool) *Context {
 		{Symbol: "NOPRICEBUSDT"}, // too little history for a row: skipped
 		{Symbol: "SPYBUSDT", Underlying: "SPY", Momentum: MomentumAssessment{Valid: true, Mom12_1Pct: -3, AboveSMA200: false}, Cycle: CycleAssessment{Phase: "uptrend"},
 			Universe: UniverseRow{Symbol: "SPYBUSDT", Class: "ETF", Price: 600, AvgDollarVol20: 4.5e9, DaysToEarnings: -1}},
+		// Kell long setup without valid momentum: kept.
+		{Symbol: "NVDABUSDT", Underlying: "NVDA", Cycle: CycleAssessment{Phase: "ema_crossback", LongSetup: true},
+			Universe: UniverseRow{Symbol: "NVDABUSDT", Class: "stock", Price: 180, AvgDollarVol20: 3e10, DaysToEarnings: -1}},
+		// Held but below SMA200 with no setup: kept because it is held.
+		{Symbol: "MSFTBUSDT", Underlying: "MSFT", Momentum: MomentumAssessment{Valid: true, Mom12_1Pct: -8, AboveSMA200: false}, Cycle: CycleAssessment{Phase: "downtrend"},
+			Universe: UniverseRow{Symbol: "MSFTBUSDT", Class: "stock", Price: 400, AvgDollarVol20: 2e10, DaysToEarnings: -1}},
 	}
+	c.Positions = []Position{{Symbol: "MSFTBUSDT", Quantity: 1, AvgPrice: 410, Price: 400}}
 	return c
 }
 
 func TestUserPromptUniverseTable(t *testing.T) {
 	for _, lang := range []string{"en", "zh"} {
 		p := BuildUserPrompt(universeTestContext(lang == "zh"), lang)
-		heading := "Universe (all listed bStock pairs; reference only — open/add only symbols in the candidate list above)"
+		// AAPL (candidate), NVDA (Kell setup), MSFT (held) kept; SPY (below SMA200)
+		// and TSLA (excluded) omitted.
+		heading := "Universe (3 bStock pairs above their SMA200 or with a Kell long setup, plus this cycle's candidates and holdings; 2 below SMA200 without a long setup or scan-excluded omitted"
 		if lang == "zh" {
-			heading = "全市场概览（所有 bStock；仅供参考——只能对上面的候选标的开仓/加仓）"
+			heading = "全市场概览（bStock 中站上 200 日线或有 Kell 多头信号的 3 只，另含本周期候选与持仓；已省略 2 只"
 		}
 		i := strings.Index(p, heading)
 		if i < 0 {
@@ -251,18 +260,19 @@ func TestUserPromptUniverseTable(t *testing.T) {
 		for _, want := range []string{"symbol|class|sector|candidate",
 			// candidate wins over excluded; momentum and phase come from the same result.
 			"AAPLBUSDT|stock|Technology|Y|189.5|0.5|2.0|4.0|28.2|61.0|-1.5|$12.3M|12|12.3|Y|wedge_pop",
-			"SPYBUSDT|ETF|||600|", "|$4.5B||-3.0|N|uptrend",
-			// excluded marker, unknown mom/earn left blank, tiny adv in plain dollars.
-			"TSLABUSDT|stock||x|250.1|-1.0|0.0|0.0|0.0|0.0|0.0|$950|||"} {
+			"NVDABUSDT|stock|||180|", "|||ema_crossback",
+			"MSFTBUSDT|stock|||400|", "|-8.0|N|downtrend"} {
 			if !strings.Contains(table, want) {
 				t.Fatalf("%s: table missing %q:\n%s", lang, want, table)
 			}
 		}
-		if strings.Contains(table, "NOPRICE") {
-			t.Fatalf("%s: rows without data must be skipped", lang)
+		for _, gone := range []string{"NOPRICE", "SPYBUSDT|", "TSLABUSDT|"} {
+			if strings.Contains(table, gone) {
+				t.Fatalf("%s: %s must be omitted:\n%s", lang, gone, table)
+			}
 		}
 		// Sorted by symbol.
-		if !(strings.Index(table, "AAPLBUSDT|") < strings.Index(table, "SPYBUSDT|") && strings.Index(table, "SPYBUSDT|") < strings.Index(table, "TSLABUSDT|")) {
+		if !(strings.Index(table, "AAPLBUSDT|") < strings.Index(table, "MSFTBUSDT|") && strings.Index(table, "MSFTBUSDT|") < strings.Index(table, "NVDABUSDT|")) {
 			t.Fatalf("%s: rows not sorted:\n%s", lang, table)
 		}
 	}

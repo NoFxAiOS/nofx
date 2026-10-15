@@ -287,21 +287,36 @@ func writeUniverse(b *strings.Builder, ctx *Context, zh bool) {
 			excluded[sym] = true
 		}
 	}
+	held := map[string]bool{}
+	for _, p := range ctx.Positions {
+		held[p.Symbol] = true
+	}
+	// Token budget: keep only names a long-only book could care about — above
+	// their SMA200 or a Kell long setup — plus this cycle's candidates and
+	// holdings; scan-excluded pairs are dropped unless held/candidate.
 	rows := make([]ScanResult, 0, len(ctx.Universe))
+	omitted := 0
 	for _, r := range ctx.Universe {
-		if r.Universe.Price > 0 {
-			rows = append(rows, r)
+		if r.Universe.Price <= 0 {
+			continue
 		}
+		keep := candidates[r.Symbol] || held[r.Symbol] ||
+			(!excluded[r.Symbol] && ((r.Momentum.Valid && r.Momentum.AboveSMA200) || r.Cycle.LongSetup))
+		if !keep {
+			omitted++
+			continue
+		}
+		rows = append(rows, r)
 	}
 	if len(rows) == 0 {
 		return
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Symbol < rows[j].Symbol })
 	if zh {
-		fmt.Fprintf(b, "全市场概览（所有 bStock；仅供参考——只能对上面的候选标的开仓/加仓）:\n")
+		fmt.Fprintf(b, "全市场概览（bStock 中站上 200 日线或有 Kell 多头信号的 %d 只，另含本周期候选与持仓；已省略 %d 只跌破 200 日线且无多头信号或已排除的；仅供参考——只能对上面的候选标的开仓/加仓）:\n", len(rows), omitted)
 		fmt.Fprintln(b, "列：symbol|class|sector|candidate(Y=本周期候选, x=已排除)|price|r1d%|r10d%|r30d%|vol30%(年化)|rsi14(日线)|from30dHigh%|adv20$(20日均成交额)|earn_days(距财报天数,空=未知)|mom12_1%|>sma200(Y/N)|phase(Kell)")
 	} else {
-		fmt.Fprintf(b, "Universe (all listed bStock pairs; reference only — open/add only symbols in the candidate list above):\n")
+		fmt.Fprintf(b, "Universe (%d bStock pairs above their SMA200 or with a Kell long setup, plus this cycle's candidates and holdings; %d below SMA200 without a long setup or scan-excluded omitted; reference only — open/add only symbols in the candidate list above):\n", len(rows), omitted)
 		fmt.Fprintln(b, "columns: symbol|class|sector|candidate(Y=in this cycle's list, x=scan-excluded)|price|r1d%|r10d%|r30d%|vol30%(annualized)|rsi14(daily)|from30dHigh%|adv20$(20d avg dollar volume)|earn_days(to next earnings, blank=unknown)|mom12_1%|>sma200(Y/N)|phase(Kell)")
 	}
 	for _, r := range rows {

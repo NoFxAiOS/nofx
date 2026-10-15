@@ -84,6 +84,10 @@ export interface StockConfig {
   scan_top_n?: number
   // scan/hybrid: pairs the scanner must never pick
   scan_exclude?: string[]
+  // scan/hybrid: candidate ranking; omitted = "kell" (price-cycle long-setup
+  // score). "momentum" = only stocks above the 200-day SMA, ranked by 12-1
+  // momentum (past 12 months excluding the most recent month).
+  scan_rank?: 'kell' | 'momentum'
   // "swing" (default) | "position"
   preset?: 'swing' | 'position'
   sessions: StockSessions
@@ -140,6 +144,15 @@ export interface USStockScanResult {
     sma50_above_200?: boolean
     bars?: number // daily bars available
     notes?: string[]
+  }
+  // 12-1 trend-momentum block (omitted by backends predating the feature)
+  momentum?: {
+    // false when there are not enough bars for a full 12-1 window
+    valid: boolean
+    // 12-1 return in % (past 12 months excluding the most recent month)
+    mom12_1_pct: number
+    // close is above the 200-day SMA
+    above_sma200: boolean
   }
 }
 

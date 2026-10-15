@@ -717,6 +717,14 @@ func scanRes(sym, phase string, long bool, score float64) stockengine.ScanResult
 		Cycle: stockengine.CycleAssessment{Phase: stockengine.CyclePhase(phase), LongSetup: long, Score: score, RS63Pct: 5, VolRatio: 1.1}}
 }
 
+// momRes is a scan result carrying a momentum read (Valid), with a Kell phase
+// that deliberately does not drive the momentum ranking.
+func momRes(sym, phase string, long bool, score, mom float64, above bool) stockengine.ScanResult {
+	r := scanRes(sym, phase, long, score)
+	r.Momentum = stockengine.MomentumAssessment{Valid: true, Mom12_1Pct: mom, AboveSMA200: above}
+	return r
+}
+
 func scanReportOf(results ...stockengine.ScanResult) *stockengine.ScanReport {
 	return &stockengine.ScanReport{GeneratedAt: stockTestNow.Add(-10 * time.Minute), Results: results}
 }
@@ -789,8 +797,140 @@ func TestStockScanCycleComposesCandidates(t *testing.T) {
 		t.Fatalf("runtime config must not be mutated: %v", got)
 	}
 	logged := strings.Join(rec.ExecutionLog, "\n")
-	if !strings.Contains(logged, "scan top 2: NVDABUSDT(wedge_pop 90.0) MSFTBUSDT(base_n_break 70.0)") || !strings.Contains(logged, "report age 10m0s") {
+	if !strings.Contains(logged, "scan top 2 rank=kell: NVDABUSDT(wedge_pop 90.0) MSFTBUSDT(base_n_break 70.0)") || !strings.Contains(logged, "report age 10m0s") {
 		t.Fatalf("scan log line missing:\n%s", logged)
+	}
+}
+
+func withScanRank(rank string, inner func(*store.StockConfig)) func(*store.StockConfig) {
+	return func(sc *store.StockConfig) {
+		inner(sc)
+		sc.ScanRank = rank
+	}
+}
+
+func TestStockScanMomentumRankPicksHighestMomentumAboveSMA(t *testing.T) {
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll },
+		withScanRank(store.StockScanRankMomentum, scanMode(2, nil, []string{"TSLABUSDT"})))
+	useScanReport(scanReportOf(
+		// Kell order first (long setups, high score): none of it matters for momentum rank.
+		momRes("MSFTBUSDT", "wedge_pop", true, 95, 20, true),
+		momRes("AAPLBUSDT", "ema_crossback", true, 90, 35, true),
+		momRes("AMDBUSDT", "wedge_pop", true, 85, 200, false), // huge momentum but below SMA200
+		momRes("TSLABUSDT", "uptrend", false, 10, 150, true),  // excluded
+		momRes("NVDABUSDT", "downtrend", false, 5, 60, true),  // no Kell setup, strongest eligible
+		momRes("METABUSDT", "uptrend", false, 20, 10, true),   // beyond top N
+	), nil)
+	fx.cycle(t)
+
+	rec := fx.lastRecord(t)
+	if !rec.Success {
+		t.Fatalf("cycle failed: %s", rec.ErrorMessage)
+	}
+	if got := strings.Join(rec.CandidateCoins, ","); got != "NVDABUSDT,AAPLBUSDT" {
+		t.Fatalf("candidates %s", got)
+	}
+	logged := strings.Join(rec.ExecutionLog, "\n")
+	if !strings.Contains(logged, "scan top 2 rank=momentum: NVDABUSDT(mom +60.0% downtrend) AAPLBUSDT(mom +35.0% ema_crossback)") {
+		t.Fatalf("scan log line missing:\n%s", logged)
+	}
+	for _, want := range []string{"mom12_1=+60.0% above_sma200=true", "mom12_1=+35.0% above_sma200=true"} {
+		if !strings.Contains(fx.ai.user, want) {
+			t.Fatalf("user prompt missing %q:\n%s", want, fx.ai.user)
+		}
+	}
+	if strings.Contains(fx.ai.user, "AMDBUSDT") || strings.Contains(fx.ai.user, "MSFTBUSDT") {
+		t.Fatalf("user prompt must carry only the momentum picks:\n%s", fx.ai.user)
+	}
+	if !strings.Contains(fx.ai.system, "12-1 动量") || !strings.Contains(fx.ai.system, "exhaustion_extension 阶段不追高") {
+		t.Fatalf("momentum rank system prompt missing:\n%s", fx.ai.system)
+	}
+}
+
+func TestStockScanMomentumRankIgnoresBelowSMAEvenIfFewerThanN(t *testing.T) {
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string {
+		return `[{"symbol":"NVDABUSDT","action":"wait"}]`
+	}, withScanRank(store.StockScanRankMomentum, scanMode(5, nil, nil)))
+	invalid := scanRes("MSFTBUSDT", "wedge_pop", true, 99) // Momentum zero value: not Valid
+	useScanReport(scanReportOf(
+		invalid,
+		momRes("AMDBUSDT", "wedge_pop", true, 90, 300, false),
+		momRes("NVDABUSDT", "ema_crossback", true, 50, 12, true),
+	), nil)
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if !rec.Success || strings.Join(rec.CandidateCoins, ",") != "NVDABUSDT" {
+		t.Fatalf("only the one above-SMA200 name may be a candidate: %+v", rec.CandidateCoins)
+	}
+
+	// Nothing above the SMA200: no candidates, no AI call.
+	fx2 := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll },
+		withScanRank(store.StockScanRankMomentum, scanMode(5, nil, nil)))
+	useScanReport(scanReportOf(momRes("AMDBUSDT", "wedge_pop", true, 90, 300, false), invalid), nil)
+	fx2.cycle(t)
+	if fx2.ai.calls != 0 || len(fx2.lastRecord(t).CandidateCoins) != 0 {
+		t.Fatalf("calls %d candidates %v", fx2.ai.calls, fx2.lastRecord(t).CandidateCoins)
+	}
+}
+
+func TestStockScanKellRankUnchangedByMomentum(t *testing.T) {
+	report := scanReportOf(
+		momRes("NVDABUSDT", "wedge_pop", true, 90, 1, true),
+		momRes("MSFTBUSDT", "base_n_break", true, 70, 500, true),
+		momRes("AMDBUSDT", "uptrend", false, 60, 900, true), // no long setup
+	)
+	for _, rank := range []string{"", store.StockScanRankKell} {
+		fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll },
+			withScanRank(rank, scanMode(2, nil, nil)))
+		useScanReport(report, nil)
+		fx.cycle(t)
+		rec := fx.lastRecord(t)
+		if got := strings.Join(rec.CandidateCoins, ","); got != "NVDABUSDT,MSFTBUSDT" {
+			t.Fatalf("rank %q candidates %s", rank, got)
+		}
+		if !strings.Contains(strings.Join(rec.ExecutionLog, "\n"), "scan top 2 rank=kell:") || strings.Contains(fx.ai.system, "12-1 动量") {
+			t.Fatalf("rank %q: kell log/prompt wrong:\n%s", rank, strings.Join(rec.ExecutionLog, "\n"))
+		}
+	}
+}
+
+func TestStockScanMomentumRankHybridComposition(t *testing.T) {
+	fx := newStockFixtureCfg(t, true, stockTestNow, func(int) string { return waitAll },
+		withScanRank(store.StockScanRankMomentum, hybridMode(2, []string{"AAPLBUSDT"}, []string{"TSLABUSDT"})))
+	useScanReport(scanReportOf(
+		momRes("AAPLBUSDT", "wedge_pop", true, 90, 90, true), // pinned: not repeated
+		momRes("TSLABUSDT", "wedge_pop", true, 80, 80, true), // excluded
+		momRes("NVDABUSDT", "ema_crossback", true, 70, 70, true),
+		momRes("MSFTBUSDT", "uptrend", false, 20, 40, true),
+		momRes("AMDBUSDT", "uptrend", false, 20, 30, true), // beyond top N
+	), nil)
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if !rec.Success || strings.Join(rec.CandidateCoins, ",") != "AAPLBUSDT,NVDABUSDT,MSFTBUSDT" {
+		t.Fatalf("hybrid candidates %v err %q", rec.CandidateCoins, rec.ErrorMessage)
+	}
+	if !strings.Contains(fx.ai.system, "用户手动指定") || !strings.Contains(fx.ai.system, "12-1 动量") {
+		t.Fatalf("hybrid momentum system prompt:\n%s", fx.ai.system)
+	}
+
+	// A held name outside the ranking stays in the list; the scan fills N more.
+	openNVDA := `[{"symbol":"NVDABUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"reasoning":"x"}]`
+	fx2 := newStockFixtureCfg(t, true, stockTestNow, func(call int) string {
+		if call == 1 {
+			return openNVDA
+		}
+		return `[{"symbol":"NVDABUSDT","action":"hold"},{"symbol":"MSFTBUSDT","action":"wait"}]`
+	}, withScanRank(store.StockScanRankMomentum, scanMode(1, nil, nil)))
+	useScanReport(scanReportOf(momRes("NVDABUSDT", "wedge_pop", true, 90, 70, true)), nil)
+	fx2.cycle(t)
+	useScanReport(scanReportOf(
+		momRes("NVDABUSDT", "downtrend", false, 5, -20, false), // held, dropped below SMA200
+		momRes("MSFTBUSDT", "uptrend", false, 20, 40, true),
+	), nil)
+	fx2.cycle(t)
+	rec = fx2.lastRecord(t)
+	if !rec.Success || strings.Join(rec.CandidateCoins, ",") != "NVDABUSDT,MSFTBUSDT" {
+		t.Fatalf("held + momentum pick: %v err %q", rec.CandidateCoins, rec.ErrorMessage)
 	}
 }
 

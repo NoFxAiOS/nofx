@@ -1247,6 +1247,27 @@ export const stockConfig = {
     en: 'Comma separated, e.g. SOXSBUSDT',
     id: 'Pisahkan koma, mis. SOXSBUSDT',
   },
+  scanRank: { zh: '排名方式', en: 'Ranking', id: 'Metode peringkat' },
+  scanRankKell: {
+    zh: '价格周期（Kell）',
+    en: 'Price cycle (Kell)',
+    id: 'Siklus harga (Kell)',
+  },
+  scanRankKellDesc: {
+    zh: '按 Kell 价格周期的多头机会打分排序。',
+    en: "Rank by the long-setup score of Kell's cycle of price action.",
+    id: 'Urutkan menurut skor setup long dari siklus aksi harga Kell.',
+  },
+  scanRankMomentum: {
+    zh: '趋势动量',
+    en: 'Trend momentum',
+    id: 'Momentum tren',
+  },
+  scanRankMomentumDesc: {
+    zh: '只选站上 200 日均线的股票，按 12-1 动量（过去 12 个月涨幅，剔除最近 1 个月）排序。回测 IC +0.049，五年均为正。',
+    en: 'Only stocks above the 200-day SMA, ranked by 12-1 momentum (past 12 months excluding the most recent one). Backtest IC +0.049, positive in each of five years.',
+    id: 'Hanya saham di atas SMA 200 hari, diurutkan menurut momentum 12-1 (12 bulan terakhir tanpa bulan terbaru). IC backtest +0.049, positif di kelima tahun.',
+  },
   scanPreview: {
     zh: '扫描预览',
     en: 'Scan preview',
@@ -1274,8 +1295,10 @@ export const stockConfig = {
   scanColPhase: { zh: '阶段', en: 'Phase', id: 'Fase' },
   scanColScore: { zh: '得分', en: 'Score', id: 'Skor' },
   scanColRs63: { zh: 'RS63', en: 'RS63', id: 'RS63' },
+  scanColMom: { zh: '12-1 动量', en: '12-1 mom', id: 'Mom 12-1' },
   scanColVol: { zh: '量比', en: 'Vol', id: 'Vol' },
   scanColFeed: { zh: '入选', en: 'Fed', id: 'Masuk' },
+  scanAboveSma200: { zh: '200日线上', en: '>SMA200', id: '>SMA200' },
   scanExcludedTag: { zh: '已排除', en: 'Excluded', id: 'Dikecualikan' },
   scanManualTag: { zh: '手动', en: 'Manual', id: 'Manual' },
   scanFeedTip: {

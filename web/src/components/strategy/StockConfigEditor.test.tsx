@@ -275,3 +275,64 @@ test('scan mode hides the manual picker and notes an ignored saved list', async 
   // the saved list is not cleared
   expect(onChange.mock.lastCall?.[0].symbols).toEqual(['AAPLBUSDT'])
 })
+
+test('momentum ranking: only above-SMA200 names, ordered by 12-1 momentum', async () => {
+  apiMock.getUSStockSymbols.mockResolvedValue([])
+  const row = (symbol: string, mom: number, above: boolean, long = false) => ({
+    symbol,
+    underlying: symbol.replace('BUSDT', ''),
+    source: 'yahoo',
+    cycle: {
+      phase: long ? 'wedge_pop' : 'uptrend',
+      long_setup: long,
+      score: long ? 80 : 0,
+    },
+    momentum: { valid: true, mom12_1_pct: mom, above_sma200: above },
+  })
+  apiMock.getUSStockScan.mockResolvedValue({
+    scanning: false,
+    generated_at: '2026-10-15T13:30:00Z',
+    results: [
+      row('AAABUSDT', 5, true, true), // Kell top, weak momentum
+      row('BBBBUSDT', 90, false), // highest momentum but below SMA200
+      row('CCCBUSDT', 60, true),
+      row('DDDBUSDT', 40, true),
+      row('EEEBUSDT', 30, true),
+    ],
+    skipped: {},
+  })
+  const onChange = vi.fn()
+  render(<Harness onChange={onChange} />)
+  fireEvent.click(screen.getByTestId('stock-source-scan'))
+  fireEvent.click(screen.getByTestId('stock-rank-momentum'))
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ scan_rank: 'momentum' })
+  )
+  fireEvent.change(screen.getByTestId('stock-scan-top-n'), {
+    target: { value: '2' },
+  })
+  fireEvent.change(screen.getByTestId('stock-scan-exclude-input'), {
+    target: { value: 'CCCBUSDT' },
+  })
+  const preview = await screen.findByTestId('stock-scan-preview')
+  await screen.findByText(/\+90\.0%/)
+  const rows = Array.from(preview.querySelectorAll('tbody tr')).map((r) => ({
+    sym: r.textContent?.match(/[A-E]{3}BUSDT/)?.[0],
+    fed: r.textContent?.includes('★'),
+  }))
+  // eligible rows first by momentum (CCC excluded keeps its place but no ★),
+  // then the below-SMA200 row; top 2 slots → DDD, EEE
+  expect(rows.map((r) => r.sym).slice(0, 4)).toEqual([
+    'CCCBUSDT',
+    'DDDBUSDT',
+    'EEEBUSDT',
+    'AAABUSDT',
+  ])
+  expect(rows.filter((r) => r.fed).map((r) => r.sym)).toEqual([
+    'DDDBUSDT',
+    'EEEBUSDT',
+  ])
+  // back to Kell: scan_rank omitted again
+  fireEvent.click(screen.getByTestId('stock-rank-kell'))
+  expect(onChange.mock.lastCall?.[0].scan_rank).toBeUndefined()
+})

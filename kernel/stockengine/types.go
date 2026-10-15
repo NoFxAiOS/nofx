@@ -82,6 +82,8 @@ type SymbolSnapshot struct {
 	// Cycle is the Kell price-cycle assessment on daily bars (nil when no
 	// daily series was available).
 	Cycle *CycleAssessment `json:"cycle,omitempty"`
+	// Momentum is the trend-filtered 12-1 momentum read (nil when unknown).
+	Momentum *MomentumAssessment `json:"momentum,omitempty"`
 }
 
 // Position is a held bStock position as the engine sees it.

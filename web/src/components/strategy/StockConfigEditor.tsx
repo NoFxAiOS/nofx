@@ -13,6 +13,7 @@ import type {
   StockConfig,
   USStockCyclePhase,
   USStockScanReport,
+  USStockScanResult,
   USStockSymbol,
 } from '../../types'
 import { stockConfig as tx, ts } from '../../i18n/strategy-translations'
@@ -60,11 +61,16 @@ const PHASE_LABEL: Partial<Record<USStockCyclePhase, keyof typeof tx>> = {
 }
 
 // "+12.3%" / "-3.4%"; em dash when the field is absent
-const fmtRs63 = (v: number | undefined) =>
+const fmtPct = (v: number | undefined) =>
   v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
 // "1.8x"; em dash when absent
 const fmtVolRatio = (v: number | undefined) =>
   v === undefined ? '—' : `${v.toFixed(1)}x`
+
+// Momentum-rank eligible: full 12-1 window and above the 200-day SMA
+// (mirrors the Go TopMomentum filter).
+const momentumEligible = (r: USStockScanResult) =>
+  !!r.momentum?.valid && r.momentum.above_sma200
 
 // Defaults shown as placeholders (mirror the Go resolvers in
 // store/strategy_stock.go; the backend stays the source of truth).
@@ -182,6 +188,8 @@ export function StockConfigEditor({
     config.scan_top_n && config.scan_top_n > 0
       ? config.scan_top_n
       : DEFAULT_SCAN_TOP_N
+  // Candidate ranking; omitted = kell (price-cycle score)
+  const rankMode = config.scan_rank === 'momentum' ? 'momentum' : 'kell'
 
   useEffect(() => {
     if (!usesScan) return
@@ -210,22 +218,42 @@ export function StockConfigEditor({
     return () => clearTimeout(id)
   }, [usesScan, scanReport])
 
-  // Preview rows: first max(topN, 20) of the (already sorted) ranking, each
-  // annotated with the feed marker. Scan feeds the top N long setups that are
-  // neither excluded nor manual (excluded/manual pairs never consume a slot).
-  // Hybrid always feeds the manual symbols on top of those N.
+  // Preview rows: first max(topN, 20) of the ranking, each annotated with the
+  // feed marker. Kell ranking feeds the top N long setups; momentum ranking
+  // feeds the top N momentum-eligible rows (valid 12-1 momentum, above the
+  // 200-day SMA). In both modes excluded/manual pairs never consume a slot and
+  // hybrid always feeds the manual symbols on top of those N.
   const scanRows = useMemo(() => {
     const results = usesScan && scanReport ? scanReport.results || [] : []
     const manualSet = symbolSource === 'hybrid' ? selected : null
-    let longCount = 0
-    const fed = new Set<string>()
-    for (const r of results) {
-      if (!r.cycle.long_setup || excludeSet.has(r.symbol)) continue
-      if (manualSet?.has(r.symbol)) continue
-      longCount += 1
-      if (longCount <= scanTopN) fed.add(r.symbol)
+
+    // Momentum ranking reorders the preview: eligible rows first, by
+    // mom12_1_pct → rs63_pct → symbol, then the rest in report order. Kell
+    // keeps the backend order as-is.
+    let ordered = results
+    if (rankMode === 'momentum') {
+      const eligible = results.filter(momentumEligible)
+      eligible.sort(
+        (a, b) =>
+          (b.momentum?.mom12_1_pct ?? 0) - (a.momentum?.mom12_1_pct ?? 0) ||
+          (b.cycle.rs63_pct ?? 0) - (a.cycle.rs63_pct ?? 0) ||
+          a.symbol.localeCompare(b.symbol)
+      )
+      const picked = new Set(eligible.map((r) => r.symbol))
+      ordered = [...eligible, ...results.filter((r) => !picked.has(r.symbol))]
     }
-    return results.slice(0, Math.max(scanTopN, 20)).map((r, i) => ({
+
+    let fedCount = 0
+    const fed = new Set<string>()
+    for (const r of ordered) {
+      const candidate =
+        rankMode === 'momentum' ? momentumEligible(r) : r.cycle.long_setup
+      if (!candidate || excludeSet.has(r.symbol)) continue
+      if (manualSet?.has(r.symbol)) continue
+      fedCount += 1
+      if (fedCount <= scanTopN) fed.add(r.symbol)
+    }
+    return ordered.slice(0, Math.max(scanTopN, 20)).map((r, i) => ({
       ...r,
       rank: i + 1,
       fed: fed.has(r.symbol) || !!manualSet?.has(r.symbol),
@@ -234,7 +262,15 @@ export function StockConfigEditor({
       phaseKey: PHASE_LABEL[r.cycle.phase],
       phaseCls: PHASE_TEXT[r.cycle.phase] ?? 'text-fg-3',
     }))
-  }, [usesScan, symbolSource, selected, scanReport, scanTopN, excludeSet])
+  }, [
+    usesScan,
+    rankMode,
+    symbolSource,
+    selected,
+    scanReport,
+    scanTopN,
+    excludeSet,
+  ])
 
   const filtered = useMemo(() => {
     if (!universe) return []
@@ -482,6 +518,55 @@ export function StockConfigEditor({
           </div>
         )}
 
+        {usesScan && (
+          <div className="mb-4">
+            <p className="text-[13px] mb-2 text-fg-2">
+              {ts(tx.scanRank, language)}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(
+                [
+                  ['kell', tx.scanRankKell, tx.scanRankKellDesc],
+                  ['momentum', tx.scanRankMomentum, tx.scanRankMomentumDesc],
+                ] as const
+              ).map(([value, label, desc]) => (
+                <label
+                  key={value}
+                  data-testid={`stock-rank-${value}`}
+                  className={cn(
+                    'p-3 rounded-lg cursor-pointer',
+                    'bg-surface-2',
+                    rankMode === value
+                      ? 'border border-brand'
+                      : 'border border-line',
+                    'text-fg-2'
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <input
+                      type="radio"
+                      name="stock-scan-rank"
+                      checked={rankMode === value}
+                      disabled={disabled}
+                      onChange={() =>
+                        updateField(
+                          'scan_rank',
+                          value === 'momentum' ? 'momentum' : undefined
+                        )
+                      }
+                      className="accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
+                    />
+                    <span className="text-sm font-medium text-fg">
+                      {ts(label, language)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-fg-3">{ts(desc, language)}</p>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         {usesManual && (
           <div className="p-3 rounded-lg bg-surface-2 border border-line">
             <label className="block text-[13px] mb-1 text-fg-2">
@@ -675,6 +760,9 @@ export function StockConfigEditor({
                             {ts(tx.scanColRs63, language)}
                           </th>
                           <th className="py-1.5 pr-2 font-medium text-right">
+                            {ts(tx.scanColMom, language)}
+                          </th>
+                          <th className="py-1.5 pr-2 font-medium text-right">
                             {ts(tx.scanColVol, language)}
                           </th>
                           <th className="py-1.5 pr-2 font-medium text-center">
@@ -723,7 +811,17 @@ export function StockConfigEditor({
                                 : '—'}
                             </td>
                             <td className="py-1.5 pr-2 num text-right text-fg-2">
-                              {fmtRs63(row.cycle.rs63_pct)}
+                              {fmtPct(row.cycle.rs63_pct)}
+                            </td>
+                            <td className="py-1.5 pr-2 num text-right text-fg-2 whitespace-nowrap">
+                              {row.momentum?.valid
+                                ? fmtPct(row.momentum.mom12_1_pct)
+                                : '—'}
+                              {row.momentum?.above_sma200 && (
+                                <span className="ml-1 px-1 py-0.5 rounded text-[10px] border border-line text-fg-3">
+                                  {ts(tx.scanAboveSma200, language)}
+                                </span>
+                              )}
                             </td>
                             <td className="py-1.5 pr-2 num text-right text-fg-2">
                               {fmtVolRatio(row.cycle.vol_ratio)}

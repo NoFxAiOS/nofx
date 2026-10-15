@@ -85,6 +85,21 @@ func TestStockConfigScanHelpers(t *testing.T) {
 	}
 }
 
+func TestStockConfigScanRank(t *testing.T) {
+	var nilCfg *StockConfig
+	if nilCfg.EffectiveScanRank() != StockScanRankKell || (&StockConfig{}).EffectiveScanRank() != StockScanRankKell {
+		t.Fatal("nil and empty scan_rank must resolve to kell")
+	}
+	if (&StockConfig{ScanRank: StockScanRankKell}).EffectiveScanRank() != StockScanRankKell ||
+		(&StockConfig{ScanRank: StockScanRankMomentum}).EffectiveScanRank() != StockScanRankMomentum {
+		t.Fatal("explicit scan_rank not honored")
+	}
+	data, _ := json.Marshal(&StockConfig{Symbols: []string{"AAPLBUSDT"}})
+	if strings.Contains(string(data), "scan_rank") {
+		t.Fatalf("empty scan_rank must be omitted from JSON: %s", data)
+	}
+}
+
 func TestStockConfigResolvers_Overrides(t *testing.T) {
 	s := &StockConfig{
 		Preset:              StockPresetPosition,
@@ -162,6 +177,12 @@ func TestStockConfigValidate(t *testing.T) {
 			s.SymbolSource = StockSymbolSourceScan
 			s.Symbols = []string{"aaplbusdt"}
 		}, "invalid stock symbol"},
+		{"scan_rank empty ok", func(s *StockConfig) { s.ScanRank = "" }, ""},
+		{"scan_rank kell ok", func(s *StockConfig) { s.ScanRank = StockScanRankKell }, ""},
+		{"scan_rank momentum ok in manual", func(s *StockConfig) { s.ScanRank = StockScanRankMomentum }, ""},
+		{"scan_rank momentum ok in scan", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceScan; s.ScanRank = StockScanRankMomentum }, ""},
+		{"scan_rank momentum ok in hybrid", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid; s.ScanRank = StockScanRankMomentum }, ""},
+		{"scan_rank unknown", func(s *StockConfig) { s.ScanRank = "rs63" }, `invalid scan_rank "rs63": must be "kell" or "momentum"`},
 		{"hybrid with symbols ok", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid }, ""},
 		{"hybrid with no symbols", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid; s.Symbols = nil }, "at least one symbol in hybrid mode"},
 		{"hybrid bad pin", func(s *StockConfig) { s.SymbolSource = StockSymbolSourceHybrid; s.Symbols = []string{"AAPL"} }, "invalid stock symbol"},

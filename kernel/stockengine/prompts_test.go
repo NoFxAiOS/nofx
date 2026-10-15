@@ -128,3 +128,48 @@ func TestUserPromptCycleLine(t *testing.T) {
 		}
 	}
 }
+
+func TestSystemPromptMomentumRank(t *testing.T) {
+	neverKell := map[string]string{"en": "never open at exhaustion_extension, wedge_drop or downtrend", "zh": "exhaustion_extension、wedge_drop、downtrend 阶段绝不开仓"}
+	neverMom := map[string]string{"en": "never open at wedge_drop or downtrend; at exhaustion_extension do not chase", "zh": "wedge_drop、downtrend 阶段绝不开仓，exhaustion_extension 阶段不追高"}
+	note := map[string]string{"en": "12-1 momentum among names above their 200-day SMA", "zh": "12-1 动量从高到低"}
+	for _, lang := range []string{"zh", "en"} {
+		for _, source := range []string{store.StockSymbolSourceScan, store.StockSymbolSourceHybrid} {
+			kell := &store.StockConfig{SymbolSource: source}
+			prompt := BuildSystemPrompt(kell, ResolvePreset(kell), lang)
+			if !strings.Contains(prompt, neverKell[lang]) || strings.Contains(prompt, neverMom[lang]) || strings.Contains(prompt, note[lang]) {
+				t.Fatalf("%s/%s kell-rank prompt must keep the original text only:\n%s", lang, source, prompt)
+			}
+			explicit := &store.StockConfig{SymbolSource: source, ScanRank: store.StockScanRankKell}
+			if BuildSystemPrompt(explicit, ResolvePreset(explicit), lang) != prompt {
+				t.Fatalf("%s/%s: explicit scan_rank=kell must equal the default prompt", lang, source)
+			}
+			mom := &store.StockConfig{SymbolSource: source, ScanRank: store.StockScanRankMomentum}
+			prompt = BuildSystemPrompt(mom, ResolvePreset(mom), lang)
+			if !strings.Contains(prompt, neverMom[lang]) || strings.Contains(prompt, neverKell[lang]) || !strings.Contains(prompt, note[lang]) || !strings.Contains(prompt, "EMA10/EMA20") {
+				t.Fatalf("%s/%s momentum-rank prompt wrong:\n%s", lang, source, prompt)
+			}
+		}
+		// Manual mode ignores scan_rank entirely.
+		manual := &store.StockConfig{ScanRank: store.StockScanRankMomentum}
+		plain := &store.StockConfig{}
+		if BuildSystemPrompt(manual, ResolvePreset(manual), lang) != BuildSystemPrompt(plain, ResolvePreset(plain), lang) {
+			t.Fatalf("%s: manual mode prompt must not depend on scan_rank", lang)
+		}
+	}
+}
+
+func TestUserPromptMomentumLine(t *testing.T) {
+	c := testContext()
+	c.Snapshots[0].Momentum = &MomentumAssessment{Valid: true, Mom12_1Pct: 42.34, AboveSMA200: true}
+	c.Snapshots[1].Momentum = &MomentumAssessment{} // invalid: not printed
+	for _, lang := range []string{"en", "zh"} {
+		prompt := BuildUserPrompt(c, lang)
+		if !strings.Contains(prompt, "mom12_1=+42.3% above_sma200=true") {
+			t.Fatalf("%s: momentum line missing:\n%s", lang, prompt)
+		}
+		if strings.Count(prompt, "mom12_1=") != 1 {
+			t.Fatalf("%s: invalid or absent momentum must not print:\n%s", lang, prompt)
+		}
+	}
+}

@@ -128,9 +128,14 @@ func (at *AutoTrader) stockCycleSymbols(ctx context.Context, sc *store.StockConf
 		exclude[sym] = true
 	}
 	var picks []string
+	rank := sc.EffectiveScanRank()
 	if report != nil {
 		want := sc.EffectiveScanTopN()
-		for _, r := range report.TopLong(len(report.Results), exclude) {
+		ranked := report.TopLong(len(report.Results), exclude)
+		if rank == store.StockScanRankMomentum {
+			ranked = report.TopMomentum(len(report.Results), exclude)
+		}
+		for _, r := range ranked {
 			if len(picks) == want {
 				break
 			}
@@ -138,13 +143,17 @@ func (at *AutoTrader) stockCycleSymbols(ctx context.Context, sc *store.StockConf
 				continue
 			}
 			add(r.Symbol)
-			picks = append(picks, fmt.Sprintf("%s(%s %.1f)", r.Symbol, r.Cycle.Phase, r.Cycle.Score))
+			if rank == store.StockScanRankMomentum {
+				picks = append(picks, fmt.Sprintf("%s(mom %+.1f%% %s)", r.Symbol, r.Momentum.Mom12_1Pct, r.Cycle.Phase))
+			} else {
+				picks = append(picks, fmt.Sprintf("%s(%s %.1f)", r.Symbol, r.Cycle.Phase, r.Cycle.Score))
+			}
 		}
 	}
 	if report == nil {
 		logf("scan unavailable: %d held/manual symbols this cycle", nBase)
 	} else {
-		logf("scan top %d: %s (report age %s)", sc.EffectiveScanTopN(), strings.Join(picks, " "),
+		logf("scan top %d rank=%s: %s (report age %s)", sc.EffectiveScanTopN(), rank, strings.Join(picks, " "),
 			at.stockClock().Sub(report.GeneratedAt).Round(time.Second))
 	}
 	return list, report
@@ -235,11 +244,11 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 	}
 	for sym, snap := range byName {
 		if r, ok := report.Lookup(sym); ok {
-			c := r.Cycle
-			snap.Cycle = &c
+			c, m := r.Cycle, r.Momentum
+			snap.Cycle, snap.Momentum = &c, &m
 		} else if s := daily[sym]; s != nil && len(s.Bars) > 0 {
-			c := stockengine.ClassifyCycle(s.Bars, spyBars)
-			snap.Cycle = &c
+			c, m := stockengine.ClassifyCycle(s.Bars, spyBars), stockengine.ClassifyMomentum(s.Bars)
+			snap.Cycle, snap.Momentum = &c, &m
 		}
 	}
 	return all, market, prices

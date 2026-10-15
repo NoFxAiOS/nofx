@@ -164,6 +164,9 @@ type StockConfig struct {
 	SymbolSource string   `json:"symbol_source,omitempty"`
 	ScanTopN     int      `json:"scan_top_n,omitempty"`   // scan mode; 0 = default 10, max 50
 	ScanExclude  []string `json:"scan_exclude,omitempty"` // pairs the scanner never picks
+	// ScanRank: scan/hybrid ranking — "kell" (default; Kell cycle long setups
+	// by score) or "momentum" (names above SMA200 ranked by 12-1 momentum).
+	ScanRank string `json:"scan_rank,omitempty"`
 	// Preset: "swing" (default; days–weeks, 1d trend / 1h entry, decisions at
 	// 09:45, 12:30, 15:30 ET) or "position" (weeks–months, 1w trend / 1d
 	// entry, one decision at 15:30 ET).

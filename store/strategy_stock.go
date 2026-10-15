@@ -25,6 +25,10 @@ const (
 	StockSymbolSourceHybrid = "hybrid"
 	DefaultStockScanTopN    = 10
 
+	// Scan rankings of a us_stock strategy (StockConfig.ScanRank).
+	StockScanRankKell     = "kell"
+	StockScanRankMomentum = "momentum"
+
 	maxStockScanTopN = 50
 
 	stockSymbolSuffix       = "BUSDT"
@@ -73,6 +77,14 @@ func (s *StockConfig) EffectiveScanTopN() int {
 		return maxStockScanTopN
 	}
 	return s.ScanTopN
+}
+
+// EffectiveScanRank resolves the scan/hybrid ranking: nil and "" mean kell.
+func (s *StockConfig) EffectiveScanRank() string {
+	if s != nil && s.ScanRank == StockScanRankMomentum {
+		return StockScanRankMomentum
+	}
+	return StockScanRankKell
 }
 
 // AllowRegular reports whether opens/adds are allowed in the regular session
@@ -196,6 +208,11 @@ func (s *StockConfig) Validate() error {
 	}
 	if s.ScanTopN < 0 || s.ScanTopN > maxStockScanTopN {
 		return fmt.Errorf("scan_top_n must be between 0 and %d", maxStockScanTopN)
+	}
+	switch s.ScanRank {
+	case "", StockScanRankKell, StockScanRankMomentum:
+	default:
+		return fmt.Errorf("invalid scan_rank %q: must be %q or %q", s.ScanRank, StockScanRankKell, StockScanRankMomentum)
 	}
 	if err := validateStockSymbolList("symbols", s.Symbols); err != nil {
 		return err

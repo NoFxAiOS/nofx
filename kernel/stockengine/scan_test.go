@@ -431,3 +431,55 @@ func TestGetScanReportOptionalBenchmark(t *testing.T) {
 		})
 	}
 }
+
+func TestScanFillsMomentum(t *testing.T) {
+	universe := []usstock.SymbolInfo{{Symbol: "UPBUSDT", Underlying: "UP"}}
+	bars := make([]usstock.Bar, 260)
+	for i := range bars {
+		bars[i] = usstock.Bar{OpenTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, i), Open: 100 + float64(i), High: 101 + float64(i), Low: 99 + float64(i), Close: 100 + float64(i), Volume: 1000}
+	}
+	fetch := func(context.Context, string) ([]usstock.Bar, string, error) { return bars, usstock.SourceBStock, nil }
+	report, err := Scan(context.Background(), universe, nil, fetch, time.Now())
+	if err != nil || len(report.Results) != 1 {
+		t.Fatalf("report %+v err %v", report, err)
+	}
+	if want := ClassifyMomentum(bars); !want.Valid || report.Results[0].Momentum != want {
+		t.Fatalf("momentum %+v want %+v", report.Results[0].Momentum, want)
+	}
+}
+
+func TestTopMomentum(t *testing.T) {
+	mk := func(sym string, valid, above bool, mom, rs float64) ScanResult {
+		return ScanResult{Symbol: sym, Cycle: CycleAssessment{RS63Pct: rs}, Momentum: MomentumAssessment{Valid: valid, AboveSMA200: above, Mom12_1Pct: mom}}
+	}
+	report := &ScanReport{Results: []ScanResult{
+		mk("LOW", true, true, 10, 0),
+		mk("BELOW", true, false, 300, 50),  // below SMA200: never a candidate
+		mk("INVALID", false, true, 500, 9), // not enough history
+		mk("TOP", true, true, 80, 1),
+		mk("TIE_Z", true, true, 40, 5),
+		mk("TIE_A", true, true, 40, 5),
+		mk("TIE_RS", true, true, 40, 9),
+		mk("EXCL", true, true, 99, 0),
+	}}
+	order := func(rs []ScanResult) (out []string) {
+		for _, r := range rs {
+			out = append(out, r.Symbol)
+		}
+		return
+	}
+	got := order(report.TopMomentum(10, map[string]bool{"EXCL": true}))
+	if want := []string{"TOP", "TIE_RS", "TIE_A", "TIE_Z", "LOW"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("order=%v want=%v", got, want)
+	}
+	if got := order(report.TopMomentum(2, nil)); !reflect.DeepEqual(got, []string{"EXCL", "TOP"}) {
+		t.Fatalf("top 2: %v", got)
+	}
+	// Report order (Kell order) must be untouched.
+	if report.Results[0].Symbol != "LOW" || report.Results[1].Symbol != "BELOW" {
+		t.Fatalf("TopMomentum reordered the report: %v", order(report.Results))
+	}
+	if report.TopMomentum(0, nil) != nil || (*ScanReport)(nil).TopMomentum(3, nil) != nil {
+		t.Fatal("n<=0 and nil report must return nil")
+	}
+}

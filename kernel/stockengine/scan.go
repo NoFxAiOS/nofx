@@ -26,10 +26,11 @@ var (
 )
 
 type ScanResult struct {
-	Symbol     string          `json:"symbol"`
-	Underlying string          `json:"underlying"`
-	Source     string          `json:"source"`
-	Cycle      CycleAssessment `json:"cycle"`
+	Symbol     string             `json:"symbol"`
+	Underlying string             `json:"underlying"`
+	Source     string             `json:"source"`
+	Cycle      CycleAssessment    `json:"cycle"`
+	Momentum   MomentumAssessment `json:"momentum"`
 }
 
 type ScanReport struct {
@@ -54,6 +55,36 @@ func (r *ScanReport) TopLong(n int, exclude map[string]bool) []ScanResult {
 		}
 	}
 	return out
+}
+
+// TopMomentum returns up to n results ranked by 12-1 momentum among names
+// above their 200-day SMA (Valid && AboveSMA200 only — long-only, so names
+// below the SMA200 are never candidates), skipping exclude. Order: Mom12_1Pct
+// desc, Cycle.RS63Pct desc, Symbol asc.
+func (r *ScanReport) TopMomentum(n int, exclude map[string]bool) []ScanResult {
+	if r == nil || n <= 0 {
+		return nil
+	}
+	picks := make([]ScanResult, 0, len(r.Results))
+	for _, result := range r.Results {
+		if result.Momentum.Valid && result.Momentum.AboveSMA200 && !exclude[result.Symbol] {
+			picks = append(picks, result)
+		}
+	}
+	sort.Slice(picks, func(i, j int) bool {
+		a, b := picks[i], picks[j]
+		if a.Momentum.Mom12_1Pct != b.Momentum.Mom12_1Pct {
+			return a.Momentum.Mom12_1Pct > b.Momentum.Mom12_1Pct
+		}
+		if a.Cycle.RS63Pct != b.Cycle.RS63Pct {
+			return a.Cycle.RS63Pct > b.Cycle.RS63Pct
+		}
+		return a.Symbol < b.Symbol
+	})
+	if len(picks) > n {
+		picks = picks[:n]
+	}
+	return picks
 }
 
 // Lookup returns the result for symbol.
@@ -93,7 +124,7 @@ func Scan(ctx context.Context, universe []usstock.SymbolInfo, spyBars []usstock.
 		}
 		report.Results = append(report.Results, ScanResult{
 			Symbol: info.Symbol, Underlying: info.Underlying, Source: source,
-			Cycle: ClassifyCycle(bars, spyBars),
+			Cycle: ClassifyCycle(bars, spyBars), Momentum: ClassifyMomentum(bars),
 		})
 	}
 	return report, ctx.Err()
@@ -200,16 +231,19 @@ func refreshScan(ctx context.Context, flight *scanFlight) {
 func liveScan(ctx context.Context) (report *ScanReport, err error) {
 	started := time.Now()
 	defer func() {
-		classified, longs, skipped := 0, 0, 0
+		classified, longs, momentum, skipped := 0, 0, 0, 0
 		if report != nil {
 			classified, skipped = len(report.Results), len(report.Skipped)
 			for _, result := range report.Results {
 				if result.Cycle.LongSetup {
 					longs++
 				}
+				if result.Momentum.Valid && result.Momentum.AboveSMA200 {
+					momentum++
+				}
 			}
 		}
-		logger.Infof("🔭 bStock cycle scan: %d classified, %d long setups, %d skipped in %s", classified, longs, skipped, time.Since(started).Round(time.Millisecond))
+		logger.Infof("🔭 bStock cycle scan: %d classified, %d long setups, %d momentum candidates, %d skipped in %s", classified, longs, momentum, skipped, time.Since(started).Round(time.Millisecond))
 	}()
 	if err := ctx.Err(); err != nil {
 		return nil, err

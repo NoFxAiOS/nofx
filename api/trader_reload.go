@@ -9,13 +9,20 @@ func (s *Server) removeTraderForReload(userID, traderID string) {
 		return
 	}
 	cfg, err := s.store.Trader().GetFullConfig(userID, traderID)
-	if err != nil || cfg.AIModel == nil || !cfg.AIModel.Enabled || cfg.Exchange == nil || !cfg.Exchange.Enabled {
+	disabled := err != nil || cfg.AIModel == nil || !cfg.AIModel.Enabled || cfg.Exchange == nil || !cfg.Exchange.Enabled
+	if disabled {
 		if err := s.store.Trader().UpdateStatus(userID, traderID, false); err != nil {
 			logger.Errorf("disable reload: %v", err)
 			return
 		}
+		// The trader will not come back: a plain stop cancels resting entries.
+		if err := s.traderManager.RemoveTraderAndThen(traderID, nil); err != nil {
+			logger.Errorf("trader reload: %v", err)
+		}
+		return
 	}
-	if err := s.traderManager.RemoveTraderAndThen(traderID, nil); err != nil {
+	// Reloaded right away: keep us_stock resting entries for the new instance.
+	if err := s.traderManager.RemoveTraderForReload(traderID); err != nil {
 		logger.Errorf("trader reload: %v", err)
 	}
 }

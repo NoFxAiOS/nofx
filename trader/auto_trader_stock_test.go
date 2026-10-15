@@ -1211,10 +1211,14 @@ func TestStockPromptCarriesCandlesRSIAndUniverse(t *testing.T) {
 	user := fx.ai.user
 	for _, want := range []string{"rsi14: 4h=", "K线 1w", "K线 1d", "K线 4h", "全市场概览",
 		"AAPLBUSDT|stock|Technology|Y|120|1.2|3.4|5.6|30.0|55.0|-2.0|$12.3M|9|25.0|Y|uptrend",
-		"MSFTBUSDT|stock|Technology||410|", "TSLABUSDT|stock|Technology|x|250|"} {
+		"MSFTBUSDT|stock|Technology||410|"} {
 		if !strings.Contains(user, want) {
 			t.Fatalf("user prompt missing %q:\n%s", want, user)
 		}
+	}
+	// Scan-excluded pairs are left out of the universe table.
+	if strings.Contains(user, "TSLABUSDT|") {
+		t.Fatalf("excluded TSLA must be omitted from the universe table:\n%s", user)
 	}
 	// SPY / QQQ market context carry candles too.
 	if n := strings.Count(user, "K线 1d"); n < 2 {
@@ -1359,3 +1363,75 @@ func TestStockLegacyArrayResponseStillWorks(t *testing.T) {
 		t.Fatalf("legacy array: %+v cot=%q calls=%d", rec.Decisions, rec.CoTTrace, fx.ai.calls)
 	}
 }
+
+// Restart keeps resting limit entries (the next start restores them); a plain
+// stop still cancels; a restart that comes back in paper mode, or a live start
+// whose preflight fails, cancels the kept entries instead of orphaning them.
+func TestStockRestingEntriesKeptAcrossRestart(t *testing.T) {
+	limit := `[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"limit","limit_price":119,"stop_loss":115,"take_profit":130,"confidence":80,"thesis":"pullback holds","invalidation":"close below 115","reasoning":"pullback"}]`
+	place := func(t *testing.T) *stockFixture {
+		fx := newStockFixture(t, false, stockTestNow, func(int) string { return limit })
+		fx.cycle(t)
+		if pend, _ := fx.at.store.StockPaper().ListPending("t1"); len(pend) != 1 {
+			t.Fatalf("pending not placed: %+v", pend)
+		}
+		return fx
+	}
+
+	// 1. StopForRestart keeps the order and the row; a new live start restores it.
+	fx := place(t)
+	fx.at.StopForRestart()
+	if len(fx.spot.cancelled) != 0 {
+		t.Fatalf("restart must not cancel resting entries: %v", fx.spot.cancelled)
+	}
+	if pend, _ := fx.at.store.StockPaper().ListPending("t1"); len(pend) != 1 {
+		t.Fatalf("row must survive a restart: %+v", pend)
+	}
+	fx.at.keepRestingOnStop.Store(false)
+	fx.at.isRunning = true
+	if _, err := fx.at.prepareStockRuntime(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fx.at.stock.pendings["AAPLBUSDT"] == nil {
+		t.Fatal("kept entry not restored on the next live start")
+	}
+
+	// 2. A plain Stop (user stop / delete) cancels it.
+	fx = place(t)
+	fx.at.Stop()
+	if len(fx.spot.cancelled) != 1 {
+		t.Fatalf("plain stop must cancel the resting entry: %v", fx.spot.cancelled)
+	}
+
+	// 3. Restart back in paper mode: kept entries are cancelled and forgotten.
+	fx = place(t)
+	fx.at.StopForRestart()
+	paper := true
+	fx.at.config.StrategyConfig.StockConfig.PaperTrading = &paper
+	fx.at.isRunning = true
+	if _, err := fx.at.prepareStockRuntime(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.spot.cancelled) != 1 {
+		t.Fatalf("paper start must cancel kept live entries: %v", fx.spot.cancelled)
+	}
+	if pend, _ := fx.at.store.StockPaper().ListPending("t1"); len(pend) != 0 {
+		t.Fatalf("cancelled kept entries must be forgotten: %+v", pend)
+	}
+
+	// 4. Live start whose preflight fails: kept entries are cancelled.
+	fx = place(t)
+	fx.at.StopForRestart()
+	fx.at.stockTrader = &failingPreflightSpot{fx.spot}
+	fx.at.isRunning = true
+	if _, err := fx.at.prepareStockRuntime(context.Background()); err == nil {
+		t.Fatal("preflight failure must fail the start")
+	}
+	if len(fx.spot.cancelled) != 1 {
+		t.Fatalf("preflight failure must cancel kept entries: %v", fx.spot.cancelled)
+	}
+}
+
+type failingPreflightSpot struct{ *fakeSpot }
+
+func (f *failingPreflightSpot) Preflight(string) error { return fmt.Errorf("api key revoked") }

@@ -50,11 +50,54 @@ func (at *AutoTrader) prepareStockRuntime(ctx context.Context) (*store.StockConf
 		if err := at.stockTrader.Preflight(probe); err != nil {
 			logger.Errorf("❌ [%s] us_stock preflight failed on %s: %v", at.name, probe, err)
 			stockNotify("ALERT", at.name, fmt.Sprintf("<b>🚫 美股策略未启动 (预检失败)</b>\n<i>%s: %s</i>", notify.Escape(probe), notify.Escape(err.Error())))
+			// Entries kept across a restart would now sit unmanaged: cancel them.
+			at.cancelOrphanStockPendings("preflight failed")
 			return nil, fmt.Errorf("us_stock preflight failed: %w", err)
 		}
 		at.restoreStockPendings()
+	} else {
+		// A live instance may have kept resting entries for a restart that came
+		// back in paper mode; paper never reconciles exchange orders.
+		at.cancelOrphanStockPendings("strategy is now paper trading")
 	}
 	return &cfg, nil
+}
+
+// cancelOrphanStockPendings cancels and forgets resting live entries that no
+// running live instance will manage (kept across a restart that did not come
+// back live). A failed cancel alerts the user to cancel by hand.
+func (at *AutoTrader) cancelOrphanStockPendings(reason string) {
+	if at.store == nil {
+		return
+	}
+	rows, err := at.store.StockPaper().ListPending(at.id)
+	if err != nil || len(rows) == 0 {
+		return
+	}
+	var done, failed []string
+	for _, r := range rows {
+		label := fmt.Sprintf("%s(order %s)", r.Symbol, r.OrderID)
+		if at.stockTrader == nil {
+			failed = append(failed, label+": no executor")
+			continue
+		}
+		if err := at.stockTrader.CancelOrder(r.Symbol, r.OrderID); err != nil {
+			failed = append(failed, fmt.Sprintf("%s: %v", label, err))
+			continue
+		}
+		done = append(done, label)
+		if err := at.store.StockPaper().DeletePending(at.id, r.Symbol); err != nil {
+			logger.Warnf("⚠️ [%s] cannot delete resting entry row %s: %v", at.name, r.Symbol, err)
+		}
+	}
+	if len(done) > 0 {
+		logger.Infof("📌 [%s] cancelled kept resting entries (%s): %s", at.name, reason, strings.Join(done, ", "))
+	}
+	if len(failed) > 0 {
+		msg := strings.Join(failed, ", ")
+		logger.Warnf("⚠️ [%s] could not cancel kept resting entries (%s): %s — cancel manually", at.name, reason, msg)
+		stockNotify("ALERT", at.name, fmt.Sprintf("<b>⚠️ 美股限价入场单无人管理</b>\n<i>%s：%s — 请手动撤单，成交后需人工保护</i>", notify.Escape(reason), notify.Escape(msg)))
+	}
 }
 
 // stockPreflightSymbol picks the pair the live preflight probes: the first

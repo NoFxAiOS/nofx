@@ -432,9 +432,11 @@ func (at *AutoTrader) runStockTickSafe(ctx context.Context) {
 	at.stockProtectionTick(ctx)
 }
 
-// cleanupStockOnStop warns about resting limit entries: the program may only
-// cancel its protective orders, never open orders, so they are left for the
-// user to cancel. Called from Stop() under the execution mutex.
+// cleanupStockOnStop handles the program's resting limit entries when the
+// trader stops. A plain Stop (user stop / delete) cancels them: an entry that
+// fills while nobody runs would sit unprotected. StopForRestart keeps them —
+// the trader comes straight back, restores the rows and reconciles them.
+// Called from Stop() under the execution mutex.
 func (at *AutoTrader) cleanupStockOnStop() {
 	if !at.IsStockStrategy() || at.stockPaper() || at.store == nil {
 		return
@@ -446,6 +448,10 @@ func (at *AutoTrader) cleanupStockOnStop() {
 	var syms []string
 	for _, r := range rows {
 		syms = append(syms, fmt.Sprintf("%s(order %s)", r.Symbol, r.OrderID))
+	}
+	if at.keepRestingOnStop.Load() {
+		logger.Infof("📌 [%s] us_stock stopping for restart — kept resting limit entries: %s", at.name, strings.Join(syms, ", "))
+		return
 	}
 	// Stopping the strategy must not leave unmanaged entries that could fill
 	// with nobody placing a stop: cancel the program's own resting entries.

@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	notify "nofx/telegram/notify"
@@ -226,6 +227,11 @@ type AutoTrader struct {
 	stockTrader types.SpotStockTrader
 	stockNow    func() time.Time
 	stock       stockRuntime
+
+	// keepRestingOnStop: set by StopForRestart — the trader is about to come
+	// back (process restart / config reload), so us_stock resting limit entries
+	// stay on the exchange and are restored + reconciled on the next start.
+	keepRestingOnStop atomic.Bool
 }
 
 // Binance hedge legs must use isolated margin for this strategy. Other
@@ -728,6 +734,15 @@ func nextAlignedWait(interval time.Duration, now time.Time) time.Duration {
 	// now sits exactly on a boundary (the immediate first run covers it):
 	// aim at the following one.
 	return interval
+}
+
+// StopForRestart stops the trader like Stop but keeps the us_stock resting
+// limit entries on the exchange: the caller guarantees the trader is restarted
+// right away (process restart, config reload). The next start restores them
+// and the live protection tick (every 60s) books any fill and places its stop.
+func (at *AutoTrader) StopForRestart() {
+	at.keepRestingOnStop.Store(true)
+	at.Stop()
 }
 
 // Stop stops the automatic trading

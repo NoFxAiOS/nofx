@@ -41,6 +41,8 @@ var (
 	stockGetSeries    = usstock.GetSeries
 	stockGetQuote     = usstock.GetQuote
 	stockListUniverse = usstock.ListSymbols
+	// stockGetUnderlyingSeries: Yahoo-only series for prompt context (4h).
+	stockGetUnderlyingSeries = usstock.GetUnderlyingSeries
 )
 
 // Price-cycle scan seams (scan mode; tests inject canned reports).

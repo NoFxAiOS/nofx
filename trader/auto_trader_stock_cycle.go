@@ -215,7 +215,17 @@ func (at *AutoTrader) buildStockSnapshots(ctx context.Context, sc *store.StockCo
 		}
 		series := map[string]*usstock.Series{}
 		for _, tf := range tfs {
-			s, err := stockGetSeries(ctx, sym, tf, stockSeriesNeeds[tf], sc.YahooFallback())
+			var s *usstock.Series
+			var err error
+			if tf == usstock.TF4h && sc.YahooFallback() {
+				// 4h is prompt context only: prefer the underlying's regular-session
+				// bars — bStock trades 24/7 and its off-hours 4h bars are near-empty.
+				if s, err = stockGetUnderlyingSeries(ctx, sym, tf, stockSeriesNeeds[tf]); s == nil || len(s.Bars) == 0 {
+					s, err = stockGetSeries(ctx, sym, tf, stockSeriesNeeds[tf], true)
+				}
+			} else {
+				s, err = stockGetSeries(ctx, sym, tf, stockSeriesNeeds[tf], sc.YahooFallback())
+			}
 			if err != nil && !errors.Is(err, usstock.ErrInsufficientBars) {
 				logf("series %s %s: %v", sym, tf, err)
 			}

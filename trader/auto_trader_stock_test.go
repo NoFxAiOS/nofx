@@ -220,6 +220,18 @@ func newStockFixtureCfg(t *testing.T, paper bool, now time.Time, respond func(ca
 	fx := &stockFixture{price: 120}
 	oldLookup, oldSeries, oldQuote, oldNotify := stockLookupSymbol, stockGetSeries, stockGetQuote, stockNotify
 	oldGet, oldWarm, oldCached, oldList := stockGetScanReport, stockWarmScan, stockCachedScan, stockListUniverse
+	oldUnderlying := stockGetUnderlyingSeries
+	t.Cleanup(func() { stockGetUnderlyingSeries = oldUnderlying })
+	// Yahoo-only 4h path delegates to the (faked) series seam so tests stay offline.
+	stockGetUnderlyingSeries = func(ctx context.Context, sym, tf string, need int) (*usstock.Series, error) {
+		s, err := stockGetSeries(ctx, sym, tf, need, true)
+		if s != nil {
+			c := *s
+			c.Source = usstock.SourceYahoo
+			s = &c
+		}
+		return s, err
+	}
 	t.Cleanup(func() {
 		stockLookupSymbol, stockGetSeries, stockGetQuote, stockNotify = oldLookup, oldSeries, oldQuote, oldNotify
 		stockGetScanReport, stockWarmScan, stockCachedScan, stockListUniverse = oldGet, oldWarm, oldCached, oldList

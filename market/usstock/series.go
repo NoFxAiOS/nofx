@@ -147,3 +147,29 @@ func sortedBars(byTime map[int64]Bar) []Bar {
 	sort.Slice(bars, func(i, j int) bool { return bars[i].OpenTime.Before(bars[j].OpenTime) })
 	return bars
 }
+
+// GetUnderlyingSeries returns the underlying's Yahoo series only (regular
+// session; never bStock). Used for prompt context where bStock's 24/7 thin
+// off-hours bars would distort intraday candles and RSI (e.g. 4h). A short
+// series is returned together with an ErrInsufficientBars error.
+func GetUnderlyingSeries(ctx context.Context, symbol, timeframe string, need int) (*Series, error) {
+	if _, ok := durations[timeframe]; !ok {
+		return nil, fmt.Errorf("unsupported timeframe %q", timeframe)
+	}
+	info, ok := LookupSymbol(ctx, symbol)
+	if !ok {
+		return nil, fmt.Errorf("unknown or unavailable bStock symbol %q", symbol)
+	}
+	bars, err := yahooBars(ctx, info.Underlying, timeframe, need)
+	series := &Series{Symbol: symbol, Underlying: info.Underlying, Timeframe: timeframe, Source: SourceYahoo, Bars: bars}
+	if len(bars) > need {
+		series.Bars = append([]Bar(nil), bars[len(bars)-need:]...)
+	}
+	if err != nil {
+		return series, err
+	}
+	if len(series.Bars) < need {
+		return series, fmt.Errorf("%w: %s %s source=%s have=%d need=%d", ErrInsufficientBars, symbol, timeframe, SourceYahoo, len(series.Bars), need)
+	}
+	return series, nil
+}

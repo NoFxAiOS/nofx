@@ -193,7 +193,7 @@ type stockFixture struct {
 }
 
 const openAAPL = `Reasoning.
-[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"reasoning":"trend up"}]`
+[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"thesis":"trend continuation over weeks","invalidation":"daily close below 115","reasoning":"trend up"}]`
 const closeAAPL = `[{"symbol":"AAPLBUSDT","action":"close_long","confidence":70,"reasoning":"exit"}]`
 const holdAAPL = `[{"symbol":"AAPLBUSDT","action":"hold","confidence":70,"reasoning":"keep"}]`
 
@@ -649,7 +649,7 @@ func TestNewAutoTraderStockRequiresBinanceAndLinkedExecutor(t *testing.T) {
 }
 
 func TestStockLimitEntryRestsUntilTheRegularClose(t *testing.T) {
-	limit := `[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"limit","limit_price":119,"stop_loss":115,"take_profit":130,"confidence":80,"reasoning":"pullback"}]`
+	limit := `[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"limit","limit_price":119,"stop_loss":115,"take_profit":130,"confidence":80,"thesis":"pullback holds","invalidation":"close below 115","reasoning":"pullback"}]`
 	fx := newStockFixture(t, false, stockTestNow, func(int) string { return limit })
 	fx.cycle(t)
 	if fx.spot.limitBuys != 1 || len(fx.spot.setProt) != 0 {
@@ -658,6 +658,9 @@ func TestStockLimitEntryRestsUntilTheRegularClose(t *testing.T) {
 	pend, _ := fx.at.store.StockPaper().ListPending("t1")
 	if len(pend) != 1 || pend[0].Symbol != "AAPLBUSDT" || pend[0].Stop != 115 {
 		t.Fatalf("pending not persisted: %+v", pend)
+	}
+	if th, _ := fx.at.store.StockThesis().List("t1"); th["AAPLBUSDT"].Thesis != "pullback holds" || th["AAPLBUSDT"].Invalidation != "close below 115" {
+		t.Fatalf("a resting limit entry must persist its thesis: %+v", th)
 	}
 	fx.cycle(t) // the symbol has a resting entry: a second entry is refused
 	if fx.spot.limitBuys != 1 {
@@ -914,7 +917,7 @@ func TestStockScanMomentumRankHybridComposition(t *testing.T) {
 	}
 
 	// A held name outside the ranking stays in the list; the scan fills N more.
-	openNVDA := `[{"symbol":"NVDABUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"reasoning":"x"}]`
+	openNVDA := `[{"symbol":"NVDABUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"thesis":"t","invalidation":"i","reasoning":"x"}]`
 	fx2 := newStockFixtureCfg(t, true, stockTestNow, func(call int) string {
 		if call == 1 {
 			return openNVDA
@@ -964,7 +967,7 @@ func TestStockScanModeIgnoresConfiguredSymbols(t *testing.T) {
 }
 
 func TestStockScanHeldSymbolAlwaysIncluded(t *testing.T) {
-	openNVDA := `[{"symbol":"NVDABUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"reasoning":"x"}]`
+	openNVDA := `[{"symbol":"NVDABUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":80,"thesis":"t","invalidation":"i","reasoning":"x"}]`
 	fx := newStockFixtureCfg(t, true, stockTestNow, func(call int) string {
 		if call == 1 {
 			return openNVDA
@@ -1215,5 +1218,132 @@ func TestStockStaleScanReportHasNoUniverseTable(t *testing.T) {
 	fx.cycle(t)
 	if strings.Contains(fx.ai.user, "全市场概览") || strings.Contains(fx.ai.user, "MSFTBUSDT|") {
 		t.Fatalf("stale report must not produce a universe table:\n%s", fx.ai.user)
+	}
+}
+
+// ------------------------------------------------- decision contract (task I)
+
+const objOpenAAPL = `Thinking about it.
+{"reasoning":"Risk-on tape; one clean setup.","market_context":{"overall_sentiment":"Bullish","key_factors":["SPY above EMA50","low vol"]},
+"decisions":[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":85,
+"thesis":"Earnings re-rating over weeks","invalidation":"Daily close below 115","reasoning":"trend up"}]}`
+
+func TestStockThesisPersistedCarriedForwardAndDeleted(t *testing.T) {
+	step := 0
+	fx := newStockFixture(t, true, stockTestNow, func(call int) string {
+		step = call
+		switch call {
+		case 1:
+			return objOpenAAPL
+		case 2: // hold refines only the thesis; invalidation is kept
+			return `{"reasoning":"keep","decisions":[{"symbol":"AAPLBUSDT","action":"hold","thesis":"Re-rating plus buyback"}]}`
+		case 3:
+			return holdAAPL
+		}
+		return `{"reasoning":"exit","decisions":[{"symbol":"AAPLBUSDT","action":"close_long","reasoning":"thesis broke"}]}`
+	})
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if len(rec.Decisions) != 1 || !rec.Decisions[0].Success {
+		t.Fatalf("open record %+v", rec)
+	}
+	if !strings.Contains(rec.CoTTrace, "Risk-on tape; one clean setup.") || !strings.Contains(rec.CoTTrace, "market_context: bullish; factors: SPY above EMA50; low vol") {
+		t.Fatalf("CoTTrace %q", rec.CoTTrace)
+	}
+	th, err := fx.at.store.StockThesis().List("t1")
+	if err != nil || th["AAPLBUSDT"].Thesis != "Earnings re-rating over weeks" || th["AAPLBUSDT"].Invalidation != "Daily close below 115" {
+		t.Fatalf("thesis after open: %+v %v", th, err)
+	}
+	if strings.Contains(fx.ai.user, "交易逻辑") {
+		t.Fatalf("the opening prompt has no position yet:\n%s", fx.ai.user)
+	}
+
+	// Next cycle: the position's thesis & invalidation are in the prompt.
+	fx.cycle(t)
+	if !strings.Contains(fx.ai.user, "交易逻辑：Earnings re-rating over weeks | 失效条件：Daily close below 115（止损即失效价）") {
+		t.Fatalf("thesis not carried forward:\n%s", fx.ai.user)
+	}
+	th, _ = fx.at.store.StockThesis().List("t1")
+	if th["AAPLBUSDT"].Thesis != "Re-rating plus buyback" || th["AAPLBUSDT"].Invalidation != "Daily close below 115" {
+		t.Fatalf("hold refinement: %+v", th)
+	}
+	fx.cycle(t) // plain hold leaves it alone
+	if !strings.Contains(fx.ai.user, "交易逻辑：Re-rating plus buyback | 失效条件：Daily close below 115") {
+		t.Fatalf("refined thesis not carried forward:\n%s", fx.ai.user)
+	}
+	fx.cycle(t) // close
+	if step != 4 {
+		t.Fatalf("calls %d", step)
+	}
+	if th, _ = fx.at.store.StockThesis().List("t1"); len(th) != 0 {
+		t.Fatalf("thesis must be deleted on close: %+v", th)
+	}
+	if open, _ := fx.at.store.StockPaper().ListOpen("t1"); len(open) != 0 {
+		t.Fatal("position not closed")
+	}
+}
+
+func TestStockRejectedEntryDoesNotPersistThesis(t *testing.T) {
+	// Low confidence: rejected, never repaired, nothing stored.
+	low := `{"reasoning":"meh","decisions":[{"symbol":"AAPLBUSDT","action":"open_long","stop_loss":115,"confidence":70,"thesis":"t","invalidation":"i"}]}`
+	fx := newStockFixture(t, true, stockTestNow, func(int) string { return low })
+	fx.cycle(t)
+	if fx.ai.calls != 1 {
+		t.Fatalf("LOW_CONFIDENCE must not be repaired, calls=%d", fx.ai.calls)
+	}
+	rec := fx.lastRecord(t)
+	if len(rec.Decisions) != 1 || rec.Decisions[0].Success || !strings.Contains(rec.Decisions[0].Error, "LOW_CONFIDENCE") {
+		t.Fatalf("record %+v", rec.Decisions)
+	}
+	if th, _ := fx.at.store.StockThesis().List("t1"); len(th) != 0 {
+		t.Fatalf("rejected entry stored a thesis: %+v", th)
+	}
+}
+
+func TestStockRepairRoundIsExecutedAndRecorded(t *testing.T) {
+	// Price 120, ATR ~2 in the fixture series; stop 119 is far inside the band.
+	bad := `{"reasoning":"first","decisions":[{"symbol":"AAPLBUSDT","action":"open_long","stop_loss":119.5,"confidence":85,"thesis":"t1","invalidation":"i1"}]}`
+	fixed := `{"reasoning":"fixed","decisions":[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"market","stop_loss":115,"take_profit":130,"confidence":85,"thesis":"t2","invalidation":"i2"}]}`
+	fx := newStockFixture(t, true, stockTestNow, func(call int) string {
+		if call == 1 {
+			return bad
+		}
+		return fixed
+	})
+	fx.cycle(t)
+	if fx.ai.calls != 2 {
+		t.Fatalf("expected exactly one repair call, calls=%d", fx.ai.calls)
+	}
+	if !strings.Contains(fx.ai.user, "## 修复请求（仅此一次）") || !strings.Contains(fx.ai.user, "- AAPLBUSDT open_long: STOP_OUT_OF_BAND") {
+		t.Fatalf("repair prompt:\n%s", fx.ai.user)
+	}
+	rec := fx.lastRecord(t)
+	if !rec.Success || len(rec.Decisions) != 1 || !rec.Decisions[0].Success || rec.Decisions[0].StopLoss != 115 {
+		t.Fatalf("repaired entry not executed: %+v", rec.Decisions)
+	}
+	if rec.RawResponse != bad+"\n\n--- repair ---\n"+fixed {
+		t.Fatalf("RawResponse %q", rec.RawResponse)
+	}
+	logged := false
+	for _, l := range rec.ExecutionLog {
+		logged = logged || strings.Contains(l, "repair: resubmitted [AAPLBUSDT] → 1 accepted")
+	}
+	if !logged {
+		t.Fatalf("repair log line missing: %v", rec.ExecutionLog)
+	}
+	if th, _ := fx.at.store.StockThesis().List("t1"); th["AAPLBUSDT"].Thesis != "t2" || th["AAPLBUSDT"].Invalidation != "i2" {
+		t.Fatalf("thesis must come from the repaired decision: %+v", th)
+	}
+	if open, _ := fx.at.store.StockPaper().ListOpen("t1"); len(open) != 1 {
+		t.Fatalf("paper positions %d", len(open))
+	}
+}
+
+func TestStockLegacyArrayResponseStillWorks(t *testing.T) {
+	fx := newStockFixture(t, true, stockTestNow, func(int) string { return openAAPL })
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if !rec.Decisions[0].Success || rec.CoTTrace != "" || fx.ai.calls != 1 {
+		t.Fatalf("legacy array: %+v cot=%q calls=%d", rec.Decisions, rec.CoTTrace, fx.ai.calls)
 	}
 }

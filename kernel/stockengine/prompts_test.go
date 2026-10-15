@@ -32,12 +32,61 @@ func TestSystemPromptsBandsAndContract(t *testing.T) {
 		}
 	}
 	// Example uses exactly the contract's tags; no quantity field.
-	var examples []map[string]any
-	if err := json.Unmarshal([]byte(decisionContract), &examples); err != nil {
+	var example struct {
+		Reasoning     string           `json:"reasoning"`
+		MarketContext MarketContext    `json:"market_context"`
+		Decisions     []map[string]any `json:"decisions"`
+	}
+	if err := json.Unmarshal([]byte(decisionContract), &example); err != nil {
 		t.Fatal(err)
 	}
-	if len(examples[0]) != 9 {
-		t.Fatal(examples)
+	if example.Reasoning == "" || example.MarketContext.OverallSentiment == "" || len(example.MarketContext.KeyFactors) == 0 || len(example.Decisions) != 2 {
+		t.Fatal(example)
+	}
+	if len(example.Decisions[0]) != 11 || example.Decisions[0]["thesis"] == nil || example.Decisions[0]["invalidation"] == nil {
+		t.Fatal(example.Decisions[0])
+	}
+	if _, ok := example.Decisions[0]["quantity"]; ok {
+		t.Fatal("quantity must not be in the contract")
+	}
+	// The example itself must parse and validate as a response.
+	if _, mc, ds, err := ParseResponse(decisionContract); err != nil || mc == nil || len(ds) != 2 {
+		t.Fatalf("contract example does not parse: %v %v %v", mc, ds, err)
+	}
+}
+
+func TestSystemPromptDecisionObjectRules(t *testing.T) {
+	cfg := &store.StockConfig{}
+	for lang, tokens := range map[string][]string{
+		"en": {"strict JSON object", "market_context", "overall_sentiment", "decisions[]", "REQUIRE thesis", "invalidation", "stop_loss is the invalidation price", "below 80", "one repair request", "Never output quantity"},
+		"zh": {"严格的 JSON 对象", "market_context", "overall_sentiment", "decisions[]", "必须给出 thesis", "invalidation", "stop_loss 就是失效价", "低于 80", "一次修复请求", "绝不输出 quantity"},
+	} {
+		prompt := BuildSystemPrompt(cfg, ResolvePreset(cfg), lang)
+		for _, token := range tokens {
+			if !strings.Contains(prompt, token) {
+				t.Fatalf("%s prompt missing %q", lang, token)
+			}
+		}
+		if strings.Contains(prompt, "JSON array") || strings.Contains(prompt, "JSON 数组") {
+			t.Fatalf("%s prompt still describes the array contract", lang)
+		}
+	}
+}
+
+func TestUserPromptCarriesThesis(t *testing.T) {
+	c := testContext()
+	holding(c)
+	if p := BuildUserPrompt(c, "en"); strings.Contains(p, "thesis:") {
+		t.Fatalf("no thesis line expected without a thesis:\n%s", p)
+	}
+	c.Positions[0].Thesis, c.Positions[0].Invalidation = "earnings re-rating", "close below 94"
+	en := BuildUserPrompt(c, "en")
+	if !strings.Contains(en, "  thesis: earnings re-rating | invalidation: close below 94 (stop = invalidation price)\n") {
+		t.Fatal(en)
+	}
+	zh := BuildUserPrompt(c, "zh")
+	if !strings.Contains(zh, "  交易逻辑：earnings re-rating | 失效条件：close below 94（止损即失效价）\n") {
+		t.Fatal(zh)
 	}
 }
 

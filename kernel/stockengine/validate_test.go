@@ -20,7 +20,7 @@ func testContext() *Context {
 	return c
 }
 func buy(symbol string) Decision {
-	return Decision{Symbol: symbol, Action: ActionOpenLong, EntryType: EntryMarket, StopLoss: 96}
+	return Decision{Symbol: symbol, Action: ActionOpenLong, EntryType: EntryMarket, StopLoss: 96, Confidence: 85, Thesis: "weeks-long trend continuation", Invalidation: "daily close below 96"}
 }
 func holding(c *Context) {
 	c.Positions = []Position{{Symbol: "AAPLBUSDT", Quantity: 5, AvgPrice: 90, Price: 100, InitialStop: 85, StopPrice: 94, OpenedAt: c.Now.Add(-48 * time.Hour)}}
@@ -227,4 +227,102 @@ func TestOptionalMissingTFDoesNotBlock(t *testing.T) {
 	c := testContext()
 	c.Snapshots[0].MissingTF = []string{usstock.TF15m, usstock.TF4h, usstock.TF1w}
 	assertCode(t, Validate(c, []Decision{buy("AAPLBUSDT")})[0], "")
+}
+
+func TestConfidenceGateAndThesisRequired(t *testing.T) {
+	c := testContext()
+	for conf, want := range map[int]string{0: "LOW_CONFIDENCE", 79: "LOW_CONFIDENCE", 80: "", 100: ""} {
+		d := buy("AAPLBUSDT")
+		d.Confidence = conf
+		assertCode(t, Validate(c, []Decision{d})[0], want)
+	}
+	if MinEntryConfidence != 80 {
+		t.Fatal(MinEntryConfidence)
+	}
+	for name, mutate := range map[string]func(*Decision){
+		"no thesis":        func(d *Decision) { d.Thesis = "" },
+		"blank thesis":     func(d *Decision) { d.Thesis = " \t\n" },
+		"no invalidation":  func(d *Decision) { d.Invalidation = "" },
+		"blank invalidate": func(d *Decision) { d.Invalidation = "  " },
+	} {
+		d := buy("AAPLBUSDT")
+		mutate(&d)
+		v := Validate(c, []Decision{d})[0]
+		assertCode(t, v, "THESIS_REQUIRED")
+		if v.Note == "" {
+			t.Fatalf("%s: note expected", name)
+		}
+	}
+	// add_long is gated and needs a thesis too.
+	h := testContext()
+	holding(h)
+	add := Decision{Symbol: "AAPLBUSDT", Action: ActionAddLong, EntryType: EntryMarket, StopLoss: 96, Confidence: 85, Thesis: "t", Invalidation: "i"}
+	assertCode(t, Validate(h, []Decision{add})[0], "")
+	add.Confidence = 70
+	assertCode(t, Validate(h, []Decision{add})[0], "LOW_CONFIDENCE")
+	add.Confidence, add.Thesis = 85, ""
+	assertCode(t, Validate(h, []Decision{add})[0], "THESIS_REQUIRED")
+}
+
+func TestConfidenceGateNotAppliedToNonEntries(t *testing.T) {
+	c := testContext()
+	holding(c)
+	for _, d := range []Decision{
+		{Symbol: "AAPLBUSDT", Action: ActionHold},
+		{Symbol: "AAPLBUSDT", Action: ActionReduceLong, ReduceFraction: 0.5},
+		{Symbol: "AAPLBUSDT", Action: ActionCloseLong},
+		{Symbol: "AAPLBUSDT", Action: ActionAdjustStop, StopLoss: 97},
+	} {
+		d.Confidence = 10
+		assertCode(t, Validate(c, []Decision{d})[0], "")
+	}
+	assertCode(t, Validate(c, []Decision{{Symbol: "MSFTBUSDT", Action: ActionWait}})[0], "")
+}
+
+func TestThesisRequiredCombinesWithRepairableCodesOnly(t *testing.T) {
+	c := testContext()
+	// Bad stop AND no thesis → both codes, repairable.
+	d := buy("AAPLBUSDT")
+	d.StopLoss, d.Thesis = 99, ""
+	v := Validate(c, []Decision{d})[0]
+	if v.Accepted || len(v.Codes) != 2 || v.Codes[0] != "STOP_OUT_OF_BAND" || v.Codes[1] != "THESIS_REQUIRED" {
+		t.Fatalf("%+v", v)
+	}
+	// Low confidence wins over a bad stop and a missing thesis, and is not repairable.
+	d.Confidence = 50
+	v = Validate(c, []Decision{d})[0]
+	if len(v.Codes) != 1 || v.Codes[0] != "LOW_CONFIDENCE" {
+		t.Fatalf("%+v", v)
+	}
+	// A non-repairable rejection never gains THESIS_REQUIRED.
+	c.Session = usstock.SessionClosed
+	d = buy("AAPLBUSDT")
+	d.Thesis = ""
+	assertCode(t, Validate(c, []Decision{d})[0], "SESSION_CLOSED")
+}
+
+func TestRepairableClassification(t *testing.T) {
+	for _, code := range []string{"STOP_INVALID", "STOP_OUT_OF_BAND", "LIMIT_INVALID", "TP_INVALID", "ENTRY_INVALID", "THESIS_REQUIRED"} {
+		if !RepairableCodes[code] {
+			t.Fatalf("%s must be repairable", code)
+		}
+	}
+	for _, code := range []string{"LOW_CONFIDENCE", "MAX_POSITIONS", "SESSION_CLOSED", "SESSION_NOT_ALLOWED", "BSTOCK_REF_STALE", "BSTOCK_DIVERGENCE",
+		"DATA_INSUFFICIENT", "ALREADY_HELD", "DUPLICATE", "UNKNOWN_SYMBOL", "UNKNOWN_ACTION", "NOT_HELD", "ADD_WHILE_LOSING"} {
+		if RepairableCodes[code] {
+			t.Fatalf("%s must not be repairable", code)
+		}
+	}
+	verdicts := []Verdict{
+		{Decision: Decision{Symbol: "A", Action: ActionOpenLong}, Codes: []string{"STOP_OUT_OF_BAND", "THESIS_REQUIRED"}},
+		{Decision: Decision{Symbol: "B", Action: ActionOpenLong}, Codes: []string{"LOW_CONFIDENCE"}},
+		{Decision: Decision{Symbol: "C", Action: ActionAddLong}, Codes: []string{"TP_INVALID"}},
+		{Decision: Decision{Symbol: "D", Action: ActionOpenLong}, Codes: []string{"STOP_INVALID", "MAX_POSITIONS"}},
+		{Decision: Decision{Symbol: "E", Action: ActionAdjustStop}, Codes: []string{"STOP_INVALID"}},
+		{Decision: Decision{Symbol: "F", Action: ActionOpenLong}, Accepted: true},
+	}
+	got := repairable(verdicts)
+	if len(got) != 2 || got[0] != 0 || got[1] != 2 {
+		t.Fatalf("repairable indexes %v", got)
+	}
 }

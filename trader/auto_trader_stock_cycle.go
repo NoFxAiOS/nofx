@@ -419,13 +419,37 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		logf("weekly drawdown circuit active (%.2f%%): new exposure blocked this ET week", dd)
 	}
 
+	// Carry each open position's thesis/invalidation forward into the prompt. A
+	// missing row (position opened before theses existed, or a store error) is fine.
+	theses, terr := at.store.StockThesis().List(at.id)
+	if terr != nil {
+		logf("thesis store read failed: %v", terr)
+	}
+	positions := state.enginePositions(prices)
+	for i := range positions {
+		if th, ok := theses[positions[i].Symbol]; ok {
+			positions[i].Thesis, positions[i].Invalidation = th.Thesis, th.Invalidation
+		}
+	}
 	ectx := &stockengine.Context{Now: now, Session: session, Config: cc, Preset: preset,
 		Account:   stockengine.Account{Equity: state.Equity, Available: state.Available, Exposure: state.Exposure},
-		Positions: state.enginePositions(prices), Snapshots: snaps, Market: market, Paper: paper,
+		Positions: positions, Snapshots: snaps, Market: market, Paper: paper,
 		Universe: freshScanResults(report, now)}
 	result, derr := stockengine.Decide(ectx, at.mcpClient, at.stockLang())
 	if result != nil {
 		rec.SystemPrompt, rec.InputPrompt, rec.RawResponse, rec.AIRequestDurationMs = result.SystemPrompt, result.UserPrompt, result.RawResponse, result.DurationMs
+		rec.CoTTrace = stockCoTTrace(result)
+		if result.RepairPrompt != "" {
+			rec.RawResponse = result.RawResponse + "\n\n--- repair ---\n" + result.RepairRawResponse
+			rec.AIRequestDurationMs += result.RepairDurationMs
+			accepted := 0
+			for _, v := range result.Verdicts {
+				if v.Accepted && isEntryAction(v.Decision.Action) && containsString(result.Repaired, v.Decision.Symbol) {
+					accepted++
+				}
+			}
+			logf("repair: resubmitted %v → %d accepted", result.Repaired, accepted)
+		}
 	}
 	if derr != nil {
 		return fail(derr)
@@ -477,6 +501,9 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		case stockengine.ActionHold, stockengine.ActionWait:
 			act.Success = true
 			logf("%s %s", d.Action, d.Symbol)
+			if d.Action == stockengine.ActionHold {
+				at.refineStockThesis(d, theses, now, logf)
+			}
 		case stockengine.ActionOpenLong, stockengine.ActionAddLong:
 			sizing.Account = acct
 			var reserved float64
@@ -504,6 +531,7 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 			continue
 		}
 		act.Success, act.Quantity, act.Price = true, out.Qty, out.Price
+		at.persistStockThesis(d, theses, now, logf)
 		act.OrderID, act.EntryOrderID = orderIDInt(out.OrderID), out.OrderID
 		logf("%s %s ok: qty=%.6f price=%.4f stop=%.4f tp=%.4f%s", d.Action, d.Symbol, out.Qty, out.Price, d.StopLoss, d.TakeProfit, noteSuffix(out.Note))
 		at.notifyStockOutcome(paper, d, out)
@@ -519,6 +547,69 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		at.syncStockJournal()
 	}
 	return nil
+}
+
+// stockCoTTrace renders the model's portfolio reasoning and market context for
+// the decision record ("" for a legacy bare-array response).
+func stockCoTTrace(r *stockengine.Result) string {
+	var parts []string
+	if r.Reasoning != "" {
+		parts = append(parts, r.Reasoning)
+	}
+	if mc := r.MarketContext; mc != nil {
+		parts = append(parts, fmt.Sprintf("market_context: %s; factors: %s", mc.OverallSentiment, strings.Join(mc.KeyFactors, "; ")))
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func containsString(list []string, s string) bool {
+	for _, e := range list {
+		if e == s {
+			return true
+		}
+	}
+	return false
+}
+
+// persistStockThesis stores the thesis of a successfully executed decision:
+// open_long / add_long (including a resting limit entry) upsert it, hold /
+// adjust_stop refine it when the decision carries one, close_long deletes it.
+// A stop hit in the protection tick leaves a stale row behind; that is harmless
+// because it is not attached to any position and the next open overwrites it.
+// Store errors are logged and never fail the cycle.
+func (at *AutoTrader) persistStockThesis(d stockengine.Decision, theses map[string]store.StockThesis, now time.Time, logf func(string, ...interface{})) {
+	switch d.Action {
+	case stockengine.ActionOpenLong, stockengine.ActionAddLong:
+		if err := at.store.StockThesis().Upsert(at.id, d.Symbol, d.Thesis, d.Invalidation, now); err != nil {
+			logf("thesis save %s failed: %v", d.Symbol, err)
+		}
+	case stockengine.ActionAdjustStop:
+		at.refineStockThesis(d, theses, now, logf)
+	case stockengine.ActionCloseLong:
+		if err := at.store.StockThesis().Delete(at.id, d.Symbol); err != nil {
+			logf("thesis delete %s failed: %v", d.Symbol, err)
+		}
+	}
+}
+
+// refineStockThesis lets the model update a held position's thesis from a
+// hold / adjust_stop decision; a field left empty keeps the stored value.
+func (at *AutoTrader) refineStockThesis(d stockengine.Decision, theses map[string]store.StockThesis, now time.Time, logf func(string, ...interface{})) {
+	if d.Thesis == "" && d.Invalidation == "" {
+		return
+	}
+	thesis, invalidation := d.Thesis, d.Invalidation
+	if old, ok := theses[d.Symbol]; ok {
+		if thesis == "" {
+			thesis = old.Thesis
+		}
+		if invalidation == "" {
+			invalidation = old.Invalidation
+		}
+	}
+	if err := at.store.StockThesis().Upsert(at.id, d.Symbol, thesis, invalidation, now); err != nil {
+		logf("thesis save %s failed: %v", d.Symbol, err)
+	}
 }
 
 // isStockContextNoop reports a wait/hold the model gave a market-context pair

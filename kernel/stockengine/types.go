@@ -121,6 +121,10 @@ type Position struct {
 	TakeProfit  float64   `json:"take_profit,omitempty"`
 	InitialStop float64   `json:"initial_stop,omitempty"` // opening-risk stop, R anchor
 	OpenedAt    time.Time `json:"opened_at"`
+	// Thesis / Invalidation are carried forward from the opening or latest
+	// add decision ("" = unknown, e.g. a position opened before theses existed).
+	Thesis       string `json:"thesis,omitempty"`
+	Invalidation string `json:"invalidation,omitempty"`
 }
 
 // Account is the spot account summary in USDT.
@@ -159,6 +163,14 @@ type Decision struct {
 	ReduceFraction float64 `json:"reduce_fraction,omitempty"` // (0,1) for reduce_long
 	Confidence     int     `json:"confidence,omitempty"`      // 0–100
 	Reasoning      string  `json:"reasoning,omitempty"`
+	Thesis         string  `json:"thesis,omitempty"`       // required for open_long / add_long: why it works over weeks
+	Invalidation   string  `json:"invalidation,omitempty"` // required for open_long / add_long: what proves it wrong (stop_loss is its price)
+}
+
+// MarketContext is the model's overall market read for the cycle.
+type MarketContext struct {
+	OverallSentiment string   `json:"overall_sentiment"` // bullish | bearish | neutral (other values kept as-is)
+	KeyFactors       []string `json:"key_factors"`
 }
 
 // Verdict is the program's validation of one decision. Accepted=false means
@@ -186,4 +198,16 @@ type Result struct {
 	Decisions    []Decision
 	Verdicts     []Verdict
 	DurationMs   int64
+
+	// Reasoning / MarketContext come from the object-form response (empty for a
+	// legacy bare array).
+	Reasoning     string
+	MarketContext *MarketContext
+
+	// Repair: one optional re-ask when open/add decisions were rejected for a
+	// fixable reason. All empty/zero when no repair ran.
+	RepairPrompt      string
+	RepairRawResponse string
+	RepairDurationMs  int64
+	Repaired          []string // symbols resubmitted in the repair round
 }

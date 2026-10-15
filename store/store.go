@@ -40,6 +40,7 @@ type Store struct {
 	reviewPrompt   *ReviewPromptStore
 	riskState      *RiskStateStore
 	stockPaper     *StockPaperStore
+	stockThesis    *StockThesisStore
 	telegramConfig TelegramConfigStore
 
 	mu sync.RWMutex
@@ -210,6 +211,9 @@ func (s *Store) initTables() error {
 	}
 	if err := s.StockPaper().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize us_stock paper tables: %w", err)
+	}
+	if err := s.StockThesis().initTables(); err != nil {
+		return fmt.Errorf("failed to initialize us_stock thesis tables: %w", err)
 	}
 	return nil
 }
@@ -414,6 +418,16 @@ func (s *Store) StockPaper() *StockPaperStore {
 		s.stockPaper = NewStockPaperStore(s.gdb)
 	}
 	return s.stockPaper
+}
+
+// StockThesis gets the us_stock per-position thesis/invalidation store.
+func (s *Store) StockThesis() *StockThesisStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stockThesis == nil {
+		s.stockThesis = NewStockThesisStore(s.gdb)
+	}
+	return s.stockThesis
 }
 
 // EntryAttribution gets the per-open candidate-source attribution store

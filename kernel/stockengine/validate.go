@@ -1,9 +1,29 @@
 package stockengine
 
 import (
+	"fmt"
 	"math"
 	"nofx/market/usstock"
+	"strings"
 )
+
+// MinEntryConfidence is the confidence gate (0–100): open_long / add_long below
+// it are rejected with LOW_CONFIDENCE. Exits, adjusts, hold and wait are not gated.
+const MinEntryConfidence = 80
+
+// RepairableCodes are the rejection codes the model can fix by resubmitting the
+// entry (a bad stop/limit/take-profit/entry type, or a missing thesis). A
+// rejected open/add is repaired only when ALL its codes are in this set: a
+// low-confidence idea, a full book, a closed session or missing data cannot be
+// repaired by rewording the decision.
+var RepairableCodes = map[string]bool{
+	"STOP_INVALID":     true,
+	"STOP_OUT_OF_BAND": true,
+	"LIMIT_INVALID":    true,
+	"TP_INVALID":       true,
+	"ENTRY_INVALID":    true,
+	"THESIS_REQUIRED":  true,
+}
 
 // Validate preserves input order, rejects later duplicate symbols, and reserves
 // accepted buy notionals for sizing subsequent buys in this cycle. It never
@@ -23,6 +43,18 @@ func Validate(ctx *Context, decisions []Decision) []Verdict {
 	for _, d := range decisions {
 		v := Verdict{Decision: d}
 		code, note := validateOne(ctx, d, seen, held+opens)
+		var extra []string
+		if d.Action == ActionOpenLong || d.Action == ActionAddLong {
+			if strings.TrimSpace(d.Thesis) == "" || strings.TrimSpace(d.Invalidation) == "" {
+				switch {
+				case code == "":
+					code, note = "THESIS_REQUIRED", "thesis (why it works over weeks) and invalidation (what proves it wrong) are both required for open_long / add_long."
+				case RepairableCodes[code]:
+					extra = append(extra, "THESIS_REQUIRED")
+					note = strings.TrimSpace(note + " Also: thesis and invalidation are both required for open_long / add_long.")
+				}
+			}
+		}
 		if code == "" && (d.Action == ActionOpenLong || d.Action == ActionAddLong) {
 			size, err := sizeOrder(ctx, d, cycleNotional)
 			if err != nil {
@@ -36,7 +68,7 @@ func Validate(ctx *Context, decisions []Decision) []Verdict {
 		}
 		v.Accepted, v.Note = code == "", note
 		if code != "" {
-			v.Codes = []string{code}
+			v.Codes = append([]string{code}, extra...)
 		}
 		verdicts = append(verdicts, v)
 	}
@@ -82,6 +114,9 @@ func validateOne(ctx *Context, d Decision, seen map[string]bool, positionCount i
 		if !sessionAllowed(ctx.Config, ctx.Session) {
 			return "SESSION_NOT_ALLOWED", ""
 		}
+		if d.Confidence < MinEntryConfidence {
+			return "LOW_CONFIDENCE", fmt.Sprintf("confidence %d is below the entry gate %d.", d.Confidence, MinEntryConfidence)
+		}
 		preset := contextPreset(ctx)
 		if s == nil || !positive(s.Price) {
 			return "DATA_INSUFFICIENT", ""
@@ -99,24 +134,25 @@ func validateOne(ctx *Context, d Decision, seen map[string]bool, positionCount i
 			return "BSTOCK_DIVERGENCE", ""
 		}
 		if d.EntryType != "" && d.EntryType != EntryMarket && d.EntryType != EntryLimit {
-			return "ENTRY_INVALID", ""
+			return "ENTRY_INVALID", "entry_type must be market or limit."
 		}
 		entry := entryPrice(s, d)
 		if d.EntryType == EntryLimit && (!positive(entry) || entry > s.Price*1.01) {
-			return "LIMIT_INVALID", ""
+			return "LIMIT_INVALID", fmt.Sprintf("limit_price must be >0 and ≤ market price×1.01 = %.4f (yours %.4f).", s.Price*1.01, entry)
 		}
 		if !positive(d.StopLoss) || d.StopLoss >= entry {
-			return "STOP_INVALID", ""
+			return "STOP_INVALID", fmt.Sprintf("stop_loss must be >0 and below the entry price %.4f (yours %.4f).", entry, d.StopLoss)
 		}
 		if !positive(s.ATR1d) {
 			return "DATA_INSUFFICIENT", ""
 		}
 		multiple := (entry - d.StopLoss) / s.ATR1d
 		if multiple < preset.StopATRMin || multiple > preset.StopATRMax {
-			return "STOP_OUT_OF_BAND", ""
+			return "STOP_OUT_OF_BAND", fmt.Sprintf("stop must be within [%.2f, %.2f]×ATR(1d) = [%.4f, %.4f] below entry %.4f; yours %.4f is %.2f×ATR.",
+				preset.StopATRMin, preset.StopATRMax, entry-preset.StopATRMax*s.ATR1d, entry-preset.StopATRMin*s.ATR1d, entry, d.StopLoss, multiple)
 		}
 		if !finite(d.TakeProfit) || (d.TakeProfit != 0 && d.TakeProfit <= entry) {
-			return "TP_INVALID", ""
+			return "TP_INVALID", fmt.Sprintf("take_profit must be 0 (none) or above the entry price %.4f (yours %.4f).", entry, d.TakeProfit)
 		}
 		if d.Action == ActionOpenLong && positionCount >= effectiveMaxPositions(ctx.Config) {
 			return "MAX_POSITIONS", ""

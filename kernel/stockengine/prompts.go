@@ -11,7 +11,7 @@ import (
 	"nofx/store"
 )
 
-const decisionContract = `[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"market","limit_price":0,"stop_loss":95,"take_profit":110,"reduce_fraction":0,"confidence":80,"reasoning":"short summary"}]`
+const decisionContract = `{"reasoning":"2-4 sentences: portfolio view and why","market_context":{"overall_sentiment":"bullish","key_factors":["SPY above rising EMA50","breadth improving"]},"decisions":[{"symbol":"AAPLBUSDT","action":"open_long","entry_type":"market","limit_price":0,"stop_loss":95,"take_profit":110,"reduce_fraction":0,"confidence":85,"thesis":"why this works over the coming weeks","invalidation":"what proves it wrong (price level = stop_loss)","reasoning":"short summary"},{"symbol":"MSFTBUSDT","action":"wait","reasoning":"no setup"}]}`
 
 // BuildSystemPrompt describes the style and the program-enforced output rules.
 func BuildSystemPrompt(cfg *store.StockConfig, preset Preset, lang string) string {
@@ -55,7 +55,7 @@ func BuildSystemPrompt(cfg *store.StockConfig, preset Preset, lang string) strin
 价格周期法（Oliver Kell，日线）：按周期阶段判断位置——优先低风险做多入场：wedge_pop（收敛后首次站回 EMA10/20，止损放在突破 K 线/枢轴低点下方）、ema_crossback（首次回踩 EMA10/20 并守住，止损放在 EMA20/回踩低点下方）、base_n_break（紧密整理平台带量突破，止损放在平台下方）；reversal_extension 只是早期信号，宁可等收敛确认；base_forming 仅观察；%s。持仓遇 exhaustion_extension 考虑 reduce_long 或上移止损，遇 wedge_drop/downtrend 平仓或收紧止损。周期早期要耐心持有，周期后段更快兑现利润；价格领先、成交量确认；相对 SPY 的强弱用于同条件下择优。扫描分数只是候选过滤而非信号，上述所有程序规则依然适用，随时可以 wait。
 %s大盘背景：SPY/QQQ 日线转弱（跌破 EMA50 或趋势 down）时只保留最强标的，新开仓要求更严；大盘下行趋势中不加仓。临近财报、重大事件时信息不足，宁可等待。
 退出纪律：结构止损放在日线确认摆动低点下方并满足 ATR 带，否则等待；盈利达到 1R 后移动至保本，按 %s 跟踪。不得在初始止损以下摊低成本。趋势周期转为 down 或跌破关键支撑时主动减仓或平仓，不要等止损。
-输出契约 OUTPUT CONTRACT：先给简短推理摘要，再给一个 JSON 数组；字段只能使用 symbol, action, entry_type, limit_price, stop_loss, take_profit, reduce_fraction, confidence, reasoning，价格用 bStock USDT。每个配置标的恰好一个决策。已持仓只用 hold/add_long/reduce_long/close_long/adjust_stop；未持仓只用 open_long/wait。entry_type 为 market 或 limit；confidence 为 0–100。示例：
+输出契约 OUTPUT CONTRACT：只输出一个严格的 JSON 对象（可放在代码块中，前后不要有其他 JSON），字段为 reasoning（2–4 句话的组合层面判断）、market_context{overall_sentiment: bullish|bearish|neutral, key_factors: [..]}、decisions[]。decisions 中每个决策字段只能使用 symbol, action, entry_type, limit_price, stop_loss, take_profit, reduce_fraction, confidence, thesis, invalidation, reasoning，价格用 bStock USDT。open_long/add_long 必须给出 thesis（该交易为何在未来数周内成立）和 invalidation（什么情况证明它错了）；stop_loss 就是失效价。confidence 为 0–100，程序会拒绝 confidence 低于 80 的 open_long/add_long，因此只有真正有把握时才开仓，否则 wait。被拒绝的入场决策会收到一次修复请求。每个配置标的恰好一个决策。已持仓只用 hold/add_long/reduce_long/close_long/adjust_stop；未持仓只用 open_long/wait。entry_type 为 market 或 limit。绝不输出 quantity。持仓已有 thesis/invalidation 时在 hold/adjust_stop 中可更新。示例：
 %s`, preset.Name, zhHorizon, preset.TrendTF, preset.EntryTF, strings.Join(preset.DecisionTimes, ","), zhSessions, zhDivergence, preset.StopATRMin, preset.StopATRMax, effectiveMaxPositionPct(cfg), effectiveMaxTotalExposurePct(cfg), effectiveMaxPositions(cfg), effectiveRiskPerTradePct(cfg), zhNever, zhScan, zhTrail, decisionContract)
 	}
 	return fmt.Sprintf(`You are a US-equity mid/long-term trader on Binance bStock spot: long-only, no leverage. Preset %s; horizon: %s. Trend timeframe %s, entry timeframe %s; decide at %s ET on trading days. Avoid chasing intraday noise.
@@ -64,7 +64,7 @@ Entry methods (go long only when the trend timeframe is up or just turning up; o
 Price-cycle method (Oliver Kell, daily bars): read the cycle phase of each name. Preferred low-risk long entries: wedge_pop (first reclaim of EMA10/20 after tightening; stop below the pivot/pop-bar low), ema_crossback (first pullback to EMA10/20 that holds; stop below EMA20 / the pullback low) and base_n_break (tight base breakout on volume; stop below the base). reversal_extension is only an early signal — prefer waiting for tightening; base_forming = watch only; %s. For holdings: exhaustion_extension → consider reduce_long or tighten the stop; wedge_drop or downtrend → close or tighten. Be patient early in the cycle, take profits faster late in it; price leads, volume confirms; relative strength vs SPY breaks ties. The scanner score is a candidate filter, not a signal: every program rule above still applies and wait is always acceptable.
 %sMarket context: when SPY/QQQ daily trend weakens (below EMA50 or trend down), keep only the strongest names and raise the bar for new entries; never add during a market downtrend. Around earnings or major events information is thin — prefer waiting.
 Exit discipline: structural stop below the confirmed daily swing low, within the ATR band, otherwise wait. Move to breakeven after 1R; trail by %s. No averaging down below the initial stop. When the trend timeframe turns down or key support breaks, reduce or close proactively instead of waiting for the stop.
-OUTPUT CONTRACT: a short reasoning summary followed by a JSON array. Use exactly these JSON field names: symbol, action, entry_type, limit_price, stop_loss, take_profit, reduce_fraction, confidence, reasoning. Prices are bStock USDT units. Every configured symbol gets exactly one decision. Held symbols use hold/add_long/reduce_long/close_long/adjust_stop; non-held symbols use open_long/wait. entry_type is market or limit; confidence is 0–100. Example:
+OUTPUT CONTRACT: output exactly one strict JSON object (a code fence is fine; no other JSON around it) with the fields reasoning (2–4 sentences, your portfolio view), market_context{overall_sentiment: bullish|bearish|neutral, key_factors: [..]} and decisions[]. Each decision uses exactly these field names: symbol, action, entry_type, limit_price, stop_loss, take_profit, reduce_fraction, confidence, thesis, invalidation, reasoning. Prices are bStock USDT units. open_long and add_long REQUIRE thesis (why the trade works over the coming weeks) and invalidation (what would prove it wrong); stop_loss is the invalidation price. confidence is 0–100 and the program rejects open_long/add_long below 80, so open only when genuinely convinced, otherwise wait. A rejected entry may receive one repair request. Every configured symbol gets exactly one decision. Held symbols use hold/add_long/reduce_long/close_long/adjust_stop; non-held symbols use open_long/wait. entry_type is market or limit. Never output quantity. For a held symbol you may refine thesis/invalidation in hold/adjust_stop. Example:
 %s`, preset.Name, horizon, preset.TrendTF, preset.EntryTF, strings.Join(preset.DecisionTimes, ","), sessions, divergence, preset.StopATRMin, preset.StopATRMax, effectiveMaxPositionPct(cfg), effectiveMaxTotalExposurePct(cfg), effectiveMaxPositions(cfg), effectiveRiskPerTradePct(cfg), enNever, enScan, trail, decisionContract)
 }
 
@@ -134,6 +134,13 @@ func BuildUserPrompt(ctx *Context, lang string) string {
 			days = fmt.Sprintf("%.1f", d)
 		}
 		fmt.Fprintf(&b, "%s qty=%.6f avg=%.2f price=%.2f unrealized=%.2f%% R=%s held_days=%s (calendar) initial_stop=%.2f live_stop=%.2f TP=%.2f\n", p.Symbol, p.Quantity, p.AvgPrice, price, pnl, r, days, p.InitialStop, p.StopPrice, p.TakeProfit)
+		if p.Thesis != "" || p.Invalidation != "" {
+			if zh {
+				fmt.Fprintf(&b, "  交易逻辑：%s | 失效条件：%s（止损即失效价）\n", p.Thesis, p.Invalidation)
+			} else {
+				fmt.Fprintf(&b, "  thesis: %s | invalidation: %s (stop = invalidation price)\n", p.Thesis, p.Invalidation)
+			}
+		}
 	}
 	fmt.Fprintf(&b, "%s:\n", label("Market context SPY/QQQ (reference only — not candidates, output no decisions for them)", "大盘背景 SPY/QQQ（仅供参考，不是候选标的，不要对其输出决策）"))
 	for _, s := range ctx.Market {

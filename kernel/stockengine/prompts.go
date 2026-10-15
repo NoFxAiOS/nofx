@@ -144,7 +144,7 @@ func BuildUserPrompt(ctx *Context, lang string) string {
 	}
 	fmt.Fprintf(&b, "%s:\n", label("Market context SPY/QQQ (reference only — not candidates, output no decisions for them)", "大盘背景 SPY/QQQ（仅供参考，不是候选标的，不要对其输出决策）"))
 	for _, s := range ctx.Market {
-		writeSnapshot(&b, s, zh, required)
+		writeSnapshot(&b, s, zh, required, benchmarkCandleTFs)
 	}
 	fmt.Fprintf(&b, "%s:\n", label("Configured symbols", "配置标的"))
 	if ctx.Config != nil {
@@ -154,14 +154,14 @@ func BuildUserPrompt(ctx *Context, lang string) string {
 				fmt.Fprintf(&b, "%s: DATA_INSUFFICIENT / MissingTF 1d and required timeframes\n", symbol)
 				continue
 			}
-			writeSnapshot(&b, s, zh, required)
+			writeSnapshot(&b, s, zh, required, candleOrder)
 		}
 	}
 	writeUniverse(&b, ctx, zh)
 	return b.String()
 }
 
-func writeSnapshot(b *strings.Builder, s *SymbolSnapshot, zh bool, required map[string]bool) {
+func writeSnapshot(b *strings.Builder, s *SymbolSnapshot, zh bool, required map[string]bool, candleTFs []string) {
 	if s == nil {
 		return
 	}
@@ -214,7 +214,7 @@ func writeSnapshot(b *strings.Builder, s *SymbolSnapshot, zh bool, required map[
 	} else {
 		fmt.Fprintln(b, "quote: missing / BSTOCK_REF_STALE")
 	}
-	writeCandles(b, s, zh)
+	writeCandles(b, s, zh, candleTFs)
 }
 
 // candleOrder is the print order of the raw-candle blocks.
@@ -223,7 +223,11 @@ var candleOrder = []string{usstock.TF1w, usstock.TF1d, usstock.TF4h}
 // writeCandles prints RSI-14 per timeframe and the raw OHLCV candles the
 // snapshot carries, oldest first. 1w/1d bars are dated by their UTC open date,
 // 4h bars by their ET open time. Timeframes without data are skipped.
-func writeCandles(b *strings.Builder, s *SymbolSnapshot, zh bool) {
+// benchmarkCandleTFs: SPY/QQQ are market context only — daily candles suffice
+// (their RSI line still covers every timeframe).
+var benchmarkCandleTFs = []string{usstock.TF1d}
+
+func writeCandles(b *strings.Builder, s *SymbolSnapshot, zh bool, candleTFs []string) {
 	var rsis []string
 	for _, tf := range []string{usstock.TF4h, usstock.TF1d, usstock.TF1w} {
 		if v, ok := s.RSI[tf]; ok {
@@ -234,14 +238,18 @@ func writeCandles(b *strings.Builder, s *SymbolSnapshot, zh bool) {
 		fmt.Fprintf(b, "rsi14: %s\n", strings.Join(rsis, " "))
 	}
 	et, _ := time.LoadLocation("America/New_York")
-	for _, tf := range candleOrder {
+	for _, tf := range candleTFs {
 		bars := s.Candles[tf]
 		if len(bars) == 0 {
 			continue
 		}
-		layout, extra := "2006-01-02", ""
+		// Dates are MM-DD to save tokens; the header carries the last bar's full
+		// date so a year boundary stays unambiguous.
+		layout, extra := "01-02", ""
+		lastAt := bars[len(bars)-1].OpenTime.UTC()
 		if tf == usstock.TF4h {
-			layout = "2006-01-02 15:04"
+			layout = "01-02 15:04"
+			lastAt = bars[len(bars)-1].OpenTime.In(et)
 			if zh {
 				extra = "；美东开盘时间"
 			} else {
@@ -249,9 +257,9 @@ func writeCandles(b *strings.Builder, s *SymbolSnapshot, zh bool) {
 			}
 		}
 		if zh {
-			fmt.Fprintf(b, "K线 %s (%d%s；旧→新；date,o,h,l,c,v):\n", tf, len(bars), extra)
+			fmt.Fprintf(b, "K线 %s (%d%s；旧→新，最后一根 %s；date(MM-DD),o,h,l,c,v):\n", tf, len(bars), extra, lastAt.Format("2006-01-02"))
 		} else {
-			fmt.Fprintf(b, "candles %s (%d%s, oldest→newest; date,o,h,l,c,v):\n", tf, len(bars), extra)
+			fmt.Fprintf(b, "candles %s (%d%s, oldest→newest, last %s; date(MM-DD),o,h,l,c,v):\n", tf, len(bars), extra, lastAt.Format("2006-01-02"))
 		}
 		for _, bar := range bars {
 			t := bar.OpenTime.UTC()

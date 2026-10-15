@@ -293,8 +293,8 @@ func TestSnapshotCandlesAndRSI(t *testing.T) {
 	if s.Candles[usstock.TF1d][promptCandles1d-1].Close != 319 {
 		t.Fatal("candles alias the series")
 	}
-	// 4h with 14 bars: candles shown, RSI undefined (needs 15 bars).
-	if _, ok := s.RSI[usstock.TF4h]; ok || len(s.Candles[usstock.TF4h]) != 14 {
+	// 4h with 14 bars: the last promptCandles4h shown, RSI undefined (needs 15 bars).
+	if _, ok := s.RSI[usstock.TF4h]; ok || len(s.Candles[usstock.TF4h]) != promptCandles4h {
 		t.Fatalf("4h rsi=%v candles=%d", s.RSI, len(s.Candles[usstock.TF4h]))
 	}
 	if s.RSI[usstock.TF1d] != 100 || s.RSI[usstock.TF1w] != 100 {
@@ -316,11 +316,11 @@ func TestWriteCandlesFormat(t *testing.T) {
 		},
 	}
 	var en, zh strings.Builder
-	writeCandles(&en, s, false)
-	writeCandles(&zh, s, true)
+	writeCandles(&en, s, false, candleOrder)
+	writeCandles(&zh, s, true, candleOrder)
 	for _, want := range []string{"rsi14: 4h=56.2 1d=61.0 1w=58.3\n",
-		"candles 1w (1, oldest→newest; date,o,h,l,c,v):\n2026-04-13,123.4,130.1,120,128.7,1.23M\n",
-		"candles 4h (1; ET bar start, oldest→newest; date,o,h,l,c,v):\n2026-10-14 09:30,0.5,0.6,0.4,0.55,950\n"} {
+		"candles 1w (1, oldest→newest, last 2026-04-13; date(MM-DD),o,h,l,c,v):\n04-13,123.4,130.1,120,128.7,1.23M\n",
+		"candles 4h (1; ET bar start, oldest→newest, last 2026-10-14; date(MM-DD),o,h,l,c,v):\n10-14 09:30,0.5,0.6,0.4,0.55,950\n"} {
 		if !strings.Contains(en.String(), want) {
 			t.Fatalf("missing %q in:\n%s", want, en.String())
 		}
@@ -328,7 +328,14 @@ func TestWriteCandlesFormat(t *testing.T) {
 	if strings.Contains(en.String(), "candles 1d") {
 		t.Fatal("timeframes without candles must be skipped")
 	}
-	if !strings.Contains(zh.String(), "K线 1w (1；旧→新；date,o,h,l,c,v):") || !strings.Contains(zh.String(), "2026-10-14 09:30,") {
+	// Benchmarks print daily candles only.
+	s.Candles[usstock.TF1d] = []usstock.Bar{{OpenTime: time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC), Open: 1, High: 2, Low: 1, Close: 2, Volume: 10}}
+	var bench strings.Builder
+	writeCandles(&bench, s, false, benchmarkCandleTFs)
+	if out := bench.String(); !strings.Contains(out, "candles 1d") || strings.Contains(out, "candles 1w") || strings.Contains(out, "candles 4h") || !strings.Contains(out, "rsi14: 4h=") {
+		t.Fatalf("benchmark candles:\n%s", out)
+	}
+	if !strings.Contains(zh.String(), "K线 1w (1；旧→新，最后一根 2026-04-13；date(MM-DD),o,h,l,c,v):") || !strings.Contains(zh.String(), "\n10-14 09:30,") {
 		t.Fatalf("zh output:\n%s", zh.String())
 	}
 }

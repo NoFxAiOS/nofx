@@ -9,7 +9,7 @@ import (
 const (
 	promptCandles1w = 26
 	promptCandles1d = 30
-	promptCandles4h = 24
+	promptCandles4h = 12
 	rsiPeriod       = 14
 )
 

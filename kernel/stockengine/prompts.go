@@ -134,7 +134,7 @@ func BuildUserPrompt(ctx *Context, lang string) string {
 		}
 		fmt.Fprintf(&b, "%s qty=%.6f avg=%.2f price=%.2f unrealized=%.2f%% R=%s held_days=%s (calendar) initial_stop=%.2f live_stop=%.2f TP=%.2f\n", p.Symbol, p.Quantity, p.AvgPrice, price, pnl, r, days, p.InitialStop, p.StopPrice, p.TakeProfit)
 	}
-	fmt.Fprintf(&b, "%s SPY/QQQ:\n", label("Market context", "大盘背景"))
+	fmt.Fprintf(&b, "%s:\n", label("Market context SPY/QQQ (reference only — not candidates, output no decisions for them)", "大盘背景 SPY/QQQ（仅供参考，不是候选标的，不要对其输出决策）"))
 	for _, s := range ctx.Market {
 		writeSnapshot(&b, s, zh, required)
 	}

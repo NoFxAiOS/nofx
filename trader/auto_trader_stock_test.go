@@ -1128,3 +1128,36 @@ func TestStockResolveSymbolsBySource(t *testing.T) {
 		})
 	}
 }
+
+// The model sometimes answers the SPY/QQQ market-context blocks with wait:
+// that is dropped, not recorded as a rejected decision. A non-noop action on
+// a context pair stays a visible UNKNOWN_SYMBOL rejection.
+func TestStockContextWaitIsDroppedNotRejected(t *testing.T) {
+	resp := `[{"symbol":"AAPLBUSDT","action":"wait","confidence":60,"reasoning":"no setup"},
+{"symbol":"SPYBUSDT","action":"wait","confidence":75,"reasoning":"market weakening"},
+{"symbol":"QQQBUSDT","action":"wait","confidence":78,"reasoning":"tape deteriorating"}]`
+	fx := newStockFixture(t, true, stockTestNow, func(int) string { return resp })
+	fx.cycle(t)
+	rec := fx.lastRecord(t)
+	if len(rec.Decisions) != 1 || rec.Decisions[0].Symbol != "AAPLBUSDT" || rec.Decisions[0].Error != "" {
+		t.Fatalf("context waits must be dropped: %+v", rec.Decisions)
+	}
+	if !strings.Contains(fx.ai.user, "仅供参考") && !strings.Contains(fx.ai.user, "reference only") {
+		t.Fatalf("market-context header must say reference only:\n%s", fx.ai.user)
+	}
+
+	resp = `[{"symbol":"AAPLBUSDT","action":"wait","confidence":60,"reasoning":"no setup"},
+{"symbol":"SPYBUSDT","action":"open_long","entry_type":"market","stop_loss":115,"confidence":75,"reasoning":"x"}]`
+	fx2 := newStockFixture(t, true, stockTestNow, func(int) string { return resp })
+	fx2.cycle(t)
+	rec = fx2.lastRecord(t)
+	found := false
+	for _, d := range rec.Decisions {
+		if d.Symbol == "SPYBUSDT" && strings.Contains(d.Error, "UNKNOWN_SYMBOL") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("open_long on a context pair must stay a rejection: %+v", rec.Decisions)
+	}
+}

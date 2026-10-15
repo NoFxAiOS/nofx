@@ -423,6 +423,10 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 	var rejected []string
 	for _, v := range result.Verdicts {
 		d := v.Decision
+		if !v.Accepted && isStockContextNoop(d, v.Codes) {
+			logf("%s %s ignored: market-context reference, not a candidate", d.Action, d.Symbol)
+			continue
+		}
 		act := store.DecisionAction{Action: d.Action, Symbol: d.Symbol, StopLoss: d.StopLoss, TakeProfit: d.TakeProfit,
 			Confidence: d.Confidence, Reasoning: d.Reasoning, Leverage: 1, Timestamp: now.UTC()}
 		code := ""
@@ -493,6 +497,25 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		at.syncStockJournal()
 	}
 	return nil
+}
+
+// isStockContextNoop reports a wait/hold the model gave a market-context pair
+// (SPY/QQQ) that is not a candidate this cycle. It is not an error — dropping it
+// keeps the record from showing a rejected decision (2026-10-15 UI report).
+// Any other action on such a pair stays a visible UNKNOWN_SYMBOL rejection.
+func isStockContextNoop(d stockengine.Decision, codes []string) bool {
+	if d.Action != stockengine.ActionWait && d.Action != stockengine.ActionHold {
+		return false
+	}
+	if len(codes) != 1 || codes[0] != "UNKNOWN_SYMBOL" {
+		return false
+	}
+	for _, s := range stockContextSymbols {
+		if s == d.Symbol {
+			return true
+		}
+	}
+	return false
 }
 
 func noteSuffix(n string) string {

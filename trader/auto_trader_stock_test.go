@@ -1408,6 +1408,13 @@ func TestStockRestingEntriesKeptAcrossRestart(t *testing.T) {
 	fx.at.StopForRestart()
 	paper := true
 	fx.at.config.StrategyConfig.StockConfig.PaperTrading = &paper
+	// Production paper mode has NO executor (newStockExecutor returns nil); the
+	// kept entries are cancelled through a temporary executor built from the
+	// trader's own credentials (stockOrphanExecutor seam).
+	fx.at.stockTrader = nil
+	oldOrphan := stockOrphanExecutor
+	t.Cleanup(func() { stockOrphanExecutor = oldOrphan })
+	stockOrphanExecutor = func(*AutoTrader) (types.SpotStockTrader, error) { return fx.spot, nil }
 	fx.at.isRunning = true
 	if _, err := fx.at.prepareStockRuntime(context.Background()); err != nil {
 		t.Fatal(err)
@@ -1417,6 +1424,24 @@ func TestStockRestingEntriesKeptAcrossRestart(t *testing.T) {
 	}
 	if pend, _ := fx.at.store.StockPaper().ListPending("t1"); len(pend) != 0 {
 		t.Fatalf("cancelled kept entries must be forgotten: %+v", pend)
+	}
+
+	// 3b. Paper restart where no executor can be built (no credentials): the
+	// entries stay recorded and the user is alerted, nothing is cancelled.
+	fx = place(t)
+	fx.at.StopForRestart()
+	fx.at.config.StrategyConfig.StockConfig.PaperTrading = &paper
+	fx.at.stockTrader = nil
+	stockOrphanExecutor = func(*AutoTrader) (types.SpotStockTrader, error) { return nil, fmt.Errorf("no credentials") }
+	fx.at.isRunning = true
+	if _, err := fx.at.prepareStockRuntime(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.spot.cancelled) != 0 {
+		t.Fatalf("no executor: nothing may be cancelled: %v", fx.spot.cancelled)
+	}
+	if pend, _ := fx.at.store.StockPaper().ListPending("t1"); len(pend) != 1 {
+		t.Fatalf("uncancelled entries must stay recorded: %+v", pend)
 	}
 
 	// 4. Live start whose preflight fails: kept entries are cancelled.

@@ -597,7 +597,7 @@ func (at *AutoTrader) processTrailingForPosition(pos map[string]interface{}, mar
 				tp = at.getOpenTakeProfit(symbol, side)
 			}
 			if tp > 0 && tpRunnerDue(side, posEntryPrice(pos), tp, markPrice) && !at.tpRunnerDone(posKey) {
-				_ = at.trader.CancelTakeProfitOrders(symbol)
+				at.cancelTakeProfitForSide(symbol, side)
 				at.markTPRunner(posKey)
 				logger.Infof("🏃 [%s] TP runner: %s reached its TP distance — fixed TP cancelled, 2×ATR trail takes over", at.name, symbol)
 				notify.Notify("ORDER", at.name, fmt.Sprintf("<b>🏃 止盈转趋势跟踪 %s</b>\\n到达计划止盈距离,固定止盈单撤除,剩余仓位由移动止损接管", notify.Escape(symbol)))
@@ -766,4 +766,20 @@ func (at *AutoTrader) persistTPTrimDone(symbol, side string) {
 	if err := at.store.Position().MarkTPTrimDone(at.id, symbol, side); err != nil {
 		logger.Warnf("⚠️ [%s] failed to persist tp_trim_done for %s %s: %v", at.name, symbol, side, err)
 	}
+}
+
+// cancelTakeProfitForSide cancels the fixed take-profit orders of ONE position
+// side. In hedge mode the symbol-wide CancelTakeProfitOrders also kills the
+// opposite side's TP — including a manual one the user placed (2026-10-16
+// review B CRITICAL). Adapters that implement the side-scoped primitive
+// (Binance) use it; adapters without it keep the legacy symbol-wide call
+// (they are one-way / single-leg, where the two are equivalent).
+func (at *AutoTrader) cancelTakeProfitForSide(symbol, side string) {
+	if sc, ok := at.trader.(interface {
+		CancelTakeProfitOrdersForSide(symbol, positionSide string) error
+	}); ok {
+		_ = sc.CancelTakeProfitOrdersForSide(symbol, strings.ToUpper(side))
+		return
+	}
+	_ = at.trader.CancelTakeProfitOrders(symbol)
 }

@@ -953,12 +953,11 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 		return fmt.Errorf("❌ [HANDS-OFF] %s was not opened by the AI — manual positions are never closed/adjusted by the program (close the position manually or take it over via a decision to open it)", decision.Symbol)
 	}
 
-	// Get current price
-	marketData, err := at.getMarketData(decision.Symbol)
-	if err != nil {
-		return err
-	}
-	actionRecord.Price = marketData.CurrentPrice
+	// Reference price for the record only. A close must never be blocked by
+	// market-data trouble (2026-10-16 review D): lightweight quote first, then
+	// the full market data, else record 0 and close anyway.
+	closePrice := at.closeReferencePrice(decision.Symbol)
+	actionRecord.Price = closePrice
 
 	// Normalize symbol for database lookup
 	normalizedSymbol := market.Normalize(decision.Symbol)
@@ -1008,7 +1007,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 	}
 
 	// Record order to database and poll for confirmation
-	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, marketData.CurrentPrice, 0, entryPrice)
+	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, closePrice, 0, entryPrice)
 
 	at.ClearRecordedStopLoss(decision.Symbol, "long")
 	at.ClearInitialStopLoss(decision.Symbol, "long")
@@ -1029,12 +1028,11 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 		return fmt.Errorf("❌ [HANDS-OFF] %s was not opened by the AI — manual positions are never closed/adjusted by the program (close the position manually or take it over via a decision to open it)", decision.Symbol)
 	}
 
-	// Get current price
-	marketData, err := at.getMarketData(decision.Symbol)
-	if err != nil {
-		return err
-	}
-	actionRecord.Price = marketData.CurrentPrice
+	// Reference price for the record only. A close must never be blocked by
+	// market-data trouble (2026-10-16 review D): lightweight quote first, then
+	// the full market data, else record 0 and close anyway.
+	closePrice := at.closeReferencePrice(decision.Symbol)
+	actionRecord.Price = closePrice
 
 	// Normalize symbol for database lookup
 	normalizedSymbol := market.Normalize(decision.Symbol)
@@ -1084,7 +1082,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	}
 
 	// Record order to database and poll for confirmation
-	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, marketData.CurrentPrice, 0, entryPrice)
+	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, closePrice, 0, entryPrice)
 
 	at.ClearRecordedStopLoss(decision.Symbol, "short")
 	at.ClearInitialStopLoss(decision.Symbol, "short")
@@ -1093,4 +1091,23 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	at.unmarkAIManaged(decision.Symbol, "short") // lifecycle complete — registry clean
 	logger.Infof("  ✓ Position closed successfully")
 	return nil
+}
+
+// closeReferencePrice returns the price recorded on a close action without
+// depending on full market data (3m/4h klines + stale check): the adapter's
+// lightweight quote first, then getMarketData's CurrentPrice, else 0 (the
+// close proceeds and the record carries price 0).
+func (at *AutoTrader) closeReferencePrice(symbol string) float64 {
+	usable := func(p float64) bool { return p > 0 && !math.IsNaN(p) && !math.IsInf(p, 0) }
+	price, quoteErr := at.trader.GetMarketPrice(symbol)
+	if quoteErr == nil && usable(price) {
+		return price
+	}
+	md, mdErr := at.getMarketData(symbol)
+	if mdErr == nil && md != nil && usable(md.CurrentPrice) {
+		return md.CurrentPrice
+	}
+	logger.Warnf("⚠️ [%s] close %s: no reference price (quote err=%v, market data err=%v) — closing anyway, recording price 0",
+		at.name, symbol, quoteErr, mdErr)
+	return 0
 }

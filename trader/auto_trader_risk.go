@@ -2088,6 +2088,9 @@ var (
 	dailyBaselineReg   = map[string]dailyBaselineRecord{}
 )
 
+// dailyRiskNow is the clock of the daily-loss halt (test seam: day rollover).
+var dailyRiskNow = time.Now
+
 // ResetDailyBaselineRegistryForTest clears the process-shared day anchors.
 func ResetDailyBaselineRegistryForTest() {
 	dailyBaselineRegMu.Lock()
@@ -2137,7 +2140,7 @@ func (at *AutoTrader) anchorDailyBaseline(equity float64) {
 	if equity <= 0 {
 		return
 	}
-	today := time.Now().UTC().Format("2006-01-02")
+	today := dailyRiskNow().UTC().Format("2006-01-02")
 	key := at.dailyBaselineKey()
 
 	// 2026-10-03 review: consult the DURABLE layer BEFORE publishing to the
@@ -2179,7 +2182,17 @@ func (at *AutoTrader) dailyLossHaltBlocks(rc store.RiskControlConfig, equity flo
 	if capPct <= 0 || equity <= 0 {
 		return ""
 	}
-	today := time.Now().UTC().Format("2006-01-02")
+	today := dailyRiskNow().UTC().Format("2006-01-02")
+	// Latch (2026-10-16 review A): once the halt fired on UTC day D it holds for
+	// the rest of D even if equity recovers above the threshold — an intraday
+	// bounce must not re-open the risk budget the cap just closed.
+	if at.dailyHaltDay == today && at.dailyHaltReason != "" {
+		return at.dailyHaltReason
+	}
+	if reason, ok := at.inheritDailyHalt(today); ok {
+		at.dailyHaltDay, at.dailyHaltReason = today, reason
+		return reason
+	}
 	if at.dayStartDay != today || at.dayStartEquity <= 0 {
 		if baseline, ok := at.inheritDailyBaseline(today); ok {
 			at.dayStartDay, at.dayStartEquity = today, baseline
@@ -2193,10 +2206,31 @@ func (at *AutoTrader) dailyLossHaltBlocks(rc store.RiskControlConfig, equity flo
 	}
 	lossPct := (at.dayStartEquity - equity) / at.dayStartEquity * 100
 	if lossPct >= capPct {
-		return fmt.Sprintf("equity %.2f is %.2f%% below day-start %.2f (≥ %.1f%%) — opens halted until next UTC day",
+		reason := fmt.Sprintf("equity %.2f is %.2f%% below day-start %.2f (≥ %.1f%%) — opens halted until next UTC day",
 			equity, lossPct, at.dayStartEquity, capPct)
+		at.dailyHaltDay, at.dailyHaltReason = today, reason
+		if at.store != nil {
+			if err := at.store.RiskState().LatchDayHalt(at.dailyBaselineKey(), today, dailyRiskNow()); err != nil {
+				logger.Warnf("⚠️ [%s] cannot persist the daily-loss halt latch: %v — held in memory only (a reload may clear it)", at.name, err)
+			}
+		}
+		return reason
 	}
 	return ""
+}
+
+// inheritDailyHalt reads today's durable daily-loss latch (set by this or a
+// previous instance on the same account), so a reload/restart after the
+// trigger stays halted for the rest of the UTC day.
+func (at *AutoTrader) inheritDailyHalt(day string) (string, bool) {
+	if at.store == nil {
+		return "", false
+	}
+	haltedAt, found, err := at.store.RiskState().DayHalt(at.dailyBaselineKey(), day)
+	if err != nil || !found {
+		return "", false
+	}
+	return fmt.Sprintf("daily-loss halt latched at %s UTC — opens halted until next UTC day", haltedAt.UTC().Format("15:04")), true
 }
 
 // absoluteBanCode reports whether a kernel ban code has NO exception path on

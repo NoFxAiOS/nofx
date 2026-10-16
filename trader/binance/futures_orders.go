@@ -126,6 +126,11 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 
 // CloseLong closes a long position
 func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+	// quantity==0 means "close everything". Capture that BEFORE the lookup below
+	// overwrites quantity with the live size — otherwise the full-close cancel
+	// further down was dead code and the closePosition SL/TP survived the close
+	// (2026-10-16 review E).
+	fullClose := quantity == 0
 	// If quantity is 0, get current position quantity
 	if quantity == 0 {
 		positions, err := t.GetPositions()
@@ -170,7 +175,7 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 	// Full closes cancel the remaining SL/TP orders; PARTIAL closes (explicit
 	// quantity, e.g. the TP-ladder 1/3 trim) must keep them — the remaining
 	// position would otherwise ride unprotected.
-	if quantity == 0 {
+	if fullClose {
 		// R4 (2026-09-26 review): full close cancels THIS side's protection
 		// only — CancelAllOrders wiped the opposite side's SL/TP too.
 		if err := t.CancelProtectiveOrdersForSide(symbol, string(futures.PositionSideTypeLong)); err != nil {
@@ -187,6 +192,11 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 // CloseShort closes a short position
 func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+	// quantity==0 means "close everything". Capture that BEFORE the lookup below
+	// overwrites quantity with the live size — otherwise the full-close cancel
+	// further down was dead code and the closePosition SL/TP survived the close
+	// (2026-10-16 review E).
+	fullClose := quantity == 0
 	// If quantity is 0, get current position quantity
 	if quantity == 0 {
 		positions, err := t.GetPositions()
@@ -230,7 +240,7 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 
 	// Full closes cancel the remaining SL/TP orders; partial closes keep
 	// them (same rule as CloseLong).
-	if quantity == 0 {
+	if fullClose {
 		// R4 (2026-09-26 review): full close cancels THIS side's protection
 		// only — CancelAllOrders wiped the opposite side's SL/TP too.
 		if err := t.CancelProtectiveOrdersForSide(symbol, string(futures.PositionSideTypeShort)); err != nil {

@@ -22,7 +22,6 @@ import (
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
 	"nofx/trader/types"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -163,6 +162,8 @@ type AutoTrader struct {
 	dailyPnL                   float64
 	dayStartDay                string             // UTC day anchor for the daily-loss halt (D2, QUANT_REVIEW 09-22)
 	dayStartEquity             float64            // first equity seen on dayStartDay — the halt's baseline
+	dailyHaltDay               string             // UTC day the daily-loss halt latched on (held until the next UTC day)
+	dailyHaltReason            string             // halt message recorded at trigger time (loss % at that moment)
 	cycleRiskReservedUSD       float64            // stop-risk booked by opens that PASSED the exposure gate this cycle (D2 reservation, 09-25 P1)
 	cycleLongRiskReservedUSD   float64            // admitted long stop-risk in this cycle; used by net-direction concentration gate
 	cycleShortRiskReservedUSD  float64            // admitted short stop-risk in this cycle; used by net-direction concentration gate
@@ -970,40 +971,6 @@ func (at *AutoTrader) isAIManaged(symbol, side string) bool {
 		return true
 	}
 	return at.store.AIManaged().IsMarked(at.id, symbol, strings.ToLower(side))
-}
-
-// seedAIManagedOnce: ONE-TIME migration for the deploy that introduced the
-// registry — every position already open at that moment is presumed
-// AI-managed so existing trades keep their protection. Guarded by a flag
-// file, NOT a per-boot re-seed (a per-boot seed would re-adopt manual
-// positions on every restart and defeat the hands-off rule).
-func (at *AutoTrader) seedAIManagedOnce() {
-	// R6 (2026-09-26 review): per-trader flag — a shared file let the first
-	// trader mark migration done and every OTHER trader skip its own seeding.
-	flag := fmt.Sprintf("data/ai_marks_seeded_%s", at.id)
-	if _, err := os.Stat(flag); err == nil {
-		return
-	}
-	if at.store == nil {
-		return
-	}
-	positions, err := at.trader.GetPositions()
-	if err != nil {
-		return // retry next cycle (flag not written)
-	}
-	n := 0
-	for _, pos := range positions {
-		symbol, _ := pos["symbol"].(string)
-		side, _ := pos["side"].(string)
-		if symbol == "" || side == "" {
-			continue
-		}
-		at.markAIManaged(symbol, side)
-		n++
-	}
-	if err := os.WriteFile(flag, []byte(time.Now().Format(time.RFC3339)), 0o644); err == nil {
-		logger.Infof("🤖 [%s] AI-managed registry seeded: %d pre-existing positions marked (one-time migration; manual positions opened AFTER this are hands-off)", at.name, n)
-	}
 }
 
 // setFilterReason records why an actionable proposal was dropped by an

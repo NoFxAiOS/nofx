@@ -13,6 +13,7 @@ import (
 	"nofx/logger"
 	"nofx/market/usstock"
 	"nofx/store"
+	"nofx/trader/types"
 
 	notify "nofx/telegram/notify"
 )
@@ -63,6 +64,19 @@ func (at *AutoTrader) prepareStockRuntime(ctx context.Context) (*store.StockConf
 	return &cfg, nil
 }
 
+// stockOrphanExecutor builds the temporary spot executor cancelOrphanStockPendings
+// uses when the instance has none (paper mode). It is a package-level seam so
+// tests can inject a fake.
+var stockOrphanExecutor = func(at *AutoTrader) (types.SpotStockTrader, error) {
+	if newSpotStockTrader == nil {
+		return nil, fmt.Errorf("us_stock executor not linked")
+	}
+	if at.config.BinanceAPIKey == "" || at.config.BinanceSecretKey == "" {
+		return nil, fmt.Errorf("no Binance credentials on this trader")
+	}
+	return newSpotStockTrader(at.config.BinanceAPIKey, at.config.BinanceSecretKey)
+}
+
 // cancelOrphanStockPendings cancels and forgets resting live entries that no
 // running live instance will manage (kept across a restart that did not come
 // back live). A failed cancel alerts the user to cancel by hand.
@@ -74,14 +88,26 @@ func (at *AutoTrader) cancelOrphanStockPendings(reason string) {
 	if err != nil || len(rows) == 0 {
 		return
 	}
+	// Paper mode never builds at.stockTrader (newStockExecutor returns nil), so
+	// kept live entries could only be alerted. Build a temporary executor from
+	// the trader's own credentials instead; alert-only if that is impossible.
+	exec := at.stockTrader
+	var execErr error
+	if exec == nil {
+		exec, execErr = stockOrphanExecutor(at)
+	}
 	var done, failed []string
 	for _, r := range rows {
 		label := fmt.Sprintf("%s(order %s)", r.Symbol, r.OrderID)
-		if at.stockTrader == nil {
-			failed = append(failed, label+": no executor")
+		if exec == nil {
+			if execErr != nil {
+				failed = append(failed, fmt.Sprintf("%s: no executor (%v)", label, execErr))
+			} else {
+				failed = append(failed, label+": no executor")
+			}
 			continue
 		}
-		if err := at.stockTrader.CancelOrder(r.Symbol, r.OrderID); err != nil {
+		if err := exec.CancelOrder(r.Symbol, r.OrderID); err != nil {
 			failed = append(failed, fmt.Sprintf("%s: %v", label, err))
 			continue
 		}

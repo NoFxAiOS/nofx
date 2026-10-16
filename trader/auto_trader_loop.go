@@ -340,7 +340,6 @@ func (at *AutoTrader) runCycle() error {
 	at.cycleLongRiskReservedUSD = 0
 	at.cycleShortRiskReservedUSD = 0
 	at.cycleSymbolRiskReservedUSD = make(map[string]float64)
-	at.seedAIManagedOnce() // one-time migration: pre-registry positions presumed AI-managed
 	sortedDecisions = at.applyHardRiskGates(sortedDecisions, ctx)
 	if len(sortedDecisions) == 0 {
 		logger.Infof("🛡️ [%s] All decisions filtered by hard risk gates", at.name)

@@ -34,6 +34,9 @@ func TestSetProtectionOCOAndStopOnly(t *testing.T) {
 		t.Fatal(requests)
 	}
 	r := requests[0]
+	if p.ListClientID != r.params.Get("listClientOrderId") || p.StopClientID != r.params.Get("belowClientOrderId") || p.TPClientID != r.params.Get("aboveClientOrderId") {
+		t.Fatalf("protection lost client IDs: %+v", p)
+	}
 	for key, want := range map[string]string{"symbol": "AAPLBUSDT", "side": "SELL", "quantity": "2", "aboveType": "LIMIT_MAKER", "abovePrice": "120.01", "belowType": "STOP_LOSS_LIMIT", "belowStopPrice": "90.01", "belowPrice": "89.5", "belowTimeInForce": "GTC", "timestamp": "1699999999750", "recvWindow": "5000"} {
 		if r.params.Get(key) != want {
 			t.Fatalf("%s=%q want %q", key, r.params.Get(key), want)
@@ -62,6 +65,9 @@ func TestSetProtectionOCOAndStopOnly(t *testing.T) {
 		}
 	}
 	tagged(t, r.params.Get("newClientOrderId"))
+	if p.StopClientID != r.params.Get("newClientOrderId") {
+		t.Fatalf("single stop lost client ID: %+v", p)
+	}
 }
 
 func TestProtectionValidationLeavesOldStopLive(t *testing.T) {
@@ -132,6 +138,9 @@ func TestGetProtectionReconstructsTaggedOrders(t *testing.T) {
 		t.Fatal(p)
 	}
 	near(t, p.Quantity, 1.5)
+	if p.StopClientID != stop.ClientOrderID || p.TPClientID != tp.ClientOrderID {
+		t.Fatalf("reconstructed client IDs: %+v", p)
+	}
 	near(t, p.StopPrice, 90)
 	near(t, p.StopLimitPrice, 89.5)
 	near(t, p.TakeProfit, 120)
@@ -146,6 +155,43 @@ func TestGetProtectionReconstructsTaggedOrders(t *testing.T) {
 	p, err = tr.GetProtection("AAPLBUSDT")
 	if err != nil || p != nil {
 		t.Fatalf("empty protection: %v %v", p, err)
+	}
+}
+
+func TestProtectiveLegStatusSurvivesOCOLeavingOpenOrders(t *testing.T) {
+	for _, status := range []string{"FILLED", "PARTIALLY_FILLED", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH"} {
+		t.Run(status, func(t *testing.T) {
+			tr, f, _ := fixture(t)
+			before, err := tr.GetPositions() // prime the inventory cache
+			if err != nil || len(before) != 1 || before[0]["positionAmt"] != 10.0 {
+				t.Fatalf("before=%v err=%v", before, err)
+			}
+			f.balances = []binance.Balance{{Asset: "AAPLB", Free: "7"}, {Asset: "USDT", Free: "440.5"}}
+			f.handle = func(r requestRecord) (interface{}, int, bool) {
+				if r.path == "/api/v3/order" && r.method == "GET" {
+					if r.params.Get("symbol") != "AAPLBUSDT" || r.params.Get("orderId") != "10" {
+						t.Fatal(r.params)
+					}
+					return map[string]interface{}{"symbol": "AAPLBUSDT", "orderId": 10, "orderListId": 9, "clientOrderId": "nxbs_sl_old", "side": "SELL", "type": "STOP_LOSS_LIMIT", "status": status, "executedQty": "3", "cummulativeQuoteQty": "340.5"}, 200, true
+				}
+				return nil, 0, false
+			}
+			p, err := tr.GetProtection("AAPLBUSDT")
+			if err != nil || p != nil {
+				t.Fatalf("open protection=%+v err=%v", p, err)
+			}
+			s, err := tr.GetOrderStatus("AAPLBUSDT", "10")
+			if err != nil || s["status"] != status || s["clientOrderId"] != "nxbs_sl_old" || s["orderListId"] != int64(9) {
+				t.Fatalf("status=%v err=%v", s, err)
+			}
+			near(t, s["executedQty"].(float64), 3)
+			near(t, s["cummulativeQuoteQty"].(float64), 340.5)
+			near(t, s["avgPrice"].(float64), 113.5)
+			after, err := tr.GetPositions()
+			if err != nil || len(after) != 1 || after[0]["positionAmt"] != 7.0 {
+				t.Fatalf("status must invalidate cached balances: after=%v err=%v", after, err)
+			}
+		})
 	}
 }
 

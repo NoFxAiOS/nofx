@@ -81,8 +81,11 @@ func (at *AutoTrader) stockTickPaper(ctx context.Context, now time.Time, logf fu
 }
 
 func (at *AutoTrader) stockTickLive(ctx context.Context, now time.Time, logf func(string, ...interface{})) {
-	at.reconcileStockPendings(ctx, now, logf)
-	st, err := at.stockGatherLive(ctx, now, true, true)
+	quarantined, err := at.reconcileStockPendings(ctx, now, logf)
+	if err != nil {
+		return
+	}
+	st, err := at.stockGatherLiveWithQuarantine(ctx, now, true, true, quarantined)
 	if err != nil {
 		logf("tick: %v", err)
 		return
@@ -91,6 +94,9 @@ func (at *AutoTrader) stockTickLive(ctx context.Context, now time.Time, logf fun
 		logf("%s", n)
 	}
 	for _, h := range st.sortedHoldings() {
+		if h.Quarantined {
+			continue
+		}
 		price := h.Mark
 		if p, e := at.stockTrader.GetMarketPrice(h.Symbol); e == nil && p > 0 {
 			price = p
@@ -105,6 +111,10 @@ func (at *AutoTrader) stockTickLive(ctx context.Context, now time.Time, logf fun
 				continue
 			}
 			if price > 0 && price <= stop {
+				if !h.ProtectionVerified {
+					stockNotify("ALERT", at.name, fmt.Sprintf("美股 %s 保护单缺失，但本轮无已核实的无成交订单记录；暂停兜底卖出并重试", notify.Escape(h.Symbol)))
+					continue
+				}
 				at.stockFallbackSell(ctx, h, now, logf, "no protection and price below stop")
 				continue
 			}
@@ -115,7 +125,7 @@ func (at *AutoTrader) stockTickLive(ctx context.Context, now time.Time, logf fun
 			}
 			logf("protection for %s was missing — re-placed (stop %.4f)", h.Symbol, stop)
 			stockNotify("ALERT", at.name, fmt.Sprintf("<b>⚠️ 美股保护单缺失，已按止损 %.4g 补挂 %s</b>", stop, notify.Escape(h.Symbol)))
-		case h.Stop > 0 && price > 0 && price <= h.Stop:
+		case h.ProtectionVerified && h.Stop > 0 && price > 0 && price <= h.Stop:
 			at.stock.stopTicks[h.Symbol]++
 			if at.stock.stopTicks[h.Symbol] >= stockStopFallbackTicks {
 				at.stockFallbackSell(ctx, h, now, logf, "price below stop with the stop order still open")
@@ -147,8 +157,37 @@ func (at *AutoTrader) stockFallbackSell(ctx context.Context, h *stockHolding, no
 // the day they were placed (a stale GTC entry must not fill days later), and
 // forgets terminal orders. The pending row is kept until a status read shows
 // the order terminal, so a fill racing the cancel is still booked.
-func (at *AutoTrader) reconcileStockPendings(ctx context.Context, now time.Time, logf func(string, ...interface{})) {
+func (at *AutoTrader) reconcileStockPendings(ctx context.Context, now time.Time, logf func(string, ...interface{})) (map[string]string, error) {
+	quarantined := map[string]string{}
+	if len(at.stock.pendings) == 0 {
+		return quarantined, nil
+	}
+	// Entry reconciliation uses balances to account for base-asset fees, and
+	// may merge a new buy into the owned cost basis. Book protective exits
+	// first, before either operation (the cycle calls this before gathering).
+	orders, err := at.store.StockPaper().ListProtectionOrders(at.id, "")
+	if err != nil {
+		at.stockProtectionAlert("账户", "list_protection", err)
+		return nil, err
+	}
+	checked := map[string]bool{}
+	for _, o := range orders {
+		if checked[o.Symbol] {
+			continue
+		}
+		checked[o.Symbol] = true
+		if _, err := at.stockCheckProtection(o.Symbol, now); err != nil {
+			if stockProtectionReadFailed(err) {
+				return nil, err
+			}
+			at.stockProtectionAlert(o.Symbol, "check_protection", err)
+			quarantined[o.Symbol] = err.Error()
+		}
+	}
 	for sym, p := range at.stock.pendings {
+		if quarantined[sym] != "" {
+			continue
+		}
 		status, err := at.stockTrader.GetOrderStatus(sym, p.OrderID)
 		if err != nil {
 			logf("resting entry %s order %s status: %v", sym, p.OrderID, err)
@@ -185,6 +224,7 @@ func (at *AutoTrader) reconcileStockPendings(ctx context.Context, now time.Time,
 			stockNotify("ORDER", at.name, fmt.Sprintf("<b>⌛ 美股限价入场单到期撤销 %s</b>\n<i>订单 %s 当日未成交</i>", notify.Escape(sym), notify.Escape(p.OrderID)))
 		}
 	}
+	return quarantined, nil
 }
 
 // stockPendingExpiry is the regular-session close of the first trading day

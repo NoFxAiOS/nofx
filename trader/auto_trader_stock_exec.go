@@ -77,12 +77,78 @@ func (at *AutoTrader) stockPlaceProtection(ctx context.Context, sym string, owne
 			tp = 0
 		}
 	}
-	if _, err := at.stockTrader.SetProtection(sym, qty, stop, stockStopLimit(stop, info), tp); err != nil {
+	if _, err := at.stockPrepareProtectionChange(sym, at.stockClock()); err != nil {
 		return err
+	}
+	freshOwned, balance, err := at.stockLiveQuantities(sym)
+	if err != nil {
+		return err
+	}
+	qty = at.stockFormatQty(sym, math.Min(qty, math.Min(freshOwned, balance)), info)
+	if qty <= 0 {
+		return fmt.Errorf("no program-owned quantity left to protect for %s", sym)
+	}
+	p, placeErr := at.stockTrader.SetProtection(sym, qty, stop, stockStopLimit(stop, info), tp)
+	// An accepted response can contain IDs alongside an error. Preserve every
+	// returned leg; never erase the old IDs on an ambiguous replacement.
+	if p != nil {
+		if err := at.stockSaveProtection(p); err != nil {
+			at.stockProtectionAlert(sym, "protection_change", err)
+			return fmt.Errorf("protection placed but IDs could not be saved: %w", err)
+		}
+	}
+	if placeErr != nil {
+		return placeErr
+	}
+	if p == nil || p.StopOrderID == "" || (tp > 0 && p.TakeProfitID == "") {
+		return fmt.Errorf("protection response lacks required leg IDs")
 	}
 	at.stock.lastProtect[sym] = stockProtect{Stop: stop, TakeProfit: tp, Qty: qty}
 	at.stock.stopTicks[sym] = 0
 	return nil
+}
+
+// stockPrepareProtectionChange retires old legs only after reading their final
+// executions. Used by replace AND sell, including decisions made from a stale
+// cycle snapshot while exchange protection continued trading.
+func (at *AutoTrader) stockPrepareProtectionChange(sym string, now time.Time) (stockProtectionCheck, error) {
+	p, err := at.stockTrader.GetProtection(sym)
+	if err == nil && p != nil {
+		err = at.stockSaveProtection(p)
+	}
+	var before, after stockProtectionCheck
+	if err == nil {
+		before, err = at.stockCheckProtection(sym, now)
+	}
+	if err == nil {
+		after, err = at.stockCancelProtection(sym, now)
+	}
+	if err != nil {
+		at.stockProtectionAlert(sym, "protection_change", err)
+		return before, err
+	}
+	before.Filled = before.Filled || after.Filled
+	before.Known = before.Known || after.Known
+	before.Open = false
+	return before, nil
+}
+
+func (at *AutoTrader) stockLiveQuantities(sym string) (owned, balance float64, err error) {
+	rows, err := at.store.Position().StockOwnedRows(at.id, sym)
+	if err != nil {
+		return 0, 0, &stockProtectionReadError{err}
+	}
+	owned, _, _, _ = sumRows(rows)
+	poss, err := at.stockTrader.GetPositions()
+	if err != nil {
+		return 0, 0, &stockProtectionReadError{err}
+	}
+	for _, p := range poss {
+		if p["symbol"] == sym {
+			balance += numberOf(p, "positionAmt", "position_amt", "quantity")
+		}
+	}
+	return owned, balance, nil
 }
 
 // stockProtectOrEmergency places protection; when the stop already sits at or
@@ -111,17 +177,27 @@ func (at *AutoTrader) stockProtectOrEmergency(ctx context.Context, h *stockHoldi
 func (at *AutoTrader) stockSellLive(ctx context.Context, h *stockHolding, qty float64, full bool, reason string, now time.Time) (*stockOutcome, error) {
 	sym := h.Symbol
 	info := stockSymbolInfo(ctx, sym)
-	qty = math.Min(qty, math.Min(h.Owned, h.Balance))
-	qty = at.stockFormatQty(sym, qty, info)
-	if qty <= 0 {
-		return nil, fmt.Errorf("nothing sellable for %s (owned %.6f, balance %.6f)", sym, h.Owned, h.Balance)
-	}
 	stop, tp := at.persistedStop(sym, h)
 	if h.Stop > 0 {
 		stop, tp = h.Stop, h.TakeProfit
 	}
-	if err := at.stockTrader.CancelProtection(sym); err != nil {
+	check, err := at.stockPrepareProtectionChange(sym, now)
+	if err != nil {
 		return nil, fmt.Errorf("cannot cancel protection before selling %s: %w", sym, err)
+	}
+	owned, balance, err := at.stockLiveQuantities(sym)
+	if err != nil {
+		return nil, err
+	}
+	if owned <= 1e-9 {
+		return &stockOutcome{Closed: true, Note: "position exited through exchange protection"}, nil
+	}
+	if reason == "stop_fallback" && check.Filled {
+		return nil, fmt.Errorf("protection filled during reconciliation; fallback deferred for %s", sym)
+	}
+	qty = at.stockFormatQty(sym, math.Min(qty, math.Min(owned, balance)), info)
+	if qty <= 0 {
+		return nil, fmt.Errorf("nothing sellable for %s (owned %.6f, balance %.6f)", sym, owned, balance)
 	}
 	res, err := at.stockTrader.SellMarket(sym, qty)
 	if err != nil || res == nil || res.ExecutedQty <= 0 {
@@ -134,14 +210,14 @@ func (at *AutoTrader) stockSellLive(ctx context.Context, h *stockHolding, qty fl
 			}())
 		}
 		if stop > 0 {
-			_ = at.stockPlaceProtection(ctx, sym, h.Owned, stop, tp, 0)
+			_ = at.stockPlaceProtection(ctx, sym, owned, stop, tp, 0)
 		}
 		return nil, err
 	}
 	price := fillPrice(res, h.Mark)
 	fee, _ := stockFee(res, price, info.BaseAsset)
-	remaining := h.Owned - res.ExecutedQty
-	fullNow := full || remaining < math.Max(info.StepSize, 1e-9)
+	remaining := owned - res.ExecutedQty
+	fullNow := remaining <= 1e-9
 	pnl := at.stockRecordSell(sym, res.ExecutedQty, price, fee, res.OrderID, reason, fullNow, now)
 	out := &stockOutcome{Qty: res.ExecutedQty, Price: price, Fee: fee, PnL: pnl, OrderID: res.OrderID, Closed: fullNow}
 	if !fullNow && stop > 0 {

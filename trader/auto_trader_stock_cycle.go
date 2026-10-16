@@ -443,15 +443,19 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 	session := usstock.SessionAt(now)
 	logf("cycle start %s ET session=%s preset=%s", now.In(stockET).Format("2006-01-02 15:04"), session, preset.Name)
 
-	if !paper {
-		at.reconcileStockPendings(ctx, now, logf)
-	}
 	var state *stockState
 	var err error
+	var quarantined map[string]string
+	if !paper {
+		quarantined, err = at.reconcileStockPendings(ctx, now, logf)
+		if err != nil {
+			return fail(fmt.Errorf("pending reconciliation: %w", err))
+		}
+	}
 	if paper {
 		state, err = at.stockGatherPaper(nil)
 	} else {
-		state, err = at.stockGatherLive(ctx, now, true, true)
+		state, err = at.stockGatherLiveWithQuarantine(ctx, now, true, true, quarantined)
 	}
 	if err != nil {
 		return fail(fmt.Errorf("account state: %w", err))
@@ -510,6 +514,11 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		if th, ok := theses[positions[i].Symbol]; ok {
 			positions[i].Thesis, positions[i].Invalidation = th.Thesis, th.Invalidation
 		}
+		if h := state.Holdings[positions[i].Symbol]; h != nil && h.Quarantined {
+			// Attach a runtime note to this prompt's position block through the
+			// existing text field; never persist it as the position's thesis.
+			positions[i].Thesis = "PROTECTION UNVERIFIED — only hold/wait allowed: " + h.QuarantineReason + "\n  " + positions[i].Thesis
+		}
 	}
 	ectx := &stockengine.Context{Now: now, Session: session, Config: cc, Preset: preset,
 		Account:   stockengine.Account{Equity: state.Equity, Available: state.Available, Exposure: state.Exposure},
@@ -556,7 +565,10 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		act := store.DecisionAction{Action: d.Action, Symbol: d.Symbol, StopLoss: d.StopLoss, TakeProfit: d.TakeProfit,
 			Confidence: d.Confidence, Reasoning: d.Reasoning, Leverage: 1, Timestamp: now.UTC()}
 		code := ""
+		h := state.Holdings[d.Symbol]
 		switch {
+		case h != nil && h.Quarantined && d.Action != stockengine.ActionHold && d.Action != stockengine.ActionWait:
+			code = "PROTECTION_UNVERIFIED"
 		case !v.Accepted:
 			code = joinCodes(v.Codes)
 		case isEntryAction(d.Action) && halted:
@@ -575,7 +587,6 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		}
 		var out *stockOutcome
 		var xerr error
-		h := state.Holdings[d.Symbol]
 		snap := snapBy[d.Symbol]
 		switch d.Action {
 		case stockengine.ActionHold, stockengine.ActionWait:

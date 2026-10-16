@@ -63,7 +63,7 @@ func TestReview20261009RegimeLineTraderParity(t *testing.T) {
 				t.Fatalf("kernel anchor changed: %g", anchor)
 			}
 			d := kernel.Decision{Symbol: data.Symbol, Action: action, Price: tc.anchor}
-			ctx := &kernel.Context{MarketDataMap: map[string]*market.Data{data.Symbol: data}}
+			ctx := &kernel.Context{MarketDataMap: map[string]*market.Data{data.Symbol: data}, CandidateCoins: []kernel.CandidateCoin{{Symbol: data.Symbol}}}
 			at := riskTestTrader(store.RiskControlConfig{EntryTimingGate: true})
 			at.cycleGateStates = map[string]*kernel.GateState{data.Symbol: {LongAllowed: sig.HardGate.Long.Allowed, ShortAllowed: sig.HardGate.Short.Allowed, LongFailed: sig.HardGate.Long.Failed, ShortFailed: sig.HardGate.Short.Failed}}
 			if got := at.applyHardRiskGates([]kernel.Decision{d}, ctx); (len(got) == 0) != tc.blocked {
@@ -92,7 +92,7 @@ func TestReview20261009RegimeLineTraderFillSiteAndTrigger(t *testing.T) {
 	data := reviewRegimeTraderData(now, true, 1.34, 1.35)
 	at := riskTestTrader(store.RiskControlConfig{EntryTimingGate: true})
 	at.cycleGateStates = map[string]*kernel.GateState{data.Symbol: {LongAllowed: true}}
-	ctx := &kernel.Context{MarketDataMap: map[string]*market.Data{data.Symbol: data}}
+	ctx := &kernel.Context{MarketDataMap: map[string]*market.Data{data.Symbol: data}, CandidateCoins: []kernel.CandidateCoin{{Symbol: data.Symbol}}}
 	limit := kernel.Decision{Symbol: data.Symbol, Action: "open_long_limit", Price: 1.37}
 	if got := at.applyHardRiskGates([]kernel.Decision{limit}, ctx); len(got) != 1 {
 		t.Fatal("backstop must use the limit fill site")

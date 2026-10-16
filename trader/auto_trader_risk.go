@@ -2261,6 +2261,46 @@ func absoluteBanCode(code string) bool {
 		strings.HasPrefix(code, "WIDE_STOP_")
 }
 
+// limitEntryBlockCode is shared by direct limit opens and market-to-limit
+// conversions. A live anchor alone does not authorize the direction.
+func limitEntryBlockCode(gs *kernel.GateState, isShort bool) string {
+	if gs == nil {
+		return "NO_GATE_STATE"
+	}
+	allowed, failed := gs.LongAllowed, gs.LongFailed
+	if isShort {
+		allowed, failed = gs.ShortAllowed, gs.ShortFailed
+	}
+	if !allowed {
+		return "DIRECTION_DISALLOWED"
+	}
+	for _, code := range failed {
+		if strings.HasPrefix(code, "VENDOR_DIVERGENCE") {
+			return code
+		}
+	}
+	return ""
+}
+
+// cycleEntryPool uses the current context, never a previous cycle's metadata
+// or the strategy's static universe. Held AI positions are rendered separately
+// from candidates and may lack a GateState, but remain eligible for adds.
+func cycleEntryPool(ctx *kernel.Context) map[string]bool {
+	pool := make(map[string]bool)
+	if ctx == nil {
+		return pool
+	}
+	for _, coin := range ctx.CandidateCoins {
+		pool[market.Normalize(coin.Symbol)] = true
+	}
+	for _, pos := range ctx.Positions {
+		if pos.Managed && pos.Quantity != 0 {
+			pool[market.Normalize(pos.Symbol)] = true
+		}
+	}
+	return pool
+}
+
 // applyHardRiskGates enforces program-level gates the AI cannot override:
 //  1. 1d-uptrend short block (risk_control.block_short_1d_uptrend)
 //  2. Minimum holding period lock on AI-initiated closes (min_hold_minutes)
@@ -2275,9 +2315,27 @@ func (at *AutoTrader) applyHardRiskGates(decisions []kernel.Decision, ctx *kerne
 		return decisions
 	}
 	rc := at.config.StrategyConfig.RiskControl
+	pool := cycleEntryPool(ctx)
+	excluded := make(map[string]bool)
+	for _, symbol := range at.config.StrategyConfig.CoinSource.ExcludedCoins {
+		excluded[market.Normalize(symbol)] = true
+	}
 	filtered := make([]kernel.Decision, 0, len(decisions))
 	for _, d := range decisions {
 		if kernel.IsOpenDecision(d.Action) {
+			symbol := market.Normalize(d.Symbol)
+			blockCode := ""
+			switch {
+			case excluded[symbol]:
+				blockCode = "EXCLUDED_COIN"
+			case !pool[symbol]:
+				blockCode = "NOT_CANDIDATE"
+			}
+			if blockCode != "" {
+				at.setFilterReason(d, "entry candidate gate: "+blockCode)
+				logger.Warnf("🛡️ [%s] GATE BLOCKED %s %s: %s", at.name, d.Action, d.Symbol, blockCode)
+				continue
+			}
 			if reason := at.protectionFaultReason(); reason != "" {
 				at.setFilterReason(d, reason)
 				continue
@@ -2351,8 +2409,9 @@ func (at *AutoTrader) applyHardRiskGates(decisions []kernel.Decision, ctx *kerne
 		//     validateOpenRisk, min-size re-check); EXTENDED_PUMP_UNCONFIRMED
 		//     keeps its sanctioned market-exception path (marketExceptionGate);
 		//     STOP_PLAN_* keeps the designed ATR-band fallback; a market open
-		//     with NO gate state keeps the existing marketExceptionGate
-		//     semantics (missing-gate fail-closed when LimitEntryEnabled).
+		//     within the cycle entry pool but with NO gate state keeps the
+		//     existing marketExceptionGate semantics (missing-gate fail-closed
+		//     when LimitEntryEnabled).
 		if strings.HasPrefix(d.Action, "open_") {
 			gs := at.cycleGateStates[market.Normalize(d.Symbol)]
 			isLimitOpen := strings.HasSuffix(d.Action, "_limit")
@@ -2367,10 +2426,8 @@ func (at *AutoTrader) applyHardRiskGates(decisions []kernel.Decision, ctx *kerne
 			}
 			blockCode := ""
 			switch {
-			case isLimitOpen && gs == nil:
-				blockCode = "NO_GATE_STATE"
-			case isLimitOpen && !allowed:
-				blockCode = "DIRECTION_DISALLOWED"
+			case isLimitOpen:
+				blockCode = limitEntryBlockCode(gs, isShort)
 			case !isLimitOpen && gs != nil && !allowed:
 				// Anti-chase codes (CHASE_EMA20_1H_/COUNTER_EMA20_1H_/
 				// RSI1H_EXHAUSTED_/CHASE_MOVE4H_) block a MARKET open — it

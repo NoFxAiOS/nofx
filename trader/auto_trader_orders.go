@@ -156,6 +156,11 @@ func (at *AutoTrader) marketExceptionGate(d *kernel.Decision, record *store.Deci
 		if !isLong {
 			limitAction = "open_short_limit"
 		}
+		if code := limitEntryBlockCode(gs, !isLong); code != "" {
+			reason := "kernel direction gate: " + code + " (market-to-limit conversion)"
+			at.setFilterReason(*d, reason)
+			return d, fmt.Errorf("❌ [RISK CONTROL] %s %s rejected: %s", d.Action, d.Symbol, reason)
+		}
 		streak, push := at.gateNotifyRecord("mktgate:"+d.Symbol, time.Now())
 		logger.Warnf("🛡️ [%s] MARKET→LIMIT %s %s: no market-exception evidence (or confidence %d < %d) — degraded to anchor limit %.6g (streak %d)",
 			at.name, d.Action, d.Symbol, d.Confidence, kernel.MarketExceptionMinScore, anchor, streak)

@@ -5,6 +5,7 @@
 | 入口 | 能力与定位 |
 |---|---|
 | `scripts/backtest entry / exit` | 现已使用 **Backtrader 1.9.78.123**；原生 `Cerebro`、`BackBroker`、Market/Limit/Stop、OCO、手续费、滑点和账户盈亏 |
+| `scripts/backtest stocks` | 离线美股多资产共享资金组合；每策略独立 Cerebro，原生 broker/订单/手续费/分析器 |
 | `scripts/backtest ml-dataset` | 两套出场策略的收益标签均通过同一个 Backtrader 适配器生成 |
 | `scripts/backtest ml-eval` | 信号特征的统计检验，不执行订单；拒绝未标记为 Backtrader 的旧标签 |
 | `market/breakout/backtest.go`，`GET /api/breakout/params` | 突破信号的 1h/4h/24h 前瞻收益研究，`evaluation_scope=signal_forward_returns_research_only`；没有订单、账户或 SL/TP 模拟，不属于交易执行回测 |
@@ -12,7 +13,7 @@
 
 选择 [Backtrader](https://github.com/mementum/backtrader) 是因为现有信号提取、缓存和 ML 工具都是 Python，能直接复用数据。Backtrader 免费开源，采用 GPL-3.0 许可证；不需要平台注册或付费服务。项目只实现数据和策略适配，**不再维护自写撮合、仓位账务或盈亏模拟器**，缺少依赖时明确退出，不回退到旧逻辑。
 
-本工具用于独立信号的出场/入场规则研究，每笔等权归一到初始风险 R；不是一个多资产、共享资金、合约保证金的组合回测。没有新增 Web 回测页面。
+`entry` / `exit` 用于独立信号的出场/入场规则研究，每笔等权归一到初始风险 R；`stocks` 是多资产、共享资金的股票组合回测。均不模拟合约保证金，没有新增 Web 回测页面。
 
 ## 安装与执行
 
@@ -110,3 +111,37 @@ uv run --no-project --with numpy --with scikit-learn python -m scripts.backtest 
 OHLC 无法确定 K 线内部事件顺序，混合 1m/5m 精度也不同。缓存不含成交量，因此未启用成交量约束或部分成交模型；这里只模拟订单规则中的主动部分减仓。未建模资金费率、合约保证金/清算、交易所最小数量和精度、AI 主动平仓、组合最大仓位数、共享资金或历史改价链。结果应作为规则研究，不能当作实盘账户收益。
 
 Backtrader 参考：[订单执行](https://www.backtrader.com/docu/order-creation-execution/order-creation-execution/)、[OCO](https://www.backtrader.com/docu/order-creation-execution/oco/oco/)、[手续费](https://www.backtrader.com/docu/commission-schemes/commission-schemes/)、[滑点](https://www.backtrader.com/docu/slippage/slippage/)。
+
+## 美股组合回测（stocks）
+
+完全离线读取 `<cache>/<SYMBOL>.json` 日线和 `<cache>/1h/<SYMBOL>.json` 小时线，不下载、不调用 LLM。依赖 Backtrader 1.9.78.123 和 Pandas 2.2.3（见 `requirements.txt`）。在仓库根目录运行：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 /Users/zhangyun/workspace/nofx/.venv/bin/python -m scripts.backtest stocks \
+  --tf 1d --compare data/backtest_cache/stocks/go_ma2060_1d.json \
+  --out data/backtest_cache/stocks/bt_1d.md --json data/backtest_cache/stocks/bt_1d.json
+
+PYTHONDONTWRITEBYTECODE=1 /Users/zhangyun/workspace/nofx/.venv/bin/python -m scripts.backtest stocks \
+  --tf 1h --compare data/backtest_cache/stocks/go_ma2060_1h.json \
+  --out data/backtest_cache/stocks/bt_1h.md --json data/backtest_cache/stocks/bt_1h.json
+
+PYTHONDONTWRITEBYTECODE=1 /Users/zhangyun/workspace/nofx/.venv/bin/python -m unittest discover -s scripts/backtest/tests -v
+```
+
+参数：`--cache` 默认 `data/backtest_cache/stocks`；`--tf 1d|1h`；`--maxpos 10`；`--rebalance 10`（SPY 交易日）；`--commission 0.001`（每边成交额的 0.1%）；`--cash 100000`；`--strategies MOM_TOP,MA_CROSS,MA2060_RULES,MOM_X_MA,SPY_BH,EW_BH`。`--exclude` 是逗号分隔列表，替换默认 TQQQ/SQQQ/SOXL/SOXS/UVXY/MUU/KORU 排除项，接受 underlying 或完整 BUSDT 名称；SPY/QQQ 始终不进入选股池。`--compare` 接受结果 JSON 路径或 cache 下文件名；`--out` 省略则输出 Markdown；`--json` 保存权益、订单、原生交易、分析器及交叉核对数据。
+
+执行与信号规则：
+
+- 每个策略独立运行原生 Cerebro，`broker.setcash` / `setcommission`；PandasData 多 feed，SPY 驱动日历。`prenext → next` 保证晚上市股票不推迟共同起点：SPY 已有 253 根日线排名数据、至少 61 根执行 K 线，且在该交易日最后一根 K 线上。仅对时间戳与当前策略时间一致的 feed 生成订单；指标使用该股票自身已完成的历史 K 线。
+- 不启用 cheat-on-close/open，**无滑点**。t 收盘提交 Market，t+1 SPY 开盘起由 BackBroker 撮合。若缺少该根开盘则取消，不延迟成交或用低排名候选补位。末尾只盯市，不伪造清仓；最后一根提交的未成交订单单独记录。
+- 做多、可用小数股，每个普通仓位目标为当前权益的 `1/maxpos`；收盘计算固定股数，下一开盘跳空会改变实际权重。先卖后买；原生 filler 回调只按 broker 实际可用现金和手续费缩减成交数量并检查槽位，剩余数量当根取消。撮合价格、手续费、仓位及 P&L 均由 Backtrader 管理，无自写账务。与 Go 在下一开盘重算名义金额/费后权重的口径存在差异。
+- `MOM_TOP`：按有效日线排名、是否高于 SMA200、12–1 动量 `close[t-21]/close[t-252]-1` 排序，选高于 SMA200 的前 N 名，每 10 个 SPY 交易日末等权调仓；不足 N 名留现金。
+- `MA_CROSS`：SMA20 上穿 SMA60 开仓，下穿平仓；同根候选按上述动量优先级分配空槽（无有效排名的候选仍可排在最后）。退出优先，预计退出可释放槽位；退出失败只会缩减实际新买入。
+- `MA2060_RULES`：E1 金叉；E2 上行 SMA60 的多头趋势中回踩 SMA20（0.5% 容差）、收于 SMA60 上且阳线；E3 同趋势中最近 3 根收盘曾在 SMA20 下但不低于 SMA60 的 98%，当前重回 SMA20 上；E4 最近 3 根 dev20 ≤ −2.5×ATR/close 后关键阳线（破前高或阳包阴）。按 E1→E4 首个匹配归因。
+- X1 死叉；X2 最近 20 根曾 dev20 ≥ 3×ATR/close、连续 5 根无严格 20 根收盘新高且跌破此前 5 根最低价；X3 连续 10 根无新高且低于两均线；X4 收盘低于实际开仓价 − 2×**信号 ATR**；E4 另有收盘回到 SMA20 的 TARGET。X1→X4→TARGET 优先级，均在下一根开盘平仓，不是盘中 Stop/Limit。
+- `MOM_X_MA`：先选动量前 N，再以 SMA20>SMA60 否决，不补位；调仓间死叉退出，金叉不自行补仓。`SPY_BH` 首日买 SPY 并持有。`EW_BH` 固定共同首日有数据的全部股票，每 63 根**执行 K 线**等权再平衡，不添加后续 IPO；此基准明确例外于 maxpos。
+- SMA20/60/200、Wilder ATR14（首根高低差参与 14 根 seed）和事件窗口严格向前计算。新高排除当根的此前 20 根收盘；事件回看包含当根。1h 均线/ATR 按小时根数，动量仅使用当前 UTC 日期之前的最后完整日线，避免上午偷看当日收盘。
+
+指标：原生 TimeReturn 的**日度权益收益**计算 CAGR、年化波动（252）、Sharpe（rf=0）、Sortino、分年和近 12 月收益；CAGR 按 365.25 天实际跨度。原生 DrawDown 计算最大回撤，权益观测补充峰谷日期；原生 TradeAnalyzer 计算完整平仓交易数、胜率、平均盈利/亏损金额、profit factor、平均持仓执行根数。另记录平均投入比例和实际成交手续费。MA2060 按 E1–E4、X1–X4/TARGET 记录完整交易与已成交订单数，订单 info 保留规则及信号 ATR。
+
+报告包括策略比较、分年收益、规则归因、Go 核对、逐股覆盖和局限。Go 核对明确区分原生完整 trade 与 FIFO lot portion，并为 1h 额外把缓存 Go 权益聚合为日度 Sharpe，区分收益频率和执行差异。当前缓存存在幸存者偏差；Yahoo 调整后的 underlying 常规时段价格不是 bStock 可成交价格；无 LLM；1h 仅约两年。此前本 README 中独立信号 R、仓位重叠等限制仅适用于 entry/exit，不适用于 stocks。

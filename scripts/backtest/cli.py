@@ -176,6 +176,47 @@ def cmd_ml_eval(a):
     return 0
 
 
+def cmd_stocks(a):
+    # Lazy imports keep signals/fetch/help usable without portfolio dependencies.
+    _backtrader()
+    try:
+        from .stocks import Config, run_study
+        from .stocks_data import load_study
+        from .stocks_report import cross_check, render_report
+    except ImportError as exc:
+        raise ValueError('stocks needs pandas; install scripts/backtest/requirements.txt') from exc
+    if a.out and a.json_out and os.path.abspath(a.out) == os.path.abspath(a.json_out):
+        raise ValueError('out and json must be different paths')
+    cfg = Config(a.tf, a.maxpos, a.rebalance, a.commission, a.cash)
+    cfg.validate()
+    names = tuple(n.strip() for n in a.strategies.split(',') if n.strip())
+    study = load_study(a.cache, a.tf, a.exclude)
+    result = run_study(study, cfg, names, progress=lambda line: print(line, flush=True))
+    if a.compare:
+        path = a.compare
+        if not os.path.exists(path):
+            path = os.path.join(a.cache, path)
+        with open(path) as f:
+            result['cross_check'] = cross_check(result, json.load(f))
+        result['compare_path'] = path
+    report = render_report(result)
+    for path, content in ((a.out, report), (a.json_out, json.dumps(result, indent=2, ensure_ascii=False, allow_nan=False)+'\n')):
+        if path:
+            os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+            with open(path, 'w') as f:
+                f.write(content)
+            print('written '+path)
+    print(f"engine=backtrader version={result['engine_version']} tf={a.tf} stocks={study.coverage['universe_size']} "
+          f"bars={len(study.calendar)} commission={a.commission} slippage=0")
+    if a.out:
+        if a.compare:
+            from .stocks_report import comparison_table
+            print(comparison_table(result['cross_check']))
+    else:
+        print(report)
+    return 0
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="python3 -m scripts.backtest", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -239,6 +280,21 @@ def build_parser():
     p.add_argument("--alpha", type=float, default=0.05)
     p.add_argument("--models", help="逗号分隔,默认 logit_L2,logit_L1,ridge,hgb_depth2")
     p.set_defaults(fn=cmd_ml_eval)
+
+    p = sub.add_parser('stocks', help='离线美股组合回测（Backtrader）')
+    p.add_argument('--cache', default=os.path.join(REPO_ROOT, 'data', 'backtest_cache', 'stocks'))
+    p.add_argument('--tf', choices=['1d', '1h'], default='1d')
+    p.add_argument('--maxpos', type=int, default=10)
+    p.add_argument('--rebalance', type=int, default=10)
+    p.add_argument('--commission', type=float, default=0.001)
+    p.add_argument('--cash', type=float, default=100000)
+    p.add_argument('--exclude', default='TQQQBUSDT,SQQQBUSDT,SOXLBUSDT,SOXSBUSDT,UVXYBUSDT,MUUBUSDT,KORUBUSDT',
+                   help='逗号分隔，替换默认排除项；SPY/QQQ 始终仅作基准')
+    p.add_argument('--strategies', default='MOM_TOP,MA_CROSS,MA2060_RULES,MOM_X_MA,SPY_BH,EW_BH')
+    p.add_argument('--compare', help='Go 结果 JSON 路径（或 cache 下文件名）')
+    p.add_argument('--out', help='Markdown 输出，默认 stdout')
+    p.add_argument('--json', dest='json_out', help='JSON 输出，含原生分析器、权益、订单与交易')
+    p.set_defaults(fn=cmd_stocks)
     return ap
 
 

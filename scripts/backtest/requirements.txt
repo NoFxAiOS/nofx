@@ -1,1 +1,2 @@
 backtrader==1.9.78.123
+pandas==2.2.3

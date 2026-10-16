@@ -67,7 +67,7 @@ func TestVendorDivergenceBlocksAllOpenPaths(t *testing.T) {
 		LongFailed:  []string{"VENDOR_DIVERGENCE_1.36"},
 		ShortFailed: []string{"VENDOR_DIVERGENCE_UNKNOWN"},
 	}
-	ctx := &kernel.Context{Account: kernel.AccountInfo{TotalEquity: 1000}}
+	ctx := &kernel.Context{Account: kernel.AccountInfo{TotalEquity: 1000}, CandidateCoins: []kernel.CandidateCoin{{Symbol: "TESTUSDT"}, {Symbol: "CLEANUSDT"}}}
 
 	out := at.applyHardRiskGates([]kernel.Decision{
 		{Symbol: "TESTUSDT", Action: "open_long", Confidence: 95, Reasoning: "breakout"},
@@ -105,7 +105,7 @@ func TestAntiChaseCodesBlockMarketOpen(t *testing.T) {
 		LongFailed:  []string{"CHASE_EMA20_1H_7.0_GT_6"},
 		ShortFailed: []string{"RSI1H_EXHAUSTED_15"},
 	}
-	ctx := &kernel.Context{Account: kernel.AccountInfo{TotalEquity: 1000}}
+	ctx := &kernel.Context{Account: kernel.AccountInfo{TotalEquity: 1000}, CandidateCoins: []kernel.CandidateCoin{{Symbol: "CHASEUSDT"}}}
 	out := at.applyHardRiskGates([]kernel.Decision{
 		{Symbol: "CHASEUSDT", Action: "open_long", Confidence: 95, Reasoning: "x"},
 		{Symbol: "CHASEUSDT", Action: "open_short", Confidence: 95, Reasoning: "x"},

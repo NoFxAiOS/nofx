@@ -19,6 +19,7 @@ func TestMarketExceptionGate(t *testing.T) {
 	at := riskTestTrader(rc)
 	at.cycleGateStates = map[string]*kernel.GateState{
 		"TESTUSDT": {
+			LongAllowed:       true,
 			LongLimitAllowed:  true,
 			LongEntryPrice:    99.5,
 			ShortLimitAllowed: false,

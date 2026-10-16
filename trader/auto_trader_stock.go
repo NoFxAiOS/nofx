@@ -119,8 +119,10 @@ type stockRuntime struct {
 	stopTicks   map[string]int
 	lastProtect map[string]stockProtect
 	pendings    map[string]*stockPending
-	tickCount   int
-	lastSlot    time.Time
+	// Alert history is loop-owned, like protection reconciliation itself.
+	protectionAlerts map[string]map[string]stockProtectionNotice
+	tickCount        int
+	lastSlot         time.Time
 }
 
 func (r *stockRuntime) price(symbol string) float64 {

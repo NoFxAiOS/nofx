@@ -185,6 +185,9 @@ func (t *BStockTrader) GetOrderStatus(symbol, orderID string) (map[string]interf
 	if err != nil {
 		return nil, wrap("order status", err)
 	}
+	// Exchange-side executions do not pass through place/cancel. The next
+	// account read must not reuse inventory cached before this status read.
+	t.invalidate()
 	trades, err := t.trades(symbol)
 	if err != nil {
 		return nil, err
@@ -203,7 +206,7 @@ func (t *BStockTrader) GetOrderStatus(symbol, orderID string) (map[string]interf
 	if executed > 0 {
 		avg = number(o.CummulativeQuoteQuantity) / executed
 	}
-	return map[string]interface{}{"orderId": o.OrderID, "symbol": o.Symbol, "status": string(o.Status), "avgPrice": avg, "executedQty": executed, "commission": commission, "commissionAsset": "USDT", "side": string(o.Side), "type": string(o.Type), "time": o.Time, "updateTime": o.UpdateTime}, nil
+	return map[string]interface{}{"orderId": o.OrderID, "clientOrderId": o.ClientOrderID, "orderListId": o.OrderListId, "symbol": o.Symbol, "status": string(o.Status), "avgPrice": avg, "executedQty": executed, "cummulativeQuoteQty": number(o.CummulativeQuoteQuantity), "commission": commission, "commissionAsset": "USDT", "side": string(o.Side), "type": string(o.Type), "time": o.Time, "updateTime": o.UpdateTime}, nil
 }
 
 // CancelOrder cancels one program-owned open order. Orders without the nxbs_

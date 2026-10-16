@@ -51,6 +51,7 @@ func reconstruct(symbol string, orders []*binance.Order) (*types.ProtectionOrder
 				return nil, fmt.Errorf("multiple stop orders for %s", symbol)
 			}
 			p.StopOrderID = id(o.OrderID)
+			p.StopClientID = o.ClientOrderID
 			p.StopPrice = number(o.StopPrice)
 			p.StopLimitPrice = number(o.Price)
 		case binance.OrderTypeLimitMaker:
@@ -58,6 +59,7 @@ func reconstruct(symbol string, orders []*binance.Order) (*types.ProtectionOrder
 				return nil, fmt.Errorf("multiple take-profit orders for %s", symbol)
 			}
 			p.TakeProfitID = id(o.OrderID)
+			p.TPClientID = o.ClientOrderID
 			p.TakeProfit = number(o.Price)
 		}
 	}
@@ -102,6 +104,9 @@ func (t *BStockTrader) cancelProtection(symbol string) error {
 func (t *BStockTrader) CancelProtection(symbol string) error {
 	t.execMu.Lock()
 	defer t.execMu.Unlock()
+	// Also invalidate when openOrders is empty: the set may just have filled
+	// externally, without any local place/cancel call touching the caches.
+	defer t.invalidate()
 	return t.cancelProtection(symbol)
 }
 func (t *BStockTrader) CancelStopOrders(symbol string) error { return t.CancelProtection(symbol) }
@@ -183,12 +188,14 @@ func (t *BStockTrader) setProtection(symbol string, qty, stop, stopLimit, tp flo
 			return nil, fmt.Errorf("protection canceled; replacement stop failed: %w", e)
 		}
 		p.StopOrderID = o.OrderID
+		p.StopClientID = o.ClientOrderID
 		return p, nil
 	}
 	// v2.8.9 CreateOCOService uses deprecated /api/v3/order/oco. The new
 	// endpoint has explicit above/below leg types and client IDs.
 	below, above := protectionID("sl"), protectionID("tp")
-	params := url.Values{"symbol": {symbol}, "side": {"SELL"}, "quantity": {value(qty)}, "listClientOrderId": {clientID()}, "aboveType": {"LIMIT_MAKER"}, "abovePrice": {value(tp)}, "aboveClientOrderId": {above}, "belowType": {"STOP_LOSS_LIMIT"}, "belowStopPrice": {value(stop)}, "belowPrice": {value(stopLimit)}, "belowTimeInForce": {"GTC"}, "belowClientOrderId": {below}, "newOrderRespType": {"RESULT"}}
+	p.ListClientID, p.StopClientID, p.TPClientID = clientID(), below, above
+	params := url.Values{"symbol": {symbol}, "side": {"SELL"}, "quantity": {value(qty)}, "listClientOrderId": {p.ListClientID}, "aboveType": {"LIMIT_MAKER"}, "abovePrice": {value(tp)}, "aboveClientOrderId": {above}, "belowType": {"STOP_LOSS_LIMIT"}, "belowStopPrice": {value(stop)}, "belowPrice": {value(stopLimit)}, "belowTimeInForce": {"GTC"}, "belowClientOrderId": {below}, "newOrderRespType": {"RESULT"}}
 	var result struct {
 		OrderListID *int64           `json:"orderListId"`
 		Orders      []*binance.Order `json:"orders"`
@@ -207,10 +214,12 @@ func (t *BStockTrader) setProtection(symbol string, qty, stop, stopLimit, tp flo
 			p.TakeProfitID = id(o.OrderID)
 		}
 	}
+	if result.OrderListID != nil && *result.OrderListID >= 0 {
+		p.OrderListID = id(*result.OrderListID)
+	}
 	if result.OrderListID == nil || *result.OrderListID < 0 || p.StopOrderID == "" || p.TakeProfitID == "" {
 		return p, fmt.Errorf("OCO accepted but response lacks list/leg IDs; reconcile via GetProtection before retrying")
 	}
-	p.OrderListID = id(*result.OrderListID)
 	return p, nil
 }
 

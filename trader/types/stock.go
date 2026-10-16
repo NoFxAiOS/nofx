@@ -32,6 +32,11 @@ type SpotStockTrader interface {
 	// CancelProtection cancels the symbol's protective orders.
 	CancelProtection(symbol string) error
 
+	// GetOrderStatus queries an individual leg even after it disappears from
+	// openOrders (including an OCO leg). Executions and quote proceeds are
+	// cumulative; terminal CANCELED/EXPIRED orders can have partial fills.
+	GetOrderStatus(symbol, orderID string) (map[string]interface{}, error)
+
 	// CancelOrder cancels one PROGRAM-owned open order (nxbs_ client id) by
 	// exchange order id; it refuses to touch orders the user placed manually.
 	// Used to expire resting limit entries.
@@ -65,6 +70,9 @@ type ProtectionOrders struct {
 	OrderListID    string  `json:"order_list_id,omitempty"` // OCO list id; empty for a lone stop
 	StopOrderID    string  `json:"stop_order_id"`
 	TakeProfitID   string  `json:"take_profit_id,omitempty"`
+	ListClientID   string  `json:"list_client_id,omitempty"`
+	StopClientID   string  `json:"stop_client_id,omitempty"`
+	TPClientID     string  `json:"tp_client_id,omitempty"`
 	Quantity       float64 `json:"quantity"`
 	StopPrice      float64 `json:"stop_price"`
 	StopLimitPrice float64 `json:"stop_limit_price"`

@@ -52,30 +52,42 @@ type protCall struct {
 // (nil embedded interface), proving the stock path does not use them.
 type fakeSpot struct {
 	types.Trader
-	mu         sync.Mutex
-	usdt       float64
-	hold       map[string]float64
-	price      float64
-	prot       map[string]*types.ProtectionOrders
-	buys       []float64
-	limitBuys  int
-	sells      []sellCall
-	zeroSells  int
-	setProt    []protCall
-	cancelAll  int
-	cancelProt int
-	cancelled  []string
-	preflights int
-	seq        int
+	mu           sync.Mutex
+	usdt         float64
+	hold         map[string]float64
+	price        float64
+	prot         map[string]*types.ProtectionOrders
+	buys         []float64
+	limitBuys    int
+	sells        []sellCall
+	zeroSells    int
+	setProt      []protCall
+	cancelAll    int
+	cancelProt   int
+	cancelled    []string
+	preflights   int
+	seq          int
+	statuses     map[string]map[string]interface{}
+	statusErr    error
+	protErr      error
+	protErrors   map[string]error
+	statusErrors map[string]error
+	balanceErr   error
+	positionsErr error
+	onCancel     func()
+	onPositions  func()
 }
 
 func newFakeSpot(price float64) *fakeSpot {
-	return &fakeSpot{usdt: 10000, hold: map[string]float64{}, price: price, prot: map[string]*types.ProtectionOrders{}}
+	return &fakeSpot{usdt: 10000, hold: map[string]float64{}, price: price, prot: map[string]*types.ProtectionOrders{}, statuses: map[string]map[string]interface{}{}}
 }
 
 func (f *fakeSpot) GetBalance() (map[string]interface{}, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.balanceErr != nil {
+		return nil, f.balanceErr
+	}
 	eq := f.usdt
 	for _, q := range f.hold {
 		eq += q * f.price
@@ -85,6 +97,14 @@ func (f *fakeSpot) GetBalance() (map[string]interface{}, error) {
 func (f *fakeSpot) GetPositions() ([]map[string]interface{}, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.positionsErr != nil {
+		return nil, f.positionsErr
+	}
+	if f.onPositions != nil {
+		hook := f.onPositions
+		f.onPositions = nil
+		hook()
+	}
 	out := []map[string]interface{}{}
 	for sym, q := range f.hold {
 		if q > 0.0009 {
@@ -146,12 +166,30 @@ func (f *fakeSpot) SetProtection(sym string, qty, stop, limit, tp float64) (*typ
 	if qty > f.hold[sym]+1e-9 {
 		return nil, fmt.Errorf("protection quantity exceeds held balance")
 	}
-	f.prot[sym] = &types.ProtectionOrders{Symbol: sym, Quantity: qty, StopPrice: stop, StopLimitPrice: limit, TakeProfit: tp, StopOrderID: f.nextID()}
+	f.cancelProtection(sym)
+	p := &types.ProtectionOrders{Symbol: sym, Quantity: qty, StopPrice: stop, StopLimitPrice: limit, TakeProfit: tp, StopOrderID: f.nextID()}
+	p.StopClientID = "nxbs_sl_" + p.StopOrderID
+	if tp > 0 {
+		p.OrderListID, p.TakeProfitID = f.nextID(), f.nextID()
+		p.ListClientID, p.TPClientID = "nxbs_list_"+p.OrderListID, "nxbs_tp_"+p.TakeProfitID
+	}
+	f.prot[sym] = p
+	for id, client := range map[string]string{p.StopOrderID: p.StopClientID, p.TakeProfitID: p.TPClientID} {
+		if id != "" {
+			f.statuses[id] = map[string]interface{}{"status": "NEW", "executedQty": 0.0, "avgPrice": 0.0, "commission": 0.0, "clientOrderId": client}
+		}
+	}
 	return f.prot[sym], nil
 }
 func (f *fakeSpot) GetProtection(sym string) (*types.ProtectionOrders, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := f.protErrors[sym]; err != nil {
+		return nil, err
+	}
+	if f.protErr != nil {
+		return nil, f.protErr
+	}
 	if p := f.prot[sym]; p != nil {
 		c := *p
 		return &c, nil
@@ -162,8 +200,23 @@ func (f *fakeSpot) CancelProtection(sym string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cancelProt++
-	delete(f.prot, sym)
+	if f.onCancel != nil {
+		hook := f.onCancel
+		f.onCancel = nil
+		hook()
+	}
+	f.cancelProtection(sym)
 	return nil
+}
+func (f *fakeSpot) cancelProtection(sym string) {
+	if p := f.prot[sym]; p != nil {
+		for _, id := range []string{p.StopOrderID, p.TakeProfitID} {
+			if s := f.statuses[id]; s != nil && !stockOrderTerminal(fmt.Sprint(s["status"])) {
+				s["status"] = "CANCELED"
+			}
+		}
+	}
+	delete(f.prot, sym)
 }
 func (f *fakeSpot) CancelAllOrders(string) error {
 	f.mu.Lock()
@@ -176,7 +229,16 @@ func (f *fakeSpot) CancelOrder(symbol, orderID string) error {
 	f.cancelled = append(f.cancelled, symbol+":"+orderID)
 	return nil
 }
-func (f *fakeSpot) GetOrderStatus(string, string) (map[string]interface{}, error) {
+func (f *fakeSpot) GetOrderStatus(sym string, id string) (map[string]interface{}, error) {
+	if err := f.statusErrors[sym]; err != nil {
+		return nil, err
+	}
+	if f.statusErr != nil {
+		return nil, f.statusErr
+	}
+	if s := f.statuses[id]; s != nil {
+		return s, nil
+	}
 	return map[string]interface{}{"status": "NEW", "executedQty": 0.0, "avgPrice": 0.0, "commission": 0.0}, nil
 }
 
@@ -507,8 +569,13 @@ func TestStockProtectionTickReplacesMissingAndFallsBack(t *testing.T) {
 	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
 	fx.openLiveOwned(t, 16.666, 16.666)
 	ctx := context.Background()
+	if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 16.666, 115, 0, 120); err != nil {
+		t.Fatal(err)
+	}
+	fx.spot.cancelProtection("AAPLBUSDT") // verified cancellation with no fills
+	fx.spot.setProt = nil
 
-	fx.at.stockProtectionTick(ctx) // no protection yet → re-placed from the persisted opening stop
+	fx.at.stockProtectionTick(ctx) // missing protection → re-placed from its durable prices
 	if len(fx.spot.setProt) != 1 || fx.spot.setProt[0].Stop != 115 || !near(fx.spot.setProt[0].Qty, 16.666) {
 		t.Fatalf("protection not re-placed: %+v", fx.spot.setProt)
 	}
@@ -711,17 +778,564 @@ func TestStockPendingExpiry(t *testing.T) {
 	}
 }
 
-func TestStockExchangeSideStopFillIsBookedAtStop(t *testing.T) {
+func TestStockExchangeSideStopFillIsBookedAtExecutionPrice(t *testing.T) {
 	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
 	fx.openLiveOwned(t, 16.666, 16.666)
-	fx.at.stockProtectionTick(context.Background()) // places protection, remembers stop 115
-	fx.spot.hold["AAPLBUSDT"] = 0                   // the exchange stop filled
+	if err := fx.at.stockPlaceProtection(context.Background(), "AAPLBUSDT", 16.666, 115, 0, 120); err != nil {
+		t.Fatal(err)
+	}
+	id := fx.spot.prot["AAPLBUSDT"].StopOrderID
+	fx.spot.statuses[id]["status"], fx.spot.statuses[id]["executedQty"], fx.spot.statuses[id]["avgPrice"] = "FILLED", 16.666, 114.5
+	fx.spot.hold["AAPLBUSDT"] = 0 // the exchange stop filled
 	delete(fx.spot.prot, "AAPLBUSDT")
 	fx.price, fx.spot.price = 114.5, 114.5
 	fx.at.stockProtectionTick(context.Background())
 	closed, _ := fx.at.store.Position().GetClosedPositions("t1", 5)
-	if len(closed) != 1 || closed[0].CloseReason != "stop_loss" || !near(closed[0].ExitPrice, 115) || closed[0].RealizedPnL >= 0 {
+	if len(closed) != 1 || closed[0].CloseReason != "stop_loss" || !near(closed[0].ExitPrice, 114.5) || closed[0].RealizedPnL >= 0 {
 		t.Fatalf("exchange stop fill not booked: %+v", closed)
+	}
+}
+
+// The balance after an exchange exit may consist entirely of manual shares.
+// Only the recorded order executions decide how much program ownership exits.
+func TestStockProtectionFillsLeaveManualSharesUntouched(t *testing.T) {
+	for _, manual := range []float64{7, 2} {
+		for _, role := range []string{"stop_loss", "take_profit"} {
+			for _, cycle := range []bool{false, true} {
+				t.Run(fmt.Sprintf("manual_%g/%s/cycle_%v", manual, role, cycle), func(t *testing.T) {
+					fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+					fx.openLiveOwned(t, 5, 5+manual)
+					ctx := context.Background()
+					if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+						t.Fatal(err)
+					}
+					p := fx.spot.prot["AAPLBUSDT"]
+					id, px := p.StopOrderID, 113.25
+					if role == "take_profit" {
+						id, px = p.TakeProfitID, 131.25
+					}
+					fx.spot.statuses[id]["status"], fx.spot.statuses[id]["executedQty"], fx.spot.statuses[id]["avgPrice"] = "FILLED", 5.0, px
+					// The OCO sibling is canceled by the exchange.
+					fx.spot.cancelProtection("AAPLBUSDT")
+					fx.spot.hold["AAPLBUSDT"] = manual
+					// Restart loses in-memory protection prices, never durable IDs.
+					fx.at.stock.lastProtect = map[string]stockProtect{}
+					fx.price, fx.spot.price = px, px
+					if cycle {
+						fx.cycle(t)
+					} else {
+						fx.at.stockProtectionTick(ctx)
+					}
+					fx.at.stockProtectionTick(ctx) // no duplicate booking/re-protection
+					open, _ := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+					closed, _ := fx.at.store.Position().GetClosedPositions("t1", 5)
+					if len(open) != 0 || len(closed) != 1 || closed[0].CloseReason != role || closed[0].ExitOrderID != id || !near(closed[0].ExitPrice, px) || !near(closed[0].RealizedPnL, 5*(px-120)) {
+						t.Fatalf("open=%+v closed=%+v", open, closed)
+					}
+					if len(fx.spot.sells) != 0 || len(fx.spot.setProt) != 1 || fx.spot.hold["AAPLBUSDT"] != manual {
+						t.Fatalf("manual shares touched: sells=%v protection=%v balance=%g", fx.spot.sells, fx.spot.setProt, fx.spot.hold["AAPLBUSDT"])
+					}
+					for _, a := range fx.alert {
+						if strings.Contains(a, "外部减仓") {
+							t.Fatalf("protective fill misclassified as external: %s", a)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestStockPartialProtectionFillReplacesOnlyRemainder(t *testing.T) {
+	for _, cycle := range []bool{false, true} {
+		t.Run(fmt.Sprint(cycle), func(t *testing.T) {
+			fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+			fx.openLiveOwned(t, 5, 12)
+			ctx := context.Background()
+			if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+				t.Fatal(err)
+			}
+			p := fx.spot.prot["AAPLBUSDT"]
+			fx.spot.statuses[p.StopOrderID]["status"], fx.spot.statuses[p.StopOrderID]["executedQty"], fx.spot.statuses[p.StopOrderID]["avgPrice"] = "PARTIALLY_FILLED", 3.0, 114.0
+			p.Quantity, fx.spot.hold["AAPLBUSDT"] = 2, 9
+			if cycle {
+				fx.cycle(t)
+			} else {
+				fx.at.stockProtectionTick(ctx)
+			}
+			fx.at.stock.lastProtect = map[string]stockProtect{}
+			fx.at.stockProtectionTick(ctx)
+			rows, _ := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+			if len(rows) != 1 || !near(rows[0].Quantity, 2) || !near(rows[0].RealizedPnL, -18) || !near(rows[0].ExitPrice, 114) {
+				t.Fatalf("partial fill %+v", rows)
+			}
+			if len(fx.spot.setProt) != 2 || fx.spot.setProt[1].Qty != 2 || len(fx.spot.sells) != 0 || fx.spot.hold["AAPLBUSDT"] != 9 {
+				t.Fatalf("sells=%v protection=%v balance=%g", fx.spot.sells, fx.spot.setProt, fx.spot.hold["AAPLBUSDT"])
+			}
+		})
+	}
+}
+
+func TestStockProtectionQueryFailureBlocksFallbackAndBalanceShrink(t *testing.T) {
+	for _, openQuery := range []bool{false, true} {
+		t.Run(fmt.Sprint(openQuery), func(t *testing.T) {
+			fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+			fx.openLiveOwned(t, 5, 12)
+			ctx := context.Background()
+			if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+				t.Fatal(err)
+			}
+			fx.spot.cancelProtection("AAPLBUSDT")
+			fx.spot.hold["AAPLBUSDT"] = 2
+			fx.price, fx.spot.price = 110, 110
+			if openQuery {
+				fx.spot.protErr = fmt.Errorf("open orders unavailable")
+			} else {
+				fx.spot.statusErr = fmt.Errorf("order status unavailable")
+			}
+			alerts := len(fx.alert)
+			fx.at.stockProtectionTick(ctx)
+			rows, _ := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+			if len(fx.spot.sells) != 0 || len(fx.spot.setProt) != 1 || len(rows) != 1 || rows[0].Quantity != 5 || len(fx.alert) <= alerts {
+				t.Fatalf("unsafe query failure: sells=%v protection=%v rows=%+v alerts=%v", fx.spot.sells, fx.spot.setProt, rows, fx.alert)
+			}
+		})
+	}
+}
+
+func TestStockVerifiedMissingProtectionAllowsBoundedFallback(t *testing.T) {
+	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+	fx.openLiveOwned(t, 5, 12)
+	ctx := context.Background()
+	if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+		t.Fatal(err)
+	}
+	fx.spot.cancelProtection("AAPLBUSDT") // genuine cancellation, no fills
+	fx.price, fx.spot.price = 110, 110
+	fx.at.stockProtectionTick(ctx)
+	if len(fx.spot.sells) != 1 || fx.spot.sells[0].Qty != 5 || fx.spot.hold["AAPLBUSDT"] != 7 {
+		t.Fatalf("bounded fallback: sells=%v balance=%g", fx.spot.sells, fx.spot.hold["AAPLBUSDT"])
+	}
+}
+
+func TestStockProtectionFillRacingCancelCannotSellManualShares(t *testing.T) {
+	for _, replace := range []bool{false, true} {
+		t.Run(fmt.Sprint(replace), func(t *testing.T) {
+			fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+			fx.openLiveOwned(t, 5, 12)
+			ctx := context.Background()
+			if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+				t.Fatal(err)
+			}
+			st, err := fx.at.stockGatherLive(ctx, stockTestNow, true, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := fx.spot.prot["AAPLBUSDT"].StopOrderID
+			fx.spot.onCancel = func() {
+				fx.spot.statuses[id]["status"], fx.spot.statuses[id]["executedQty"], fx.spot.statuses[id]["avgPrice"] = "FILLED", 5.0, 114.0
+				fx.spot.hold["AAPLBUSDT"] = 7
+			}
+			if replace {
+				_ = fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 116, 130, 120)
+			} else if _, err := fx.at.stockSellLive(ctx, st.Holdings["AAPLBUSDT"], 5, true, "ai_close", stockTestNow); err != nil {
+				t.Fatal(err)
+			}
+			rows, _ := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+			if len(rows) != 0 || len(fx.spot.sells) != 0 || len(fx.spot.setProt) != 1 || fx.spot.hold["AAPLBUSDT"] != 7 {
+				t.Fatalf("cancel race: rows=%+v sells=%v protection=%v balance=%g", rows, fx.spot.sells, fx.spot.setProt, fx.spot.hold["AAPLBUSDT"])
+			}
+		})
+	}
+}
+
+func TestStockUnexplainedFlatBalanceDoesNotGuessStop(t *testing.T) {
+	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+	fx.openLiveOwned(t, 5, 5)
+	ctx := context.Background()
+	if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+		t.Fatal(err)
+	}
+	fx.spot.cancelProtection("AAPLBUSDT")
+	fx.spot.hold["AAPLBUSDT"] = 0
+	fx.price, fx.spot.price = 114, 114
+	fx.at.stockProtectionTick(ctx)
+	fx.at.stockProtectionTick(ctx)
+	closed, _ := fx.at.store.Position().GetClosedPositions("t1", 5)
+	if len(closed) != 1 || closed[0].CloseReason != "external" || closed[0].RealizedPnL != 0 {
+		t.Fatalf("unexplained reduction must not guess an exit: %+v", closed)
+	}
+	count := 0
+	for _, a := range fx.alert {
+		if strings.HasPrefix(a, "ALERT|") && strings.Contains(a, "外部减仓") {
+			count++
+		}
+	}
+	if count != 1 || len(fx.spot.sells) != 0 {
+		t.Fatalf("external alerts=%d sells=%v", count, fx.spot.sells)
+	}
+}
+
+func TestStockProtectionFillRacingBalanceReadIsNotExternalReduction(t *testing.T) {
+	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+	fx.openLiveOwned(t, 5, 7)
+	ctx := context.Background()
+	if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+		t.Fatal(err)
+	}
+	id := fx.spot.prot["AAPLBUSDT"].StopOrderID
+	fx.spot.onPositions = func() {
+		fx.spot.statuses[id]["status"], fx.spot.statuses[id]["executedQty"], fx.spot.statuses[id]["avgPrice"] = "FILLED", 5.0, 114.0
+		fx.spot.hold["AAPLBUSDT"] = 2
+	}
+	fx.at.stockProtectionTick(ctx)
+	rows, _ := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+	closed, _ := fx.at.store.Position().GetClosedPositions("t1", 5)
+	if len(rows) != 0 || len(closed) != 1 || closed[0].CloseReason != "stop_loss" || closed[0].RealizedPnL != -30 || len(fx.spot.sells) != 0 {
+		t.Fatalf("balance race: open=%+v closed=%+v sells=%v", rows, closed, fx.spot.sells)
+	}
+	for _, a := range fx.alert {
+		if strings.Contains(a, "外部减仓") {
+			t.Fatalf("protective fill mislabeled: %s", a)
+		}
+	}
+}
+
+func TestStockRestartAfterFillBookingRetiresOCOAndProtectsRemainder(t *testing.T) {
+	for _, filled := range []float64{3, 5} {
+		t.Run(fmt.Sprint(filled), func(t *testing.T) {
+			fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+			fx.openLiveOwned(t, 5, 12)
+			ctx := context.Background()
+			if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+				t.Fatal(err)
+			}
+			p := fx.spot.prot["AAPLBUSDT"]
+			s := "PARTIALLY_FILLED"
+			if filled == 5 {
+				s = "FILLED"
+			}
+			fx.spot.statuses[p.StopOrderID]["status"], fx.spot.statuses[p.StopOrderID]["executedQty"], fx.spot.statuses[p.StopOrderID]["avgPrice"] = s, filled, 114.0
+			p.Quantity, fx.spot.hold["AAPLBUSDT"] = 5-filled, 12-filled
+			if _, err := fx.at.stockCheckProtection("AAPLBUSDT", stockTestNow); err != nil {
+				t.Fatal(err)
+			}
+			// Crash after the atomic book, before canceling the other OCO leg.
+			fx.at.stock.lastProtect = map[string]stockProtect{}
+			fx.at.stockProtectionTick(ctx)
+			rows, _ := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+			if filled == 3 {
+				if len(rows) != 1 || rows[0].Quantity != 2 || rows[0].RealizedPnL != -18 || fx.spot.prot["AAPLBUSDT"].Quantity != 2 {
+					t.Fatalf("restart partial: %+v protection=%+v", rows, fx.spot.prot["AAPLBUSDT"])
+				}
+			} else if len(rows) != 0 || fx.spot.prot["AAPLBUSDT"] != nil || len(fx.spot.setProt) != 1 {
+				t.Fatalf("restart full: %+v protection=%v", rows, fx.spot.setProt)
+			}
+			if len(fx.spot.sells) != 0 || fx.spot.hold["AAPLBUSDT"] != 12-filled {
+				t.Fatalf("restart touched manual shares: sells=%v balance=%g", fx.spot.sells, fx.spot.hold["AAPLBUSDT"])
+			}
+		})
+	}
+}
+
+func TestStockProtectiveExitPrecedesPendingBuyCostAndBalanceReconciliation(t *testing.T) {
+	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+	fx.openLiveOwned(t, 5, 7)
+	ctx := context.Background()
+	if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+		t.Fatal(err)
+	}
+	id := fx.spot.prot["AAPLBUSDT"].StopOrderID
+	fx.spot.statuses[id]["status"], fx.spot.statuses[id]["executedQty"], fx.spot.statuses[id]["avgPrice"] = "FILLED", 5.0, 114.0
+	fx.spot.cancelProtection("AAPLBUSDT")
+	// During the same interval, a resting entry buys 2 new PROGRAM shares.
+	fx.spot.hold["AAPLBUSDT"] = 4 // 2 manual + 2 newly bought
+	p := &stockPending{Symbol: "AAPLBUSDT", OrderID: "pending", Qty: 2, Stop: 90, TakeProfit: 130, PlacedAt: stockTestNow}
+	fx.at.stock.pendings[p.Symbol] = p
+	fx.at.savePending(p)
+	fx.spot.statuses[p.OrderID] = map[string]interface{}{"status": "FILLED", "executedQty": 2.0, "avgPrice": 100.0, "commission": 0.0}
+	fx.at.stockProtectionTick(ctx)
+	rows, _ := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+	closed, _ := fx.at.store.Position().GetClosedPositions("t1", 5)
+	if len(rows) != 1 || rows[0].Quantity != 2 || rows[0].EntryPrice != 100 || len(closed) != 1 || closed[0].RealizedPnL != -30 || closed[0].CloseReason != "stop_loss" {
+		t.Fatalf("exit must precede the new cost basis: open=%+v closed=%+v", rows, closed)
+	}
+	if len(fx.spot.sells) != 0 || fx.spot.prot["AAPLBUSDT"].Quantity != 2 || fx.spot.hold["AAPLBUSDT"] != 4 {
+		t.Fatalf("pending reconciliation touched manual shares: sells=%v protection=%+v", fx.spot.sells, fx.spot.prot["AAPLBUSDT"])
+	}
+}
+
+func TestStockMissingUntrackedProtectionCannotManagePossibleManualShares(t *testing.T) {
+	for _, price := range []float64{110, 120} {
+		t.Run(fmt.Sprint(price), func(t *testing.T) {
+			fx := newStockFixture(t, false, stockTestNow, func(int) string { return closeAAPL })
+			// An upgrade cannot recover an already-filled legacy protection
+			// from openOrders. These recorded 5 could be a phantom position.
+			fx.openLiveOwned(t, 5, 7)
+			fx.price, fx.spot.price = price, price
+			fx.at.stockProtectionTick(context.Background())
+			fx.cycle(t)
+			rec := fx.lastRecord(t)
+			if len(rec.Decisions) != 1 || rec.Decisions[0].Success || !strings.Contains(rec.Decisions[0].Error, "PROTECTION_UNVERIFIED") {
+				t.Fatalf("untracked protection must quarantine the holding: %+v", rec.Decisions)
+			}
+			if len(fx.spot.sells) != 0 || len(fx.spot.setProt) != 0 || fx.ai.calls != 1 || len(fx.alert) == 0 {
+				t.Fatalf("unverified shares managed: sells=%v protection=%v AI=%d alerts=%v", fx.spot.sells, fx.spot.setProt, fx.ai.calls, fx.alert)
+			}
+		})
+	}
+}
+
+// A problem on A must leave B's protection tick and decisions fully usable.
+func TestStockProtectionQuarantineIsolatesSymbols(t *testing.T) {
+	for _, failure := range []string{"get_protection", "check_protection", "save_protection", "missing_records", "missing_open_orders"} {
+		t.Run(failure, func(t *testing.T) {
+			fx := newStockFixtureCfg(t, false, stockTestNow, func(call int) string {
+				if call == 1 {
+					return `[{"symbol":"AAPLBUSDT","action":"close_long"},{"symbol":"MSFTBUSDT","action":"close_long"}]`
+				}
+				if call == 2 {
+					return holdAAPL
+				}
+				return `[{"symbol":"AAPLBUSDT","action":"wait"}]`
+			}, func(sc *store.StockConfig) { sc.Symbols = []string{"AAPLBUSDT", "MSFTBUSDT"} })
+			ctx := context.Background()
+			fx.openLiveOwned(t, 5, 12)
+			if _, err := fx.at.stockRecordBuy("MSFTBUSDT", 4, 120, 0, "seedB", 115, stockTestNow); err != nil {
+				t.Fatal(err)
+			}
+			fx.spot.hold["MSFTBUSDT"] = 8
+			for _, sym := range []string{"AAPLBUSDT", "MSFTBUSDT"} {
+				if sym == "AAPLBUSDT" && failure == "missing_records" {
+					continue
+				}
+				if err := fx.at.stockPlaceProtection(ctx, sym, 4, 115, 130, 120); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// B has genuinely canceled, unfilled protection, so its tick must
+			// repair it even though A is quarantined in the very same pass.
+			fx.spot.cancelProtection("MSFTBUSDT")
+			fx.spot.setProt = nil
+			switch failure {
+			case "get_protection":
+				fx.spot.protErrors = map[string]error{"AAPLBUSDT": fmt.Errorf("A open orders unavailable")}
+			case "check_protection":
+				fx.spot.statusErrors = map[string]error{"AAPLBUSDT": fmt.Errorf("A status unavailable")}
+			case "save_protection":
+				if err := fx.at.store.GormDB().Exec(`CREATE TRIGGER fail_a_protection BEFORE INSERT ON stock_protection_orders
+					WHEN NEW.symbol = 'AAPLBUSDT' BEGIN SELECT RAISE(FAIL, 'A protection save failed'); END`).Error; err != nil {
+					t.Fatal(err)
+				}
+			case "missing_open_orders":
+				delete(fx.spot.prot, "AAPLBUSDT") // recorded legs still report NEW
+			}
+			st, err := fx.at.stockGatherLive(ctx, stockTestNow, true, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, b := st.Holdings["AAPLBUSDT"], st.Holdings["MSFTBUSDT"]
+			if a == nil || !a.Quarantined || a.QuarantineReason == "" || a.ProtectionVerified || b == nil || b.Quarantined {
+				t.Fatalf("A=%+v B=%+v", a, b)
+			}
+			fx.at.stockProtectionTick(ctx)
+			if len(fx.spot.sells) != 0 || len(fx.spot.setProt) != 1 || fx.spot.setProt[0].Symbol != "MSFTBUSDT" {
+				t.Fatalf("A affected B's protection tick: sells=%v protection=%v", fx.spot.sells, fx.spot.setProt)
+			}
+			fx.cycle(t)
+			rec := fx.lastRecord(t)
+			if !rec.Success || len(rec.Decisions) != 2 || rec.Decisions[0].Success || !strings.Contains(rec.Decisions[0].Error, "PROTECTION_UNVERIFIED") || !rec.Decisions[1].Success {
+				t.Fatalf("cycle did not isolate A: %+v", rec)
+			}
+			positionBlock := strings.Split(fx.ai.user, "大盘背景")[0]
+			if !strings.Contains(positionBlock, "AAPLBUSDT qty=5.000000") || !strings.Contains(positionBlock, "PROTECTION UNVERIFIED — only hold/wait allowed:") || !strings.Contains(positionBlock, a.QuarantineReason) {
+				t.Fatalf("quarantine absent from position block: %s", positionBlock)
+			}
+			if len(fx.spot.sells) != 1 || fx.spot.sells[0].Symbol != "MSFTBUSDT" || fx.spot.sells[0].Qty != 4 || fx.spot.hold["AAPLBUSDT"] != 12 {
+				t.Fatalf("wrong symbol sold: %v balances=%v", fx.spot.sells, fx.spot.hold)
+			}
+			for _, action := range []string{"hold", "wait"} {
+				fx.cycle(t)
+				rec := fx.lastRecord(t)
+				if len(rec.Decisions) != 1 || rec.Decisions[0].Action != action || !rec.Decisions[0].Success {
+					t.Fatalf("%s on quarantined A rejected: %+v", action, rec.Decisions)
+				}
+			}
+			rows, err := fx.at.store.Position().StockOwnedRows("t1", "AAPLBUSDT")
+			if err != nil || len(rows) != 1 || rows[0].Quantity != 5 {
+				t.Fatalf("quarantined ownership changed: rows=%+v err=%v", rows, err)
+			}
+		})
+	}
+}
+
+func TestStockQuarantineRejectsEveryTradingAction(t *testing.T) {
+	action := ""
+	fx := newStockFixture(t, false, stockTestNow, func(int) string {
+		return fmt.Sprintf(`[{"symbol":"AAPLBUSDT","action":%q,"stop_loss":115,"quantity_pct":50,"confidence":85,"thesis":"trend","invalidation":"close below 115"}]`, action)
+	})
+	fx.openLiveOwned(t, 5, 12) // no live or recorded protection: possible manual inventory
+	for _, action = range []string{"open_long", "add_long", "reduce_long", "close_long", "adjust_stop"} {
+		fx.cycle(t)
+		rec := fx.lastRecord(t)
+		if len(rec.Decisions) != 1 || rec.Decisions[0].Success || rec.Decisions[0].Error != "rejected: PROTECTION_UNVERIFIED" {
+			t.Fatalf("%s was not rejected by the cycle: %+v", action, rec.Decisions)
+		}
+	}
+	if len(fx.spot.buys)+len(fx.spot.sells)+len(fx.spot.setProt) != 0 {
+		t.Fatalf("quarantined inventory traded: buys=%v sells=%v protection=%v", fx.spot.buys, fx.spot.sells, fx.spot.setProt)
+	}
+}
+
+func TestStockPendingProtectionFailureOnlyQuarantinesItsSymbol(t *testing.T) {
+	fx := newStockFixtureCfg(t, false, stockTestNow, func(int) string { return holdAAPL },
+		func(sc *store.StockConfig) { sc.Symbols = []string{"AAPLBUSDT", "MSFTBUSDT"} })
+	ctx := context.Background()
+	fx.openLiveOwned(t, 5, 12)
+	if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+		t.Fatal(err)
+	}
+	fx.spot.statusErrors = map[string]error{"AAPLBUSDT": fmt.Errorf("A status unavailable")}
+	fx.spot.hold["MSFTBUSDT"] = 2
+	p := &stockPending{Symbol: "MSFTBUSDT", OrderID: "pendingB", Qty: 2, Stop: 90, TakeProfit: 130, PlacedAt: stockTestNow}
+	fx.at.stock.pendings[p.Symbol] = p
+	fx.at.savePending(p)
+	fx.spot.statuses[p.OrderID] = map[string]interface{}{"status": "FILLED", "executedQty": 2.0, "avgPrice": 100.0}
+	fx.spot.setProt = nil
+	fx.at.stockProtectionTick(ctx)
+	rows, err := fx.at.store.Position().StockOwnedRows("t1", "MSFTBUSDT")
+	if err != nil || len(rows) != 1 || rows[0].Quantity != 2 || fx.at.stock.pendings[p.Symbol] != nil {
+		t.Fatalf("B's pending entry was blocked: rows=%+v pending=%+v err=%v", rows, fx.at.stock.pendings[p.Symbol], err)
+	}
+	if len(fx.spot.setProt) != 1 || fx.spot.setProt[0].Symbol != "MSFTBUSDT" || fx.spot.setProt[0].Qty != 2 || len(fx.spot.sells) != 0 {
+		t.Fatalf("B's filled entry unprotected: protection=%v sells=%v", fx.spot.setProt, fx.spot.sells)
+	}
+	if stockNoticeCount(fx, "ALERT", "AAPLBUSDT") != 1 {
+		t.Fatalf("pending/gather duplicated the same alert: %v", fx.alert)
+	}
+}
+
+func stockNoticeCount(fx *stockFixture, kind, symbol string) int {
+	n := 0
+	for _, message := range fx.alert {
+		if strings.HasPrefix(message, kind+"|") && strings.Contains(message, symbol) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestStockProtectionAlertDedupAndRecovery(t *testing.T) {
+	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+	ctx := context.Background()
+	fx.openLiveOwned(t, 5, 12)
+	if err := fx.at.stockPlaceProtection(ctx, "AAPLBUSDT", 5, 115, 130, 120); err != nil {
+		t.Fatal(err)
+	}
+	now := stockTestNow
+	fx.at.stockNow = func() time.Time { return now }
+	fx.spot.protErrors = map[string]error{"AAPLBUSDT": fmt.Errorf("open orders unavailable, request 1")}
+	for i := 0; i < 60; i++ {
+		now = stockTestNow.Add(time.Duration(i) * time.Minute)
+		// Request-specific details must not defeat reason-class de-dup.
+		fx.spot.protErrors["AAPLBUSDT"] = fmt.Errorf("open orders unavailable, request %d", i)
+		fx.at.stockProtectionTick(ctx)
+	}
+	if n := stockNoticeCount(fx, "ALERT", "AAPLBUSDT"); n != 1 {
+		t.Fatalf("within window ALERTs=%d: %v", n, fx.alert)
+	}
+	if n := stockNoticeCount(fx, "INFO", "AAPLBUSDT"); n != 0 {
+		t.Fatalf("premature recovery notices=%d: %v", n, fx.alert)
+	}
+	delete(fx.spot.protErrors, "AAPLBUSDT")
+	for i := 0; i < 3; i++ {
+		fx.at.stockProtectionTick(ctx)
+	}
+	if n := stockNoticeCount(fx, "INFO", "AAPLBUSDT"); n != 1 {
+		t.Fatalf("recovery notices=%d: %v", n, fx.alert)
+	}
+	if !strings.Contains(fx.alert[len(fx.alert)-1], "request 59") {
+		t.Fatalf("recovery omitted previous reason: %v", fx.alert)
+	}
+	st, err := fx.at.stockGatherLive(ctx, now, true, true)
+	if err != nil || st.Holdings["AAPLBUSDT"].Quarantined || !st.Holdings["AAPLBUSDT"].ProtectionVerified {
+		t.Fatalf("recovered holding still quarantined: %+v err=%v", st, err)
+	}
+	// A recurrence inside the original window stays suppressed, including
+	// across a clean pass. At exactly 60 minutes it may alert again.
+	fx.spot.protErrors["AAPLBUSDT"] = fmt.Errorf("open orders unavailable again")
+	fx.at.stockProtectionTick(ctx)
+	if n := stockNoticeCount(fx, "ALERT", "AAPLBUSDT"); n != 1 {
+		t.Fatalf("flapping error escaped window: %v", fx.alert)
+	}
+	now = stockTestNow.Add(time.Hour)
+	fx.at.stockProtectionTick(ctx)
+	if n := stockNoticeCount(fx, "ALERT", "AAPLBUSDT"); n != 2 {
+		t.Fatalf("window did not expire: %v", fx.alert)
+	}
+}
+
+func TestStockProtectionRecoveryAfterManualReconciliation(t *testing.T) {
+	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+	fx.openLiveOwned(t, 5, 12)
+	ctx := context.Background()
+	fx.at.stockProtectionTick(ctx)
+	if stockNoticeCount(fx, "ALERT", "AAPLBUSDT") != 1 {
+		t.Fatalf("unverifiable position not alerted: %v", fx.alert)
+	}
+	// The operator confirms these shares are manual and clears the stale
+	// program record. Account inventory remains completely untouched.
+	if err := fx.at.store.GormDB().Exec("UPDATE trader_positions SET status = 'CLOSED' WHERE trader_id = ? AND symbol = ?", "t1", "AAPLBUSDT").Error; err != nil {
+		t.Fatal(err)
+	}
+	fx.at.stockProtectionTick(ctx)
+	fx.at.stockProtectionTick(ctx)
+	if stockNoticeCount(fx, "INFO", "AAPLBUSDT") != 1 || len(fx.spot.sells)+len(fx.spot.setProt) != 0 || fx.spot.hold["AAPLBUSDT"] != 12 {
+		t.Fatalf("manual reconciliation: notices=%v sells=%v protection=%v balance=%g", fx.alert, fx.spot.sells, fx.spot.setProt, fx.spot.hold["AAPLBUSDT"])
+	}
+}
+
+func TestStockProtectionAlertClassesAreIndependent(t *testing.T) {
+	fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+	for i := 0; i < 3; i++ {
+		fx.at.stockProtectionAlert("AAPLBUSDT", "get_protection", fmt.Errorf("open orders request %d failed", i))
+		fx.at.stockProtectionAlert("AAPLBUSDT", "check_protection", fmt.Errorf("status request %d failed", i))
+		fx.at.stockProtectionAlert("MSFTBUSDT", "get_protection", fmt.Errorf("open orders request %d failed", i))
+	}
+	if len(fx.alert) != 3 || stockNoticeCount(fx, "ALERT", "AAPLBUSDT") != 2 || stockNoticeCount(fx, "ALERT", "MSFTBUSDT") != 1 {
+		t.Fatalf("de-dup must use both symbol and reason class: %v", fx.alert)
+	}
+	fx.at.stockProtectionRecovered("AAPLBUSDT")
+	fx.at.stockProtectionRecovered("AAPLBUSDT")
+	if stockNoticeCount(fx, "INFO", "AAPLBUSDT") != 1 || stockNoticeCount(fx, "INFO", "MSFTBUSDT") != 0 {
+		t.Fatalf("recovery must be once per symbol: %v", fx.alert)
+	}
+}
+
+func TestStockProtectionPassReadFailuresStillAbort(t *testing.T) {
+	for _, failure := range []string{"balance", "positions", "owned_rows", "protection_rows"} {
+		t.Run(failure, func(t *testing.T) {
+			fx := newStockFixture(t, false, stockTestNow, func(int) string { return holdAAPL })
+			fx.openLiveOwned(t, 5, 12)
+			switch failure {
+			case "balance":
+				fx.spot.balanceErr = fmt.Errorf("account unavailable")
+			case "positions":
+				fx.spot.positionsErr = fmt.Errorf("positions unavailable")
+			case "owned_rows":
+				if err := fx.at.store.GormDB().Exec("DROP TABLE trader_positions").Error; err != nil {
+					t.Fatal(err)
+				}
+			case "protection_rows":
+				if err := fx.at.store.GormDB().Exec("DROP TABLE stock_protection_orders").Error; err != nil {
+					t.Fatal(err)
+				}
+			}
+			st, err := fx.at.stockGatherLive(context.Background(), stockTestNow, true, true)
+			if err == nil || st != nil {
+				t.Fatalf("%s must abort: state=%+v err=%v", failure, st, err)
+			}
+		})
 	}
 }
 

@@ -19,17 +19,20 @@ import (
 // stockHolding is a PROGRAM-OWNED position (the quantity recorded in the
 // program's own ai_managed trader_positions rows, or the paper ledger row).
 type stockHolding struct {
-	Symbol      string
-	Owned       float64 // program-owned quantity (never above the exchange balance)
-	Balance     float64 // exchange base-asset balance (live); = Owned in paper
-	Avg         float64 // program's own entry average (NOT the account-wide FIFO cost)
-	Mark        float64
-	Stop        float64 // live protective stop (0 = none)
-	TakeProfit  float64
-	InitialStop float64
-	OpenedAt    time.Time
-	Rows        []*store.TraderPosition // live
-	ProtMissing bool                    // live: protection queried and found nil
+	Symbol             string
+	Owned              float64 // program-owned quantity (never above the exchange balance)
+	Balance            float64 // exchange base-asset balance (live); = Owned in paper
+	Avg                float64 // program's own entry average (NOT the account-wide FIFO cost)
+	Mark               float64
+	Stop               float64 // live protective stop (0 = none)
+	TakeProfit         float64
+	InitialStop        float64
+	OpenedAt           time.Time
+	Rows               []*store.TraderPosition // live
+	ProtMissing        bool                    // live: protection queried and found nil
+	ProtectionVerified bool                    // live: recorded IDs checked successfully, no fills this pass
+	Quarantined        bool                    // live: no automatic operations for this pass
+	QuarantineReason   string
 }
 
 // stockState is the account view the cycle decides on.
@@ -116,6 +119,87 @@ func sumRows(rows []*store.TraderPosition) (qty, avg float64, initial float64, o
 // owned quantity shrinks the program position (external reduction: no PnL
 // guess). withProtection also queries each holding's protective orders.
 func (at *AutoTrader) stockGatherLive(ctx context.Context, now time.Time, reconcile, withProtection bool) (*stockState, error) {
+	return at.stockGatherLiveWithQuarantine(ctx, now, reconcile, withProtection, nil)
+}
+
+// Quarantines from pending-entry reconciliation belong to this same pass.
+// A later pass starts with a fresh map and verifies every symbol again.
+func (at *AutoTrader) stockGatherLiveWithQuarantine(ctx context.Context, now time.Time, reconcile, withProtection bool, quarantined map[string]string) (*stockState, error) {
+	if quarantined == nil {
+		quarantined = map[string]string{}
+	}
+	quarantine := func(sym, class string, err error) {
+		quarantined[sym] = err.Error()
+		at.stockProtectionAlert(sym, class, err)
+	}
+	checks := map[string]stockProtectionCheck{}
+	if reconcile {
+		// Query IDs before reading balances: manual inventory cannot tell us
+		// whether our protection executed. Discover legacy OPEN sets as well.
+		owned, e := at.stockOwnedRows()
+		if e != nil {
+			return nil, e
+		}
+		recorded, e := at.store.StockPaper().ListProtectionOrders(at.id, "")
+		if e != nil {
+			at.stockProtectionAlert("账户", "list_protection", e)
+			return nil, e
+		}
+		symbols := map[string]bool{}
+		for _, r := range recorded {
+			symbols[r.Symbol] = true
+		}
+		// Manual reconciliation may remove an unverifiable position entirely.
+		// Check that symbol once more so it can receive its recovery notice.
+		for sym := range at.stock.protectionAlerts {
+			if sym != "账户" {
+				symbols[sym] = true
+			}
+		}
+		live := map[string]bool{}
+		for sym := range owned {
+			symbols[sym] = true
+			if quarantined[sym] != "" {
+				continue
+			}
+			p, e := at.stockTrader.GetProtection(sym)
+			if e != nil {
+				quarantine(sym, "get_protection", e)
+				continue
+			}
+			if p != nil {
+				live[sym] = true
+				if e := at.stockSaveProtection(p); e != nil {
+					quarantine(sym, "save_protection", e)
+				}
+			}
+		}
+		for sym := range symbols {
+			if quarantined[sym] != "" {
+				continue
+			}
+			check, e := at.stockCheckProtection(sym, now)
+			if e == nil && check.Filled {
+				_, e = at.stockCancelProtection(sym, now)
+				check.Open = false
+			}
+			if e != nil {
+				if stockProtectionReadFailed(e) {
+					return nil, e
+				}
+				quarantine(sym, "check_protection", e)
+				continue
+			}
+			checks[sym] = check
+			if len(owned[sym]) > 0 && !live[sym] && !check.Known {
+				// A legacy protection may already have sold OUR shares. Neither
+				// re-protect nor shrink potentially manual inventory by balance.
+				quarantine(sym, "missing_records", fmt.Errorf("无在途保护单且无已记录的保护单 ID，无法核实持仓归属；请人工核对历史成交：若为本人持仓，请确认并清理程序持仓记录；若仍为程序持仓，请手动平仓或补挂保护单后确认"))
+			} else if !live[sym] && check.Open && len(owned[sym]) > 0 {
+				quarantine(sym, "missing_open_orders", fmt.Errorf("已记录的保护单仍为未完成状态，但未出现在当前挂单中，等待下轮重试"))
+			}
+		}
+	}
 	bal, err := at.stockTrader.GetBalance()
 	if err != nil {
 		return nil, fmt.Errorf("get balance: %w", err)
@@ -157,39 +241,105 @@ func (at *AutoTrader) stockGatherLive(ctx context.Context, now time.Time, reconc
 		qty, avg, initial, opened := sumRows(rows)
 		balance := st.Balances[sym]
 		info := stockSymbolInfo(ctx, sym)
-		if reconcile && qty-balance > maxFloat(info.StepSize, 1e-9)/2 {
+		replaceProtection := checks[sym].Filled
+		if reconcile && quarantined[sym] == "" && qty-balance > maxFloat(info.StepSize, 1e-9)/2 && checks[sym].Known {
+			// A fill can race the first status read and the balance snapshot.
+			// Freeze the old set and book FINAL executions before shrinking.
+			check, e := at.stockCancelProtection(sym, now)
+			if e != nil {
+				if stockProtectionReadFailed(e) {
+					return nil, e
+				}
+				quarantine(sym, "check_protection", e)
+			} else {
+				previous := checks[sym]
+				previous.Filled = previous.Filled || check.Filled
+				replaceProtection = replaceProtection || previous.Open || check.Filled
+				previous.Open = false
+				checks[sym] = previous
+			}
+			// Cancellation can have booked a partial fill even on error.
+			rows, e = at.store.Position().StockOwnedRows(at.id, sym)
+			if e != nil {
+				return nil, e
+			}
+			qty, avg, initial, opened = sumRows(rows)
+			_, balance, e = at.stockLiveQuantities(sym)
+			if e != nil {
+				return nil, e
+			}
+			st.Exposure += (balance - st.Balances[sym]) * st.Marks[sym]
+			st.Balances[sym] = balance
+		}
+		if reconcile && quarantined[sym] == "" && qty-balance > maxFloat(info.StepSize, 1e-9)/2 {
 			newQty := at.stockShrinkOwned(sym, rows, qty, balance, st.Marks[sym], now, st)
 			if newQty <= 0 {
 				continue
 			}
-			if owned2, e := at.stockOwnedRows(); e == nil {
-				rows = owned2[sym]
-				qty, avg, initial, opened = sumRows(rows)
+			owned2, e := at.stockOwnedRows()
+			if e != nil {
+				return nil, e
 			}
+			rows = owned2[sym]
+			qty, avg, initial, opened = sumRows(rows)
 		}
 		if qty > balance {
-			qty = balance // read-only callers: never act on more than the balance
+			qty = balance // never act on more than the balance
 		}
-		if qty <= 0 {
+		if qty <= 0 && quarantined[sym] == "" {
 			continue
 		}
 		h := &stockHolding{Symbol: sym, Owned: qty, Balance: balance, Avg: avg, Mark: st.Marks[sym],
-			InitialStop: initial, OpenedAt: opened, Rows: rows}
-		if withProtection {
+			InitialStop: initial, OpenedAt: opened, Rows: rows,
+			ProtectionVerified: reconcile && checks[sym].Known && !checks[sym].Filled}
+		if reconcile && quarantined[sym] == "" && replaceProtection {
+			stop, tp := at.persistedStop(sym, h)
+			if e := at.stockPlaceProtection(ctx, sym, qty, stop, tp, h.Mark); e != nil {
+				if stockProtectionReadFailed(e) {
+					return nil, e
+				}
+				// No fallback or further replacement on an ambiguous fill pass.
+				quarantine(sym, "protection_change", fmt.Errorf("protect remaining %s: %w", sym, e))
+			}
+		}
+		if withProtection && quarantined[sym] == "" {
 			prot, perr := at.stockTrader.GetProtection(sym)
 			switch {
 			case perr != nil:
-				logger.Warnf("⚠️ [%s] GetProtection %s: %v", at.name, sym, perr)
+				if reconcile {
+					quarantine(sym, "get_protection", perr)
+				} else {
+					quarantined[sym] = perr.Error()
+				}
 			case prot == nil:
-				h.ProtMissing = true
+				if reconcile && checks[sym].Open {
+					quarantine(sym, "missing_open_orders", fmt.Errorf("已记录的保护单仍为未完成状态，但未出现在当前挂单中，等待下轮重试"))
+				} else {
+					h.ProtMissing = true
+				}
 			default:
 				h.Stop, h.TakeProfit = prot.StopPrice, prot.TakeProfit
-				if reconcile { // loop callers only: API readers must not write run state
+				if reconcile { // API readers must not write run state
 					at.stock.lastProtect[sym] = stockProtect{Stop: prot.StopPrice, TakeProfit: prot.TakeProfit, Qty: prot.Quantity}
 				}
 			}
 		}
+		h.QuarantineReason = quarantined[sym]
+		h.Quarantined = h.QuarantineReason != ""
+		if h.Quarantined {
+			h.ProtectionVerified = false
+			if reconcile {
+				at.stock.stopTicks[sym] = 0
+			}
+		}
 		st.Holdings[sym] = h
+	}
+	if reconcile && withProtection {
+		for sym := range checks {
+			if quarantined[sym] == "" {
+				at.stockProtectionRecovered(sym)
+			}
+		}
 	}
 	return st, nil
 }
@@ -202,7 +352,7 @@ func maxFloat(a, b float64) float64 {
 }
 
 // stockShrinkOwned reduces the program-owned rows of sym from owned to the
-// exchange balance after an external (manual / exchange-side) reduction. No
+// exchange balance after an unexplained external reduction. No
 // exit is booked and no PnL attributed. Returns the new owned quantity.
 func (at *AutoTrader) stockShrinkOwned(sym string, rows []*store.TraderPosition, owned, balance, mark float64, now time.Time, st *stockState) float64 {
 	info := stockSymbolInfo(context.Background(), sym)
@@ -211,39 +361,7 @@ func (at *AutoTrader) stockShrinkOwned(sym string, rows []*store.TraderPosition,
 		target = 0
 	}
 	diff := owned - target
-	if target <= 0 {
-		// Whole holding gone. If the program's own protection was live and the
-		// price is at that level, the exchange-side stop / take-profit filled:
-		// book it as the program's exit. Otherwise it is an external sale.
-		px := mark
-		if px <= 0 && at.stockTrader != nil {
-			if p, e := at.stockTrader.GetMarketPrice(sym); e == nil {
-				px = p
-			}
-		}
-		if px <= 0 {
-			px = at.stock.price(sym)
-		}
-		if lp, ok := at.stock.lastProtect[sym]; ok && px > 0 {
-			exit, reason := 0.0, ""
-			switch {
-			case lp.Stop > 0 && px <= lp.Stop*1.02:
-				exit, reason = lp.Stop, "stop_loss"
-			case lp.TakeProfit > 0 && px >= lp.TakeProfit*0.98:
-				exit, reason = lp.TakeProfit, "take_profit"
-			}
-			if reason != "" {
-				at.stockRecordSell(sym, owned, exit, 0, "", reason, true, now)
-				note := fmt.Sprintf("%s%s on %s filled on the exchange (booked at %.4f, qty %.6f)", stockPrefix(at.stockPaper()), reason, sym, exit, owned)
-				logger.Infof("🛑 [%s] %s", at.name, note)
-				if st != nil {
-					st.Notes = append(st.Notes, note)
-				}
-				stockNotify("ORDER", at.name, fmt.Sprintf("<b>🛑 美股交易所端 %s 成交 %s</b>\n<i>%.6g @ %.4g（按保护价记账）</i>", reason, notify.Escape(sym), owned, exit))
-				return 0
-			}
-		}
-	}
+
 	for i := len(rows) - 1; i >= 0 && diff > 1e-12; i-- {
 		take := diff
 		if rows[i].Quantity < take {
@@ -260,7 +378,7 @@ func (at *AutoTrader) stockShrinkOwned(sym string, rows []*store.TraderPosition,
 		delete(at.stock.lastProtect, sym)
 	}
 	pfx := stockPrefix(at.stockPaper())
-	note := fmt.Sprintf("%sexternal reduction on %s: program-owned %.6f -> exchange balance %.6f; position shrunk, no PnL attributed", pfx, sym, owned, target)
+	note := fmt.Sprintf("%sunexplained external reduction on %s: program-owned %.6f -> exchange balance %.6f; position shrunk, no PnL attributed", pfx, sym, owned, target)
 	logger.Warnf("⚠️ [%s] %s", at.name, note)
 	if st != nil {
 		st.Notes = append(st.Notes, note)

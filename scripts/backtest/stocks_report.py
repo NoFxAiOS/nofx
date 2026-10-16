@@ -146,6 +146,135 @@ def comparison_table(check):
     return '\n'.join(lines)
 
 
+def curve_risk_metrics(curve):
+    """Read-only risk statistics on native broker marks, including split anchors."""
+    peak, dd = curve[0]['equity'], 0.0
+    returns = {curve[0]['time']: 0.0}
+    for i, pt in enumerate(curve):
+        peak = max(peak, pt['equity'])
+        dd = max(dd, 1-pt['equity']/peak)
+        if i:
+            returns[pt['time']] = pt['equity']/curve[i-1]['equity']-1
+    m = compute_metrics(curve, dict(time_return=returns,
+        drawdown=dict(max=dict(drawdown=dd*100)), trade_analyzer={}), 0)
+    return {k: m[k] for k in ('total_return', 'cagr', 'annualized_vol', 'sharpe', 'sortino',
+                              'max_drawdown', 'calmar', 'avg_invested_weight')}
+
+
+def drawdown_episodes(curve):
+    """Non-overlapping high-water-mark episodes, retaining an unrecovered tail."""
+    peak = curve[0]
+    active, episodes = None, []
+    for pt in curve[1:]:
+        if pt['equity'] >= peak['equity']:
+            if active:
+                episodes.append(active)
+                active = None
+            peak = pt
+        else:
+            dd = 1-pt['equity']/peak['equity']
+            if active is None or dd > active['max_drawdown']:
+                active = dict(peak=peak['time'], trough=pt['time'], max_drawdown=dd)
+    if active:
+        episodes.append(active)
+    return sorted(episodes, key=lambda e: e['max_drawdown'], reverse=True)[:3]
+
+
+def regime_analysis(result):
+    runs = [s for s in result['strategies'] if 'overlay_config' in s]
+    base = next(s for s in runs if s['overlay_config']['scaler'] == 'NONE')
+    mid = len(base['equity_curve'])//2
+    split, windows = {}, drawdown_episodes(base['equity_curve'])
+    for s in runs:
+        curve = s['equity_curve']
+        # The preceding mark anchors the second half's FIRST session return.
+        split[s['name']] = dict(first_half=curve_risk_metrics(curve[:mid]),
+                               second_half=curve_risk_metrics(curve[max(0, mid-1):]))
+    for w in windows:
+        w['returns'] = {}
+        for s in runs:
+            marks = {p['time']: p['equity'] for p in s['equity_curve']}
+            w['returns'][s['name']] = marks[w['trough']]/marks[w['peak']]-1
+    return dict(first_half_sessions=mid, second_half_sessions=len(base['equity_curve'])-mid,
+                first_half_end=base['equity_curve'][mid-1]['time'],
+                second_half_start=base['equity_curve'][mid]['time'],
+                split=split, drawdown_windows=windows)
+
+
+def overlay_table(result):
+    lines = ['| Run | CAGR | Ann vol | Sharpe | Sortino | MaxDD | DD peak → trough | Calmar | Avg exposure | Avg s | s<1 sessions | Scale trades | Scale commission | Total commission | Last 12m |',
+             '|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|']
+    for s in result['strategies']:
+        if 'overlay_config' not in s:
+            continue
+        m = s['metrics']
+        lines.append(f"| {s['name']} | {pct(m['cagr'])} | {pct(m['annualized_vol'])} | {num(m['sharpe'])} | "
+            f"{num(m['sortino'])} | {pct(m['max_drawdown'])} | {m['drawdown_peak'][:10]} → {m['drawdown_trough'][:10]} | "
+            f"{num(m['calmar'])} | {pct(m['avg_invested_weight'])} | {num(m['avg_scale'])} | "
+            f"{pct(m['scaled_sessions_fraction'])} | {m['scale_trades']} | {m['scale_commission']:,.2f} | "
+            f"{m['total_commission']:,.2f} | {pct(m['last_12_months_return'])} |")
+    return '\n'.join(lines)
+
+
+def sensitivity_table(result):
+    lines = ['| Scaler | Floor | Band | Target vol | CAGR | Sharpe | MaxDD | Calmar |',
+             '|---|---:|---:|---:|---:|---:|---:|---:|']
+    for s in result.get('sensitivity', []):
+        c, m = s['overlay_config'], s['metrics']
+        lines.append(f"| {c['scaler']} | {c['floor']:.2f} | {c['band']:.2f} | {pct(c['target_vol'])} | "
+                     f"{pct(m['cagr'])} | {num(m['sharpe'])} | {pct(m['max_drawdown'])} | {num(m['calmar'])} |")
+    return '\n'.join(lines)
+
+
+def regime_report(result):
+    analysis = result['regime_analysis']
+    lines = ['## 仓位缩放（regime overlay）', '', overlay_table(result), '',
+        'Fixed a priori rules, not optimized; MOM_TOP only, daily signals. Ordinary rebalances apply s/maxpos; '
+        'between rebalances a band breach or zero transition resizes existing holdings. '
+        'A zero-to-positive restart with an empty portfolio selects the current rank basket. '
+        'Scale trades count filled orders tagged SCALE on these extra resize days (not complete round trips); '
+        'their actual native commission is shown separately. Rebalance fills retain REBALANCE tags. '
+        'Avg s and s<1 use every evaluation signal close, including the final unfilled signal; '
+        'exposure is the broker-observed holding weight after fills.', '',
+        'Percentiles use inclusive rolling average rank/n over 252 observations, minimum 126. '
+        'Unavailable inputs use neutral s=1; RV_RATIO uses the available trailing median after its first 21 returns. '
+        'Breadth divides above-SMA200 rank-valid names by all rank-valid names, including names below SMA200. '
+        'BASKET_VOL uses simple daily returns of a constant current top-maxpos basket; a constituent needs '
+        'all 21 session returns (22 closes), with no stock-price forward fill. SPY RV uses log returns. '
+        'All volatility uses sample standard deviation and sqrt(252).', '',
+        'Breadth uses today’s listed universe → survivorship bias. Local VIX and VIX3M are independently '
+        'forward filled from dates ≤ signal date, never backfilled. VIX closes at 16:15 ET versus stocks at '
+        '16:00 ET; orders fill next open, after both closes. All calendar-year returns appear in the table above.', '',
+        '### Calendar-half robustness', '',
+        f"First half: {analysis['first_half_sessions']} sessions through {analysis['first_half_end'][:10]}; "
+        f"second half: {analysis['second_half_sessions']} sessions from {analysis['second_half_start'][:10]}. "
+        'Same equity curves, no refit; all thresholds fixed a priori. The second half includes its first session’s '
+        'return using the preceding close as an anchor. Drawdown restarts at each half’s anchor; '
+        'CAGR uses elapsed calendar time.', '',
+        '| Run | Half | Return | CAGR | Ann vol | Sharpe | Sortino | MaxDD | Calmar | Exposure |',
+        '|---|---|---:|---:|---:|---:|---:|---:|---:|---:|']
+    for name, halves in analysis['split'].items():
+        for half, m in halves.items():
+            lines.append(f"| {name} | {half} | {pct(m['total_return'])} | {pct(m['cagr'])} | "
+                f"{pct(m['annualized_vol'])} | {num(m['sharpe'])} | {num(m['sortino'])} | "
+                f"{pct(m['max_drawdown'])} | {num(m['calmar'])} | {pct(m['avg_invested_weight'])} |")
+    names = list(analysis['split'])
+    lines += ['', '### NONE drawdown episodes: same-window returns', '',
+        'Three worst non-overlapping high-water-mark episodes (including an unrecovered final episode), '
+        'ranked by NONE peak-to-trough drawdown. Entries are close-to-close portfolio returns over '
+        'the exact same dates, including costs.', '',
+        '| NONE peak → trough | NONE MaxDD | '+' | '.join(names)+' |',
+        '|---|---:|'+'---:|'*len(names)]
+    for w in analysis['drawdown_windows']:
+        lines.append(f"| {w['peak'][:10]} → {w['trough'][:10]} | {pct(w['max_drawdown'])} | "+
+                     ' | '.join(pct(w['returns'][n]) for n in names)+' |')
+    if result.get('sensitivity'):
+        lines += ['', '### Sensitivity (fixed one-factor-at-a-time grid)', '',
+                  'Defaults: floor=0.25, band=0.20, target-vol=0.40. Shared default cases run once; '
+                  'the grid is descriptive, with no parameter selection or refitting.', '', sensitivity_table(result)]
+    return '\n'.join(lines)
+
+
 def render_report(result):
     cfg, cov = result['config'], result['coverage']
     lines = [f"# US-stock portfolios — Backtrader ({cfg['timeframe']})", '',
@@ -214,6 +343,8 @@ def render_report(result):
         for r in check['rows']:
             lines.append(f"| {r['name']} | {num(r['go_daily_sharpe'])} | {r['backtrader_final_equity']:,.2f} | "
                 f"{r['go_final_equity']:,.2f} | {r['backtrader_costs']:,.2f} | {r['go_costs']:,.2f} |")
+    if 'regime_analysis' in result:
+        lines += ['', regime_report(result), '']
     lines += ['', '## Coverage', '', f"{cov['universe_size']} loaded eligible stocks "
               f"out of {cov.get('candidate_universe_size', cov['universe_size'])} cached candidates; SPY calendar "
               f"{cov['first_signal_close']} → {cov['last_mark_close']}; {cov['evaluation_bars']} evaluation bars "

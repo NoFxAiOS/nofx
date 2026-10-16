@@ -180,18 +180,35 @@ def cmd_stocks(a):
     # Lazy imports keep signals/fetch/help usable without portfolio dependencies.
     _backtrader()
     try:
-        from .stocks import Config, run_study
+        from .stocks import Config, add_regime_runs, run_study
         from .stocks_data import load_study
         from .stocks_report import cross_check, render_report
+        from .stocks_regime import MACRO_SCALERS, SCALERS, load_macro
     except ImportError as exc:
         raise ValueError('stocks needs pandas; install scripts/backtest/requirements.txt') from exc
     if a.out and a.json_out and os.path.abspath(a.out) == os.path.abspath(a.json_out):
         raise ValueError('out and json must be different paths')
-    cfg = Config(a.tf, a.maxpos, a.rebalance, a.commission, a.cash)
+    cfg = Config(a.tf, a.maxpos, a.rebalance, a.commission, a.cash,
+                 floor=a.floor, band=a.band, target_vol=a.target_vol)
     cfg.validate()
+    scalers = None if a.scalers is None else [n.strip() for n in a.scalers.split(',') if n.strip()]
+    if a.sweep and scalers is None:
+        raise ValueError('--sweep requires --scalers')
+    if scalers is not None:
+        if a.tf != '1d':
+            raise ValueError('regime overlays require --tf 1d; --tf 1h is unsupported')
+        if not scalers or len(set(scalers)) != len(scalers) or any(s not in SCALERS for s in scalers):
+            raise ValueError('scalers must be a nonempty, unique list from '+','.join(SCALERS))
     names = tuple(n.strip() for n in a.strategies.split(',') if n.strip())
+    macro = None
+    if scalers is not None and (set(scalers) & MACRO_SCALERS or a.sweep):
+        macro = load_macro(a.macro or os.path.join(a.cache, 'macro'))
     study = load_study(a.cache, a.tf, a.exclude)
     result = run_study(study, cfg, names, progress=lambda line: print(line, flush=True))
+    if scalers is not None:
+        add_regime_runs(result, study, cfg, scalers, a.sweep, macro,
+                        progress=lambda line: print(line, flush=True))
+        result['macro_cache'] = os.path.abspath(a.macro or os.path.join(a.cache, 'macro')) if macro else None
     if a.compare:
         path = a.compare
         if not os.path.exists(path):
@@ -291,6 +308,12 @@ def build_parser():
     p.add_argument('--exclude', default='TQQQBUSDT,SQQQBUSDT,SOXLBUSDT,SOXSBUSDT,UVXYBUSDT,MUUBUSDT,KORUBUSDT',
                    help='逗号分隔，替换默认排除项；SPY/QQQ 始终仅作基准')
     p.add_argument('--strategies', default='MOM_TOP,MA_CROSS,MA2060_RULES,MOM_X_MA,SPY_BH,EW_BH')
+    p.add_argument('--scalers', help='逗号分隔 regime scalers；额外运行 MOM_TOP（仅 1d），始终保留 NONE 对照')
+    p.add_argument('--floor', type=float, default=.25)
+    p.add_argument('--band', type=float, default=.20)
+    p.add_argument('--target-vol', type=float, default=.40)
+    p.add_argument('--macro', help='本地 VIX.json / VIX3M.json 目录；默认 <cache>/macro')
+    p.add_argument('--sweep', action='store_true', help='固定单因素 floor / target-vol / band 敏感性扫描')
     p.add_argument('--compare', help='Go 结果 JSON 路径（或 cache 下文件名）')
     p.add_argument('--out', help='Markdown 输出，默认 stdout')
     p.add_argument('--json', dest='json_out', help='JSON 输出，含原生分析器、权益、订单与交易')

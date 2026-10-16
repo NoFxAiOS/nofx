@@ -145,3 +145,20 @@ PYTHONDONTWRITEBYTECODE=1 /Users/zhangyun/workspace/nofx/.venv/bin/python -m uni
 指标：原生 TimeReturn 的**日度权益收益**计算 CAGR、年化波动（252）、Sharpe（rf=0）、Sortino、分年和近 12 月收益；CAGR 按 365.25 天实际跨度。原生 DrawDown 计算最大回撤，权益观测补充峰谷日期；原生 TradeAnalyzer 计算完整平仓交易数、胜率、平均盈利/亏损金额、profit factor、平均持仓执行根数。另记录平均投入比例和实际成交手续费。MA2060 按 E1–E4、X1–X4/TARGET 记录完整交易与已成交订单数，订单 info 保留规则及信号 ATR。
 
 报告包括策略比较、分年收益、规则归因、Go 核对、逐股覆盖和局限。Go 核对明确区分原生完整 trade 与 FIFO lot portion，并为 1h 额外把缓存 Go 权益聚合为日度 Sharpe，区分收益频率和执行差异。当前缓存存在幸存者偏差；Yahoo 调整后的 underlying 常规时段价格不是 bStock 可成交价格；无 LLM；1h 仅约两年。此前本 README 中独立信号 R、仓位重叠等限制仅适用于 entry/exit，不适用于 stocks。
+
+### 仓位缩放（regime overlay，仅 MOM_TOP / 1d）
+
+```bash
+env -u PYTHONPATH PYTHONDONTWRITEBYTECODE=1 /Users/zhangyun/workspace/nofx/.venv/bin/python -m scripts.backtest stocks \
+  --tf 1d --strategies SPY_BH,EW_BH \
+  --scalers NONE,RV_PCT,RV_RATIO,BREADTH,VIX_TS,BASKET_VOL,COMBO,HARD_RV,HARD_VIX,HARD_BREADTH \
+  --sweep --out data/backtest_cache/stocks/regime_1d.md --json data/backtest_cache/stocks/regime_1d.json
+```
+
+`--scalers` 在 `--strategies` 之外逐个增加 `MOM_TOP+名称`，始终保留 `NONE` 对照；不传此参数则沿用原有策略行为。拒绝 `--tf 1h`。`--floor 0.25`、`--band 0.20`、`--target-vol 0.40` 为默认参数。日终目标权重为 `s/maxpos`；两次普通调仓之间，相对上次已应用的 scale 变化达到 band（绝对百分点）或发生零值转换时，仅调整已有股票。零仓位恢复且空仓时，按当天排名重新选篮子。订单仍由原生 Backtrader 下一开盘执行，先卖后买，手续费及现金/槽位限制完全相同。额外调整日的成交标记 `SCALE`，普通调仓继续标记 `REBALANCE`。
+
+`RV_PCT` 根据 SPY 21 日对数收益年化样本波动率在最近 252 个有效值中的百分位缩放；`RV_RATIO` 使用同窗口波动率中位数/当日波动率。`BREADTH` 为排名有效股票中高于 SMA200 的比例，再取滚动百分位。百分位含当天，采用平均秩/n，至少 126 个值，否则 scale=1；RV_RATIO 在首个 21 日波动率出现后使用可用中位数。`VIX_TS` 在 VIX/VIX3M 的 0.90→1.10 区间从 1 线性降到 floor。`BASKET_VOL` 用当前前 maxpos 股票固定篮子过去 21 个交易日的等权简单收益样本波动率，scale=target-vol/vol（截到 floor～1）；只纳入具有完整 21 个收益（22 个收盘价）的股票，不填补股价。`COMBO` 为 RV_PCT、BREADTH、VIX_TS 的均值。`HARD_RV`、`HARD_VIX`、`HARD_BREADTH` 分别在 RV 百分位>0.80、VIX 比值>1、breadth 百分位<0.20 时清仓。输入不可用时保持 scale=1；波动率为零时满额。
+
+宏观缓存默认为 `<cache>/macro/VIX.json` 与 `VIX3M.json`，可用 `--macro` 指定目录；需要宏观数据的 scaler 或 sweep 会校验缓存，缺失则报错，不下载。缓存预先由 **Yahoo chart v8** 的 `^VIX`、`^VIX3M`（`range=10y&interval=1d`）取得，日线覆盖 2016-10-17～2026-10-16，格式与股票相同：`{"series":{"symbol":"VIX","timeframe":"1d","bars":[...]}}`。`open_time` 为交易日 00:00Z。每个序列独立使用日期≤当天的最新收盘价前向填充，绝不后向填充。VIX 收盘约 16:15 ET，股票 16:00 ET，均在次日开盘下单前已知。命令完全离线。
+
+报告增加 scale/敞口、额外缩放成交数及手续费、Calmar、分年收益、按评估日历前后各半的风险指标，以及 NONE 最差三个不重叠回撤峰谷窗口的各策略收益。后半段用前一日收盘作收益锚点，避免漏掉分界日收益；无需重新拟合。JSON 包含每次 overlay（含 sweep）的逐日 `scale_series`。`--sweep` 是固定的单因素扫描：RV_PCT/COMBO 的 floor=0/0.25/0.50，BASKET_VOL 的 target-vol=0.30/0.40/0.50，以及 COMBO 的 band=0.10/0.20/0.35；其余参数固定为默认值，重叠默认组合只运行一次。这些规则没有优化，结果仍受当前股票池幸存者偏差影响。

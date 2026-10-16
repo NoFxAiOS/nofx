@@ -17,12 +17,27 @@ class Config:
     rebalance_trading_days: int = 10
     commission: float = 0.001
     cash: float = 100000
+    scaler: str = 'NONE'
+    floor: float = 0.25
+    band: float = 0.20
+    target_vol: float = 0.40
 
     def validate(self):
         if self.timeframe not in ('1d', '1h') or self.max_positions <= 0 or self.rebalance_trading_days <= 0:
             raise ValueError('tf must be 1d/1h; maxpos and rebalance must be positive')
         if not math.isfinite(self.commission) or not 0 <= self.commission < 1 or not math.isfinite(self.cash) or self.cash <= 0:
             raise ValueError('commission must be finite in [0,1); cash must be positive and finite')
+        from .stocks_regime import SCALERS
+        if self.scaler not in SCALERS:
+            raise ValueError('unknown scaler: '+self.scaler)
+        if self.scaler != 'NONE' and self.timeframe != '1d':
+            raise ValueError('regime overlays require --tf 1d; --tf 1h is unsupported')
+        if not math.isfinite(self.floor) or not 0 <= self.floor <= 1:
+            raise ValueError('floor must be finite in [0,1]')
+        if not math.isfinite(self.band) or not 0 < self.band <= 1:
+            raise ValueError('band must be finite in (0,1]')
+        if not math.isfinite(self.target_vol) or self.target_vol <= 0:
+            raise ValueError('target-vol must be positive and finite')
 
 
 class CashSlotSizer:
@@ -79,7 +94,7 @@ class PortfolioAudit(bt.Analyzer):
 
 
 class StockPortfolio(bt.Strategy):
-    params = (('study', None), ('config', None), ('name', 'MOM_TOP'))
+    params = (('study', None), ('config', None), ('name', 'MOM_TOP'), ('scales', None))
 
     def __init__(self):
         self.feeds = {d._name: d for d in self.datas}
@@ -89,6 +104,7 @@ class StockPortfolio(bt.Strategy):
         self.entry_counts, self.exit_counts = {}, {}
         self.commission, self.missing, self.last_key = 0.0, 0, None
         self.zero_fill = 0
+        self.s_applied = 1.0
         self.notified_sizes, self.notified_comm = {}, {}
         self.limit = (1 if self.p.name == 'SPY_BH' else len(self.p.study.ew)
                       if self.p.name == 'EW_BH' else self.p.config.max_positions)
@@ -127,6 +143,12 @@ class StockPortfolio(bt.Strategy):
         if name == 'EW_BH':
             rebalance = j % 63 == 0
         targets, exits, entries = None, {}, []
+        scale = self.p.scales[key] if self.p.scales is not None else 1.0
+        scale_resize = (name == 'MOM_TOP' and self.p.scales is not None and not rebalance and
+                        (abs(scale-self.s_applied) >= cfg.band or
+                         math.isclose(abs(scale-self.s_applied), cfg.band, rel_tol=0, abs_tol=1e-12) or
+                         (scale == 0 and self.s_applied != 0) or
+                         (self.s_applied == 0 and scale > 0)))
         if name in ('MOM_TOP', 'MOM_X_MA') and rebalance:
             targets = {}
             basket = [r for r in study.ranks[key] if r[1] and r[2]][:cfg.max_positions]
@@ -134,7 +156,15 @@ class StockPortfolio(bt.Strategy):
                 h = study.histories[s]
                 a = h.ind[h.index[key]]
                 if name != 'MOM_X_MA' or a.fast > a.slow:
-                    targets[s] = 1/cfg.max_positions
+                    targets[s] = scale/cfg.max_positions
+            self.s_applied = scale
+        elif scale_resize:
+            # A zero-to-positive restart may select a fresh basket. Otherwise
+            # only resize held names; never promote unheld ranks mid-period.
+            names = (sorted(positions) if positions or self.s_applied != 0 else
+                     [r[0] for r in study.ranks[key] if r[1] and r[2]][:cfg.max_positions])
+            targets = {s: scale/cfg.max_positions for s in names}
+            self.s_applied = scale
         elif name == 'SPY_BH' and j == 0:
             targets = {SPY: 1.0}
         elif name == 'EW_BH' and rebalance:
@@ -171,7 +201,7 @@ class StockPortfolio(bt.Strategy):
                     free -= 1
         if targets is None and not exits and not entries:
             return
-        self.decisions.append(dict(signal_time=str(key), rebalance=targets is not None,
+        self.decisions.append(dict(signal_time=str(key), rebalance=targets is not None and not scale_resize,
             targets=[dict(symbol=s, weight=w) for s, w in (targets or {}).items()],
             orders=[dict(symbol=s, exit=x) for s, x in exits.items()]+
                    [dict(symbol=s, entry=e, entry_atr=a) for s, e, a in entries]))
@@ -188,14 +218,14 @@ class StockPortfolio(bt.Strategy):
                 d = self.feeds[s]
                 delta = equity*targets.get(s, 0)/d.close[0]-self.getposition(d).size
                 if delta < -1e-10:
-                    self.submit(s, -delta, key, exit=exits.get(s, 'REBALANCE'))
+                    self.submit(s, -delta, key, exit=exits.get(s, 'SCALE' if scale_resize else 'REBALANCE'))
                     available += -delta*d.close[0]*(1-cfg.commission)
             for s in targets:  # momentum order, not alphabetical order
                 if s in current:
                     d = self.feeds[s]
                     delta = equity*targets[s]/d.close[0]-self.getposition(d).size
                     if delta > 1e-10:
-                        buys.append((s, delta, 'REBALANCE', 0.0))
+                        buys.append((s, delta, 'SCALE' if scale_resize else 'REBALANCE', 0.0))
         else:
             for s, reason in sorted(exits.items()):
                 d = self.feeds[s]
@@ -254,18 +284,31 @@ class StockPortfolio(bt.Strategy):
                 exit_time=str(bt.num2date(trade.dtclose).replace(tzinfo=None)),
                 entry_price=trade.price, entry_atr=m['atr'], net_pnl=trade.pnlcomm,
                 costs=trade.commission,
-                net_return=trade.pnlcomm/m['basis'] if m['entry'] != 'REBALANCE' else None,
+                net_return=trade.pnlcomm/m['basis'] if m['entry'] not in ('REBALANCE', 'SCALE') else None,
                 bars_held=trade.barlen,
                 holding_calendar_days=trade.dtclose-trade.dtopen))
             self.metadata.pop(s, None)
             self.getposition(trade.data).info = {}
 
 
-def run_strategy(study, cfg, name):
+def run_strategy(study, cfg, name, scales=None, overlay=False):
     from .stocks_report import compute_metrics, rule_breakdown
     cfg.validate()
     if name not in NAMES or cfg.timeframe != study.tf:
         raise ValueError('unknown strategy or study/config timeframe mismatch')
+    if (cfg.scaler != 'NONE' or scales is not None or overlay) and name != 'MOM_TOP':
+        raise ValueError('regime overlays support MOM_TOP only')
+    if scales is not None or overlay:
+        if study.tf != '1d':
+            raise ValueError('regime overlays require --tf 1d; --tf 1h is unsupported')
+    if cfg.scaler != 'NONE' and scales is None:
+        from .stocks_regime import compute_scales
+        scales = compute_scales(study, cfg.scaler, cfg.floor, cfg.target_vol, cfg.max_positions)
+    if scales is not None and (set(scales) != set(study.calendar) or
+                              any(not math.isfinite(s) or not 0 <= s <= 1 for s in scales.values())):
+        raise ValueError('scales must cover every evaluation session with finite values in [0,1]')
+    if scales is not None:
+        scales = {t: float(s) for t, s in scales.items()}
     cerebro = bt.Cerebro(stdstats=False, cheat_on_open=False)
     cerebro.broker.setcash(cfg.cash)
     cerebro.broker.setcommission(commission=cfg.commission)
@@ -286,7 +329,7 @@ def run_strategy(study, cfg, name):
         cerebro.adddata(bt.feeds.PandasData(dataname=frame, openinterest=None,
             timeframe=bt.TimeFrame.Days if study.tf == '1d' else bt.TimeFrame.Minutes,
             compression=1 if study.tf == '1d' else 60), name=s)
-    cerebro.addstrategy(StockPortfolio, study=study, config=cfg, name=name)
+    cerebro.addstrategy(StockPortfolio, study=study, config=cfg, name=name, scales=scales)
     cerebro.addanalyzer(bt.analyzers.TimeReturn, _name='returns', timeframe=bt.TimeFrame.Days)
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
@@ -308,6 +351,15 @@ def run_strategy(study, cfg, name):
     if name == 'MA2060_RULES':
         result['entry_breakdown'] = rule_breakdown(strategy.closed, 'entry_type', ('E1', 'E2', 'E3', 'E4'))
         result['exit_breakdown'] = rule_breakdown(strategy.closed, 'exit_type', ('X1', 'X2', 'X3', 'X4', 'TARGET'))
+    if overlay or cfg.scaler != 'NONE' or scales is not None:
+        from dataclasses import asdict
+        scales = scales if scales is not None else dict.fromkeys(study.calendar, 1.0)
+        result.update(name=name+'+'+cfg.scaler, overlay_config=asdict(cfg),
+                      scale_series={str(t): s for t, s in scales.items()})
+        scale_fills = [f for f in strategy.fills if f['entry'] == 'SCALE' or f['exit'] == 'SCALE']
+        result['metrics'].update(avg_scale=sum(scales.values())/len(scales),
+            scaled_sessions_fraction=sum(s < 1 for s in scales.values())/len(scales),
+            scale_trades=len(scale_fills), scale_commission=sum(f['commission'] for f in scale_fills))
     return result
 
 
@@ -323,3 +375,40 @@ def run_study(study, cfg, names=NAMES, progress=None):
         results.append(run_strategy(study, cfg, name))
     return dict(engine='backtrader', engine_version=bt.__version__, config=asdict(cfg),
                 coverage=study.coverage, strategies=results)
+
+
+def add_regime_runs(result, study, cfg, scalers, sweep=False, macro=None, progress=None):
+    from dataclasses import replace
+    from .stocks_regime import MACRO_SCALERS, SCALERS, build_features, compute_scales, sweep_parameters
+    from .stocks_report import regime_analysis
+    # NONE is always retained as the drawdown-window reference.
+    scalers = list(scalers)
+    cfg.validate()
+    if not scalers or len(set(scalers)) != len(scalers) or any(s not in SCALERS for s in scalers):
+        raise ValueError('scalers must be nonempty, unique and known')
+    if (set(scalers) & MACRO_SCALERS or sweep) and macro is None:
+        raise ValueError('requested overlays require local VIX and VIX3M macro cache')
+    if 'NONE' not in scalers:
+        scalers.insert(0, 'NONE')
+    features = build_features(study, cfg.max_positions, macro)
+    completed = {}
+
+    def execute(params):
+        run_cfg = replace(cfg, **params)
+        key = (run_cfg.scaler, run_cfg.floor, run_cfg.band, run_cfg.target_vol)
+        if key not in completed:
+            if progress:
+                progress(f'running MOM_TOP+{key[0]} floor={key[1]:g} band={key[2]:g} target-vol={key[3]:g}')
+            scales = compute_scales(study, run_cfg.scaler, run_cfg.floor,
+                                    run_cfg.target_vol, run_cfg.max_positions, features=features)
+            completed[key] = run_strategy(study, run_cfg, 'MOM_TOP', scales, overlay=True)
+            if key[1:] != (cfg.floor, cfg.band, cfg.target_vol):
+                completed[key]['name'] += f'[floor={key[1]:g},band={key[2]:g},target_vol={key[3]:g}]'
+        return completed[key]
+
+    for scaler in scalers:
+        result['strategies'].append(execute(dict(scaler=scaler)))
+    if sweep:
+        result['sensitivity'] = [execute(params) for params in sweep_parameters()]
+    result['regime_analysis'] = regime_analysis(result)
+    return result

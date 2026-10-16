@@ -499,27 +499,38 @@ func (t *FuturesTrader) syncOrders(traderID string, exchangeID string, exchangeT
 		logger.Infof("  ⚠️ %d symbols failed, not updating lastSyncTime to retry next time: %v", len(failedSymbols), failedSymbols)
 	}
 
-	// Cancel orphaned conditional orders: when a position was fully closed on
-	// the exchange (stop-loss/take-profit algo trigger, liquidation, or manual
-	// close on the exchange UI), the surviving sibling order would linger and
-	// must be cleaned up. Only symbols with no open position are touched.
+	// Re-read positions for orphan cleanup: a cached flat snapshot can predate
+	// a new entry. Only cancel individually identified program protection on
+	// flat hedge sides; manual orders and the live opposite side are preserved.
 	if len(exchangeClosedSymbols) > 0 {
+		t.InvalidatePositionCache()
 		if positions, err := t.GetPositions(); err == nil {
-			openSymbols := make(map[string]bool)
+			openSides := make(map[string]map[string]bool)
 			for _, pos := range positions {
 				if s, ok := pos["symbol"].(string); ok {
-					openSymbols[s] = true
-				}
-			}
-			for symbol := range exchangeClosedSymbols {
-				if !openSymbols[symbol] {
-					if err := t.CancelStopOrders(symbol); err != nil {
-						logger.Infof("  ⚠️ Failed to clean up orphaned stop orders for %s: %v", symbol, err)
+					if openSides[s] == nil {
+						openSides[s] = make(map[string]bool)
+					}
+					side, _ := pos["side"].(string)
+					if side == "long" || side == "short" {
+						openSides[s][strings.ToUpper(side)] = true
 					} else {
-						logger.Infof("  🧹 Cleaned up orphaned stop-loss/take-profit orders for %s (position closed on exchange)", symbol)
+						// An unrecognized position must not authorize cleanup.
+						openSides[s]["LONG"], openSides[s]["SHORT"] = true, true
 					}
 				}
 			}
+			for symbol := range exchangeClosedSymbols {
+				for _, side := range []string{"LONG", "SHORT"} {
+					if !openSides[symbol][side] {
+						if err := t.CancelProgramProtectiveOrdersForSide(symbol, side); err != nil {
+							logger.Warnf("Failed to clean up orphaned program protection for %s %s: %v", symbol, side, err)
+						}
+					}
+				}
+			}
+		} else {
+			logger.Warnf("Skipping orphaned protection cleanup: fresh positions unavailable: %v", err)
 		}
 	}
 

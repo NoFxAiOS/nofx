@@ -428,7 +428,7 @@ func (at *AutoTrader) runStockTickSafe(ctx context.Context) {
 			logger.Errorf("🚨 [%s] us_stock protection tick panic: %v", at.name, p)
 		}
 	}()
-	if at.stock.cfg.IsScanMode() {
+	if at.stock.cfg.IsScanMode() || at.stock.cfg.RegimeEnabled() {
 		stockWarmScan(stockScanWarmAge) // non-blocking: keeps the ranking fresh ahead of decision times
 	}
 	at.stockProtectionTick(ctx)

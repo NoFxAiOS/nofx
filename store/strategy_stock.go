@@ -31,6 +31,16 @@ const (
 
 	maxStockScanTopN = 50
 
+	// Regime scalers of a us_stock strategy (StockConfig.RegimeScaler).
+	StockRegimeOff       = "off"
+	StockRegimeBasketVol = "basket_vol"
+
+	DefaultStockRegimeTargetVolPct = 40.0
+	DefaultStockRegimeFloor        = 0.25
+	minStockRegimeTargetVolPct     = 10.0
+	maxStockRegimeTargetVolPct     = 150.0
+	minStockRegimeFloor            = 0.05
+
 	stockSymbolSuffix       = "BUSDT"
 	maxStockDivergencePct   = 10.0
 	maxStockPositionsCap    = 20
@@ -175,6 +185,46 @@ func (s *StockConfig) EffectiveStopATRBand() (min, max float64) {
 	return min, max
 }
 
+// EffectiveRegimeScaler resolves the regime scaler: nil, "" and unknown values
+// mean off (Validate rejects unknown values at save time).
+func (s *StockConfig) EffectiveRegimeScaler() string {
+	if s != nil && s.RegimeScaler == StockRegimeBasketVol {
+		return StockRegimeBasketVol
+	}
+	return StockRegimeOff
+}
+
+// RegimeEnabled reports whether the market-state position scaler is active.
+func (s *StockConfig) RegimeEnabled() bool {
+	return s.EffectiveRegimeScaler() != StockRegimeOff
+}
+
+// EffectiveRegimeTargetVolPct is the target annualized basket volatility in
+// percent (default 40).
+func (s *StockConfig) EffectiveRegimeTargetVolPct() float64 {
+	if s == nil || s.RegimeTargetVolPct <= 0 {
+		return DefaultStockRegimeTargetVolPct
+	}
+	return s.RegimeTargetVolPct
+}
+
+// EffectiveRegimeFloor is the lower bound of the regime scale (default 0.25).
+func (s *StockConfig) EffectiveRegimeFloor() float64 {
+	if s == nil || s.RegimeFloor <= 0 {
+		return DefaultStockRegimeFloor
+	}
+	return s.RegimeFloor
+}
+
+// RegimeTrimEnabled reports whether held positions are trimmed when the regime
+// scale falls. nil = true.
+func (s *StockConfig) RegimeTrimEnabled() bool {
+	if s == nil || s.RegimeTrim == nil {
+		return true
+	}
+	return *s.RegimeTrim
+}
+
 // IsPaper reports whether the strategy runs in paper mode (no orders placed).
 // nil = true: the first launch is paper by default.
 func (s *StockConfig) IsPaper() bool {
@@ -257,6 +307,17 @@ func (s *StockConfig) Validate() error {
 		if lo >= hi {
 			return fmt.Errorf("stop_atr_min must be less than stop_atr_max (effective band %v-%v)", lo, hi)
 		}
+	}
+	switch s.RegimeScaler {
+	case "", StockRegimeOff, StockRegimeBasketVol:
+	default:
+		return fmt.Errorf("invalid regime_scaler %q: must be %q or %q", s.RegimeScaler, StockRegimeOff, StockRegimeBasketVol)
+	}
+	if s.RegimeTargetVolPct < 0 || (s.RegimeTargetVolPct > 0 && (s.RegimeTargetVolPct < minStockRegimeTargetVolPct || s.RegimeTargetVolPct > maxStockRegimeTargetVolPct)) {
+		return fmt.Errorf("regime_target_vol_pct must be 0 (default) or in [%v, %v]", minStockRegimeTargetVolPct, maxStockRegimeTargetVolPct)
+	}
+	if s.RegimeFloor < 0 || (s.RegimeFloor > 0 && (s.RegimeFloor < minStockRegimeFloor || s.RegimeFloor > 1)) {
+		return fmt.Errorf("regime_floor must be 0 (default) or in [%v, 1]", minStockRegimeFloor)
 	}
 	return nil
 }

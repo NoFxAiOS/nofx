@@ -37,7 +37,7 @@ func (at *AutoTrader) prepareStockRuntime(ctx context.Context) (*store.StockConf
 	at.stock.stopTicks = map[string]int{}
 	at.stock.lastProtect = map[string]stockProtect{}
 	at.stock.pendings = map[string]*stockPending{}
-	if sc.IsScanMode() {
+	if sc.IsScanMode() || sc.RegimeEnabled() {
 		stockWarmScan(stockScanWarmAge)
 	}
 	if !sc.IsPaper() {
@@ -503,6 +503,16 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 		logf("weekly drawdown circuit active (%.2f%%): new exposure blocked this ET week", dd)
 	}
 
+	// Market-state position scale: sizes new entries and trims held positions
+	// when it falls. Off by default (inert scale 1, no store access).
+	regime := at.stockCycleRegime(cc, report, now, logf)
+	if regime.Enabled {
+		state, err = at.applyStockRegimeTrim(ctx, cc, regime, session, state, snaps, prices, quarantined, rec, now, logf)
+		if err != nil {
+			return fail(err)
+		}
+	}
+
 	// Carry each open position's thesis/invalidation forward into the prompt. A
 	// missing row (position opened before theses existed, or a store error) is fine.
 	theses, terr := at.store.StockThesis().List(at.id)
@@ -523,7 +533,7 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 	ectx := &stockengine.Context{Now: now, Session: session, Config: cc, Preset: preset,
 		Account:   stockengine.Account{Equity: state.Equity, Available: state.Available, Exposure: state.Exposure},
 		Positions: positions, Snapshots: snaps, Market: market, Paper: paper,
-		Universe: freshScanResults(report, now)}
+		Universe: freshScanResults(report, now), Regime: regime}
 	result, derr := stockengine.Decide(ectx, at.mcpClient, at.stockLang())
 	if result != nil {
 		rec.SystemPrompt, rec.InputPrompt, rec.RawResponse, rec.AIRequestDurationMs = result.SystemPrompt, result.UserPrompt, result.RawResponse, result.DurationMs
@@ -602,9 +612,13 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 			if xerr == nil {
 				acct.Available -= reserved
 				acct.Exposure += reserved
+				at.setStockRegimeScale(regime, d.Symbol, logf)
 			}
 		case stockengine.ActionReduceLong, stockengine.ActionCloseLong:
 			out, xerr = at.execStockExit(ctx, d, snap, h, paper, now)
+			if xerr == nil && d.Action == stockengine.ActionCloseLong {
+				at.deleteStockRegimeScale(regime, d.Symbol, logf)
+			}
 		case stockengine.ActionAdjustStop:
 			out, xerr = at.execStockAdjust(ctx, d, snap, h, paper, now)
 		}
@@ -792,6 +806,13 @@ func (at *AutoTrader) execStockEntry(ctx context.Context, sizing *stockengine.Co
 // execStockExit handles reduce_long / close_long on the program-owned qty.
 func (at *AutoTrader) execStockExit(ctx context.Context, d stockengine.Decision, snap *stockengine.SymbolSnapshot, h *stockHolding,
 	paper bool, now time.Time) (*stockOutcome, error) {
+	return at.execStockExitReason(ctx, d, snap, h, paper, now, "")
+}
+
+// execStockExitReason is execStockExit with a caller-supplied close reason for a
+// reduce ("" = ai_reduce); the regime trim passes "regime_trim".
+func (at *AutoTrader) execStockExitReason(ctx context.Context, d stockengine.Decision, snap *stockengine.SymbolSnapshot, h *stockHolding,
+	paper bool, now time.Time, reduceReason string) (*stockOutcome, error) {
 	if h == nil || h.Owned <= 0 {
 		return nil, fmt.Errorf("NOT_HELD: no program-owned position")
 	}
@@ -805,6 +826,9 @@ func (at *AutoTrader) execStockExit(ctx context.Context, d stockengine.Decision,
 	reason := "ai_close"
 	if !full {
 		reason = "ai_reduce"
+		if reduceReason != "" {
+			reason = reduceReason
+		}
 		qty = floorStep(h.Owned*d.ReduceFraction, info.StepSize)
 		if qty <= 0 || h.Owned-qty < math.Max(info.MinQty, info.StepSize) || qty*price < minNotionalOf(info) {
 			return nil, fmt.Errorf("REDUCE_TOO_SMALL: qty %.6f of %.6f", qty, h.Owned)

@@ -108,6 +108,7 @@ func BuildUserPrompt(ctx *Context, lang string) string {
 		exposurePct = ctx.Account.Exposure / ctx.Account.Equity * 100
 	}
 	fmt.Fprintf(&b, "%s: equity=%.2f USDT available=%.2f exposure=%.2f (%.2f%%)\n", label("Account", "账户"), ctx.Account.Equity, ctx.Account.Available, ctx.Account.Exposure, exposurePct)
+	writeRegimeLine(&b, ctx.Regime, zh)
 	fmt.Fprintf(&b, "%s:\n", label("Positions", "持仓"))
 	if len(ctx.Positions) == 0 {
 		fmt.Fprintln(&b, label("none", "无"))
@@ -159,6 +160,50 @@ func BuildUserPrompt(ctx *Context, lang string) string {
 	}
 	writeUniverse(&b, ctx, zh)
 	return b.String()
+}
+
+// writeRegimeLine states the regime scale (nothing when disabled). With s < 1 it
+// adds a hint that the program trims holdings itself, so the model does not
+// double-reduce for volatility alone.
+func writeRegimeLine(b *strings.Builder, r RegimeScale, zh bool) {
+	if !r.Enabled {
+		return
+	}
+	breadth := ""
+	if r.BreadthTotal > 0 {
+		if zh {
+			breadth = fmt.Sprintf("；宽度 %d/%d 只站上200日线", r.Breadth, r.BreadthTotal)
+		} else {
+			breadth = fmt.Sprintf("; breadth %d/%d above the 200-day SMA", r.Breadth, r.BreadthTotal)
+		}
+	}
+	if r.BasketVolPct <= 0 {
+		reason := r.Reason
+		if reason == "" {
+			reason = "n/a"
+		}
+		if zh {
+			fmt.Fprintf(b, "市场状态仓位系数 s=%.2f（波动数据不可用：%s）%s\n", r.Scale, reason, breadth)
+		} else {
+			fmt.Fprintf(b, "Market-regime position scale s=%.2f (volatility unavailable: %s)%s\n", r.Scale, reason, breadth)
+		}
+		return
+	}
+	hint := ""
+	if r.Scale < 1 {
+		if zh {
+			hint = "；s 回落时程序会自动减仓持仓，不要仅因波动再重复减仓"
+		} else {
+			hint = "; the program trims holdings automatically when s falls, so do not reduce again for volatility alone"
+		}
+	}
+	if zh {
+		fmt.Fprintf(b, "市场状态仓位系数 s=%.2f（动量前%d篮子%d日年化波动 %.1f%% / 目标 %.0f%%，下限 %.2f）：程序已把新开仓的风险预算、单票上限和总敞口上限乘以 s%s%s\n",
+			r.Scale, regimeBasketSize, regimeVolWindow, r.BasketVolPct, r.TargetVolPct, r.Floor, breadth, hint)
+		return
+	}
+	fmt.Fprintf(b, "Market-regime position scale s=%.2f (top-%d momentum basket %d-day annualized volatility %.1f%% / target %.0f%%, floor %.2f): the program already multiplies the risk budget, per-symbol cap and total exposure cap of new entries by s%s%s\n",
+		r.Scale, regimeBasketSize, regimeVolWindow, r.BasketVolPct, r.TargetVolPct, r.Floor, breadth, hint)
 }
 
 func writeSnapshot(b *strings.Builder, s *SymbolSnapshot, zh bool, required map[string]bool, candleTFs []string) {

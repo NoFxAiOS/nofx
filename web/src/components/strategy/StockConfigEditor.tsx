@@ -84,6 +84,37 @@ const STOP_ATR_DEFAULTS = {
   position: { min: 2.0, max: 4.0 },
 }
 
+// Regime-scaler section texts, same {zh,en} shape consumed by ts() as the
+// shared stockConfig table (which has no keys for this section).
+const regimeTx = {
+  section: { zh: '市场状态仓位缩放', en: 'Regime position scaling' },
+  scalerOff: { zh: '关闭', en: 'Off' },
+  scalerOffDesc: {
+    zh: '不按市场波动调整仓位。',
+    en: 'Positions are not scaled by market volatility.',
+  },
+  basketVol: { zh: '持仓波动率缩放', en: 'Basket volatility' },
+  basketVolDesc: {
+    zh: '按动量前 10 只股票过去 21 日组合年化波动率缩放仓位：系数 = 目标波动 ÷ 实际波动，限制在下限到 1 之间；新开仓的风险预算、单票上限和总敞口上限都乘以该系数。回测（2022-08~2026-10）最大回撤 51%→30%，年化 95%→77%。',
+    en: 'Scale positions by the 21-day annualized volatility of the top-10 momentum basket: factor = target vol ÷ realized vol, clamped between the floor and 1; the risk budget per new open, the per-symbol cap and the total exposure cap are all multiplied by the factor. Backtest (2022-08–2026-10): max drawdown 51%→30%, annualized return 95%→77%.',
+  },
+  targetVol: { zh: '目标波动率 %', en: 'Target volatility %' },
+  targetVolDesc: {
+    zh: '组合年化波动率目标；留空 = 默认 40',
+    en: 'Annualized volatility target; empty = default 40',
+  },
+  floor: { zh: '系数下限', en: 'Factor floor' },
+  floorDesc: {
+    zh: '缩放系数的最低值；留空 = 默认 0.25',
+    en: 'Lowest value the scale factor can take; empty = default 0.25',
+  },
+  trim: { zh: '系数下降时自动减仓', en: 'Auto-trim when the factor drops' },
+  trimDesc: {
+    zh: '系数比上次应用值下降 ≥0.20 时，仅在常规交易时段按比例卖出程序持仓，不动手动持仓',
+    en: 'When the factor drops ≥0.20 below its last applied value, program positions are trimmed proportionally during the regular session only; manually held positions are untouched',
+  },
+}
+
 // Default config for a newly created us_stock strategy: no symbols yet,
 // paper trading ON, regular session only. Values are explicit (not omitted)
 // because the backend merges PUT bodies onto the stored config, so an omitted
@@ -318,6 +349,9 @@ export function StockConfigEditor({
   const preset = config.preset === 'position' ? 'position' : 'swing'
   const atrDefaults = STOP_ATR_DEFAULTS[preset]
   const isPaper = config.paper_trading !== false
+  // Regime position scaler; '' / omitted = off
+  const regimeMode =
+    config.regime_scaler === 'basket_vol' ? 'basket_vol' : 'off'
 
   // Numeric input: empty -> 0 ("use default"), otherwise the parsed number.
   const numField = (
@@ -1028,6 +1062,127 @@ export function StockConfigEditor({
             { step: 0.1, min: 0, max: 10 }
           )}
         </div>
+      </div>
+
+      {/* Regime position scaling */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="font-medium text-fg">
+            {ts(regimeTx.section, language)}
+          </h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(
+            [
+              ['off', regimeTx.scalerOff, regimeTx.scalerOffDesc],
+              ['basket_vol', regimeTx.basketVol, regimeTx.basketVolDesc],
+            ] as const
+          ).map(([value, label, desc]) => (
+            <label
+              key={value}
+              data-testid={`stock-regime-${value}`}
+              className={cn(
+                'p-3 rounded-lg cursor-pointer',
+                'bg-surface-2',
+                regimeMode === value
+                  ? 'border border-brand'
+                  : 'border border-line',
+                'text-fg-2'
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <input
+                  type="radio"
+                  name="stock-regime-scaler"
+                  checked={regimeMode === value}
+                  disabled={disabled}
+                  onChange={() => updateField('regime_scaler', value)}
+                  className="accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
+                />
+                <span className="text-sm font-medium text-fg">
+                  {ts(label, language)}
+                </span>
+              </div>
+              <p className="text-xs text-fg-3">{ts(desc, language)}</p>
+            </label>
+          ))}
+        </div>
+
+        {regimeMode === 'basket_vol' && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="p-3 rounded-lg bg-surface-2 border border-line">
+                <label className="block text-[13px] mb-1 text-fg-2">
+                  {ts(regimeTx.targetVol, language)}
+                </label>
+                <p className="text-xs mb-2 text-fg-3">
+                  {ts(regimeTx.targetVolDesc, language)}
+                </p>
+                <Input
+                  type="number"
+                  data-testid="stock-regime-target-vol"
+                  value={
+                    config.regime_target_vol_pct
+                      ? config.regime_target_vol_pct
+                      : ''
+                  }
+                  placeholder="40"
+                  onChange={(e) => {
+                    const n = parseFloat(e.target.value)
+                    updateField(
+                      'regime_target_vol_pct',
+                      Number.isFinite(n) ? n : 0
+                    )
+                  }}
+                  disabled={disabled}
+                  min={10}
+                  max={150}
+                  step={5}
+                  className="w-full px-3 bg-surface-2 border border-line text-fg num text-right"
+                />
+              </div>
+              <div className="p-3 rounded-lg bg-surface-2 border border-line">
+                <label className="block text-[13px] mb-1 text-fg-2">
+                  {ts(regimeTx.floor, language)}
+                </label>
+                <p className="text-xs mb-2 text-fg-3">
+                  {ts(regimeTx.floorDesc, language)}
+                </p>
+                <Input
+                  type="number"
+                  data-testid="stock-regime-floor"
+                  value={config.regime_floor ? config.regime_floor : ''}
+                  placeholder="0.25"
+                  onChange={(e) => {
+                    const n = parseFloat(e.target.value)
+                    updateField('regime_floor', Number.isFinite(n) ? n : 0)
+                  }}
+                  disabled={disabled}
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  className="w-full px-3 bg-surface-2 border border-line text-fg num text-right"
+                />
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-surface-2 border border-line mt-4">
+              <label className="flex items-center gap-2 text-[13px] mb-1 text-fg-2">
+                <input
+                  type="checkbox"
+                  data-testid="stock-regime-trim"
+                  checked={config.regime_trim !== false}
+                  disabled={disabled}
+                  onChange={(e) => updateField('regime_trim', e.target.checked)}
+                  className="accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-50"
+                />
+                {ts(regimeTx.trim, language)}
+              </label>
+              <p className="text-xs text-fg-3">
+                {ts(regimeTx.trimDesc, language)}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Paper trading */}

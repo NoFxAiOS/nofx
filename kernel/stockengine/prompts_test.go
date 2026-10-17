@@ -222,3 +222,37 @@ func TestUserPromptMomentumLine(t *testing.T) {
 		}
 	}
 }
+
+func TestUserPromptRegimeLine(t *testing.T) {
+	c := testContext()
+	for _, lang := range []string{"en", "zh"} {
+		if p := BuildUserPrompt(c, lang); strings.Contains(p, "regime") || strings.Contains(p, "市场状态") {
+			t.Fatalf("%s: disabled regime must add nothing:\n%s", lang, p)
+		}
+	}
+	c.Regime = RegimeScale{Enabled: true, Scale: 0.62, BasketVolPct: 64.5, TargetVolPct: 40, Floor: 0.25, Breadth: 41, BreadthTotal: 75}
+	zh := BuildUserPrompt(c, "zh")
+	wantZh := "市场状态仓位系数 s=0.62（动量前10篮子21日年化波动 64.5% / 目标 40%，下限 0.25）：程序已把新开仓的风险预算、单票上限和总敞口上限乘以 s；宽度 41/75 只站上200日线；s 回落时程序会自动减仓持仓，不要仅因波动再重复减仓\n"
+	if !strings.Contains(zh, wantZh) {
+		t.Fatalf("zh regime line missing:\n%s", zh)
+	}
+	en := BuildUserPrompt(c, "en")
+	wantEn := "Market-regime position scale s=0.62 (top-10 momentum basket 21-day annualized volatility 64.5% / target 40%, floor 0.25): the program already multiplies the risk budget, per-symbol cap and total exposure cap of new entries by s; breadth 41/75 above the 200-day SMA; the program trims holdings automatically when s falls, so do not reduce again for volatility alone\n"
+	if !strings.Contains(en, wantEn) {
+		t.Fatalf("en regime line missing:\n%s", en)
+	}
+	// The line sits in the account block, before the positions.
+	if strings.Index(zh, "市场状态") > strings.Index(zh, "持仓:") || strings.Count(zh, "市场状态") != 1 {
+		t.Fatalf("regime line misplaced:\n%s", zh)
+	}
+	// s = 1: no trim hint.
+	c.Regime.Scale = 1
+	if p := BuildUserPrompt(c, "en"); !strings.Contains(p, "s=1.00") || strings.Contains(p, "trims holdings") {
+		t.Fatalf("s=1 must not carry the trim hint:\n%s", p)
+	}
+	// Missing data: scale 1 with the reason.
+	c.Regime = RegimeScale{Enabled: true, Scale: 1, TargetVolPct: 40, Floor: 0.25, Reason: "no scan report — scale 1"}
+	if p := BuildUserPrompt(c, "zh"); !strings.Contains(p, "s=1.00（波动数据不可用：no scan report — scale 1）") {
+		t.Fatalf("missing-data line wrong:\n%s", p)
+	}
+}

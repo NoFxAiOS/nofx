@@ -141,6 +141,49 @@ func TestStockConfigResolvers_Overrides(t *testing.T) {
 	}
 }
 
+func TestStockConfigRegimeResolvers(t *testing.T) {
+	var nilCfg *StockConfig
+	if nilCfg.RegimeEnabled() || nilCfg.EffectiveRegimeScaler() != StockRegimeOff ||
+		nilCfg.EffectiveRegimeTargetVolPct() != 40 || nilCfg.EffectiveRegimeFloor() != 0.25 || !nilCfg.RegimeTrimEnabled() {
+		t.Errorf("nil config regime defaults wrong")
+	}
+	s := &StockConfig{}
+	if s.RegimeEnabled() || s.EffectiveRegimeScaler() != StockRegimeOff {
+		t.Errorf("regime must default to off")
+	}
+	s.RegimeScaler = StockRegimeOff
+	if s.RegimeEnabled() {
+		t.Errorf("explicit off must stay off")
+	}
+	s.RegimeScaler = "bogus" // Validate rejects it at save time; resolves to off
+	if s.RegimeEnabled() {
+		t.Errorf("unknown scaler must resolve to off")
+	}
+	s = &StockConfig{RegimeScaler: StockRegimeBasketVol, RegimeTargetVolPct: 55, RegimeFloor: 0.4, RegimeTrim: stockBool(false)}
+	if !s.RegimeEnabled() || s.EffectiveRegimeScaler() != StockRegimeBasketVol ||
+		s.EffectiveRegimeTargetVolPct() != 55 || s.EffectiveRegimeFloor() != 0.4 || s.RegimeTrimEnabled() {
+		t.Errorf("regime overrides not honored")
+	}
+	s = &StockConfig{RegimeScaler: StockRegimeBasketVol}
+	if s.EffectiveRegimeTargetVolPct() != 40 || s.EffectiveRegimeFloor() != 0.25 || !s.RegimeTrimEnabled() {
+		t.Errorf("regime defaults wrong")
+	}
+	// JSON names are the frontend contract.
+	var parsed StockConfig
+	raw := `{"symbols":["AAPLBUSDT"],"regime_scaler":"basket_vol","regime_target_vol_pct":35,"regime_floor":0.3,"regime_trim":false}`
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed.RegimeScaler != StockRegimeBasketVol || parsed.RegimeTargetVolPct != 35 || parsed.RegimeFloor != 0.3 || parsed.RegimeTrimEnabled() {
+		t.Errorf("regime JSON tags wrong: %+v", parsed)
+	}
+	// Default (off) config serializes without any regime keys.
+	out, _ := json.Marshal(&StockConfig{Symbols: []string{"AAPLBUSDT"}})
+	if strings.Contains(string(out), "regime") {
+		t.Errorf("off config must omit regime fields: %s", out)
+	}
+}
+
 func TestStockConfigResolvers_DivergenceDisabled(t *testing.T) {
 	if got := (&StockConfig{MaxDivergencePct: -3}).EffectiveMaxDivergencePct(); got != -1 {
 		t.Errorf("negative divergence = %v, want -1", got)
@@ -227,6 +270,19 @@ func TestStockConfigValidate(t *testing.T) {
 		{"atr min above preset max", func(s *StockConfig) { s.StopATRMin = 3.5 }, "less than"}, // swing max 3.0
 		{"atr max below preset min", func(s *StockConfig) { s.StopATRMax = 1.0 }, "less than"}, // swing min 1.5
 		{"non-finite", func(s *StockConfig) { s.RiskPerTradePct = math.NaN() }, "non-finite"},
+		{"regime basket_vol ok", func(s *StockConfig) { s.RegimeScaler = StockRegimeBasketVol }, ""},
+		{"regime off ok", func(s *StockConfig) { s.RegimeScaler = StockRegimeOff }, ""},
+		{"regime unknown", func(s *StockConfig) { s.RegimeScaler = "vix" }, "regime_scaler"},
+		{"regime target 10 ok", func(s *StockConfig) { s.RegimeTargetVolPct = 10 }, ""},
+		{"regime target 150 ok", func(s *StockConfig) { s.RegimeTargetVolPct = 150 }, ""},
+		{"regime target 9.9", func(s *StockConfig) { s.RegimeTargetVolPct = 9.9 }, "regime_target_vol_pct"},
+		{"regime target 151", func(s *StockConfig) { s.RegimeTargetVolPct = 151 }, "regime_target_vol_pct"},
+		{"regime target negative", func(s *StockConfig) { s.RegimeTargetVolPct = -1 }, "regime_target_vol_pct"},
+		{"regime floor 0.05 ok", func(s *StockConfig) { s.RegimeFloor = 0.05 }, ""},
+		{"regime floor 1 ok", func(s *StockConfig) { s.RegimeFloor = 1 }, ""},
+		{"regime floor 0.04", func(s *StockConfig) { s.RegimeFloor = 0.04 }, "regime_floor"},
+		{"regime floor 1.1", func(s *StockConfig) { s.RegimeFloor = 1.1 }, "regime_floor"},
+		{"regime floor negative", func(s *StockConfig) { s.RegimeFloor = -0.5 }, "regime_floor"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

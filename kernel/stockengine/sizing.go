@@ -57,14 +57,20 @@ func sizeOrder(ctx *Context, d Decision, cycleNotional float64) (Sizing, error) 
 	if p := positionFor(ctx, d.Symbol); p != nil {
 		currentValue = p.Quantity * s.Price
 	}
+	// The regime scale shrinks the risk budget and both exposure caps; the cash
+	// bound is a fact, not a budget, and stays as is.
+	regime := 1.0
+	if ctx.Regime.Enabled {
+		regime = ctx.Regime.Scale
+	}
 	// Reserve ALL accepted buys (opens and adds), both exposure and cash, in order.
 	bounds := []struct {
 		name string
 		qty  float64
 	}{
-		{"risk", ctx.Account.Equity * effectiveRiskPerTradePct(ctx.Config) / 100 / risk},
-		{"position_cap", (ctx.Account.Equity*effectiveMaxPositionPct(ctx.Config)/100 - currentValue) / entry},
-		{"exposure_cap", (ctx.Account.Equity*effectiveMaxTotalExposurePct(ctx.Config)/100 - ctx.Account.Exposure - cycleNotional) / entry},
+		{"risk", ctx.Account.Equity * effectiveRiskPerTradePct(ctx.Config) * regime / 100 / risk},
+		{"position_cap", (ctx.Account.Equity*effectiveMaxPositionPct(ctx.Config)*regime/100 - currentValue) / entry},
+		{"exposure_cap", (ctx.Account.Equity*effectiveMaxTotalExposurePct(ctx.Config)*regime/100 - ctx.Account.Exposure - cycleNotional) / entry},
 		{"available", (ctx.Account.Available - cycleNotional) * 0.995 / entry},
 	}
 	qty, limited := bounds[0].qty, bounds[0].name

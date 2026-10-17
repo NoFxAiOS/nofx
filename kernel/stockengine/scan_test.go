@@ -448,6 +448,45 @@ func TestScanFillsMomentum(t *testing.T) {
 	}
 }
 
+func TestScanKeepsRecentCloses(t *testing.T) {
+	mkBars := func(n int) []usstock.Bar {
+		bars := make([]usstock.Bar, n)
+		for i := range bars {
+			bars[i] = usstock.Bar{OpenTime: time.Date(2025, 1, 1, 14, 30, 0, 0, time.UTC).AddDate(0, 0, i), Close: 100 + float64(i)}
+		}
+		return bars
+	}
+	universe := []usstock.SymbolInfo{{Symbol: "LONGBUSDT", Underlying: "LONG"}, {Symbol: "SHORTBUSDT", Underlying: "SHORT"}}
+	fetch := func(_ context.Context, symbol string) ([]usstock.Bar, string, error) {
+		if symbol == "SHORTBUSDT" {
+			return mkBars(cycleMinBars), usstock.SourceBStock, nil
+		}
+		return mkBars(260), usstock.SourceBStock, nil
+	}
+	report, err := Scan(context.Background(), universe, nil, fetch, time.Now())
+	if err != nil || len(report.Results) != 2 {
+		t.Fatalf("report %+v err %v", report, err)
+	}
+	for _, r := range report.Results {
+		n := 260
+		if r.Symbol == "SHORTBUSDT" {
+			n = cycleMinBars
+		}
+		want := min(n, scanRecentCloses)
+		if len(r.RecentCloses) != want {
+			t.Fatalf("%s: %d recent closes, want %d", r.Symbol, len(r.RecentCloses), want)
+		}
+		last := r.RecentCloses[len(r.RecentCloses)-1]
+		if last.Close != 100+float64(n-1) || last.Date != time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, n-1).Format("2006-01-02") {
+			t.Fatalf("%s: last close %+v", r.Symbol, last)
+		}
+		first := r.RecentCloses[0]
+		if first.Close != 100+float64(n-want) {
+			t.Fatalf("%s: first close %+v want ascending window", r.Symbol, first)
+		}
+	}
+}
+
 func TestTopMomentum(t *testing.T) {
 	mk := func(sym string, valid, above bool, mom, rs float64) ScanResult {
 		return ScanResult{Symbol: sym, Cycle: CycleAssessment{RS63Pct: rs}, Momentum: MomentumAssessment{Valid: valid, AboveSMA200: above, Mom12_1Pct: mom}}

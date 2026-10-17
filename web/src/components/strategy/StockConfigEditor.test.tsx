@@ -336,3 +336,53 @@ test('momentum ranking: only above-SMA200 names, ordered by 12-1 momentum', asyn
   fireEvent.click(screen.getByTestId('stock-rank-kell'))
   expect(onChange.mock.lastCall?.[0].scan_rank).toBeUndefined()
 })
+
+test('regime scaler: basket_vol reveals inputs, trim defaults on, off hides them', () => {
+  apiMock.getUSStockSymbols.mockResolvedValue([])
+  const onChange = vi.fn()
+  render(<Harness onChange={onChange} />)
+
+  // hidden while the scaler is off (the default)
+  expect(
+    screen.queryByTestId('stock-regime-target-vol')
+  ).not.toBeInTheDocument()
+  expect(screen.queryByTestId('stock-regime-floor')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('stock-regime-trim')).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByTestId('stock-regime-basket_vol'))
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ regime_scaler: 'basket_vol' })
+  )
+
+  const target = screen.getByTestId('stock-regime-target-vol')
+  expect(target).toHaveAttribute('placeholder', '40')
+  const floor = screen.getByTestId('stock-regime-floor')
+  expect(floor).toHaveAttribute('placeholder', '0.25')
+  // trim defaults to on when regime_trim is unset
+  expect(screen.getByTestId('stock-regime-trim')).toBeChecked()
+
+  fireEvent.change(target, { target: { value: '30' } })
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ regime_target_vol_pct: 30 })
+  )
+  // clearing stores 0 = backend default (PUT bodies merge, so omitting would keep the old value)
+  fireEvent.change(target, { target: { value: '' } })
+  expect(onChange.mock.lastCall?.[0].regime_target_vol_pct).toBe(0)
+
+  fireEvent.change(floor, { target: { value: '0.5' } })
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ regime_floor: 0.5 })
+  )
+
+  fireEvent.click(screen.getByTestId('stock-regime-trim'))
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ regime_trim: false })
+  )
+
+  // back to off: scaler stored explicitly and inputs disappear again
+  fireEvent.click(screen.getByTestId('stock-regime-off'))
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ regime_scaler: 'off' })
+  )
+  expect(screen.queryByTestId('stock-regime-trim')).not.toBeInTheDocument()
+})

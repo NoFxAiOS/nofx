@@ -88,6 +88,19 @@ export interface StockConfig {
   // score). "momentum" = only stocks above the 200-day SMA, ranked by 12-1
   // momentum (past 12 months excluding the most recent month).
   scan_rank?: 'kell' | 'momentum'
+  // Regime position scaler; '' / omitted / "off" = disabled. "basket_vol"
+  // scales the new-open risk budget, the per-symbol cap and the total
+  // exposure cap by target vol ÷ realized vol (top-10 momentum basket,
+  // 21-day annualized), clamped to [regime_floor, 1].
+  regime_scaler?: 'off' | 'basket_vol'
+  // basket_vol: target annualized volatility in % (10-150; 0/omitted = 40)
+  regime_target_vol_pct?: number
+  // basket_vol: lower clamp of the scale factor (0.05-1; 0/omitted = 0.25)
+  regime_floor?: number
+  // basket_vol: when the factor drops ≥0.20 vs the last applied value, trim
+  // program positions proportionally in the regular session (manual
+  // positions untouched); omitted = true
+  regime_trim?: boolean
   // "swing" (default) | "position"
   preset?: 'swing' | 'position'
   sessions: StockSessions

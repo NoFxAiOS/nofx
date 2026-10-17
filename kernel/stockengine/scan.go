@@ -34,6 +34,16 @@ var (
 	scanGetFundamentals = usstock.GetFundamentals
 )
 
+// scanRecentCloses is how many trailing daily closes a ScanResult keeps (21
+// returns' worth, for the regime basket volatility).
+const scanRecentCloses = 22
+
+// DatedClose is one daily close; Date is the bar's UTC open date "2006-01-02".
+type DatedClose struct {
+	Date  string  `json:"date"`
+	Close float64 `json:"close"`
+}
+
 type ScanResult struct {
 	Symbol     string             `json:"symbol"`
 	Underlying string             `json:"underlying"`
@@ -43,6 +53,9 @@ type ScanResult struct {
 	// Universe is the row of the prompt's universe table (zero Price when the
 	// symbol had too few bars for one).
 	Universe UniverseRow `json:"universe"`
+	// RecentCloses are the last scanRecentCloses daily closes (ascending, fewer
+	// when the series is shorter) of the bars the symbol was classified on.
+	RecentCloses []DatedClose `json:"recent_closes,omitempty"`
 }
 
 type ScanReport struct {
@@ -141,10 +154,21 @@ func Scan(ctx context.Context, universe []usstock.SymbolInfo, spyBars []usstock.
 		report.Results = append(report.Results, ScanResult{
 			Symbol: info.Symbol, Underlying: info.Underlying, Source: source,
 			Cycle: ClassifyCycle(bars, spyBars), Momentum: ClassifyMomentum(bars),
-			Universe: row,
+			Universe: row, RecentCloses: recentCloses(bars),
 		})
 	}
 	return report, ctx.Err()
+}
+
+func recentCloses(bars []usstock.Bar) []DatedClose {
+	if len(bars) > scanRecentCloses {
+		bars = bars[len(bars)-scanRecentCloses:]
+	}
+	out := make([]DatedClose, len(bars))
+	for i, b := range bars {
+		out[i] = DatedClose{Date: b.OpenTime.UTC().Format("2006-01-02"), Close: b.Close}
+	}
+	return out
 }
 
 func sortScanResults(results []ScanResult) {

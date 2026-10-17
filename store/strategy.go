@@ -193,6 +193,21 @@ type StockConfig struct {
 	// PaperTrading: run data, decisions and risk checks but place no orders.
 	// nil = true (first launch is paper by default — user decision 2026-10-09).
 	PaperTrading *bool `json:"paper_trading,omitempty"`
+	// RegimeScaler: market-state position scaler. "" / "off" = disabled
+	// (default); "basket_vol" scales the risk budget, per-symbol cap and total
+	// exposure cap of NEW entries by s = clip(target_vol / σ_basket, floor, 1),
+	// σ_basket being the annualized volatility of the equal-weight top-10
+	// momentum basket over the last 21 sessions (backtest: 2026-10-17-regime-
+	// overlay-backtrader-1d.md).
+	RegimeScaler string `json:"regime_scaler,omitempty"`
+	// RegimeTargetVolPct: target annualized basket volatility in percent.
+	// 0 = default 40; valid 10–150.
+	RegimeTargetVolPct float64 `json:"regime_target_vol_pct,omitempty"`
+	// RegimeFloor: lower bound of the scale s. 0 = default 0.25; valid 0.05–1.
+	RegimeFloor float64 `json:"regime_floor,omitempty"`
+	// RegimeTrim: trim held program-owned positions when s falls (by at least
+	// the 0.20 band from the last applied scale). nil = true.
+	RegimeTrim *bool `json:"regime_trim,omitempty"`
 }
 
 // StockSessions toggles the US sessions in which opens/adds are allowed.

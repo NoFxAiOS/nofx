@@ -150,6 +150,9 @@ type Context struct {
 	// ScanResult rather than UniverseRow because the table also shows each
 	// pair's momentum and Kell phase.
 	Universe []ScanResult `json:"-"`
+	// Regime is this cycle's market-state position scale (zero value = disabled).
+	// When Enabled it scales the sizing bounds and is stated in the prompt.
+	Regime RegimeScale `json:"-"`
 }
 
 // Decision is one model decision (prices in USDT, bStock pair units).

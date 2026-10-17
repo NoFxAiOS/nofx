@@ -41,6 +41,7 @@ type Store struct {
 	riskState      *RiskStateStore
 	stockPaper     *StockPaperStore
 	stockThesis    *StockThesisStore
+	stockRegime    *StockRegimeScaleStore
 	telegramConfig TelegramConfigStore
 
 	mu sync.RWMutex
@@ -214,6 +215,9 @@ func (s *Store) initTables() error {
 	}
 	if err := s.StockThesis().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize us_stock thesis tables: %w", err)
+	}
+	if err := s.StockRegimeScales().initTables(); err != nil {
+		return fmt.Errorf("failed to initialize us_stock regime scale tables: %w", err)
 	}
 	return nil
 }
@@ -428,6 +432,16 @@ func (s *Store) StockThesis() *StockThesisStore {
 		s.stockThesis = NewStockThesisStore(s.gdb)
 	}
 	return s.stockThesis
+}
+
+// StockRegimeScales gets the us_stock per-position applied regime scale store.
+func (s *Store) StockRegimeScales() *StockRegimeScaleStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stockRegime == nil {
+		s.stockRegime = NewStockRegimeScaleStore(s.gdb)
+	}
+	return s.stockRegime
 }
 
 // EntryAttribution gets the per-open candidate-source attribution store

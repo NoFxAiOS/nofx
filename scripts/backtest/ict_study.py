@@ -106,6 +106,9 @@ def cmd_b(a):
         for s in ict.find_setups(ctx, {}):
             s.sym = sym
             setups.append(s)
+    if a.sample < 1:  # 随机抽样 setup(full 全留),控制回测耗时;去重后抽样不改变单仓过滤的口径
+        r = random.Random(11)
+        setups = [x for x in setups if x.trigger == "full" or r.random() < a.sample]
     print("setups", len(setups))
     import collections
     print(collections.Counter((s.trigger, s.side) for s in setups))
@@ -308,6 +311,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--procs", type=int, default=9)
     ap.add_argument("--only", default="")
+    ap.add_argument("--sample", type=float, default=1.0)
     ap.add_argument("--universe", default="")
     ap.add_argument("--universe-json", default="")
     ap.add_argument("--allow-overlap", action="store_true")

@@ -36,7 +36,6 @@ export function LandingPage() {
           const pathMap: Record<string, string> = {
             data: '/data',
             competition: '/competition',
-            'strategy-market': '/strategy-market',
             traders: '/traders',
             trader: '/dashboard',
             strategy: '/strategy',

@@ -32,6 +32,7 @@ type Page =
   | 'data'
   | 'review'
   | 'system-quality'
+  | 'research-log'
   | 'faq'
   | 'login'
   | 'register'
@@ -105,6 +106,12 @@ function buildNavTabs(language: Language): NavTab[] {
       page: 'system-quality',
       path: '/system-quality',
       label: language === 'zh' ? '系统质量' : 'System Quality',
+      requiresAuth: true,
+    },
+    {
+      page: 'research-log',
+      path: '/research-log',
+      label: language === 'zh' ? '研究记录' : 'Research Log',
       requiresAuth: true,
     },
     {

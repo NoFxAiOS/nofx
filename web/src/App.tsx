@@ -47,6 +47,7 @@ const ReviewPage = lazy(() =>
   import('./pages/ReviewPage').then((m) => ({ default: m.ReviewPage }))
 )
 const SystemQualityPage = lazy(() => import('./pages/SystemQualityPage'))
+const ResearchLogPage = lazy(() => import('./pages/ResearchLogPage'))
 import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
 import HeaderBar from './components/common/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -75,6 +76,7 @@ type Page =
   | 'data'
   | 'review'
   | 'system-quality'
+  | 'research-log'
   | 'faq'
   | 'login'
   | 'register'
@@ -106,6 +108,8 @@ function App() {
     if (path === '/review' || hash === 'review') return 'review'
     if (path === '/system-quality' || hash === 'system-quality')
       return 'system-quality'
+    if (path === '/research-log' || hash === 'research-log')
+      return 'research-log'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -128,6 +132,7 @@ function App() {
       data: '/data',
       review: '/review',
       'system-quality': '/system-quality',
+      'research-log': '/research-log',
       traders: '/traders',
       trader: '/dashboard',
       strategy: '/strategy',
@@ -594,6 +599,37 @@ function App() {
         />
         <main className="pt-[52px]">
           <SystemQualityPage language={language} />
+        </main>
+        <LoginRequiredOverlay
+          isOpen={loginOverlayOpen}
+          onClose={() => setLoginOverlayOpen(false)}
+          featureName={loginOverlayFeature}
+        />
+      </div>
+    )
+  }
+  // Research log page (量化研究记录) - requires authentication
+  if (route === '/research-log') {
+    if ((!user || !token) && !hasPersistedAuth) {
+      return <Redirect to="/login" />
+    }
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="research-log"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
+        />
+        <main className="pt-[52px]">
+          <ResearchLogPage language={language} />
         </main>
         <LoginRequiredOverlay
           isOpen={loginOverlayOpen}

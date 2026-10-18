@@ -249,6 +249,9 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	// prompt every cycle. The user prompt then carries per-cycle data only.
 	sb.WriteString("# Structured Signal 字段说明（适用于每个 Structured Signal 块）\n")
 	sb.WriteString(signalBlockLegendFor(riskControl.LimitEntryEnabled))
+	if e.config.Indicators.EnableLiquiditySweep {
+		sb.WriteString("- liquidity_sweep 为程序预计算的扫荡证据:sellside_swept 支持做多,buyside_swept 支持做空;mss_confirmed=true 表示结构已转向;仅是参考证据,不是独立入场理由,不能绕过 hard_entry_gate / rr_scan;没有该字段表示近期无扫荡。\n")
+	}
 	if TPMenuEnabled(&e.config.RiskControl) {
 		sb.WriteString("- stop_loss 复制 stop_plan_price;take_profit 从 rr_scan.tp_options 菜单选编号填 tp_option(并把所选 level 复制为 take_profit):level 全部是程序按 stop_plan 同口径算出的结构位,touch_count 只是近30日触及该价位的次数(中性证据,非概率承诺),beyond_structure=超出全部周期结构极值(历史无参考)。usable=false 或菜单为空→引用 MAX_STRUCTURAL_RR=best_rr 并 wait。\n")
 	} else {
@@ -1626,6 +1629,7 @@ func (e *StrategyEngine) computeCoinSignal(data *market.Data, quantData *QuantDa
 	opt := SignalOptions{
 		Now:                     time.Now(),
 		PrimaryTF:               e.config.Indicators.Klines.PrimaryTimeframe,
+		EnableLiquiditySweep:    e.config.Indicators.EnableLiquiditySweep,
 		CurrentPrice:            data.CurrentPrice,
 		LimitEntryOffsetPct:     e.config.RiskControl.LimitEntryOffsetPct,
 		LimitEntryOffsetMode:    e.config.RiskControl.LimitEntryOffsetMode,

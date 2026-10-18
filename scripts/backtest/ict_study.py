@@ -77,16 +77,16 @@ def control_of(job, a, rng, lo=72, hi=576):
                 t_ms=int(a["t_close"][i]), control=True, key=job["key"] + ("ctl",))
 
 
-def load_universe(cache, syms, start_ms=None, end_ms=None):
+def load_universe(cache, syms, start_ms=None, end_ms=None, equity=False):
     ctxs = {}
-    ref_eth = ict_fetch.load(cache, "ETHUSDT")
-    ref_btc = ict_fetch.load(cache, "BTCUSDT")
+    ref_eth = ict_fetch.load(cache, "SPYUSDT" if equity else "ETHUSDT")
+    ref_btc = ict_fetch.load(cache, "QQQUSDT" if equity else "BTCUSDT")
     for s in syms:
         bars = ict_fetch.load(cache, s)
         if len(bars) < 3000:
             print("skip(no data)", s)
             continue
-        ref = ref_eth if s == "BTCUSDT" else ref_btc
+        ref = ref_eth if s in ("BTCUSDT", "QQQUSDT") else ref_btc
         ctxs[s] = ict.Ctx(bars, ref)
         DATA[s] = ctxs[s].a5
     return ctxs
@@ -94,9 +94,13 @@ def load_universe(cache, syms, start_ms=None, end_ms=None):
 
 def cmd_b(a):
     cache = a.cache
-    syms = [u + "USDT" for u in UNIVERSE if len(ict_fetch.load(cache, u + "USDT")) > 3000]
+    if a.universe:
+        syms = json.load(open(a.universe_json))[a.universe]
+        syms = [x for x in syms if len(ict_fetch.load(cache, x)) > 3000]
+    else:
+        syms = [u + "USDT" for u in UNIVERSE if len(ict_fetch.load(cache, u + "USDT")) > 3000]
     print("universe", len(syms), syms)
-    ctxs = load_universe(cache, syms)
+    ctxs = load_universe(cache, syms, equity=a.universe == "equity")
     setups = []
     for sym, ctx in ctxs.items():
         for s in ict.find_setups(ctx, {}):
@@ -164,7 +168,7 @@ def report_b(out, a):
                 cs, _, cblk = summarize(csub, [d["cres"][i] for i in ci], a.allow_overlap)
                 if s["n"] < 30:
                     continue
-                emit(fmt(f"{trig}/{path}", s, 22, f"blk={blk}") + f" | 对照 avgR={cs['avg']:+.3f}±{cs['se']:.3f} n={cs['n']}")
+                emit(fmt(f"{trig}/{path}", s, 22, f"blk={blk}") + f" | 对照 avgR={cs['avg']:+.3f}±{cs['se']:.3f} n={cs['n']} 差={s['avg'] - cs['avg']:+.3f}±{(s['se'] ** 2 + cs['se'] ** 2) ** 0.5:.3f}")
     open(os.path.join(a.out, "b_report.txt"), "w").write("\n".join(lines))
 
 
@@ -304,6 +308,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--procs", type=int, default=9)
     ap.add_argument("--only", default="")
+    ap.add_argument("--universe", default="")
+    ap.add_argument("--universe-json", default="")
     ap.add_argument("--allow-overlap", action="store_true")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)

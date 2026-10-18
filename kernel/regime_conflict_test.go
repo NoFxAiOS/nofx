@@ -132,7 +132,12 @@ func TestRegimeSkipSynthesizesWaitWithoutLLM(t *testing.T) {
 }
 
 func TestRegimeSkipKeepsCallForAllowedDirection(t *testing.T) {
-	engine := NewStrategyEngine(&store.StrategyConfig{})
+	cfg := &store.StrategyConfig{}
+	// This test needs an allowed direction; the monotone fixture otherwise
+	// hits the unrelated RSI exhaustion and counter-trend distance caps.
+	cfg.RiskControl.CounterMaxEMA20_1hPct = -1
+	cfg.RiskControl.EntryRSI1hMax = -1
+	engine := NewStrategyEngine(cfg)
 	mock := &recordingAIClient{}
 	ctx := &Context{MarketDataMap: map[string]*market.Data{}}
 	now := time.Now()

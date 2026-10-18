@@ -23,6 +23,9 @@ func TestRenderedPromptTokenEstimateCountsActualContent(t *testing.T) {
 
 func TestPromptBudgetFallbackRemovesRawKlines(t *testing.T) {
 	cfg := store.StrategyConfig{Language: "zh"}
+	// Keep the monotone rendering fixture eligible under the anti-chase caps.
+	cfg.RiskControl.CounterMaxEMA20_1hPct = -1
+	cfg.RiskControl.EntryRSI1hMax = -1
 	cfg.Indicators.EnableRawKlines = true
 	cfg.Indicators.Klines.SelectedTimeframes = []string{"15m", "1h", "4h"}
 	cfg.Indicators.Klines.PrimaryCount = 20

@@ -196,6 +196,8 @@ type SymbolSignal struct {
 	// Bollinger band — the market-open_short evidence for plunges where the
 	// short limit anchor sits suppressed against the swing-low.
 	ShortRide *BBShortRide `json:"short_ride,omitempty"`
+	// LiquiditySweep is opt-in reference evidence; it never affects hard gates.
+	LiquiditySweep *LiquiditySweep `json:"liquidity_sweep,omitempty"`
 	// ⑩ Data completeness ≠ data sufficiency: per-TF closed-bar counts vs
 	// indicator requirements.
 	DataQuality *DataQuality `json:"data_quality,omitempty"`
@@ -571,6 +573,7 @@ type SignalOptions struct {
 	EntryRoundTripCostBps float64   // disclosed cost estimate; raw research callers may pass zero
 	Now                   time.Time // zero falls back to time.Now()
 	PrimaryTF             string
+	EnableLiquiditySweep  bool // opt-in experimental evidence; default false
 	OI1hPct               *float64
 	// CurrentPrice is the live ticker price used as the support/resistance
 	// anchor (which pivot levels count as above/below). Zero falls back to
@@ -1225,6 +1228,9 @@ func ComputeSymbolSignals(symbol string, data *market.Data, opt SignalOptions) (
 	suppressAnchorsAgainstRegimeLine(sig, opt.EntryTimingGate)
 	sig.BBRide = computeBBRide(data, now)
 	sig.ShortRide = computeBBShortRide(data, now)
+	if opt.EnableLiquiditySweep {
+		sig.LiquiditySweep = computeLiquiditySweep(data, now)
+	}
 
 	// Entry / exit heuristic rules — deterministic, computed so the model sees
 	// the program's verdict and can agree or disagree with reasoning.

@@ -48,7 +48,12 @@ func TestBlockedCandidateCompressesToOneLine(t *testing.T) {
 }
 
 func TestAllowedCandidateKeepsFullJSON(t *testing.T) {
-	engine := NewStrategyEngine(&store.StrategyConfig{})
+	cfg := &store.StrategyConfig{}
+	// The monotone fixture has RSI=100 and a distant live-price anchor;
+	// keep this rendering test independent of the anti-chase caps.
+	cfg.RiskControl.CounterMaxEMA20_1hPct = -1
+	cfg.RiskControl.EntryRSI1hMax = -1
+	engine := NewStrategyEngine(cfg)
 	ctx := &Context{MarketDataMap: map[string]*market.Data{}}
 	now := time.Now()
 	ctx.CandidateCoins = append(ctx.CandidateCoins, CandidateCoin{Symbol: "OKUSDT", Sources: []string{"ai500"}})

@@ -784,6 +784,9 @@ func TestOIDeltasSignConsistency(t *testing.T) {
 // auxiliary, and no "不做多"-style instruction leaks into the prompt.
 func TestDirectionHintRendering(t *testing.T) {
 	cfg := &store.StrategyConfig{}
+	// Keep the monotone scanner-hint fixture renderable under anti-chase caps.
+	cfg.RiskControl.CounterMaxEMA20_1hPct = -1
+	cfg.RiskControl.EntryRSI1hMax = -1
 	cfg.CoinSource.SourceType = "mixed"
 	cfg.CoinSource.UseShortScan = true
 	engine := NewStrategyEngine(cfg)

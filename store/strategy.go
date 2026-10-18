@@ -394,14 +394,15 @@ type IndicatorConfig struct {
 	// raw kline data (OHLCV) - always enabled, required for AI analysis
 	EnableRawKlines bool `json:"enable_raw_klines"`
 	// technical indicator switches
-	EnableEMA         bool `json:"enable_ema"`
-	EnableMACD        bool `json:"enable_macd"`
-	EnableRSI         bool `json:"enable_rsi"`
-	EnableATR         bool `json:"enable_atr"`
-	EnableBOLL        bool `json:"enable_boll"` // Bollinger Bands
-	EnableVolume      bool `json:"enable_volume"`
-	EnableOI          bool `json:"enable_oi"`           // open interest
-	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
+	EnableEMA            bool `json:"enable_ema"`
+	EnableMACD           bool `json:"enable_macd"`
+	EnableRSI            bool `json:"enable_rsi"`
+	EnableATR            bool `json:"enable_atr"`
+	EnableBOLL           bool `json:"enable_boll"`                      // Bollinger Bands
+	EnableLiquiditySweep bool `json:"enable_liquidity_sweep,omitempty"` // experimental reference evidence; default false
+	EnableVolume         bool `json:"enable_volume"`
+	EnableOI             bool `json:"enable_oi"`           // open interest
+	EnableFundingRate    bool `json:"enable_funding_rate"` // funding rate
 	// EMA period configuration
 	EMAPeriods []int `json:"ema_periods,omitempty"` // default [20, 50]
 	// RSI period configuration

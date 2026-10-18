@@ -74,6 +74,20 @@ th{color:var(--mut);font-weight:600}
 <div class="day">2026-10-18</div>
 
 <article data-v="run">
+<h2>qlib 式自动因子挖掘（美股 + 虚拟币） <span class="tag t-run">进行中</span><span class="dom">美股 + 加密 · 截面因子</span></h2>
+<p class="k">思路：参考 microsoft/qlib 的 Alpha158 表达式因子库与 RD-Agent 的 LLM 提案闭环，在日线截面上自动挖掘“因子值越高，未来 h 日超额收益越高”的因子；系统页面「因子挖掘」可实时查看。</p>
+<ul>
+<li>表达式 DSL：白名单 AST，字段 <code>$open/$high/$low/$close/$volume/$vwap/$ret</code>，约 40 个算子，窗口 ≤120，禁止任意代码；通用无前视测试。</li>
+<li>候选三路：195 个 Alpha158 风格种子 → 对 top 因子随机变异 → GLM-5.3-flash 提案（提示词只含 train 指标）。</li>
+<li>评估：日 RankIC、Newey-West HAC t（lag=h）、五分位多空净收益（币 0.08% / 股 0.05% 单边）、换手；train/val/holdout = 60/20/20 并 purge，holdout 仅 <code>judge.py</code> 人工开启。</li>
+<li>多重检验：同一 (市场, 周期) 的有效试验数 K 持续累加，<code>t_req = max(2, Φ⁻¹(1−0.025/K))</code>，旧因子会随 K 增大被降级。</li>
+<li>accepted 需 train 达标 + val IC 同号 t≥1.65 + train 与 val 扣费后多空收益均 &gt; 0；与已接受因子截面相关 ≥0.8 标为冗余。</li>
+<li>首次运行：币 100 个标的（2019~今，点时刻成交额前 60），美股 92 个 bStock 正股（Yahoo 复权日线，约 6 年）；币圈大量 IC 显著但多空净收益为负（均值被高波动币的偏态主导），因此几乎没有 accepted。</li>
+</ul>
+<p class="src">代码：<code>scripts/factor_mining/</code> · 设计：<code>docs/research/factor-mining-design.md</code>。研究层筛选，不接入下单；accepted ≠ 可交易（未建模资金费、冲击成本与容量，美股存在幸存者偏差）。</p>
+</article>
+
+<article data-v="run">
 <h2>GLM 自进化评分挖掘框架 <span class="tag t-run">进行中</span><span class="dom">加密 · 多空评分</span></h2>
 <p class="k">思路：用订阅的 GLM-5.3-flash 夜间自主提出候选评分函数 <code>score(X)</code>，目标是“分数越高，对应方向收益 / 胜率越高”。</p>
 <ul>

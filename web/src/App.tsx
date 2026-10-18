@@ -45,6 +45,7 @@ const ReviewPage = lazy(() =>
 )
 const SystemQualityPage = lazy(() => import('./pages/SystemQualityPage'))
 const ResearchLogPage = lazy(() => import('./pages/ResearchLogPage'))
+const FactorMiningPage = lazy(() => import('./pages/FactorMiningPage'))
 import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
 import HeaderBar from './components/common/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -74,6 +75,7 @@ type Page =
   | 'review'
   | 'system-quality'
   | 'research-log'
+  | 'factor-mining'
   | 'login'
   | 'register'
 
@@ -106,6 +108,8 @@ function App() {
       return 'system-quality'
     if (path === '/research-log' || hash === 'research-log')
       return 'research-log'
+    if (path === '/factor-mining' || hash === 'factor-mining')
+      return 'factor-mining'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -129,6 +133,7 @@ function App() {
       review: '/review',
       'system-quality': '/system-quality',
       'research-log': '/research-log',
+      'factor-mining': '/factor-mining',
       traders: '/traders',
       trader: '/dashboard',
       strategy: '/strategy',
@@ -578,6 +583,38 @@ function App() {
       </div>
     )
   }
+  // Factor mining page (因子挖掘) - requires authentication
+  if (route === '/factor-mining') {
+    if ((!user || !token) && !hasPersistedAuth) {
+      return <Redirect to="/login" />
+    }
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="factor-mining"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
+        />
+        <main className="pt-[52px]">
+          <FactorMiningPage language={language} />
+        </main>
+        <LoginRequiredOverlay
+          isOpen={loginOverlayOpen}
+          onClose={() => setLoginOverlayOpen(false)}
+          featureName={loginOverlayFeature}
+        />
+      </div>
+    )
+  }
+
   // Research log page (量化研究记录) - requires authentication
   if (route === '/research-log') {
     if ((!user || !token) && !hasPersistedAuth) {

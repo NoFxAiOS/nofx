@@ -274,6 +274,8 @@ CRITICAL: Always use the "id" field for strategy_id.`,
 			s.route(protected, "GET", "/entry-quality-stats", "Quality→outcome backtest: decisions bucketed by entry_quality joined with journal outcomes (?trader_id=)", s.handleEntryQualityStats)
 			s.route(protected, "GET", "/gate-shadow-stats", "Gate-threshold calibration: blocked would-be trades resolved against the later price path, per blocking code", s.handleGateShadowStats)
 			s.route(protected, "GET", "/system-quality", "System health: per-cycle AI-call duration stats, success rate, failure categories (?trader_id=&hours=24)", s.handleSystemQuality)
+			s.route(protected, "GET", "/factor-mining/overview", "Read-only factor mining status, factor zoo and ensembles", s.handleFactorMiningOverview)
+			s.route(protected, "GET", "/factor-mining/runs", "Recent factor mining runs (?limit=50, max 500), newest first", s.handleFactorMiningRuns)
 			s.route(protected, "GET", "/strategies/:id", "Get strategy by ID", s.handleGetStrategy)
 			s.route(protected, "GET", "/strategies/:id/versions", "Config version history for one strategy: append-only snapshots with field-level diffs + realized trade stats (win rate / net PnL / profit factor / avg R) per version's active window", s.handleGetStrategyVersions)
 			s.routeWithSchema(protected, "POST", "/strategies", "Create a new trading strategy",

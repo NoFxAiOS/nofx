@@ -194,6 +194,7 @@ export function AdvancedChart({
     quoteVolume: number
     change: number
     changePercent: number
+    amplitude: number
   } | null>(null) // TradingView-style legend (hovered candle or latest)
   const klineListRef = useRef<any[]>([]) // Sorted kline array for legend lookups
   const lastOrdersFetchRef = useRef(0) // order markers refresh at most every 60s
@@ -614,6 +615,11 @@ export function AdvancedChart({
       const change = candleData.close - prevClose
       const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0
 
+      // Amplitude: (high-low) vs previous close, exchange-app convention
+      const ampBase = prevClose > 0 ? prevClose : candleData.open
+      const amplitude =
+        ampBase > 0 ? ((candleData.high - candleData.low) / ampBase) * 100 : 0
+
       setLegendData({
         open: candleData.open,
         high: candleData.high,
@@ -623,6 +629,7 @@ export function AdvancedChart({
         quoteVolume: klineExtra.quoteVolume,
         change,
         changePercent,
+        amplitude,
       })
     })
 
@@ -1153,16 +1160,26 @@ export function AdvancedChart({
   const legend =
     legendData ??
     (marketStats
-      ? {
-          open: marketStats.open,
-          high: marketStats.high,
-          low: marketStats.low,
-          close: marketStats.price,
-          volume: marketStats.volume,
-          quoteVolume: marketStats.quoteVolume,
-          change: marketStats.priceChange,
-          changePercent: marketStats.priceChangePercent,
-        }
+      ? (() => {
+          // prevClose derived the same way priceChange was computed
+          const prevClose = marketStats.price - marketStats.priceChange
+          const ampBase = prevClose > 0 ? prevClose : marketStats.open
+          const amplitude =
+            ampBase > 0
+              ? ((marketStats.high - marketStats.low) / ampBase) * 100
+              : 0
+          return {
+            open: marketStats.open,
+            high: marketStats.high,
+            low: marketStats.low,
+            close: marketStats.price,
+            volume: marketStats.volume,
+            quoteVolume: marketStats.quoteVolume,
+            change: marketStats.priceChange,
+            changePercent: marketStats.priceChangePercent,
+            amplitude,
+          }
+        })()
       : null)
 
   return (
@@ -1338,6 +1355,7 @@ export function AdvancedChart({
                 const hLabel = language === 'zh' ? '高' : 'H'
                 const lLabel = language === 'zh' ? '低' : 'L'
                 const cLabel = language === 'zh' ? '收' : 'C'
+                const ampLabel = language === 'zh' ? '振幅' : 'AMP'
                 return (
                   <>
                     <span className={cn('num', c)}>
@@ -1357,6 +1375,9 @@ export function AdvancedChart({
                       {formatLegendPrice(legend.change)} (
                       {legend.changePercent >= 0 ? '+' : ''}
                       {legend.changePercent.toFixed(2)}%)
+                    </span>
+                    <span className="num text-fg-3">
+                      {ampLabel} {legend.amplitude.toFixed(2)}%
                     </span>
                     {legend.volume > 0 && baseUnit && (
                       <span className="num text-fg-3">

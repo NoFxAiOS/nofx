@@ -32,7 +32,6 @@ type Page =
   | 'data'
   | 'review'
   | 'system-quality'
-  | 'faq'
   | 'login'
   | 'register'
 
@@ -112,12 +111,6 @@ function buildNavTabs(language: Language): NavTab[] {
       path: '/competition',
       label: t('realtimeNav', language),
       requiresAuth: true,
-    },
-    {
-      page: 'faq',
-      path: '/faq',
-      label: t('faqNav', language),
-      requiresAuth: false,
     },
   ]
 }

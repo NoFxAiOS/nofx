@@ -29,7 +29,7 @@ def judge(market, h, root):
         by_id = {f['id']: f for f in zoo.get('factors', []) if f['horizon'] == h}
         factors = [by_id[key] for key in ids]
         panels = load_panels(market, root)
-        segment = make_splits(panels.mask.index, h)['holdout']
+        segment = make_splits(panels.mask.index, h, panels.split_bounds)['holdout']
         score = ensemble_scores(factors, panels).loc[segment]
         # This is the sole path that constructs and reads holdout labels.
         opens = panels.fields['open']

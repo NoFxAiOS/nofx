@@ -195,7 +195,7 @@ class Miner:
             cfg = MARKETS[market]
             panels = load_panels(market, self.root)
             store.write_status({'markets': {market: panels.meta}}, self.root)
-            splits = {h: make_splits(panels.mask.index, h) for h in cfg['horizons']}
+            splits = {h: make_splits(panels.mask.index, h, panels.split_bounds) for h in cfg['horizons']}
             targets = {h: forward_target(panels, h) for h in cfg['horizons']}
             ledger = store.read_ledger(market, self.root)
             seen = {(r['horizon'], r['id']) for r in ledger}

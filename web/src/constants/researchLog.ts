@@ -40,10 +40,10 @@ export const RESEARCH_LOG: ResearchEntry[] = [
     bullets: [
       '表达式 DSL：白名单 AST，字段 $open/$high/$low/$close/$volume/$vwap/$ret，约 40 个算子（Ref/Mean/Std/Rank/Corr/Slope/Rsquare/Resi/EMA/CSRank…），窗口 ≤120，禁止任意代码；通用无前视测试。',
       '候选三路：195 个 Alpha158 风格种子 → 对 top 因子随机变异 → GLM-5.3-flash 提案（提示词只含 train 指标，不含 val / holdout）。',
-      '评估：日 RankIC、Newey-West HAC t（lag=h）、五分位多空净收益（币 0.08% / 股 0.05% 单边）、换手；train/val/holdout = 60/20/20 并 purge，holdout 仅 judge.py 人工开启。',
+      '评估：日 RankIC、Newey-West HAC t（lag=h）、五分位多空净收益（币 0.08% / 股 0.05% 单边）、换手；train/val/holdout 首次运行按 60/20/20 固定切分日期（新数据全部进 holdout）并 purge，holdout 仅 judge.py 人工开启。',
       '多重检验：同一 (市场, 周期) 的有效试验数 K 持续累加，t_req = max(2, Φ⁻¹(1−0.025/K))，旧因子会随 K 增大被降级。',
       'accepted 需 train 达标 + val IC 同号 t≥1.65 + train 与 val 扣费后多空收益均 > 0；与已接受因子截面相关 ≥0.8 标为冗余。',
-      '首次运行：币 100 个标的（2019~今，点时刻成交额前 60），美股 92 个 bStock 正股（Yahoo 复权日线，约 6 年）；币圈大量 IC 显著但多空净收益为负（均值被高波动币的偏态主导），因此几乎没有 accepted。',
+      '首次运行：币 100 个标的（2019~今，点时刻成交额前 60），美股 91 个 bStock 正股 + SPY 基准（Yahoo 复权日线，约 6 年）；币圈大量 IC 显著但多空净收益为负（均值被高波动币的偏态主导），因此几乎没有 accepted。',
     ],
     conclusion:
       '这是研究层筛选，不接入任何下单；accepted ≠ 可交易（未建模资金费、冲击成本与容量，美股存在幸存者偏差）。每晚增量运行，结果以页面为准。',

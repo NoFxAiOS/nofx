@@ -26,6 +26,8 @@ class Panels:
     benchmark_close: pd.Series | None = None
     benchmark_open: pd.Series | None = None
     meta: dict | None = None
+    # Persisted (train_end, val_end) dates; None falls back to proportional splits.
+    split_bounds: tuple | None = None
 
 
 def _read_symbol(path):
@@ -51,6 +53,33 @@ def _read_symbol(path):
         except (TypeError, ValueError, OverflowError):
             continue
     return pd.DataFrame.from_dict(valid, orient='index', columns=FIELD_NAMES).sort_index()
+
+
+def load_split_bounds(base, index):
+    """Fixed train/val end dates, written once on the first run and never moved.
+
+    Proportional splits drift as data grows, so yesterday's sealed holdout would
+    silently become today's validation data. New bars therefore all land in the
+    holdout segment. Delete split.json only together with the ledger and zoo.
+    """
+    path = Path(base) / 'split.json'
+    try:
+        saved = json.loads(path.read_text(encoding='utf-8'))
+        train_end, val_end = pd.Timestamp(saved['train_end']), pd.Timestamp(saved['val_end'])
+        if train_end < val_end:
+            return train_end, val_end
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    n = len(index)
+    a, b = int(n * SPLIT[0]), int(n * (SPLIT[0] + SPLIT[1]))
+    train_end, val_end = index[a - 1], index[b - 1]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(json.dumps(dict(train_end=train_end.strftime('%Y-%m-%d'),
+                                   val_end=val_end.strftime('%Y-%m-%d'),
+                                   created_bars=n), ensure_ascii=False), encoding='utf-8')
+    tmp.replace(path)
+    return train_end, val_end
 
 
 def load_panels(market, root=ROOT) -> Panels:
@@ -87,15 +116,19 @@ def load_panels(market, root=ROOT) -> Panels:
                 data_updated_at=data_meta.get('updated_at'))
     return Panels(fields, mask.astype(bool),
                   benchmark['close'].reindex(calendar) if benchmark is not None else None,
-                  benchmark['open'].reindex(calendar) if benchmark is not None else None, meta)
+                  benchmark['open'].reindex(calendar) if benchmark is not None else None, meta,
+                  load_split_bounds(base, calendar))
 
 
-def make_splits(index, h) -> dict:
+def make_splits(index, h, bounds=None) -> dict:
     if h < 1:
         raise ValueError('h must be positive')
     index = pd.DatetimeIndex(index)
     n = len(index)
-    a, b = int(n * SPLIT[0]), int(n * (SPLIT[0] + SPLIT[1]))
+    if bounds is None:
+        a, b = int(n * SPLIT[0]), int(n * (SPLIT[0] + SPLIT[1]))
+    else:
+        a, b = (int(index.searchsorted(d, side='right')) for d in bounds)
     bounds = {'train': (0, max(0, a - h - 2)),
               'val': (a, max(a, b - h - 2)), 'holdout': (b, n)}
     result = {'ranges': {}, 'holdout_sealed': HOLDOUT_SEALED}
@@ -110,7 +143,7 @@ def make_splits(index, h) -> dict:
 
 def forward_target(panels, h) -> tuple[pd.DataFrame, pd.DataFrame]:
     """After close t, buy open[t+1], sell open[t+1+h]; seal all other rows."""
-    splits = make_splits(panels.mask.index, h)
+    splits = make_splits(panels.mask.index, h, panels.split_bounds)
     visible = splits['train'] | splits['val']
     # Restrict before computing ratios/benchmark means; never return sealed labels.
     entry = panels.fields['open'].shift(-1).loc[visible]

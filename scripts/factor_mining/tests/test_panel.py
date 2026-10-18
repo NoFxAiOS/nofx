@@ -40,6 +40,35 @@ class PanelTests(unittest.TestCase):
             self.assertEqual(split['ranges']['train'], ('2020-01-01', index[a].strftime('%Y-%m-%d')))
         self.assertTrue(HOLDOUT_SEALED)
 
+    def test_fixed_split_bounds_do_not_drift_with_new_data(self):
+        with tempfile.TemporaryDirectory() as root:
+            write_market(root, 'crypto', rows=100, columns=20)
+            first = load_panels('crypto', root)
+            saved = json.loads((Path(root) / 'crypto/split.json').read_text())
+            self.assertEqual(saved['train_end'], '2020-02-29')   # position 59 of 100 daily bars
+            self.assertEqual(saved['val_end'], '2020-03-20')     # position 79
+            before = make_splits(first.mask.index, 3, first.split_bounds)
+            write_market(root, 'crypto', rows=150, columns=20)   # same seed => same prefix? bounds must not move anyway
+            second = load_panels('crypto', root)
+            self.assertEqual(second.split_bounds, first.split_bounds)
+            after = make_splits(second.mask.index, 3, second.split_bounds)
+            for name in ('train', 'val'):
+                self.assertEqual(after['ranges'][name], before['ranges'][name])
+                self.assertEqual(int(after[name].sum()), int(before[name].sum()))
+            # Everything after val_end, including all new bars, is sealed holdout.
+            self.assertEqual(int(after['holdout'].sum()), 150 - 80)
+            self.assertTrue(after['holdout'].iloc[-1] and not after['val'].iloc[80:].any())
+            excess, raw = forward_target(second, 3)
+            self.assertTrue(raw.loc[after['holdout']].isna().all().all())
+
+    def test_corrupt_split_file_is_not_silently_moved_to_a_later_date(self):
+        with tempfile.TemporaryDirectory() as root:
+            write_market(root, 'crypto', rows=100, columns=20)
+            (Path(root) / 'crypto').mkdir(exist_ok=True)
+            (Path(root) / 'crypto/split.json').write_text('{"train_end": "2020-03-01", "val_end": "2020-02-01"}')
+            panels = load_panels('crypto', root)   # invalid ordering => regenerate proportionally
+            self.assertEqual(panels.split_bounds[0].strftime('%Y-%m-%d'), '2020-02-29')
+
     def test_calendar_bad_rows_missing_values_and_spy(self):
         with tempfile.TemporaryDirectory() as root:
             write_market(root, 'us', rows=100, columns=2)

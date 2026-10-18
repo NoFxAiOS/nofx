@@ -17,9 +17,11 @@ import sys
 import types
 
 # Also works when copied to data/autoresearch/work by init_work.py.
-REPO = Path('/Users/zhangyun/workspace/nofx/.claude/worktrees/youthful-bassi-0f1445')
-if not REPO.exists():  # worktree removed after merge: fall back to the main checkout
-    REPO = Path('/Users/zhangyun/workspace/nofx')
+# Stable runtime copy (deploy.sh) first; the dev worktree / main checkout only as fallbacks.
+REPO = next((p for p in (Path('/Users/zhangyun/workspace/nofx-autoresearch'),
+                         Path('/Users/zhangyun/workspace/nofx/.claude/worktrees/youthful-bassi-0f1445'),
+                         Path('/Users/zhangyun/workspace/nofx')) if (p / 'scripts/autoresearch/evaluate.py').exists()),
+            Path('/Users/zhangyun/workspace/nofx'))
 source_root = Path(__file__).resolve().parents[2]
 if (source_root / 'scripts/autoresearch/evaluate.py').resolve() == Path(__file__).resolve():
     REPO = source_root

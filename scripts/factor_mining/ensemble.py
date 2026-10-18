@@ -5,12 +5,14 @@ from .evaluate import evaluate_factor, long_short
 from .expr import evaluate_expr
 
 
-def ensemble_scores(factors, panels):
+def ensemble_scores(factors, panels, *, values_cache=None):
     total = panels.fields['close'] * 0.0
     total[:] = 0.0
     count = total.copy()
     for factor in factors:
-        values = (evaluate_expr(factor['expr'], panels.fields) * factor['direction']).where(panels.mask)
+        values = (values_cache[factor['id']] if values_cache is not None
+                  else evaluate_expr(factor['expr'], panels.fields))
+        values = (values * factor['direction']).where(panels.mask)
         centered = values.sub(values.mean(axis=1), axis=0)
         z = centered.div(values.std(axis=1).where(lambda x: x > 1e-15), axis=0)
         total += z.fillna(0.)
@@ -18,7 +20,7 @@ def ensemble_scores(factors, panels):
     return total.div(count.where(count > 0))
 
 
-def build_ensemble(market, accepted, panels, targets, splits, cfg):
+def build_ensemble(market, accepted, panels, targets, splits, cfg, *, values_cache=None):
     output = {'horizons': {}}
     for h in cfg['horizons']:
         factors = sorted((f for f in accepted if f['horizon'] == h and f['status'] == 'accepted'),
@@ -26,7 +28,7 @@ def build_ensemble(market, accepted, panels, targets, splits, cfg):
         if not factors:
             output['horizons'][str(h)] = None
             continue
-        score = ensemble_scores(factors, panels)
+        score = ensemble_scores(factors, panels, values_cache=values_cache)
         excess, raw = targets[h]
         metrics = evaluate_factor(score, excess, raw, panels.mask, splits[h], h, dict(cfg, direction=1))
         if metrics is None:

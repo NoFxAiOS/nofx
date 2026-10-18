@@ -34,13 +34,16 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue({'market', 'generated_at', 'split', 'horizons', 'factors'} <= zoo.keys())
         self.assertEqual(zoo['market'], market)
         self.assertTrue(zoo['split']['holdout_sealed'])
-        self.assertEqual(set(zoo['split']), {'train', 'val', 'holdout_sealed'})
+        self.assertEqual(set(zoo['split']), {'rolling', 'windows', 'train', 'val', 'holdout_sealed'})
+        self.assertEqual(zoo['split']['windows'], MARKETS[market]['windows'])
+        self.assertIsInstance(zoo['split']['rolling'], bool)
         for segment in ('train', 'val'):
             self.assertEqual(len(zoo['split'][segment]), 2)
         self.assertNotIn('holdout', zoo['split'])
         for h in MARKETS[market]['horizons']:
             value = zoo['horizons'][str(h)]
-            self.assertEqual(set(value), {'trials', 't_req', 'accepted', 'candidate', 'rejected', 'redundant'})
+            self.assertEqual(set(value), {'trials', 't_req', 'accepted', 'candidate', 'rejected', 'redundant', 'forward'})
+            self.assertEqual(set(value['forward']), {'pending', 'confirmed', 'inconclusive', 'failed'})
             self.assertEqual(value['trials'], sum(value[s] for s in ('accepted', 'candidate', 'rejected', 'redundant')))
         factor_keys = {'id', 'expr', 'source', 'family', 'horizon', 'direction', 'status', 'first_seen',
                        'run_id', 'train', 'val', 'corr_max', 'corr_with', 'ic_monthly'}
@@ -53,6 +56,14 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue(metrics <= f['val'].keys())
             self.assertEqual(len(f['train']['ic_halves']), 2)
             self.assertTrue(all(len(month) == 2 for month in f['ic_monthly']))
+            if f['status'] == 'accepted':
+                self.assertIn('forward', f)
+            if 'forward' in f:
+                self.assertEqual(set(f['forward']), {'accepted_at', 'start', 'direction', 'verdict',
+                    'n_days', 'min_days', 'last_date', 'ic', 'icir', 't', 'ls_ret', 'ls_sharpe',
+                    'turnover', 'curve'})
+                self.assertLessEqual(len(f['forward']['curve']), 120)
+                self.assertEqual(f['forward']['min_days'], max(40, 4*f['horizon']))
         combined = store.read_json(root/market/'ensemble.json')
         for h, value in combined['horizons'].items():
             if value is None:
@@ -77,7 +88,7 @@ class PipelineTests(unittest.TestCase):
         for r in store.read_jsonl(root/'runs.jsonl'):
             self.assertTrue({'run_id', 'market', 'started_at', 'finished_at', 'seconds', 'seed_evaluated',
                 'mutation_evaluated', 'llm_proposed', 'llm_valid', 'new_accepted', 'new_candidate',
-                'trials_total', 'error', 'evaluator_sha256'} <= r.keys())
+                'trials_total', 'error', 'evaluator_sha256', 'reevaluated', 'forward_updated'} <= r.keys())
             self.assertEqual(r['evaluator_sha256'], status['evaluator_sha256'])
         for p in [root/'status.json', root/'runs.jsonl', root/market/'zoo.json',
                   root/market/'ensemble.json', root/market/'ledger.jsonl']:
@@ -108,8 +119,45 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(len({(r['id'], r['horizon']) for r in store.read_ledger('crypto', root)}),
                              len(store.read_ledger('crypto', root)))
 
-    def test_target_poisoning_and_future_bars_cannot_change_zoo(self):
-        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as other:
+    def test_rolling_pipeline_refreshes_metrics_without_new_trials(self):
+        windows = dict(train=300, val=100, holdout=60)
+        with tempfile.TemporaryDirectory() as root, patch.dict(MARKETS['crypto'], windows=windows):
+            write_market(root, rows=680)
+            full = {}
+            for path in (Path(root)/'crypto/daily').glob('*.json'):
+                full[path] = json.loads(path.read_text())
+                path.write_text(json.dumps(full[path][:650]))
+            self.assertEqual(self.cli(root), 0)
+            before = self.check_schema(root, 'crypto')
+            ledger = (Path(root)/'crypto/ledger.jsonl').read_bytes()
+            for path, rows in full.items():
+                path.write_text(json.dumps(rows))
+            self.assertEqual(self.cli(root), 0)
+            after = self.check_schema(root, 'crypto')
+            self.assertEqual((Path(root)/'crypto/ledger.jsonl').read_bytes(), ledger)
+            self.assertTrue(before['split']['rolling'] and after['split']['rolling'])
+            self.assertNotEqual(before['split']['train'], after['split']['train'])
+            old = {(f['id'], f['horizon']): f for f in before['factors']}
+            self.assertTrue(any(f['train'] != old[f['id'], f['horizon']]['train']
+                                for f in after['factors']))
+            runs = store.read_jsonl(Path(root)/'runs.jsonl')
+            self.assertEqual(runs[0]['reevaluated'], 0)
+            self.assertEqual(runs[1]['reevaluated'], len(before['factors']))
+            self.assertGreater(runs[1]['reevaluated'], 0)
+            self.assertEqual(runs[1]['trials_total'], runs[0]['trials_total'])
+            self.assertEqual(runs[1]['seed_evaluated'], 0)
+            registered = [f for f in after['factors'] if 'forward' in f]
+            self.assertTrue(registered)
+            for f in registered:
+                previous = old[f['id'], f['horizon']]['forward']
+                for key in ('accepted_at', 'start', 'direction'):
+                    self.assertEqual(f['forward'][key], previous[key])
+                self.assertEqual(f['forward']['n_days'], previous['n_days'] + 30)
+            self.assertEqual(runs[1]['forward_updated'], len(registered))
+
+    def test_target_poisoning_changes_only_forward_display(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as other, \
+             patch.dict(MARKETS['crypto'], windows=dict(train=300, val=100, holdout=60)):
             for directory in (root, other):
                 write_market(directory)
             now = dt.datetime(2026, 10, 18, tzinfo=dt.timezone.utc)
@@ -117,11 +165,13 @@ class PipelineTests(unittest.TestCase):
                 return miner.Miner(directory).run_market('crypto', n_mutations=4, n_llm=0,
                     budget_s=120, seed=42, use_llm=False, now=now)
             with patch.object(miner.zoo, 'seed_factors', return_value=[SIGNAL_SEED]):
-                baseline = run(root)
+                run(root)
+                run(other)
+                baseline = run(root)  # Exercise poisoning during retained-factor refresh too.
                 calls = []
                 def poisoned(panels, h):
                     targets = forward_target(panels, h)
-                    sealed = make_splits(panels.mask.index, h)['holdout']
+                    sealed = make_splits(panels.mask.index, h, panels.windows)['holdout']
                     for i, target in enumerate(targets):
                         target.loc[sealed] = (np.nan if i else np.random.default_rng(h).normal(
                             size=target.loc[sealed].shape))
@@ -131,16 +181,28 @@ class PipelineTests(unittest.TestCase):
                 # this boundary because of purge, and factor operators are causal.
                 for path in (Path(other)/'crypto/daily').glob('*.json'):
                     rows = json.loads(path.read_text())
-                    for row in rows[int(len(rows)*.8):]:
+                    for row in rows[-MARKETS['crypto']['windows']['holdout']:]:
                         row[1:5] = [v*3 for v in row[1:5]]
                         row[6] *= 3
                     path.write_text(json.dumps(rows))
                 with patch.object(miner, 'forward_target', side_effect=poisoned):
                     actual = run(other)
             self.assertEqual(calls, [1, 3, 7])
-            self.assertEqual(baseline, actual)
-            self.assertEqual(store.read_json(Path(root)/'crypto/ensemble.json'),
-                             store.read_json(Path(other)/'crypto/ensemble.json'))
+            self.assertNotEqual([f.get('forward') for f in baseline['factors']],
+                                [f.get('forward') for f in actual['factors']])
+            def selection_bytes(output):
+                # Strip only the two contractually allowed display differences;
+                # compare every remaining serialized byte, including row order.
+                value = json.loads(json.dumps(output))
+                for f in value['factors']:
+                    f.pop('forward', None)
+                for stats in value['horizons'].values():
+                    stats.pop('forward')
+                return json.dumps(value, separators=(',', ':')).encode()
+            self.assertEqual(selection_bytes(baseline), selection_bytes(actual))
+            for name in ('ledger.jsonl', 'ensemble.json'):
+                self.assertEqual((Path(root)/'crypto'/name).read_bytes(),
+                                 (Path(other)/'crypto'/name).read_bytes())
 
     def test_lock_other_process_immediate_rejection(self):
         with tempfile.TemporaryDirectory() as root:
@@ -178,7 +240,8 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue((Path(root)/'crypto/zoo.json').exists())
 
     def test_judge_explicit_confirmation_and_receipt(self):
-        with tempfile.TemporaryDirectory() as root:
+        with tempfile.TemporaryDirectory() as root, \
+             patch.dict(MARKETS['crypto'], windows=dict(train=300, val=100, holdout=60)):
             args = ['--root', root, '--market', 'crypto', '--horizon', '1']
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 judge.main(args)
@@ -190,6 +253,9 @@ class PipelineTests(unittest.TestCase):
             result = json.loads(output.getvalue())
             self.assertGreater(result['result']['ic'], .5)
             self.assertEqual(len(result['factor_ids_hash']), 64)
+            panels = load_panels('crypto', root)
+            expected = make_splits(panels.mask.index, 1, panels.windows)['ranges']['holdout']
+            self.assertEqual(result['holdout_range'], list(expected))
             self.assertEqual(store.read_jsonl(Path(root)/'holdout_spent.jsonl'), [result])
 
     def test_atomic_finite_store_and_merge(self):
@@ -213,7 +279,7 @@ class PipelineTests(unittest.TestCase):
             panels = load_panels('crypto', root)
             cfg = MARKETS['crypto']
             targets = {h: forward_target(panels, h) for h in cfg['horizons']}
-            splits = {h: make_splits(panels.mask.index, h) for h in cfg['horizons']}
+            splits = {h: make_splits(panels.mask.index, h, panels.windows) for h in cfg['horizons']}
             self.assertTrue(all(v is None for v in ensemble.build_ensemble('crypto', [], panels,
                 targets, splits, cfg)['horizons'].values()))
             factor = dict(id=expr_hash(SIGNAL_EXPR), expr=SIGNAL_EXPR, horizon=1,

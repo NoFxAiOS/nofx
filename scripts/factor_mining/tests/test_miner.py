@@ -88,15 +88,21 @@ class MinerTests(unittest.TestCase):
                 self.assertIsNotNone(redundant['corr_with'])
                 search.run_market('crypto', n_mutations=0, n_llm=0, budget_s=120, seed=1, use_llm=False)
                 self.assertEqual(first, store.read_ledger('crypto', root))
-            # Historical experiment just cleared its old threshold. More honest
-            # ledger trials must demote it without evaluating that expression again.
+            # A refreshed historical experiment clears the old threshold, but
+            # additional ledger trials must still demote it under the new K.
             previous = store.read_json(Path(root)/'crypto/zoo.json')
             accepted = next(f for f in previous['factors'] if f['horizon'] == 1 and f['status'] == 'accepted')
-            accepted['train']['t'] = previous['horizons']['1']['t_req'] + .001
-            store.write_zoo('crypto', previous, root)
+            refreshed_t = previous['horizons']['1']['t_req'] + .001
+            evaluator = miner.evaluate.evaluate_factor
+            def near_threshold(*args):
+                metrics = evaluator(*args)
+                if metrics is not None:
+                    metrics['train']['t'] = refreshed_t
+                return metrics
             extra = [dict(first[0], id=f'f_history{i:05}', status='rejected', train_t=0.) for i in range(100)]
             store.append_ledger('crypto', extra, root)
-            with patch.object(miner.zoo, 'seed_factors', return_value=seeds):
+            with patch.object(miner.zoo, 'seed_factors', return_value=seeds), \
+                 patch.object(miner.evaluate, 'evaluate_factor', side_effect=near_threshold):
                 output = search.run_market('crypto', n_mutations=0, n_llm=0, budget_s=120,
                                             seed=1, use_llm=False)
             updated = next(f for f in output['factors'] if f['horizon'] == 1 and f['id'] == accepted['id'])
@@ -132,6 +138,81 @@ class MinerTests(unittest.TestCase):
             self.assertEqual(len(store.read_ledger('crypto', root)) - before, 3)
             self.assertEqual(run['trials_total'], before+3)
             self.assertTrue(run['invalid'] >= 3)
+
+    def test_refresh_groups_ids_recomputes_direction_drops_invalid_and_updates_pool(self):
+        with tempfile.TemporaryDirectory() as root:
+            write_market(root)
+            search = Miner(root)
+            with patch.object(miner.zoo, 'seed_factors', return_value=[SIGNAL_SEED]):
+                before = search.run_market('crypto', n_mutations=0, n_llm=0, budget_s=120,
+                                           seed=1, use_llm=False)
+            self.assertEqual(len(before['factors']), 3)
+            ledger = store.read_ledger('crypto', root)
+            expression, evaluator = miner.evaluate_expr, miner.evaluate.evaluate_factor
+            def reversed_values(expr, fields):
+                return -expression(expr, fields)
+            def refreshed(*args):
+                if args[-2] == 7:
+                    return None
+                metrics = evaluator(*args)
+                metrics['train']['t'] = 0.  # Keep correlation/ensemble out of this call-count test.
+                return metrics
+            def mutation(expr, rng, pool):
+                self.assertTrue(pool)
+                self.assertTrue(all(f['direction'] == -1 and f['train']['t'] == 0.
+                                    and f['horizon'] != 7 for f in pool))
+                return []
+            def proposal(work, prompt, out):
+                top = json.loads(prompt.read_text().split('训练集 top-10（仅 train 指标）：\n')[1].split('\n')[0])
+                self.assertEqual(len(top), 2)
+                self.assertTrue(all(f['train_t'] == 0. for f in top))
+                out.write_text('[]')
+            with patch.object(miner.zoo, 'seed_factors', return_value=[]), \
+                 patch.object(miner, 'evaluate_expr', side_effect=reversed_values) as expr_calls, \
+                 patch.object(miner.evaluate, 'evaluate_factor', side_effect=refreshed) as metric_calls, \
+                 patch.object(miner, 'mutate', side_effect=mutation) as mutations:
+                after = search.run_market('crypto', n_mutations=1, n_llm=1, budget_s=120,
+                                          seed=2, use_llm=True, runner=proposal)
+            self.assertEqual(expr_calls.call_count, 1)
+            self.assertEqual(metric_calls.call_count, 3)
+            self.assertGreater(mutations.call_count, 0)
+            self.assertEqual({f['horizon'] for f in after['factors']}, {1, 3})
+            self.assertTrue(all(f['direction'] == -1 for f in after['factors']))
+            self.assertEqual(ledger, store.read_ledger('crypto', root))
+            self.assertEqual(after['horizons']['7']['trials'], 1)
+            self.assertEqual(after['horizons']['7']['rejected'], 1)
+            self.assertEqual(store.read_jsonl(Path(root)/'runs.jsonl')[-1]['reevaluated'], 3)
+
+    def test_refresh_budget_preserves_old_snapshot_and_skips_candidates(self):
+        with tempfile.TemporaryDirectory() as root:
+            write_market(root)
+            search = Miner(root)
+            with patch.object(miner.zoo, 'seed_factors', return_value=[SIGNAL_SEED]):
+                search.run_market('crypto', n_mutations=0, n_llm=0, budget_s=120,
+                                  seed=1, use_llm=False)
+            files = [Path(root)/'crypto'/name for name in ('zoo.json', 'ensemble.json', 'ledger.jsonl')]
+            previous = [path.read_bytes() for path in files]
+            evaluator = miner.evaluate.evaluate_factor
+            for budget, expected_count in ((0, 0), (3, 2)):
+                current = [0.]
+                def slow(*args):
+                    metrics = evaluator(*args)
+                    metrics['train']['t'] = 0.
+                    current[0] += 2.
+                    return metrics
+                with self.subTest(budget=budget), \
+                     patch.object(miner.time, 'monotonic', side_effect=lambda: current[0]), \
+                     patch.object(miner.evaluate, 'evaluate_factor', side_effect=slow), \
+                     patch.object(miner.zoo, 'seed_factors', side_effect=AssertionError('candidate generation')):
+                    output = search.run_market('crypto', n_mutations=10, n_llm=1, budget_s=budget,
+                                               seed=2, use_llm=True)
+                self.assertEqual(output, store.read_json(files[0]))
+                self.assertEqual([path.read_bytes() for path in files], previous)
+                row = store.read_jsonl(Path(root)/'runs.jsonl')[-1]
+                self.assertTrue(row['budget_exhausted'])
+                self.assertEqual(row['reevaluated'], expected_count)
+                self.assertIsNone(row['error'])
+                self.assertFalse(store.read_json(Path(root)/'status.json')['running'])
 
     def test_budget_finishes_normally(self):
         with tempfile.TemporaryDirectory() as root:

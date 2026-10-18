@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { Badge, Card, CardHeader, EmptyState, Input, Segmented } from '../ui'
 import type { FactorEntry } from '../../types/factorMining'
 import FactorDetail from './FactorDetail'
-import { L, fmtIC, fmtPct, fmtT, fmtText, isNum } from './format'
+import { L, fmtIC, fmtPct, fmtT, fmtText, forwardBadge, isNum } from './format'
 
 const PAGE_SIZE = 25
 
@@ -17,6 +17,7 @@ type SortKey =
   | 'ls_train'
   | 'ls_val'
   | 'turnover'
+  | 'fwd_ic'
 
 const STATUS_RANK: Record<string, number> = {
   accepted: 0,
@@ -47,6 +48,7 @@ const SORT_GETTERS: Record<SortKey, (f: FactorEntry) => number | null> = {
   ls_train: (f) => (isNum(f.train?.ls_ret) ? f.train!.ls_ret! : null),
   ls_val: (f) => (isNum(f.val?.ls_ret) ? f.val!.ls_ret! : null),
   turnover: (f) => (isNum(f.train?.turnover) ? f.train!.turnover! : null),
+  fwd_ic: (f) => (isNum(f.forward?.ic) ? f.forward!.ic! : null),
 }
 
 const TH_CLS =
@@ -150,7 +152,7 @@ export default function FactorTable({
     )
   }
 
-  const colCount = 14
+  const colCount = 15
 
   return (
     <Card className="mb-4">
@@ -225,6 +227,7 @@ export default function FactorTable({
                   L('多空年化 val', 'L/S ann. val', language)
                 )}
                 {sortHeader('turnover', L('换手', 'Turnover', language))}
+                {sortHeader('fwd_ic', L('前向', 'Forward', language))}
               </tr>
             </thead>
             <tbody>
@@ -232,6 +235,7 @@ export default function FactorTable({
                 const open = expanded === f.id
                 const st = f.status ?? ''
                 const src = SOURCE_LABEL[f.source ?? '']
+                const fwBadge = forwardBadge(f.forward, language)
                 return (
                   <Fragment key={f.id}>
                     <tr
@@ -276,6 +280,22 @@ export default function FactorTable({
                       </td>
                       <td className={`${TD_CLS} num`}>
                         {fmtT(f.train?.turnover)}
+                      </td>
+                      <td className={TD_CLS} data-testid={`factor-fwd-${f.id}`}>
+                        {fwBadge ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Badge variant={fwBadge.variant}>
+                              {fwBadge.text}
+                            </Badge>
+                            {isNum(f.forward?.ic) && (
+                              <span className="num">
+                                IC {fmtIC(f.forward?.ic)}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                     </tr>
                     {open && (

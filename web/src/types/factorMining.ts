@@ -17,6 +17,27 @@ export interface FactorMetrics {
   n?: number | null
 }
 
+export type ForwardVerdict = 'pending' | 'confirmed' | 'inconclusive' | 'failed'
+
+// 前向校验：因子首次 accepted 时预注册，仅用入选前选择过程从未见过的新数据检验。
+// 指标均已乘 direction；不足时为 null。仅展示，不参与任何筛选。
+export interface FactorForward {
+  accepted_at?: string | null
+  start?: string | null
+  direction?: number | null
+  verdict?: ForwardVerdict | string | null
+  n_days?: number | null
+  min_days?: number | null
+  last_date?: string | null
+  ic?: number | null
+  icir?: number | null
+  t?: number | null
+  ls_ret?: number | null
+  ls_sharpe?: number | null
+  turnover?: number | null
+  curve?: Array<[string, number | null]> | null
+}
+
 export interface FactorEntry {
   id: string
   expr?: string | null
@@ -32,6 +53,7 @@ export interface FactorEntry {
   corr_max?: number | null
   corr_with?: string | null
   ic_monthly?: Array<[string, number | null]> | null
+  forward?: FactorForward | null
 }
 
 export interface HorizonSummary {
@@ -41,6 +63,12 @@ export interface HorizonSummary {
   candidate?: number | null
   rejected?: number | null
   redundant?: number | null
+  forward?: {
+    pending?: number | null
+    confirmed?: number | null
+    inconclusive?: number | null
+    failed?: number | null
+  } | null
 }
 
 export interface FactorZoo {

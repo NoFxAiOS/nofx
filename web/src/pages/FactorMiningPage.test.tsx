@@ -293,4 +293,149 @@ describe('FactorMiningPage', () => {
       expect(screen.getByText(/Never run yet/)).toBeInTheDocument()
     )
   })
+
+  describe('forward test', () => {
+    const fwBase = {
+      accepted_at: '2026-10-01',
+      start: '2026-04-20',
+      direction: -1,
+      n_days: 87,
+      min_days: 40,
+      last_date: '2026-10-10',
+      ic: 0.0312,
+      icir: 0.25,
+      t: 1.9,
+      ls_ret: 0.12,
+      ls_sharpe: 0.8,
+      turnover: 0.6,
+      curve: [
+        ['2026-04-20', 0.01],
+        ['2026-04-21', 0.02],
+      ],
+    }
+
+    function overviewWithForward(forwards: Record<string, unknown>) {
+      const ov = structuredClone(OVERVIEW) as typeof OVERVIEW & {
+        zoo: { crypto: { factors: Array<Record<string, unknown>> } }
+      }
+      for (const f of ov.zoo.crypto.factors) {
+        if (f.id in forwards) f.forward = forwards[f.id as string]
+      }
+      return ov
+    }
+
+    it('shows verdict badges, forward IC and summary line', async () => {
+      const ov = overviewWithForward({
+        f_acc00001: { ...fwBase, verdict: 'confirmed' },
+        f_acc00002: { ...fwBase, verdict: 'failed', ic: -0.011 },
+        f_cand0001: { ...fwBase, verdict: 'inconclusive', ic: 0.004 },
+        f_rej00001: {
+          ...fwBase,
+          verdict: 'pending',
+          n_days: 12,
+          min_days: 40,
+          ic: null,
+        },
+      })
+      ;(ov.zoo.crypto.horizons['3'] as Record<string, unknown>).forward = {
+        pending: 4,
+        confirmed: 5,
+        inconclusive: 6,
+        failed: 7,
+      }
+      mockFetch(ov, RUNS)
+      render(<FactorMiningPage language="zh" />)
+      await screen.findByText(/运行中/)
+      fireEvent.click(screen.getByRole('button', { name: '3天' }))
+
+      expect(
+        within(screen.getByTestId('factor-fwd-f_acc00001')).getByText('已确认')
+      ).toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('factor-fwd-f_acc00001')).getByText(
+          'IC 0.031'
+        )
+      ).toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('factor-fwd-f_acc00002')).getByText('已失效')
+      ).toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('factor-fwd-f_cand0001')).getByText('不确定')
+      ).toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('factor-fwd-f_rej00001')).getByText(
+          '观察中 12/40 天'
+        )
+      ).toBeInTheDocument()
+
+      const summary = screen.getByTestId('forward-summary')
+      expect(summary).toHaveTextContent(
+        '已确认 5 · 观察中 4 · 不确定 6 · 已失效 7'
+      )
+    })
+
+    it('shows forward detail block with note and pending hint', async () => {
+      mockFetch(
+        overviewWithForward({
+          f_acc00001: { ...fwBase, verdict: 'confirmed' },
+          f_rej00001: {
+            ...fwBase,
+            verdict: 'pending',
+            n_days: 12,
+            min_days: 40,
+            ic: null,
+            t: null,
+            curve: [],
+          },
+        }),
+        RUNS
+      )
+      render(<FactorMiningPage language="zh" />)
+      await screen.findByText(/运行中/)
+      fireEvent.click(screen.getByRole('button', { name: '3天' }))
+
+      fireEvent.click(screen.getByTestId('factor-row-f_acc00001'))
+      let block = screen.getByTestId('factor-forward')
+      expect(block).toHaveTextContent('起始日：2026-04-20')
+      expect(block).toHaveTextContent(
+        '该指标不参与任何筛选，实盘参考以此为准。'
+      )
+      expect(
+        within(block).queryByTestId('factor-forward-pending')
+      ).not.toBeInTheDocument()
+
+      // pending: hint with remaining days; empty curve does not crash
+      fireEvent.click(screen.getByTestId('factor-row-f_rej00001'))
+      block = screen.getByTestId('factor-forward')
+      expect(
+        within(block).getByTestId('factor-forward-pending')
+      ).toHaveTextContent('还差 28 天')
+      expect(block).toHaveTextContent('暂无前向累计 IC 曲线')
+    })
+
+    it('does not crash when forward is missing or null', async () => {
+      mockFetch(
+        overviewWithForward({
+          f_acc00001: null,
+          f_acc00002: { verdict: null, curve: null },
+          f_cand0001: { verdict: 'pending' },
+        }),
+        RUNS
+      )
+      render(<FactorMiningPage language="zh" />)
+      await screen.findByText(/运行中/)
+      fireEvent.click(screen.getByRole('button', { name: '3天' }))
+      expect(screen.queryByTestId('forward-summary')).not.toBeInTheDocument()
+      expect(screen.getByTestId('factor-fwd-f_acc00001')).toHaveTextContent('—')
+      expect(screen.getByTestId('factor-fwd-f_rej00001')).toHaveTextContent('—')
+      expect(screen.getByTestId('factor-fwd-f_acc00002')).toHaveTextContent('—')
+      expect(screen.getByTestId('factor-fwd-f_cand0001')).toHaveTextContent(
+        '观察中 0/? 天'
+      )
+      for (const id of ['f_acc00001', 'f_acc00002', 'f_cand0001']) {
+        fireEvent.click(screen.getByTestId(`factor-row-${id}`))
+      }
+      expect(screen.getAllByTestId('factor-forward').length).toBe(1)
+    })
+  })
 })

@@ -283,6 +283,32 @@ export default function FactorMiningPage({ language }: { language: string }) {
         </Card>
       </div>
 
+      {hSummary?.forward && (
+        <div
+          data-testid="forward-summary"
+          className="mb-4 text-[13px] text-fg-2"
+        >
+          {L('前向校验', 'Forward test', language)}：
+          {L('已确认', 'confirmed', language)}{' '}
+          <span className="num text-up">
+            {fmtInt(hSummary.forward.confirmed)}
+          </span>
+          {' · '}
+          {L('观察中', 'pending', language)}{' '}
+          <span className="num">{fmtInt(hSummary.forward.pending)}</span>
+          {' · '}
+          {L('不确定', 'inconclusive', language)}{' '}
+          <span className="num text-warn">
+            {fmtInt(hSummary.forward.inconclusive)}
+          </span>
+          {' · '}
+          {L('已失效', 'failed', language)}{' '}
+          <span className="num text-down">
+            {fmtInt(hSummary.forward.failed)}
+          </span>
+        </div>
+      )}
+
       <Card className="mb-4">
         <button
           type="button"

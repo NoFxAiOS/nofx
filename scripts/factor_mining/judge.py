@@ -1,4 +1,8 @@
-"""Explicitly spend the sealed period on the committed ensemble; never mine it."""
+"""Explicitly spend the current rolling holdout on the committed ensemble.
+
+Opened holdout date ranges later roll into validation. Once used, these ranges
+cannot be treated as out-of-sample again; holdout_spent.jsonl records them.
+"""
 import argparse
 import hashlib
 import json
@@ -29,7 +33,8 @@ def judge(market, h, root):
         by_id = {f['id']: f for f in zoo.get('factors', []) if f['horizon'] == h}
         factors = [by_id[key] for key in ids]
         panels = load_panels(market, root)
-        segment = make_splits(panels.mask.index, h, panels.split_bounds)['holdout']
+        splits = make_splits(panels.mask.index, h, panels.windows)
+        segment = splits['holdout']
         score = ensemble_scores(factors, panels).loc[segment]
         # This is the sole path that constructs and reads holdout labels.
         opens = panels.fields['open']
@@ -46,7 +51,7 @@ def judge(market, h, root):
         result = segment_metrics(ic, score, raw, mask, segment.loc[segment], h, cfg)
         digest = hashlib.sha256(json.dumps(ids, separators=(',', ':')).encode()).hexdigest()
         row = dict(ts=store.timestamp(), market=market, horizon=h, factor_ids_hash=digest,
-                   factor_ids=ids, result=result)
+                   factor_ids=ids, holdout_range=splits['ranges']['holdout'], result=result)
         store.append_jsonl(root / 'holdout_spent.jsonl', [row])
         return row
 

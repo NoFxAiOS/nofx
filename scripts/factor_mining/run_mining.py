@@ -69,7 +69,8 @@ def main(argv=None):
                         finally:
                             store.append_run(dict(run_id=f'{market}-{started}', market=market,
                                 started_at=started, finished_at=store.timestamp(),
-                                seconds=time.monotonic()-clock, seed_evaluated=0, mutation_evaluated=0,
+                                seconds=time.monotonic()-clock, reevaluated=0, forward_updated=0,
+                                seed_evaluated=0, mutation_evaluated=0,
                                 llm_proposed=0, llm_valid=0, new_accepted=0, new_candidate=0,
                                 trials_total=0, error=error, **frozen_hashes()), args.root)
     except store.AlreadyRunning as exc:

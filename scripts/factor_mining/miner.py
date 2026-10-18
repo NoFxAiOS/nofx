@@ -4,7 +4,7 @@ The persisted split envelope uses the shortest horizon; every horizon has its
 own h+2 purged masks internally (the file schema has one shared date envelope).
 """
 import ast
-from collections import Counter, OrderedDict
+from collections import Counter, defaultdict
 import datetime as dt
 import hashlib
 import json
@@ -17,7 +17,7 @@ import subprocess
 import time
 from typing import TypedDict
 
-from . import evaluate, zoo
+from . import evaluate, forward, panel, zoo
 from .config import CORR_REDUNDANT, MARKETS
 from .data_fetch import ROOT
 from .ensemble import build_ensemble
@@ -183,7 +183,7 @@ class Miner:
         clock = time.monotonic()
         hashes = frozen_hashes()
         row = dict(run_id=run_id, market=market, started_at=stamp, finished_at=None,
-                   seconds=0., seed_evaluated=0, mutation_evaluated=0, llm_proposed=0,
+                   seconds=0., reevaluated=0, forward_updated=0, seed_evaluated=0, mutation_evaluated=0, llm_proposed=0,
                    llm_valid=0, llm_invalid=0, llm_evaluated=0, invalid=0, new_accepted=0,
                    new_candidate=0, trials_total=0, error=self.fetch_error,
                    seed=seed, budget_exhausted=False, **hashes)
@@ -195,7 +195,7 @@ class Miner:
             cfg = MARKETS[market]
             panels = load_panels(market, self.root)
             store.write_status({'markets': {market: panels.meta}}, self.root)
-            splits = {h: make_splits(panels.mask.index, h, panels.split_bounds) for h in cfg['horizons']}
+            splits = {h: make_splits(panels.mask.index, h, panels.windows) for h in cfg['horizons']}
             targets = {h: forward_target(panels, h) for h in cfg['horizons']}
             ledger = store.read_ledger(market, self.root)
             seen = {(r['horizon'], r['id']) for r in ledger}
@@ -203,12 +203,60 @@ class Miner:
             row['trials_total'] = sum(K.values())
             old_zoo = store.read_json(self.root / market / 'zoo.json', {'factors': []})
             factors = {(f['horizon'], f['id']): dict(f) for f in old_zoo['factors']}
+            old_forward = {key: f['forward'] for key, f in factors.items() if 'forward' in f}
             old_status = {key: f['status'] for key, f in factors.items()}
+            # One expression evaluation per id across refresh, redundancy,
+            # forward display and ensemble construction in this run.
+            values_cache = {}
+            def values_for(key, expr):
+                if key not in values_cache:
+                    values_cache[key] = evaluate_expr(expr, panels.fields)
+                return values_cache[key]
+            def discard_unused_values(key, entries=None, *, finished=False):
+                # Rejected expressions with no registration cannot be promoted
+                # by a growing K. Do not keep their full panels for the run.
+                if entries is None:
+                    entries = [factors[h, key] for h in cfg['horizons'] if (h, key) in factors]
+                if ((finished or all((h, key) in seen for h in cfg['horizons'])) and
+                        not any('forward' in f or evaluate.classify(
+                            f['train'], f['val'], K[f['horizon']], evaluate.t_required(K[f['horizon']]))
+                            != 'rejected' for f in entries)):
+                    values_cache.pop(key, None)
+            # Refresh every retained (id, horizon) before constructing the search pool.
+            # Commit the refresh as a batch: a budget stop preserves the old snapshot.
+            stage('reevaluate')
+            grouped = defaultdict(list)
+            for key, factor in factors.items():
+                grouped[factor['id']].append((key, factor))
+            refreshed = {}
+            for group in grouped.values():
+                if time.monotonic() - clock >= budget_s:
+                    row['budget_exhausted'] = True
+                    return old_zoo
+                values = values_for(group[0][1]['id'], group[0][1]['expr'])
+                for key, factor in group:
+                    if time.monotonic() - clock >= budget_s:
+                        row['budget_exhausted'] = True
+                        return old_zoo
+                    h = factor['horizon']
+                    metrics = evaluate.evaluate_factor(values, *targets[h], panels.mask, splits[h], h, cfg)
+                    row['reevaluated'] += 1
+                    if time.monotonic() - clock >= budget_s:
+                        row['budget_exhausted'] = True
+                        return old_zoo
+                    if metrics is not None:
+                        refreshed[key] = dict(factor, **metrics)
+                discard_unused_values(group[0][1]['id'],
+                                      [refreshed[key] for key, _ in group if key in refreshed])
+            factors = refreshed
+            for key in list(values_cache):
+                discard_unused_values(key)
             seeds = [dict(expr=s['expr'], source='seed', family=s['family']) for s in zoo.seed_factors()]
             rng = random.Random(seed)
             pool = []
             for h in cfg['horizons']:
-                pool.extend(sorted((f for f in factors.values() if f['horizon'] == h),
+                pool.extend(sorted(({k: v for k, v in f.items() if k != 'forward'}
+                                    for f in factors.values() if f['horizon'] == h),
                                    key=lambda f: (-f['train']['t'], f['id']))[:20])
             pool.extend(rng.sample(seeds, min(20, len(seeds))))
             candidates, candidate_ids = [], set()
@@ -254,11 +302,11 @@ class Miner:
                 if i == 0 or candidate['source'] != candidates[i-1]['source']:
                     stage(candidate['source'])
                 try:
-                    values = evaluate_expr(candidate['expr'], panels.fields)
+                    key = expr_hash(candidate['expr'])
+                    values = values_for(key, candidate['expr'])
                 except Exception:
                     row['invalid'] += 1
                     continue
-                key = expr_hash(candidate['expr'])
                 valid_candidate = False
                 for h in cfg['horizons']:
                     if (h, key) in seen:
@@ -272,6 +320,8 @@ class Miner:
                     state = evaluate.classify(metrics['train'], metrics['val'], K[h], evaluate.t_required(K[h]))
                     factors[h, key] = dict(id=key, **candidate, horizon=h, first_seen=started.date().isoformat(),
                                            run_id=run_id, status=state, corr_max=0., corr_with=None, **metrics)
+                    if (h, key) in old_forward:
+                        factors[h, key]['forward'] = old_forward[h, key]
                     trial = dict(ts=stamp, run_id=run_id, id=key, expr=candidate['expr'],
                                        source=candidate['source'], horizon=h, train_t=metrics['train']['t'],
                                        train_ic=metrics['train']['ic'], status=state)
@@ -282,8 +332,9 @@ class Miner:
                     if not valid_candidate:
                         row[candidate['source'] + '_evaluated'] += 1
                     valid_candidate = True
+                discard_unused_values(key, finished=True)
             row['trials_total'] = sum(K.values())
-            self._classify_and_correlate(factors, K, panels, splits, cfg)
+            self._classify_and_correlate(factors, K, panels, splits, cfg, values_cache)
             for key, factor in factors.items():
                 previous = old_status.get(key)
                 if previous and previous != factor['status']:
@@ -292,12 +343,43 @@ class Miner:
                     factor['status_history'] = history[-5:]
                 if previous != factor['status'] and factor['status'] in ('accepted', 'candidate'):
                     row['new_' + factor['status']] += 1
+            # All selection is finished. Commit display updates as a batch so a
+            # budget stop leaves every previous forward record intact.
+            to_update = [f for f in factors.values()
+                         if 'forward' in f or f['status'] == 'accepted']
+            updates = {}
+            if to_update:
+                stage('forward')
+            labels = {}
+            for f in to_update:
+                # Registration is cheap and must freeze the actual first
+                # acceptance even if the metric update has no budget left.
+                forward.register(f, splits[f['horizon']]['ranges'], started.date().isoformat())
+            for f in to_update:
+                h = f['horizon']
+                if time.monotonic() - clock >= budget_s:
+                    row['budget_exhausted'] = True
+                    break
+                if h not in labels:
+                    start = min(item['forward']['start'] for item in to_update if item['horizon'] == h)
+                    labels[h] = panel.forward_labels(panels, h, start)
+                updates[h, f['id']] = forward.evaluate_forward(
+                    f, values_cache[f['id']], panels, h, cfg, labels=labels[h])
+                if time.monotonic() - clock >= budget_s:
+                    row['budget_exhausted'] = True
+                    break
+            else:
+                for key, result in updates.items():
+                    factors[key]['forward'] = result
+                row['forward_updated'] = len(updates)
+            forward_counts = forward.summarize(factors.values())
             horizons = {}
             for h in cfg['horizons']:
                 counts = Counter(f['status'] for f in factors.values() if f['horizon'] == h)
                 # Pruned rejected rows still count toward both trials and rejections.
                 counts['rejected'] += K[h] - sum(counts.values())
                 horizons[str(h)] = dict(trials=K[h], t_req=evaluate.t_required(K[h]),
+                                        forward=forward_counts.get(str(h), dict.fromkeys(forward.VERDICTS, 0)),
                                         **{s: counts[s] for s in ('accepted', 'candidate', 'rejected', 'redundant')})
             priority = {'accepted': 0, 'candidate': 1, 'redundant': 2, 'rejected': 3}
             ordered = sorted(factors.values(), key=lambda f: (priority[f['status']], -f['train']['t'], f['id'], f['horizon']))
@@ -311,12 +393,13 @@ class Miner:
                 retained.append(f)
             shortest = min(cfg['horizons'])
             split = {s: splits[shortest]['ranges'][s] for s in ('train', 'val')}
-            split['holdout_sealed'] = True
+            split.update(rolling=splits[shortest]['rolling'], windows=panels.windows, holdout_sealed=True)
             output = dict(market=market, generated_at=stamp, split=split, horizons=horizons, factors=retained)
             # Preserve measured train/val metrics even if ensemble construction fails.
             store.write_zoo(market, output, self.root)
             stage('ensemble')
-            ensemble = build_ensemble(market, retained, panels, targets, splits, cfg)
+            ensemble = build_ensemble(market, retained, panels, targets, splits, cfg,
+                                      values_cache=values_cache)
             store.write_ensemble(market, ensemble, self.root)
             return output
         except BaseException as exc:
@@ -332,20 +415,17 @@ class Miner:
                 store.append_run(row, self.root)
 
     @staticmethod
-    def _classify_and_correlate(factors, K, panels, splits, cfg):
-        cache = OrderedDict()
+    def _classify_and_correlate(factors, K, panels, splits, cfg, values_cache=None):
         def ranks(f, dates):
-            key = (f['id'], f['horizon'], f['direction'])
-            if key not in cache:
-                values = evaluate_expr(f['expr'], panels.fields).loc[dates] * f['direction']
-                cache[key] = values.where(panels.mask.loc[dates]).rank(axis=1, method='average')
-                if len(cache) > 60:
-                    cache.popitem(last=False)
-            cache.move_to_end(key)
-            return cache[key]
+            values = (values_cache[f['id']] if values_cache is not None
+                      else evaluate_expr(f['expr'], panels.fields))
+            values = values.loc[dates] * f['direction']
+            return values.where(panels.mask.loc[dates]).rank(axis=1, method='average')
         for h in cfg['horizons']:
             visible = splits[h]['train'] | splits[h]['val']
             dates = panels.mask.index[visible][::5]
+            # Only accepted factors are compared again. Keep their ranks for this
+            # horizon so a large pool cannot thrash an LRU and recompute expressions.
             kept = []
             current = sorted((f for f in factors.values() if f['horizon'] == h),
                              key=lambda f: (-f['train']['t'], f['first_seen'], f['run_id'], f['id']))
@@ -355,11 +435,11 @@ class Miner:
                 if f['status'] not in ('accepted', 'candidate'):
                     continue
                 rank = ranks(f, dates)
-                for other in kept:
-                    corr = evaluate.cross_corr(rank, ranks(other, dates), dates)
+                for other, other_rank in kept:
+                    corr = evaluate.cross_corr(rank, other_rank, dates)
                     if corr > f['corr_max']:
                         f['corr_max'], f['corr_with'] = corr, other['id']
                 if f['corr_max'] >= CORR_REDUNDANT:
                     f['status'] = 'redundant'
                 elif f['status'] == 'accepted':
-                    kept.append(f)
+                    kept.append((f, rank))

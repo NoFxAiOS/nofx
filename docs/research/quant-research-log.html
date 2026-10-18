@@ -79,7 +79,8 @@ th{color:var(--mut);font-weight:600}
 <ul>
 <li>表达式 DSL：白名单 AST，字段 <code>$open/$high/$low/$close/$volume/$vwap/$ret</code>，约 40 个算子，窗口 ≤120，禁止任意代码；通用无前视测试。</li>
 <li>候选三路：195 个 Alpha158 风格种子 → 对 top 因子随机变异 → GLM-5.3-flash 提案（提示词只含 train 指标）。</li>
-<li>评估：日 RankIC、Newey-West HAC t（lag=h）、五分位多空净收益（币 0.08% / 股 0.05% 单边）、换手；train/val/holdout 首次运行按 60/20/20 固定切分日期（新数据全部进 holdout）并 purge，holdout 仅 <code>judge.py</code> 人工开启。</li>
+<li>评估：日 RankIC、Newey-West HAC t（lag=h）、五分位多空净收益（币 0.08% / 股 0.05% 单边）、换手；train/val/holdout 为定长滚动窗口（币 1095/365/180 天、股 756/252/126 交易日，每晚整体前移，purge h+2，旧因子每晚重评估），holdout 仅 <code>judge.py</code> 人工开启。</li>
+<li>前向校验：因子首次 accepted 时登记并冻结方向，仅用入选前选择从未读过的新数据统计 IC / 多空，只展示、不参与任何筛选，实盘参考以此为准。</li>
 <li>多重检验：同一 (市场, 周期) 的有效试验数 K 持续累加，<code>t_req = max(2, Φ⁻¹(1−0.025/K))</code>，旧因子会随 K 增大被降级。</li>
 <li>accepted 需 train 达标 + val IC 同号 t≥1.65 + train 与 val 扣费后多空收益均 &gt; 0；与已接受因子截面相关 ≥0.8 标为冗余。</li>
 <li>首次运行：币 100 个标的（2019~今，点时刻成交额前 60），美股 91 个 bStock 正股 + SPY 基准（Yahoo 复权日线，约 6 年）；币圈大量 IC 显著但多空净收益为负（均值被高波动币的偏态主导），因此几乎没有 accepted。</li>

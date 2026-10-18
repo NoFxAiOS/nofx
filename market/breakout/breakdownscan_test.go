@@ -125,3 +125,34 @@ func TestBreakdownUnconfirmedNotStrong(t *testing.T) {
 		t.Fatal("NaN score")
 	}
 }
+
+func TestBreakdownContinuation(t *testing.T) {
+	// 1h: slow bleed, then a bounce that pokes above EMA20 and closes under, then a fresh low.
+	k1h := make([]Kline, 60)
+	p := 100.0
+	for i := range k1h {
+		p *= 0.998
+		k1h[i] = Kline{Open: p * 1.001, High: p * 1.002, Low: p * 0.998, Close: p}
+	}
+	// bar 52: spike above EMA20 and close back below it
+	k1h[52].High = k1h[52].Close * 1.05
+	// last bar closes below every prior low
+	k1h[59].Close = k1h[59].Low * 0.97
+	k1h[59].Low = k1h[59].Close
+	k4h := downtrend4h(84, 100)
+	score, printed := breakdownContinuation(k1h, k4h)
+	if !printed {
+		t.Fatalf("bounce failure + fresh low must print, score %.0f", score)
+	}
+	if score < 70 {
+		t.Fatalf("score %.0f too low for full continuation", score)
+	}
+	// flat chop: nothing printed
+	flat := make([]Kline, 60)
+	for i := range flat {
+		flat[i] = Kline{Open: 100, High: 100.1, Low: 99.9, Close: 100}
+	}
+	if _, pr := breakdownContinuation(flat, k4h); pr {
+		t.Fatal("flat series must not print continuation")
+	}
+}

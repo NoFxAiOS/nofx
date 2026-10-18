@@ -2,6 +2,7 @@ package breakout
 
 import (
 	"fmt"
+	"math"
 
 	"nofx/logger"
 )
@@ -34,13 +35,68 @@ const BreakdownUniverse = 30
 
 // Breakdown composite weights (sum 1.0) — transparent by design: structure
 // continuation evidence dominates, then room-to-fall, then the tie-breakers.
+//
+// 2026-10-18 rework: the old composite reused the pump-fade Structure
+// (fake breakout / fresh EMA20 break) and bearish-Divergence dimensions, which
+// are ~0 for a coin already in an established downtrend — 45% of the weight
+// was dead, the score topped out near 26 and never cleared the pool floor.
+// Structure is now a continuation measure (breakdownContinuation) and the
+// relative-weakness vs BTC replaces Divergence.
 const (
-	bkwStructure    = 0.30
-	bkwRoomToFall   = 0.25
-	bkwRejection    = 0.15
-	bkwDivergence   = 0.15
+	bkwContinuation  = 0.35
+	bkwRoomToFall    = 0.25
+	bkwRejection     = 0.15
+	bkwRelWeak       = 0.10
 	bkwFundingHealth = 0.15
 )
+
+// breakdownContinuation scores whether a downtrend is actively continuing:
+// a failed bounce into the 1h EMA20 (weight .45), a fresh 24-bar low (.30)
+// and a lower 4h swing high (.25). printed=true when a bounce failure or a
+// fresh-low close is on the tape — the continuation analogue of a topping
+// confirmation. Inputs are closed bars, oldest first.
+func breakdownContinuation(k1h, k4h []Kline) (score float64, printed bool) {
+	n := len(k1h)
+	if n < 30 || len(k4h) < 12 {
+		return 0, false
+	}
+	c := closes(k1h)
+	e20 := ema(c, 20)
+	last := n - 1
+	bounceFail := 0.0
+	if c[last] < e20[last] {
+		for i := n - 13; i < last; i++ {
+			if k1h[i].High >= e20[i] && k1h[i].Close < e20[i] {
+				bounceFail = 100
+				break
+			}
+		}
+	}
+	newLow := 0.0
+	prevMin := math.Inf(1)
+	for i := n - 25; i < last; i++ {
+		prevMin = math.Min(prevMin, k1h[i].Low)
+	}
+	if c[last] < prevMin {
+		newLow = 100
+	} else if k1h[last].Low < prevMin {
+		newLow = 60
+	}
+	lowerHigh := 0.0
+	m := len(k4h)
+	recentHi, priorHi := math.Inf(-1), math.Inf(-1)
+	for i := m - 6; i < m; i++ {
+		recentHi = math.Max(recentHi, k4h[i].High)
+	}
+	for i := m - 12; i < m-6; i++ {
+		priorHi = math.Max(priorHi, k4h[i].High)
+	}
+	if recentHi < priorHi {
+		lowerHigh = 100
+	}
+	score = 0.45*bounceFail + 0.30*newLow + 0.25*lowerHigh
+	return score, bounceFail == 100 || newLow == 100
+}
 
 // analyzeBreakdownShort reuses AnalyzeShort's data pipeline and component
 // machinery, then re-ranks with the breakdown composite. Returns nil for a
@@ -55,6 +111,10 @@ func analyzeBreakdownShort(symbol string, chg24 float64, btc4h []Kline, ds DataS
 	// EMA20). Without it this is not a continuation setup — a coin that
 	// simply had one bad day is not what this universe shortlists.
 	k4h, err := ds.Klines("4h", 84)
+	if err != nil {
+		return nil, err
+	}
+	k1h, err := ds.Klines("1h", 60)
 	if err != nil {
 		return nil, err
 	}
@@ -81,17 +141,28 @@ func analyzeBreakdownShort(symbol string, chg24 float64, btc4h []Kline, ds DataS
 	if downExt < 0 {
 		downExt = 0
 	}
-	roomToFall := clamp100(sigmoidScore(-downExt, -1.5, 4.0)) // at/above EMA → high; stretched → low
+	// Centre -3 / width 1.5: at the EMA ≈ 88, 3% below ≈ 50, 6% below ≈ 12 (the
+	// old -1.5/4.0 curve capped at 59 even at the entry zone).
+	roomToFall := clamp100(sigmoidScore(-downExt, -3.0, 1.5))
 
 	// Funding health for a NEW short: positive funding = longs pay shorts
 	// (favorable carry, uncrowded) → high; deeply negative = shorts are the
 	// crowded side (squeeze fuel) → low.
 	fundingHealth := clamp100(sigmoidScore(sig.FundingAnnualPct, 0, 12))
 
-	score := bkwStructure*sig.Components.Structure +
+	cont, printed := breakdownContinuation(k1h, k4h)
+	sig.Components.Structure = cont
+	sig.Confirmed = printed
+	// Underperforming BTC over 5d = relative weakness (0 when BTC series absent → neutral 50).
+	relWeak := 50.0
+	if len(btc4h) >= 56 {
+		relWeak = clamp100(sigmoidScore(-sig.BtcOutperform, 0, 8))
+	}
+
+	score := bkwContinuation*cont +
 		bkwRoomToFall*roomToFall +
 		bkwRejection*sig.Components.Rejection +
-		bkwDivergence*sig.Components.Divergence +
+		bkwRelWeak*relWeak +
 		bkwFundingHealth*fundingHealth
 
 	sig.Score = round2(score)

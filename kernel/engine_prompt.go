@@ -1715,8 +1715,14 @@ func (e *StrategyEngine) computeCoinSignal(data *market.Data, quantData *QuantDa
 				opt.ScannerBias = "short"
 				// The top-confirmation gate consumes the scanner's own
 				// confirmation verdict (2026-10-04 batch-2).
-				conf := coin.ShortConfirmed
-				opt.ShortScanConfirmed = &conf
+				// universe=breakdown is a CONTINUATION short (sell the failed
+				// bounce in a downtrend): it can never print a topping
+				// confirmation, so it is exempt from the top-confirm gate
+				// (the 15m MICRO_TREND gate still applies).
+				if coin.ShortUniverse != "breakdown" {
+					conf := coin.ShortConfirmed
+					opt.ShortScanConfirmed = &conf
+				}
 				break
 			}
 		}

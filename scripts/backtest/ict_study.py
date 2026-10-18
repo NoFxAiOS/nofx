@@ -99,6 +99,12 @@ def cmd_b(a):
         syms = [x for x in syms if len(ict_fetch.load(cache, x)) > 3000]
     else:
         syms = [u + "USDT" for u in UNIVERSE if len(ict_fetch.load(cache, u + "USDT")) > 3000]
+    def gap_frac(sym):  # 缺口根数占比;抓取失败会留缺口,>1% 的币种剔除
+        t = [r[0] for r in ict_fetch.load(cache, sym)]
+        return sum((b - a) // 300000 - 1 for a, b in zip(t, t[1:]) if b - a > 300000) / max(1, len(t))
+    dropped = [x for x in syms if gap_frac(x) > 0.01]
+    syms = [x for x in syms if x not in dropped]
+    print("dropped(gaps>1%)", dropped)
     print("universe", len(syms), syms)
     ctxs = load_universe(cache, syms, equity=a.universe == "equity")
     setups = []

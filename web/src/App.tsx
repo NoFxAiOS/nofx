@@ -32,11 +32,6 @@ const StrategyStudioPage = lazy(() =>
     default: m.StrategyStudioPage,
   }))
 )
-const StrategyMarketPage = lazy(() =>
-  import('./pages/StrategyMarketPage').then((m) => ({
-    default: m.StrategyMarketPage,
-  }))
-)
 const DataPage = lazy(() =>
   import('./pages/DataPage').then((m) => ({ default: m.DataPage }))
 )
@@ -70,7 +65,6 @@ type Page =
   | 'traders'
   | 'trader'
   | 'strategy'
-  | 'strategy-market'
   | 'data'
   | 'review'
   | 'system-quality'
@@ -100,8 +94,6 @@ function App() {
     if (path === '/welcome') return 'traders'
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
-    if (path === '/strategy-market' || hash === 'strategy-market')
-      return 'strategy-market'
     if (path === '/data' || hash === 'data') return 'data'
     if (path === '/review' || hash === 'review') return 'review'
     if (path === '/system-quality' || hash === 'system-quality')
@@ -128,7 +120,6 @@ function App() {
   const navigateToPage = (page: Page) => {
     const pathMap: Record<Page, string> = {
       competition: '/competition',
-      'strategy-market': '/strategy-market',
       data: '/data',
       review: '/review',
       'system-quality': '/system-quality',
@@ -207,8 +198,6 @@ function App() {
         setCurrentPage('traders')
       } else if (path === '/strategy' || hash === 'strategy') {
         setCurrentPage('strategy')
-      } else if (path === '/strategy-market' || hash === 'strategy-market') {
-        setCurrentPage('strategy-market')
       } else if (path === '/data' || hash === 'data') {
         setCurrentPage('data')
       } else if (path === '/review' || hash === 'review') {
@@ -686,8 +675,6 @@ function App() {
               <CompetitionPage />
             ) : currentPage === 'data' ? (
               <DataPage />
-            ) : currentPage === 'strategy-market' ? (
-              <StrategyMarketPage />
             ) : currentPage === 'traders' ? (
               <AITradersPage
                 onTraderSelect={(traderId) => {

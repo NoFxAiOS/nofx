@@ -28,7 +28,6 @@ type Page =
   | 'traders'
   | 'trader'
   | 'strategy'
-  | 'strategy-market'
   | 'data'
   | 'review'
   | 'system-quality'
@@ -70,13 +69,6 @@ function buildNavTabs(language: Language): NavTab[] {
       path: '/data',
       label: language === 'zh' ? '数据' : language === 'id' ? 'Data' : 'Data',
       requiresAuth: false,
-    },
-    {
-      page: 'strategy-market',
-      path: '/strategy-market',
-      label:
-        language === 'zh' ? '策略市场' : language === 'id' ? 'Pasar' : 'Market',
-      requiresAuth: true,
     },
     {
       page: 'traders',

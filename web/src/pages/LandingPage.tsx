@@ -40,7 +40,6 @@ export function LandingPage() {
             traders: '/traders',
             trader: '/dashboard',
             strategy: '/strategy',
-            faq: '/faq',
           }
           const path = pathMap[page]
           if (path) {

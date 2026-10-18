@@ -27,9 +27,6 @@ const CompetitionPage = lazy(() =>
 const LandingPage = lazy(() =>
   import('./pages/LandingPage').then((m) => ({ default: m.LandingPage }))
 )
-const FAQPage = lazy(() =>
-  import('./pages/FAQPage').then((m) => ({ default: m.FAQPage }))
-)
 const StrategyStudioPage = lazy(() =>
   import('./pages/StrategyStudioPage').then((m) => ({
     default: m.StrategyStudioPage,
@@ -77,7 +74,6 @@ type Page =
   | 'review'
   | 'system-quality'
   | 'research-log'
-  | 'faq'
   | 'login'
   | 'register'
 
@@ -136,7 +132,6 @@ function App() {
       traders: '/traders',
       trader: '/dashboard',
       strategy: '/strategy',
-      faq: '/faq',
       login: '/login',
       register: '/register',
     }
@@ -461,31 +456,6 @@ function App() {
   if (route === '/welcome') {
     // Beginner claw402 onboarding was removed; land on the traders page.
     return <Redirect to="/traders" />
-  }
-  if (route === '/faq') {
-    return (
-      <div
-        className="min-h-screen"
-        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="faq"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
-        />
-        <FAQPage />
-        <LoginRequiredOverlay
-          isOpen={loginOverlayOpen}
-          onClose={() => setLoginOverlayOpen(false)}
-          featureName={loginOverlayFeature}
-        />
-      </div>
-    )
   }
   if (route === '/reset-password') {
     return <ResetPasswordPage />

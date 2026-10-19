@@ -30,6 +30,25 @@ export const RESEARCH_METHOD_NOTE =
 
 export const RESEARCH_LOG: ResearchEntry[] = [
   {
+    id: 'range-breakdown-short',
+    date: '2026-10-19',
+    title: '区间震荡期的破位做空：降级 / 回抽确认',
+    domain: '加密 · 做空',
+    verdict: 'none',
+    verdictText: '无法证明有差异',
+    idea: '10-19 实盘连续止损：BTC 三天在 80.8k–82.7k 区间震荡，凌晨砸到下沿后 V 型反弹 +2%，TIA / SEI / WLD / PROM 的破位做空在下沿附近入场被反弹打掉。问：区间期的破位做空是否该降级？改成等反抽再空是否更好？',
+    bullets: [
+      '沿用 breakdown_study 的 22569 个历史信号（100 币，2025-10 ~ 2026-10-13，下一根 5m 开盘市价空，SL=2×ATR，TP=4×ATR，72h，扣费滑点，同币同向单仓）。新增特征：BTC 最近 18 根 4h 振幅 btc_range72（三分位 + 先验阈值 <3%），入场价离 24h 低点的 ATR 距离 chase_low_atr。',
+      '区间期 / 追下沿均无显著更差：range<3% 的 BASELINE 为 −0.037±0.064R（n=475），NEW≥50 为 +0.030±0.073R；振幅最低三分位反而是 +0.067±0.030R，且前半段 +0.39R、后半段 −0.09R，不稳定。',
+      '回抽确认（限价空 ref+0.5/1.0×ATR，未成交按 0R 计）：成交率 53% / 38%，按信号计 sumR 相对市价入场的配对差 +0.003±0.032 / −0.014±0.040R；range<3% 子集 +0.053±0.091R，均不显著。',
+      '更大的因素是市场方向：该破位空策略逐月 avgR 在 −0.33R ~ +0.51R 之间摆动（2026-03/04/05/07/08/09 为负，其余多为正），是净空头 beta，行情反弹的月份必然成串止损。共 66 项检验，未校正多重比较。',
+    ],
+    conclusion:
+      '不建议为区间期加降级或回抽确认门：样本里没有证据。10-19 的连续止损更像反弹日的市场方向风险。若要治理，应试验组合层面的相关性 / 日亏熔断，而不是区间过滤。',
+    source:
+      'scripts/backtest/breakdown_range_study.py（报告 docs/research/range-breakdown-short-report.txt）',
+  },
+  {
     id: 'factor-mining-qlib',
     date: '2026-10-18',
     title: 'qlib 式自动因子挖掘（美股 + 虚拟币）',

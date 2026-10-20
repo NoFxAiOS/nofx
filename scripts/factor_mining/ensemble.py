@@ -20,11 +20,15 @@ def ensemble_scores(factors, panels, *, values_cache=None):
     return total.div(count.where(count > 0))
 
 
+def select_ensemble_factors(accepted, horizon):
+    return sorted((f for f in accepted if f['horizon'] == horizon and f['status'] == 'accepted'),
+                  key=lambda f: (-f['train']['t'], f['id']))[:20]
+
+
 def build_ensemble(market, accepted, panels, targets, splits, cfg, *, values_cache=None):
     output = {'horizons': {}}
     for h in cfg['horizons']:
-        factors = sorted((f for f in accepted if f['horizon'] == h and f['status'] == 'accepted'),
-                         key=lambda f: (-f['train']['t'], f['id']))[:20]
+        factors = select_ensemble_factors(accepted, h)
         if not factors:
             output['horizons'][str(h)] = None
             continue

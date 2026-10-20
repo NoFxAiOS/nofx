@@ -401,6 +401,12 @@ class Miner:
             ensemble = build_ensemble(market, retained, panels, targets, splits, cfg,
                                       values_cache=values_cache)
             store.write_ensemble(market, ensemble, self.root)
+            try:
+                from .live_scores import export_live_scores
+                export_live_scores(market, retained, panels, root=self.root, values_cache=values_cache)
+            except Exception as exc:
+                import sys
+                print(f'live_scores export failed for {market}: {type(exc).__name__}: {exc}', file=sys.stderr)
             return output
         except BaseException as exc:
             error = f'{type(exc).__name__}: {exc}'

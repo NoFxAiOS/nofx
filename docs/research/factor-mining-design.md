@@ -92,3 +92,13 @@
 ## 已知局限（写进页面）
 
 日线级别、币圈 2–5 年样本、美股幸存者偏差；变异/LLM 提案共同扩大 K，门槛随之抬高；accepted ≠ 可交易（未建模资金费率、冲击成本、容量）；验证窗口每晚大幅重叠且反复用于选择，会产生 K 不能完全校正的选择偏差；holdout 未开启前任何指标都只是 train/val 的选择后结果；judge 已打开的日期区间以后会滚入 val，不能再作为样本外。
+
+## 实盘参考字段导出
+
+每个市场写完 `ensemble.json` 后，复用本次已加载的 panels、retained 因子和表达式缓存，独立原子写出 `{market}/live_scores.json`，供 Go 实盘引擎作为**仅参考**字段读取。导出不参与选因子、评估、前向校验或交易决策，不改 zoo、ensemble、ledger 及 run 记录的既有字段；导出失败仅记 stderr，不使本次挖掘失败。
+
+文件包含 `version: 1`、`market`、UTC ISO8601 的 `generated_at`、`as_of`、`universe_size` 和 `horizons`。`as_of` 是面板中严格早于 UTC 今天的最新日，排除今天及未来行；`universe_size` 为当日 `panels.mask` 为真的标的数。crypto 导出 1/3/7，us 导出 5/10/20，各周期复用 `build_ensemble` 的选择函数：仅 `status == 'accepted'`，按 `(-train.t, id)` 排序取前 20，不以 forward 结果筛选。
+
+`horizons[h]` 包含 `factor_count`、`forward` 和 `scores`。`forward` 统计本周期入选因子的 `forward.verdict`，缺少 forward 的计为 `none`。`scores[SYMBOL]` 中 `z` 为 `ensemble_scores` 在 `as_of` 的等权方向调整 z 分，`pct` 为该日有效截面的 `rank(pct=True)` 百分位（同分取平均秩，越大越看多），两者均保留 4 位小数；只保留当日 mask 为真且分数有限的标的，JSON 不含 NaN/Infinity。
+
+无 accepted 因子或 `as_of` 有效分数少于 10 个的周期省略，不回退到更早日期。没有已收盘日或所有周期均不可用时不写新文件并删除旧文件，避免读取陈旧截面。已有输出通过 `store.write_json` 的临时文件和原子替换写入。

@@ -30,6 +30,25 @@ export const RESEARCH_METHOD_NOTE =
 
 export const RESEARCH_LOG: ResearchEntry[] = [
   {
+    id: 'factor-ensemble-live',
+    date: '2026-10-20',
+    title: '因子挖掘 ensemble 接入实盘提示词（仅参考字段）',
+    domain: '加密 · 提示词参考',
+    verdict: 'partial',
+    verdictText: '已接入 · 默认关闭 · 无 edge 证据',
+    idea: '把夜间因子挖掘里已 accepted 因子的等权方向调整 z 分 ensemble，取最新已收盘日的截面百分位，导出为 data/factor_mining/crypto/live_scores.json；实盘引擎在 enable_factor_ensemble 开启时，把该币 1/3/7 日 horizon 的 pct/z 作为 factor_ensemble 参考字段交给 AI。',
+    bullets: [
+      '研究记录里已采用的结论（basket_vol 仓位缩放、12-1 动量排序）早已在线上，本次只补上因子挖掘这一路。',
+      '数据过期保护：as_of 距今超过 3 个日历日、或币不在因子宇宙（约 60 个币）时不输出该字段；文件缺失/损坏一律静默降级。',
+      '任何 hard gate、评分、候选筛选、下单逻辑都不读取该字段；提示词明确写「不能绕过 hard_entry_gate / rr_scan」。',
+      '当前 crypto 入选因子的前向校验（约 176~179 天）绝大多数为 inconclusive（1 个 failed）：IC 为正（0.02~0.06），但多空净收益为负，属于「排序有信息、扣费后不可交易」。',
+    ],
+    conclusion:
+      '只作为 AI 的参考证据上线，不提升为评分或入选条件；等前向校验出现 confirmed（多空净收益转正）且实盘决策样本里 pct 与结果有可测关系，再考虑升级。',
+    source:
+      'scripts/factor_mining/live_scores.py · kernel/factor_ensemble.go · docs/research/factor-mining-design.md「实盘参考字段导出」',
+  },
+  {
     id: 'breaker-state',
     date: '2026-10-19',
     title: '账户级连亏 / 日亏熔断：状态之后入场是否更差',

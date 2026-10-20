@@ -198,6 +198,8 @@ type SymbolSignal struct {
 	ShortRide *BBShortRide `json:"short_ride,omitempty"`
 	// LiquiditySweep is opt-in reference evidence; it never affects hard gates.
 	LiquiditySweep *LiquiditySweep `json:"liquidity_sweep,omitempty"`
+	// FactorEnsemble is opt-in reference evidence; no gate or score reads it.
+	FactorEnsemble *FactorEnsembleRef `json:"factor_ensemble,omitempty"`
 	// ⑩ Data completeness ≠ data sufficiency: per-TF closed-bar counts vs
 	// indicator requirements.
 	DataQuality *DataQuality `json:"data_quality,omitempty"`
@@ -574,6 +576,7 @@ type SignalOptions struct {
 	Now                   time.Time // zero falls back to time.Now()
 	PrimaryTF             string
 	EnableLiquiditySweep  bool // opt-in experimental evidence; default false
+	EnableFactorEnsemble  bool // opt-in experimental evidence; default false
 	OI1hPct               *float64
 	// CurrentPrice is the live ticker price used as the support/resistance
 	// anchor (which pivot levels count as above/below). Zero falls back to
@@ -1230,6 +1233,9 @@ func ComputeSymbolSignals(symbol string, data *market.Data, opt SignalOptions) (
 	sig.ShortRide = computeBBShortRide(data, now)
 	if opt.EnableLiquiditySweep {
 		sig.LiquiditySweep = computeLiquiditySweep(data, now)
+	}
+	if opt.EnableFactorEnsemble {
+		sig.FactorEnsemble = computeFactorEnsemble(data, now)
 	}
 
 	// Entry / exit heuristic rules — deterministic, computed so the model sees

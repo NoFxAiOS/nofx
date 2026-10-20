@@ -400,6 +400,7 @@ type IndicatorConfig struct {
 	EnableATR            bool `json:"enable_atr"`
 	EnableBOLL           bool `json:"enable_boll"`                      // Bollinger Bands
 	EnableLiquiditySweep bool `json:"enable_liquidity_sweep,omitempty"` // experimental reference evidence; default false
+	EnableFactorEnsemble bool `json:"enable_factor_ensemble,omitempty"` // experimental reference evidence; default false
 	EnableVolume         bool `json:"enable_volume"`
 	EnableOI             bool `json:"enable_oi"`           // open interest
 	EnableFundingRate    bool `json:"enable_funding_rate"` // funding rate

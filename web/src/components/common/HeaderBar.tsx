@@ -30,10 +30,6 @@ type Page =
   | 'strategy'
   | 'data'
   | 'review'
-  | 'system-quality'
-  | 'research-log'
-  | 'factor-mining'
-  | 'paper-promotion'
   | 'login'
   | 'register'
 
@@ -93,30 +89,6 @@ function buildNavTabs(language: Language): NavTab[] {
       page: 'review',
       path: '/review',
       label: t('reviewNav', language),
-      requiresAuth: true,
-    },
-    {
-      page: 'system-quality',
-      path: '/system-quality',
-      label: language === 'zh' ? '系统质量' : 'System Quality',
-      requiresAuth: true,
-    },
-    {
-      page: 'factor-mining',
-      path: '/factor-mining',
-      label: language === 'zh' ? '因子挖掘' : 'Factor Mining',
-      requiresAuth: true,
-    },
-    {
-      page: 'paper-promotion',
-      path: '/paper-promotion',
-      label: t('paperPromotionNav', language),
-      requiresAuth: true,
-    },
-    {
-      page: 'research-log',
-      path: '/research-log',
-      label: language === 'zh' ? '研究记录' : 'Research Log',
       requiresAuth: true,
     },
     {

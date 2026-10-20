@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   User,
@@ -10,6 +10,10 @@ import {
   ChevronRight,
   Plus,
   Pencil,
+  Activity,
+  FlaskConical,
+  Dna,
+  FileCheck,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -28,12 +32,45 @@ import { Badge, Button, Card, Input, Tabs } from '../components/ui'
 
 import { PaperBadge } from '../components/trader/PaperBadge'
 
-type Tab = 'account' | 'models' | 'exchanges' | 'telegram'
+type Tab =
+  | 'account'
+  | 'models'
+  | 'exchanges'
+  | 'telegram'
+  | 'quality'
+  | 'factor-mining'
+  | 'paper-promotion'
+  | 'research-log'
+
+const SystemQualityPage = lazy(() => import('./SystemQualityPage'))
+const FactorMiningPage = lazy(() => import('./FactorMiningPage'))
+const PaperPromotionPage = lazy(() => import('./PaperPromotionPage'))
+const ResearchLogPage = lazy(() => import('./ResearchLogPage'))
+
+// 嵌入的诊断/研究类页面：内容较宽，不套设置卡片
+const EMBEDDED_TABS: Tab[] = [
+  'quality',
+  'factor-mining',
+  'paper-promotion',
+  'research-log',
+]
+
+function tabFromHash(): Tab {
+  const h = window.location.hash.slice(1)
+  const all: Tab[] = [
+    'account',
+    'models',
+    'exchanges',
+    'telegram',
+    ...EMBEDDED_TABS,
+  ]
+  return (all as string[]).includes(h) ? (h as Tab) : 'account'
+}
 
 export function SettingsPage() {
   const { user, token, logout } = useAuth()
   const { language } = useLanguage()
-  const [activeTab, setActiveTab] = useState<Tab>('account')
+  const [activeTab, setActiveTab] = useState<Tab>(tabFromHash)
   const [userMode, setUserModeState] = useState<UserMode>(
     () => getUserMode() ?? 'advanced'
   )
@@ -327,11 +364,32 @@ export function SettingsPage() {
     { key: 'models', label: 'AI Models', icon: <Cpu size={14} /> },
     { key: 'exchanges', label: 'Exchanges', icon: <Building2 size={14} /> },
     { key: 'telegram', label: 'Telegram', icon: <MessageCircle size={14} /> },
+    {
+      key: 'quality',
+      label: language === 'zh' ? '系统质量' : 'System Quality',
+      icon: <Activity size={14} />,
+    },
+    {
+      key: 'factor-mining',
+      label: language === 'zh' ? '因子挖掘' : 'Factor Mining',
+      icon: <Dna size={14} />,
+    },
+    {
+      key: 'paper-promotion',
+      label: language === 'zh' ? '晋升报告' : 'Paper Promotion',
+      icon: <FileCheck size={14} />,
+    },
+    {
+      key: 'research-log',
+      label: language === 'zh' ? '研究记录' : 'Research Log',
+      icon: <FlaskConical size={14} />,
+    },
   ]
+  const embedded = EMBEDDED_TABS.includes(activeTab)
 
   return (
     <div className="min-h-screen bg-bg px-4 pb-10 pt-20">
-      <div className="mx-auto max-w-2xl">
+      <div className={`mx-auto ${embedded ? 'max-w-[1440px]' : 'max-w-2xl'}`}>
         <h1 className="mb-4 text-xl font-semibold text-fg">Settings</h1>
 
         {/* Tabs */}
@@ -343,296 +401,322 @@ export function SettingsPage() {
             label: <span className="hidden sm:inline">{tab.label}</span>,
           }))}
           value={activeTab}
-          onChange={(k) => setActiveTab(k)}
+          onChange={(k) => {
+            setActiveTab(k)
+            window.history.replaceState(null, '', `#${k}`)
+          }}
         />
 
+        {embedded && (
+          <Suspense
+            fallback={<div className="p-6 text-sm text-fg-3">Loading…</div>}
+          >
+            {activeTab === 'quality' && (
+              <SystemQualityPage language={language} />
+            )}
+            {activeTab === 'factor-mining' && (
+              <FactorMiningPage language={language} />
+            )}
+            {activeTab === 'paper-promotion' && (
+              <PaperPromotionPage language={language} />
+            )}
+            {activeTab === 'research-log' && (
+              <ResearchLogPage language={language} />
+            )}
+          </Suspense>
+        )}
+
         {/* Tab Content */}
-        <Card className="p-4">
-          {/* Account Tab */}
-          {activeTab === 'account' && (
-            <div className="space-y-4">
-              <div>
-                <p className="mb-0.5 text-xs text-fg-3">Email</p>
-                <p className="text-sm text-fg font-medium">{user?.email}</p>
-              </div>
+        {!embedded && (
+          <Card className="p-4">
+            {/* Account Tab */}
+            {activeTab === 'account' && (
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-0.5 text-xs text-fg-3">Email</p>
+                  <p className="text-sm text-fg font-medium">{user?.email}</p>
+                </div>
 
-              <div className="border-t border-line pt-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-fg">
-                      {language === 'zh' ? '使用模式' : 'Usage Mode'}
-                    </h3>
-                    <p className="mt-1 text-xs text-fg-3">
-                      {language === 'zh'
-                        ? '新手模式会显示钱包引导和 4 步卡片；老手模式保持原来的专业界面。'
-                        : 'Beginner mode shows wallet onboarding and quickstart cards. Advanced mode keeps the original pro workflow.'}
-                    </p>
+                <div className="border-t border-line pt-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-fg">
+                        {language === 'zh' ? '使用模式' : 'Usage Mode'}
+                      </h3>
+                      <p className="mt-1 text-xs text-fg-3">
+                        {language === 'zh'
+                          ? '新手模式会显示钱包引导和 4 步卡片；老手模式保持原来的专业界面。'
+                          : 'Beginner mode shows wallet onboarding and quickstart cards. Advanced mode keeps the original pro workflow.'}
+                      </p>
+                    </div>
+                    <Badge variant="brand" className="shrink-0">
+                      {userMode === 'beginner'
+                        ? language === 'zh'
+                          ? '当前：新手模式'
+                          : 'Current: Beginner'
+                        : language === 'zh'
+                          ? '当前：老手模式'
+                          : 'Current: Advanced'}
+                    </Badge>
                   </div>
-                  <Badge variant="brand" className="shrink-0">
-                    {userMode === 'beginner'
-                      ? language === 'zh'
-                        ? '当前：新手模式'
-                        : 'Current: Beginner'
-                      : language === 'zh'
-                        ? '当前：老手模式'
-                        : 'Current: Advanced'}
-                  </Badge>
-                </div>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchMode('beginner')}
-                    className={`rounded-lg border px-3 py-3 text-left transition-colors ${
-                      userMode === 'beginner'
-                        ? 'border-brand bg-brand-soft'
-                        : 'border-line bg-surface-2 hover:border-line-strong'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold text-fg">
-                      {language === 'zh' ? '新手模式' : 'Beginner Mode'}
-                    </div>
-                    <div className="mt-1 text-xs text-fg-3">
-                      {language === 'zh'
-                        ? '更简单，优先显示钱包、充值和快速上手引导。'
-                        : 'Simpler flow with wallet, funding, and quickstart guidance first.'}
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchMode('advanced')}
-                    className={`rounded-lg border px-3 py-3 text-left transition-colors ${
-                      userMode === 'advanced'
-                        ? 'border-brand bg-brand-soft'
-                        : 'border-line bg-surface-2 hover:border-line-strong'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold text-fg">
-                      {language === 'zh' ? '老手模式' : 'Advanced Mode'}
-                    </div>
-                    <div className="mt-1 text-xs text-fg-3">
-                      {language === 'zh'
-                        ? '保持原来的配置与交易流程，不展示新手引导。'
-                        : 'Keeps the original configuration and trading workflow without beginner hints.'}
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="border-t border-line pt-4">
-                <h3 className="mb-3 text-sm font-semibold text-fg">
-                  Change Password
-                </h3>
-                <form onSubmit={handleChangePassword} className="space-y-3">
-                  <label className="block text-xs font-medium text-fg-3">
-                    Current Password
-                    <Input
-                      type="password"
-                      autoComplete="current-password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      required
-                      className="mt-1"
-                    />
-                  </label>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-fg-3">
-                      New Password
-                    </label>
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? 'text' : 'password'}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="pr-9"
-                        placeholder="At least 8 characters"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-3 transition-colors hover:text-fg-2"
-                      >
-                        {showPassword ? (
-                          <EyeOff size={16} />
-                        ) : (
-                          <Eye size={16} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={
-                      changingPassword ||
-                      !currentPassword ||
-                      newPassword.length < 8
-                    }
-                    className="w-full"
-                  >
-                    {changingPassword ? 'Updating...' : 'Update Password'}
-                  </Button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* AI Models Tab */}
-          {activeTab === 'models' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] text-fg-3">
-                  {configuredModels.length} model
-                  {configuredModels.length !== 1 ? 's' : ''} configured
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingModel(null)
-                    setShowModelModal(true)
-                  }}
-                  className="text-brand"
-                >
-                  <Plus size={14} />
-                  Add Model
-                </Button>
-              </div>
-
-              {configuredModels.length === 0 ? (
-                <div className="py-8 text-center text-[13px] text-fg-3">
-                  No AI models configured yet
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {configuredModels.map((model) => (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <button
-                      key={model.id}
-                      onClick={() => {
-                        setEditingModel(model.id)
-                        setShowModelModal(true)
-                      }}
-                      className="group flex w-full items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2 transition-colors hover:border-line-strong hover:bg-surface-hover"
+                      type="button"
+                      onClick={() => handleSwitchMode('beginner')}
+                      className={`rounded-lg border px-3 py-3 text-left transition-colors ${
+                        userMode === 'beginner'
+                          ? 'border-brand bg-brand-soft'
+                          : 'border-line bg-surface-2 hover:border-line-strong'
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-surface-hover">
-                          <Cpu size={14} className="text-fg-2" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-[13px] font-medium text-fg">
-                            {model.name}
-                          </p>
-                          <p className="text-xs text-fg-3">{model.provider}</p>
-                        </div>
+                      <div className="text-sm font-semibold text-fg">
+                        {language === 'zh' ? '新手模式' : 'Beginner Mode'}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={model.enabled ? 'up' : 'neutral'}>
-                          {model.enabled ? 'Active' : 'Inactive'}
-                        </Badge>
-                        <Pencil
+                      <div className="mt-1 text-xs text-fg-3">
+                        {language === 'zh'
+                          ? '更简单，优先显示钱包、充值和快速上手引导。'
+                          : 'Simpler flow with wallet, funding, and quickstart guidance first.'}
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchMode('advanced')}
+                      className={`rounded-lg border px-3 py-3 text-left transition-colors ${
+                        userMode === 'advanced'
+                          ? 'border-brand bg-brand-soft'
+                          : 'border-line bg-surface-2 hover:border-line-strong'
+                      }`}
+                    >
+                      <div className="text-sm font-semibold text-fg">
+                        {language === 'zh' ? '老手模式' : 'Advanced Mode'}
+                      </div>
+                      <div className="mt-1 text-xs text-fg-3">
+                        {language === 'zh'
+                          ? '保持原来的配置与交易流程，不展示新手引导。'
+                          : 'Keeps the original configuration and trading workflow without beginner hints.'}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border-t border-line pt-4">
+                  <h3 className="mb-3 text-sm font-semibold text-fg">
+                    Change Password
+                  </h3>
+                  <form onSubmit={handleChangePassword} className="space-y-3">
+                    <label className="block text-xs font-medium text-fg-3">
+                      Current Password
+                      <Input
+                        type="password"
+                        autoComplete="current-password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        required
+                        className="mt-1"
+                      />
+                    </label>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-fg-3">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="pr-9"
+                          placeholder="At least 8 characters"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-3 transition-colors hover:text-fg-2"
+                        >
+                          {showPassword ? (
+                            <EyeOff size={16} />
+                          ) : (
+                            <Eye size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={
+                        changingPassword ||
+                        !currentPassword ||
+                        newPassword.length < 8
+                      }
+                      className="w-full"
+                    >
+                      {changingPassword ? 'Updating...' : 'Update Password'}
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* AI Models Tab */}
+            {activeTab === 'models' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] text-fg-3">
+                    {configuredModels.length} model
+                    {configuredModels.length !== 1 ? 's' : ''} configured
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingModel(null)
+                      setShowModelModal(true)
+                    }}
+                    className="text-brand"
+                  >
+                    <Plus size={14} />
+                    Add Model
+                  </Button>
+                </div>
+
+                {configuredModels.length === 0 ? (
+                  <div className="py-8 text-center text-[13px] text-fg-3">
+                    No AI models configured yet
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {configuredModels.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          setEditingModel(model.id)
+                          setShowModelModal(true)
+                        }}
+                        className="group flex w-full items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2 transition-colors hover:border-line-strong hover:bg-surface-hover"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-surface-hover">
+                            <Cpu size={14} className="text-fg-2" />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-[13px] font-medium text-fg">
+                              {model.name}
+                            </p>
+                            <p className="text-xs text-fg-3">
+                              {model.provider}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={model.enabled ? 'up' : 'neutral'}>
+                            {model.enabled ? 'Active' : 'Inactive'}
+                          </Badge>
+                          <Pencil
+                            size={14}
+                            className="text-fg-3 transition-colors group-hover:text-fg"
+                          />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Exchanges Tab */}
+            {activeTab === 'exchanges' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] text-fg-3">
+                    {exchanges.length} account
+                    {exchanges.length !== 1 ? 's' : ''} connected
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingExchange(null)
+                      setShowExchangeModal(true)
+                    }}
+                    className="text-brand"
+                  >
+                    <Plus size={14} />
+                    Add Exchange
+                  </Button>
+                </div>
+
+                {exchanges.length === 0 ? (
+                  <div className="py-8 text-center text-[13px] text-fg-3">
+                    No exchange accounts connected yet
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {exchanges.map((exchange) => (
+                      <button
+                        key={exchange.id}
+                        onClick={() => {
+                          setEditingExchange(exchange.id)
+                          setShowExchangeModal(true)
+                        }}
+                        className="group flex w-full items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2 transition-colors hover:border-line-strong hover:bg-surface-hover"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-surface-hover">
+                            <Building2 size={14} className="text-fg-2" />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-fg">
+                              {exchange.account_name || exchange.name}
+                              <PaperBadge
+                                exchangeType={exchange.exchange_type}
+                                language={language}
+                              />
+                            </p>
+                            <p className="text-xs text-fg-3 capitalize">
+                              {exchange.exchange_type || exchange.type}
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight
                           size={14}
                           className="text-fg-3 transition-colors group-hover:text-fg"
                         />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Exchanges Tab */}
-          {activeTab === 'exchanges' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] text-fg-3">
-                  {exchanges.length} account{exchanges.length !== 1 ? 's' : ''}{' '}
-                  connected
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingExchange(null)
-                    setShowExchangeModal(true)
-                  }}
-                  className="text-brand"
-                >
-                  <Plus size={14} />
-                  Add Exchange
-                </Button>
-              </div>
-
-              {exchanges.length === 0 ? (
-                <div className="py-8 text-center text-[13px] text-fg-3">
-                  No exchange accounts connected yet
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {exchanges.map((exchange) => (
-                    <button
-                      key={exchange.id}
-                      onClick={() => {
-                        setEditingExchange(exchange.id)
-                        setShowExchangeModal(true)
-                      }}
-                      className="group flex w-full items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2 transition-colors hover:border-line-strong hover:bg-surface-hover"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-surface-hover">
-                          <Building2 size={14} className="text-fg-2" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-medium text-fg">
-                            {exchange.account_name || exchange.name}
-                            <PaperBadge
-                              exchangeType={exchange.exchange_type}
-                              language={language}
-                            />
-                          </p>
-                          <p className="text-xs text-fg-3 capitalize">
-                            {exchange.exchange_type || exchange.type}
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight
-                        size={14}
-                        className="text-fg-3 transition-colors group-hover:text-fg"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Telegram Tab */}
-          {activeTab === 'telegram' && (
-            <div className="space-y-4">
-              <p className="text-[13px] text-fg-3">
-                Connect a Telegram bot to receive trading notifications and
-                interact with your traders.
-              </p>
-              <button
-                onClick={() => setShowTelegramModal(true)}
-                className="group flex w-full items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2 transition-colors hover:border-line-strong hover:bg-surface-hover"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-info-soft">
-                    <MessageCircle size={14} className="text-info" />
+                      </button>
+                    ))}
                   </div>
-                  <span className="text-sm font-medium text-fg">
-                    Configure Telegram Bot
-                  </span>
-                </div>
-                <ChevronRight
-                  size={14}
-                  className="text-fg-3 transition-colors group-hover:text-fg"
-                />
-              </button>
-            </div>
-          )}
-        </Card>
+                )}
+              </div>
+            )}
+
+            {/* Telegram Tab */}
+            {activeTab === 'telegram' && (
+              <div className="space-y-4">
+                <p className="text-[13px] text-fg-3">
+                  Connect a Telegram bot to receive trading notifications and
+                  interact with your traders.
+                </p>
+                <button
+                  onClick={() => setShowTelegramModal(true)}
+                  className="group flex w-full items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2 transition-colors hover:border-line-strong hover:bg-surface-hover"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-info-soft">
+                      <MessageCircle size={14} className="text-info" />
+                    </div>
+                    <span className="text-sm font-medium text-fg">
+                      Configure Telegram Bot
+                    </span>
+                  </div>
+                  <ChevronRight
+                    size={14}
+                    className="text-fg-3 transition-colors group-hover:text-fg"
+                  />
+                </button>
+              </div>
+            )}
+          </Card>
+        )}
       </div>
 
       {/* AI Model Modal */}

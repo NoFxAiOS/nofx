@@ -38,10 +38,6 @@ const DataPage = lazy(() =>
 const ReviewPage = lazy(() =>
   import('./pages/ReviewPage').then((m) => ({ default: m.ReviewPage }))
 )
-const SystemQualityPage = lazy(() => import('./pages/SystemQualityPage'))
-const ResearchLogPage = lazy(() => import('./pages/ResearchLogPage'))
-const FactorMiningPage = lazy(() => import('./pages/FactorMiningPage'))
-const PaperPromotionPage = lazy(() => import('./pages/PaperPromotionPage'))
 import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
 import HeaderBar from './components/common/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -68,10 +64,6 @@ type Page =
   | 'strategy'
   | 'data'
   | 'review'
-  | 'system-quality'
-  | 'research-log'
-  | 'factor-mining'
-  | 'paper-promotion'
   | 'login'
   | 'register'
 
@@ -98,14 +90,6 @@ function App() {
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/data' || hash === 'data') return 'data'
     if (path === '/review' || hash === 'review') return 'review'
-    if (path === '/system-quality' || hash === 'system-quality')
-      return 'system-quality'
-    if (path === '/research-log' || hash === 'research-log')
-      return 'research-log'
-    if (path === '/factor-mining' || hash === 'factor-mining')
-      return 'factor-mining'
-    if (path === '/paper-promotion' || hash === 'paper-promotion')
-      return 'paper-promotion'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -126,10 +110,6 @@ function App() {
       competition: '/competition',
       data: '/data',
       review: '/review',
-      'system-quality': '/system-quality',
-      'research-log': '/research-log',
-      'factor-mining': '/factor-mining',
-      'paper-promotion': '/paper-promotion',
       traders: '/traders',
       trader: '/dashboard',
       strategy: '/strategy',
@@ -546,133 +526,16 @@ function App() {
       </div>
     )
   }
-  // System quality page (系统质量) - requires authentication
-  if (route === '/system-quality') {
-    if ((!user || !token) && !hasPersistedAuth) {
-      return <Redirect to="/login" />
-    }
-    return (
-      <div
-        className="min-h-screen"
-        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="system-quality"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
-        />
-        <main className="pt-[52px]">
-          <SystemQualityPage language={language} />
-        </main>
-        <LoginRequiredOverlay
-          isOpen={loginOverlayOpen}
-          onClose={() => setLoginOverlayOpen(false)}
-          featureName={loginOverlayFeature}
-        />
-      </div>
-    )
+  // 系统质量 / 因子挖掘 / 晋升报告 / 研究记录 已并入系统设置页，旧路径跳转到对应标签
+  const settingsTabByPath: Record<string, string> = {
+    '/system-quality': 'quality',
+    '/factor-mining': 'factor-mining',
+    '/paper-promotion': 'paper-promotion',
+    '/research-log': 'research-log',
   }
-  // Factor mining page (因子挖掘) - requires authentication
-  if (route === '/factor-mining') {
-    if ((!user || !token) && !hasPersistedAuth) {
-      return <Redirect to="/login" />
-    }
-    return (
-      <div
-        className="min-h-screen"
-        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="factor-mining"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
-        />
-        <main className="pt-[52px]">
-          <FactorMiningPage language={language} />
-        </main>
-        <LoginRequiredOverlay
-          isOpen={loginOverlayOpen}
-          onClose={() => setLoginOverlayOpen(false)}
-          featureName={loginOverlayFeature}
-        />
-      </div>
-    )
+  if (settingsTabByPath[route]) {
+    return <Redirect to={`/settings#${settingsTabByPath[route]}`} />
   }
-
-  // Paper promotion report (模拟盘晋升报告) - requires authentication
-  if (route === '/paper-promotion') {
-    if ((!user || !token) && !hasPersistedAuth) {
-      return <Redirect to="/login" />
-    }
-    return (
-      <div
-        className="min-h-screen"
-        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="paper-promotion"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
-        />
-        <main className="pt-[52px]">
-          <PaperPromotionPage language={language} />
-        </main>
-        <LoginRequiredOverlay
-          isOpen={loginOverlayOpen}
-          onClose={() => setLoginOverlayOpen(false)}
-          featureName={loginOverlayFeature}
-        />
-      </div>
-    )
-  }
-
-  // Research log page (量化研究记录) - requires authentication
-  if (route === '/research-log') {
-    if ((!user || !token) && !hasPersistedAuth) {
-      return <Redirect to="/login" />
-    }
-    return (
-      <div
-        className="min-h-screen"
-        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="research-log"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
-        />
-        <main className="pt-[52px]">
-          <ResearchLogPage language={language} />
-        </main>
-        <LoginRequiredOverlay
-          isOpen={loginOverlayOpen}
-          onClose={() => setLoginOverlayOpen(false)}
-          featureName={loginOverlayFeature}
-        />
-      </div>
-    )
-  }
-  // Show landing page for root route
   if (route === '/' || route === '') {
     return <LandingPage />
   }

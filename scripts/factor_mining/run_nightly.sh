@@ -21,3 +21,10 @@ for FM_MARKET in crypto us; do
             echo "$FM_MARKET exited non-zero"
     ) >> "$FM_LOG" 2>&1
 done
+(
+    echo "=== promotion report $(date '+%Y-%m-%d %H:%M:%S') ==="
+    NOFX_DB="${NOFX_DB:-/Users/zhangyun/workspace/nofx/data/data.db}" \
+    PROMOTION_DIR="${PROMOTION_DIR:-/Users/zhangyun/workspace/nofx/data/promotion}" \
+    "$AR_PYTHON" -m scripts.promotion.report || \
+        echo "promotion report exited non-zero"
+) >> "$FM_LOG" 2>&1

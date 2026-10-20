@@ -41,6 +41,7 @@ const ReviewPage = lazy(() =>
 const SystemQualityPage = lazy(() => import('./pages/SystemQualityPage'))
 const ResearchLogPage = lazy(() => import('./pages/ResearchLogPage'))
 const FactorMiningPage = lazy(() => import('./pages/FactorMiningPage'))
+const PaperPromotionPage = lazy(() => import('./pages/PaperPromotionPage'))
 import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
 import HeaderBar from './components/common/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -70,6 +71,7 @@ type Page =
   | 'system-quality'
   | 'research-log'
   | 'factor-mining'
+  | 'paper-promotion'
   | 'login'
   | 'register'
 
@@ -102,6 +104,8 @@ function App() {
       return 'research-log'
     if (path === '/factor-mining' || hash === 'factor-mining')
       return 'factor-mining'
+    if (path === '/paper-promotion' || hash === 'paper-promotion')
+      return 'paper-promotion'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -125,6 +129,7 @@ function App() {
       'system-quality': '/system-quality',
       'research-log': '/research-log',
       'factor-mining': '/factor-mining',
+      'paper-promotion': '/paper-promotion',
       traders: '/traders',
       trader: '/dashboard',
       strategy: '/strategy',
@@ -594,6 +599,38 @@ function App() {
         />
         <main className="pt-[52px]">
           <FactorMiningPage language={language} />
+        </main>
+        <LoginRequiredOverlay
+          isOpen={loginOverlayOpen}
+          onClose={() => setLoginOverlayOpen(false)}
+          featureName={loginOverlayFeature}
+        />
+      </div>
+    )
+  }
+
+  // Paper promotion report (模拟盘晋升报告) - requires authentication
+  if (route === '/paper-promotion') {
+    if ((!user || !token) && !hasPersistedAuth) {
+      return <Redirect to="/login" />
+    }
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: 'var(--bg)', color: 'var(--fg)' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="paper-promotion"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
+        />
+        <main className="pt-[52px]">
+          <PaperPromotionPage language={language} />
         </main>
         <LoginRequiredOverlay
           isOpen={loginOverlayOpen}

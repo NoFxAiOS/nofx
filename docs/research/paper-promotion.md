@@ -62,3 +62,38 @@
 ```sh
 /Users/zhangyun/workspace/nofx/.venv/bin/python -m unittest discover -s scripts/promotion/tests -t . -q
 ```
+
+## 一键建对
+
+`scripts/promotion/create_pair.py` 从正式交易员克隆一对独立模拟账户、策略和交易员。默认 **dry-run**：以 SQLite `mode=ro` 打开数据库，只打印六条 INSERT SQL、绑定参数、对象和合并后的 `pairs.json`，不写数据库、配置、备份或目录。源交易所不能是 paper；源策略必须是 JSON 对象；数据库缺少 `exchanges.paper_config` 时会提示「请先用包含 paper 支持的新版后端启动一次完成迁移」，脚本不会代做迁移。
+
+在本工作树根目录执行预览，将 `<source-trader-id>` 换成现有正式交易员 id：
+
+```sh
+PROMOTION_DIR=/Users/zhangyun/workspace/nofx/.claude/worktrees/youthful-bassi-0f1445/data/promotion \
+/Users/zhangyun/workspace/nofx/.venv/bin/python -m scripts.promotion.create_pair \
+  --db /Users/zhangyun/workspace/nofx/data/data.db \
+  --source-trader '<source-trader-id>' \
+  --feature-path indicators.enable_factor_ensemble --feature-value true \
+  --pair-id factor-ensemble-v1 --title '因子 ensemble 验证' \
+  --initial-balance 1000 --taker-bps 5 --maker-bps 2 --slippage-bps 3 --leverage 5 \
+  --min-days 7 --min-trades 20 \
+  --backup-dir /Users/zhangyun/workspace/nofx/.claude/worktrees/youthful-bassi-0f1445/data/promotion/backups
+```
+
+核对后，**在同一命令末尾追加 `--apply`** 才会创建。`--db` 优先于 `NOFX_DB`，二者都未指定时使用主仓库 `data/data.db`（通过工作树 `.git/commondir` 定位）；`PROMOTION_DIR` 默认是脚本所在仓库根的 `data/promotion`，与 report.py 一致。`--backup-dir` 默认是 `PROMOTION_DIR/backups`。上例中的数值也是各参数默认值；费用和滑点须为 0–100 bps，模拟账户默认杠杆须为 1–125 的整数，最短验证期不能低于 7 天，最少成交笔数必须为正整数。
+
+候选和对照各有一个新 paper exchange（UUID），绝不共用虚拟账户；交易所名称均为 `Paper Futures (模拟盘)`，账户名为 `<pair-id>-cand` / `<pair-id>-ctrl`。`--leverage` 写入 paper_config 的 `default_leverage`；交易员原有杠杆、策略风控及其余交易设置均从源复制。策略及交易员名称是 `<title>-候选` / `<title>-对照`；交易员 id 沿用后端的「交易所 UUID 前 8 位 + 模型 id + UUID」风格。两侧均不运行、不参与竞赛，run_version 为 0，策略的 is_active/is_default/is_public 为 0。脚本不自动启动交易员。
+
+`--feature-value` 是 JSON 值（例如 `true`、`0.5`、`'"text"'`）。对照策略 config 与源字符串逐字节相同；候选只替换指定点路径的 JSON 值，其余字节不动。路径中间节点缺失时补建对象，遇到数组、标量或 null 则拒绝；重复 JSON 键也拒绝。候选/对照是否对应「开启/关闭」取决于所给新值与源值，预览时应核对。策略和交易员的其他列完整克隆，包括未来新增列。
+
+apply 先取得写事务并使用 SQLite backup API 生成含已提交 WAL 内容的独立备份，再以单个事务插入 2 个交易所、2 个策略、2 个交易员。备份失败立即中止。`pairs.json` 经同目录临时文件、fsync、原子替换合并写入，保留原有 pair 和额外元数据，拒绝重复 pair-id；插入或配置文件写入失败会回滚全部新行，提交失败会恢复原配置文件。SQLite 与 JSON 文件不能组成跨文件的崩溃原子事务，进程或机器骤停后应对照备份与最终清单核对。
+
+新 pair 的 `live_trader_id` 指向源交易员，`started_at` 为 null，并按约定保留 `note: "首次启动后用 report.py --set-started 回填"`。当前 report.py 没有 `--set-started`，实际应先在界面手动启动两个新交易员，再在首次启动当天执行：
+
+```sh
+PROMOTION_DIR=/Users/zhangyun/workspace/nofx/.claude/worktrees/youthful-bassi-0f1445/data/promotion \
+/Users/zhangyun/workspace/nofx/.venv/bin/python -m scripts.promotion.create_pair start factor-ensemble-v1
+```
+
+`start` 是显式写入 `pairs.json` 的子命令，无需 `--apply`：仅将 started_at 记录为当前 UTC 并更新 note，不访问数据库、不启动交易员；已有时间会拒绝重置，避免缩短统计窗口。回填前不要运行该目录的 report.py（其要求每个 pair 都有有效 started_at）。之后以相同 `PROMOTION_DIR` 和所用数据库的 `NOFX_DB` 运行 report.py，至少验证一周再人工评估。

@@ -7,4 +7,5 @@ DST=${AR_RUNTIME:-/Users/zhangyun/workspace/nofx-autoresearch}
 mkdir -p "$DST/scripts"
 touch "$DST/scripts/__init__.py"
 rsync -a --delete --exclude '__pycache__' --exclude '*.pyc' --exclude 'tests' "$SRC/scripts/factor_mining/" "$DST/scripts/factor_mining/"
+rsync -a --delete --exclude '__pycache__' --exclude '*.pyc' --exclude 'tests' "$SRC/scripts/promotion/" "$DST/scripts/promotion/"
 echo "synced to $DST/scripts/factor_mining"

@@ -33,6 +33,7 @@ type Page =
   | 'system-quality'
   | 'research-log'
   | 'factor-mining'
+  | 'paper-promotion'
   | 'login'
   | 'register'
 
@@ -104,6 +105,12 @@ function buildNavTabs(language: Language): NavTab[] {
       page: 'factor-mining',
       path: '/factor-mining',
       label: language === 'zh' ? '因子挖掘' : 'Factor Mining',
+      requiresAuth: true,
+    },
+    {
+      page: 'paper-promotion',
+      path: '/paper-promotion',
+      label: t('paperPromotionNav', language),
       requiresAuth: true,
     },
     {

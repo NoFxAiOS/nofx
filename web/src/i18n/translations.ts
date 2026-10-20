@@ -35,6 +35,7 @@ export const translations = {
     dashboardNav: 'Dashboard',
     strategyNav: 'Strategy',
     reviewNav: 'Review',
+    paperPromotionNav: 'Paper Promotion',
     faqNav: 'FAQ',
 
     // Footer
@@ -1797,6 +1798,7 @@ export const translations = {
     dashboardNav: '看板',
     strategyNav: '策略',
     reviewNav: '复盘',
+    paperPromotionNav: '晋升报告',
     faqNav: '常见问题',
 
     // Footer
@@ -3466,6 +3468,7 @@ export const translations = {
 
     // Navigation
     realtimeNav: 'Papan Peringkat',
+    paperPromotionNav: 'Promosi Paper',
     configNav: 'Konfigurasi',
     dashboardNav: 'Dasbor',
     strategyNav: 'Strategi',

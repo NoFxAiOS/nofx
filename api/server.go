@@ -276,6 +276,10 @@ CRITICAL: Always use the "id" field for strategy_id.`,
 			s.route(protected, "GET", "/system-quality", "System health: per-cycle AI-call duration stats, success rate, failure categories (?trader_id=&hours=24)", s.handleSystemQuality)
 			s.route(protected, "GET", "/factor-mining/overview", "Read-only factor mining status, factor zoo and ensembles", s.handleFactorMiningOverview)
 			s.route(protected, "GET", "/factor-mining/runs", "Recent factor mining runs (?limit=50, max 500), newest first", s.handleFactorMiningRuns)
+			s.routeWithSchema(protected, "GET", "/promotion/report", "Read-only paper promotion report; never changes trader configuration",
+				`No parameters. Returns report.json verbatim: {"generated_at":<UTC ISO8601 or null>,"pairs":[{"id":<string>,"candidate":<statistics>,"control":<statistics>,"live":<optional statistics>,"paired_daily":<comparison>,"weekly_avg_r":<comparison>,"verdict":"insufficient|ready|hold","reasons":[<string>],"caveats":<string>}]}.
+Missing or unreadable report: {"pairs":[],"generated_at":null}. Statistics use fractional rates. Manual promotion only after at least 7 days of positive paper validation; this endpoint never modifies configuration.`,
+				s.handlePromotionReport)
 			s.route(protected, "GET", "/strategies/:id", "Get strategy by ID", s.handleGetStrategy)
 			s.route(protected, "GET", "/strategies/:id/versions", "Config version history for one strategy: append-only snapshots with field-level diffs + realized trade stats (win rate / net PnL / profit factor / avg R) per version's active window", s.handleGetStrategyVersions)
 			s.routeWithSchema(protected, "POST", "/strategies", "Create a new trading strategy",

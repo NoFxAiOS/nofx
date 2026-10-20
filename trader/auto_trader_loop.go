@@ -846,7 +846,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		CandidateCoins: candidateCoins,
 		// F10 (2026-10-01 review): analysis/anchor data pinned to the
 		// EXECUTION venue — Binance data must not drive another venue's book.
-		Exchange: at.exchange,
+		Exchange: at.marketDataExchange(),
 		// Daily-loss halt baseline (user audit 2026-10-01: the −10% day
 		// anchor was invisible to the model). anchorDailyBaseline ran earlier
 		// this cycle, so the anchor is current.

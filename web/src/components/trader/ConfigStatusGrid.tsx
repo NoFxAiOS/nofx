@@ -1,3 +1,4 @@
+import { PaperBadge } from './PaperBadge'
 import {
   Brain,
   Landmark,
@@ -253,6 +254,10 @@ export function ConfigStatusGrid({
                     <div className="text-sm font-medium text-fg group-hover:text-brand transition-colors truncate">
                       {exchange.exchange_type?.toUpperCase() ||
                         getShortName(exchange.name)}
+                      <PaperBadge
+                        exchangeType={exchange.exchange_type}
+                        language={language}
+                      />
                       <span className="text-[11px] font-normal text-fg-3 ml-2 border border-line px-1 rounded">
                         {exchange.account_name || t('defaultAccount', language)}
                       </span>

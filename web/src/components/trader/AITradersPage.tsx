@@ -7,6 +7,7 @@ import type {
   CreateTraderRequest,
   AIModel,
   Exchange,
+  PaperConfig,
   ExchangeAccountState,
 } from '../../types'
 import { useLanguage } from '../../contexts/LanguageContext'
@@ -778,7 +779,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     lighterWalletAddr?: string,
     lighterPrivateKey?: string,
     lighterApiKeyPrivateKey?: string,
-    lighterApiKeyIndex?: number
+    lighterApiKeyIndex?: number,
+    paperConfig?: PaperConfig
   ) => {
     try {
       if (exchangeId) {
@@ -791,6 +793,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         const request = {
           exchanges: {
             [exchangeId]: {
+              paper_config: paperConfig,
+              account_name: accountName,
               enabled: true,
               api_key: apiKey || '',
               secret_key: secretKey || '',
@@ -813,6 +817,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       } else {
         const createRequest = {
           exchange_type: exchangeType,
+          paper_config: paperConfig,
           account_name: accountName,
           enabled: true,
           api_key: apiKey || '',

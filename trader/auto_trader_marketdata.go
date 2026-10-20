@@ -20,9 +20,9 @@ func (at *AutoTrader) getMarketData(symbol string) (*market.Data, error) {
 		return nil, fmt.Errorf("get %s execution price from %s: %w", symbol, at.exchange, err)
 	}
 	if price <= 0 {
-		return nil, fmt.Errorf("invalid %s execution price from %s: %g", symbol, at.exchange, price)
+		return nil, fmt.Errorf("invalid %s execution price from %s: %g", symbol, at.marketDataExchange(), price)
 	}
-	return market.GetWithExchangeAndPrice(symbol, at.exchange, price)
+	return market.GetWithExchangeAndPrice(symbol, at.marketDataExchange(), price)
 }
 
 func (at *AutoTrader) getMarketTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*market.Data, error) {
@@ -31,7 +31,7 @@ func (at *AutoTrader) getMarketTimeframes(symbol string, timeframes []string, pr
 		return nil, fmt.Errorf("get %s execution price from %s: %w", symbol, at.exchange, err)
 	}
 	if price <= 0 {
-		return nil, fmt.Errorf("invalid %s execution price from %s: %g", symbol, at.exchange, price)
+		return nil, fmt.Errorf("invalid %s execution price from %s: %g", symbol, at.marketDataExchange(), price)
 	}
-	return market.GetWithTimeframesForExchange(symbol, timeframes, primaryTimeframe, count, at.exchange, price)
+	return market.GetWithTimeframesForExchange(symbol, timeframes, primaryTimeframe, count, at.marketDataExchange(), price)
 }

@@ -7,6 +7,7 @@ import (
 	"nofx/logger"
 	"nofx/store"
 	"nofx/trader"
+	"nofx/trader/paper"
 	"runtime/debug"
 	"sort"
 	"sync"
@@ -788,6 +789,14 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 
 	// Set API keys based on exchange type (convert EncryptedString to string)
 	switch exchangeCfg.ExchangeType {
+	case "paper":
+		cfg, err := exchangeCfg.ParsePaperConfig()
+		if err != nil {
+			return err
+		}
+		traderConfig.PaperConfig = &paper.Config{ExchangeID: exchangeCfg.ID, InitialBalance: cfg.InitialBalance,
+			TakerFeeBps: cfg.TakerFeeBps, MakerFeeBps: cfg.MakerFeeBps, SlippageBps: cfg.SlippageBps, DefaultLeverage: cfg.DefaultLeverage}
+		traderConfig.InitialBalance = cfg.InitialBalance
 	case "binance":
 		traderConfig.BinanceAPIKey = string(exchangeCfg.APIKey)
 		traderConfig.BinanceSecretKey = string(exchangeCfg.SecretKey)

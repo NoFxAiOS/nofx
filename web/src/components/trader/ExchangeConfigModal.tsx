@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import type { Exchange } from '../../types'
+import type { Exchange, PaperConfig } from '../../types'
 import { t, type Language } from '../../i18n/translations'
 import { api } from '../../lib/api'
 import { getExchangeIcon } from '../common/ExchangeIcons'
@@ -27,9 +27,11 @@ import {
 import { toast } from 'sonner'
 import { Tooltip } from './Tooltip'
 import { getShortName } from './utils'
+import { PaperBadge } from './PaperBadge'
 
 // Supported exchange templates
 const SUPPORTED_EXCHANGE_TEMPLATES = [
+  { exchange_type: 'paper', name: 'Paper Futures', type: 'paper' as const },
   { exchange_type: 'binance', name: 'Binance Futures', type: 'cex' as const },
   {
     exchange_type: 'binance_stocks',
@@ -65,7 +67,8 @@ interface ExchangeConfigModalProps {
     lighterWalletAddr?: string,
     lighterPrivateKey?: string,
     lighterApiKeyPrivateKey?: string,
-    lighterApiKeyIndex?: number
+    lighterApiKeyIndex?: number,
+    paperConfig?: PaperConfig
   ) => Promise<void>
   onDelete: (exchangeId: string) => void
   onClose: () => void
@@ -187,6 +190,13 @@ export function ExchangeConfigModal({
   const [apiKey, setApiKey] = useState('')
   const [secretKey, setSecretKey] = useState('')
   const [passphrase, setPassphrase] = useState('')
+  const [paperConfig, setPaperConfig] = useState<PaperConfig>({
+    initial_balance: 1000,
+    taker_fee_bps: 5,
+    maker_fee_bps: 2,
+    slippage_bps: 3,
+    default_leverage: 5,
+  })
   const [testnet, setTestnet] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
   const [serverIP, setServerIP] = useState<{
@@ -273,6 +283,8 @@ export function ExchangeConfigModal({
   useEffect(() => {
     if (editingExchangeId && selectedExchange) {
       setAccountName(selectedExchange.account_name || '')
+      if (selectedExchange.paper_config)
+        setPaperConfig(selectedExchange.paper_config)
       setApiKey(selectedExchange.apiKey || '')
       setSecretKey(selectedExchange.secretKey || '')
       setPassphrase('')
@@ -380,9 +392,48 @@ export function ExchangeConfigModal({
     const exchangeId = editingExchangeId || null
     const exchangeType = currentExchangeType || ''
 
+    if (currentExchangeType === 'paper') {
+      const bps = [
+        paperConfig.taker_fee_bps,
+        paperConfig.maker_fee_bps,
+        paperConfig.slippage_bps,
+      ]
+      if (
+        !Number.isFinite(paperConfig.initial_balance) ||
+        paperConfig.initial_balance <= 0 ||
+        bps.some(
+          (value) => !Number.isFinite(value) || value < 0 || value > 100
+        ) ||
+        !Number.isInteger(paperConfig.default_leverage) ||
+        paperConfig.default_leverage < 1 ||
+        paperConfig.default_leverage > 125
+      ) {
+        toast.error(t('paper.validation', language))
+        return
+      }
+    }
     setIsSaving(true)
     try {
-      if (
+      if (currentExchangeType === 'paper') {
+        await onSave(
+          exchangeId,
+          exchangeType,
+          trimmedAccountName,
+          '',
+          '',
+          '',
+          false,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          paperConfig
+        )
+      } else if (
         currentExchangeType === 'binance' ||
         currentExchangeType === 'bybit' ||
         currentExchangeType === 'indodax'
@@ -594,6 +645,19 @@ export function ExchangeConfigModal({
                   {t('exchangeConfig.chooseExchange', language)}
                 </div>
 
+                <div className="space-y-3">
+                  <div className="text-xs font-medium text-ai">
+                    {t('paper.name', language)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectExchange('paper')}
+                    className="w-full rounded-xl border border-ai/40 bg-ai-soft p-4 text-left font-semibold text-ai"
+                  >
+                    {t('paper.name', language)}
+                  </button>
+                </div>
+
                 {/* CEX */}
                 <div className="space-y-3">
                   <div
@@ -673,50 +737,58 @@ export function ExchangeConfigModal({
                     className="font-semibold text-lg"
                     style={{ color: 'var(--fg)' }}
                   >
-                    {getShortName(selectedTemplate.name)}
+                    {currentExchangeType === 'paper'
+                      ? t('paper.name', language)
+                      : getShortName(selectedTemplate.name)}
+                    <PaperBadge
+                      exchangeType={currentExchangeType}
+                      language={language}
+                    />
                   </div>
                   <div className="text-xs" style={{ color: 'var(--fg-3)' }}>
                     {selectedTemplate.type.toUpperCase()} •{' '}
                     {selectedTemplate.exchange_type}
                   </div>
                 </div>
-                <a
-                  href={
-                    exchangeRegistrationLinks[currentExchangeType || '']?.url ||
-                    '#'
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:scale-105"
-                  style={{
-                    background: 'var(--brand-soft)',
-                    border:
-                      '1px solid color-mix(in srgb, var(--brand) 30%, transparent)',
-                  }}
-                >
-                  <UserPlus
-                    className="w-4 h-4"
-                    style={{ color: 'var(--brand)' }}
-                  />
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: 'var(--brand)' }}
+                {currentExchangeType !== 'paper' && (
+                  <a
+                    href={
+                      exchangeRegistrationLinks[currentExchangeType || '']
+                        ?.url || '#'
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:scale-105"
+                    style={{
+                      background: 'var(--brand-soft)',
+                      border:
+                        '1px solid color-mix(in srgb, var(--brand) 30%, transparent)',
+                    }}
                   >
-                    {t('exchangeConfig.register', language)}
-                  </span>
-                  {exchangeRegistrationLinks[currentExchangeType || '']
-                    ?.hasReferral && (
+                    <UserPlus
+                      className="w-4 h-4"
+                      style={{ color: 'var(--brand)' }}
+                    />
                     <span
-                      className="text-xs px-1.5 py-0.5 rounded"
-                      style={{
-                        background: 'var(--up-soft)',
-                        color: 'var(--up)',
-                      }}
+                      className="text-sm font-medium"
+                      style={{ color: 'var(--brand)' }}
                     >
-                      {t('exchangeConfig.bonus', language)}
+                      {t('exchangeConfig.register', language)}
                     </span>
-                  )}
-                </a>
+                    {exchangeRegistrationLinks[currentExchangeType || '']
+                      ?.hasReferral && (
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded"
+                        style={{
+                          background: 'var(--up-soft)',
+                          color: 'var(--up)',
+                        }}
+                      >
+                        {t('exchangeConfig.bonus', language)}
+                      </span>
+                    )}
+                  </a>
+                )}
               </div>
 
               {/* Account Name */}
@@ -729,6 +801,7 @@ export function ExchangeConfigModal({
                   {t('exchangeConfig.accountName', language)} *
                 </label>
                 <input
+                  aria-label={t('exchangeConfig.accountName', language)}
                   type="text"
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
@@ -745,6 +818,61 @@ export function ExchangeConfigModal({
                   required
                 />
               </div>
+
+              {currentExchangeType === 'paper' && (
+                <>
+                  <p className="text-xs text-fg-3">
+                    {t('paper.description', language)}
+                  </p>
+                  {(
+                    [
+                      [
+                        'initial_balance',
+                        'initialBalance',
+                        0,
+                        undefined,
+                        'any',
+                      ],
+                      ['taker_fee_bps', 'takerFee', 0, 100, 'any'],
+                      ['maker_fee_bps', 'makerFee', 0, 100, 'any'],
+                      ['slippage_bps', 'slippage', 0, 100, 'any'],
+                      ['default_leverage', 'leverage', 1, 125, 1],
+                    ] as const
+                  ).map(([field, label, min, max, step]) => (
+                    <div className="space-y-2" key={field}>
+                      <label
+                        htmlFor={`paper-${field}`}
+                        className="text-sm font-semibold text-fg"
+                      >
+                        {t(`paper.${label}`, language)}
+                      </label>
+                      <input
+                        id={`paper-${field}`}
+                        type="number"
+                        min={min}
+                        max={max}
+                        step={step}
+                        required
+                        value={
+                          Number.isNaN(paperConfig[field])
+                            ? ''
+                            : paperConfig[field]
+                        }
+                        onChange={(e) =>
+                          setPaperConfig((previous) => ({
+                            ...previous,
+                            [field]:
+                              e.target.value === ''
+                                ? NaN
+                                : Number(e.target.value),
+                          }))
+                        }
+                        className="w-full px-4 py-3 rounded-xl bg-surface-2 border border-line text-fg"
+                      />
+                    </div>
+                  ))}
+                </>
+              )}
 
               {/* CEX Fields */}
               {(currentExchangeType === 'binance' ||

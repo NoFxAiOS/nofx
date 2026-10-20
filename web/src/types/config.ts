@@ -17,13 +17,22 @@ export interface TelegramConfig {
   model_id?: string // AI model selected for Telegram replies
 }
 
+export interface PaperConfig {
+  initial_balance: number
+  taker_fee_bps: number
+  maker_fee_bps: number
+  slippage_bps: number
+  default_leverage: number
+}
+
 export interface Exchange {
   id: string // UUID (empty for supported exchange templates)
   exchange_type: string // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
   account_name: string // User-defined account name
   name: string // Display name
-  type: 'cex' | 'dex'
+  type: 'cex' | 'dex' | 'stock' | 'paper'
   enabled: boolean
+  paper_config?: PaperConfig
   apiKey?: string
   secretKey?: string
   passphrase?: string // OKX specific
@@ -54,6 +63,7 @@ export interface ExchangeAccountState {
   status: ExchangeAccountStatus
   display_balance?: string
   asset?: string
+  unrealized_pnl?: number
   total_equity?: number
   available_balance?: number
   checked_at: string
@@ -66,6 +76,7 @@ export interface ExchangeAccountStateResponse {
 }
 
 export interface CreateExchangeRequest {
+  paper_config?: PaperConfig
   exchange_type: string // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
   account_name: string // User-defined account name
   enabled: boolean
@@ -119,6 +130,8 @@ export interface UpdateExchangeConfigRequest {
   exchanges: {
     [key: string]: {
       enabled: boolean
+      paper_config?: PaperConfig
+      account_name?: string
       api_key: string
       secret_key: string
       passphrase?: string

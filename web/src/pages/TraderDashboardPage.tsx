@@ -1,3 +1,4 @@
+import { PaperBadge } from '../components/trader/PaperBadge'
 import { useEffect, useState, useRef } from 'react'
 import { mutate } from 'swr'
 import { api } from '../lib/api'
@@ -86,7 +87,9 @@ function getExchangeTypeFromList(
   if (!exchangeId) return 'binance'
   const exchange = exchanges?.find((e) => e.id === exchangeId)
   if (!exchange) return 'binance' // Default to binance for charts
-  return exchange.exchange_type?.toLowerCase() || 'binance'
+  return exchange.exchange_type === 'paper'
+    ? 'binance'
+    : exchange.exchange_type?.toLowerCase() || 'binance'
 }
 
 // Helper function to check if exchange is a perp-dex type (wallet-based)
@@ -599,6 +602,10 @@ export function TraderDashboardPage({
                 exchanges
               )}
             </Badge>
+            <PaperBadge
+              exchangeType={currentExchange?.exchange_type}
+              language={language}
+            />
             <Badge variant="brand" title="Strategy">
               {selectedTrader.strategy_name || 'No Strategy'}
             </Badge>

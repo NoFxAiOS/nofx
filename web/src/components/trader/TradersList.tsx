@@ -1,3 +1,4 @@
+import { PaperBadge } from './PaperBadge'
 import {
   Bot,
   Users,
@@ -267,6 +268,10 @@ function TraderRow({
               trader.ai_model.split('_').pop() || trader.ai_model
             )}{' '}
             Model • {getExchangeDisplayName(trader.exchange_id, allExchanges)}
+            <PaperBadge
+              exchangeType={exchange?.exchange_type}
+              language={language}
+            />
           </div>
         </div>
       </div>

@@ -86,6 +86,8 @@ func missingExchangeFields(exchange *store.Exchange) []string {
 
 	var missing []string
 	switch exchange.ExchangeType {
+	case "paper":
+		return nil
 	case "binance", "binance_stocks", "bybit", "gate", "indodax":
 		if exchange.APIKey == "" {
 			missing = append(missing, "API Key")
@@ -171,6 +173,11 @@ func validateExchangeForTraderCreation(exchange *store.Exchange) (string, string
 	}
 
 	switch exchange.ExchangeType {
+	case "paper":
+		if _, err := exchange.ParsePaperConfig(); err != nil {
+			return err.Error(), "trader.create.exchange_invalid", nil
+		}
+		return "", "", nil
 	case "binance", "binance_stocks", "bybit", "okx", "bitget", "gate", "kucoin", "hyperliquid", "aster", "lighter", "indodax":
 		return "", "", nil
 	default:
@@ -461,6 +468,10 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			}
 		}
 	}
+	if len(sameAccountTraders) > 0 && exchangeCfg.ExchangeType == "paper" {
+		SafeBadRequest(c, "每个模拟盘账户只能绑定一个交易员，请为候选和对照分别新建模拟盘账户")
+		return
+	}
 	if len(sameAccountTraders) > 0 {
 		logger.Warnf("⚠️ [trader] New trader shares exchange account %s with: %s — no account-level risk reservation is shared between them (F11)",
 			exchangeDisplayName(exchangeCfg), strings.Join(sameAccountTraders, ", "))
@@ -469,7 +480,20 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	// us_stock: the probe below would read the FUTURES wallet as initial
 	// balance. The baseline is resolved at trader build time instead (spot
 	// equity live, paper ledger cash in paper mode), so keep the user input.
-	if !s.strategyIsUSStock(userID, req.StrategyID) {
+	if exchangeCfg.ExchangeType == "paper" {
+		cfg, _ := exchangeCfg.ParsePaperConfig() // validated above
+		actualBalance = cfg.InitialBalance
+		if ledger, err := s.store.PaperLedger().Get(exchangeCfg.ID); err == nil {
+			if ledger.TraderID != "" && ledger.TraderID != traderID {
+				SafeBadRequest(c, "该模拟盘账本已有交易员归属，请新建独立的模拟盘账户")
+				return
+			}
+			actualBalance = ledger.InitialBalance
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			SafeInternalError(c, "读取模拟盘账本失败", err)
+			return
+		}
+	} else if !s.strategyIsUSStock(userID, req.StrategyID) {
 		tempTrader, createErr := buildExchangeProbeTrader(exchangeCfg, userID)
 		if createErr != nil {
 			SafeBadRequestWithDetails(c, formatTraderCreationError(
@@ -633,12 +657,41 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SafeBadRequest(c, "AI model not found")
 		return
 	}
+	var paperInitialBalance float64
 	if ex, err := s.store.Exchange().GetByID(userID, req.ExchangeID); err != nil {
 		SafeBadRequest(c, "Exchange not found")
 		return
 	} else if err := store.ValidateExchangeEnvironment(ex.ExchangeType, ex.Testnet); err != nil {
 		SafeBadRequest(c, err.Error())
 		return
+	} else if ex.ExchangeType == "paper" {
+		cfg, err := ex.ParsePaperConfig()
+		if err != nil {
+			SafeBadRequest(c, err.Error())
+			return
+		}
+		bound, err := s.store.Trader().ListByExchangeID(userID, ex.ID)
+		if err != nil {
+			SafeInternalError(c, "读取模拟盘绑定失败", err)
+			return
+		}
+		for _, peer := range bound {
+			if peer.ID != traderID {
+				SafeBadRequest(c, "每个模拟盘账户只能绑定一个交易员，请选择独立的模拟盘账户")
+				return
+			}
+		}
+		paperInitialBalance = cfg.InitialBalance
+		if ledger, err := s.store.PaperLedger().Get(ex.ID); err == nil {
+			if ledger.TraderID != "" && ledger.TraderID != traderID {
+				SafeBadRequest(c, "该模拟盘账本已有交易员归属，请选择独立的模拟盘账户")
+				return
+			}
+			paperInitialBalance = ledger.InitialBalance
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			SafeInternalError(c, "读取模拟盘账本失败", err)
+			return
+		}
 	}
 	if req.StrategyID != "" {
 		if _, err := s.store.Strategy().Get(userID, req.StrategyID); err != nil {
@@ -696,6 +749,10 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	}
 	if resetInitialBalance {
 		initialBalance = 0
+	}
+	if paperInitialBalance > 0 {
+		initialBalance = paperInitialBalance
+		resetInitialBalance = false
 	}
 
 	// Update trader configuration

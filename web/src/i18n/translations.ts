@@ -2,6 +2,19 @@ export type Language = 'en' | 'zh' | 'id'
 
 export const translations = {
   en: {
+    paper: {
+      badge: 'Paper',
+      name: 'Paper Trading (Paper)',
+      initialBalance: 'Initial balance (USDT)',
+      takerFee: 'Taker fee (bps)',
+      makerFee: 'Maker fee (bps)',
+      slippage: 'Slippage (bps)',
+      leverage: 'Default leverage',
+      description:
+        'Each account has its own ledger. Use separate accounts for candidate and control traders. Changing the seed balance does not reset an existing ledger.',
+      validation:
+        'Initial balance must be positive, fees and slippage must be 0–100 bps, and leverage must be an integer from 1 to 125.',
+    },
     // Header
     appTitle: 'NOFX',
     subtitle: 'Multi-AI Model Trading Platform',
@@ -1751,6 +1764,19 @@ export const translations = {
     },
   },
   zh: {
+    paper: {
+      badge: '模拟盘',
+      name: '模拟盘 (Paper)',
+      initialBalance: '初始资金 (USDT)',
+      takerFee: 'Taker 手续费 (bps)',
+      makerFee: 'Maker 手续费 (bps)',
+      slippage: '滑点 (bps)',
+      leverage: '默认杠杆',
+      description:
+        '每个账户拥有独立账本；候选与对照交易员请使用不同账户。修改初始资金不会重置已有账本。',
+      validation:
+        '初始资金必须大于 0，手续费和滑点须在 0–100 bps 之间，杠杆须为 1–125 的整数。',
+    },
     // Header
     appTitle: 'NOFX',
     subtitle: '多AI模型交易平台',
@@ -3411,6 +3437,19 @@ export const translations = {
     },
   },
   id: {
+    paper: {
+      badge: 'Simulasi',
+      name: 'Simulasi (Paper)',
+      initialBalance: 'Saldo awal (USDT)',
+      takerFee: 'Biaya taker (bps)',
+      makerFee: 'Biaya maker (bps)',
+      slippage: 'Slippage (bps)',
+      leverage: 'Leverage bawaan',
+      description:
+        'Setiap akun memiliki ledger sendiri. Gunakan akun terpisah untuk trader kandidat dan kontrol. Mengubah saldo awal tidak mereset ledger.',
+      validation:
+        'Saldo awal harus positif, biaya dan slippage 0–100 bps, serta leverage bilangan bulat 1–125.',
+    },
     // Header
     appTitle: 'NOFX',
     subtitle: 'Platform Trading Multi-AI',

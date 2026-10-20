@@ -345,6 +345,9 @@ export function TraderConfigModal({
                         getShortName(
                           exchange.name || exchange.exchange_type || exchange.id
                         ).toUpperCase() +
+                        (exchange.exchange_type === 'paper'
+                          ? ` [${t('paper.badge', language)}]`
+                          : '') +
                         (exchange.account_name
                           ? ` - ${exchange.account_name}`
                           : ''),

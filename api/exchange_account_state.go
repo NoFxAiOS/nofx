@@ -1,7 +1,11 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"gorm.io/gorm"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,6 +46,7 @@ type ExchangeAccountState struct {
 	Status           string    `json:"status"`
 	DisplayBalance   string    `json:"display_balance,omitempty"`
 	Asset            string    `json:"asset,omitempty"`
+	UnrealizedPnL    float64   `json:"unrealized_pnl,omitempty"`
 	TotalEquity      float64   `json:"total_equity,omitempty"`
 	AvailableBalance float64   `json:"available_balance,omitempty"`
 	CheckedAt        time.Time `json:"checked_at"`
@@ -133,7 +138,7 @@ func (s *Server) getExchangeAccountStates(userID string) (map[string]ExchangeAcc
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			state := probeExchangeAccountState(exchangeCfg, userID)
+			state := probeExchangeAccountState(exchangeCfg, userID, s.store)
 			mu.Lock()
 			states[exchangeCfg.ID] = state
 			mu.Unlock()
@@ -146,7 +151,7 @@ func (s *Server) getExchangeAccountStates(userID string) (map[string]ExchangeAcc
 	return cloneExchangeAccountStates(states), nil
 }
 
-func probeExchangeAccountState(exchangeCfg *store.Exchange, userID string) ExchangeAccountState {
+func probeExchangeAccountState(exchangeCfg *store.Exchange, userID string, st *store.Store) ExchangeAccountState {
 	state := ExchangeAccountState{
 		ExchangeID: exchangeCfg.ID,
 		CheckedAt:  time.Now().UTC(),
@@ -157,6 +162,20 @@ func probeExchangeAccountState(exchangeCfg *store.Exchange, userID string) Excha
 		state.Status = exchangeAccountStatusDisabled
 		state.ErrorCode = "EXCHANGE_DISABLED"
 		state.ErrorMessage = "Exchange account is disabled"
+		return state
+	}
+
+	if exchangeCfg.ExchangeType == "paper" {
+		equity, available, unrealized, err := paperAccountBalance(st, exchangeCfg)
+		if err != nil {
+			state.Status = exchangeAccountStatusUnavailable
+			state.ErrorCode = "PAPER_LEDGER_UNAVAILABLE"
+			state.ErrorMessage = "无法读取模拟盘账本"
+			return state
+		}
+		state.Status = exchangeAccountStatusOK
+		state.TotalEquity, state.AvailableBalance, state.UnrealizedPnL = equity, available, unrealized
+		state.DisplayBalance = formatDisplayBalance(equity, state.Asset)
 		return state
 	}
 
@@ -326,6 +345,8 @@ func accountAssetForExchange(exchangeType string) string {
 
 func missingExchangeCredentials(exchangeCfg *store.Exchange) (status string, code string, message string, missing bool) {
 	switch exchangeCfg.ExchangeType {
+	case "paper":
+		return "", "", "", false
 	case "binance", "bybit", "gate", "indodax":
 		if exchangeCfg.APIKey == "" || exchangeCfg.SecretKey == "" {
 			return exchangeAccountStatusMissingCredentials, "MISSING_REQUIRED_FIELDS", "API key and secret key are required", true
@@ -384,4 +405,51 @@ func limitErrorMessage(message string) string {
 		return message
 	}
 	return message[:157] + "..."
+}
+
+// paperAccountBalance reads the persisted snapshot without advancing matching or
+// constructing another executor. A never-started account displays its seed cash.
+func paperAccountBalance(st *store.Store, ex *store.Exchange) (equity, available, unrealized float64, err error) {
+	cfg, err := ex.ParsePaperConfig()
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	ledger, err := st.PaperLedger().Get(ex.ID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return cfg.InitialBalance, cfg.InitialBalance, 0, nil
+	}
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	var snapshot struct {
+		Marks     map[string]float64
+		Positions map[string]struct {
+			Symbol, Side         string
+			Quantity, EntryPrice float64
+			Leverage             int
+		}
+	}
+	if err := json.Unmarshal([]byte(ledger.State), &snapshot); err != nil {
+		return 0, 0, 0, err
+	}
+	margin := 0.0
+	for _, pos := range snapshot.Positions {
+		mark := snapshot.Marks[pos.Symbol]
+		if pos.Leverage <= 0 || mark <= 0 {
+			return 0, 0, 0, fmt.Errorf("模拟盘账本持仓数据无效")
+		}
+		direction := 1.0
+		if pos.Side == "SHORT" {
+			direction = -1
+		}
+		unrealized += direction * (mark - pos.EntryPrice) * pos.Quantity
+		margin += mark * pos.Quantity / float64(pos.Leverage)
+	}
+	equity, available = ledger.WalletBalance+unrealized, ledger.WalletBalance-margin
+	for _, value := range []float64{equity, available, unrealized} {
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return 0, 0, 0, fmt.Errorf("模拟盘账本余额无效")
+		}
+	}
+	return equity, available, unrealized, nil
 }

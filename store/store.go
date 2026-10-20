@@ -213,6 +213,9 @@ func (s *Store) initTables() error {
 	if err := s.StockPaper().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize us_stock paper tables: %w", err)
 	}
+	if err := s.PaperLedger().InitTables(); err != nil {
+		return fmt.Errorf("failed to initialize futures paper ledger: %w", err)
+	}
 	if err := s.StockThesis().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize us_stock thesis tables: %w", err)
 	}

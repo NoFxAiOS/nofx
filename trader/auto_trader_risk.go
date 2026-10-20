@@ -1953,7 +1953,7 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 		symbolCapPct = 1.5
 	}
 	equity := ctx.Account.TotalEquity
-	if equity <= 0 && at.exchange == "binance" {
+	if equity <= 0 && isBinanceFuturesLike(at.exchange) {
 		return true, "cannot verify Binance symbol stop-risk without positive account equity", 0
 	}
 	if equity <= 0 || entryPx <= 0 || d.StopLoss <= 0 {
@@ -2056,7 +2056,7 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 				netCapPct, equity, projectedLong, projectedShort, netPct), candidateRisk
 		}
 	}
-	if at.exchange == "binance" && (symbolRisk+candidateRisk+symbolReserved)/equity*100 > symbolCapPct+1e-9 {
+	if isBinanceFuturesLike(at.exchange) && (symbolRisk+candidateRisk+symbolReserved)/equity*100 > symbolCapPct+1e-9 {
 		return true, fmt.Sprintf("%s gross long+short stop-risk would exceed %.2f%% of equity %.2f: existing %.2f + candidate %.2f + reserved-this-cycle %.2f USDT",
 			d.Symbol, symbolCapPct, equity, symbolRisk, candidateRisk, symbolReserved), candidateRisk
 	}

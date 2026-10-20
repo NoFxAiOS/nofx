@@ -202,8 +202,8 @@ func (at *AutoTrader) classifyRecentExitReasons() {
 
 func (at *AutoTrader) backfillExitExcursions() {
 	// market.GetKlinesRange is Binance-fapi-only — wrong prices for any other
-	// exchange deployment, so the replay stays binance-only by construction.
-	if at.exchange != "binance" {
+	// exchange deployment; paper uses the same public Binance futures prices.
+	if !isBinanceFuturesLike(at.exchange) {
 		return
 	}
 	rows, err := at.store.Position().GetClosedMissingExcursions(at.id, exitBackfillPerCycle)

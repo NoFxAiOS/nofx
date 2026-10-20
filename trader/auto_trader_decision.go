@@ -297,7 +297,7 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 	// Exchanges with OrderSync: Skip immediate order recording, let OrderSync handle it
 	// This ensures accurate data from GetTrades API and avoids duplicate records
 	switch at.exchange {
-	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster", "kucoin", "gate":
+	case "paper", "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster", "kucoin", "gate":
 		logger.Infof("  📝 Order submitted (id: %s), will be synced by OrderSync", orderID)
 		return
 	}

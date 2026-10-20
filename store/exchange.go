@@ -1,7 +1,9 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"nofx/crypto"
 	"nofx/logger"
 	"time"
@@ -37,6 +39,7 @@ type Exchange struct {
 	LighterPrivateKey       crypto.EncryptedString `gorm:"column:lighter_private_key;default:''" json:"lighterPrivateKey"`
 	LighterAPIKeyPrivateKey crypto.EncryptedString `gorm:"column:lighter_api_key_private_key;default:''" json:"lighterAPIKeyPrivateKey"`
 	LighterAPIKeyIndex      int                    `gorm:"column:lighter_api_key_index;default:0" json:"lighterAPIKeyIndex"`
+	PaperConfig             string                 `gorm:"column:paper_config;type:text;not null;default:''" json:"paper_config,omitempty"`
 	CreatedAt               time.Time              `json:"created_at"`
 	UpdatedAt               time.Time              `json:"updated_at"`
 }
@@ -167,6 +170,8 @@ func getExchangeNameAndType(exchangeType string) (name string, typ string) {
 	switch exchangeType {
 	case "binance", "binance_stocks":
 		return "Binance Futures", "cex"
+	case "paper":
+		return "Paper Futures (模拟盘)", "paper"
 	case "bybit":
 		return "Bybit Futures", "cex"
 	case "okx":
@@ -340,4 +345,92 @@ func (s *ExchangeStore) CreateLegacy(userID, id, name, typ string, enabled bool,
 		AsterPrivateKey:       crypto.EncryptedString(asterPrivateKey),
 	}
 	return s.db.Where("id = ?", id).FirstOrCreate(exchange).Error
+}
+
+// PaperConfig is the public, persistable configuration for one virtual account.
+// Execution-only dependencies and the account UUID are never supplied by clients.
+type PaperConfig struct {
+	InitialBalance  float64 `json:"initial_balance"`
+	TakerFeeBps     float64 `json:"taker_fee_bps"`
+	MakerFeeBps     float64 `json:"maker_fee_bps"`
+	SlippageBps     float64 `json:"slippage_bps"`
+	DefaultLeverage int     `json:"default_leverage"`
+}
+
+func DefaultPaperConfig() PaperConfig {
+	return PaperConfig{InitialBalance: 1000, TakerFeeBps: 5, MakerFeeBps: 2, SlippageBps: 3, DefaultLeverage: 5}
+}
+
+func (c PaperConfig) Validate() error {
+	if math.IsNaN(c.InitialBalance) || math.IsInf(c.InitialBalance, 0) || c.InitialBalance <= 0 {
+		return fmt.Errorf("模拟盘初始资金必须大于 0")
+	}
+	for _, field := range []struct {
+		name  string
+		value float64
+	}{
+		{"Taker 手续费", c.TakerFeeBps}, {"Maker 手续费", c.MakerFeeBps}, {"滑点", c.SlippageBps},
+	} {
+		if math.IsNaN(field.value) || math.IsInf(field.value, 0) || field.value < 0 || field.value > 100 {
+			return fmt.Errorf("模拟盘%s必须在 0 到 100 bps 之间", field.name)
+		}
+	}
+	if c.DefaultLeverage < 1 || c.DefaultLeverage > 125 {
+		return fmt.Errorf("模拟盘默认杠杆必须在 1 到 125 之间")
+	}
+	return nil
+}
+
+func (e *Exchange) ParsePaperConfig() (PaperConfig, error) {
+	cfg := DefaultPaperConfig()
+	if e.PaperConfig != "" {
+		if err := json.Unmarshal([]byte(e.PaperConfig), &cfg); err != nil {
+			return cfg, fmt.Errorf("模拟盘配置格式无效：%w", err)
+		}
+	}
+	return cfg, cfg.Validate()
+}
+
+// CreatePaper keeps the existing credential-based Create signature unchanged.
+func (s *ExchangeStore) CreatePaper(userID, accountName string, enabled bool, cfg PaperConfig) (string, error) {
+	if err := cfg.Validate(); err != nil {
+		return "", err
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return "", err
+	}
+	if accountName == "" {
+		accountName = "Default"
+	}
+	name, typ := getExchangeNameAndType("paper")
+	ex := &Exchange{ID: uuid.New().String(), UserID: userID, ExchangeType: "paper", AccountName: accountName,
+		Name: name, Type: typ, Enabled: enabled, PaperConfig: string(data)}
+	if err := s.db.Create(ex).Error; err != nil {
+		return "", err
+	}
+	return ex.ID, nil
+}
+
+// UpdatePaperConfig atomically updates the paper form; it never resets a ledger.
+func (s *ExchangeStore) UpdatePaperConfig(userID, id, accountName string, enabled bool, cfg PaperConfig) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	updates := map[string]interface{}{"paper_config": string(data), "enabled": enabled, "updated_at": time.Now().UTC()}
+	if accountName != "" {
+		updates["account_name"] = accountName
+	}
+	result := s.db.Model(&Exchange{}).Where("id = ? AND user_id = ? AND exchange_type = ?", id, userID, "paper").Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("exchange not found: id=%s, userID=%s", id, userID)
+	}
+	return nil
 }

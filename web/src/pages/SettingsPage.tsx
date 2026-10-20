@@ -23,8 +23,10 @@ import {
 import { ExchangeConfigModal } from '../components/trader/ExchangeConfigModal'
 import { TelegramConfigModal } from '../components/trader/TelegramConfigModal'
 import { ModelConfigModal } from '../components/trader/ModelConfigModal'
-import type { Exchange, AIModel } from '../types'
+import type { Exchange, AIModel, PaperConfig } from '../types'
 import { Badge, Button, Card, Input, Tabs } from '../components/ui'
+
+import { PaperBadge } from '../components/trader/PaperBadge'
 
 type Tab = 'account' | 'models' | 'exchanges' | 'telegram'
 
@@ -248,13 +250,16 @@ export function SettingsPage() {
     lighterWalletAddr?: string,
     lighterPrivateKey?: string,
     lighterApiKeyPrivateKey?: string,
-    lighterApiKeyIndex?: number
+    lighterApiKeyIndex?: number,
+    paperConfig?: PaperConfig
   ) => {
     try {
       if (exchangeId) {
         const request = {
           exchanges: {
             [exchangeId]: {
+              paper_config: paperConfig,
+              account_name: accountName,
               enabled: true,
               api_key: apiKey || '',
               secret_key: secretKey || '',
@@ -276,6 +281,7 @@ export function SettingsPage() {
       } else {
         const createRequest = {
           exchange_type: exchangeType,
+          paper_config: paperConfig,
           account_name: accountName,
           enabled: true,
           api_key: apiKey || '',
@@ -579,6 +585,10 @@ export function SettingsPage() {
                         <div className="text-left">
                           <p className="text-sm font-medium text-fg">
                             {exchange.account_name || exchange.name}
+                            <PaperBadge
+                              exchangeType={exchange.exchange_type}
+                              language={language}
+                            />
                           </p>
                           <p className="text-xs text-fg-3 capitalize">
                             {exchange.exchange_type || exchange.type}

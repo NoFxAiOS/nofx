@@ -21,6 +21,7 @@ import (
 	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
+	"nofx/trader/paper"
 	"nofx/trader/types"
 	"strings"
 	"sync"
@@ -38,8 +39,10 @@ type AutoTraderConfig struct {
 	AIModel string // AI model: "qwen" or "deepseek"
 
 	// Trading platform selection
-	Exchange   string // Exchange type: "binance", "bybit", "okx", "bitget", "gate", "hyperliquid", "aster" or "lighter"
-	ExchangeID string // Exchange account UUID (for multi-account support)
+	Exchange         string            // Exchange type, including credential-free "paper" futures
+	PaperConfig      *paper.Config     // Paper account settings (no credentials)
+	PaperPriceSource paper.PriceSource // Optional deterministic market dependency for tests
+	ExchangeID       string            // Exchange account UUID (for multi-account support)
 
 	// Binance API configuration
 	BinanceAPIKey          string
@@ -238,7 +241,19 @@ type AutoTrader struct {
 // Binance hedge legs must use isolated margin for this strategy. Other
 // exchanges keep their configured margin mode.
 func (at *AutoTrader) entryUsesCrossMargin() bool {
-	return at.exchange != "binance" && at.config.IsCrossMargin
+	return !isBinanceFuturesLike(at.exchange) && at.config.IsCrossMargin
+}
+
+// isBinanceFuturesLike identifies executors sharing Binance hedge-mode semantics
+// and public futures prices; authenticated streams remain capability-based.
+func isBinanceFuturesLike(exchange string) bool { return exchange == "binance" || exchange == "paper" }
+
+// marketDataExchange names the public venue underlying simulated execution.
+func (at *AutoTrader) marketDataExchange() string {
+	if isBinanceFuturesLike(at.exchange) {
+		return "binance"
+	}
+	return at.exchange
 }
 
 // NewAutoTrader creates an automatic trader
@@ -337,6 +352,36 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	}
 
 	switch config.Exchange {
+	case "paper":
+		if stockMode {
+			return nil, fmt.Errorf("模拟盘账户仅支持加密合约策略")
+		}
+		if config.PaperConfig == nil || config.ExchangeID == "" {
+			return nil, fmt.Errorf("模拟盘账户缺少配置或账户 ID")
+		}
+		cfg := *config.PaperConfig
+		cfg.ExchangeID = config.ExchangeID
+		publicCfg := store.PaperConfig{InitialBalance: cfg.InitialBalance, TakerFeeBps: cfg.TakerFeeBps, MakerFeeBps: cfg.MakerFeeBps, SlippageBps: cfg.SlippageBps, DefaultLeverage: cfg.DefaultLeverage}
+		if err := publicCfg.Validate(); err != nil {
+			return nil, err
+		}
+		price := config.PaperPriceSource
+		if price == nil {
+			price = paper.NewMarketPriceSource()
+		}
+		paperTrader := paper.New(cfg, st, price)
+		// Bind before any trading so a second trader cannot silently write to the
+		// first trader's ledger. Sync exposes initialization/binding errors.
+		if err := paperTrader.SyncOrdersFromBinance(config.ID, config.ExchangeID, "paper", st); err != nil {
+			return nil, fmt.Errorf("初始化模拟盘账户失败：%w", err)
+		}
+		trader = paperTrader
+		ledger, err := st.PaperLedger().Get(config.ExchangeID)
+		if err != nil {
+			return nil, err
+		}
+		// A configuration edit must not change the baseline of a restored account.
+		config.InitialBalance = ledger.InitialBalance
 	case "binance":
 		if stockMode {
 			break

@@ -77,7 +77,7 @@ func entryOrderOwnedBy(clientID, traderID string) bool {
 //     cancelled externally / expired) → resolve accordingly (fill = place
 //     protection NOW at the ACTUAL fill; cancel = protect any executed
 //     residue, then drop row).
-//  2. exchange scan → orphan sweep (Binance only — the lim- client-ID format
+//  2. exchange scan → orphan sweep (Binance/paper — the lim- client-ID format
 //     is verified there): open LIMIT orders tagged lim-<this trader> with no
 //     shadow row and no map entry are unowned leftovers — cancelled for
 //     re-evaluation. Untagged orders are left alone.
@@ -162,7 +162,7 @@ func (at *AutoTrader) ReconcilePendingEntries() {
 	}
 
 	// --- Step 2: orphan sweep on the exchange (Binance tag format) ------
-	if at.exchange != "binance" {
+	if !isBinanceFuturesLike(at.exchange) {
 		return
 	}
 	grid, ok := at.trader.(interface {

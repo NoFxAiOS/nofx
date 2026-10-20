@@ -182,6 +182,9 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	if err := at.entryExecutionBlocked(decision.Symbol, "long"); err != nil {
 		return err
 	}
+	if err := at.unknownSubmitBlocks(decision.Symbol, "long"); err != nil {
+		return err
+	}
 	logger.Infof("  📈 Open long: %s", decision.Symbol)
 
 	if marketData, err := at.getMarketData(decision.Symbol); err == nil {
@@ -296,7 +299,11 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	// Open position
 	order, err := at.trader.OpenLong(decision.Symbol, quantity, decision.Leverage)
 	if err != nil {
-		return err
+		return at.trackUnknownSubmit(err, "long", pendingEntry{
+			Symbol: decision.Symbol, Price: marketData.CurrentPrice, Quantity: quantity,
+			StopLoss: decision.StopLoss, TakeProfit: decision.TakeProfit,
+			Leverage: decision.Leverage, ExitMode: decision.ExitMode,
+		})
 	}
 
 	// Record order ID
@@ -458,6 +465,9 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	if err := at.entryExecutionBlocked(decision.Symbol, "short"); err != nil {
 		return err
 	}
+	if err := at.unknownSubmitBlocks(decision.Symbol, "short"); err != nil {
+		return err
+	}
 	logger.Infof("  📉 Open short: %s", decision.Symbol)
 
 	if marketData, err := at.getMarketData(decision.Symbol); err == nil {
@@ -573,7 +583,11 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	// Open position
 	order, err := at.trader.OpenShort(decision.Symbol, quantity, decision.Leverage)
 	if err != nil {
-		return err
+		return at.trackUnknownSubmit(err, "short", pendingEntry{
+			Symbol: decision.Symbol, Price: marketData.CurrentPrice, Quantity: quantity,
+			StopLoss: decision.StopLoss, TakeProfit: decision.TakeProfit,
+			Leverage: decision.Leverage, ExitMode: decision.ExitMode,
+		})
 	}
 
 	// Record order ID
@@ -723,11 +737,24 @@ func orderIDString(m map[string]interface{}) (string, bool) {
 // retry after one leg's failure cannot stack duplicate stops on qty-sized
 // adapters (OKX/Bybit); Binance closePosition dedupes via the -4130 self-heal.
 func (at *AutoTrader) placeProtectiveOrders(decision *kernel.Decision, positionSide string, quantity float64, refPrice, fillPrice float64) (slErr, tpErr error) {
+	return at.placeProtectiveOrdersTPDone(decision, positionSide, quantity, refPrice, fillPrice, 0)
+}
+
+// placeProtectiveOrdersTPDone is placeProtectiveOrders for a cumulative
+// quantity of which tpDone has ALREADY been realized by earlier take-profit
+// legs (2026-10-20 review area2 #7). The TP target is
+// quantity*fraction - tpDone, so a split TP that already filled is not
+// re-armed against the runner. tpDone == 0 is the unchanged legacy behavior.
+func (at *AutoTrader) placeProtectiveOrdersTPDone(decision *kernel.Decision, positionSide string, quantity float64, refPrice, fillPrice, tpDone float64) (slErr, tpErr error) {
 	mode := decision.ExitMode
 	if mode == "" {
 		mode = kernel.ExitModeTrend
 	}
 	tpQty := quantity * tpFractionForMode(mode, at.effectiveTPCloseFraction())
+	if tpDone > 0 {
+		tpQty = math.Max(0, tpQty-tpDone)
+	}
+	tpNeeded := decision.TakeProfit > 0 && (tpDone <= 0 || tpQty > math.Max(1e-9, quantity*1e-6))
 	if decision.StopLoss > 0 {
 		slErr = ensureProtectiveCoverage(at.trader, decision.Symbol, positionSide, "SL", decision.StopLoss, quantity)
 	}
@@ -743,10 +770,10 @@ func (at *AutoTrader) placeProtectiveOrders(decision *kernel.Decision, positionS
 			}
 		}
 	}
-	if decision.TakeProfit > 0 {
+	if tpNeeded {
 		tpErr = ensureProtectiveCoverage(at.trader, decision.Symbol, positionSide, "TP", decision.TakeProfit, tpQty)
 	}
-	verifiedSL, verifiedTP := at.verifyProtectiveLegs(decision, positionSide, decision.StopLoss > 0, decision.TakeProfit > 0, quantity, tpQty)
+	verifiedSL, verifiedTP := at.verifyProtectiveLegs(decision, positionSide, decision.StopLoss > 0, tpNeeded, quantity, tpQty)
 	if slErr == nil {
 		slErr = verifiedSL
 	}
@@ -1014,6 +1041,16 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, closePrice, 0, entryPrice)
 
+	// 2026-10-20 review area2 #2: a successful POST is not a closed position
+	// (a market close can part-fill and expire). Protection state and AI
+	// ownership are released only after a FRESH snapshot shows this side flat;
+	// a remainder keeps its SL/TP, recorded levels and AI mark so the watchdog
+	// and the next decision keep managing it. The per-cycle "position gone"
+	// sweep clears the registry once the remainder really disappears.
+	if !at.closeConfirmedFlat(decision.Symbol, "long") {
+		at.keepUnconfirmedClose(decision.Symbol, "long")
+		return nil
+	}
 	at.ClearRecordedStopLoss(decision.Symbol, "long")
 	at.ClearInitialStopLoss(decision.Symbol, "long")
 	at.ClearExitMode(decision.Symbol, "long")
@@ -1089,6 +1126,16 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, closePrice, 0, entryPrice)
 
+	// 2026-10-20 review area2 #2: a successful POST is not a closed position
+	// (a market close can part-fill and expire). Protection state and AI
+	// ownership are released only after a FRESH snapshot shows this side flat;
+	// a remainder keeps its SL/TP, recorded levels and AI mark so the watchdog
+	// and the next decision keep managing it. The per-cycle "position gone"
+	// sweep clears the registry once the remainder really disappears.
+	if !at.closeConfirmedFlat(decision.Symbol, "short") {
+		at.keepUnconfirmedClose(decision.Symbol, "short")
+		return nil
+	}
 	at.ClearRecordedStopLoss(decision.Symbol, "short")
 	at.ClearInitialStopLoss(decision.Symbol, "short")
 	at.ClearExitMode(decision.Symbol, "short")
@@ -1096,6 +1143,57 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	at.unmarkAIManaged(decision.Symbol, "short") // lifecycle complete — registry clean
 	logger.Infof("  ✓ Position closed successfully")
 	return nil
+}
+
+// closeFlatRetryDelay spaces the post-close position re-reads (test seam).
+var closeFlatRetryDelay = 400 * time.Millisecond
+
+// closeConfirmedFlat reports whether a fresh (cache-invalidated) position
+// snapshot shows NO position on symbol/side. A failed read is "not confirmed":
+// the caller must keep protection and ownership rather than assume success.
+func (at *AutoTrader) closeConfirmedFlat(symbol, side string) bool {
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			time.Sleep(closeFlatRetryDelay)
+		}
+		at.invalidateExecutionCache()
+		positions, err := at.trader.GetPositions()
+		if err != nil {
+			continue
+		}
+		held := false
+		for _, pos := range positions {
+			if pos["symbol"] != symbol || pos["side"] != side {
+				continue
+			}
+			if amt, ok := pos["positionAmt"].(float64); !ok || amt != 0 {
+				held = true
+				break
+			}
+		}
+		if !held {
+			return true
+		}
+	}
+	return false
+}
+
+// keepUnconfirmedClose is the "close submitted, flat NOT confirmed" outcome:
+// nothing is cleared, the operator is alerted, and the first-seen time is
+// seeded from the DB entry (when known) so the per-cycle position-gone sweep
+// can still release the AI mark if the remainder later disappears unseen.
+func (at *AutoTrader) keepUnconfirmedClose(symbol, side string) {
+	posKey := symbol + "_" + side
+	if _, exists := at.positionFirstSeenTime[posKey]; !exists {
+		if entryTime, _, ok := at.lookupOpenPositionEntry(symbol, side); ok && entryTime > 0 {
+			at.positionFirstSeenTime[posKey] = entryTime
+		}
+	}
+	logger.Warnf("⚠️ [%s] %s %s close submitted but the position is NOT confirmed flat (partial fill / stale snapshot) — keeping SL/TP, recorded stop and AI ownership",
+		at.name, symbol, side)
+	notify.Notify("ALERT", at.name, fmt.Sprintf(
+		"<b>⚠️ 平仓未确认归零 %s %s</b>\n<i>平仓单已提交但持仓未确认清空(可能部分成交),已保留保护单与 AI 归属,下周期继续管理</i>",
+		notify.Escape(symbol), side))
 }
 
 // closeReferencePrice returns the price recorded on a close action without

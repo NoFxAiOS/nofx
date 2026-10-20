@@ -133,6 +133,13 @@ func (at *AutoTrader) ReconcilePendingEntries() {
 				at.name, row.Symbol, row.OrderID, err)
 			continue
 		}
+		// An UNKNOWN-submit row is keyed by client ID; the exchange answered,
+		// so continue with the real order ID (marks/attribution need it).
+		if isUnknownEntryRef(row.OrderID) {
+			if id, ok := orderIDString(status); ok {
+				row.OrderID = id
+			}
+		}
 		st, _ := status["status"].(string)
 		switch strings.ToUpper(st) {
 		case "NEW", "PARTIALLY_FILLED":
@@ -148,6 +155,23 @@ func (at *AutoTrader) ReconcilePendingEntries() {
 			// CANCELED branch has always done this; the offline path
 			// silently dropped the residue.
 			pe := pendingEntryFromRow(row)
+			// 2026-10-20 review area2 #3: an executed slice may have been
+			// closed by hand before this restart — protecting/marking it then
+			// would claim a position that no longer exists (and a manual
+			// successor on the same symbol+side). Confirmed flat → drop the
+			// row and clear only this order's own mark.
+			if statusFloat(status, "executedQty") > 0 {
+				if found, known := at.offlineFillPositionState(row); known && !found {
+					at.dropPendingEntry(row.Symbol, row.Side)
+					if err := at.store.PendingEntry().Delete(at.id, row.Symbol, row.Side); err != nil {
+						logger.Infof("⚠️ [%s] Pending-entry %s: shadow row delete failed: %v", at.name, row.Symbol, err)
+					}
+					at.unmarkAIManagedIfEntry(row.Symbol, row.Side, row.OrderID)
+					logger.Infof("🔧 [%s] Pending-entry %s (order %s) %s with a fill while offline but no %s position exists now — row dropped, no protection placed",
+						at.name, row.Symbol, row.OrderID, st, row.Side)
+					continue
+				}
+			}
 			at.setPendingEntry(&pe)
 			at.protectExecutedSlice(&pe, status)
 			if !pendingProtectionComplete(&pe, status) {
@@ -229,9 +253,13 @@ func (at *AutoTrader) protectOfflineResidue(row *store.PendingEntryDB, status ma
 // complete, and only then drop the row.
 func (at *AutoTrader) finalizePendingFill(row *store.PendingEntryDB, status map[string]interface{}) {
 	// R6 (2026-09-26 review): the offline fill IS an AI fill (this is the
-	// AI's own pending entry) — mark ownership BEFORE anything else, so the
-	// hands-off watchdog can never classify it manual later.
-	at.markAIManaged(row.Symbol, row.Side, row.OrderID)
+	// AI's own pending entry), so ownership must exist before the hands-off
+	// watchdog can see the position. 2026-10-20 review area2 #3: but only
+	// AFTER the exchange confirms a position on this side — marking first
+	// left a live mark behind when the user had closed the position by hand,
+	// and the next manual position on the same symbol+side was then adopted.
+	// Unconfirmed paths below keep the plan live; the pending lifecycle marks
+	// at fill time, so they cannot leave the position unowned.
 	pe := pendingEntryFromRow(row)
 	executed, _, valid := fillReceipt(status)
 	if !valid || executed <= 0 {
@@ -270,11 +298,17 @@ func (at *AutoTrader) finalizePendingFill(row *store.PendingEntryDB, status map[
 		if err := at.store.PendingEntry().Delete(at.id, row.Symbol, row.Side); err != nil {
 			logger.Infof("⚠️ [%s] Pending-entry %s: shadow row delete failed: %v", at.name, row.Symbol, err)
 		}
+		// A mark left by this very entry order (written before the position
+		// went away) would authorize automation on the next manual position.
+		// Marks of other entry orders (a newer AI generation) are kept.
+		at.unmarkAIManagedIfEntry(row.Symbol, row.Side, row.OrderID)
 		logger.Infof("🔧 [%s] Pending-entry %s FILLED while offline but no %s position exists now (closed externally?) — row dropped, no protection placed",
 			at.name, row.Symbol, posSide)
 		return
 	}
 
+	// Position confirmed: now the fill is provably ours to own.
+	at.markAIManaged(row.Symbol, row.Side, row.OrderID)
 	at.protectExecutedSlice(&pe, status)
 	if !pendingProtectionComplete(&pe, status) {
 		// Protection did not complete — keep the plan live (in-memory map +
@@ -293,4 +327,27 @@ func (at *AutoTrader) finalizePendingFill(row *store.PendingEntryDB, status map[
 	logger.Infof("✅ [%s] Pending-entry %s FILLED while offline: protective orders placed at actual fill (plan SL %.6g / TP %.6g, protected %.6g)",
 		at.name, row.Symbol, row.StopLoss, row.TakeProfit, pe.ProtectedQty)
 	notify.Notify("ORDER", at.name, fmt.Sprintf("<b>📌 限价入场离线成交 %s</b>\n<i>%s,保护单已按实际成交价补挂</i>", notify.Escape(row.Symbol), row.Side))
+}
+
+// offlineFillPositionState reports whether the exchange currently holds a
+// position on the shadow row's side. known=false when the check itself failed
+// (callers must then treat the state as unconfirmed, never as flat).
+func (at *AutoTrader) offlineFillPositionState(row *store.PendingEntryDB) (found, known bool) {
+	if cache, ok := at.trader.(interface{ InvalidateAccountCache() }); ok {
+		cache.InvalidateAccountCache()
+	}
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return false, false
+	}
+	posSide := row.Side
+	if posSide != "short" {
+		posSide = "long"
+	}
+	for _, pos := range positions {
+		if pos["symbol"] == row.Symbol && pos["side"] == posSide {
+			return true, true
+		}
+	}
+	return false, true
 }

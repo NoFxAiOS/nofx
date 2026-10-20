@@ -1008,6 +1008,29 @@ func (at *AutoTrader) unmarkAIManaged(symbol, side string) {
 	}
 }
 
+// unmarkAIManagedIfEntry removes the live AI-managed mark only while it still
+// belongs to the given entry order. Stale recovery paths use it so they can
+// never delete the mark of a newer generation of the same symbol+side.
+// Returns true when a mark was removed.
+func (at *AutoTrader) unmarkAIManagedIfEntry(symbol, side, orderID string) bool {
+	if at.store == nil || orderID == "" {
+		return false
+	}
+	marks, err := at.store.AIManaged().List(at.id)
+	if err != nil {
+		logger.Warnf("🤖 [%s] AI-managed mark lookup failed for %s %s: %v — mark left untouched", at.name, symbol, side, err)
+		return false
+	}
+	side = strings.ToLower(side)
+	for _, m := range marks {
+		if m.Symbol == symbol && strings.ToLower(m.Side) == side && m.EntryOrderID == orderID {
+			at.unmarkAIManaged(symbol, side)
+			return true
+		}
+	}
+	return false
+}
+
 // isAIManaged reports whether the position belongs to the automation. A
 // missing store reads as AI-managed (degrade to old behavior rather than
 // dropping protection on everything during store outages).

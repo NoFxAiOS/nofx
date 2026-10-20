@@ -21,6 +21,28 @@ import (
 // could not be established. Callers must not blindly resubmit the entry.
 var ErrSubmitUnknown = errors.New("Binance entry submit state is UNKNOWN")
 
+// ClientOrderRefPrefix marks an order reference that is a client order ID
+// rather than a numeric exchange order ID. GetOrderStatus and CancelOrder
+// accept it so the execution layer can keep tracking an UNKNOWN submit (the
+// POST response was lost and the lookup failed) until the exchange answers.
+const ClientOrderRefPrefix = "client:"
+
+// SubmitUnknownError is the typed form of ErrSubmitUnknown. It carries the
+// symbol and the stable client order ID so callers can keep reconciling the
+// same order instead of treating the submit as a plain failure.
+type SubmitUnknownError struct {
+	Symbol        string
+	ClientOrderID string
+	submitErr     error
+	msg           string
+}
+
+func (e *SubmitUnknownError) Error() string { return e.msg }
+
+// Unwrap keeps errors.Is(err, ErrSubmitUnknown) and the original submit error
+// (e.g. *common.APIError) both reachable.
+func (e *SubmitUnknownError) Unwrap() []error { return []error{ErrSubmitUnknown, e.submitErr} }
+
 var unknownSubmitSleep = func(ctx context.Context, delay time.Duration) error {
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
@@ -144,7 +166,10 @@ func (t *FuturesTrader) submitEntryOrder(service *futures.CreateOrderService, tr
 	if notFound == 3 {
 		return nil, false, submitErr
 	}
-	return nil, false, fmt.Errorf("%w (%s clientOrderId=%s): submit: %w; lookup: %v", ErrSubmitUnknown, symbol, clientID, submitErr, lookupErr)
+	return nil, false, &SubmitUnknownError{
+		Symbol: symbol, ClientOrderID: clientID, submitErr: submitErr,
+		msg: fmt.Sprintf("%v (%s clientOrderId=%s): submit: %v; lookup: %v", ErrSubmitUnknown, symbol, clientID, submitErr, lookupErr),
+	}
 }
 
 // OpenLong opens a long position
@@ -325,8 +350,17 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 	if fullClose {
 		// R4 (2026-09-26 review): full close cancels THIS side's protection
 		// only — CancelAllOrders wiped the opposite side's SL/TP too.
-		if err := t.CancelProtectiveOrdersForSide(symbol, string(futures.PositionSideTypeLong)); err != nil {
-			logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
+		// 2026-10-20 review area2 #2: a successful POST is not a flat
+		// position (a market close can part-fill and expire) — only a fresh
+		// snapshot showing this side flat releases its protection. Otherwise
+		// the remainder keeps its SL/TP; OrderSync cleans them up once the
+		// close trades are accounted and the side is really flat.
+		if t.confirmSideFlatAfterClose(symbol, "long") {
+			if err := t.CancelProtectiveOrdersForSide(symbol, string(futures.PositionSideTypeLong)); err != nil {
+				logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
+			}
+		} else {
+			logger.Warnf("  ⚠ %s close submitted but the long position is not confirmed flat — keeping its SL/TP", symbol)
 		}
 	}
 
@@ -390,8 +424,17 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 	if fullClose {
 		// R4 (2026-09-26 review): full close cancels THIS side's protection
 		// only — CancelAllOrders wiped the opposite side's SL/TP too.
-		if err := t.CancelProtectiveOrdersForSide(symbol, string(futures.PositionSideTypeShort)); err != nil {
-			logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
+		// 2026-10-20 review area2 #2: a successful POST is not a flat
+		// position (a market close can part-fill and expire) — only a fresh
+		// snapshot showing this side flat releases its protection. Otherwise
+		// the remainder keeps its SL/TP; OrderSync cleans them up once the
+		// close trades are accounted and the side is really flat.
+		if t.confirmSideFlatAfterClose(symbol, "short") {
+			if err := t.CancelProtectiveOrdersForSide(symbol, string(futures.PositionSideTypeShort)); err != nil {
+				logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
+			}
+		} else {
+			logger.Warnf("  ⚠ %s close submitted but the short position is not confirmed flat — keeping its SL/TP", symbol)
 		}
 	}
 
@@ -400,6 +443,41 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 	result["symbol"] = order.Symbol
 	result["status"] = order.Status
 	return result, nil
+}
+
+// closeConfirmSleep spaces the post-close position re-reads (test seam).
+var closeConfirmSleep = time.Sleep
+
+// confirmSideFlatAfterClose re-reads the account (cache bypassed) and reports
+// whether the given side ("long"/"short") of symbol holds no position. A failed
+// read counts as NOT flat: callers then keep protection instead of stripping
+// it from a position that may still be open. One retry rides out a short
+// read-after-write lag right after the close order.
+func (t *FuturesTrader) confirmSideFlatAfterClose(symbol, side string) bool {
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			closeConfirmSleep(300 * time.Millisecond)
+		}
+		t.InvalidatePositionCache()
+		positions, err := t.GetPositions()
+		if err != nil {
+			continue
+		}
+		flat := true
+		for _, pos := range positions {
+			if pos["symbol"] != symbol || pos["side"] != side {
+				continue
+			}
+			if amt, ok := pos["positionAmt"].(float64); !ok || amt != 0 {
+				flat = false
+				break
+			}
+		}
+		if flat {
+			return true
+		}
+	}
+	return false
 }
 
 // CancelStopLossOrders cancels only stop-loss orders (doesn't affect take-profit orders)
@@ -422,6 +500,77 @@ func (t *FuturesTrader) CancelProgramProtectiveOrdersForSide(symbol, positionSid
 		return fmt.Errorf("invalid position side %q", positionSide)
 	}
 	return t.cancelProtectiveOrdersForSide(symbol, positionSide, true)
+}
+
+// ProtectiveOrderSnapshot is the set of program protective order IDs that
+// rested on one position side at the moment it was taken.
+type ProtectiveOrderSnapshot struct {
+	OrderIDs []int64
+	AlgoIDs  []int64
+}
+
+// Empty reports whether the snapshot holds nothing to cancel.
+func (s *ProtectiveOrderSnapshot) Empty() bool {
+	return s == nil || (len(s.OrderIDs) == 0 && len(s.AlgoIDs) == 0)
+}
+
+// SnapshotProgramProtectiveOrdersForSide lists (without cancelling) this
+// program's protective orders for the exact position side. Any listing error
+// is returned: an unknown set must never authorize a later cancel.
+func (t *FuturesTrader) SnapshotProgramProtectiveOrdersForSide(symbol, positionSide string) (*ProtectiveOrderSnapshot, error) {
+	if positionSide != string(futures.PositionSideTypeLong) && positionSide != string(futures.PositionSideTypeShort) && positionSide != string(futures.PositionSideTypeBoth) {
+		return nil, fmt.Errorf("invalid position side %q", positionSide)
+	}
+	snap := &ProtectiveOrderSnapshot{}
+	orders, err := t.client.NewListOpenOrdersService().Symbol(symbol).Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("list legacy orders: %w", err)
+	}
+	for _, order := range orders {
+		if isProtectiveOrderType(string(order.Type)) && string(order.PositionSide) == positionSide && strings.HasPrefix(order.ClientOrderID, BrIDPrefix) {
+			snap.OrderIDs = append(snap.OrderIDs, order.OrderID)
+		}
+	}
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().Symbol(symbol).Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("list algo orders: %w", err)
+	}
+	for _, algo := range algoOrders {
+		if isProtectiveOrderType(string(algo.OrderType)) && string(algo.PositionSide) == positionSide && strings.HasPrefix(algo.ClientAlgoId, BrIDPrefix) {
+			snap.AlgoIDs = append(snap.AlgoIDs, algo.AlgoId)
+		}
+	}
+	return snap, nil
+}
+
+// CancelProtectiveOrderSnapshot cancels exactly the IDs in a snapshot taken
+// BEFORE the caller confirmed the side flat. Orders placed afterwards (a new
+// position's SL/TP) carry new IDs and are therefore never touched, which the
+// re-enumerating CancelProgramProtectiveOrdersForSide could not guarantee
+// (2026-10-20 review area2 #4).
+func (t *FuturesTrader) CancelProtectiveOrderSnapshot(symbol, positionSide string, snap *ProtectiveOrderSnapshot) error {
+	if snap.Empty() {
+		return nil
+	}
+	var cancelErrors []error
+	for _, id := range snap.OrderIDs {
+		if _, err := t.client.NewCancelOrderService().Symbol(symbol).OrderID(id).Do(context.Background()); err != nil {
+			cancelErrors = append(cancelErrors, fmt.Errorf("order %d: %v", id, err))
+		} else {
+			logger.Infof("  Cancelled orphaned program protective order: %s %s orderId=%d", symbol, positionSide, id)
+		}
+	}
+	for _, id := range snap.AlgoIDs {
+		if _, err := t.client.NewCancelAlgoOrderService().AlgoID(id).Do(context.Background()); err != nil {
+			cancelErrors = append(cancelErrors, fmt.Errorf("algo %d: %v", id, err))
+		} else {
+			logger.Infof("  Cancelled orphaned program protective algo: %s %s algoId=%d", symbol, positionSide, id)
+		}
+	}
+	if len(cancelErrors) > 0 {
+		return fmt.Errorf("failed to cancel protective orders (%s %s): %v", symbol, positionSide, cancelErrors)
+	}
+	return nil
 }
 
 func isProtectiveOrderType(orderType string) bool {
@@ -877,16 +1026,19 @@ func validateOrderNotional(symbol string, quantity, price, minNotional float64) 
 // CancelOrder cancels a specific order by ID
 // This implements the GridTrader interface for FuturesTrader
 func (t *FuturesTrader) CancelOrder(symbol, orderID string) error {
-	// Parse order ID to int64
-	orderIDInt, err := strconv.ParseInt(orderID, 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid order ID: %w", err)
+	cancelService := t.client.NewCancelOrderService().Symbol(symbol)
+	if clientID, ok := strings.CutPrefix(orderID, ClientOrderRefPrefix); ok && clientID != "" {
+		// UNKNOWN-submit entry still tracked by its client order ID.
+		cancelService = cancelService.OrigClientOrderID(clientID)
+	} else {
+		// Parse order ID to int64
+		orderIDInt, err := strconv.ParseInt(orderID, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid order ID: %w", err)
+		}
+		cancelService = cancelService.OrderID(orderIDInt)
 	}
-
-	_, err = t.client.NewCancelOrderService().
-		Symbol(symbol).
-		OrderID(orderIDInt).
-		Do(context.Background())
+	_, err := cancelService.Do(context.Background())
 
 	if err != nil {
 		return fmt.Errorf("failed to cancel order: %w", err)
@@ -1241,16 +1393,20 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 
 // GetOrderStatus gets order status
 func (t *FuturesTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
-	// Convert orderID to int64
-	orderIDInt, err := strconv.ParseInt(orderID, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid order ID: %s", orderID)
+	getService := t.client.NewGetOrderService().Symbol(symbol)
+	if clientID, ok := strings.CutPrefix(orderID, ClientOrderRefPrefix); ok && clientID != "" {
+		// UNKNOWN-submit entry still tracked by its client order ID: the
+		// result carries the real exchange orderId once Binance knows it.
+		getService = getService.OrigClientOrderID(clientID)
+	} else {
+		// Convert orderID to int64
+		orderIDInt, err := strconv.ParseInt(orderID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid order ID: %s", orderID)
+		}
+		getService = getService.OrderID(orderIDInt)
 	}
-
-	order, err := t.client.NewGetOrderService().
-		Symbol(symbol).
-		OrderID(orderIDInt).
-		Do(context.Background())
+	order, err := getService.Do(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order status: %w", err)
 	}

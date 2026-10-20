@@ -503,6 +503,23 @@ func (t *FuturesTrader) syncOrders(traderID string, exchangeID string, exchangeT
 	// a new entry. Only cancel individually identified program protection on
 	// flat hedge sides; manual orders and the live opposite side are preserved.
 	if len(exchangeClosedSymbols) > 0 {
+		// 2026-10-20 review area2 #4: record WHICH program protection orders
+		// rest on each side BEFORE the flat check, and later cancel only those
+		// IDs. Re-enumerating after the flat read would also catch the SL/TP of
+		// a position opened (and protected) in between. The sync lock is not the
+		// AutoTrader execution lock, so the ID snapshot is what keeps a new
+		// position's protection out of the cancel set.
+		snapshots := make(map[string]*ProtectiveOrderSnapshot)
+		for symbol := range exchangeClosedSymbols {
+			for _, side := range []string{"LONG", "SHORT"} {
+				snap, err := t.SnapshotProgramProtectiveOrdersForSide(symbol, side)
+				if err != nil {
+					logger.Warnf("Skipping orphaned protection cleanup for %s %s: protection snapshot failed: %v", symbol, side, err)
+					continue
+				}
+				snapshots[symbol+"|"+side] = snap
+			}
+		}
 		t.InvalidatePositionCache()
 		if positions, err := t.GetPositions(); err == nil {
 			openSides := make(map[string]map[string]bool)
@@ -523,7 +540,7 @@ func (t *FuturesTrader) syncOrders(traderID string, exchangeID string, exchangeT
 			for symbol := range exchangeClosedSymbols {
 				for _, side := range []string{"LONG", "SHORT"} {
 					if !openSides[symbol][side] {
-						if err := t.CancelProgramProtectiveOrdersForSide(symbol, side); err != nil {
+						if err := t.CancelProtectiveOrderSnapshot(symbol, side, snapshots[symbol+"|"+side]); err != nil {
 							logger.Warnf("Failed to clean up orphaned program protection for %s %s: %v", symbol, side, err)
 						}
 					}

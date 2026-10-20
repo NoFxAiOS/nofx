@@ -48,6 +48,12 @@ func TestBinanceFullCloseCancelsOwnSideProtection(t *testing.T) {
 							},
 						}}})
 					case strings.Contains(r.URL.Path, "positionRisk"):
+						if orderPosts > 0 {
+							// 2026-10-20 area2 #2: the close filled — the fresh
+							// snapshot confirms flat, which releases protection.
+							_ = json.NewEncoder(w).Encode([]map[string]interface{}{})
+							return
+						}
 						_ = json.NewEncoder(w).Encode([]map[string]interface{}{{
 							"symbol": "XUSDT", "positionAmt": tc.positionAmt, "entryPrice": "100",
 							"markPrice": "100", "unRealizedProfit": "0", "leverage": "2", "liquidationPrice": "0",

@@ -630,11 +630,36 @@ func (s *Server) getTraderIDPublic(c *gin.Context) (string, error) {
 		return "", fmt.Errorf("trader_id is required")
 	}
 	t, err := s.store.Trader().GetByID(traderID)
-	if err != nil || t == nil || !t.ShowInCompetition {
-		// Same error for missing and hidden — no existence oracle.
+	if err != nil || t == nil {
 		return "", fmt.Errorf("trader not found")
 	}
+	if !t.ShowInCompetition {
+		// Hidden traders (paper pair, kept off the leaderboard) stay viewable by
+		// their own authenticated owner. Same error otherwise — no existence oracle.
+		if userID := s.optionalUserID(c); userID == "" || t.UserID != userID {
+			return "", fmt.Errorf("trader not found")
+		}
+	}
 	return traderID, nil
+}
+
+// optionalUserID returns the user behind a valid Bearer token on a public
+// route, or "" when the token is absent or fails any authMiddleware check.
+func (s *Server) optionalUserID(c *gin.Context) string {
+	parts := strings.Split(c.GetHeader("Authorization"), " ")
+	if len(parts) != 2 || parts[0] != "Bearer" || auth.IsTokenBlacklisted(parts[1]) {
+		return ""
+	}
+	claims, err := auth.ValidateJWT(parts[1])
+	if err != nil {
+		return ""
+	}
+	user, userErr := s.store.User().GetByID(claims.UserID)
+	revoked, revokeErr := s.store.TokenRevoked(parts[1])
+	if userErr != nil || revokeErr != nil || revoked || user.TokenVersion != claims.TokenVersion {
+		return ""
+	}
+	return claims.UserID
 }
 
 // getTraderFromQuery resolves the query trader FOR THE AUTHENTICATED USER

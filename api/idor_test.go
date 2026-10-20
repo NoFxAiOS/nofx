@@ -227,6 +227,23 @@ func TestPublicEquityHistoryVisibility(t *testing.T) {
 		t.Fatalf("hidden trader must NOT resolve, got %d: %s", rec2.Code, rec2.Body.String())
 	}
 
+	// Hidden trader + its own owner's token → resolves; another user's token
+	// or a garbage token → still hidden.
+	tokenOwner, _ := auth.GenerateJWT(userA, "a@test")
+	tokenOther, _ := auth.GenerateJWT("user-bbb", "b@test")
+	for _, tc := range []struct {
+		name, token string
+		want        int
+	}{{"owner", tokenOwner, http.StatusOK}, {"other user", tokenOther, http.StatusNotFound}, {"garbage", "junk", http.StatusNotFound}} {
+		rq := httptest.NewRequest(http.MethodGet, "/pub-equity?trader_id=trader-hidden", nil)
+		rq.Header.Set("Authorization", "Bearer "+tc.token)
+		rc := httptest.NewRecorder()
+		r.ServeHTTP(rc, rq)
+		if rc.Code != tc.want {
+			t.Fatalf("hidden trader with %s token: got %d want %d", tc.name, rc.Code, tc.want)
+		}
+	}
+
 	// Missing trader → same error.
 	req3 := httptest.NewRequest(http.MethodGet, "/pub-equity?trader_id=trader-ghost", nil)
 	rec3 := httptest.NewRecorder()

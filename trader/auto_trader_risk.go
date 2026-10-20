@@ -1961,8 +1961,14 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 	}
 	totalRisk := 0.0
 	symbolRisk := 0.0
-	longRisk := 0.0
-	shortRisk := 0.0
+	// Net-directional accounting (2026-10-20 area4 #1): FILLED positions are
+	// real hedges; resting limits and this cycle's unexecuted reservations are
+	// not — they may never fill — so they are tracked separately and can only
+	// ADD to their own side's worst case, never offset the other side.
+	longFilled := 0.0
+	shortFilled := 0.0
+	longPend := 0.0
+	shortPend := 0.0
 	unprotected := 0
 	for _, p := range ctx.Positions {
 		if p.Quantity <= 0 || p.EntryPrice <= 0 {
@@ -1977,9 +1983,9 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 		risk := p.Quantity * p.EntryPrice * stopDistPct / 100
 		totalRisk += risk
 		if strings.EqualFold(p.Side, "short") {
-			shortRisk += risk
+			shortFilled += risk
 		} else {
-			longRisk += risk
+			longFilled += risk
 		}
 		if market.Normalize(p.Symbol) == market.Normalize(d.Symbol) {
 			symbolRisk += risk
@@ -2003,9 +2009,9 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 		risk := remaining * math.Abs(pe.Price-pe.StopLoss)
 		totalRisk += risk
 		if strings.EqualFold(pe.Side, "short") {
-			shortRisk += risk
+			shortPend += risk
 		} else {
-			longRisk += risk
+			longPend += risk
 		}
 		if market.Normalize(pe.Symbol) == market.Normalize(d.Symbol) {
 			symbolRisk += risk
@@ -2016,20 +2022,8 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 	// accumulates linearly (20→40→60), never compounding (the old shape fed
 	// the reservation into the candidate AND re-booked it: 20→60→140), never
 	// charges risk for candidates a later gate rejects.
-	candidateRisk := d.PositionSizeUSD * math.Abs(entryPx-d.StopLoss) / entryPx
-	// 2026-09-26 NILUSDT: the gate ran on the RAW AI proposal while the
-	// executor's clampSizeToRisk would have downsized it to the risk budget —
-	// a 2.002% proposal got hard-rejected by a 2.00% cap it would never
-	// actually run at. Evaluate the CLAMPED candidate (clamp-only sizing:
-	// max notional = equity×riskPct ÷ dist ⇒ clamped risk = equity×riskPct),
-	// so oversized proposals shrink into compliance instead of dying.
-	riskBudgetPct := rc.RiskPerTradePct
-	if riskBudgetPct <= 0 {
-		riskBudgetPct = 1.5
-	}
-	if maxRisk := equity * riskBudgetPct / 100; candidateRisk > maxRisk {
-		candidateRisk = maxRisk
-	}
+	// The clamp (see candidateStopRiskUSD) evaluates the CLAMPED candidate.
+	candidateRisk := at.candidateStopRiskUSD(d, entryPx, equity)
 	reserved := at.cycleRiskReservedUSD
 	symbolReserved := at.cycleSymbolRiskReservedUSD[market.Normalize(d.Symbol)]
 	existingPct := totalRisk / equity * 100
@@ -2040,20 +2034,32 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 			capPct, equity, existingPct, candidatePct, reservedPct, unprotectedSuffix(unprotected)), candidateRisk
 	}
 	// Gross risk limits the size of a full stop-out; net directional risk
-	// separately limits correlated one-way concentration. Opposite sides are
-	// allowed to reduce NET concentration, but never reduce the gross cap.
-	projectedLong := longRisk + at.cycleLongRiskReservedUSD
-	projectedShort := shortRisk + at.cycleShortRiskReservedUSD
+	// separately limits correlated one-way concentration. Only FILLED opposite
+	// exposure offsets net risk (2026-10-20 area4 #1): unfilled resting limits
+	// and this cycle's not-yet-executed reservations never hedge — if an
+	// earlier same-batch order is rejected/cancelled, the later opposite-side
+	// orders still run and would otherwise breach the cap. Worst case is
+	// evaluated for the CANDIDATE's side: all potential entries on that side
+	// fill while the other side contributes only what is already filled. Only
+	// the candidate's own direction can be worsened by it, so a hedging open
+	// is never blocked for a pre-existing opposite-side excess. This worst
+	// case also holds for every subset of the batch executing, so a failed
+	// order needs no re-check of the later decisions.
+	longPotential := longFilled + longPend + at.cycleLongRiskReservedUSD
+	shortPotential := shortFilled + shortPend + at.cycleShortRiskReservedUSD
+	netPotential, hedgeFilled := 0.0, 0.0
 	if side == "short" {
-		projectedShort += candidateRisk
+		shortPotential += candidateRisk
+		netPotential, hedgeFilled = shortPotential, longFilled
 	} else {
-		projectedLong += candidateRisk
+		longPotential += candidateRisk
+		netPotential, hedgeFilled = longPotential, shortFilled
 	}
 	if netCapPct := rc.EffectiveMaxNetDirectionalRiskPct(); netCapPct > 0 {
-		netPct := math.Abs(projectedLong-projectedShort) / equity * 100
+		netPct := (netPotential - hedgeFilled) / equity * 100
 		if netPct > netCapPct+1e-9 {
-			return true, fmt.Sprintf("open would exceed max_net_directional_risk_pct %.1f%% of equity %.2f: projected long %.2f USDT - short %.2f USDT = %.2f%% net",
-				netCapPct, equity, projectedLong, projectedShort, netPct), candidateRisk
+			return true, fmt.Sprintf("open would exceed max_net_directional_risk_pct %.1f%% of equity %.2f: worst-case %s %.2f USDT - filled opposite hedge %.2f USDT = %.2f%% net (unfilled orders do not hedge)",
+				netCapPct, equity, side, netPotential, hedgeFilled, netPct), candidateRisk
 		}
 	}
 	if isBinanceFuturesLike(at.exchange) && (symbolRisk+candidateRisk+symbolReserved)/equity*100 > symbolCapPct+1e-9 {
@@ -2061,6 +2067,115 @@ func (at *AutoTrader) accountRiskExposureBlocks(d *kernel.Decision, entryPx floa
 			d.Symbol, symbolCapPct, equity, symbolRisk, candidateRisk, symbolReserved), candidateRisk
 	}
 	return false, "", candidateRisk
+}
+
+// entryReferencePrice is the program-determined price a new open will
+// actually execute at, for risk reservation and review-rule facts — never
+// the model's optional/stale `price` for a market open (2026-10-20 area2 #5,
+// area4 #5). Market opens use the live price (cycle snapshot; decision price
+// only as a fallback); resting-limit opens use the gate's limit anchor, else
+// the decision's limit price. 0 = unpriceable (the caller must refuse new risk).
+func (at *AutoTrader) entryReferencePrice(d *kernel.Decision, ctx *kernel.Context) float64 {
+	live := 0.0
+	if ctx != nil {
+		if md := ctx.MarketDataMap[d.Symbol]; md != nil && md.CurrentPrice > 0 {
+			live = md.CurrentPrice
+		}
+	}
+	if strings.HasSuffix(d.Action, "_limit") {
+		if gs := at.cycleGateStates[market.Normalize(d.Symbol)]; gs != nil {
+			anchor := gs.LongEntryPrice
+			if strings.Contains(d.Action, "short") {
+				anchor = gs.ShortEntryPrice
+			}
+			if anchor > 0 {
+				return anchor
+			}
+		}
+		if d.Price > 0 {
+			return d.Price
+		}
+		return live
+	}
+	if live > 0 {
+		return live
+	}
+	return d.Price
+}
+
+// candidateStopRiskUSD prices a new open's stop-risk at entryPx, clamped to
+// the per-trade budget (the executor's clampSizeToRisk downsizes oversized
+// proposals to it). 0 when unpriceable.
+func (at *AutoTrader) candidateStopRiskUSD(d *kernel.Decision, entryPx, equity float64) float64 {
+	if equity <= 0 || entryPx <= 0 || d.StopLoss <= 0 {
+		return 0
+	}
+	risk := d.PositionSizeUSD * math.Abs(entryPx-d.StopLoss) / entryPx
+	budgetPct := at.config.StrategyConfig.RiskControl.RiskPerTradePct
+	if budgetPct <= 0 {
+		budgetPct = 1.5
+	}
+	if maxRisk := equity * budgetPct / 100; risk > maxRisk {
+		risk = maxRisk
+	}
+	return risk
+}
+
+// repriceCycleReservation re-books an open's cycle stop-risk reservation after
+// the executor converted it market→limit (marketExceptionGate degrade): the
+// gate reserved at the live price, the resting order is priced at the anchor
+// (2026-10-20 area2 #5 "recompute after action conversion"). No-op otherwise.
+func (at *AutoTrader) repriceCycleReservation(d *kernel.Decision, origAction string, ctx *kernel.Context) {
+	if at.config.StrategyConfig == nil || ctx == nil || d.CycleReservedRiskUSD <= 0 {
+		return
+	}
+	if strings.HasSuffix(origAction, "_limit") || !strings.HasSuffix(d.Action, "_limit") {
+		return
+	}
+	entryPx := at.entryReferencePrice(d, ctx)
+	newRisk := at.candidateStopRiskUSD(d, entryPx, ctx.Account.TotalEquity)
+	if newRisk <= 0 {
+		return // unpriceable: keep the original (conservative) reservation
+	}
+	delta := newRisk - d.CycleReservedRiskUSD
+	at.cycleRiskReservedUSD += delta
+	if strings.Contains(d.Action, "short") {
+		at.cycleShortRiskReservedUSD += delta
+	} else {
+		at.cycleLongRiskReservedUSD += delta
+	}
+	if at.cycleSymbolRiskReservedUSD == nil {
+		at.cycleSymbolRiskReservedUSD = make(map[string]float64)
+	}
+	at.cycleSymbolRiskReservedUSD[market.Normalize(d.Symbol)] += delta
+	d.CycleReservedRiskUSD = newRisk
+}
+
+// short1dUptrendBlocks is the counter-trend-short guard (block_short_1d_uptrend)
+// shared by the entry gate and the pending recheck. Fail-closed (2026-10-20
+// area4 #7): a missing 1d series or too little 1d history is "unverifiable",
+// not "not up" — a new short is refused.
+func short1dUptrendBlocks(md *market.Data) (bool, string) {
+	switch trend := kernel.TimeframeTrend(md, "1d"); trend {
+	case "up":
+		return true, "1d trend is up (counter-trend short protection)"
+	case "", "unknown":
+		return true, "1d trend unavailable or history insufficient — counter-trend short protection cannot verify (fail-closed)"
+	}
+	return false, ""
+}
+
+// evaluateDailyLossLatch evaluates the daily-loss halt on EVERY valid account
+// equity snapshot and latches it (in memory + durable store), independent of
+// whether any open decision exists this cycle (2026-10-20 area2 #6): a breach
+// observed in a hold/close-only cycle must stay latched after equity rebounds.
+// Called from the cycle right after the baseline anchor, before the candidate
+// check and the model call. Returns the halt reason ("" = not halted).
+func (at *AutoTrader) evaluateDailyLossLatch(equity float64) string {
+	if at.config.StrategyConfig == nil || equity <= 0 || math.IsNaN(equity) || math.IsInf(equity, 0) {
+		return ""
+	}
+	return at.dailyLossHaltBlocks(at.config.StrategyConfig.RiskControl, equity)
 }
 
 func unprotectedSuffix(n int) string {
@@ -2291,6 +2406,12 @@ func cycleEntryPool(ctx *kernel.Context) map[string]bool {
 		return pool
 	}
 	for _, coin := range ctx.CandidateCoins {
+		// 2026-10-20 area4 #2: a coin the engine dropped before prompt
+		// rendering (market data unavailable/stale, ...) was never shown to
+		// the model with data nor gate-evaluated — it is not an entry candidate.
+		if ctx.FilteredCandidates[market.Normalize(coin.Symbol)] != "" {
+			continue
+		}
 		pool[market.Normalize(coin.Symbol)] = true
 	}
 	for _, pos := range ctx.Positions {
@@ -2330,6 +2451,9 @@ func (at *AutoTrader) applyHardRiskGates(decisions []kernel.Decision, ctx *kerne
 				blockCode = "EXCLUDED_COIN"
 			case !pool[symbol]:
 				blockCode = "NOT_CANDIDATE"
+				if ctx != nil && ctx.FilteredCandidates[symbol] != "" {
+					blockCode = "FILTERED_CANDIDATE"
+				}
 			}
 			if blockCode != "" {
 				at.setFilterReason(d, "entry candidate gate: "+blockCode)
@@ -2501,23 +2625,16 @@ func (at *AutoTrader) applyHardRiskGates(decisions []kernel.Decision, ctx *kerne
 		// stop-out (3.5% × 5 correlated positions ≈ 17.5% was one bad cycle
 		// from the account breaker).
 		if strings.HasPrefix(d.Action, "open_") {
-			entryPx := d.Price
-			// 2026-10-03 review: an unpriceable decision (Price=0) fell
-			// through the account-cap gate with ZERO reservation. Fall back
-			// to this cycle's market data before declaring it unpriceable.
+			// 2026-10-20 area2 #5: price the reservation at the price the
+			// order will EXECUTE at — live price for a market open, the
+			// limit anchor only for a resting limit (the old code overwrote
+			// a market open's price with the limit anchor, under-reserving).
+			// area4 #2: a new open that cannot be priced is refused.
+			entryPx := at.entryReferencePrice(&d, ctx)
 			if entryPx <= 0 {
-				if md := ctx.MarketDataMap[d.Symbol]; md != nil && md.CurrentPrice > 0 {
-					entryPx = md.CurrentPrice
-				}
-			}
-			if gs, ok := at.cycleGateStates[market.Normalize(d.Symbol)]; ok && gs != nil {
-				basis := gs.LongEntryPrice
-				if strings.Contains(d.Action, "short") {
-					basis = gs.ShortEntryPrice
-				}
-				if basis > 0 {
-					entryPx = basis
-				}
+				logger.Warnf("🛡️ [%s] GATE BLOCKED %s %s: no valid market price — new risk cannot be priced", at.name, d.Action, d.Symbol)
+				at.setFilterReason(d, "no valid market data — new risk unpriceable")
+				continue
 			}
 			if blocked, reason, candUSD := at.accountRiskExposureBlocks(&d, entryPx, ctx); blocked {
 				streak, push := at.gateNotifyRecord("exposure:"+d.Symbol, time.Now())
@@ -2609,13 +2726,14 @@ func (at *AutoTrader) applyHardRiskGates(decisions []kernel.Decision, ctx *kerne
 		switch d.Action {
 		case "open_short", "open_short_limit":
 			if rc.BlockShort1dUptrend {
-				trend := kernel.TimeframeTrend(ctx.MarketDataMap[d.Symbol], "1d")
-				if trend == "up" {
-					logger.Warnf("🛡️ [%s] GATE BLOCKED open_short %s: 1d trend is up (counter-trend short protection)", at.name, d.Symbol)
-					notify.Notify("ALERT", at.name, fmt.Sprintf("<b>🛡️ 已拦截做空 %s</b>\n1d 趋势向上，禁止逆势做空\n<i>%s</i>", notify.Escape(d.Symbol), notify.Escape(d.Reasoning)))
+				// 2026-10-20 area4 #7: fail-closed — missing/insufficient 1d
+				// data refuses the short just like an up trend does.
+				if blocked, why := short1dUptrendBlocks(ctx.MarketDataMap[d.Symbol]); blocked {
+					logger.Warnf("🛡️ [%s] GATE BLOCKED open_short %s: %s", at.name, d.Symbol, why)
+					notify.Notify("ALERT", at.name, fmt.Sprintf("<b>🛡️ 已拦截做空 %s</b>\n%s\n<i>%s</i>", notify.Escape(d.Symbol), notify.Escape(why), notify.Escape(d.Reasoning)))
 					// 2026-10-03 review P2: this was a copy-paste of the timing
 					// gate's reason — the Telegram CoT mislabeled the block.
-					at.setFilterReason(d, "1d trend is up (counter-trend short protection)")
+					at.setFilterReason(d, why)
 					continue
 				}
 			}

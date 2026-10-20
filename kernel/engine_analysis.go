@@ -345,7 +345,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 
 	// 1. First fetch data for position coins (must fetch)
 	for _, pos := range ctx.Positions {
-		symbolTimeframes := withRequiredSymbolTimeframes(timeframes, pos.Symbol)
+		symbolTimeframes := withRequiredSymbolTimeframesFor(timeframes, pos.Symbol, config.RiskControl.BlockShort1dUptrend)
 		data, err := market.GetWithTimeframesForVenue(pos.Symbol, symbolTimeframes, primaryTimeframe, klineCount, venue)
 		if err != nil {
 			logger.Infof("⚠️  Failed to fetch market data for position %s: %v", pos.Symbol, err)
@@ -376,7 +376,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 			continue
 		}
 
-		symbolTimeframes := withRequiredSymbolTimeframes(timeframes, coin.Symbol)
+		symbolTimeframes := withRequiredSymbolTimeframesFor(timeframes, coin.Symbol, config.RiskControl.BlockShort1dUptrend)
 		data, err := market.GetWithTimeframesForVenue(coin.Symbol, symbolTimeframes, primaryTimeframe, klineCount, venue)
 		if err != nil {
 			logger.Infof("⚠️  Failed to fetch market data for %s: %v", coin.Symbol, err)
@@ -543,8 +543,27 @@ func extractDecisions(response string) ([]Decision, error) {
 
 	var jsonPart string
 	if match := reDecisionTag.FindStringSubmatch(s); match != nil && len(match) > 1 {
-		jsonPart = strings.TrimSpace(match[1])
+		inner := match[1]
+		// A reasoning section that literally mentions "<decision>" must not
+		// widen the payload: the final block is the one after the LAST open tag.
+		if i := strings.LastIndex(inner, "<decision>"); i >= 0 {
+			inner = inner[i+len("<decision>"):]
+		}
+		jsonPart = strings.TrimSpace(inner)
 		logger.Infof("✓ Extracted JSON using <decision> tag")
+	} else if strings.Contains(s, "<decision>") {
+		// review 2026-10-20 area4 #3: once the model opened <decision> the
+		// payload boundary is fixed. A missing </decision> means the final
+		// block was truncated; falling back to a full-text array search would
+		// pick up a draft array abandoned inside <reasoning> (e.g. a discarded
+		// close_long) and could execute it. Reject instead.
+		// Only salvage completed objects from INSIDE the final payload.
+		payload := s[strings.LastIndex(s, "<decision>")+len("<decision>"):]
+		if salvaged := salvageTruncatedDecisionArray(payload); len(salvaged) > 0 {
+			logger.Infof("⚠️  <decision> not closed; salvaged %d complete decisions from the final payload", len(salvaged))
+			return salvaged, nil
+		}
+		return nil, fmt.Errorf("<decision> tag opened but not closed (truncated or malformed final decision block); refusing to search the full text for a decision array")
 	} else {
 		jsonPart = s
 		logger.Infof("⚠️  <decision> tag not found, searching JSON in full text")

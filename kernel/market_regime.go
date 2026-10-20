@@ -49,8 +49,28 @@ func WithRequiredSymbolTimeframes(timeframes []string, symbol string) []string {
 }
 
 func withRequiredSymbolTimeframes(timeframes []string, symbol string) []string {
+	return withRequiredSymbolTimeframesFor(timeframes, symbol, false)
+}
+
+// WithRequiredSymbolTimeframesFor is the exported form of
+// withRequiredSymbolTimeframesFor — the trader's pending recheck passes
+// RiskControl.BlockShort1dUptrend so it fetches the same 1d frame the AI
+// cycle does.
+func WithRequiredSymbolTimeframesFor(timeframes []string, symbol string, require1d bool) []string {
+	return withRequiredSymbolTimeframesFor(timeframes, symbol, require1d)
+}
+
+// withRequiredSymbolTimeframesFor is withRequiredSymbolTimeframes plus an
+// explicit require1d switch (review 2026-10-20 area4 #7): the "no shorts
+// against a 1d uptrend" gate reads the 1d trend, which was only ever fetched
+// for bstocks — for ordinary crypto the frame was missing, TimeframeTrend
+// returned "" and the gate silently never fired. require1d appends 1d for
+// every symbol; it is a fetch requirement only (DataQuality minimum-bar
+// accounting is unchanged for non-bstocks, so a short daily history never
+// blocks longs).
+func withRequiredSymbolTimeframesFor(timeframes []string, symbol string, require1d bool) []string {
 	out := withRequiredRegimeTimeframes(timeframes)
-	if !market.IsBStockSymbol(symbol) {
+	if !require1d && !market.IsBStockSymbol(symbol) {
 		return out
 	}
 	for _, tf := range out {

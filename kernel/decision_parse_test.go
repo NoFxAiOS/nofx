@@ -108,15 +108,26 @@ func TestExtractDecisionsSalvagesTruncatedArray(t *testing.T) {
 	resp := "<reasoning>\nCL 持仓检查: exit_rule_triggered=true, 平仓。\n候选币逐个评估...\n</reasoning>\n<decision>\n[\n  {\"symbol\": \"CLUSDT\", \"action\": \"close_long\", \"decision_stage\": \"EXIT\", \"reasoning\": \"多头结构转弱\"},\n  {\"symbol\": \"BULLAUSDT\", \"action\": \"wait\", \"decision_stage\": \"NO_SETUP\", \"no_trade_reason\": [\"15m偏空但1h/4h方向分歧\", \"做空限价被抑制\", \"无突破或反转确认\""
 	// note: deliberately NO closing "}" "]" anywhere after the first object
 
+	// review 2026-10-20 area4 #3: salvage is limited to the final <decision>
+	// payload; drafts inside <reasoning> can never be picked up.
 	decisions, err := extractDecisions(resp)
 	if err != nil {
 		t.Fatalf("extractDecisions failed: %v", err)
 	}
-	if len(decisions) != 1 {
-		t.Fatalf("expected 1 salvaged decision, got %d: %+v", len(decisions), decisions)
+	if len(decisions) != 1 || decisions[0].Symbol != "CLUSDT" || decisions[0].Action != "close_long" {
+		t.Fatalf("expected 1 salvaged decision, got %+v", decisions)
 	}
-	if decisions[0].Symbol != "CLUSDT" || decisions[0].Action != "close_long" {
-		t.Fatalf("salvaged wrong decision: %+v", decisions[0])
+}
+
+// Salvage still applies to a truncated bare array (no <decision> tag).
+func TestExtractDecisionsSalvagesTruncatedBareArray(t *testing.T) {
+	resp := "分析...\n[\n  {\"symbol\": \"CLUSDT\", \"action\": \"close_long\", \"reasoning\": \"多头结构转弱\"},\n  {\"symbol\": \"BULLAUSDT\", \"action\": \"wait\", \"no_trade_reason\": [\"15m偏空"
+	decisions, err := extractDecisions(resp)
+	if err != nil {
+		t.Fatalf("extractDecisions failed: %v", err)
+	}
+	if len(decisions) != 1 || decisions[0].Symbol != "CLUSDT" || decisions[0].Action != "close_long" {
+		t.Fatalf("expected 1 salvaged decision, got %+v", decisions)
 	}
 }
 

@@ -113,6 +113,13 @@ func (at *AutoTrader) runCycle() error {
 	// lazily at the day's first open decision — losses between midnight and
 	// the first open attempt must count toward the daily cap.
 	at.anchorDailyBaseline(ctx.Account.TotalEquity)
+	// 2026-10-20 area2 #6: evaluate + latch the daily-loss halt on EVERY valid
+	// equity snapshot, before the candidate check / model call — a breach seen
+	// in a hold/close-only cycle must stay latched when equity later rebounds
+	// (the old latch only ran when an open decision reached the entry gate).
+	if halt := at.evaluateDailyLossLatch(ctx.Account.TotalEquity); halt != "" {
+		logger.Warnf("🛑 [%s] daily-loss halt active this cycle: %s", at.name, halt)
+	}
 
 	// If no candidate coins available, log but do not error
 	if len(ctx.CandidateCoins) == 0 {
@@ -332,7 +339,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// Pre-trade rule check: evaluate review-derived rules before execution.
 	// Hard rules with action=block reject the decision outright.
-	sortedDecisions = at.preTradeRuleCheck(sortedDecisions, ctx.Account.TotalEquity)
+	sortedDecisions = at.preTradeRuleCheckWithContext(sortedDecisions, ctx.Account.TotalEquity, ctx)
 
 	// Hard risk gates the AI cannot override: 1d-uptrend short block and the
 	// minimum holding period lock on closes (both strategy risk_control driven).
@@ -370,7 +377,12 @@ func (at *AutoTrader) runCycle() error {
 			Success:    false,
 		}
 
-		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
+		origAction := d.Action
+		execErr := at.executeDecisionWithRecord(&d, &actionRecord)
+		// 2026-10-20 area2 #5: a market→limit degrade inside the executor
+		// changes the execution price — re-book the reservation at the anchor.
+		at.repriceCycleReservation(&d, origAction, ctx)
+		if err := execErr; err != nil {
 			// R8 release: an open that FAILED execution must give back the
 			// stop-risk it booked at the exposure gate — otherwise a failed
 			// order keeps eating the account's risk budget for the cycle.

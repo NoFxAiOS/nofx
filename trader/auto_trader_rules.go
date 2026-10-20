@@ -21,6 +21,18 @@ import (
 // alert) instead of silently skipping the check; closes/adjustments always
 // pass.
 func (at *AutoTrader) preTradeRuleCheck(decisions []kernel.Decision, equity float64) []kernel.Decision {
+	return at.preTradeRuleCheckWithContext(decisions, equity, nil)
+}
+
+// preTradeRuleCheckWithContext is preTradeRuleCheck with the cycle context, so
+// price-derived rule facts (stop_loss_pct / take_profit_pct / risk_reward) use
+// the PROGRAM-determined final entry price (live price for market opens, limit
+// anchor for resting limits) instead of the model's optional `price`
+// (2026-10-20 area4 #5: a market decision that omitted price made
+// "stop_loss_pct > N → block" silently evaluate against 0). When such a rule is
+// enabled and no entry price can be determined, the open is refused (fail
+// closed for new risk).
+func (at *AutoTrader) preTradeRuleCheckWithContext(decisions []kernel.Decision, equity float64, ctx *kernel.Context) []kernel.Decision {
 	if len(decisions) == 0 {
 		return decisions
 	}
@@ -38,6 +50,7 @@ func (at *AutoTrader) preTradeRuleCheck(decisions []kernel.Decision, equity floa
 		return decisions
 	}
 
+	needsPrice := rulesNeedEntryPrice(rules)
 	filtered := make([]kernel.Decision, 0, len(decisions))
 	for _, d := range decisions {
 		if !kernel.IsOpenDecision(d.Action) {
@@ -45,7 +58,13 @@ func (at *AutoTrader) preTradeRuleCheck(decisions []kernel.Decision, equity floa
 			continue
 		}
 
-		violations, warnings := kernel.CheckDecisionAgainstRules(rules, d, equity, d.Price)
+		entryPx := at.entryReferencePrice(&d, ctx)
+		if entryPx <= 0 && needsPrice {
+			logger.Warnf("🚫 [%s] RULE FACTS UNAVAILABLE — blocked %s %s: no program-determined entry price for price-based review rules", at.name, d.Action, d.Symbol)
+			at.setFilterReason(d, "rule facts unavailable (no entry price)")
+			continue
+		}
+		violations, warnings := kernel.CheckDecisionAgainstRules(rules, d, equity, entryPx)
 
 		blocked := false
 		blockReasons := []string{}
@@ -123,4 +142,23 @@ func (at *AutoTrader) logRuleCheck(v kernel.RuleViolation, d kernel.Decision, bl
 	if err := at.store.Rule().IncrementHitCount(v.RuleID, blocked); err != nil {
 		logger.Warnf("⚠️ [%s] Failed to update rule hit count: %v", at.name, err)
 	}
+}
+
+// rulesNeedEntryPrice reports whether any enabled hard rule reads a fact that
+// is derived from the entry price.
+func rulesNeedEntryPrice(rules []*store.TradingRuleDB) bool {
+	for _, r := range rules {
+		if r.RuleType != "hard" {
+			continue
+		}
+		cond, err := kernel.ParseRuleCondition(r.ConditionJSON)
+		if err != nil {
+			continue // invalid rules already fail on their own
+		}
+		switch cond.Field {
+		case "stop_loss_pct", "take_profit_pct", "risk_reward":
+			return true
+		}
+	}
+	return false
 }

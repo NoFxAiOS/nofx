@@ -195,7 +195,7 @@ func TestApplyHardRiskGatesBlocksLowConfidenceOpen(t *testing.T) {
 	ctx := &kernel.Context{Account: kernel.AccountInfo{TotalEquity: 1000}, MarketDataMap: map[string]*market.Data{}, CandidateCoins: []kernel.CandidateCoin{{Symbol: "LOWUSDT"}, {Symbol: "OKUSDT"}}}
 	got := at.applyHardRiskGates([]kernel.Decision{
 		{Action: "open_long", Symbol: "LOWUSDT", Confidence: 69},
-		{Action: "open_short", Symbol: "OKUSDT", Confidence: 70},
+		{Action: "open_short", Symbol: "OKUSDT", Price: 100, Confidence: 70},
 		{Action: "wait", Symbol: "LOWUSDT", Confidence: 0},
 	}, ctx)
 	if len(got) != 2 || got[0].Symbol != "OKUSDT" || got[1].Action != "wait" {

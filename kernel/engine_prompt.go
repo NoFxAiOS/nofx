@@ -1039,7 +1039,7 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		if ctx.QuantDataMap != nil {
 			quantData = ctx.QuantDataMap[pos.Symbol]
 		}
-		if sig := e.computeCoinSignal(marketData, quantData, ctx, nil); sig != nil {
+		if sig := e.computeCoinSignalForSide(marketData, quantData, ctx, nil, pos.Side); sig != nil {
 			// 09-18 token audit ②: when close/partial cannot pass the
 			// close gates this cycle, the 4-TF JSON adds nothing the model
 			// can act on — render one management line. Near-stop danger
@@ -1627,6 +1627,16 @@ func fmtPx(v float64) string {
 // render (double-blocked candidates and close-locked positions compress to
 // one line), while the bookkeeping must still happen every cycle.
 func (e *StrategyEngine) computeCoinSignal(data *market.Data, quantData *QuantData, ctx *Context, coin *CandidateCoin) *SymbolSignal {
+	return e.computeCoinSignalForSide(data, quantData, ctx, coin, "")
+}
+
+// computeCoinSignalForSide is computeCoinSignal with an explicit held side
+// ("long"/"short"). The position renderer passes the side of the position it
+// is rendering so a hedged symbol (long AND short open) gets the exit signal
+// of the right leg (review 2026-10-20 area4 #6). Empty heldSide infers the
+// side from ctx.Positions and stays empty when the symbol is held on both
+// sides (ambiguous) — never "the first matching position".
+func (e *StrategyEngine) computeCoinSignalForSide(data *market.Data, quantData *QuantData, ctx *Context, coin *CandidateCoin, heldSide string) *SymbolSignal {
 	// Signal layer: structured, normalized feature block replaces the raw
 	// candle dump. Falls back to the legacy text dump only if computation fails.
 	opt := SignalOptions{
@@ -1805,17 +1815,29 @@ func (e *StrategyEngine) computeCoinSignal(data *market.Data, quantData *QuantDa
 	// mirror. An empty side (not held) leaves the flag false — the phantom
 	// suppression this replaces also covered the held case wrongly, by
 	// showing a SHORT the long-side exit semantics.
-	if ctx != nil {
+	switch {
+	case strings.EqualFold(heldSide, "long"):
+		opt.PositionSide = "long"
+	case strings.EqualFold(heldSide, "short"):
+		opt.PositionSide = "short"
+	case ctx != nil:
+		hasLong, hasShort := false, false
 		for _, p := range ctx.Positions {
-			if market.Normalize(p.Symbol) == market.Normalize(data.Symbol) {
-				switch {
-				case strings.EqualFold(p.Side, "long"):
-					opt.PositionSide = "long"
-				case strings.EqualFold(p.Side, "short"):
-					opt.PositionSide = "short"
-				}
-				break
+			if market.Normalize(p.Symbol) != market.Normalize(data.Symbol) {
+				continue
 			}
+			switch {
+			case strings.EqualFold(p.Side, "long"):
+				hasLong = true
+			case strings.EqualFold(p.Side, "short"):
+				hasShort = true
+			}
+		}
+		switch {
+		case hasLong && !hasShort:
+			opt.PositionSide = "long"
+		case hasShort && !hasLong:
+			opt.PositionSide = "short"
 		}
 	}
 	if sig, err := ComputeSymbolSignals(data.Symbol, data, opt); err == nil {

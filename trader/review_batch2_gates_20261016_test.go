@@ -75,7 +75,7 @@ func TestBatch2GatesCurrentPoolAndAIPositionAdds(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			at := riskTestTrader(store.RiskControlConfig{})
 			ctx := &kernel.Context{CandidateCoins: tc.candidates, Positions: tc.positions}
-			d := kernel.Decision{Symbol: "sol_usdt", Action: "open_long", Confidence: 95}
+			d := kernel.Decision{Symbol: "sol_usdt", Action: "open_long", Price: 100, Confidence: 95}
 			got := at.applyHardRiskGates([]kernel.Decision{d}, ctx)
 			if tc.wantCode == "" {
 				if len(got) != 1 || at.popFilterReason(d) != "" {
@@ -97,7 +97,7 @@ func TestBatch2GatesCurrentPoolAndAIPositionAdds(t *testing.T) {
 
 	// Every invocation uses its own pool, even on the same trader instance.
 	at := riskTestTrader(store.RiskControlConfig{})
-	d := kernel.Decision{Symbol: "SOLUSDT", Action: "open_long"}
+	d := kernel.Decision{Symbol: "SOLUSDT", Action: "open_long", Price: 100}
 	ctx := &kernel.Context{CandidateCoins: []kernel.CandidateCoin{{Symbol: "SOLUSDT"}}}
 	if got := at.applyHardRiskGates([]kernel.Decision{d}, ctx); len(got) != 1 {
 		t.Fatal("current candidate rejected")

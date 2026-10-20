@@ -90,7 +90,7 @@ func TestVendorDivergenceBlocksAllOpenPaths(t *testing.T) {
 	// A symbol without the code passes untouched.
 	at.cycleGateStates["CLEANUSDT"] = &kernel.GateState{LongFailed: []string{"RR_MAX_0.90"}}
 	out = at.applyHardRiskGates([]kernel.Decision{
-		{Symbol: "CLEANUSDT", Action: "open_long", Confidence: 95, Reasoning: "x"},
+		{Symbol: "CLEANUSDT", Action: "open_long", Price: 100, Confidence: 95, Reasoning: "x"},
 	}, ctx)
 	if len(out) != 1 {
 		t.Fatalf("non-vendor codes must not be touched by this gate, got %d", len(out))

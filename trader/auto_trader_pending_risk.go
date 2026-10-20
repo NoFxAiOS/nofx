@@ -163,8 +163,10 @@ func (at *AutoTrader) pendingDirectionBlocked(pe *pendingEntry) string {
 		if primaryTF == "" {
 			primaryTF = "15m"
 		}
-		if pe.Side == "short" && rc.BlockShort1dUptrend && kernel.TimeframeTrend(md, "1d") == "up" {
-			return "pending short: 1d trend is up"
+		if pe.Side == "short" && rc.BlockShort1dUptrend {
+			if blocked, why := short1dUptrendBlocks(md); blocked {
+				return "pending short: " + why
+			}
 		}
 		// R2 (recheck 2026-10-07): the old blanket cancel — any BTC filter
 		// enabled + data below 60 closes → cancel BOTH sides — contradicted
@@ -275,7 +277,7 @@ func (at *AutoTrader) recheckConfiguredTimeframes(symbol string) []string {
 			tfs = append(tfs, l)
 		}
 	}
-	return kernel.WithRequiredSymbolTimeframes(tfs, symbol)
+	return kernel.WithRequiredSymbolTimeframesFor(tfs, symbol, at.config.StrategyConfig.RiskControl.BlockShort1dUptrend)
 }
 
 // btcTrendClosesForRecheck fetches BTC's 4h closes for the pending recheck.

@@ -79,10 +79,18 @@ func (at *AutoTrader) stockCheckProtection(sym string, now time.Time) (out stock
 		if e != nil {
 			return out, fmt.Errorf("protection %s order %s status: %w", r.Symbol, r.OrderID, e)
 		}
-		if client, _ := status["clientOrderId"].(string); client != "" && (!strings.HasPrefix(client, "nxbs_") || (r.ClientOrderID != "" && client != r.ClientOrderID)) {
-			return out, fmt.Errorf("protection %s order %s client ID mismatch", r.Symbol, r.OrderID)
-		}
 		s := strings.ToUpper(fmt.Sprint(status["status"]))
+		// Canceling with newClientOrderId REPLACES the order's clientOrderId on the
+		// exchange. The lookup is by immutable orderId, so a canceled order that
+		// still carries one of OUR (nxbs_) IDs is the same order; any other change,
+		// or a change on a live/filled order, stays a mismatch.
+		client, _ := status["clientOrderId"].(string)
+		if client != "" {
+			canceled := s == "CANCELED" || s == "CANCELLED" || s == "PENDING_CANCEL"
+			if !strings.HasPrefix(client, "nxbs_") || (r.ClientOrderID != "" && client != r.ClientOrderID && !canceled) {
+				return out, fmt.Errorf("protection %s order %s client ID mismatch", r.Symbol, r.OrderID)
+			}
+		}
 		switch s {
 		case "NEW", "PENDING_NEW", "PENDING_CANCEL", "PARTIALLY_FILLED", "FILLED", "CANCELED", "CANCELLED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH":
 		default:
@@ -100,6 +108,11 @@ func (at *AutoTrader) stockCheckProtection(sym string, now time.Time) (out stock
 		if e != nil {
 			return out, fmt.Errorf("book protection %s order %s: %w", r.Symbol, r.OrderID, e)
 		}
+		if client != "" && client != r.ClientOrderID {
+			if e := at.store.StockPaper().UpdateProtectionClientID(r.TraderID, r.Symbol, r.OrderID, client); e != nil {
+				logger.Warnf("⚠️ [%s] cannot persist new client ID of protection %s order %s: %v", at.name, r.Symbol, r.OrderID, e)
+			}
+		}
 		out.Open = out.Open || !stockOrderTerminal(s)
 		// A partial execution booked before a crash still requires retirement
 		// of the old set before any remainder can be protected or sold.
@@ -111,6 +124,8 @@ func (at *AutoTrader) stockCheckProtection(sym string, now time.Time) (out stock
 				_ = at.store.AIManaged().Unmark(at.id, r.Symbol, "long")
 				delete(at.stock.stopTicks, r.Symbol)
 				at.syncStockJournal()
+				// The position is gone: a resting entry order must not rebuy it later.
+				at.stockCancelEntryAfterExit(r.Symbol, now)
 			}
 		}
 	}
@@ -188,34 +203,49 @@ func (at *AutoTrader) stockProtectionRecovered(sym string) {
 // (commission in the base asset already deducted). Returns the owned quantity
 // after the buy.
 func (at *AutoTrader) stockRecordBuy(symbol string, qty, price, fee float64, orderID string, stop float64, now time.Time) (float64, error) {
+	owned, _, err := at.stockRecordBuyAtomic(symbol, qty, price, fee, orderID, stop, now, nil, false)
+	return owned, err
+}
+
+// stockRecordBuyAtomic is stockRecordBuy plus, in the SAME transaction, the
+// resting entry's fill watermark (pending, nil when the order is complete) and,
+// when intent, the "first protection still to be established" marker. booked is
+// false when the watermark already covered the fill (idempotent replay).
+func (at *AutoTrader) stockRecordBuyAtomic(symbol string, qty, price, fee float64, orderID string, stop float64, now time.Time,
+	pending *stockPending, intent bool) (owned float64, booked bool, err error) {
 	pos := at.store.Position()
-	rows, err := at.store.Position().StockOwnedRows(at.id, symbol)
-	if err != nil {
-		return 0, err
+	nowMs := now.UTC().UnixMilli()
+	fill := &store.TraderPosition{
+		TraderID: at.id, ExchangeID: at.exchangeID, ExchangeType: "binance", Symbol: symbol, Side: "LONG",
+		Quantity: qty, EntryQuantity: qty, EntryPrice: price, EntryOrderID: orderID, EntryTime: nowMs,
+		Leverage: 1, Status: "OPEN", Source: "system", AIManaged: true, InitialStopLoss: stop, Fee: fee,
+		CreatedAt: nowMs, UpdatedAt: nowMs,
 	}
-	if len(rows) == 0 {
-		nowMs := now.UTC().UnixMilli()
-		row := &store.TraderPosition{
-			TraderID: at.id, ExchangeID: at.exchangeID, ExchangeType: "binance", Symbol: symbol, Side: "LONG",
-			Quantity: qty, EntryQuantity: qty, EntryPrice: price, EntryOrderID: orderID, EntryTime: nowMs,
-			Leverage: 1, Status: "OPEN", Source: "system", AIManaged: true, InitialStopLoss: stop, Fee: fee,
-			CreatedAt: nowMs, UpdatedAt: nowMs,
+	var pend *store.StockPendingEntry
+	if pending != nil {
+		pend = at.pendingEntry(pending)
+	}
+	booked, err = at.store.StockPaper().BookEntryFill(fill, pend, intent)
+	if err != nil {
+		return 0, false, err
+	}
+	if !booked {
+		rows, e := pos.StockOwnedRows(at.id, symbol)
+		if e != nil {
+			return 0, false, e
 		}
-		if err := pos.CreateOpenPosition(row); err != nil {
-			return 0, err
-		}
-	} else if err := pos.UpdatePositionQuantityAndPrice(rows[0].ID, qty, price, fee); err != nil {
-		return 0, err
+		owned, _, _, _ = sumRows(rows)
+		return owned, false, nil
 	}
 	if err := at.store.AIManaged().MarkEntry(at.id, symbol, "long", orderID); err != nil {
 		logger.Errorf("🤖 [%s] AI-managed MARK FAILED %s: %v", at.name, symbol, err)
 	}
-	rows, err = pos.StockOwnedRows(at.id, symbol)
+	rows, err := pos.StockOwnedRows(at.id, symbol)
 	if err != nil {
-		return 0, err
+		return 0, true, err
 	}
-	owned, _, _, _ := sumRows(rows)
-	return owned, nil
+	owned, _, _, _ = sumRows(rows)
+	return owned, true, nil
 }
 
 // stockRecordSell books a filled program sell of qty. full closes the row(s);
@@ -260,6 +290,7 @@ func (at *AutoTrader) stockRecordSell(symbol string, qty, price, fee float64, or
 	}
 	if full {
 		_ = at.store.AIManaged().Unmark(at.id, symbol, "long")
+		_ = at.store.StockPaper().ClearProtectionIntent(at.id, symbol)
 		delete(at.stock.lastProtect, symbol)
 		delete(at.stock.stopTicks, symbol)
 		at.syncStockJournal()
@@ -320,15 +351,20 @@ func (at *AutoTrader) restoreStockPendings() {
 	}
 	for _, r := range rows {
 		at.stock.pendings[r.Symbol] = &stockPending{Symbol: r.Symbol, OrderID: r.OrderID, Action: r.Action, Qty: r.Quantity,
-			FilledQty: r.FilledQty, Limit: r.LimitPrice, Stop: r.Stop, TakeProfit: r.TakeProfit, PlacedAt: time.UnixMilli(r.PlacedAt)}
+			FilledQty: r.FilledQty, FilledQuote: r.FilledQuote, FilledFee: r.FilledFee, Limit: r.LimitPrice, Stop: r.Stop, TakeProfit: r.TakeProfit,
+			PlacedAt: time.UnixMilli(r.PlacedAt)}
 		logger.Infof("📌 [%s] resting limit entry restored: %s order %s", at.name, r.Symbol, r.OrderID)
 	}
 }
 
+func (at *AutoTrader) pendingEntry(p *stockPending) *store.StockPendingEntry {
+	return &store.StockPendingEntry{TraderID: at.id, Symbol: p.Symbol, OrderID: p.OrderID,
+		Action: p.Action, Quantity: p.Qty, FilledQty: p.FilledQty, FilledQuote: p.FilledQuote, FilledFee: p.FilledFee,
+		LimitPrice: p.Limit, Stop: p.Stop, TakeProfit: p.TakeProfit, PlacedAt: p.PlacedAt.UnixMilli()}
+}
+
 func (at *AutoTrader) savePending(p *stockPending) {
-	err := at.store.StockPaper().UpsertPending(&store.StockPendingEntry{TraderID: at.id, Symbol: p.Symbol, OrderID: p.OrderID,
-		Action: p.Action, Quantity: p.Qty, FilledQty: p.FilledQty, LimitPrice: p.Limit, Stop: p.Stop, TakeProfit: p.TakeProfit, PlacedAt: p.PlacedAt.UnixMilli()})
-	if err != nil {
+	if err := at.store.StockPaper().UpsertPending(at.pendingEntry(p)); err != nil {
 		logger.Errorf("❌ [%s] cannot persist resting entry %s: %v", at.name, p.Symbol, err)
 	}
 }

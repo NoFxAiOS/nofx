@@ -3,6 +3,7 @@ package trader
 import (
 	"context"
 	"fmt"
+	"math"
 	"nofx/market/usstock"
 	"strings"
 	"time"
@@ -121,6 +122,7 @@ func (at *AutoTrader) stockTickLive(ctx context.Context, now time.Time, logf fun
 			if err := at.stockPlaceProtection(ctx, h.Symbol, h.Owned, stop, tp, price); err != nil {
 				logf("re-placing protection for %s failed: %v", h.Symbol, err)
 				stockNotify("ALERT", at.name, fmt.Sprintf("<b>🚨 美股保护单缺失且补挂失败 %s</b>\n<i>%s</i>", notify.Escape(h.Symbol), notify.Escape(err.Error())))
+				at.stockBoundFirstProtection(ctx, h, err, now, logf)
 				continue
 			}
 			logf("protection for %s was missing — re-placed (stop %.4f)", h.Symbol, stop)
@@ -137,6 +139,22 @@ func (at *AutoTrader) stockTickLive(ctx context.Context, now time.Time, logf fun
 	if at.stock.tickCount%stockSnapshotEvery == 0 {
 		at.saveStockEquity(now, st)
 	}
+}
+
+// stockBoundFirstProtection bounds the retries of a NEW position's first
+// protection (a buy fill with an unconfirmed protection intent): after
+// stockFirstProtectionMaxAttempts failed placements the position is sold at
+// market instead of staying naked indefinitely. Read failures do not count.
+func (at *AutoTrader) stockBoundFirstProtection(ctx context.Context, h *stockHolding, placeErr error, now time.Time, logf func(string, ...interface{})) {
+	if stockProtectionReadFailed(placeErr) {
+		return
+	}
+	n, err := at.store.StockPaper().BumpProtectionIntent(at.id, h.Symbol)
+	if err != nil || n < stockFirstProtectionMaxAttempts {
+		return
+	}
+	logf("first protection of %s failed %d times — exiting the unprotected position", h.Symbol, n)
+	at.stockFallbackSell(ctx, h, now, logf, fmt.Sprintf("protection could not be placed after %d attempts", n))
 }
 
 // stockFallbackSell is the program-side stop: sell the OWNED quantity at market.
@@ -193,22 +211,9 @@ func (at *AutoTrader) reconcileStockPendings(ctx context.Context, now time.Time,
 			logf("resting entry %s order %s status: %v", sym, p.OrderID, err)
 			continue
 		}
-		executed := numberOf(status, "executedQty")
-		avg := numberOf(status, "avgPrice")
-		fee := numberOf(status, "commission")
-		if inc := executed - p.FilledQty; inc > 1e-12 && avg > 0 {
-			net := at.stockNetReceived(sym, inc)
-			lp := at.stock.lastProtect[sym]
-			h := &stockHolding{Symbol: sym, Stop: lp.Stop, TakeProfit: lp.TakeProfit}
-			incFee := fee * inc / executed
-			if _, err := at.stockBuyFilled(ctx, sym, inc, avg, incFee, inc-net, p.OrderID, p.Stop, p.TakeProfit, h, now, logf); err != nil {
-				logf("resting entry %s fill could not be booked: %v", sym, err)
-				continue
-			}
-			p.FilledQty = executed
-			at.savePending(p)
-			logf("resting limit entry %s filled %.6f @ %.4f — booked and protected", sym, inc, avg)
-			stockNotify("ORDER", at.name, fmt.Sprintf("<b>📌 美股限价入场成交 %s</b>\n<i>%.6g @ %.4g，保护单已挂</i>", notify.Escape(sym), inc, avg))
+		if _, err := at.stockBookPendingProgress(ctx, sym, p, status, now, logf); err != nil {
+			logf("resting entry %s fill could not be booked: %v", sym, err)
+			continue
 		}
 		switch strings.ToUpper(fmt.Sprint(status["status"])) {
 		case "FILLED", "CANCELED", "CANCELLED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH":
@@ -225,6 +230,94 @@ func (at *AutoTrader) reconcileStockPendings(ctx context.Context, now time.Time,
 		}
 	}
 	return quarantined, nil
+}
+
+// stockBookPendingProgress books the not-yet-booked part of a resting entry's
+// CUMULATIVE executions (status is the exchange order status) and protects the
+// total owned quantity. The increment is priced from the cumulative quote and
+// fee DELTAS against the persisted watermark (the order's running average is
+// not the price of the new shares), and the watermark is committed atomically
+// with the position increment. booked reports whether anything was booked.
+func (at *AutoTrader) stockBookPendingProgress(ctx context.Context, sym string, p *stockPending, status map[string]interface{}, now time.Time,
+	logf func(string, ...interface{})) (booked bool, err error) {
+	executed := numberOf(status, "executedQty")
+	inc := executed - p.FilledQty
+	if inc <= 1e-12 {
+		return false, nil
+	}
+	avg := numberOf(status, "avgPrice")
+	quote := numberOf(status, "cummulativeQuoteQty")
+	fee := numberOf(status, "commission")
+	if avg <= 0 && quote > 0 {
+		avg = quote / executed
+	}
+	if avg <= 0 {
+		return false, nil
+	}
+	// Rows persisted before the quote/fee watermarks existed carry FilledQty
+	// without FilledQuote: fall back to the old cumulative-average estimate.
+	legacy := p.FilledQty > 1e-12 && p.FilledQuote <= 0
+	price, incFee := avg, fee*inc/executed
+	if !legacy && quote > p.FilledQuote+1e-12 {
+		price = (quote - p.FilledQuote) / inc
+		incFee = math.Max(fee-p.FilledFee, 0)
+	}
+	if quote <= 0 {
+		quote = avg * executed
+	}
+	net := at.stockNetReceived(sym, inc)
+	lp := at.stock.lastProtect[sym]
+	h := &stockHolding{Symbol: sym, Stop: lp.Stop, TakeProfit: lp.TakeProfit}
+	next := *p
+	next.FilledQty, next.FilledQuote, next.FilledFee = executed, quote, fee
+	if _, err := at.stockBuyFilled(ctx, sym, inc, price, incFee, inc-net, p.OrderID, p.Stop, p.TakeProfit, h, now, logf, &next); err != nil {
+		return false, err
+	}
+	*p = next
+	logf("resting limit entry %s filled %.6f @ %.4f — booked and protected", sym, inc, price)
+	stockNotify("ORDER", at.name, fmt.Sprintf("<b>📌 美股限价入场成交 %s</b>\n<i>%.6g @ %.4g，保护单已挂</i>", notify.Escape(sym), inc, price))
+	return true, nil
+}
+
+// stockCancelPendingEntry cancels the symbol's resting limit entry, reads its
+// FINAL executions, books them (a fill racing the cancel is still the program's
+// own shares) and forgets the entry. A no-op when none rests; the entry is kept
+// on any failure so the next pass retries.
+func (at *AutoTrader) stockCancelPendingEntry(ctx context.Context, sym string, now time.Time) (booked bool, err error) {
+	p := at.stock.pendings[sym]
+	if p == nil {
+		return false, nil
+	}
+	if err := at.stockTrader.CancelOrder(sym, p.OrderID); err != nil {
+		return false, fmt.Errorf("cancel resting entry %s: %w", p.OrderID, err)
+	}
+	status, err := at.stockTrader.GetOrderStatus(sym, p.OrderID)
+	if err != nil {
+		return false, fmt.Errorf("resting entry %s status after cancel: %w", p.OrderID, err)
+	}
+	logf := func(format string, args ...interface{}) {
+		logger.Infof("🇺🇸 [%s] %s", at.name, fmt.Sprintf(format, args...))
+	}
+	if booked, err = at.stockBookPendingProgress(ctx, sym, p, status, now, logf); err != nil {
+		return booked, fmt.Errorf("book resting entry %s fills: %w", p.OrderID, err)
+	}
+	if !stockOrderTerminal(strings.ToUpper(fmt.Sprint(status["status"]))) {
+		return booked, fmt.Errorf("resting entry %s still open after cancellation", p.OrderID)
+	}
+	at.dropPending(sym)
+	return booked, nil
+}
+
+// stockCancelEntryAfterExit retires a resting entry once exchange protection
+// has closed the position, so the entry cannot reopen it later.
+func (at *AutoTrader) stockCancelEntryAfterExit(sym string, now time.Time) {
+	if at.stock.pendings[sym] == nil || at.stockTrader == nil {
+		return
+	}
+	if _, err := at.stockCancelPendingEntry(context.Background(), sym, now); err != nil {
+		logger.Warnf("⚠️ [%s] %s was closed by its protection but the resting entry could not be cancelled: %v", at.name, sym, err)
+		stockNotify("ALERT", at.name, fmt.Sprintf("美股 %s 已被保护单平仓，但限价入场余单撤销失败，可能重新买入：%s", notify.Escape(sym), notify.Escape(err.Error())))
+	}
 }
 
 // stockPendingExpiry is the regular-session close of the first trading day

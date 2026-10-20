@@ -130,9 +130,11 @@ func (t *StocksTrader) GetPositions() ([]map[string]interface{}, error) {
 	}
 	t.posMu.RUnlock()
 
-	// The equity API has no cross-symbol position endpoint; the caller
-	// (AutoTrader) refreshes per-symbol via GetPositionsForSymbol.
-	return []map[string]interface{}{}, nil
+	// The equity API has no cross-symbol position endpoint and nothing ever
+	// fills posCache, so the account's holdings are UNKNOWN here. Returning a
+	// successful empty list would make every consumer (exposure checks, program
+	// stops, equity) believe the account is flat; fail loudly instead.
+	return nil, fmt.Errorf("binance_stocks: positions are not available (no account-wide position snapshot); refusing to report an empty account")
 }
 
 // GetPositionsForSymbol derives the net position for one symbol from its fill

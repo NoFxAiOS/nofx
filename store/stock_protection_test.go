@@ -79,3 +79,37 @@ func TestStockProtectionWatermarkFailureRollsBackPosition(t *testing.T) {
 		t.Fatalf("failed watermark persisted: %+v", orders)
 	}
 }
+
+func TestStockProtectionIntentLifecycleAndClientIDUpdate(t *testing.T) {
+	st := newTestStore(t)
+	sp := st.StockPaper()
+	if n, err := sp.BumpProtectionIntent("tr", "AAPLBUSDT"); err != nil || n != 0 {
+		t.Fatalf("bump without an intent: n=%d err=%v", n, err)
+	}
+	fill := &TraderPosition{TraderID: "tr", Symbol: "AAPLBUSDT", Side: "LONG", Quantity: 5, EntryQuantity: 5, EntryPrice: 120, EntryTime: 1, AIManaged: true, Status: "OPEN"}
+	if _, err := sp.BookEntryFill(fill, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	for want := 1; want <= 2; want++ {
+		if n, err := sp.BumpProtectionIntent("tr", "AAPLBUSDT"); err != nil || n != want {
+			t.Fatalf("bump %d: n=%d err=%v", want, n, err)
+		}
+	}
+	leg := StockProtectionOrder{TraderID: "tr", Symbol: "AAPLBUSDT", OrderID: "10", ClientOrderID: "nxbs_sl_10", Role: "stop_loss", Quantity: 5}
+	if err := sp.SaveProtectionOrders([]StockProtectionOrder{leg}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sp.UpdateProtectionClientID("tr", "AAPLBUSDT", "10", "nxbs_cancel_1"); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := sp.ListProtectionOrders("tr", "AAPLBUSDT"); len(rows) != 1 || rows[0].ClientOrderID != "nxbs_cancel_1" {
+		t.Fatalf("client ID not updated: %+v", rows)
+	}
+	// Closing the position through its protection clears the intent.
+	if _, _, _, closed, err := sp.BookProtectionStatus(leg, 5, 570, 0, "FILLED", time.Now()); err != nil || !closed {
+		t.Fatalf("close: closed=%v err=%v", closed, err)
+	}
+	if in, _ := sp.ListProtectionIntents("tr"); in["AAPLBUSDT"] {
+		t.Fatalf("intent survived the close: %v", in)
+	}
+}

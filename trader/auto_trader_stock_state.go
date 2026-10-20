@@ -133,6 +133,7 @@ func (at *AutoTrader) stockGatherLiveWithQuarantine(ctx context.Context, now tim
 		at.stockProtectionAlert(sym, class, err)
 	}
 	checks := map[string]stockProtectionCheck{}
+	intents := map[string]bool{}
 	if reconcile {
 		// Query IDs before reading balances: manual inventory cannot tell us
 		// whether our protection executed. Discover legacy OPEN sets as well.
@@ -141,6 +142,15 @@ func (at *AutoTrader) stockGatherLiveWithQuarantine(ctx context.Context, now tim
 			return nil, e
 		}
 		recorded, e := at.store.StockPaper().ListProtectionOrders(at.id, "")
+		if e != nil {
+			at.stockProtectionAlert("账户", "list_protection", e)
+			return nil, e
+		}
+		// A buy fill whose FIRST protection is still to be confirmed is known to be
+		// the program's own and was never covered by a protection that could have
+		// sold it: it is retried (ProtMissing path) instead of being quarantined
+		// as a position of unknown provenance.
+		intents, e = at.store.StockPaper().ListProtectionIntents(at.id)
 		if e != nil {
 			at.stockProtectionAlert("账户", "list_protection", e)
 			return nil, e
@@ -191,7 +201,7 @@ func (at *AutoTrader) stockGatherLiveWithQuarantine(ctx context.Context, now tim
 				continue
 			}
 			checks[sym] = check
-			if len(owned[sym]) > 0 && !live[sym] && !check.Known {
+			if len(owned[sym]) > 0 && !live[sym] && !check.Known && !intents[sym] {
 				// A legacy protection may already have sold OUR shares. Neither
 				// re-protect nor shrink potentially manual inventory by balance.
 				quarantine(sym, "missing_records", fmt.Errorf("无在途保护单且无已记录的保护单 ID，无法核实持仓归属；请人工核对历史成交：若为本人持仓，请确认并清理程序持仓记录；若仍为程序持仓，请手动平仓或补挂保护单后确认"))
@@ -291,7 +301,7 @@ func (at *AutoTrader) stockGatherLiveWithQuarantine(ctx context.Context, now tim
 		}
 		h := &stockHolding{Symbol: sym, Owned: qty, Balance: balance, Avg: avg, Mark: st.Marks[sym],
 			InitialStop: initial, OpenedAt: opened, Rows: rows,
-			ProtectionVerified: reconcile && checks[sym].Known && !checks[sym].Filled}
+			ProtectionVerified: reconcile && (checks[sym].Known || intents[sym]) && !checks[sym].Filled}
 		if reconcile && quarantined[sym] == "" && replaceProtection {
 			stop, tp := at.persistedStop(sym, h)
 			if e := at.stockPlaceProtection(ctx, sym, qty, stop, tp, h.Mark); e != nil {

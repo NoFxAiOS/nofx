@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"nofx/kernel/stockengine"
+	"nofx/logger"
 	"nofx/market/usstock"
 	"nofx/trader/types"
 
@@ -22,6 +23,10 @@ import (
 // the owned quantity only — the user's manual holdings are never touched.
 
 var errStopNotBelowPrice = errors.New("stop is not below the current price")
+
+// stockFirstProtectionMaxAttempts is how many failed protection ticks a freshly
+// bought position may accumulate before it is exited at market.
+const stockFirstProtectionMaxAttempts = 5
 
 // stockOutcome is the result of one executed decision.
 type stockOutcome struct {
@@ -105,6 +110,9 @@ func (at *AutoTrader) stockPlaceProtection(ctx context.Context, sym string, owne
 	}
 	at.stock.lastProtect[sym] = stockProtect{Stop: stop, TakeProfit: tp, Qty: qty}
 	at.stock.stopTicks[sym] = 0
+	if err := at.store.StockPaper().ClearProtectionIntent(at.id, sym); err != nil {
+		logger.Warnf("⚠️ [%s] cannot clear the protection intent of %s: %v", at.name, sym, err)
+	}
 	return nil
 }
 
@@ -181,6 +189,16 @@ func (at *AutoTrader) stockSellLive(ctx context.Context, h *stockHolding, qty fl
 	if h.Stop > 0 {
 		stop, tp = h.Stop, h.TakeProfit
 	}
+	// A full exit must also retire a resting limit entry: otherwise its unfilled
+	// remainder would rebuy the position the moment price touches the limit.
+	// Fills that happened before the cancel are booked first and sold with it.
+	pendingBooked := false
+	if full {
+		var cerr error
+		if pendingBooked, cerr = at.stockCancelPendingEntry(ctx, sym, now); cerr != nil {
+			return nil, fmt.Errorf("cannot cancel the resting entry before closing %s: %w", sym, cerr)
+		}
+	}
 	check, err := at.stockPrepareProtectionChange(sym, now)
 	if err != nil {
 		return nil, fmt.Errorf("cannot cancel protection before selling %s: %w", sym, err)
@@ -188,6 +206,9 @@ func (at *AutoTrader) stockSellLive(ctx context.Context, h *stockHolding, qty fl
 	owned, balance, err := at.stockLiveQuantities(sym)
 	if err != nil {
 		return nil, err
+	}
+	if full && pendingBooked {
+		qty = owned // the entry's fills were added after the caller sized the exit
 	}
 	if owned <= 1e-9 {
 		return &stockOutcome{Closed: true, Note: "position exited through exchange protection"}, nil
@@ -231,12 +252,19 @@ func (at *AutoTrader) stockSellLive(ctx context.Context, h *stockHolding, qty fl
 
 // stockBuyFilled books a (possibly incremental) buy fill and protects the
 // total owned quantity. h is the holding before the fill (nil for a new one).
+//
+// pend, when non-nil, is the resting entry's state AFTER this fill (watermark
+// advanced). It is committed in the same transaction as the position increment,
+// and the caller adopts it in memory only once this returns without error.
 func (at *AutoTrader) stockBuyFilled(ctx context.Context, sym string, executed, avg, feeUSDT, baseFee float64, orderID string,
-	stop, tp float64, h *stockHolding, now time.Time, logf func(string, ...interface{})) (*stockOutcome, error) {
+	stop, tp float64, h *stockHolding, now time.Time, logf func(string, ...interface{}), pend *stockPending) (*stockOutcome, error) {
 	net := executed - baseFee
-	owned, err := at.stockRecordBuy(sym, net, avg, feeUSDT, orderID, stop, now)
+	owned, booked, err := at.stockRecordBuyAtomic(sym, net, avg, feeUSDT, orderID, stop, now, pend, true)
 	if err != nil {
 		return nil, fmt.Errorf("fill recorded on the exchange but the position row failed: %w", err)
+	}
+	if !booked {
+		return &stockOutcome{Qty: 0, Price: avg, OrderID: orderID, Note: "fill already booked"}, nil
 	}
 	newStop, newTP := stop, tp
 	if h != nil {
@@ -285,15 +313,23 @@ func (at *AutoTrader) stockOpenLive(ctx context.Context, d stockengine.Decision,
 	}
 	price := fillPrice(res, entry)
 	fee, baseFee := stockFee(res, price, info.BaseAsset)
-	out, err := at.stockBuyFilled(ctx, d.Symbol, res.ExecutedQty, price, fee, baseFee, res.OrderID, stop, d.TakeProfit, h, now, logf)
+	// A partially filled limit keeps resting: its row (with the fill watermark)
+	// is committed together with the position increment.
+	var p *stockPending
+	if d.EntryType == stockengine.EntryLimit && res.ExecutedQty < qty-math.Max(info.StepSize, 1e-9) {
+		quote := res.QuoteQty
+		if quote <= 0 {
+			quote = price * res.ExecutedQty
+		}
+		p = &stockPending{Symbol: d.Symbol, OrderID: res.OrderID, Action: d.Action, Qty: qty, FilledQty: res.ExecutedQty,
+			FilledQuote: quote, FilledFee: fee, Limit: entry, Stop: stop, TakeProfit: d.TakeProfit, PlacedAt: now}
+	}
+	out, err := at.stockBuyFilled(ctx, d.Symbol, res.ExecutedQty, price, fee, baseFee, res.OrderID, stop, d.TakeProfit, h, now, logf, p)
 	if err != nil {
 		return nil, err
 	}
-	if d.EntryType == stockengine.EntryLimit && res.ExecutedQty < qty-math.Max(info.StepSize, 1e-9) {
-		p := &stockPending{Symbol: d.Symbol, OrderID: res.OrderID, Action: d.Action, Qty: qty, FilledQty: res.ExecutedQty, Limit: entry,
-			Stop: stop, TakeProfit: d.TakeProfit, PlacedAt: now}
+	if p != nil {
 		at.stock.pendings[d.Symbol] = p
-		at.savePending(p)
 		out.Note = "limit entry partially filled; the remainder keeps resting"
 	}
 	return out, nil

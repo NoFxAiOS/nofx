@@ -100,6 +100,7 @@ type stockProtect struct {
 type stockPending struct {
 	Symbol, OrderID, Action string
 	Qty, FilledQty, Limit   float64
+	FilledQuote, FilledFee  float64 // cumulative quote proceeds / fee (USDT) already booked with FilledQty
 	Stop, TakeProfit        float64
 	PlacedAt                time.Time
 }

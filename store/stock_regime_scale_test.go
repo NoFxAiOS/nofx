@@ -38,3 +38,39 @@ func TestStockRegimeScaleRoundTrip(t *testing.T) {
 		t.Fatalf("other trader's rows must be untouched: %+v", o)
 	}
 }
+
+func TestStockRegimeTrimPlanRoundTrip(t *testing.T) {
+	st := newTestStore(t)
+	rs := st.StockRegimeScales()
+	if err := rs.SetPlan("tr", "AAPLBUSDT", 0.5, 5); err != nil {
+		t.Fatal(err)
+	}
+	// A plan on a fresh row leaves the applied scale at the implicit 1.
+	if m, _ := rs.List("tr"); m["AAPLBUSDT"] != 1 {
+		t.Fatalf("applied scale %v", m)
+	}
+	if p, _ := rs.ListPlans("tr"); p["AAPLBUSDT"] != (StockRegimeTrimPlan{TargetScale: 0.5, TargetQty: 5}) {
+		t.Fatalf("plans %+v", p)
+	}
+	if err := rs.Set("tr", "AAPLBUSDT", 0.8); err != nil { // applying the scale ends the plan
+		t.Fatal(err)
+	}
+	if p, _ := rs.ListPlans("tr"); len(p) != 0 {
+		t.Fatalf("Set must clear the plan: %+v", p)
+	}
+	if err := rs.SetPlan("tr", "AAPLBUSDT", 0.4, 3); err != nil { // an existing row keeps its applied scale
+		t.Fatal(err)
+	}
+	if m, _ := rs.List("tr"); m["AAPLBUSDT"] != 0.8 {
+		t.Fatalf("SetPlan changed the applied scale: %v", m)
+	}
+	if err := rs.ClearPlan("tr", "AAPLBUSDT"); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := rs.ListPlans("tr"); len(p) != 0 {
+		t.Fatalf("plans after clear: %+v", p)
+	}
+	if m, _ := rs.List("tr"); m["AAPLBUSDT"] != 0.8 {
+		t.Fatalf("ClearPlan changed the applied scale: %v", m)
+	}
+}

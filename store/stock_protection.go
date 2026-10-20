@@ -119,6 +119,11 @@ func (s *StockPaperStore) BookProtectionStatus(key StockProtectionOrder, execute
 				remaining -= take
 			}
 			closed = owned-qty <= 1e-9
+			if closed {
+				if e := tx.Where("trader_id = ? AND symbol = ?", leg.TraderID, leg.Symbol).Delete(&StockProtectionIntent{}).Error; e != nil {
+					return e
+				}
+			}
 		}
 		return tx.Model(&leg).Updates(map[string]interface{}{
 			"booked_qty": executed, "booked_quote": quote, "booked_fee": fee,
@@ -126,4 +131,63 @@ func (s *StockPaperStore) BookProtectionStatus(key StockProtectionOrder, execute
 		}).Error
 	})
 	return
+}
+
+// StockProtectionIntent marks a program position whose FIRST protection has not
+// been confirmed yet (a buy fill was booked, the stop/OCO is still to be placed).
+// Unlike a legacy position of unknown provenance, such a position is known to be
+// the program's own and was never covered by a protection that could have sold
+// it, so reconciliation may retry the protection (and, after Attempts failures,
+// exit) instead of quarantining it forever. Cleared once protection is placed or
+// the position is closed.
+type StockProtectionIntent struct {
+	TraderID  string `gorm:"column:trader_id;primaryKey"`
+	Symbol    string `gorm:"column:symbol;primaryKey"`
+	Attempts  int    `gorm:"column:attempts;default:0"`
+	CreatedAt int64  `gorm:"column:created_at"`
+}
+
+func (StockProtectionIntent) TableName() string { return "stock_protection_intents" }
+
+// ListProtectionIntents returns the trader's symbols with an unconfirmed first protection.
+func (s *StockPaperStore) ListProtectionIntents(traderID string) (map[string]bool, error) {
+	var rows []StockProtectionIntent
+	if err := s.db.Where("trader_id = ?", traderID).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		out[r.Symbol] = true
+	}
+	return out, nil
+}
+
+// BumpProtectionIntent counts one failed protection attempt and returns the new
+// total; 0 when the symbol has no intent.
+func (s *StockPaperStore) BumpProtectionIntent(traderID, symbol string) (int, error) {
+	res := s.db.Model(&StockProtectionIntent{}).Where("trader_id = ? AND symbol = ?", traderID, symbol).
+		Update("attempts", gorm.Expr("attempts + 1"))
+	if res.Error != nil || res.RowsAffected == 0 {
+		return 0, res.Error
+	}
+	var row StockProtectionIntent
+	if err := s.db.Where("trader_id = ? AND symbol = ?", traderID, symbol).First(&row).Error; err != nil {
+		return 0, err
+	}
+	return row.Attempts, nil
+}
+
+// ClearProtectionIntent forgets the intent (protection placed / position closed).
+func (s *StockPaperStore) ClearProtectionIntent(traderID, symbol string) error {
+	return s.db.Where("trader_id = ? AND symbol = ?", traderID, symbol).Delete(&StockProtectionIntent{}).Error
+}
+
+// UpdateProtectionClientID persists a client ID that legitimately changed on
+// the exchange (a cancel request's newClientOrderId replaces the order's ID).
+func (s *StockPaperStore) UpdateProtectionClientID(traderID, symbol, orderID, clientID string) error {
+	if clientID == "" {
+		return nil
+	}
+	return s.db.Model(&StockProtectionOrder{}).Where("trader_id = ? AND symbol = ? AND order_id = ?", traderID, symbol, orderID).
+		Update("client_order_id", clientID).Error
 }

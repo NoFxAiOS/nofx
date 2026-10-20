@@ -68,9 +68,12 @@ func paperQty(t *testing.T, fx *stockFixture) float64 {
 	return 0
 }
 
+// scaleKey is the store key the fixture's mode reads/writes applied scales under.
+func scaleKey(fx *stockFixture) string { return fx.at.stockRegimeScaleKey(fx.at.stock.cfg.IsPaper()) }
+
 func appliedScales(t *testing.T, fx *stockFixture) map[string]float64 {
 	t.Helper()
-	m, err := fx.at.store.StockRegimeScales().List("t1")
+	m, err := fx.at.store.StockRegimeScales().List(scaleKey(fx))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +92,7 @@ func regimeTrimActions(rec *store.DecisionRecord) []store.DecisionAction {
 
 func TestStockRegimeTrimsOwnedQtyWhenScaleFalls(t *testing.T) {
 	fx := regimeFixture(t, 0.5, nil, stockTestNow)
-	if err := fx.at.store.StockRegimeScales().Set("t1", "AAPLBUSDT", 1); err != nil {
+	if err := fx.at.store.StockRegimeScales().Set(scaleKey(fx), "AAPLBUSDT", 1); err != nil {
 		t.Fatal(err)
 	}
 	fx.cycle(t)
@@ -161,7 +164,7 @@ func TestStockRegimeTrimOffKeepsHoldings(t *testing.T) {
 func TestStockRegimeDisabledIsInert(t *testing.T) {
 	fx := regimeFixture(t, 0.5, func(sc *store.StockConfig) { sc.RegimeScaler = "" }, stockTestNow)
 	// A leftover row must be neither read nor deleted while the scaler is off.
-	if err := fx.at.store.StockRegimeScales().Set("t1", "GONEBUSDT", 0.4); err != nil {
+	if err := fx.at.store.StockRegimeScales().Set(scaleKey(fx), "GONEBUSDT", 0.4); err != nil {
 		t.Fatal(err)
 	}
 	fx.cycle(t)
@@ -210,7 +213,7 @@ func TestStockRegimeCloseDeletesAppliedAndCleansGonePositions(t *testing.T) {
 	fx.ai.respond = func(int) string { return closeAAPL }
 	rs := fx.at.store.StockRegimeScales()
 	for _, sym := range []string{"AAPLBUSDT", "GONEBUSDT"} {
-		if err := rs.Set("t1", sym, 0.9); err != nil {
+		if err := rs.Set(scaleKey(fx), sym, 0.9); err != nil {
 			t.Fatal(err)
 		}
 	}

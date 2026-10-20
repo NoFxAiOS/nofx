@@ -76,6 +76,8 @@ type fakeSpot struct {
 	positionsErr error
 	onCancel     func()
 	onPositions  func()
+	setProtErr   error   // SetProtection fails with it while set
+	sellRatio    float64 // >0: a market sell executes only this share of the quantity
 }
 
 func newFakeSpot(price float64) *fakeSpot {
@@ -151,6 +153,9 @@ func (f *fakeSpot) SellMarket(sym string, qty float64) (*types.SpotOrderResult, 
 	if qty > f.hold[sym]-locked+1e-9 {
 		return nil, fmt.Errorf("sell quantity %v exceeds free balance %v", qty, f.hold[sym]-locked)
 	}
+	if f.sellRatio > 0 {
+		qty = floorStep(qty*f.sellRatio, 0.001)
+	}
 	f.hold[sym] -= qty
 	f.usdt += qty * f.price
 	return &types.SpotOrderResult{Symbol: sym, OrderID: f.nextID(), Side: "SELL", Type: "MARKET", Status: "FILLED", ExecutedQty: qty,
@@ -160,6 +165,9 @@ func (f *fakeSpot) SetProtection(sym string, qty, stop, limit, tp float64) (*typ
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.setProt = append(f.setProt, protCall{sym, qty, stop, limit, tp})
+	if f.setProtErr != nil {
+		return nil, f.setProtErr
+	}
 	if stop >= f.price {
 		return nil, fmt.Errorf("invalid protection")
 	}
@@ -227,6 +235,9 @@ func (f *fakeSpot) CancelAllOrders(string) error {
 func (f *fakeSpot) CostBasis(string) (float64, float64, error) { return f.price, 0, nil }
 func (f *fakeSpot) CancelOrder(symbol, orderID string) error {
 	f.cancelled = append(f.cancelled, symbol+":"+orderID)
+	if s := f.statuses[orderID]; s != nil && !stockOrderTerminal(fmt.Sprint(s["status"])) {
+		s["status"] = "CANCELED"
+	}
 	return nil
 }
 func (f *fakeSpot) GetOrderStatus(sym string, id string) (map[string]interface{}, error) {

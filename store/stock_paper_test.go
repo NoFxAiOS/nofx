@@ -69,3 +69,54 @@ func TestApplyExternalReductionKeepsCostBase(t *testing.T) {
 		t.Fatalf("closed %+v", closed)
 	}
 }
+
+func TestStockBookEntryFillIsAtomicAndIdempotent(t *testing.T) {
+	st := newTestStore(t)
+	sp := st.StockPaper()
+	fill := func(qty, price float64) *TraderPosition {
+		return &TraderPosition{TraderID: "tr", Symbol: "AAPLBUSDT", Side: "LONG", Quantity: qty, EntryQuantity: qty, EntryPrice: price,
+			EntryTime: 1, Leverage: 1, Status: "OPEN", Source: "system", AIManaged: true, InitialStopLoss: 90}
+	}
+	pend := func(filled float64) *StockPendingEntry {
+		return &StockPendingEntry{TraderID: "tr", Symbol: "AAPLBUSDT", OrderID: "9", Quantity: 4, FilledQty: filled, FilledQuote: filled * 100}
+	}
+	booked, err := sp.BookEntryFill(fill(2, 100), pend(2), true)
+	if err != nil || !booked {
+		t.Fatalf("first fill booked=%v err=%v", booked, err)
+	}
+	// Replaying the same watermark books nothing (restart / double delivery).
+	booked, err = sp.BookEntryFill(fill(2, 100), pend(2), true)
+	if err != nil || booked {
+		t.Fatalf("replay booked=%v err=%v", booked, err)
+	}
+	rows, _ := st.Position().StockOwnedRows("tr", "AAPLBUSDT")
+	if len(rows) != 1 || rows[0].Quantity != 2 {
+		t.Fatalf("replay changed the position: %+v", rows)
+	}
+	// A failing watermark write rolls the position increment back.
+	if err := st.GormDB().Exec(`CREATE TRIGGER fail_wm BEFORE UPDATE ON stock_pending_entries BEGIN SELECT RAISE(ABORT, 'injected'); END`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sp.BookEntryFill(fill(2, 80), pend(4), true); err == nil {
+		t.Fatal("expected injected failure")
+	}
+	rows, _ = st.Position().StockOwnedRows("tr", "AAPLBUSDT")
+	if len(rows) != 1 || rows[0].Quantity != 2 {
+		t.Fatalf("position increment escaped the failed transaction: %+v", rows)
+	}
+	pending, _ := sp.ListPending("tr")
+	if len(pending) != 1 || pending[0].FilledQty != 2 || pending[0].FilledQuote != 200 {
+		t.Fatalf("watermark moved despite the rollback: %+v", pending)
+	}
+	st.GormDB().Exec(`DROP TRIGGER fail_wm`)
+	if booked, err := sp.BookEntryFill(fill(2, 80), pend(4), false); err != nil || !booked {
+		t.Fatalf("retry booked=%v err=%v", booked, err)
+	}
+	rows, _ = st.Position().StockOwnedRows("tr", "AAPLBUSDT")
+	if len(rows) != 1 || rows[0].Quantity != 4 {
+		t.Fatalf("after retry: %+v", rows)
+	}
+	if in, _ := sp.ListProtectionIntents("tr"); !in["AAPLBUSDT"] {
+		t.Fatalf("intent not recorded with the fill: %v", in)
+	}
+}

@@ -72,17 +72,21 @@ func (StockPaperPosition) TableName() string { return "stock_paper_positions" }
 // Own table on purpose: trader_pending_entries is read by the futures
 // account-level reservation code.
 type StockPendingEntry struct {
-	ID         int64   `gorm:"primaryKey;autoIncrement" json:"id"`
-	TraderID   string  `gorm:"column:trader_id;not null;index:idx_stock_pending_trader_symbol,unique" json:"trader_id"`
-	Symbol     string  `gorm:"column:symbol;not null;index:idx_stock_pending_trader_symbol,unique" json:"symbol"`
-	OrderID    string  `gorm:"column:order_id;not null" json:"order_id"`
-	Action     string  `gorm:"column:action" json:"action"` // open_long | add_long
-	Quantity   float64 `gorm:"column:quantity" json:"quantity"`
-	FilledQty  float64 `gorm:"column:filled_qty;default:0" json:"filled_qty"` // already booked into the position row
-	LimitPrice float64 `gorm:"column:limit_price" json:"limit_price"`
-	Stop       float64 `gorm:"column:stop" json:"stop"`
-	TakeProfit float64 `gorm:"column:take_profit" json:"take_profit"`
-	PlacedAt   int64   `gorm:"column:placed_at" json:"placed_at"`
+	ID        int64   `gorm:"primaryKey;autoIncrement" json:"id"`
+	TraderID  string  `gorm:"column:trader_id;not null;index:idx_stock_pending_trader_symbol,unique" json:"trader_id"`
+	Symbol    string  `gorm:"column:symbol;not null;index:idx_stock_pending_trader_symbol,unique" json:"symbol"`
+	OrderID   string  `gorm:"column:order_id;not null" json:"order_id"`
+	Action    string  `gorm:"column:action" json:"action"` // open_long | add_long
+	Quantity  float64 `gorm:"column:quantity" json:"quantity"`
+	FilledQty float64 `gorm:"column:filled_qty;default:0" json:"filled_qty"` // already booked into the position row
+	// Cumulative quote proceeds / fee (USDT) already booked with FilledQty, so
+	// the next increment is priced from the DELTAS, not the order's running average.
+	FilledQuote float64 `gorm:"column:filled_quote;default:0" json:"filled_quote"`
+	FilledFee   float64 `gorm:"column:filled_fee;default:0" json:"filled_fee"`
+	LimitPrice  float64 `gorm:"column:limit_price" json:"limit_price"`
+	Stop        float64 `gorm:"column:stop" json:"stop"`
+	TakeProfit  float64 `gorm:"column:take_profit" json:"take_profit"`
+	PlacedAt    int64   `gorm:"column:placed_at" json:"placed_at"`
 }
 
 func (StockPendingEntry) TableName() string { return "stock_pending_entries" }
@@ -95,7 +99,7 @@ type StockPaperStore struct {
 func NewStockPaperStore(db *gorm.DB) *StockPaperStore { return &StockPaperStore{db: db} }
 
 func (s *StockPaperStore) initTables() error {
-	return s.db.AutoMigrate(&StockPaperAccount{}, &StockPaperPosition{}, &StockPendingEntry{}, &StockProtectionOrder{})
+	return s.db.AutoMigrate(&StockPaperAccount{}, &StockPaperPosition{}, &StockPendingEntry{}, &StockProtectionOrder{}, &StockProtectionIntent{})
 }
 
 // EnsureAccount returns the trader's paper account, creating it with
@@ -240,6 +244,56 @@ func (s *StockPaperStore) UpsertPending(p *StockPendingEntry) error {
 		Columns:   []clause.Column{{Name: "trader_id"}, {Name: "symbol"}},
 		UpdateAll: true,
 	}).Create(p).Error
+}
+
+// BookEntryFill books a live entry fill into the program-owned position row and,
+// in the SAME transaction, advances the resting entry's fill watermark
+// (pending, nil for an immediately complete fill) and records the "protection
+// still to be established" intent (when intent). A crash or write failure can
+// therefore neither lose the watermark nor book the same fill twice. fill
+// carries the quantity/price/fee increment and the row template used when no
+// owned row exists yet. booked=false means the watermark already covered this
+// fill (idempotent replay): nothing was changed.
+func (s *StockPaperStore) BookEntryFill(fill *TraderPosition, pending *StockPendingEntry, intent bool) (booked bool, err error) {
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if pending != nil {
+			var cur StockPendingEntry
+			e := tx.Where("trader_id = ? AND symbol = ?", pending.TraderID, pending.Symbol).First(&cur).Error
+			if e == nil && cur.OrderID == pending.OrderID && cur.FilledQty >= pending.FilledQty-1e-12 {
+				return nil // already booked
+			}
+			if e != nil && !errors.Is(e, gorm.ErrRecordNotFound) {
+				return e
+			}
+		}
+		positions := NewPositionStore(tx)
+		rows, e := positions.StockOwnedRows(fill.TraderID, fill.Symbol)
+		if e != nil {
+			return e
+		}
+		if len(rows) == 0 {
+			row := *fill
+			if e := positions.CreateOpenPosition(&row); e != nil {
+				return e
+			}
+		} else if e := positions.UpdatePositionQuantityAndPrice(rows[0].ID, fill.Quantity, fill.EntryPrice, fill.Fee); e != nil {
+			return e
+		}
+		if pending != nil {
+			if e := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "trader_id"}, {Name: "symbol"}}, UpdateAll: true}).Create(pending).Error; e != nil {
+				return e
+			}
+		}
+		if intent {
+			row := StockProtectionIntent{TraderID: fill.TraderID, Symbol: fill.Symbol, CreatedAt: time.Now().UTC().UnixMilli()}
+			if e := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; e != nil {
+				return e
+			}
+		}
+		booked = true
+		return nil
+	})
+	return booked, err
 }
 
 // DeletePending removes the resting-entry row (filled / cancelled).

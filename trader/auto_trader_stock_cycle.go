@@ -111,6 +111,18 @@ func (at *AutoTrader) cancelOrphanStockPendings(reason string) {
 			failed = append(failed, fmt.Sprintf("%s: %v", label, err))
 			continue
 		}
+		// CancelOrder succeeds on an order that already FILLED: never forget the
+		// entry while executions beyond the booked watermark exist. Keep the row
+		// (a live start books and protects them) and alert for manual handling.
+		status, serr := exec.GetOrderStatus(r.Symbol, r.OrderID)
+		if serr != nil {
+			failed = append(failed, fmt.Sprintf("%s: final fills unknown (%v), entry kept", label, serr))
+			continue
+		}
+		if executed := numberOf(status, "executedQty"); executed > r.FilledQty+1e-9 {
+			failed = append(failed, fmt.Sprintf("%s: %.6f shares filled but not booked (booked %.6f), entry kept until a live run books and protects them", label, executed, r.FilledQty))
+			continue
+		}
 		done = append(done, label)
 		if err := at.store.StockPaper().DeletePending(at.id, r.Symbol); err != nil {
 			logger.Warnf("⚠️ [%s] cannot delete resting entry row %s: %v", at.name, r.Symbol, err)
@@ -122,7 +134,7 @@ func (at *AutoTrader) cancelOrphanStockPendings(reason string) {
 	if len(failed) > 0 {
 		msg := strings.Join(failed, ", ")
 		logger.Warnf("⚠️ [%s] could not cancel kept resting entries (%s): %s — cancel manually", at.name, reason, msg)
-		stockNotify("ALERT", at.name, fmt.Sprintf("<b>⚠️ 美股限价入场单无人管理</b>\n<i>%s：%s — 请手动撤单，成交后需人工保护</i>", notify.Escape(reason), notify.Escape(msg)))
+		stockNotify("ALERT", at.name, fmt.Sprintf("<b>⚠️ 美股限价入场单无人管理</b>\n<i>%s：%s — 请手动核对或撤单，成交后需人工保护</i>", notify.Escape(reason), notify.Escape(msg)))
 	}
 }
 
@@ -612,12 +624,12 @@ func (at *AutoTrader) runStockCycle(ctx context.Context) error {
 			if xerr == nil {
 				acct.Available -= reserved
 				acct.Exposure += reserved
-				at.setStockRegimeScale(regime, d.Symbol, logf)
+				at.setStockRegimeScale(regime, paper, d.Symbol, logf)
 			}
 		case stockengine.ActionReduceLong, stockengine.ActionCloseLong:
 			out, xerr = at.execStockExit(ctx, d, snap, h, paper, now)
 			if xerr == nil && d.Action == stockengine.ActionCloseLong {
-				at.deleteStockRegimeScale(regime, d.Symbol, logf)
+				at.deleteStockRegimeScale(regime, paper, d.Symbol, logf)
 			}
 		case stockengine.ActionAdjustStop:
 			out, xerr = at.execStockAdjust(ctx, d, snap, h, paper, now)

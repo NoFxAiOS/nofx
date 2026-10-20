@@ -5,9 +5,13 @@
 //   - Market buys/sells execute at quote +/- adverse slippage; taker fees apply.
 //   - Resting limits fill at their limit when a later 1m low/high touches it;
 //     maker fees apply. There are no partial fills, queue or volume simulation.
-//   - SL closes the whole hedge side at trigger +/- adverse slippage (taker).
+//   - SL closes the whole hedge side at the executable price +/- adverse
+//     slippage (taker). The executable price is the trigger, unless the market
+//     gapped through it: then the current quote (or, in replay, the candle open
+//     or its nearest bound when the whole candle lies beyond the trigger).
 //     TP closes the specified quantity, or the whole side for quantity <= 0,
-//     at trigger (maker). Close orders can never create opposite exposure.
+//     as a market order at trigger +/- adverse slippage (taker), never better
+//     than the trigger. Close orders can never create opposite exposure.
 //     Within the same candle SL precedes TP, then limits, with FIFO tie breaks.
 //   - Completed candles replay chronologically, followed by the current quote.
 //     The placement minute's pre-order extremes are excluded; only subsequent
@@ -17,6 +21,10 @@
 //     Cross/isolated settings are recorded, but both use account-level margin.
 //     Equity <= maintenance notional closes ALL positions at their marks,
 //     charging taker fees, cancelling orders, and tagging liquidation receipts.
+//     Replay also tests each candle's intrabar extremes (after SL/TP/limits):
+//     every symbol of that minute is valued at its Low, then at its High, and a
+//     breach liquidates at that extreme. Positions opened inside the minute
+//     keep the close mark. Hedges therefore see one correlated move.
 //   - Funding, tiered margin, liquidation penalties, insurance/ADL, latency,
 //     post-only rejection and venue price filters are not simulated.
 //
@@ -91,6 +99,9 @@ type PaperFuturesTrader struct {
 	initErr     error
 	displayName string
 	stop, done  chan struct{}
+	// lotSteps remembers each symbol's LOT_SIZE step (set by quantity()) so a
+	// float64 remainder below half a step is recognised as a flat position.
+	lotSteps map[string]float64
 }
 
 var _ types.GridTrader = (*PaperFuturesTrader)(nil)
@@ -98,23 +109,29 @@ var _ types.GridTrader = (*PaperFuturesTrader)(nil)
 // New restores the account, creating a 10,000 USDT ledger on first use when
 // InitialBalance is zero. Defaults: taker 5bp, maker 2bp, slippage 3bp,
 // leverage 1, maintenance 0.5%. InitialBalance never resets an existing ledger.
+// A fully resolved configuration (InitialBalance > 0 and DefaultLeverage >= 1,
+// as produced from store.PaperConfig) keeps explicit zero fees/slippage; only
+// partially filled configurations get the default costs for zero fields.
 // The required signature has no error result: initialization errors are kept
 // and returned by operations; an unavailable DB never becomes a memory ledger.
 func New(cfg Config, st *store.Store, price PriceSource) *PaperFuturesTrader {
 	if cfg.ExchangeID == "" {
 		cfg.ExchangeID = "paper"
 	}
+	resolved := cfg.InitialBalance > 0 && cfg.DefaultLeverage >= 1
 	if cfg.InitialBalance == 0 {
 		cfg.InitialBalance = 10000
 	}
-	if cfg.TakerFeeBps == 0 {
-		cfg.TakerFeeBps = 5
-	}
-	if cfg.MakerFeeBps == 0 {
-		cfg.MakerFeeBps = 2
-	}
-	if cfg.SlippageBps == 0 {
-		cfg.SlippageBps = 3
+	if !resolved {
+		if cfg.TakerFeeBps == 0 {
+			cfg.TakerFeeBps = 5
+		}
+		if cfg.MakerFeeBps == 0 {
+			cfg.MakerFeeBps = 2
+		}
+		if cfg.SlippageBps == 0 {
+			cfg.SlippageBps = 3
+		}
 	}
 	if cfg.DefaultLeverage == 0 {
 		cfg.DefaultLeverage = 1
@@ -128,16 +145,22 @@ func New(cfg Config, st *store.Store, price PriceSource) *PaperFuturesTrader {
 	if price == nil {
 		price = NewMarketPriceSource()
 	}
-	p := &PaperFuturesTrader{cfg: cfg, st: st, price: price, rules: cfg.SymbolRules}
+	p := &PaperFuturesTrader{cfg: cfg, st: st, price: price, rules: cfg.SymbolRules, lotSteps: map[string]float64{}}
 	if p.rules == nil {
 		p.rules, _ = price.(SymbolRules)
 	}
 	if p.rules == nil {
 		p.rules = NewMarketPriceSource().(SymbolRules)
 	}
-	for _, v := range []float64{cfg.InitialBalance, cfg.TakerFeeBps, cfg.MakerFeeBps, cfg.SlippageBps, cfg.MaintenanceMarginPct} {
+	for _, v := range []float64{cfg.InitialBalance, cfg.MaintenanceMarginPct} {
 		if !positive(v) {
 			p.initErr = fmt.Errorf("paper configuration must be finite and positive")
+			return p
+		}
+	}
+	for _, v := range []float64{cfg.TakerFeeBps, cfg.MakerFeeBps, cfg.SlippageBps} {
+		if v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+			p.initErr = fmt.Errorf("paper fees and slippage must be finite and non-negative")
 			return p
 		}
 	}
@@ -225,8 +248,16 @@ func (p *PaperFuturesTrader) leverage(symbol string) int {
 }
 
 func (p *PaperFuturesTrader) account() (unrealized, margin, notional float64) {
+	return p.accountAt(nil)
+}
+
+// accountAt values positions at p.s.Marks, except symbols present in override.
+func (p *PaperFuturesTrader) accountAt(override map[string]float64) (unrealized, margin, notional float64) {
 	for _, v := range p.s.Positions {
 		mark := p.s.Marks[v.Symbol]
+		if m, ok := override[v.Symbol]; ok {
+			mark = m
+		}
 		direction := 1.0
 		if v.Side == "SHORT" {
 			direction = -1
@@ -296,7 +327,7 @@ func (p *PaperFuturesTrader) execute(o *order, price float64, maker bool, reason
 			pnl = -pnl
 		}
 		p.s.Closed = append(p.s.Closed, types.ClosedPnLRecord{Symbol: o.Symbol, Side: strings.ToLower(pos.Side), EntryPrice: pos.EntryPrice, ExitPrice: price, Quantity: qty, RealizedPnL: pnl, Fee: fee, Leverage: pos.Leverage, EntryTime: pos.OpenedAt, ExitTime: now, OrderID: o.OrderID, CloseType: reason, ExchangeID: o.OrderID})
-		pos.Quantity -= qty
+		pos.Quantity = p.normalizeQuantity(o.Symbol, pos.Quantity-qty, qty)
 		if pos.Quantity <= 0 {
 			delete(p.s.Positions, key)
 			p.cancelMatching(func(other *order) bool {
@@ -325,6 +356,19 @@ func (p *PaperFuturesTrader) execute(o *order, price float64, maker bool, reason
 		remaining = current.Quantity
 	}
 	return store.PaperLedgerTrade{Order: or, Fill: fill, CloseReason: reason, RemainingQuantity: remaining}, nil
+}
+
+// normalizeQuantity removes float64 residue left by subtracting step-multiple
+// quantities (0.8-0.1-0.7 = 1.1e-16). With a known lot step the remainder snaps
+// to a step multiple; otherwise a relative 1e-9 of the closed size counts as 0.
+func (p *PaperFuturesTrader) normalizeQuantity(symbol string, remaining, closed float64) float64 {
+	if step := p.lotSteps[symbol]; step > 0 {
+		return math.Round(remaining/step) * step
+	}
+	if remaining <= closed*1e-9+1e-12 {
+		return 0
+	}
+	return remaining
 }
 
 func (p *PaperFuturesTrader) cancelMatching(match func(*order) bool, now time.Time) {
@@ -431,8 +475,13 @@ func (p *PaperFuturesTrader) Advance(now time.Time) error {
 					p.s.Marks[e.symbol] = e.c.Close
 				}
 				for _, e := range events[i:end] {
-					trades = append(trades, p.match(e.symbol, e.c.Low, e.c.High, e.c.Time, e.c.Time.Add(time.Minute), false)...)
+					trades = append(trades, p.match(e.symbol, e.c.Open, e.c.Low, e.c.High, e.c.Time, e.c.Time.Add(time.Minute), false)...)
 				}
+				group, groupSymbols := make([]Candle, 0, end-i), make([]string, 0, end-i)
+				for _, e := range events[i:end] {
+					group, groupSymbols = append(group, e.c), append(groupSymbols, e.symbol)
+				}
+				trades = append(trades, p.liquidateIntrabar(groupSymbols, group)...)
 				trades = append(trades, p.liquidate(events[i].c.Time.Add(time.Minute))...)
 				i = end
 			}
@@ -442,7 +491,7 @@ func (p *PaperFuturesTrader) Advance(now time.Time) error {
 			}
 			sort.Slice(list, func(i, j int) bool { return list[i].symbol < list[j].symbol })
 			for _, v := range list {
-				trades = append(trades, p.match(v.symbol, v.mark, v.mark, now, now, true)...)
+				trades = append(trades, p.match(v.symbol, 0, v.mark, v.mark, now, now, true)...)
 			}
 			trades = append(trades, p.liquidate(now)...)
 			p.s.LastAdvance = now
@@ -453,7 +502,9 @@ func (p *PaperFuturesTrader) Advance(now time.Time) error {
 	}
 }
 
-func (p *PaperFuturesTrader) match(symbol string, low, high float64, barStart, at time.Time, quote bool) []store.PaperLedgerTrade {
+// match fills triggered orders. open is the candle open (0 when unknown or for
+// quotes); low/high bound the candle, or both equal the quote.
+func (p *PaperFuturesTrader) match(symbol string, open, low, high float64, barStart, at time.Time, quote bool) []store.PaperLedgerTrade {
 	orders := []*order{}
 	for _, o := range p.s.Orders {
 		if o.Symbol == symbol && o.Status == "NEW" && !o.CreatedAt.After(barStart) {
@@ -492,10 +543,12 @@ func (p *PaperFuturesTrader) match(symbol string, low, high float64, barStart, a
 			}
 		case "STOP_MARKET":
 			hit = o.PositionSide == "LONG" && low <= o.StopPrice || o.PositionSide == "SHORT" && high >= o.StopPrice
-			price, maker, reason = p.slipped(o.StopPrice, o.Side), false, "stop_loss"
+			price, maker, reason = p.slipped(stopReference(o, open, low, high), o.Side), false, "stop_loss"
 		case "TAKE_PROFIT_MARKET":
+			// A market order once triggered: taker fee and adverse slippage,
+			// never a price better than the trigger.
 			hit = o.PositionSide == "LONG" && high >= o.StopPrice || o.PositionSide == "SHORT" && low <= o.StopPrice
-			price, reason = o.StopPrice, "take_profit"
+			price, maker, reason = p.slipped(o.StopPrice, o.Side), false, "take_profit"
 		}
 		if !hit {
 			continue
@@ -507,6 +560,93 @@ func (p *PaperFuturesTrader) match(symbol string, low, high float64, barStart, a
 			continue
 		}
 		trades = append(trades, trade)
+	}
+	return trades
+}
+
+// stopReference is the price a triggered stop-market order can actually trade
+// at before slippage. It is the trigger unless the market gapped through it:
+// a quote already beyond the trigger, a candle opening beyond it, or (without an
+// open) a candle lying entirely beyond it, in which case the bound nearest the
+// trigger is used. Sell stops (LONG) never fill above, buy stops (SHORT) never
+// below, the trigger.
+func stopReference(o *order, open, low, high float64) float64 {
+	stop := o.StopPrice
+	if open < low || open > high {
+		open = 0 // unusable open
+	}
+	if o.PositionSide == "LONG" {
+		switch {
+		case low == high && low < stop: // quote
+			return low
+		case open > 0 && open < stop:
+			return open
+		case open <= 0 && high < stop:
+			return high
+		}
+		return stop
+	}
+	switch {
+	case low == high && low > stop:
+		return low
+	case open > 0 && open > stop:
+		return open
+	case open <= 0 && low > stop:
+		return low
+	}
+	return stop
+}
+
+// liquidateIntrabar tests whether a candle's extremes breached maintenance
+// margin even though its close recovered. All symbols of the minute are valued
+// together at their Lows, then at their Highs (one correlated move, so hedges
+// are not liquidated by a leg repriced alone). Symbols holding a position
+// opened after the candle started stay at their close: that candle's earlier
+// range predates the position. On a breach the account liquidates at the
+// extreme marks, then marks return to the closes.
+func (p *PaperFuturesTrader) liquidateIntrabar(symbols []string, candles []Candle) []store.PaperLedgerTrade {
+	if len(p.s.Positions) == 0 {
+		return nil
+	}
+	skip := map[string]bool{}
+	for _, pos := range p.s.Positions {
+		for i, s := range symbols {
+			if s == pos.Symbol && pos.OpenedAt.After(candles[i].Time) {
+				skip[s] = true
+			}
+		}
+	}
+	var worst map[string]float64
+	worstExcess := 0.0
+	for _, useLow := range []bool{true, false} {
+		marks := map[string]float64{}
+		for i, s := range symbols {
+			if skip[s] {
+				continue
+			}
+			if useLow {
+				marks[s] = candles[i].Low
+			} else {
+				marks[s] = candles[i].High
+			}
+		}
+		u, _, n := p.accountAt(marks)
+		if excess := p.s.Wallet + u - n*p.cfg.MaintenanceMarginPct/100; excess <= 0 && (worst == nil || excess < worstExcess) {
+			worst, worstExcess = marks, excess
+		}
+	}
+	if worst == nil {
+		return nil
+	}
+	closes := map[string]float64{}
+	for s, m := range worst {
+		closes[s] = p.s.Marks[s]
+		p.s.Marks[s] = m
+	}
+	at := candles[0].Time.Add(time.Minute)
+	trades := p.liquidate(at)
+	for s, m := range closes {
+		p.s.Marks[s] = m
 	}
 	return trades
 }

@@ -304,9 +304,13 @@ func TestProtectiveTriggersAndStopFirst(t *testing.T) {
 				if len(closed) != 1 {
 					t.Fatal(closed)
 				}
-				exit, reason, feeBps := tp, "take_profit", 2.0
+				// TP and SL are both taker market orders with adverse slippage.
+				exit, reason, feeBps := tp*.9997, "take_profit", 5.0
+				if side == "SHORT" {
+					exit = tp * 1.0003
+				}
 				if trigger != "tp" {
-					reason, feeBps = "stop_loss", 5
+					reason = "stop_loss"
 					exit = sl * .9997
 					if side == "SHORT" {
 						exit = sl * 1.0003
@@ -599,7 +603,8 @@ func TestQuantityRulesAndConfiguredCosts(t *testing.T) {
 	at := f.now()
 	f.step(time.Minute, 105, bar(at, 100, 111, 105))
 	s = summary(t, p)
-	near(t, s.TotalFees, 100.2*1.225*.001+110*1.225*.0004)
+	// TP is a taker market order: 10bp fee at 110 less 20bp slippage.
+	near(t, s.TotalFees, 100.2*1.225*.001+110*.998*1.225*.001)
 }
 
 func TestAdvanceFailureRetainsCursorAndRetries(t *testing.T) {
@@ -972,5 +977,142 @@ func TestConcurrentTradingIsSerialized(t *testing.T) {
 	}
 	if count(t, st, &store.TraderFill{}) != 22 {
 		t.Fatal("lost concurrent fills")
+	}
+}
+
+func TestStopMarketFillsAtGappedPrice(t *testing.T) {
+	for _, side := range []string{"LONG", "SHORT"} {
+		// A stop 10% away; the market gaps 40% through it.
+		stop, gap, slip := 90.0, 60.0, .9997
+		open := func(p *PaperFuturesTrader) error { _, e := p.OpenLong("BTCUSDT", 2, 10); return e }
+		if side == "SHORT" {
+			stop, gap, slip = 110, 140, 1.0003
+			open = func(p *PaperFuturesTrader) error { _, e := p.OpenShort("BTCUSDT", 2, 10); return e }
+		}
+		check := func(name string, want float64, step func(f *fakeMarket)) {
+			t.Run(side+"/"+name, func(t *testing.T) {
+				p, _, f := setup(t, Config{})
+				must(t, open(p))
+				must(t, p.SetStopLoss("BTCUSDT", side, 0, stop))
+				step(f)
+				closed, err := p.GetClosedPnL(time.Time{}, 10)
+				must(t, err)
+				if len(closed) != 1 || closed[0].CloseType != "stop_loss" {
+					t.Fatal(closed)
+				}
+				near(t, closed[0].ExitPrice, want*slip)
+			})
+		}
+		check("quote", gap, func(f *fakeMarket) { f.step(time.Minute, gap) })
+		check("candle-open-gap", gap, func(f *fakeMarket) {
+			at := f.now()
+			lo, hi := gap-5, gap+5
+			if side == "SHORT" {
+				lo, hi = gap-5, gap+5
+			}
+			f.step(time.Minute, gap, Candle{Time: at, Open: gap, Low: lo, High: hi, Close: gap})
+		})
+		// No open known: the whole candle is beyond the stop, so use its near bound.
+		near := gap + 5
+		if side == "SHORT" {
+			near = gap - 5
+		}
+		check("candle-beyond-stop", near, func(f *fakeMarket) {
+			at := f.now()
+			f.step(time.Minute, gap, bar(at, gap-5, gap+5, gap))
+		})
+		// An ordinary touch still fills at the trigger.
+		check("touch", stop, func(f *fakeMarket) {
+			at := f.now()
+			f.step(time.Minute, 100, bar(at, 89, 111, 100))
+		})
+	}
+}
+
+func TestIntrabarLiquidationUsesCandleExtreme(t *testing.T) {
+	p, st, f := setup(t, Config{InitialBalance: 100})
+	_, err := p.OpenLong("BTCUSDT", 9, 10)
+	must(t, err)
+	at := f.now()
+	// Low 85 breaches maintenance; the close of 100 alone would not.
+	f.step(time.Minute, 100, bar(at, 85, 101, 100))
+	pos, err := p.GetPositions()
+	must(t, err)
+	if len(pos) != 0 {
+		t.Fatal("position survived an intrabar liquidation", pos)
+	}
+	closed, err := p.GetClosedPnL(time.Time{}, 10)
+	must(t, err)
+	if len(closed) != 1 || closed[0].CloseType != "liquidation" {
+		t.Fatal(closed)
+	}
+	near(t, closed[0].ExitPrice, 85)
+	var row store.TraderPosition
+	must(t, st.GormDB().First(&row).Error)
+	if row.Status != "CLOSED" || row.CloseReason != "liquidation" {
+		t.Fatal(row)
+	}
+	// Control: a shallower low that stays above maintenance does not liquidate.
+	p2, _, f2 := setup(t, Config{InitialBalance: 100})
+	_, err = p2.OpenLong("BTCUSDT", 9, 10)
+	must(t, err)
+	f2.step(time.Minute, 100, bar(f2.now(), 92, 101, 100))
+	pos, err = p2.GetPositions()
+	must(t, err)
+	if len(pos) != 1 {
+		t.Fatal("shallow low liquidated", pos)
+	}
+	// A short is tested at the candle high.
+	p3, _, f3 := setup(t, Config{InitialBalance: 100})
+	_, err = p3.OpenShort("BTCUSDT", 9, 10)
+	must(t, err)
+	f3.step(time.Minute, 100, bar(f3.now(), 99, 115, 100))
+	pos, err = p3.GetPositions()
+	must(t, err)
+	if len(pos) != 0 {
+		t.Fatal("short survived intrabar high", pos)
+	}
+}
+
+func TestFloatResidueFullCloseMarksRecordClosed(t *testing.T) {
+	p, st, _ := setup(t, Config{})
+	_, err := p.OpenLong("BTCUSDT", .8, 10)
+	must(t, err)
+	_, err = p.CloseLong("BTCUSDT", .1)
+	must(t, err)
+	_, err = p.CloseLong("BTCUSDT", .7) // 0.8-0.1-0.7 leaves 1.1e-16 in float64
+	must(t, err)
+	pos, err := p.GetPositions()
+	must(t, err)
+	if len(pos) != 0 {
+		t.Fatal("float residue kept a ghost position", pos)
+	}
+	var rows []store.TraderPosition
+	must(t, st.GormDB().Find(&rows).Error)
+	if len(rows) != 1 || rows[0].Status != "CLOSED" || rows[0].ExitTime == 0 {
+		t.Fatal("fully closed paper record was reopened", rows)
+	}
+}
+
+func TestExplicitZeroCostsAreKept(t *testing.T) {
+	p, _, _ := setup(t, Config{InitialBalance: 1000})
+	if p.cfg.TakerFeeBps != 5 || p.cfg.MakerFeeBps != 2 || p.cfg.SlippageBps != 3 {
+		t.Fatal("legacy partial config lost its default costs", p.cfg)
+	}
+	// A fully resolved config (as built from store.PaperConfig) with explicit zeros.
+	p, _, _ = setup(t, Config{ExchangeID: "zero", InitialBalance: 1000, DefaultLeverage: 5, TakerFeeBps: 0, MakerFeeBps: 0, SlippageBps: 0})
+	r, err := p.OpenLong("BTCUSDT", 1, 0)
+	must(t, err)
+	near(t, r["avgPrice"].(float64), 100)
+	near(t, summary(t, p).TotalFees, 0)
+	_, err = p.CloseLong("BTCUSDT", 0)
+	must(t, err)
+	s := summary(t, p)
+	near(t, s.TotalFees, 0)
+	near(t, s.Equity, 1000)
+	// Negative costs are still rejected.
+	bad := New(Config{InitialBalance: 1000, DefaultLeverage: 5, TakerFeeBps: -1}, nil, newFake())
+	if bad.initErr == nil {
+		t.Fatal("negative fee accepted")
 	}
 }

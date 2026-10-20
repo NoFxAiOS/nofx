@@ -34,6 +34,9 @@ func (p *PaperFuturesTrader) quantity(symbol string, quantity float64) (float64,
 		return 0, "", r, fmt.Errorf("%s LOT_SIZE trading rule is missing", symbol)
 	}
 	// Match Binance's step-multiple truncation, including non-power-of-ten lots.
+	p.mu.Lock()
+	p.lotSteps[symbol] = step
+	p.mu.Unlock()
 	q := math.Floor(quantity/step+1e-9) * step
 	// FormatFloat on the parsed step also handles scientific notation.
 	stepText := strconv.FormatFloat(step, 'f', -1, 64)

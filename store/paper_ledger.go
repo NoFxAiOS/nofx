@@ -25,6 +25,10 @@ type PaperLedger struct {
 
 func (PaperLedger) TableName() string { return "paper_ledgers" }
 
+// paperFlatQuantity is the largest remainder treated as a flat position: float64
+// residue (e.g. 0.8-0.1-0.7 = 1.1e-16) must not reopen a fully closed record.
+const paperFlatQuantity = 1e-9
+
 var ErrPaperLedgerConflict = errors.New("paper ledger changed; retry operation")
 
 type PaperLedgerStore struct{ db *gorm.DB }
@@ -105,12 +109,12 @@ func (s *PaperLedgerStore) Commit(next *PaperLedger, previous *PaperLedger, trad
 			}
 			if pos != nil {
 				updates := map[string]interface{}{"leverage": trade.Order.Leverage}
-				if trade.CloseReason != "" && trade.RemainingQuantity == 0 {
+				if trade.CloseReason != "" && trade.RemainingQuantity <= paperFlatQuantity {
 					updates["close_reason"] = trade.CloseReason
 				}
 				// The shared builder treats <1e-4 remainder as flat. Futures lot
 				// steps can be smaller: retain an exact, genuinely partial close.
-				if trade.RemainingQuantity > 0 {
+				if trade.RemainingQuantity > paperFlatQuantity {
 					updates["quantity"], updates["status"] = trade.RemainingQuantity, "OPEN"
 					updates["exit_time"], updates["exit_order_id"], updates["close_reason"] = 0, "", ""
 				}

@@ -13,9 +13,10 @@ import (
 )
 
 // Candle.Time is the UTC opening time of a one-minute candle.
+// Open is optional (0 = unknown) and only refines stop fills across gaps.
 type Candle struct {
-	Time             time.Time
-	High, Low, Close float64
+	Time                   time.Time
+	Open, High, Low, Close float64
 }
 
 // PriceSource must be safe for concurrent calls. Candles1m includes the minute
@@ -70,7 +71,7 @@ func (s *marketPriceSource) Candles1m(symbol string, since time.Time) ([]Candle,
 	}
 	out := make([]Candle, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, Candle{Time: time.UnixMilli(r.OpenTime).UTC(), High: r.High, Low: r.Low, Close: r.Close})
+		out = append(out, Candle{Time: time.UnixMilli(r.OpenTime).UTC(), Open: r.Open, High: r.High, Low: r.Low, Close: r.Close})
 	}
 	return out, nil
 }

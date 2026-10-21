@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/http"
 	"nofx/logger"
 	"nofx/provider/hyperliquid"
 	"strconv"
@@ -113,8 +114,8 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	// Get OI data
 	oiData, err := getOpenInterestData(symbol)
 	if err != nil {
-		// OI failure doesn't affect overall result, use default values
-		oiData = &OIData{Latest: 0, Average: 0}
+		// Missing OI is unknown, not a measured zero.
+		oiData = nil
 	}
 
 	// Get Funding Rate
@@ -236,7 +237,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	// Get OI data
 	oiData, err := getOpenInterestData(symbol)
 	if err != nil {
-		oiData = &OIData{Latest: 0, Average: 0}
+		oiData = nil
 	}
 
 	// Get Funding Rate
@@ -258,14 +259,20 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 
 // getOpenInterestData retrieves OI data
 func getOpenInterestData(symbol string) (*OIData, error) {
+	return fetchOpenInterestData(NewAPIClient().client, symbol)
+}
+
+func fetchOpenInterestData(client *http.Client, symbol string) (*OIData, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
-	apiClient := NewAPIClient()
-	resp, err := apiClient.client.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("open interest unavailable: HTTP %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -282,7 +289,10 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 		return nil, err
 	}
 
-	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
+	oi, err := strconv.ParseFloat(result.OpenInterest, 64)
+	if err != nil || math.IsNaN(oi) || math.IsInf(oi, 0) || oi < 0 {
+		return nil, fmt.Errorf("open interest unavailable: invalid or missing value")
+	}
 
 	return &OIData{
 		Latest:  oi,
@@ -360,6 +370,8 @@ func Format(data *Data) string {
 		oiAverageStr := formatPriceWithDynamicPrecision(data.OpenInterest.Average)
 		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %s Average: %s\n\n",
 			oiLatestStr, oiAverageStr))
+	} else {
+		sb.WriteString("Open Interest: unavailable (not a measured zero)\n\n")
 	}
 
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
@@ -615,7 +627,7 @@ func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data,
 		CurrentRSI7:       calculateRSI(primary, 7),
 		PriceChange1h:     priceChangeFromSeries(primary, time.Hour),
 		PriceChange4h:     priceChangeFromSeries(primary, 4*time.Hour),
-		OpenInterest:      &OIData{Latest: 0, Average: 0},
+		OpenInterest:      nil, // Candles do not contain open interest.
 		FundingRate:       0,
 		IntradaySeries:    calculateIntradaySeries(primary),
 		LongerTermContext: nil,

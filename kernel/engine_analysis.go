@@ -217,8 +217,6 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		positionSymbols[pos.Symbol] = true
 	}
 
-	const minOIThresholdMillions = 15.0 // 15M USD minimum open interest value
-
 	for _, coin := range ctx.CandidateCoins {
 		if _, exists := ctx.MarketDataMap[coin.Symbol]; exists {
 			continue
@@ -230,20 +228,8 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 			continue
 		}
 
-		// Liquidity filter (skip for xyz dex assets - they don't have OI data from Binance).
-		// An OI of 0 means the OI fetch failed or the source has no data (e.g. a
-		// deprecated data-source key, #1542). Treat that as "unknown" and keep the
-		// coin rather than filtering every candidate out as "0.00M < 15M".
-		isExistingPosition := positionSymbols[coin.Symbol]
-		isXyzAsset := market.IsXyzDexAsset(coin.Symbol)
-		if !isExistingPosition && !isXyzAsset && data.OpenInterest != nil && data.OpenInterest.Latest > 0 && data.CurrentPrice > 0 {
-			oiValue := data.OpenInterest.Latest * data.CurrentPrice
-			oiValueInMillions := oiValue / 1_000_000
-			if oiValueInMillions < minOIThresholdMillions {
-				logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
-					coin.Symbol, oiValueInMillions, minOIThresholdMillions)
-				continue
-			}
+		if skipLowOpenInterest(coin.Symbol, data, positionSymbols[coin.Symbol]) {
+			continue
 		}
 
 		ctx.MarketDataMap[coin.Symbol] = data
@@ -251,6 +237,28 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 
 	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins", len(ctx.MarketDataMap))
 	return nil
+}
+
+// Missing OI must not empty the candidate list; a measured zero remains low OI.
+// Existing positions and xyz assets retain their existing exemptions.
+func skipLowOpenInterest(symbol string, data *market.Data, existingPosition bool) bool {
+	if existingPosition || market.IsXyzDexAsset(symbol) {
+		return false
+	}
+	if data.OpenInterest == nil {
+		logger.Infof("%s open interest unavailable; OI liquidity filter not evaluated", symbol)
+		return false
+	}
+	const minOIThresholdMillions = 15.0
+	if data.CurrentPrice > 0 {
+		oiValueInMillions := data.OpenInterest.Latest * data.CurrentPrice / 1_000_000
+		if oiValueInMillions < minOIThresholdMillions {
+			logger.Infof("%s OI value too low (%.2fM USD < %.1fM), skipping coin",
+				symbol, oiValueInMillions, minOIThresholdMillions)
+			return true
+		}
+	}
+	return false
 }
 
 func pruneCandidateCoinsWithoutMarketData(ctx *Context) {

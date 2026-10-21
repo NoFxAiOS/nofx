@@ -1077,9 +1077,13 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	if indicators.EnableOI || indicators.EnableFundingRate {
 		sb.WriteString(fmt.Sprintf("Additional data for %s:\n\n", data.Symbol))
 
-		if indicators.EnableOI && data.OpenInterest != nil {
-			sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f\n\n",
-				data.OpenInterest.Latest, data.OpenInterest.Average))
+		if indicators.EnableOI {
+			if data.OpenInterest == nil {
+				sb.WriteString("Open Interest: unavailable (not a measured zero); OI liquidity has not been verified\n\n")
+			} else {
+				sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f\n\n",
+					data.OpenInterest.Latest, data.OpenInterest.Average))
+			}
 		}
 
 		if indicators.EnableFundingRate {

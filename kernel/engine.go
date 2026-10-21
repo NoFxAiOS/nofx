@@ -110,6 +110,7 @@ type Context struct {
 	OIRankingData      *nofxos.OIRankingData              `json:"-"` // Market-wide OI ranking data
 	NetFlowRankingData *nofxos.NetFlowRankingData         `json:"-"` // Market-wide fund flow ranking data
 	PriceRankingData   *nofxos.PriceRankingData           `json:"-"` // Market-wide price gainers/losers
+	ExternalData       map[string]interface{}             `json:"-"` // Strategy external data sources, by source name
 	BTCETHLeverage     int                                `json:"-"`
 	AltcoinLeverage    int                                `json:"-"`
 	Timeframes         []string                           `json:"-"`
@@ -190,6 +191,9 @@ type StrategyEngine struct {
 	nofxosClient       *nofxos.Client
 	vergexClient       *vergex.Client
 	vergexRankingCache map[string]*vergex.DirectionChangeItem
+
+	externalMu    sync.Mutex
+	externalCache map[string]externalCacheEntry
 }
 
 // NewStrategyEngine creates strategy execution engine.
@@ -947,54 +951,106 @@ func (e *StrategyEngine) FetchMarketData(symbol string) (*market.Data, error) {
 	return market.Get(symbol)
 }
 
-// FetchExternalData fetches external data sources
-func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
-	externalData := make(map[string]interface{})
+// External data sources (store.ExternalDataSource): fetched once per decision cycle and put into the
+// user prompt. refresh_secs is how long a fetched value is reused (0 = fetch every cycle); the HTTP timeout
+// is fixed, the status must be 2xx and the body is capped, so one slow or broken source cannot stall or
+// flood a cycle.
+var (
+	externalDataTimeout = 10 * time.Second
+	externalDataMaxBody = 64 << 10
+	// Replaced in tests only: the SSRF-safe client refuses loopback, where httptest servers listen.
+	externalValidateURL = security.ValidateURL
+	externalHTTPClient  = security.SafeHTTPClient
+)
 
-	for _, source := range e.config.Indicators.ExternalDataSources {
+type externalCacheEntry struct {
+	data      interface{}
+	fetchedAt time.Time
+}
+
+// FetchExternalData fetches the strategy's external data sources, keyed by source name.
+// A source that fails is logged and left out; a failure is never cached.
+func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
+	sources := e.config.Indicators.ExternalDataSources
+	externalData := make(map[string]interface{}, len(sources))
+	now := time.Now()
+
+	for _, source := range sources {
+		key := source.Name + "\x00" + source.Method + "\x00" + source.URL
+		if data, ok := e.cachedExternalData(key, source.RefreshSecs, now); ok {
+			externalData[source.Name] = data
+			continue
+		}
 		data, err := e.fetchSingleExternalSource(source)
 		if err != nil {
 			logger.Infof("⚠️  Failed to fetch external data source [%s]: %v", source.Name, err)
 			continue
 		}
+		e.storeExternalData(key, data, now)
 		externalData[source.Name] = data
 	}
 
 	return externalData, nil
 }
 
+func (e *StrategyEngine) cachedExternalData(key string, refreshSecs int, now time.Time) (interface{}, bool) {
+	if refreshSecs <= 0 {
+		return nil, false
+	}
+	e.externalMu.Lock()
+	defer e.externalMu.Unlock()
+	entry, ok := e.externalCache[key]
+	if !ok || now.Sub(entry.fetchedAt) >= time.Duration(refreshSecs)*time.Second {
+		return nil, false
+	}
+	return entry.data, true
+}
+
+func (e *StrategyEngine) storeExternalData(key string, data interface{}, now time.Time) {
+	e.externalMu.Lock()
+	defer e.externalMu.Unlock()
+	if e.externalCache == nil {
+		e.externalCache = make(map[string]externalCacheEntry)
+	}
+	e.externalCache[key] = externalCacheEntry{data: data, fetchedAt: now}
+}
+
 func (e *StrategyEngine) fetchSingleExternalSource(source store.ExternalDataSource) (interface{}, error) {
 	// SSRF Protection: Validate URL before making request
-	if err := security.ValidateURL(source.URL); err != nil {
+	if err := externalValidateURL(source.URL); err != nil {
 		return nil, fmt.Errorf("external source URL validation failed: %w", err)
 	}
 
-	timeout := time.Duration(source.RefreshSecs) * time.Second
-	if timeout == 0 {
-		timeout = 30 * time.Second
+	method := source.Method
+	if method == "" {
+		method = http.MethodGet
 	}
-
-	// Use SSRF-safe HTTP client
-	client := security.SafeHTTPClient(timeout)
-
-	req, err := http.NewRequest(source.Method, source.URL, nil)
+	req, err := http.NewRequest(method, source.URL, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	for k, v := range source.Headers {
 		req.Header.Set(k, v)
 	}
 
-	resp, err := client.Do(req)
+	// Use SSRF-safe HTTP client
+	resp, err := externalHTTPClient(externalDataTimeout).Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, int64(externalDataMaxBody)))
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(externalDataMaxBody)+1))
 	if err != nil {
 		return nil, err
+	}
+	if len(body) > externalDataMaxBody {
+		return nil, fmt.Errorf("response body exceeds %d bytes", externalDataMaxBody)
 	}
 
 	var result interface{}

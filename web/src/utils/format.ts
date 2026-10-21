@@ -14,7 +14,10 @@
  * @param minDecimals minimum number of decimal places (default 2)
  * @returns the formatted string
  */
-export function formatPrice(price: number | undefined | null, minDecimals = 2): string {
+export function formatPrice(
+  price: number | undefined | null,
+  minDecimals = 2
+): string {
   if (price === undefined || price === null || isNaN(price)) {
     return '0'
   }
@@ -60,7 +63,9 @@ export function formatPrice(price: number | undefined | null, minDecimals = 2): 
     // Pad with zeros if there are fewer than minDecimals decimals
     const dotIndex = formatted.indexOf('.')
     if (dotIndex === -1) {
-      formatted += '.' + '0'.repeat(minDecimals)
+      if (minDecimals > 0) {
+        formatted += '.' + '0'.repeat(minDecimals)
+      }
     } else {
       const currentDecimals = formatted.length - dotIndex - 1
       if (currentDecimals < minDecimals) {
@@ -79,7 +84,10 @@ export function formatPrice(price: number | undefined | null, minDecimals = 2): 
  * @param minDecimals minimum number of decimal places (default 2)
  * @returns the formatted string
  */
-export function formatQuantity(quantity: number | undefined | null, minDecimals = 2): string {
+export function formatQuantity(
+  quantity: number | undefined | null,
+  minDecimals = 2
+): string {
   if (quantity === undefined || quantity === null || isNaN(quantity)) {
     return '0'
   }
@@ -108,7 +116,9 @@ export function formatQuantity(quantity: number | undefined | null, minDecimals 
     formatted = formatted.replace(/\.?0+$/, '')
     const dotIndex = formatted.indexOf('.')
     if (dotIndex === -1) {
-      formatted += '.' + '0'.repeat(minDecimals)
+      if (minDecimals > 0) {
+        formatted += '.' + '0'.repeat(minDecimals)
+      }
     } else {
       const currentDecimals = formatted.length - dotIndex - 1
       if (currentDecimals < minDecimals) {
@@ -127,9 +137,12 @@ export function formatQuantity(quantity: number | undefined | null, minDecimals 
  * @param decimals number of decimal places (default 2)
  * @returns the formatted string
  */
-export function formatPercent(value: number | undefined | null, decimals = 2): string {
+export function formatPercent(
+  value: number | undefined | null,
+  decimals = 2
+): string {
   if (value === undefined || value === null || isNaN(value)) {
-    return '0.00'
+    return (0).toFixed(decimals)
   }
   return value.toFixed(decimals)
 }

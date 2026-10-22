@@ -95,7 +95,7 @@ func (c *Controller) CheckStatus(ctx context.Context, user, id string) (View, er
 		return v, errors.New("Could not verify the original trading account. Check its connection in Config.")
 	}
 	for i, order := range v.Orders {
-		if order.Status == "scheduled" || (order.Role == "entry" && order.Status == "CANCELED" && order.OrderID == "" && cmp(order.Filled, "0") == 0) {
+		if order.Status == "scheduled" || (order.Role == "entry" && (order.Status == "CANCELED" || order.Status == "EXPIRED") && order.OrderID == "" && cmp(order.Filled, "0") == 0) {
 			continue // Persisted intent has never been sent to the exchange.
 		}
 		observed, lookupErr := broker.Lookup(ctx, order)

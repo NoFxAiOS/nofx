@@ -134,6 +134,7 @@ Use Docker Desktop and a Bash environment such as WSL2, then run the one-line in
 **Railway**
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
+[![Deploy to Light Cloud](https://light-cloud.com/button.svg)](https://console.light-cloud.com/new?repo=https://github.com/NoFxAiOS/nofx)
 
 **Remote deployments**
 

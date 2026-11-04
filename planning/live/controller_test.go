@@ -35,10 +35,12 @@ type testBroker struct {
 	orders                 map[string]Order
 	placed                 []Order
 	cancelled              []string
+	lookedUp               []string
 	account                Account
 	prepareErr, errorPlace error
 	lookupErr              bool
 	fillEntryImmediately   bool
+	invalidExpiryReceipt   bool
 }
 
 func (b *testBroker) Venue() string { return "binance" }
@@ -59,6 +61,9 @@ func (b *testBroker) Place(_ context.Context, o Order) (Order, error) {
 		o.Status, o.Filled = "FILLED", o.Quantity
 	}
 	b.orders[o.ClientID] = o
+	if b.invalidExpiryReceipt {
+		o.Status, o.OrderID = "EXPIRED", ""
+	}
 	return o, b.errorPlace
 }
 
@@ -106,6 +111,7 @@ func TestImmediateFillWaitsForPositionBeforeCompletion(t *testing.T) {
 func (b *testBroker) Lookup(_ context.Context, o Order) (Order, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.lookedUp = append(b.lookedUp, o.ClientID)
 	if b.lookupErr {
 		return o, errors.New("unknown")
 	}

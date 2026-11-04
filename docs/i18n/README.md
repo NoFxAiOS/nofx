@@ -196,7 +196,7 @@ For project READMEs, keep the one-line installer near the top and outside collap
 | 🇺🇦 Ukrainian | Community | Active |
 
 **Want to join the team? / 想加入团队？**
-
+- Contact on [Telegram](https://t.me/nofx_dev_community)
 - Open an issue on GitHub
 - DM [@nofx_official](https://x.com/nofx_official) on Twitter
 
@@ -243,7 +243,7 @@ For project READMEs, keep the one-line installer near the top and outside collap
 ## 🆘 Translation Help / 翻译帮助
 
 **Questions? / 有问题？**
-
+- 💬 Ask in [Telegram Community](https://t.me/nofx_dev_community)
 - 🐙 Open a [GitHub Issue](https://github.com/NoFxAiOS/nofx/issues)
 - 📧 Contact maintainers
 

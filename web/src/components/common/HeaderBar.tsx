@@ -163,6 +163,10 @@ export default function HeaderBar({
                   {[
                     { name: 'GitHub', href: OFFICIAL_LINKS.github },
                     { name: 'X / Twitter', href: OFFICIAL_LINKS.twitter },
+                    {
+                      name: 'Telegram Community',
+                      href: OFFICIAL_LINKS.telegram,
+                    },
                   ].map((link) => (
                     <a
                       key={link.name}

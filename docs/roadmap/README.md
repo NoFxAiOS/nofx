@@ -261,7 +261,7 @@ NOFX is on a mission to become the **Universal AI Trading Operating System** for
 
 We welcome community contributions to accelerate our roadmap:
 
-
+- **Vote on Features**: Join our [Telegram community](https://t.me/nofx_dev_community) to vote on priority features
 - **Contribute Code**: Check our [Contributing Guide](../../CONTRIBUTING.md)
 - **Bug Bounties**: Report issues and earn rewards
 - **Strategy Sharing**: Share your successful strategies

@@ -121,6 +121,14 @@ export function FAQLayout() {
             >
               GitHub
             </a>
+            <a
+              href="https://t.me/nofx_dev_community"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-nofx-gold px-5 py-2.5 font-sans text-xs font-bold tracking-normal text-white hover:bg-nofx-accent"
+            >
+              Telegram community
+            </a>
           </div>
         </div>
       </div>

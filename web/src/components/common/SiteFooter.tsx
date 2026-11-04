@@ -26,6 +26,13 @@ export function SiteFooter({ language }: { language: Language }) {
           >
             X / Twitter ↗
           </a>
+          <a
+            href={OFFICIAL_LINKS.telegram}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Telegram Community ↗
+          </a>
         </div>
       </div>
     </footer>

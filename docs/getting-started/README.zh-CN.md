@@ -95,7 +95,7 @@ cp config.json.example config.json
 
 **需要更多帮助？**
 - 📖 [常见问题](../guides/faq.zh-CN.md)
-
+- 💬 [Telegram 社区](https://t.me/nofx_dev_community)
 - 🐛 [GitHub Issues](https://github.com/NoFxAiOS/nofx/issues)
 
 ---

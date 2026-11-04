@@ -558,7 +558,7 @@ docker compose exec postgres \
    - 描述您已尝试的方法
 
 3. **加入社区:**
-
+   - [Telegram 开发者社区](https://t.me/nofx_dev_community)
    - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
 
 ---

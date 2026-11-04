@@ -1,5 +1,5 @@
 import { BrandLogo } from '../common/BrandLogo'
-import { Github, ExternalLink } from 'lucide-react'
+import { Github, Send, ExternalLink } from 'lucide-react'
 import { t, Language } from '../../i18n/translations'
 import { OFFICIAL_LINKS } from '../../constants/branding'
 
@@ -20,6 +20,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
           </svg>
         ),
       },
+      { name: 'Telegram Community', href: OFFICIAL_LINKS.telegram, icon: Send },
     ],
     resources: [
       {

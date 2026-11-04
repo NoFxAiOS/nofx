@@ -316,7 +316,7 @@ We use GitHub Actions for automation:
 
 ### External (Community)
 
-
+- **Telegram:** [@nofx_dev_community](https://t.me/nofx_dev_community)
 - **GitHub Issues:** Bug reports, feature requests
 - **GitHub Discussions:** General questions, ideas
 - **Twitter:** [@nofx_official](https://x.com/nofx_official) - Announcements

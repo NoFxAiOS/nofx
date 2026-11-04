@@ -558,7 +558,7 @@ If you've tried all the above and still have problems:
    - Describe what you've already tried
 
 3. **Join Community:**
-
+   - [Telegram Developer Community](https://t.me/nofx_dev_community)
    - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
 
 ---

@@ -126,8 +126,8 @@ Details: [详情链接]
 #Bounty #OpenSource #Crypto #Trading
 ```
 
-
-
+**Telegram:**
+- 在 NOFX 开发者社区发布：https://t.me/nofx_dev_community
 - 在相关的开发者群组分享
 
 ### 2. 开发者社区
@@ -216,7 +216,7 @@ Details: [详情链接]
 ## 📞 需要帮助？
 
 - **GitHub Issues**: https://github.com/NoFxAiOS/nofx/issues
-
+- **Telegram**: https://t.me/nofx_dev_community
 - **Twitter/X**: [@Web3Tinkle](https://x.com/Web3Tinkle)
 
 ---

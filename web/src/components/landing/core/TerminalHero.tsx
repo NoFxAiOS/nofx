@@ -10,6 +10,7 @@ import {
   Star,
   GitFork,
   Users,
+  MessageCircle,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -412,10 +413,17 @@ function CommunityStats() {
       color: 'text-nofx-success',
       href: `${OFFICIAL_LINKS.github}/graphs/contributors`,
     },
+    {
+      label: 'TELEGRAM COMMUNITY',
+      value: 'Join community',
+      icon: MessageCircle,
+      color: 'text-nofx-accent',
+      href: OFFICIAL_LINKS.telegram,
+    },
   ]
 
   return (
-    <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl">
+    <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl">
       {stats.map((stat, i) => (
         <a
           key={i}

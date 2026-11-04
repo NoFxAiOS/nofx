@@ -629,7 +629,8 @@ export const translations = {
     step3Desc:
       'One-click Docker deployment, start AI agents. Note: High-risk market, only test with money you can afford to lose.',
     step4Title: 'Optimize & Contribute',
-    step4Desc: 'Monitor trading and submit PRs to improve the framework.',
+    step4Desc:
+      'Monitor trading, submit PRs to improve framework. Join Telegram to share strategies.',
     importantRiskWarning: 'Important Risk Warning',
     riskWarningText:
       'Dev branch is unstable, do not use funds you cannot afford to lose. NOFX is non-custodial, no official strategies. Trading involves risks, invest carefully.',
@@ -1711,7 +1712,7 @@ export const translations = {
     step3Desc:
       '一键 Docker 部署，启动 AI 代理。注意：高风险市场，仅用闲钱测试。',
     step4Title: '优化与贡献',
-    step4Desc: '监控交易，提交 PR 改进框架。',
+    step4Desc: '监控交易，提交 PR 改进框架。加入 Telegram 分享策略。',
     importantRiskWarning: '重要风险提示',
     riskWarningText:
       'dev 分支不稳定，勿用无法承受损失的资金。NOFX 非托管，无官方策略。交易有风险，投资需谨慎。',
@@ -2796,7 +2797,8 @@ export const translations = {
     step3Desc:
       'Deployment Docker satu klik, mulai agen AI. Catatan: Pasar berisiko tinggi, hanya uji dengan uang yang bisa Anda rugi.',
     step4Title: 'Optimalkan & Kontribusi',
-    step4Desc: 'Pantau trading dan kirim PR untuk meningkatkan framework.',
+    step4Desc:
+      'Pantau trading, kirim PR untuk meningkatkan framework. Bergabung ke Telegram untuk berbagi strategi.',
     importantRiskWarning: 'Peringatan Risiko Penting',
     riskWarningText:
       'Branch dev tidak stabil, jangan gunakan dana yang tidak sanggup Anda rugi. NOFX non-custodial, tanpa strategi resmi. Trading memiliki risiko, investasi dengan hati-hati.',

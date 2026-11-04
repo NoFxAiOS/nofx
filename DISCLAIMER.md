@@ -385,7 +385,7 @@ NOFX集成了第三方服务（交易所、AI API）：
 If you have questions about this disclaimer:
 - Read the [Security Policy](.github/SECURITY.md)
 - Read the [Contributing Guidelines](CONTRIBUTING.md)
-
+- Join our [Telegram Community](https://t.me/nofx_dev_community)
 - Contact via [Twitter](https://x.com/nofx_official)
 
 ---

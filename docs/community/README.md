@@ -33,7 +33,7 @@ We're introducing a new PR management system to improve code quality and make co
    - Check out [bounty tasks](#-bounty-program)
 
 3. **Join the Community**
-
+   - 💬 [Telegram Developer Community](https://t.me/nofx_dev_community)
    - 🐦 [Twitter @nofx_official](https://x.com/nofx_official)
    - 🐙 [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
 
@@ -138,6 +138,7 @@ NOFX offers bounties for valuable contributions:
 
 | Platform | Purpose | Link |
 |----------|---------|------|
+| 💬 Telegram | Real-time chat, questions | [Join](https://t.me/nofx_dev_community) |
 | 🐙 GitHub | Issues, PRs, discussions | [Visit](https://github.com/NoFxAiOS/nofx) |
 | 🐦 Twitter | Announcements, updates | [@nofx_official](https://x.com/nofx_official) |
 
@@ -147,7 +148,7 @@ NOFX offers bounties for valuable contributions:
 - **Tintin** - [@Tintinx2021](https://x.com/Tintinx2021)
 
 **Contact:**
-- Technical questions → GitHub Issues
+- Technical questions → Telegram or GitHub Issues
 - Business inquiries → Twitter DM to core team
 - Security reports → [SECURITY.md](../../SECURITY.md)
 
@@ -156,7 +157,7 @@ NOFX offers bounties for valuable contributions:
 ## 📅 Community Events
 
 ### Regular Activities
-
+- **Weekly Updates** - Development progress (Telegram)
 - **Monthly AMA** - Ask maintainers anything
 - **Quarterly Roadmap** - Future plans discussion
 
@@ -164,7 +165,7 @@ NOFX offers bounties for valuable contributions:
 - *No scheduled events yet*
 
 **Want to organize an event?**
-
+- Contact core team on Telegram
 - Propose in GitHub Discussions
 - Tweet and tag @nofx_official
 
@@ -239,7 +240,7 @@ NOFX offers bounties for valuable contributions:
 - **Want to contribute code?** → [Contributing Guide](../../CONTRIBUTING.md)
 - **Want to claim bounty?** → [Bounty Guide](bounty-guide.md)
 - **Found a security issue?** → [Security Policy](../../SECURITY.md)
-
+- **Have questions?** → [Telegram Community](https://t.me/nofx_dev_community)
 - **Verify official accounts?** → [Official Accounts & Anti-Impersonation](OFFICIAL_ACCOUNTS.md)
 
 ---

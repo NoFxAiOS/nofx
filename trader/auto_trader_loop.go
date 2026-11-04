@@ -757,6 +757,13 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		}
 	}
 
+	// 12. Get external data sources (strategy config), once per decision cycle
+	if len(strategyConfig.Indicators.ExternalDataSources) > 0 {
+		ctx.ExternalData, _ = at.strategyEngine.FetchExternalData()
+		logger.Infof("🌐 [%s] External data ready: %d of %d sources",
+			at.name, len(ctx.ExternalData), len(strategyConfig.Indicators.ExternalDataSources))
+	}
+
 	return ctx, nil
 }
 

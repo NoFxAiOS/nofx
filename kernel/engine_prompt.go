@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"encoding/json"
 	"fmt"
 	"nofx/market"
 	"nofx/provider/nofxos"
@@ -925,9 +926,35 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString(nofxos.FormatPriceRankingForAI(ctx.PriceRankingData, nofxosLang))
 	}
 
+	// External data sources configured in the strategy (fetched once per cycle)
+	if len(ctx.ExternalData) > 0 {
+		sb.WriteString(e.formatExternalData(ctx.ExternalData))
+	}
+
 	sb.WriteString("---\n\n")
 	sb.WriteString("Now please analyze briefly and output the decision JSON.\n")
 
+	return sb.String()
+}
+
+// formatExternalData renders each fetched external source under its own heading, in the order the
+// strategy lists them, as compact JSON.
+func (e *StrategyEngine) formatExternalData(data map[string]interface{}) string {
+	var sb strings.Builder
+	sb.WriteString("## External Data Sources\n\n")
+	seen := make(map[string]bool)
+	for _, source := range e.config.Indicators.ExternalDataSources {
+		value, ok := data[source.Name]
+		if !ok || seen[source.Name] {
+			continue
+		}
+		seen[source.Name] = true
+		raw, err := json.Marshal(value)
+		if err != nil {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("### %s\n%s\n\n", source.Name, raw))
+	}
 	return sb.String()
 }
 

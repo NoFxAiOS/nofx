@@ -35,7 +35,7 @@ function configBadge(label: string, active: boolean) {
 }
 
 export function SettingsPage() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { language } = useLanguage()
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -125,8 +125,11 @@ export function SettingsPage() {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to update password')
       }
-      toast.success('Password updated successfully')
+      toast.success(
+        'Password updated. Please sign in again; all previous sessions have expired.'
+      )
       setNewPassword('')
+      await logout()
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Failed to update password'

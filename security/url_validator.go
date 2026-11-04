@@ -23,6 +23,7 @@ func init() {
 		"172.16.0.0/12",  // RFC1918 private
 		"192.168.0.0/16", // RFC1918 private
 		"169.254.0.0/16", // Link-local / Cloud metadata
+		"100.64.0.0/10",  // Shared address space (including carrier/private overlays)
 		"0.0.0.0/8",      // Current network
 		"224.0.0.0/4",    // Multicast
 		"240.0.0.0/4",    // Reserved
@@ -41,8 +42,8 @@ func init() {
 
 // SSRFError represents a Server-Side Request Forgery attempt
 type SSRFError struct {
-	URL     string
-	Reason  string
+	URL    string
+	Reason string
 }
 
 func (e *SSRFError) Error() string {
@@ -56,7 +57,7 @@ func isPrivateIP(ip net.IP) bool {
 	}
 
 	// Check if it's a loopback address
-	if ip.IsLoopback() {
+	if ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
 		return true
 	}
 
@@ -122,30 +123,22 @@ func ValidateURL(rawURL string) error {
 		}
 	}
 
-	// Resolve the hostname to IP addresses
-	// This catches DNS rebinding and ensures we check the actual destination
+	// Early validation only. SafeHTTPClient also resolves and pins the address
+	// when opening the socket; a URL validation alone cannot stop DNS rebinding.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	resolver := net.Resolver{}
-	ips, err := resolver.LookupIPAddr(ctx, host)
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 	if err != nil {
-		// If DNS resolution fails, we still need to check if it's an IP address directly
-		ip := net.ParseIP(host)
-		if ip != nil {
-			if isPrivateIP(ip) {
-				return &SSRFError{URL: rawURL, Reason: "resolves to private IP address"}
-			}
-			return nil // It's a valid public IP
-		}
-		// DNS resolution failed, but it's not an IP - could be a typo or non-existent domain
-		// Allow it and let the HTTP client handle the error
-		return nil
+		return &SSRFError{URL: rawURL, Reason: "hostname could not be resolved"}
+	}
+	if len(ips) == 0 {
+		return &SSRFError{URL: rawURL, Reason: "hostname has no addresses"}
 	}
 
 	// Check all resolved IPs
 	for _, ipAddr := range ips {
-		if isPrivateIP(ipAddr.IP) {
+		if ipAddr.Zone != "" || isPrivateIP(ipAddr.IP) {
 			return &SSRFError{URL: rawURL, Reason: fmt.Sprintf("resolves to private IP: %s", ipAddr.IP)}
 		}
 	}
@@ -162,26 +155,11 @@ func SafeHTTPClient(timeout time.Duration) *http.Client {
 	}
 
 	transport := &http.Transport{
+		ForceAttemptHTTP2:   true,
+		TLSHandshakeTimeout: 10 * time.Second,
+		IdleConnTimeout:     90 * time.Second,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Extract host from address
-			host, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				host = addr
-			}
-
-			// Resolve and check the IP
-			ips, err := net.LookupIP(host)
-			if err != nil {
-				return nil, fmt.Errorf("SSRF protection: failed to resolve host %s: %w", host, err)
-			}
-
-			for _, ip := range ips {
-				if isPrivateIP(ip) {
-					return nil, fmt.Errorf("SSRF protection: blocked connection to private IP %s", ip)
-				}
-			}
-
-			return dialer.DialContext(ctx, network, addr)
+			return dialPublicAddress(ctx, network, addr, net.DefaultResolver.LookupIPAddr, dialer.DialContext)
 		},
 	}
 
@@ -201,6 +179,42 @@ func SafeHTTPClient(timeout time.Duration) *http.Client {
 			return nil
 		},
 	}
+}
+
+// Dial the checked literal IP, never the hostname (which would trigger a second
+// DNS lookup). The HTTP transport retains the original Host header and TLS SNI.
+// All answers are checked before dialing, including fallback addresses.
+func dialPublicAddress(ctx context.Context, network, addr string,
+	lookup func(context.Context, string) ([]net.IPAddr, error),
+	dial func(context.Context, string, string) (net.Conn, error),
+) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("SSRF protection: invalid destination: %w", err)
+	}
+	ips, err := lookup(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("SSRF protection: failed to resolve host: %w", err)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("SSRF protection: hostname has no addresses")
+	}
+	for _, ip := range ips {
+		if ip.Zone != "" || isPrivateIP(ip.IP) {
+			return nil, fmt.Errorf("SSRF protection: blocked non-public destination")
+		}
+	}
+	for _, ip := range ips {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		var conn net.Conn
+		conn, err = dial(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+	}
+	return nil, fmt.Errorf("SSRF protection: connection failed: %w", err)
 }
 
 // SafeGet performs a GET request with SSRF protection

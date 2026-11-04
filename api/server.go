@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // Server HTTP API server
@@ -32,8 +34,7 @@ type Server struct {
 	exchangeAccountStateCache *ExchangeAccountStateCache
 	httpServer                *http.Server
 	port                      int
-	telegramReloadCh          chan<- struct{} // signal Telegram bot to reload
-	authLimiter               *ipRateLimiter  // per-IP throttle for login/register
+	authLimiter               *ipRateLimiter // per-IP throttle for login/register
 }
 
 // NewServer Creates API server
@@ -42,6 +43,9 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
+	if err := configureTrustedProxies(router, os.Getenv("NOFX_TRUSTED_PROXIES")); err != nil {
+		panic(fmt.Sprintf("invalid NOFX_TRUSTED_PROXIES: %v", err))
+	}
 
 	// Enable CORS
 	router.Use(corsMiddleware())
@@ -323,21 +327,6 @@ Use this to enable/disable an exchange or update API credentials. The "id" field
 			s.routeWithSchema(protected, "DELETE", "/exchanges/:id", "Delete exchange account",
 				`:id = EXACT id from GET /api/exchanges. Permanently removes the exchange account and disconnects any traders using it.`,
 				s.handleDeleteExchange)
-
-			// Telegram bot configuration
-			s.routeWithSchema(protected, "GET", "/telegram", "Get Telegram bot configuration",
-				`Returns: {"bot_token":"<string>","model_id":"<EXACT id of configured AI model>","chat_id":"<bound Telegram chat id, empty if not bound>"}`,
-				s.handleGetTelegramConfig)
-			s.routeWithSchema(protected, "POST", "/telegram", "Set Telegram bot token and AI model",
-				`Body: {"bot_token":"<string — Telegram BotFather token>","model_id":"<EXACT id from GET /api/models>"}
-Both fields are required. After saving, the user must send /start in Telegram to bind their account.`,
-				s.handleUpdateTelegramConfig)
-			s.routeWithSchema(protected, "POST", "/telegram/model", "Update Telegram bot AI model only",
-				`Body: {"model_id":"<EXACT id from GET /api/models>"}`,
-				s.handleUpdateTelegramModel)
-			s.routeWithSchema(protected, "DELETE", "/telegram/binding", "Unbind Telegram account",
-				`No body needed. Clears the Telegram chat_id binding so the user can re-bind with /start.`,
-				s.handleUnbindTelegram)
 
 			// Strategy management
 			s.routeWithSchema(protected, "GET", "/strategies", "List user's strategies",
@@ -675,13 +664,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 
 		tokenString := tokenParts[1]
 
-		// Blacklist check
-		if auth.IsTokenBlacklisted(tokenString) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token expired, please login again"})
-			c.Abort()
-			return
-		}
-
 		// Validate JWT token
 		claims, err := auth.ValidateJWT(tokenString)
 		if err != nil {
@@ -691,17 +673,41 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// A valid signature alone is not an active session. Password changes,
+		// account deletion and logout must also take effect across restarts.
+		user, err := s.store.User().GetByID(claims.UserID)
+		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && user.AuthVersion != claims.AuthVersion) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session expired, please login again"})
+			return
+		}
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to validate session"})
+			return
+		}
+		revoked, err := s.store.User().IsSessionRevoked(claims.UserID, claims.ID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to validate session"})
+			return
+		}
+		if revoked {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session expired, please login again"})
+			return
+		}
+
 		// Store user information in context
 		c.Set("user_id", claims.UserID)
-		c.Set("email", claims.Email)
+		c.Set("email", user.Email)
 		c.Next()
 	}
 }
 
 // Start Start server
 func (s *Server) Start() error {
-	addr := fmt.Sprintf(":%d", s.port)
-	logger.Infof("🌐 API server starting at http://localhost%s", addr)
+	addr, err := apiListenAddress(s.port)
+	if err != nil {
+		return err
+	}
+	logger.Infof("🌐 API server starting at http://%s", addr)
 	logger.Infof("📊 API Documentation:")
 	logger.Infof("  • GET  /api/health           - Health check")
 	logger.Infof("  • GET  /api/traders          - Public AI trader leaderboard top 50 (no auth required)")
@@ -734,6 +740,19 @@ func (s *Server) Start() error {
 	return s.httpServer.ListenAndServe()
 }
 
+// Native installs are local-only by default. Container images explicitly bind
+// their internal interface; Compose separately restricts the published ports.
+func apiListenAddress(port int) (string, error) {
+	host := strings.TrimSpace(os.Getenv("NOFX_API_BIND_ADDRESS"))
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if net.ParseIP(host) == nil {
+		return "", fmt.Errorf("NOFX_API_BIND_ADDRESS must be an IP address")
+	}
+	return net.JoinHostPort(host, fmt.Sprint(port)), nil
+}
+
 // Shutdown Gracefully shutdown server
 func (s *Server) Shutdown() error {
 	s.planningMu.Lock()
@@ -749,9 +768,4 @@ func (s *Server) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return s.httpServer.Shutdown(ctx)
-}
-
-// SetTelegramReloadCh sets the channel used to signal the Telegram bot to reload
-func (s *Server) SetTelegramReloadCh(ch chan<- struct{}) {
-	s.telegramReloadCh = ch
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// handleLogout Add current token to blacklist
+// handleLogout durably revokes the current session before acknowledging logout.
 func (s *Server) handleLogout(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
@@ -33,13 +34,10 @@ func (s *Server) handleLogout(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 		return
 	}
-	var exp time.Time
-	if claims.ExpiresAt != nil {
-		exp = claims.ExpiresAt.Time
-	} else {
-		exp = time.Now().Add(24 * time.Hour)
+	if err := s.store.User().RevokeSession(claims.UserID, claims.ID, claims.ExpiresAt.Time); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Unable to revoke session; please retry logout"})
+		return
 	}
-	auth.BlacklistToken(tokenString, exp)
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
 }
 
@@ -96,7 +94,11 @@ func (s *Server) handleRegister(c *gin.Context) {
 		PasswordHash: passwordHash,
 	}
 
-	err = s.store.User().Create(user)
+	err = s.store.User().CreateFirst(user)
+	if errors.Is(err, store.ErrAlreadyInitialized) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "System already initialized"})
+		return
+	}
 	if err != nil {
 		SafeInternalError(c, "Failed to create user", err)
 		return
@@ -109,7 +111,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 	// explicitly via export/import, never via implicit adoption on registration.
 
 	// Generate JWT token
-	token, err := auth.GenerateJWT(user.ID, user.Email)
+	token, err := auth.GenerateJWT(user.ID, user.Email, user.AuthVersion)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
@@ -165,7 +167,7 @@ func (s *Server) handleLogin(c *gin.Context) {
 	}
 
 	// Issue token directly after password verification.
-	token, err := auth.GenerateJWT(user.ID, user.Email)
+	token, err := auth.GenerateJWT(user.ID, user.Email, user.AuthVersion)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return

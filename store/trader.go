@@ -99,9 +99,18 @@ func (s *TraderStore) UpdateStatus(userID, id string, isRunning bool) error {
 
 // UpdateShowInCompetition updates trader competition visibility
 func (s *TraderStore) UpdateShowInCompetition(userID, id string, showInCompetition bool) error {
-	return s.db.Model(&Trader{}).
+	result := s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", id, userID).
-		Update("show_in_competition", showInCompetition).Error
+		Update("show_in_competition", showInCompetition)
+	return ownedTraderMutationResult(result)
+}
+
+// PublicTraderIDs returns only explicitly public traders. Callers must recheck
+// visibility at the response boundary, even when serving cached market data.
+func (s *TraderStore) PublicTraderIDs() ([]string, error) {
+	var ids []string
+	err := s.db.Model(&Trader{}).Where("show_in_competition = ?", true).Pluck("id", &ids).Error
+	return ids, err
 }
 
 // Update updates trader configuration
@@ -151,21 +160,38 @@ func (s *TraderStore) UpdateInitialBalance(userID, id string, newBalance float64
 
 // UpdateCustomPrompt updates custom prompt
 func (s *TraderStore) UpdateCustomPrompt(userID, id string, customPrompt string, overrideBase bool) error {
-	return s.db.Model(&Trader{}).
+	result := s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Updates(map[string]interface{}{
 			"custom_prompt":        customPrompt,
 			"override_base_prompt": overrideBase,
-		}).Error
+		})
+	return ownedTraderMutationResult(result)
+}
+
+func ownedTraderMutationResult(result *gorm.DB) error {
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // Delete deletes trader and associated data
 func (s *TraderStore) Delete(userID, id string) error {
-	// Delete associated equity snapshots first
-	s.db.Where("trader_id = ?", id).Delete(&EquitySnapshot{})
-
-	// Delete the trader
-	return s.db.Where("id = ? AND user_id = ?", id, userID).Delete(&Trader{}).Error
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// Check ownership before touching associated history or runtime state.
+		var owned Trader
+		if err := tx.Where("id = ? AND user_id = ?", id, userID).First(&owned).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("trader_id = ?", id).Delete(&EquitySnapshot{}).Error; err != nil {
+			return err
+		}
+		return ownedTraderMutationResult(tx.Where("id = ? AND user_id = ?", id, userID).Delete(&Trader{}))
+	})
 }
 
 // GetFullConfig gets trader full configuration

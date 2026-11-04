@@ -186,7 +186,7 @@ For security concerns, reach out via:
 
 - **Email**: Contact maintainers (see [GitHub profile](https://github.com/NoFxAiOS/nofx))
 - **Twitter**: [@nofx_official](https://x.com/nofx_official) (DM open)
-- **Telegram**: [NOFX Developer Community](https://t.me/nofx_dev_community)
+
 - **GitHub**: Private security advisory (preferred for verified issues)
 
 ## ⚖️ Legal
@@ -210,7 +210,7 @@ This security policy may be updated from time to time. We will notify users of s
 
 - GitHub release notes
 - Security advisories
-- Community channels (Telegram, Twitter)
+
 
 ---
 

@@ -254,7 +254,7 @@ git push -f origin <your-pr-branch>
 
 **迁移遇到困难？**
 - 在你的 PR 中评论
-- 在 [Telegram](https://t.me/nofx_dev_community) 提问
+
 - 开启 [Discussion](https://github.com/NoFxAiOS/nofx/discussions)
 
 **我们在这里帮助你成功！** 🚀

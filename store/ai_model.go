@@ -162,7 +162,7 @@ func (s *AIModelStore) firstEnabledUsable(userID string) (*AIModel, error) {
 }
 
 // GetAnyEnabled returns the first enabled AI model across all users.
-// Used by single-user features (e.g. Telegram bot) that need any working LLM client.
+// Used by single-user features that need any working LLM client.
 func (s *AIModelStore) GetAnyEnabled() (*AIModel, error) {
 	var models []AIModel
 	err := s.db.Where("enabled = ?", true).

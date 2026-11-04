@@ -458,7 +458,7 @@ Reviewers will check:
 
 ## ❓ Questions?
 
-- **General questions:** Join our [Telegram Community](https://t.me/nofx_dev_community)
+
 - **Technical questions:** Open a [Discussion](https://github.com/NoFxAiOS/nofx/discussions)
 - **Security issues:** See [Security Policy](SECURITY.md)
 - **Bug reports:** Use [Bug Report Template](.github/ISSUE_TEMPLATE/bug_report.md)

@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     ports:
-      - "${NOFX_BACKEND_PORT:-8080}:8080"
+      - "${NOFX_BIND_ADDRESS:-127.0.0.1}:${NOFX_BACKEND_PORT:-8080}:8080"
     volumes:
       # Data directory for database and logs
       - ./data:/app/data
@@ -23,6 +23,7 @@ services:
     env_file:
       - .env
     environment:
+      - NOFX_API_BIND_ADDRESS=0.0.0.0
       - TZ=${TZ:-Asia/Shanghai}
       - AI_MAX_TOKENS=8000
     networks:
@@ -39,7 +40,7 @@ services:
     container_name: nofx-frontend
     restart: unless-stopped
     ports:
-      - "${NOFX_FRONTEND_PORT:-3000}:80"
+      - "${NOFX_BIND_ADDRESS:-127.0.0.1}:${NOFX_FRONTEND_PORT:-3000}:80"
     networks:
       - nofx-network
     depends_on:

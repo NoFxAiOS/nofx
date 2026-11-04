@@ -1,371 +1,440 @@
 import { motion } from 'framer-motion'
-import { ArrowRight, Shield, Activity, CircuitBoard, Wifi, Globe, Zap, Star, GitFork, Users, MessageCircle } from 'lucide-react'
+import {
+  ArrowRight,
+  Shield,
+  Activity,
+  CircuitBoard,
+  Wifi,
+  Globe,
+  Zap,
+  Star,
+  GitFork,
+  Users,
+} from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGitHubStats } from '../../../hooks/useGitHubStats'
 import AgentTerminal from '../brand/AgentTerminal'
 
 const tickerLabels: Record<string, string> = {
-    AAPL: 'AAPL',
-    MSFT: 'MSFT',
-    NVDA: 'NVDA',
-    TSLA: 'TSLA',
-    GOLD: 'GOLD',
-    EURUSD: 'EUR/USD',
-    SPX: 'S&P 500',
-    PREIPO: 'PRE-IPO INDEX',
+  AAPL: 'AAPL',
+  MSFT: 'MSFT',
+  NVDA: 'NVDA',
+  TSLA: 'TSLA',
+  GOLD: 'GOLD',
+  EURUSD: 'EUR/USD',
+  SPX: 'S&P 500',
+  PREIPO: 'PRE-IPO INDEX',
 }
 
 export default function TerminalHero() {
-    const navigate = useNavigate()
+  const navigate = useNavigate()
 
-    // Real-time price state
-    const [prices, setPrices] = useState<Record<string, string>>({
-        AAPL: '...',
-        MSFT: '...',
-        NVDA: '...',
-        TSLA: '...',
-        GOLD: '...',
-        EURUSD: '...',
-        SPX: '...',
-        PREIPO: '...'
-    })
+  // Real-time price state
+  const [prices, setPrices] = useState<Record<string, string>>({
+    AAPL: '...',
+    MSFT: '...',
+    NVDA: '...',
+    TSLA: '...',
+    GOLD: '...',
+    EURUSD: '...',
+    SPX: '...',
+    PREIPO: '...',
+  })
 
-    useEffect(() => {
-        const fetchPrices = async () => {
-            const symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOLD', 'EURUSD', 'SPX']
+  useEffect(() => {
+    const fetchPrices = async () => {
+      const symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'GOLD', 'EURUSD', 'SPX']
 
-            // We use Promise.all to fetch them in parallel for now, or sequentially if rate limited. 
-            // Parallel is better for UI responsiveness.
+      // We use Promise.all to fetch them in parallel for now, or sequentially if rate limited.
+      // Parallel is better for UI responsiveness.
+      try {
+        const results = await Promise.all(
+          symbols.map(async (sym) => {
             try {
-                const results = await Promise.all(symbols.map(async (sym) => {
-                    try {
-                        // Use native fetch to bypass global error handlers (toasts) in httpClient
-                        const response = await fetch(`/api/klines?symbol=xyz:${sym}&interval=1m&limit=1`)
-                        if (!response.ok) return null
+              // Use native fetch to bypass global error handlers (toasts) in httpClient
+              const response = await fetch(
+                `/api/klines?symbol=xyz:${sym}&interval=1m&limit=1`
+              )
+              if (!response.ok) return null
 
-                        const res = await response.json()
-                        // Check for standard API response structure or direct array
-                        const klineData = res.data || res
+              const res = await response.json()
+              // Check for standard API response structure or direct array
+              const klineData = res.data || res
 
-                        if (Array.isArray(klineData) && klineData.length > 0) {
-                            const closePrice = parseFloat(klineData[0].close || klineData[0][4]) // Handle object or array format
-                            if (isNaN(closePrice)) return null
+              if (Array.isArray(klineData) && klineData.length > 0) {
+                const closePrice = parseFloat(
+                  klineData[0].close || klineData[0][4]
+                ) // Handle object or array format
+                if (isNaN(closePrice)) return null
 
-                            // Format price: < 1 use 4 decimals, > 1 use 2
-                            const formatted = closePrice < 1
-                                ? closePrice.toFixed(4)
-                                : closePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            return { symbol: sym, price: formatted }
-                        }
-                    } catch (err) {
-                        // Silent failure for background polling
-                    }
-                    return null
-                }))
-
-                const newPrices: Record<string, string> = {}
-                results.forEach(r => {
-                    if (r) newPrices[r.symbol] = r.price
-                })
-
-                setPrices(prev => ({ ...prev, ...newPrices }))
-
-            } catch (e) {
-                console.error("Failed to fetch market prices", e)
+                // Format price: < 1 use 4 decimals, > 1 use 2
+                const formatted =
+                  closePrice < 1
+                    ? closePrice.toFixed(4)
+                    : closePrice.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                return { symbol: sym, price: formatted }
+              }
+            } catch (err) {
+              // Silent failure for background polling
             }
-        }
+            return null
+          })
+        )
 
-        // Only fetch once on mount, cache the result
-        fetchPrices()
-    }, [])
+        const newPrices: Record<string, string> = {}
+        results.forEach((r) => {
+          if (r) newPrices[r.symbol] = r.price
+        })
 
-    return (
-        <section className="relative w-full min-h-screen bg-nofx-bg text-nofx-text overflow-hidden flex flex-col pt-20">
+        setPrices((prev) => ({ ...prev, ...newPrices }))
+      } catch (e) {
+        console.error('Failed to fetch market prices', e)
+      }
+    }
 
-            {/* BACKGROUND LAYERS */}
-            {/* 1. Grid */}
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-multiply pointer-events-none"></div>
-            <div className="absolute inset-x-0 bottom-0 h-[50vh] bg-[linear-gradient(to_right,#1a181310_1px,transparent_1px),linear-gradient(to_bottom,#1a181310_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none md:hidden" style={{ transform: 'perspective(500px) rotateX(60deg) translateY(100px) scale(2)' }}></div>
-            <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
+    // Only fetch once on mount, cache the result
+    fetchPrices()
+  }, [])
 
-            {/* 2. World Map / Data Viz Background (Abstract) */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-                <div className="w-[80vw] h-[80vw] rounded-full border border-nofx-gold/20 animate-pulse-slow"></div>
-                <div className="absolute w-[60vw] h-[60vw] rounded-full border border-dashed border-nofx-accent/20 animate-[spin_60s_linear_infinite]"></div>
-            </div>
+  return (
+    <section className="relative w-full min-h-screen bg-nofx-bg text-nofx-text overflow-hidden flex flex-col pt-20">
+      {/* BACKGROUND LAYERS */}
+      {/* 1. Grid */}
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-multiply pointer-events-none"></div>
+      <div
+        className="absolute inset-x-0 bottom-0 h-[50vh] bg-[linear-gradient(to_right,#1a181310_1px,transparent_1px),linear-gradient(to_bottom,#1a181310_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none md:hidden"
+        style={{
+          transform:
+            'perspective(500px) rotateX(60deg) translateY(100px) scale(2)',
+        }}
+      ></div>
+      <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
 
-            {/* 3. Gradient Spots - Intensified for Mobile */}
-            <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-nofx-gold/10 rounded-full blur-[120px] pointer-events-none"></div>
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-nofx-accent/10 rounded-full blur-[120px] pointer-events-none"></div>
+      {/* 2. World Map / Data Viz Background (Abstract) */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+        <div className="w-[80vw] h-[80vw] rounded-full border border-nofx-gold/20 animate-pulse-slow"></div>
+        <div className="absolute w-[60vw] h-[60vw] rounded-full border border-dashed border-nofx-accent/20 animate-[spin_60s_linear_infinite]"></div>
+      </div>
 
-            {/* Mobile Bottom Fade */}
-            <div className="absolute bottom-0 left-0 w-full h-32 bg-linear-to-t from-nofx-bg to-transparent z-20 pointer-events-none md:hidden" />
+      {/* 3. Gradient Spots - Intensified for Mobile */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-nofx-gold/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-nofx-accent/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-            {/* Mobile Floating HUD */}
-            <div className="md:hidden absolute top-24 right-4 z-0 opacity-30 pointer-events-none">
-                <div className="w-20 h-20 border border-dashed border-nofx-gold/30 rounded-full animate-spin-slow flex items-center justify-center">
-                    <div className="w-12 h-12 border border-nofx-accent/30 rounded-full"></div>
+      {/* Mobile Bottom Fade */}
+      <div className="absolute bottom-0 left-0 w-full h-32 bg-linear-to-t from-nofx-bg to-transparent z-20 pointer-events-none md:hidden" />
+
+      {/* Mobile Floating HUD */}
+      <div className="md:hidden absolute top-24 right-4 z-0 opacity-30 pointer-events-none">
+        <div className="w-20 h-20 border border-dashed border-nofx-gold/30 rounded-full animate-spin-slow flex items-center justify-center">
+          <div className="w-12 h-12 border border-nofx-accent/30 rounded-full"></div>
+        </div>
+      </div>
+
+      {/* CONTENT GRID */}
+      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 max-w-[1800px] mx-auto w-full px-6 h-full pb-20 pt-10 pointer-events-none">
+        {/* LEFT COLUMN: TELEMETRY & STATUS */}
+        <div className="hidden lg:flex col-span-3 flex-col justify-between h-full border-r border-[rgba(25,36,52,0.14)] pr-8 py-10 pointer-events-auto">
+          {/* Top: System Health */}
+          <div className="space-y-6">
+            <div className="border border-[rgba(25,36,52,0.14)] rounded-sm p-4 bg-nofx-bg-lighter">
+              <h3 className="text-xs font-mono text-nofx-gold mb-4 flex items-center gap-2">
+                <Activity className="w-3 h-3" /> SYSTEM_DIAGNOSTICS
+              </h3>
+              <div className="space-y-3 font-mono text-[10px] text-nofx-text-muted">
+                <div className="flex justify-between items-center">
+                  <span>KERNEL_LATENCY</span>
+                  <span className="text-nofx-accent">12ms</span>
                 </div>
-            </div>
-
-            {/* CONTENT GRID */}
-            <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 max-w-[1800px] mx-auto w-full px-6 h-full pb-20 pt-10 pointer-events-none">
-
-                {/* LEFT COLUMN: TELEMETRY & STATUS */}
-                <div className="hidden lg:flex col-span-3 flex-col justify-between h-full border-r border-[rgba(25,36,52,0.14)] pr-8 py-10 pointer-events-auto">
-
-                    {/* Top: System Health */}
-                    <div className="space-y-6">
-                        <div className="border border-[rgba(25,36,52,0.14)] rounded-sm p-4 bg-nofx-bg-lighter">
-                            <h3 className="text-xs font-mono text-nofx-gold mb-4 flex items-center gap-2">
-                                <Activity className="w-3 h-3" /> SYSTEM_DIAGNOSTICS
-                            </h3>
-                            <div className="space-y-3 font-mono text-[10px] text-nofx-text-muted">
-                                <div className="flex justify-between items-center">
-                                    <span>KERNEL_LATENCY</span>
-                                    <span className="text-nofx-accent">12ms</span>
-                                </div>
-                                <div className="w-full h-1 bg-nofx-bg-deeper rounded-full overflow-hidden">
-                                    <div className="w-[90%] h-full bg-nofx-accent/50"></div>
-                                </div>
-
-                                <div className="flex justify-between items-center">
-                                    <span>MEMORY_INTEGRITY</span>
-                                    <span className="text-nofx-success">100%</span>
-                                </div>
-                                <div className="w-full h-1 bg-nofx-bg-deeper rounded-full overflow-hidden">
-                                    <div className="w-full h-full bg-nofx-success/50"></div>
-                                </div>
-
-                                <div className="flex justify-between items-center">
-                                    <span>UPTIME</span>
-                                    <span className="text-nofx-text">99.999%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-4 border border-[rgba(25,36,52,0.14)] rounded-sm bg-nofx-bg-lighter">
-                            <div className="flex items-center gap-3 text-nofx-text-muted mb-2">
-                                <Shield className="w-4 h-4" />
-                                <span className="text-[10px] font-mono tracking-widest">SECURITY PROTOCOLS</span>
-                            </div>
-                            <div className="flex gap-1">
-                                <div className="h-1 flex-1 bg-nofx-gold"></div>
-                                <div className="h-1 flex-1 bg-nofx-gold"></div>
-                                <div className="h-1 flex-1 bg-nofx-gold"></div>
-                                <div className="h-1 flex-1 bg-nofx-bg-deeper"></div>
-                            </div>
-                            <div className="mt-2 text-right text-[10px] text-nofx-gold/80 font-mono">LEVEL 3 ACTIVATE</div>
-                        </div>
-                    </div>
-
-                    {/* Bottom: Network Log */}
-                    <div className="font-mono text-[10px] text-nofx-text-muted space-y-1 opacity-70">
-                        <div>&gt; CONNECTING TO MARKET DATA... OK</div>
-                        <div>&gt; SYNCING VENUES (424/424)... OK</div>
-                        <div>&gt; LOADING MULTI-ASSET UNIVERSE... DONE</div>
-                        <div className="animate-pulse">&gt; AWAITING USER INPUT_</div>
-                    </div>
+                <div className="w-full h-1 bg-nofx-bg-deeper rounded-full overflow-hidden">
+                  <div className="w-[90%] h-full bg-nofx-accent/50"></div>
                 </div>
 
-                {/* CENTER COLUMN: MAIN ACTION */}
-                <div className="col-span-1 lg:col-span-6 flex flex-col items-center justify-center text-center relative z-20 pointer-events-auto">
-
-                    {/* Project Identity Chip */}
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-8 inline-flex items-center gap-3 px-4 py-2 rounded-full border border-nofx-gold/20 bg-nofx-gold/5 backdrop-blur-md"
-                    >
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-gold opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-gold"></span>
-                        </span>
-                        <span className="text-xs font-mono text-nofx-gold tracking-widest">NOFX PROFESSIONAL MULTI-ASSET AGENT OS</span>
-                    </motion.div>
-
-                    {/* Main Title - Massive & Impactful */}
-                    {/* Main Title - Massive & Impactful */}
-                    <div className="relative z-20">
-                        <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] md:leading-[0.8] mb-6 select-none text-nofx-text">
-                            AGENTIC<br />
-                            <span className="text-nofx-gold animate-shimmer tracking-tight">TRADING</span>
-                        </h1>
-
-                        <p className="max-w-xl text-nofx-text-muted text-lg mb-6 font-light leading-relaxed">
-                            Professional AI trading agents for US stocks, commodities, FX and Pre-IPO synthetic markets.
-                            Build institutional-grade strategies by chatting in plain English.
-                        </p>
-                    </div>
-
-                    {/* Market Access Strip - Prominent Display */}
-                    {/* Market Access Strip - Prominent Display */}
-                    <div className="flex flex-col gap-4 mb-14">
-                        <div className="text-nofx-gold/80 font-mono text-xs tracking-[0.3em] uppercase flex items-center gap-2 ml-1">
-                            <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-success opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-success"></span>
-                            </span>
-                            Live Data Feeds Active
-                        </div>
-                        <div className="flex flex-wrap gap-4 font-mono">
-                            {['US STOCKS', 'COMMODITIES', 'FOREX', 'PRE-IPO'].map((market) => (
-                                <div key={market} className="relative group cursor-default">
-                                    <div className="absolute -inset-0.5 bg-nofx-gold/15 rounded-lg blur-sm opacity-0 group-hover:opacity-100 transition duration-500"></div>
-                                    <div className="relative flex items-center gap-3 px-6 py-3 rounded-lg bg-nofx-bg-lighter border border-[rgba(25,36,52,0.14)] hover:border-nofx-gold/50 transition-all duration-300">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-nofx-success animate-pulse"></div>
-                                        <span className="text-lg md:text-xl font-bold text-nofx-text tracking-wider group-hover:text-nofx-gold transition-colors">{market}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Command Line Input Simulation */}
-                    <div className="w-full max-w-lg h-12 bg-nofx-bg-lighter border border-[rgba(25,36,52,0.14)] rounded-sm flex items-center px-4 mb-10 font-mono text-sm shadow-xs group hover:border-nofx-gold/50 transition-colors cursor-text" onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}>
-                        <span className="text-nofx-success mr-2">➜</span>
-                        <span className="text-nofx-accent mr-2">~</span>
-                        <span className="text-nofx-text-muted">create US stock trader --idea="breakouts"</span>
-                        <span className="w-2 h-4 bg-nofx-gold ml-1 animate-pulse"></span>
-                    </div>
-
-                    {/* CTA Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-                        <button
-                            onClick={() => navigate('/traders')}
-                            className="group relative overflow-hidden bg-nofx-gold text-nofx-bg-lighter px-8 py-4 font-bold font-mono tracking-wider hover:scale-105 transition-transform duration-200"
-                            style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}
-                        >
-                            <span className="relative z-10 flex items-center gap-2">
-                                START THE AUTOPILOT <ArrowRight className="w-4 h-4" />
-                            </span>
-                            <div className="absolute inset-0 bg-nofx-text/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                        </button>
-                        <button
-                            onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}
-                            className="px-8 py-4 font-bold font-mono tracking-wider text-nofx-text border border-[rgba(25,36,52,0.2)] rounded-sm hover:border-nofx-gold/50 hover:text-nofx-gold transition-colors"
-                        >
-                            SEE IT WORK
-                        </button>
-                    </div>
-
-                    {/* Plain-language promise — the anti-jargon line */}
-                    <p className="mt-5 text-sm text-nofx-text-muted font-mono">
-                        Self-hosted &amp; open source · about $13 is enough to start · guided
-                        setup, no API keys — first trade in minutes
-                    </p>
-
-                    {/* Community Stats Row */}
-                    <CommunityStats />
-
+                <div className="flex justify-between items-center">
+                  <span>MEMORY_INTEGRITY</span>
+                  <span className="text-nofx-success">100%</span>
                 </div>
+                <div className="w-full h-1 bg-nofx-bg-deeper rounded-full overflow-hidden">
+                  <div className="w-full h-full bg-nofx-success/50"></div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span>UPTIME</span>
+                  <span className="text-nofx-text">99.999%</span>
+                </div>
+              </div>
             </div>
 
-            {/* RIGHT COLUMN: Trader Terminal - Desktop Only */}
-            <div className="absolute top-0 right-0 h-full w-[50vw] hidden lg:flex flex-col items-end justify-end pr-8 pb-20 z-10">
-                {/* Subtle gradient orb */}
-                <div className="absolute top-1/2 right-[10%] -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-nofx-gold/8 blur-[100px] pointer-events-none"></div>
-
-                {/* Subtle grid fade */}
-                <div
-                    className="absolute inset-0 opacity-[0.03] pointer-events-none"
-                    style={{
-                        backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(25,36,52,0.3) 1px, transparent 0)',
-                        backgroundSize: '40px 40px',
-                        maskImage: 'radial-gradient(ellipse 80% 80% at 70% 50%, black 20%, transparent 70%)',
-                        WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 70% 50%, black 20%, transparent 70%)'
-                    }}
-                ></div>
-
-                {/* Trader Terminal Panel */}
-                <div className="relative z-20 pointer-events-auto">
-                    <AgentTerminal />
-                </div>
+            <div className="p-4 border border-[rgba(25,36,52,0.14)] rounded-sm bg-nofx-bg-lighter">
+              <div className="flex items-center gap-3 text-nofx-text-muted mb-2">
+                <Shield className="w-4 h-4" />
+                <span className="text-[10px] font-mono tracking-widest">
+                  SECURITY PROTOCOLS
+                </span>
+              </div>
+              <div className="flex gap-1">
+                <div className="h-1 flex-1 bg-nofx-gold"></div>
+                <div className="h-1 flex-1 bg-nofx-gold"></div>
+                <div className="h-1 flex-1 bg-nofx-gold"></div>
+                <div className="h-1 flex-1 bg-nofx-bg-deeper"></div>
+              </div>
+              <div className="mt-2 text-right text-[10px] text-nofx-gold/80 font-mono">
+                LEVEL 3 ACTIVATE
+              </div>
             </div>
+          </div>
 
-            {/* FLOATING TICKER FOOTER */}
-            <div className="absolute bottom-0 w-full bg-nofx-bg-lighter border-t border-[rgba(25,36,52,0.14)] backdrop-blur-md z-30 overflow-hidden py-2 flex items-center">
-                <div className="flex animate-marquee whitespace-nowrap gap-12 text-xs font-mono text-nofx-text-muted px-4">
-                    <span className="flex items-center gap-2"><Globe className="w-3 h-3 text-nofx-text-muted" /> GLOBAL MARKET ACCESS</span>
-                    <span className="flex items-center gap-2 text-nofx-gold"><Zap className="w-3 h-3" /> MULTI-ASSET ROUTING ENABLED</span>
-                    <span className="flex items-center gap-2"><Wifi className="w-3 h-3 text-nofx-success" /> LOW LATENCY LINK: 12ms</span>
+          {/* Bottom: Network Log */}
+          <div className="font-mono text-[10px] text-nofx-text-muted space-y-1 opacity-70">
+            <div>&gt; CONNECTING TO MARKET DATA... OK</div>
+            <div>&gt; SYNCING VENUES (424/424)... OK</div>
+            <div>&gt; LOADING MULTI-ASSET UNIVERSE... DONE</div>
+            <div className="animate-pulse">&gt; AWAITING USER INPUT_</div>
+          </div>
+        </div>
 
-                    {/* Dynamic Coins */}
-                    {Object.entries(prices).map(([symbol, price]) => (
-                        <span key={symbol} className="flex items-center gap-2">
-                            {tickerLabels[symbol] || symbol.toUpperCase()} <span className="text-nofx-success">${price}</span>
-                        </span>
-                    ))}
+        {/* CENTER COLUMN: MAIN ACTION */}
+        <div className="col-span-1 lg:col-span-6 flex flex-col items-center justify-center text-center relative z-20 pointer-events-auto">
+          {/* Project Identity Chip */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 inline-flex items-center gap-3 px-4 py-2 rounded-full border border-nofx-gold/20 bg-nofx-gold/5 backdrop-blur-md"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-gold opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-gold"></span>
+            </span>
+            <span className="text-xs font-mono text-nofx-gold tracking-widest">
+              NOFX PROFESSIONAL MULTI-ASSET AGENT OS
+            </span>
+          </motion.div>
 
-                    <span className="flex items-center gap-2"><CircuitBoard className="w-3 h-3 text-nofx-accent" /> AI MODEL: Claude Opus 4.6</span>
+          {/* Main Title - Massive & Impactful */}
+          {/* Main Title - Massive & Impactful */}
+          <div className="relative z-20">
+            <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] md:leading-[0.8] mb-6 select-none text-nofx-text">
+              AGENTIC
+              <br />
+              <span className="text-nofx-gold animate-shimmer tracking-tight">
+                TRADING
+              </span>
+            </h1>
 
-                    {/* Duplicate sequence for seamless loop effect (basic set) */}
-                    {Object.entries(prices).map(([symbol, price]) => (
-                        <span key={`${symbol} -dup`} className="flex items-center gap-2 md:hidden">
-                            {tickerLabels[symbol] || symbol.toUpperCase()} <span className="text-nofx-success">${price}</span>
-                        </span>
-                    ))}
-                </div>
+            <p className="max-w-xl text-nofx-text-muted text-lg mb-6 font-light leading-relaxed">
+              Professional AI trading agents for US stocks, commodities, FX and
+              Pre-IPO synthetic markets. Build institutional-grade strategies by
+              chatting in plain English.
+            </p>
+          </div>
+
+          {/* Market Access Strip - Prominent Display */}
+          {/* Market Access Strip - Prominent Display */}
+          <div className="flex flex-col gap-4 mb-14">
+            <div className="text-nofx-gold/80 font-mono text-xs tracking-[0.3em] uppercase flex items-center gap-2 ml-1">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-success opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-success"></span>
+              </span>
+              Live Data Feeds Active
             </div>
+            <div className="flex flex-wrap gap-4 font-mono">
+              {['US STOCKS', 'COMMODITIES', 'FOREX', 'PRE-IPO'].map(
+                (market) => (
+                  <div key={market} className="relative group cursor-default">
+                    <div className="absolute -inset-0.5 bg-nofx-gold/15 rounded-lg blur-sm opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                    <div className="relative flex items-center gap-3 px-6 py-3 rounded-lg bg-nofx-bg-lighter border border-[rgba(25,36,52,0.14)] hover:border-nofx-gold/50 transition-all duration-300">
+                      <div className="w-1.5 h-1.5 rounded-full bg-nofx-success animate-pulse"></div>
+                      <span className="text-lg md:text-xl font-bold text-nofx-text tracking-wider group-hover:text-nofx-gold transition-colors">
+                        {market}
+                      </span>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
 
-        </section >
-    )
+          {/* Command Line Input Simulation */}
+          <div
+            className="w-full max-w-lg h-12 bg-nofx-bg-lighter border border-[rgba(25,36,52,0.14)] rounded-sm flex items-center px-4 mb-10 font-mono text-sm shadow-xs group hover:border-nofx-gold/50 transition-colors cursor-text"
+            onClick={() =>
+              document
+                .getElementById('market-scanner')
+                ?.scrollIntoView({ behavior: 'smooth' })
+            }
+          >
+            <span className="text-nofx-success mr-2">➜</span>
+            <span className="text-nofx-accent mr-2">~</span>
+            <span className="text-nofx-text-muted">
+              create US stock trader --idea="breakouts"
+            </span>
+            <span className="w-2 h-4 bg-nofx-gold ml-1 animate-pulse"></span>
+          </div>
+
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
+            <button
+              onClick={() => navigate('/traders')}
+              className="group relative overflow-hidden bg-nofx-gold text-nofx-bg-lighter px-8 py-4 font-bold font-mono tracking-wider hover:scale-105 transition-transform duration-200"
+              style={{
+                clipPath:
+                  'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)',
+              }}
+            >
+              <span className="relative z-10 flex items-center gap-2">
+                START THE AUTOPILOT <ArrowRight className="w-4 h-4" />
+              </span>
+              <div className="absolute inset-0 bg-nofx-text/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+            </button>
+            <button
+              onClick={() =>
+                document
+                  .getElementById('market-scanner')
+                  ?.scrollIntoView({ behavior: 'smooth' })
+              }
+              className="px-8 py-4 font-bold font-mono tracking-wider text-nofx-text border border-[rgba(25,36,52,0.2)] rounded-sm hover:border-nofx-gold/50 hover:text-nofx-gold transition-colors"
+            >
+              SEE IT WORK
+            </button>
+          </div>
+
+          {/* Plain-language promise — the anti-jargon line */}
+          <p className="mt-5 text-sm text-nofx-text-muted font-mono">
+            Self-hosted &amp; open source · about $13 is enough to start ·
+            guided setup, no API keys — first trade in minutes
+          </p>
+
+          {/* Community Stats Row */}
+          <CommunityStats />
+        </div>
+      </div>
+
+      {/* RIGHT COLUMN: Trader Terminal - Desktop Only */}
+      <div className="absolute top-0 right-0 h-full w-[50vw] hidden lg:flex flex-col items-end justify-end pr-8 pb-20 z-10">
+        {/* Subtle gradient orb */}
+        <div className="absolute top-1/2 right-[10%] -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-nofx-gold/8 blur-[100px] pointer-events-none"></div>
+
+        {/* Subtle grid fade */}
+        <div
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(25,36,52,0.3) 1px, transparent 0)',
+            backgroundSize: '40px 40px',
+            maskImage:
+              'radial-gradient(ellipse 80% 80% at 70% 50%, black 20%, transparent 70%)',
+            WebkitMaskImage:
+              'radial-gradient(ellipse 80% 80% at 70% 50%, black 20%, transparent 70%)',
+          }}
+        ></div>
+
+        {/* Trader Terminal Panel */}
+        <div className="relative z-20 pointer-events-auto">
+          <AgentTerminal />
+        </div>
+      </div>
+
+      {/* FLOATING TICKER FOOTER */}
+      <div className="absolute bottom-0 w-full bg-nofx-bg-lighter border-t border-[rgba(25,36,52,0.14)] backdrop-blur-md z-30 overflow-hidden py-2 flex items-center">
+        <div className="flex animate-marquee whitespace-nowrap gap-12 text-xs font-mono text-nofx-text-muted px-4">
+          <span className="flex items-center gap-2">
+            <Globe className="w-3 h-3 text-nofx-text-muted" /> GLOBAL MARKET
+            ACCESS
+          </span>
+          <span className="flex items-center gap-2 text-nofx-gold">
+            <Zap className="w-3 h-3" /> MULTI-ASSET ROUTING ENABLED
+          </span>
+          <span className="flex items-center gap-2">
+            <Wifi className="w-3 h-3 text-nofx-success" /> LOW LATENCY LINK:
+            12ms
+          </span>
+
+          {/* Dynamic Coins */}
+          {Object.entries(prices).map(([symbol, price]) => (
+            <span key={symbol} className="flex items-center gap-2">
+              {tickerLabels[symbol] || symbol.toUpperCase()}{' '}
+              <span className="text-nofx-success">${price}</span>
+            </span>
+          ))}
+
+          <span className="flex items-center gap-2">
+            <CircuitBoard className="w-3 h-3 text-nofx-accent" /> AI MODEL:
+            Claude Opus 4.6
+          </span>
+
+          {/* Duplicate sequence for seamless loop effect (basic set) */}
+          {Object.entries(prices).map(([symbol, price]) => (
+            <span
+              key={`${symbol} -dup`}
+              className="flex items-center gap-2 md:hidden"
+            >
+              {tickerLabels[symbol] || symbol.toUpperCase()}{' '}
+              <span className="text-nofx-success">${price}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
 }
 
 import { OFFICIAL_LINKS } from '../../../constants/branding'
 
 function CommunityStats() {
-    const { stars, forks, contributors, isLoading, error } = useGitHubStats('NoFxAiOS', 'nofx')
+  const { stars, forks, contributors, isLoading, error } = useGitHubStats(
+    'NoFxAiOS',
+    'nofx'
+  )
 
-    const stats = [
-        {
-            label: 'GITHUB STARS',
-            value: isLoading ? '...' : (error ? '10,500+' : stars.toLocaleString()),
-            icon: Star,
-            color: 'text-nofx-gold',
-            href: OFFICIAL_LINKS.github
-        },
-        {
-            label: 'FORKS',
-            value: isLoading ? '...' : (error ? '2,800+' : forks.toLocaleString()),
-            icon: GitFork,
-            color: 'text-nofx-accent',
-            href: `${OFFICIAL_LINKS.github}/fork`
-        },
-        {
-            label: 'CONTRIBUTORS',
-            value: isLoading ? '...' : (contributors > 0 ? contributors : '50+'),
-            icon: Users,
-            color: 'text-nofx-success',
-            href: `${OFFICIAL_LINKS.github}/graphs/contributors`
-        },
-        {
-            label: 'DEV COMMUNITY',
-            value: '6,600+',
-            icon: MessageCircle,
-            color: 'text-nofx-accent',
-            href: OFFICIAL_LINKS.telegram
-        }
-    ]
+  const stats = [
+    {
+      label: 'GITHUB STARS',
+      value: isLoading ? '...' : error ? '10,500+' : stars.toLocaleString(),
+      icon: Star,
+      color: 'text-nofx-gold',
+      href: OFFICIAL_LINKS.github,
+    },
+    {
+      label: 'FORKS',
+      value: isLoading ? '...' : error ? '2,800+' : forks.toLocaleString(),
+      icon: GitFork,
+      color: 'text-nofx-accent',
+      href: `${OFFICIAL_LINKS.github}/fork`,
+    },
+    {
+      label: 'CONTRIBUTORS',
+      value: isLoading ? '...' : contributors > 0 ? contributors : '50+',
+      icon: Users,
+      color: 'text-nofx-success',
+      href: `${OFFICIAL_LINKS.github}/graphs/contributors`,
+    },
+  ]
 
-    return (
-        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl">
-            {stats.map((stat, i) => (
-                <a
-                    key={i}
-                    href={stat.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-col items-center justify-center p-3 rounded-sm bg-nofx-bg-lighter border border-[rgba(25,36,52,0.14)] group hover:border-nofx-gold/30 transition-all cursor-pointer hover:bg-nofx-bg-deeper"
-                >
-                    <div className="flex items-center gap-2 mb-1">
-                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                        <span className="text-[10px] font-mono text-nofx-text-muted tracking-wider">{stat.label}</span>
-                    </div>
-                    <span className="text-xl font-bold font-mono text-nofx-text group-hover:text-nofx-gold transition-colors">{stat.value}</span>
-                </a>
-            ))}
-        </div>
-    )
+  return (
+    <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl">
+      {stats.map((stat, i) => (
+        <a
+          key={i}
+          href={stat.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex flex-col items-center justify-center p-3 rounded-sm bg-nofx-bg-lighter border border-[rgba(25,36,52,0.14)] group hover:border-nofx-gold/30 transition-all cursor-pointer hover:bg-nofx-bg-deeper"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <stat.icon className={`w-4 h-4 ${stat.color}`} />
+            <span className="text-[10px] font-mono text-nofx-text-muted tracking-wider">
+              {stat.label}
+            </span>
+          </div>
+          <span className="text-xl font-bold font-mono text-nofx-text group-hover:text-nofx-gold transition-colors">
+            {stat.value}
+          </span>
+        </a>
+      ))}
+    </div>
+  )
 }

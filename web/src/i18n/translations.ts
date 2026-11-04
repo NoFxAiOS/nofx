@@ -629,8 +629,7 @@ export const translations = {
     step3Desc:
       'One-click Docker deployment, start AI agents. Note: High-risk market, only test with money you can afford to lose.',
     step4Title: 'Optimize & Contribute',
-    step4Desc:
-      'Monitor trading, submit PRs to improve framework. Join Telegram to share strategies.',
+    step4Desc: 'Monitor trading and submit PRs to improve the framework.',
     importantRiskWarning: 'Important Risk Warning',
     riskWarningText:
       'Dev branch is unstable, do not use funds you cannot afford to lose. NOFX is non-custodial, no official strategies. Trading involves risks, invest carefully.',
@@ -676,61 +675,21 @@ export const translations = {
 
     // ===== GETTING STARTED =====
 
-
-
-
-
-
     // ===== INSTALLATION =====
-
-
-
-
-
 
     // ===== CONFIGURATION =====
 
-
-
-
-
-
     // ===== TRADING =====
-
-
-
-
-
-
-
 
     // ===== TECHNICAL ISSUES =====
 
-
-
-
-
-
-
-
     // ===== SECURITY =====
-
-
-
 
     // ===== FEATURES =====
 
-
-
     // ===== AI MODELS =====
 
-
-
-
     // ===== CONTRIBUTING =====
-
-
-
 
     // Web Crypto Environment Check
     environmentCheck: {
@@ -1016,8 +975,7 @@ export const translations = {
       positionClosed: 'Position closed successfully',
       closeFailed: 'Failed to close position',
       closeAll: 'Close All',
-      confirmCloseAllPositions:
-        'Market-close ALL {count} open positions?',
+      confirmCloseAllPositions: 'Market-close ALL {count} open positions?',
       allPositionsClosed: 'All positions closed',
       closeAllPartial: '{failed} of {count} positions failed to close',
       hideAddress: 'Hide address',
@@ -1150,69 +1108,6 @@ export const translations = {
       apiKeyIndex: 'API Key Index',
       apiKeyIndexTooltip: 'API Key index starts from 0',
       back: 'Back',
-    },
-
-    // TelegramConfigModal
-    telegram: {
-      botSetup: 'Telegram Bot Setup',
-      createBot: 'Create Bot',
-      bindAccount: 'Bind Account',
-      done: 'Done',
-      invalidTokenFormat:
-        'Invalid Bot Token format. Expected "numbers:alphanumeric"',
-      tokenSaved: 'Bot Token saved, waiting for binding',
-      saveFailed: 'Save failed, please verify the token',
-      unbound: 'Telegram account unbound',
-      unbindFailed: 'Unbind failed',
-      step1Title: 'Step 1: Create your Bot in Telegram',
-      step1Desc1: 'Open Telegram, search for',
-      step1Desc2: 'Send',
-      step1Desc2Suffix: 'command',
-      step1Desc3: 'Follow prompts to set bot name and username',
-      step1Desc4: 'BotFather will return a Token, copy it',
-      openBotFather: 'Open @BotFather',
-      pasteToken: 'Paste Bot Token',
-      tokenFormat: 'Format: numbers:alphanumeric, e.g. 123456789:ABCdef...',
-      selectAiModel: 'Select AI Model (optional)',
-      noEnabledModels: 'No enabled models. Configure one in AI Models first.',
-      autoSelect: '— Auto-select (recommended)',
-      autoUseEnabled: 'Leave blank to auto-use any enabled model',
-      savingToken: 'Saving...',
-      saveAndContinue: 'Save & Continue',
-      step2Title: 'Step 2: Send /start to your Bot',
-      step2Desc1: 'Search for your newly created Bot in Telegram',
-      step2Desc2: 'Click Start or send',
-      step2Desc3: 'Bot will automatically bind to your account',
-      currentToken: 'Current Token',
-      waitingForStart:
-        'Waiting for you to send /start... Refresh page after sending',
-      reconfigureToken: 'Reconfigure Token',
-      bindSuccess: 'Bound successfully!',
-      noStartReceived:
-        'No /start received yet. Please send /start to your Bot first',
-      checkFailed: 'Check failed',
-      checkStatus: 'Check Status',
-      botActive: 'Telegram Bot is Active!',
-      botActiveDesc:
-        'You can now control the trading system via natural language in Telegram',
-      supportedCommands: 'Supported Commands',
-      cmdHelp: 'Show all commands',
-      cmdStatus: 'Show trader status',
-      cmdNaturalLang: 'Natural language',
-      cmdStartStop: 'Start/stop trader',
-      cmdControl: 'Natural language control',
-      cmdPositions: 'View positions',
-      cmdPositionsDesc: 'Real-time position query',
-      cmdStrategy: 'Configure strategy',
-      cmdStrategyDesc: 'Modify trading strategy',
-      unbinding: 'Unbinding...',
-      unbindAccount: 'Unbind Account',
-      aiModelLabel: 'AI Model (for natural language)',
-      aiModelAutoSelect: '— Auto-select',
-      modelUpdated: 'AI model updated',
-      modelUpdateFailed: 'Update failed',
-      save: 'Save',
-      loading: 'Loading...',
     },
 
     // TraderConfigViewModal
@@ -1816,7 +1711,7 @@ export const translations = {
     step3Desc:
       '一键 Docker 部署，启动 AI 代理。注意：高风险市场，仅用闲钱测试。',
     step4Title: '优化与贡献',
-    step4Desc: '监控交易，提交 PR 改进框架。加入 Telegram 分享策略。',
+    step4Desc: '监控交易，提交 PR 改进框架。',
     importantRiskWarning: '重要风险提示',
     riskWarningText:
       'dev 分支不稳定，勿用无法承受损失的资金。NOFX 非托管，无官方策略。交易有风险，投资需谨慎。',
@@ -1859,61 +1754,21 @@ export const translations = {
 
     // ===== 入门指南 =====
 
-
-
-
-
-
     // ===== 安装部署 =====
-
-
-
-
-
 
     // ===== 配置设置 =====
 
-
-
-
-
-
     // ===== 交易相关 =====
-
-
-
-
-
-
-
 
     // ===== 技术问题 =====
 
-
-
-
-
-
-
-
     // ===== 安全相关 =====
-
-
-
 
     // ===== 功能介绍 =====
 
-
-
     // ===== AI 模型 =====
 
-
-
-
     // ===== 参与贡献 =====
-
-
-
 
     // Web Crypto Environment Check
     environmentCheck: {
@@ -2313,64 +2168,6 @@ export const translations = {
       apiKeyIndex: 'API Key 索引',
       apiKeyIndexTooltip: 'API Key 索引从0开始',
       back: '返回',
-    },
-
-    telegram: {
-      botSetup: 'Telegram Bot 配置',
-      createBot: '创建 Bot',
-      bindAccount: '绑定账号',
-      done: '完成',
-      invalidTokenFormat: 'Bot Token 格式不正确，应为 "数字:字母数字串"',
-      tokenSaved: 'Bot Token 已保存，等待绑定',
-      saveFailed: '保存失败，请检查 Token 是否正确',
-      unbound: '已解绑 Telegram 账号',
-      unbindFailed: '解绑失败',
-      step1Title: '第一步：在 Telegram 创建你的 Bot',
-      step1Desc1: '打开 Telegram，搜索',
-      step1Desc2: '发送',
-      step1Desc2Suffix: '命令',
-      step1Desc3: '按提示输入 Bot 名称和用户名',
-      step1Desc4: 'BotFather 会返回一个 Token，复制它',
-      openBotFather: '打开 @BotFather',
-      pasteToken: '粘贴 Bot Token',
-      tokenFormat: 'Token 格式：数字:字母数字串，如 123456789:ABCdef...',
-      selectAiModel: '选择 AI 模型（可选）',
-      noEnabledModels: '暂无启用的模型，请先在「AI 模型」中配置',
-      autoSelect: '— 自动选择（推荐）',
-      autoUseEnabled: '不选则自动使用已启用的模型',
-      savingToken: '保存中...',
-      saveAndContinue: '保存并继续',
-      step2Title: '第二步：向你的 Bot 发送 /start',
-      step2Desc1: '在 Telegram 中搜索你刚创建的 Bot',
-      step2Desc2: '点击 Start 或发送',
-      step2Desc3: 'Bot 会自动绑定到你的账号',
-      currentToken: '当前 Token',
-      waitingForStart: '⏳ 等待你发送 /start... 发送后刷新页面查看状态',
-      reconfigureToken: '重新配置 Token',
-      bindSuccess: '绑定成功！',
-      noStartReceived: '尚未收到 /start，请先向 Bot 发送 /start',
-      checkFailed: '检查失败',
-      checkStatus: '检查绑定状态',
-      botActive: 'Telegram Bot 已绑定！',
-      botActiveDesc: '你现在可以通过 Telegram 用自然语言控制交易系统',
-      supportedCommands: '支持的命令',
-      cmdHelp: '查看所有命令',
-      cmdStatus: '查看交易员状态',
-      cmdNaturalLang: '自然语言查询',
-      cmdStartStop: '启动/停止交易员',
-      cmdControl: '自然语言控制',
-      cmdPositions: '查看持仓',
-      cmdPositionsDesc: '实时持仓查询',
-      cmdStrategy: '配置策略',
-      cmdStrategyDesc: '修改交易策略',
-      unbinding: '解绑中...',
-      unbindAccount: '解绑账号',
-      aiModelLabel: 'AI 模型（用于自然语言解析）',
-      aiModelAutoSelect: '— 自动选择',
-      modelUpdated: 'AI 模型已更新',
-      modelUpdateFailed: '更新失败',
-      save: '保存',
-      loading: '加载中...',
     },
 
     traderConfigView: {
@@ -2999,8 +2796,7 @@ export const translations = {
     step3Desc:
       'Deployment Docker satu klik, mulai agen AI. Catatan: Pasar berisiko tinggi, hanya uji dengan uang yang bisa Anda rugi.',
     step4Title: 'Optimalkan & Kontribusi',
-    step4Desc:
-      'Pantau trading, kirim PR untuk meningkatkan framework. Bergabung ke Telegram untuk berbagi strategi.',
+    step4Desc: 'Pantau trading dan kirim PR untuk meningkatkan framework.',
     importantRiskWarning: 'Peringatan Risiko Penting',
     riskWarningText:
       'Branch dev tidak stabil, jangan gunakan dana yang tidak sanggup Anda rugi. NOFX non-custodial, tanpa strategi resmi. Trading memiliki risiko, investasi dengan hati-hati.',
@@ -3377,7 +3173,8 @@ export const translations = {
       otherApiEntry: 'Penyedia API Lain',
       otherApiEntryDesc:
         'Gunakan API key Anda sendiri untuk OpenAI, Claude, Gemini, DeepSeek, dan lainnya.',
-      payPerCall: 'Bayar sesuai pemakaian USDC · Semua Model AI · Tanpa API Key',
+      payPerCall:
+        'Bayar sesuai pemakaian USDC · Semua Model AI · Tanpa API Key',
       recommended: 'Terbaik',
       allModelsClaw:
         'Bayar per panggilan dengan USDC — mendukung semua model AI utama',
@@ -3435,69 +3232,6 @@ export const translations = {
       apiKeyIndex: 'Indeks API Key',
       apiKeyIndexTooltip: 'Indeks API Key dimulai dari 0',
       back: 'Kembali',
-    },
-
-    telegram: {
-      botSetup: 'Setup Telegram Bot',
-      createBot: 'Buat Bot',
-      bindAccount: 'Hubungkan Akun',
-      done: 'Selesai',
-      invalidTokenFormat:
-        'Format Bot Token tidak valid. Seharusnya "angka:alfanumerik"',
-      tokenSaved: 'Bot Token tersimpan, menunggu binding',
-      saveFailed: 'Gagal menyimpan, silakan periksa token',
-      unbound: 'Akun Telegram terputus',
-      unbindFailed: 'Gagal memutuskan',
-      step1Title: 'Langkah 1: Buat Bot di Telegram',
-      step1Desc1: 'Buka Telegram, cari',
-      step1Desc2: 'Kirim',
-      step1Desc2Suffix: 'perintah',
-      step1Desc3: 'Ikuti petunjuk untuk mengatur nama dan username bot',
-      step1Desc4: 'BotFather akan mengembalikan Token, salin itu',
-      openBotFather: 'Buka @BotFather',
-      pasteToken: 'Tempel Bot Token',
-      tokenFormat: 'Format: angka:alfanumerik, mis. 123456789:ABCdef...',
-      selectAiModel: 'Pilih Model AI (opsional)',
-      noEnabledModels:
-        'Belum ada model aktif. Konfigurasi di AI Models terlebih dahulu.',
-      autoSelect: '— Pilih otomatis (disarankan)',
-      autoUseEnabled: 'Kosongkan untuk otomatis menggunakan model aktif',
-      savingToken: 'Menyimpan...',
-      saveAndContinue: 'Simpan & Lanjut',
-      step2Title: 'Langkah 2: Kirim /start ke Bot Anda',
-      step2Desc1: 'Cari Bot yang baru dibuat di Telegram',
-      step2Desc2: 'Klik Start atau kirim',
-      step2Desc3: 'Bot akan otomatis terhubung ke akun Anda',
-      currentToken: 'Token Saat Ini',
-      waitingForStart:
-        'Menunggu Anda mengirim /start... Refresh halaman setelah mengirim',
-      reconfigureToken: 'Konfigurasi Ulang Token',
-      bindSuccess: 'Berhasil terhubung!',
-      noStartReceived:
-        'Belum menerima /start. Silakan kirim /start ke Bot Anda terlebih dahulu',
-      checkFailed: 'Pemeriksaan gagal',
-      checkStatus: 'Periksa Status',
-      botActive: 'Telegram Bot Aktif!',
-      botActiveDesc:
-        'Anda sekarang dapat mengontrol sistem trading melalui bahasa alami di Telegram',
-      supportedCommands: 'Perintah yang Didukung',
-      cmdHelp: 'Tampilkan semua perintah',
-      cmdStatus: 'Tampilkan status trader',
-      cmdNaturalLang: 'Bahasa alami',
-      cmdStartStop: 'Mulai/hentikan trader',
-      cmdControl: 'Kontrol bahasa alami',
-      cmdPositions: 'Lihat posisi',
-      cmdPositionsDesc: 'Kueri posisi real-time',
-      cmdStrategy: 'Konfigurasi strategi',
-      cmdStrategyDesc: 'Ubah strategi trading',
-      unbinding: 'Memutuskan...',
-      unbindAccount: 'Putuskan Akun',
-      aiModelLabel: 'Model AI (untuk bahasa alami)',
-      aiModelAutoSelect: '— Pilih otomatis',
-      modelUpdated: 'Model AI diperbarui',
-      modelUpdateFailed: 'Gagal memperbarui',
-      save: 'Simpan',
-      loading: 'Memuat...',
     },
 
     traderConfigView: {

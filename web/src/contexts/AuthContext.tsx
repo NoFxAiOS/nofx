@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { getSystemConfig, invalidateSystemConfig } from '../lib/config'
 import { reset401Flag, httpClient } from '../lib/httpClient'
 import { getPostAuthPath, setUserMode, type UserMode } from '../lib/onboarding'
@@ -33,7 +34,7 @@ interface AuthContextType {
     betaCode?: string,
     mode?: UserMode
   ) => Promise<{ success: boolean; message?: string }>
-  logout: () => void
+  logout: () => Promise<void>
   isLoading: boolean
 }
 
@@ -259,15 +260,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // CLI command on the server (`nofx reset-password`), so it cannot be triggered
   // remotely. The reset-password page shows the operator how to run it.
 
-  const logout = () => {
+  const logout = async () => {
     const savedToken = localStorage.getItem('auth_token')
     if (savedToken) {
-      fetch('/api/logout', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${savedToken}` },
-      }).catch(() => {
-        /* ignore network errors on logout */
-      })
+      try {
+        const response = await fetch('/api/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${savedToken}` },
+        })
+        // A password change or an expired/revoked session is already invalid.
+        if (!response.ok && response.status !== 401) {
+          throw new Error('Session revocation failed')
+        }
+      } catch {
+        toast.error('Unable to confirm sign-out with the server. Please retry.')
+        return
+      }
     }
     setUser(null)
     setToken(null)

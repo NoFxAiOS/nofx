@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"nofx/store"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // handleDecisions Decision log list
@@ -110,7 +112,7 @@ func (s *Server) handleCompetition(c *gin.Context) {
 		logger.Infof("⚠️ Failed to load traders for user %s: %v", userID, err)
 	}
 
-	competition, err := s.traderManager.GetCompetitionData()
+	competition, err := s.getPublicCompetitionData()
 	if err != nil {
 		SafeInternalError(c, "Get competition data", err)
 		return
@@ -239,10 +241,64 @@ func floatFromMap(values map[string]interface{}, key string) float64 {
 	return 0
 }
 
+// filterPublicCompetition checks durable visibility after the market-data cache
+// is read. Opt-out and deletion must not wait for cache expiry to take effect.
+func (s *Server) filterPublicCompetition(data map[string]interface{}) (map[string]interface{}, error) {
+	ids, err := s.store.Trader().PublicTraderIDs()
+	if err != nil {
+		return nil, err
+	}
+	visible := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		visible[id] = true
+	}
+	traders, ok := data["traders"].([]map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid competition data format")
+	}
+	filtered := make([]map[string]interface{}, 0, len(traders))
+	for _, row := range traders {
+		id, _ := row["trader_id"].(string)
+		if visible[id] {
+			filtered = append(filtered, row)
+		}
+	}
+	// Do not mutate shared cached maps or slices.
+	result := make(map[string]interface{}, len(data))
+	for key, value := range data {
+		result[key] = value
+	}
+	result["traders"] = filtered
+	result["count"] = len(filtered)
+	if total, ok := result["total_count"].(int); ok {
+		// Cached aggregate counts must not disclose recently hidden traders.
+		result["total_count"] = min(total, len(ids))
+	}
+	return result, nil
+}
+
+func (s *Server) getPublicCompetitionData() (map[string]interface{}, error) {
+	data, err := s.traderManager.GetCompetitionData()
+	if err != nil {
+		return nil, err
+	}
+	return s.filterPublicCompetition(data)
+}
+
+func (s *Server) getPublicTopTradersData() (map[string]interface{}, error) {
+	data, err := s.getPublicCompetitionData()
+	if err != nil {
+		return nil, err
+	}
+	traders := data["traders"].([]map[string]interface{})
+	traders = traders[:min(5, len(traders))]
+	return map[string]interface{}{"traders": traders, "count": len(traders)}, nil
+}
+
 // handlePublicTraderList Get public trader list (no authentication required)
 func (s *Server) handlePublicTraderList(c *gin.Context) {
 	// Get trader information from all users
-	competition, err := s.traderManager.GetCompetitionData()
+	competition, err := s.getPublicCompetitionData()
 	if err != nil {
 		SafeInternalError(c, "Get trader list", err)
 		return
@@ -285,7 +341,7 @@ func (s *Server) handlePublicTraderList(c *gin.Context) {
 
 // handlePublicCompetition Get public competition data (no authentication required)
 func (s *Server) handlePublicCompetition(c *gin.Context) {
-	competition, err := s.traderManager.GetCompetitionData()
+	competition, err := s.getPublicCompetitionData()
 	if err != nil {
 		SafeInternalError(c, "Get competition data", err)
 		return
@@ -296,7 +352,7 @@ func (s *Server) handlePublicCompetition(c *gin.Context) {
 
 // handleTopTraders Get top 5 trader data (no authentication required, for performance comparison)
 func (s *Server) handleTopTraders(c *gin.Context) {
-	topTraders, err := s.traderManager.GetTopTradersData()
+	topTraders, err := s.getPublicTopTradersData()
 	if err != nil {
 		SafeInternalError(c, "Get top traders data", err)
 		return
@@ -319,7 +375,7 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 		traderIDsParam := c.Query("trader_ids")
 		if traderIDsParam == "" {
 			// If no trader_ids specified, return historical data for top 5
-			topTraders, err := s.traderManager.GetTopTradersData()
+			topTraders, err := s.getPublicTopTradersData()
 			if err != nil {
 				SafeInternalError(c, "Get top traders", err)
 				return
@@ -387,19 +443,27 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string, hours int) map[s
 
 	// Pre-fetch initial balances for all traders
 	initialBalances := make(map[string]float64)
+	visible := make(map[string]bool)
 	for _, traderID := range traderIDs {
 		if traderID == "" {
 			continue
 		}
 		// Get trader's initial balance from database (use GetByID which doesn't require userID)
 		trader, err := s.store.Trader().GetByID(traderID)
-		if err == nil && trader != nil && trader.InitialBalance > 0 {
+		if err != nil || trader == nil || !trader.ShowInCompetition {
+			// Do not distinguish private IDs from nonexistent IDs, or query
+			// their historical/live balances through this public endpoint.
+			errors[traderID] = "Trader not found"
+			continue
+		}
+		visible[traderID] = true
+		if trader.InitialBalance > 0 {
 			initialBalances[traderID] = trader.InitialBalance
 		}
 	}
 
 	for _, traderID := range traderIDs {
-		if traderID == "" {
+		if !visible[traderID] {
 			continue
 		}
 
@@ -498,6 +562,15 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 		return
 	}
 
+	config, err := s.store.Trader().GetByID(traderID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && !config.ShowInCompetition) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+	if err != nil {
+		SafeInternalError(c, "Get public trader configuration", err)
+		return
+	}
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})

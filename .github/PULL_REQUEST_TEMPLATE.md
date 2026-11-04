@@ -18,7 +18,7 @@
 - [ ] Trading engine / strategies
 - [ ] MCP / AI clients
 - [ ] API / server
-- [ ] Telegram bot / agent
+
 - [ ] Web UI / frontend
 - [ ] Config / deployment
 - [ ] CI/CD / infra

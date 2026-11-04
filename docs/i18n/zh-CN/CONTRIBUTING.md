@@ -460,7 +460,7 @@ docs: update Docker deployment guide
 
 ## ❓ 问题？
 
-- **一般问题：** 加入我们的 [Telegram 社区](https://t.me/nofx_dev_community)
+
 - **技术问题：** 开启[讨论](https://github.com/NoFxAiOS/nofx/discussions)
 - **安全问题：** 查看[安全政策](../../../SECURITY.md)
 - **Bug 报告：** 使用 [Bug 报告模板](../../../.github/ISSUE_TEMPLATE/bug_report.md)

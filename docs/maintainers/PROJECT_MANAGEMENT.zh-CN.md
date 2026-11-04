@@ -316,7 +316,7 @@ Available → Claimed → In Progress → Under Review → Paid
 
 ### 外部（社区）
 
-- **Telegram：** [@nofx_dev_community](https://t.me/nofx_dev_community)
+
 - **GitHub Issues：** Bug 报告、功能请求
 - **GitHub Discussions：** 一般问题、想法
 - **Twitter：** [@nofx_official](https://x.com/nofx_official) - 公告

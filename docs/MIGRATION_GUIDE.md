@@ -221,7 +221,7 @@ Closes #XXX
 **Can't find a document?**
 1. Check [docs/README.md](README.md) navigation hub
 2. Search GitHub repo
-3. Ask in [Telegram](https://t.me/nofx_dev_community)
+
 
 **Link broken?**
 - Report in [GitHub Issues](https://github.com/NoFxAiOS/nofx/issues)

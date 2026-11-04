@@ -254,7 +254,7 @@ If the migration script doesn't work:
 
 **Stuck on migration?**
 - Comment on your PR
-- Ask in [Telegram](https://t.me/nofx_dev_community)
+
 - Open a [Discussion](https://github.com/NoFxAiOS/nofx/discussions)
 
 **We're here to help you succeed!** 🚀

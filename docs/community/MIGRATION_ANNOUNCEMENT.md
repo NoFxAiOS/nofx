@@ -247,7 +247,7 @@ Don't panic! We're here to help.
 
 **Need help?** Just ask! Comment in your PR or reach out:
 - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
-- [Telegram Community](https://t.me/nofx_dev_community)
+
 
 ---
 
@@ -328,7 +328,7 @@ This new system helps YOU by:
 
 ### Get Help
 - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions) - Ask questions
-- [Telegram](https://t.me/nofx_dev_community) - Community chat
+
 - [Twitter](https://x.com/nofx_official) - Updates and announcements
 
 ---

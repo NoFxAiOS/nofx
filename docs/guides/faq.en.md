@@ -183,7 +183,7 @@ See the comprehensive [Troubleshooting Guide](TROUBLESHOOTING.md) for:
 
 ### Where can I get help?
 - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
-- [Telegram Community](https://t.me/nofx_dev_community)
+
 - [GitHub Issues](https://github.com/NoFxAiOS/nofx/issues)
 
 ---

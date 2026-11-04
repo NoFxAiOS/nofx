@@ -23,6 +23,7 @@ services:
     env_file:
       - .env
     environment:
+      - NOFX_API_BIND_ADDRESS=0.0.0.0
       - TZ=${TZ:-Asia/Shanghai}
       - AI_MAX_TOKENS=8000
     networks:

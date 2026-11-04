@@ -128,7 +128,7 @@ type ExchangeClient interface {
 ## 🤝 Support & Questions
 
 - Ask questions in this issue's comments
-- Join our Telegram: [NOFX Developer Community](https://t.me/nofx_dev_community)
+
 - Reference existing code: `trader/binance_futures.go`
 
 ## ⚠️ Important Notes
@@ -142,4 +142,4 @@ type ExchangeClient interface {
 
 **Ready to contribute?** Comment below or start working and submit a PR!
 
-**Questions?** Feel free to ask in the comments or on Telegram.
+**Questions?** Feel free to ask in the comments.

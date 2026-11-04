@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=flat&labelColor=192434&color=295BE8" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-295BE8?style=flat&labelColor=192434" alt="License: AGPL-3.0"></a>
-  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/telegram-community-295BE8?style=flat&labelColor=192434&logo=telegram&logoColor=white" alt="Telegram community"></a>
+
 </p>
 
 <p align="center">
@@ -137,7 +137,15 @@ Use Docker Desktop and a Bash environment such as WSL2, then run the one-line in
 
 **Remote deployments**
 
-The installer uses the production Compose configuration, which publishes its ports on all host interfaces by default. The source Compose configuration binds the frontend and API to `127.0.0.1` by default. Configure host bindings and an authenticated HTTPS proxy before exposing a remote instance.
+All Compose configurations (source, production and stable) bind the frontend and API to `127.0.0.1` by default. For remote access, use an SSH tunnel (`ssh -N -L 3000:127.0.0.1:3000 user@your-server`, then open `http://127.0.0.1:3000`) or an authenticated HTTPS reverse proxy. Complete first-time registration through the tunnel before allowing other users to reach the site. Do not expose an uninitialized installation publicly.
+
+The native Go server also defaults to `127.0.0.1` (`NOFX_API_BIND_ADDRESS`). Docker explicitly listens on its internal interface so the frontend proxy can reach it; `NOFX_BIND_ADDRESS` controls the host-published ports independently.
+
+**Upgrade notice:** previously published ports may become loopback-only when containers are recreated with the new Compose configuration. Set up your tunnel/HTTPS proxy first; do not restore public plaintext HTTP just to make the old URL work. `NOFX_BIND_ADDRESS` is an explicit override for secured network deployments. TLS must cover browser-to-proxy traffic; application field encryption (`TRANSPORT_ENCRYPTION`) does not protect login passwords or bearer tokens and is not a substitute for HTTPS.
+
+Forwarded client IP headers are ignored by default. If using a reverse proxy, set `NOFX_TRUSTED_PROXIES` to its exact IPs/CIDRs only, and have the proxy overwrite or correctly append the real connecting client address. Never trust `0.0.0.0/0`, `::/0`, or a network that contains untrusted clients. Without this setting, users behind the proxy share the login throttle; authentication still works. Password changes (including CLI resets) invalidate existing sessions; sign in again afterward. Logout revocations are stored in the database and survive restarts.
+
+This security upgrade requires a fresh web login once: old tokens without unique session IDs are rejected, preventing old in-memory logout records from being lost and sessions revived on restart. Accounts, passwords and trading records are preserved.
 
 </details>
 
@@ -246,7 +254,7 @@ https://github.com/user-attachments/assets/3310f495-14c5-4586-a1cc-3d32e44aa505
 ## Community
 
 
-[Telegram](https://t.me/nofx_dev_community) · [Twitter/X](https://x.com/vergex_ai) · [Issues](https://github.com/NoFxAiOS/nofx/issues) · [vergex.trade](https://vergex.trade) · [Live dashboard](https://vergex.trade/explore)
+[Twitter/X](https://x.com/vergex_ai) · [Issues](https://github.com/NoFxAiOS/nofx/issues) · [vergex.trade](https://vergex.trade) · [Live dashboard](https://vergex.trade/explore)
 
 ## Contributing
 

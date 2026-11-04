@@ -64,6 +64,7 @@ generate_env() {
     DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
     RSA_PRIVATE_KEY=$(openssl genrsa 2048 2>/dev/null | tr '\n' '\\' | sed 's/\\/\\n/g' | sed 's/\\n$//')
     cat > .env << EOF
+NOFX_BIND_ADDRESS=127.0.0.1
 NOFX_BACKEND_PORT=8080
 NOFX_FRONTEND_PORT=3000
 TZ=Asia/Shanghai
@@ -89,8 +90,11 @@ print_success() {
     local IP=$(get_server_ip)
     echo ""
     echo -e "${GREEN}Installation Complete!${NC}"
-    echo -e "  Web: http://${IP}:3000"
-    echo -e "  API: http://${IP}:8080"
+    echo -e "  Web (on server): http://127.0.0.1:3000"
+    echo -e "  API (on server): http://127.0.0.1:8080"
+    echo "  Remote access: ssh -N -L 3000:127.0.0.1:3000 user@${IP}"
+    echo "  Then open http://127.0.0.1:3000 locally, or configure an authenticated HTTPS proxy."
+    echo "  Upgrading: ports now default to loopback-only. Review NOFX_BIND_ADDRESS and proxy settings."
     echo ""
 }
 

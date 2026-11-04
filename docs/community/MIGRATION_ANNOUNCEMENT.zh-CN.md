@@ -247,7 +247,7 @@ perf(ai): optimize prompt generation
 
 **需要帮助？** 只管问！在你的 PR 中评论或联系：
 - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
-- [Telegram 社区](https://t.me/nofx_dev_community)
+
 
 ---
 
@@ -328,7 +328,7 @@ perf(ai): optimize prompt generation
 
 ### 获取帮助
 - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions) - 提问
-- [Telegram](https://t.me/nofx_dev_community) - 社区聊天
+
 - [Twitter](https://x.com/nofx_official) - 更新和公告
 
 ---

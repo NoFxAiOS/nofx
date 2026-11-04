@@ -1,9 +1,11 @@
 package store
 
 import (
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // UserStore user storage
@@ -16,6 +18,7 @@ type User struct {
 	ID           string    `gorm:"primaryKey" json:"id"`
 	Email        string    `gorm:"uniqueIndex:idx_users_email;not null" json:"email"`
 	PasswordHash string    `gorm:"column:password_hash;not null" json:"-"`
+	AuthVersion  int64     `gorm:"not null;default:0" json:"-"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -28,28 +31,49 @@ func NewUserStore(db *gorm.DB) *UserStore {
 }
 
 func (s *UserStore) initTables() error {
+	if err := s.db.AutoMigrate(&registrationLock{}, &revokedSession{}); err != nil {
+		return err
+	}
+	if err := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&registrationLock{ID: 1}).Error; err != nil {
+		return err
+	}
 	// For PostgreSQL with existing table, skip AutoMigrate to avoid index conflicts
 	if s.db.Dialector.Name() == "postgres" {
 		var tableExists int64
-		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'users'`).Scan(&tableExists)
+		if err := s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'users'`).Scan(&tableExists).Error; err != nil {
+			return err
+		}
 
 		if tableExists > 0 {
+			if err := s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version BIGINT NOT NULL DEFAULT 0`).Error; err != nil {
+				return err
+			}
 			// Table exists - manually ensure all columns exist
 			// Core columns (should already exist)
-			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`)
-			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`)
-			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
-			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
+			for _, statement := range []string{
+				`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`,
+				`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`,
+				`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+				`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+			} {
+				if err := s.db.Exec(statement).Error; err != nil {
+					return err
+				}
+			}
 
 			// Ensure unique index exists on email (don't care about the name)
 			var indexExists int64
-			s.db.Raw(`
+			if err := s.db.Raw(`
 				SELECT COUNT(*) FROM pg_indexes
-				WHERE tablename = 'users' AND indexdef LIKE '%email%' AND indexdef LIKE '%UNIQUE%'
-			`).Scan(&indexExists)
+				WHERE schemaname = current_schema() AND tablename = 'users' AND indexdef LIKE '%email%' AND indexdef LIKE '%UNIQUE%'
+			`).Scan(&indexExists).Error; err != nil {
+				return err
+			}
 
 			if indexExists == 0 {
-				s.db.Exec("CREATE UNIQUE INDEX idx_users_email ON users(email)")
+				if err := s.db.Exec("CREATE UNIQUE INDEX idx_users_email ON users(email)").Error; err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -61,6 +85,34 @@ func (s *UserStore) initTables() error {
 // Create creates user
 func (s *UserStore) Create(user *User) error {
 	return s.db.Create(user).Error
+}
+
+var ErrAlreadyInitialized = errors.New("system already initialized")
+
+// A singleton row serializes first registration across processes, not just
+// goroutines. Updating it acquires a write lock in both SQLite and PostgreSQL.
+type registrationLock struct {
+	ID int `gorm:"primaryKey"`
+}
+
+func (s *UserStore) CreateFirst(user *User) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		locked := tx.Model(&registrationLock{}).Where("id = ?", 1).Update("id", 1)
+		if locked.Error != nil {
+			return locked.Error
+		}
+		if locked.RowsAffected != 1 {
+			return errors.New("registration lock unavailable")
+		}
+		var count int64
+		if err := tx.Model(&User{}).Count(&count).Error; err != nil {
+			return err
+		}
+		if count != 0 {
+			return ErrAlreadyInitialized
+		}
+		return tx.Create(user).Error
+	})
 }
 
 // GetByEmail gets user by email
@@ -106,10 +158,18 @@ func (s *UserStore) GetAll() ([]User, error) {
 
 // UpdatePassword updates password
 func (s *UserStore) UpdatePassword(userID, passwordHash string) error {
-	return s.db.Model(&User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+	result := s.db.Model(&User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"password_hash": passwordHash,
+		"auth_version":  gorm.Expr("auth_version + 1"),
 		"updated_at":    time.Now().UTC(),
-	}).Error
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // DeleteAll deletes all users (reset system to uninitialized state)

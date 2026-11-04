@@ -56,7 +56,7 @@ Welcome to the NOFX documentation! This page helps you find the right documentat
 | [Aster Bounty](community/bounty-aster.md) | Aster DEX integration bounty | Aster DEX 集成悬赏 |
 
 **Get Involved:**
-- 💬 [Telegram Community](https://t.me/nofx_dev_community)
+
 - 🐦 [Twitter @nofx_official](https://x.com/nofx_official)
 - 🐛 [Report Issues](https://github.com/NoFxAiOS/nofx/issues)
 
@@ -127,7 +127,7 @@ Welcome to the NOFX documentation! This page helps you find the right documentat
 - 🔒 **Report security issue** → [Security Policy](../SECURITY.md)
 - 💰 **Claim a bounty** → [Bounty Guide](community/bounty-guide.md)
 - 🤝 **Contribute code** → [Contributing Guide](../CONTRIBUTING.md)
-- 💬 **Ask questions** → [Telegram Community](https://t.me/nofx_dev_community)
+
 
 ### I'm looking for...
 - 🏗️ **System architecture** → [Architecture (EN)](architecture/README.md) / [架构文档](architecture/README.zh-CN.md)
@@ -163,7 +163,7 @@ Welcome to the NOFX documentation! This page helps you find the right documentat
 **Can't find what you're looking for?**
 
 1. **Search GitHub Issues** - Someone might have asked already
-2. **Join Telegram** - [NOFX Developer Community](https://t.me/nofx_dev_community)
+
 3. **Ask on Twitter** - Mention [@nofx_official](https://x.com/nofx_official)
 4. **Create an Issue** - [New Issue](https://github.com/NoFxAiOS/nofx/issues/new)
 

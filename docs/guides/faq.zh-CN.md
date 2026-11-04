@@ -183,7 +183,7 @@ docker compose exec postgres \
 
 ### 在哪里可以获得帮助？
 - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
-- [Telegram 社区](https://t.me/nofx_dev_community)
+
 - [GitHub Issues](https://github.com/NoFxAiOS/nofx/issues)
 
 ---

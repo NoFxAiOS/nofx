@@ -11,13 +11,6 @@ export interface AIModel {
   balanceUsdc?: string
 }
 
-export interface TelegramConfig {
-  token_masked: string // Masked token like "123456:ABC***XYZ"
-  is_bound: boolean // Whether a user has sent /start
-  bound_chat_id?: number // The bound chat ID (if any)
-  model_id?: string // AI model selected for Telegram replies
-}
-
 export interface Exchange {
   id: string // UUID (empty for supported exchange templates)
   exchange_type: string // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"

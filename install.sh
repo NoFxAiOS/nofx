@@ -102,6 +102,7 @@ generate_env() {
 # Generated at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Server ports
+NOFX_BIND_ADDRESS=127.0.0.1
 NOFX_BACKEND_PORT=8080
 NOFX_FRONTEND_PORT=3000
 
@@ -243,8 +244,11 @@ print_success() {
     echo -e "║              🎉 Installation Complete! 🎉                   ║"
     echo -e "╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "  ${BLUE}Web Interface:${NC}  http://${SERVER_IP}:3000"
-    echo -e "  ${BLUE}API Endpoint:${NC}   http://${SERVER_IP}:8080"
+    echo -e "  ${BLUE}Web Interface (on server):${NC}  http://127.0.0.1:3000"
+    echo -e "  ${BLUE}API Endpoint (on server):${NC}   http://127.0.0.1:8080"
+    echo "  Remote access: ssh -N -L 3000:127.0.0.1:3000 user@${SERVER_IP}"
+    echo "  Then open http://127.0.0.1:3000 locally, or configure an authenticated HTTPS proxy."
+    echo "  Upgrading: ports now default to loopback-only. Review NOFX_BIND_ADDRESS and proxy settings."
     echo -e "  ${BLUE}Install Dir:${NC}    $INSTALL_DIR"
     echo ""
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗"
@@ -264,7 +268,7 @@ print_success() {
     echo "  $COMPOSE_CMD pull && $COMPOSE_CMD up -d  # Update to latest"
     echo ""
     echo -e "${YELLOW}Next Steps:${NC}"
-    echo "  1. Open http://${SERVER_IP}:3000 in your browser"
+    echo "  1. Open http://127.0.0.1:3000 (use the SSH tunnel above for a remote server)"
     echo "  2. Configure AI Models (DeepSeek, OpenAI, etc.)"
     echo "  3. Configure Exchanges (Binance, Hyperliquid, etc.)"
     echo "  4. Create a Strategy in Strategy Studio"

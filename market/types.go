@@ -53,8 +53,12 @@ type OIData struct {
 	Average float64
 }
 
-// IntradayData intraday data (3-minute interval)
+// IntradayData intraday data (3-minute interval by default; 5-minute when
+// sourced from Hyperliquid)
 type IntradayData struct {
+	// Interval is the K-line interval of the series (e.g. "3m", "5m").
+	// Empty means the legacy 3m default.
+	Interval    string
 	MidPrices   []float64
 	EMA20Values []float64
 	MACDValues  []float64
@@ -62,6 +66,13 @@ type IntradayData struct {
 	RSI14Values []float64
 	Volume      []float64
 	ATR14       float64
+}
+
+func (d *IntradayData) intervalOrDefault() string {
+	if d == nil || parseTimeframeToMinutes(d.Interval) <= 0 {
+		return "3m"
+	}
+	return d.Interval
 }
 
 // LongerTermData longer-term data (4-hour timeframe)
@@ -231,11 +242,11 @@ const (
 type GridDirection string
 
 const (
-	GridDirectionNeutral   GridDirection = "neutral"     // 50% buy + 50% sell
-	GridDirectionLong      GridDirection = "long"        // 100% buy
-	GridDirectionShort     GridDirection = "short"       // 100% sell
-	GridDirectionLongBias  GridDirection = "long_bias"   // 70% buy + 30% sell (default)
-	GridDirectionShortBias GridDirection = "short_bias"  // 30% buy + 70% sell (default)
+	GridDirectionNeutral   GridDirection = "neutral"    // 50% buy + 50% sell
+	GridDirectionLong      GridDirection = "long"       // 100% buy
+	GridDirectionShort     GridDirection = "short"      // 100% sell
+	GridDirectionLongBias  GridDirection = "long_bias"  // 70% buy + 30% sell (default)
+	GridDirectionShortBias GridDirection = "short_bias" // 30% buy + 70% sell (default)
 )
 
 // GetBuySellRatio returns the buy and sell ratio for this direction

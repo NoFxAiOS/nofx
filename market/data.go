@@ -45,9 +45,11 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	useHyperliquidAPI := isXyzAsset || strings.ToLower(exchange) == "hyperliquid"
 
 	// Get 3-minute K-line data (or 5-minute for xyz assets as 3m may not be available)
+	intradayInterval := "3m"
 	if useHyperliquidAPI {
 		// Use Hyperliquid API for xyz dex assets (use 5m since 3m may not be available)
-		klines3m, err = getKlinesFromHyperliquid(symbol, "5m", 100)
+		intradayInterval = "5m"
+		klines3m, err = getKlinesFromHyperliquid(symbol, intradayInterval, 100)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get 5-minute K-line from Hyperliquid: %v", err)
 		}
@@ -93,14 +95,9 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	currentRSI7 := calculateRSI(klines3m, 7)
 
 	// Calculate price change percentage
-	// 1-hour price change = price from 20 3-minute K-lines ago
-	priceChange1h := 0.0
-	if len(klines3m) >= 21 { // Need at least 21 K-lines (current + 20 previous)
-		price1hAgo := klines3m[len(klines3m)-21].Close
-		if price1hAgo > 0 {
-			priceChange1h = ((currentPrice - price1hAgo) / price1hAgo) * 100
-		}
-	}
+	// 1-hour price change = price from one hour's worth of intraday K-lines ago
+	// (20 bars for 3m, 12 bars for 5m)
+	priceChange1h := intradayPriceChange1h(klines3m, intradayInterval)
 
 	// 4-hour price change = price from 1 4-hour K-line ago
 	priceChange4h := 0.0
@@ -123,6 +120,7 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 
 	// Calculate intraday series data
 	intradayData := calculateIntradaySeries(klines3m)
+	intradayData.Interval = intradayInterval
 
 	// Calculate longer-term data
 	longerTermData := calculateLongerTermData(klines4h)
@@ -377,7 +375,9 @@ func Format(data *Data) string {
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
 
 	if data.IntradaySeries != nil {
-		sb.WriteString("Intraday series (3‑minute intervals, oldest → latest):\n\n")
+		interval := data.IntradaySeries.intervalOrDefault()
+		sb.WriteString(fmt.Sprintf("Intraday series (%d‑minute intervals, oldest → latest):\n\n",
+			parseTimeframeToMinutes(interval)))
 
 		if len(data.IntradaySeries.MidPrices) > 0 {
 			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
@@ -403,7 +403,7 @@ func Format(data *Data) string {
 			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
 		}
 
-		sb.WriteString(fmt.Sprintf("3m ATR (14‑period): %.3f\n\n", data.IntradaySeries.ATR14))
+		sb.WriteString(fmt.Sprintf("%s ATR (14‑period): %.3f\n\n", interval, data.IntradaySeries.ATR14))
 	}
 
 	if data.LongerTermContext != nil {
@@ -638,6 +638,26 @@ func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data,
 	}
 
 	return data, nil
+}
+
+// intradayPriceChange1h returns the 1-hour price change of an intraday series
+// sampled at interval (e.g. "3m", "5m"). It returns 0 when the series does not
+// cover a full hour or the interval is unknown.
+func intradayPriceChange1h(klines []Kline, interval string) float64 {
+	minutes := parseTimeframeToMinutes(interval)
+	if minutes <= 0 || minutes > 60 {
+		return 0
+	}
+	barsBack := 60 / minutes
+	if len(klines) < barsBack+1 { // current + barsBack previous
+		return 0
+	}
+	currentPrice := klines[len(klines)-1].Close
+	price1hAgo := klines[len(klines)-1-barsBack].Close
+	if price1hAgo <= 0 {
+		return 0
+	}
+	return ((currentPrice - price1hAgo) / price1hAgo) * 100
 }
 
 func priceChangeFromSeries(series []Kline, duration time.Duration) float64 {
